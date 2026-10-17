@@ -128,6 +128,7 @@ class View:
         mv = h.mover
         self.walk = mv.walk_map(st)
         self.sight = los.sight_for(mv.walkers, st["world"]["self"].get("map")) if self.walk is not None else None
+        self.wall_sight = None           # sees(strict): built on first use
         pets = set(h.team.roster) if h.team is not None else set()
         never = set(getattr(h.args, "never_aggro", None) or NEVER_AGGRO)
         world, me = st["world"], h.me(st)
@@ -156,21 +157,27 @@ class View:
             return tile[2]
         return los.surface_z(self.walk, tile[0], tile[1], self.pos[2]) if self.walk is not None else self.pos[2]
 
-    def sees(self, m: dict, tile, r: int) -> bool:
-        """Whether monster `m` would see a mobile on `tile` within `r` tiles."""
+    def sees(self, m: dict, tile, r: int, strict: bool = False) -> bool:
+        """Whether monster `m` would see a mobile on `tile` within `r` tiles. `strict`: a Wall-flagged static
+        blocks too (los.Sight walls; the hold's sight)."""
         if cheb(m["pos"], tile) > r:
             return False
         if self.sight is None:
             return True
-        return self.sight.can_see(m["pos"], (tile[0], tile[1], self.z_at(tile)))
+        sight = self.sight
+        if strict:
+            if self.wall_sight is None:
+                self.wall_sight = los.sight_for(self.h.mover.walkers, self.st["world"]["self"].get("map"), walls=True)
+            sight = self.wall_sight or sight
+        return sight.can_see(m["pos"], (tile[0], tile[1], self.z_at(tile)))
 
     def engaged(self, r: int = 8) -> list[dict]:
         """Monsters in war mode fighting us or the pets (or within `r`): what the pets fight now."""
         return [m for m in self.mobs if m["war"] and (m["serial"] in self.attacking or cheb(m["pos"], self.pos) <= r)]
 
-    def wakes(self, tile, margin: int = WAKE_MARGIN) -> list[dict]:
+    def wakes(self, tile, margin: int = WAKE_MARGIN, strict: bool = False) -> list[dict]:
         """Idle monsters that would wake to us on `tile` (their aggro range and sight, plus `margin`)."""
-        return [m for m in self.mobs if not m["war"] and not m["never"] and self.sees(m, tile, m["r"] + margin)]
+        return [m for m in self.mobs if not m["war"] and not m["never"] and self.sees(m, tile, m["r"] + margin, strict)]
 
     def first_on_us(self, tile, margin: int = 1) -> list[dict]:
         """Idle monsters that would see us on `tile` before a pet: in their aggro range and sight, and no

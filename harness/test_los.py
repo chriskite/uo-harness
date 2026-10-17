@@ -115,6 +115,10 @@ def synthetic():
 
     s = sight({(105, 100): [(WALL_PLAIN, 0)]})
     check("Wall|Impassable without NoShoot/Window: visible", s.can_see((100, 100, 0), (110, 100, 0)))
+    w = los.Sight(pathfind.Walk(FakeMap({(105, 100): [(WALL_PLAIN, 0)]}), None), walls=True)
+    check("...blocked with walls (a hold's sight)", not w.can_see((100, 100, 0), (110, 100, 0)))
+    check("...a low NoShoot still below the eye with walls", los.Sight(
+        pathfind.Walk(FakeMap({(105, 100): [(LOW, 0)]}), None), walls=True).can_see((100, 100, 0), (110, 100, 0)))
     s = sight({(105, 100): [(WINDOW, 0)]})
     check("Window flag: blocked", not s.can_see((100, 100, 0), (110, 100, 0)))
     s = sight({(105, 100): [(LOW, 0)]})

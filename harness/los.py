@@ -39,23 +39,28 @@ class Sight:
     """Line of sight on one facet, from a pathfind.Walk's map, tiledata and ground items
     (`walk.dynamic`, refreshed by Walkers.get: the item cache follows it)."""
 
-    def __init__(self, walk: "pathfind.Walk"):
+    def __init__(self, walk: "pathfind.Walk", walls: bool = False):
+        """`walls`: a Wall-flagged static blocks too, not only Window|NoShoot: the monsters' sight for a
+        hold (aggro.View.wakes strict; user 2026-10-17: "Logan is waiting for mobs that can't see him
+        through walls"; the Mausoleum's 0x00D1/0x00D9/0x00DA wall pieces carry Wall alone). Targeting
+        keeps the server's rule."""
         self.walk = walk
         self.m = walk.m
         self.td = walk.td
+        self._flags = _SIGHT_FLAGS | (uomap.WALL if walls else 0)
         self._tiles = {}         # (x, y) -> (land_low, land_top, land_ignored, invalid_land, static spans)
         self._items = {}         # (x, y) -> ground item spans (cleared when walk.dynamic changes)
         self._items_src = None
 
     # ---------------------------------------------------------------- tiles
     def _span(self, graphic):
-        """(height, blocks) for an item graphic: CalcHeight and whether Window|NoShoot is set
-        (a graphic past artdata.uoo's end counts as neither)."""
+        """(height, blocks) for an item graphic: CalcHeight and whether Window|NoShoot is set (Wall too
+        with `walls`; a graphic past artdata.uoo's end counts as neither)."""
         if not 0 <= graphic < self.td.item_count:
             return 0, False
         it = self.td.item(graphic)
         h = it.height // 2 if it.flags & uomap.BRIDGE else it.height
-        return h, bool(it.flags & _SIGHT_FLAGS)
+        return h, bool(it.flags & self._flags)
 
     def _tile(self, x, y):
         t = self._tiles.get((x, y))
@@ -171,17 +176,19 @@ def surface_z(walk: "pathfind.Walk", x: int, y: int, near_z: int = 0) -> int:
     return near_z if best is None else best
 
 
-def sight_for(walkers: "pathfind.Walkers", facet: int) -> "Sight | None":
+def sight_for(walkers: "pathfind.Walkers", facet: int, walls: bool = False) -> "Sight | None":
     """A Sight on `facet` from `walkers`' Walk (None where Walkers.get has no geometry). An
     existing Walk is taken as is, so its current ground items (the last Walkers.get) stay; the
-    Sight is cached on the Walk, so repeated calls share tile caches."""
+    Sight is cached on the Walk (one per `walls`), so repeated calls share tile caches."""
     facet = 0 if facet is None else facet
     if facet not in pathfind.MAP_FACETS:
         return None
     walk = walkers._walks.get(facet) or walkers.get(facet)
     if walk is None:
         return None
-    s = getattr(walk, "_sight", None)
+    attr = "_sight_walls" if walls else "_sight"
+    s = getattr(walk, attr, None)
     if s is None:
-        s = walk._sight = Sight(walk)
+        s = Sight(walk, walls)
+        setattr(walk, attr, s)
     return s

@@ -170,6 +170,7 @@ REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle mon
 CASTER_R = 10                 # a caster in war mode this close in sight is casting at us (loop_hunt.CASTER_REACH)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
+HOLD_R = 10                   # ...for one within this many tiles (the 16:12 run: none at 12-13 came)
 AT_ONCE_NEAR = 6              # an "at once" stop within this of one in the last AT_ONCE_S: the way on, go
 AT_ONCE_S = 120.0
 PULL_STEPS = 3                # a pull spot within this many steps
@@ -855,14 +856,18 @@ class Team:
         moved on); pull_spot picks where to stand for it. A monster held for that long without coming is
         passed over. Live 20261015_210709 21:34:05-15 a shadowguard 14 tiles off (a tile beyond the aggro range,
         the old margin) held the patrol 10 s and never woke (the user: "I'm pretty sure aggro range smaller
-        than 14 tiles")."""
+        than 14 tiles"). Only one that sees us past the walls too (a Wall-flagged static blocks: aggro.View.wakes
+        strict) and within HOLD_R (user 2026-10-17: "Logan is waiting for mobs that can't see him through walls
+        to 'come on'"; live 16:12 run, 17 holds: 11 of the 13 within 10 tiles woke in 0.5-3.5 s, two not found in
+        the replay; a shadow minion 12 tiles off behind a Wall-only piece and two at 13 never did; the Wall rule
+        would also have passed over the 16:38:21 shadowguard, which woke in 0.7 s)."""
         v = self.view(st)
         if not self.a.hold_first_sight or v.engaged():
             return None
         now = time.monotonic()
         seen = []
-        for m in v.wakes(v.pos, margin=0):
-            if self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
+        for m in v.wakes(v.pos, margin=0, strict=True):
+            if cheb(m["pos"], v.pos) <= HOLD_R and self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
                 seen.append(m)
         if not seen:
             return None

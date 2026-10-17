@@ -3092,6 +3092,21 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     - A walk to the gate that ends more than 30 tiles from it is the gate taken (`HuntLoop.through_gate`).
   - Simulator, 48 seeds, 20 min: deaths 34 to 33, deaths on a planned leave 11 to 8. No run evaded a monster, so
     the evade change isn't exercised there [INFERENCE: the simulator's elder vampires don't chase like this one].
+- **The 16:12 run's holds** (user: "Logan is waiting for mobs that can't see him through walls to 'come on'").
+  Replaying `session_20261017_155426` at each of the 17 "letting it come" holds (a throwaway script: the held
+  type's nearest idle mobile, `los.Sight` from it to us):
+  - Every held monster was in sight by the server's rule (only Window|NoShoot block).
+  - 11 of the 13 within 10 tiles woke in 0.5-3.5 s. Two weren't found in the replay.
+  - Three never woke: a shadow minion 12 tiles off (16:30:05) and two at 13 (16:33:18-24, z 15 under us at
+    z 25).
+  - The lines cross Mausoleum wall pieces flagged Wall alone (0x00D1, 0x00D9, 0x00DA; 0x00C5 carries
+    Wall|Impassable|NoShoot), which the server's rule sees through. With Wall blocking too, the 16:30:05
+    minion is out of sight, and so is the 16:38:21 shadowguard, which woke in 0.7 s anyway.
+  - So the hold now counts only monsters within HOLD_R 10 that see us with Wall blocking too
+    (`aggro.View.wakes(strict=True)`, `los.Sight(walls=True)`).
+  - Simulator, 48 seeds: deaths 33 to 32, but damage on Logan 31916 to 40957. The simulator's monsters see
+    by the server's rule (world.py `can_see`), so there they do see through those walls. Which rule the
+    live monsters use is the open question [INFERENCE: the user's observation says Wall blocks].
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

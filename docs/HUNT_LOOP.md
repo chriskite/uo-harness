@@ -502,8 +502,11 @@ what comes.
   the countess 2.4.
 - **Hold at first sight** (Logan at the nightstalker room's north edge: the wolves and the stalker came
   to him 5-10 s after first sight, the knight only when he moved on): with nothing fighting, the patrol,
-  an approach and the idle tick stop as soon as an idle monster would see us within 14 tiles (a step
-  outside its aggro range), for up to 10 s per monster; one that hasn't come by then is passed over.
+  an approach and the idle tick stop as soon as an idle monster within 10 tiles would see us, for up to 10 s per
+  monster; one that hasn't come by then is passed over. For the hold, a Wall-flagged static blocks its sight too:
+  the Mausoleum's 0x00D1/0x00D9/0x00DA wall pieces carry Wall alone, no NoShoot (user 2026-10-17: "Logan is
+  waiting for mobs that can't see him through walls to 'come on'"; NOTES "16:12 run's holds"). Targeting, the
+  pull budget and the stand-off keep the server's rule.
   **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
   fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
   near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they
