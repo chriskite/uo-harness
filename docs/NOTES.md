@@ -2557,6 +2557,26 @@ timestamped per packet. Facts:
   <utf8> 00 00`: hue 0x03B1 (Razor's default speech hue; his Razor profiles set none) and a
   double NUL. His typed speech ("room", "[damage") is hue 0x0170 with one NUL, Outland Dan's client
   0x02B2. `actions.razor_say` builds the Razor form (checked byte for byte); ANTICHEAT.md §8.20.
+- **Razor's three speech paths** (Razor CE source, markdwags/Razor master, read 2026-10-17; the
+  Outlands build is assumed to match: the pet-command bytes do). Every path ends a keyword-encoded
+  body in UTF-8 + `00 00` (`Packet.WriteUTF8Null`); unencoded bodies are UTF-16BE + `00 00`, the
+  same as the stock client's, so only hue and the encoded ending can tell them apart.
+  - *Built-in "Say" hotkeys* (pet commands, `HotKeys/Misc.cs` → `Player.Say(msg)`): hue = Razor
+    config `SpeechHue` (default 0x03B1, `UI/Config.cs`). This is `actions.razor_say`.
+  - *Recorded macros* (`Macros/Actions.cs` `SpeechAction`, files like
+    `Assistant.Macros.SpeechAction|0|368|3|ENU|0|room`: type, hue, font, lang, keyword count +
+    raw keyword bytes, text): hue = `World.Player.SpeechHue`, which `Core/Commands.cs OnSpeech`
+    sets from every `0xAD` the client sends; before the client has spoken this session, the
+    recorded hue. Keywords are the recorded bytes, not recomputed. So an unencoded macro line
+    ("room", "[Pouch", "[disarm") is byte-identical to the client typing it.
+  - *Script `say 'x'`* (`Scripts/SpeechCommands.cs`): `Player.Say(Config SysColor, x)`, default
+    0x0044 [upstream source only: no Outlands capture has a client `0xAD` at 0x0044].
+  - The user's macros were recorded in each character's ClassicUO profile `speech_hue`
+    (`ClassicUO/Data/Profiles/<acct>/UO Outlands/<char>/profile.json`): `DTF Room` 368 (Logan
+    Wolf 0x0170), `Pouch` 690 (Outland Dan 0x02B2), `Disarm` 569 (Satanic Panic 0x0239). All
+    client `0xAD` in logs/ (2026-10-17 tally): unencoded lines only in those profile hues
+    ("room", "[aspect", "[go"); encoded lines ("bank", "withdraw N") in the profile hue with one
+    NUL (typed; no bank macro exists); 0x03B1 only on the pet commands.
 - **Targeting is Razor-fast:** cursor to answer median 0.23 s after Discordance, 0.44 s after
   Peacemaking, 0.11 s after "All Kill"; the server's cursor follows the skill use (0x12 type 0x24
   "15 0", byte-identical to `actions.use_skill`) in 0.05–0.07 s. He presses hotkeys repeatedly:

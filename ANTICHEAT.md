@@ -287,6 +287,13 @@ Working rules, each tied to a detection surface above:
       third speech colour appear only when the agent talks [INFERENCE: whether Outlands logs it is
       unknown]. Remedy when wanted: take the hue (and font) from the client's own latest typed
       `0xAD` this session, per character, as the proxy already sees it.
+    - **Razor macros are not Razor-hued (2026-10-17, Razor CE source; docs/NOTES.md "Razor's three
+      speech paths").** A recorded macro's speech replays in the hue Razor last saw the client type
+      (else the recorded one, i.e. the ClassicUO profile's `speech_hue`), so "room" from the user's
+      `DTF Room.macro` is byte-identical to typing it. Only Razor's built-in "Say" hotkeys (the pet
+      commands) use 0x03B1. Sending "room"/"bank"/"[aspect" via `razor_say` would therefore put
+      them in a colour neither the user's typing nor his macros ever produce: the remedy above is
+      the Razor-faithful one too.
 
 ## 9. Open questions
 
