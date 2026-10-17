@@ -317,11 +317,11 @@ class World:
             elif not near and s in self.viewing:
                 self.viewing.discard(s)          # the client drops it by range itself
         for s, it in self.items.items():
-            if it.get("kind") in ("corpse", "gate", "fire", "eerie"):
+            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
-                    if it["kind"] in ("gate", "fire", "eerie"):
+                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
                     else:
                         self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
@@ -1405,11 +1405,16 @@ class World:
             lines = ["A rune tome", "Manage Runes", f"{it.get('charges', 30)}/50"] + [r["name"] for r in rows]
             self.send(P.gump(self.gump_n, escape.RUNETOME_GUMP, layout, lines))
 
-    def eerie_corpse(self, x, y, spirit="Karin Winckel") -> int:
-        """An eerie corpse on the ground at (x, y) (soul_jar.py); its serial."""
+    def eerie_corpse(self, x, y, spirit="Karin Winckel", art=0xB202) -> int:
+        """An eerie corpse on the ground at (x, y) (soul_jar.py: "dead" art, then its eerie whispers a few serials
+        on, beside it); the corpse's serial."""
         s = self._item_serial()
-        self.items[s] = {"kind": "eerie", "graphic": soul_jar.EERIE_CORPSE_GRAPHIC, "x": x, "y": y,
-                         "z": self.stand_z(x, y, self.player.z), "spirit": spirit}
+        z = self.stand_z(x, y, self.player.z)
+        self.items[s] = {"kind": "eerie", "graphic": art, "x": x, "y": y, "z": z, "spirit": spirit}
+        self.next_item += 6                                          # the blood and bones pieces, not simulated
+        w = self._item_serial()
+        self.items[w] = {"kind": "eerie_fx", "graphic": soul_jar.WHISPERS_GRAPHIC, "x": x + 1, "y": y, "z": z,
+                         "corpse": s}
         self._view()
         return s
 
@@ -1423,13 +1428,16 @@ class World:
         if corpse is None:
             return
         spirit = self.items.pop(corpse)["spirit"]
-        self.viewing_items.discard(corpse)
+        pieces = [c for c, it in self.items.items() if it.get("corpse") == corpse]
+        for c in [corpse, *pieces]:
+            self.items.pop(c, None)
+            self.viewing_items.discard(c)
         self._consume(s)
         filled = self._item_serial()
         self.items[filled] = {"graphic": soul_jar.FILLED_JAR_GRAPHIC, "amount": 1, "container": self.backpack,
                               "kind": "filled_jar"}
         self.send(P.says(self._item_serial(), "spirit energy", f"'My name was {spirit}....'", hue=946, body=0xA428),
-                  P.system_text(soul_jar.FILLED_TEXT), P.delete(corpse),
+                  P.system_text(soul_jar.FILLED_TEXT), *(P.delete(c) for c in [*pieces, corpse]),
                   P.contained(filled, soul_jar.FILLED_JAR_GRAPHIC, 1, self.backpack))
         self.count("soul_jars")
 

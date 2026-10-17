@@ -3418,11 +3418,20 @@ The client's names differ from tiledata's (`combat.item_name` falls back to tile
 Event rules: the 2026-10-17 news post (`ctl know search "Field of Souls" --tag news`); tactics, scoring by damage
 share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code: `harness/soul_jar.py`.
 
-- **Eerie corpse** (live 2026-10-17, Logan, capture `20261017_151814` 15:42:56–15:47:17, map0): a ground item,
-  graphic `0xB1F3` (45555, tiledata "dead"), click label "an eerie corpse", at (5243,667,0). Around it lie separate
-  items: blood `0x122A`–`0x122F`, bones `0x1D09`/`0x1D0B` and "eerie whispers" `0x6C6F` (a spell effect). It came
-  into view 18 tiles off and left the world model 5 s later (out of range) while Logan fought on; he filled his jar
-  at it 4 minutes later. It was the only one in about four hours of Logan's play that day.
+- **Eerie corpse** (live 2026-10-17, Logan; captures `20261017_151814` 15:42:56–15:47:17 and `20261017_172358`
+  17:26:17–17:26:34, map0): a ground item of random human-corpse art from tiledata's "dead" range `0xB1C0`–`0xB21C`
+  (seen `0xB1C5`, `0xB1F3`, `0xB201`, `0xB202`, `0xB20B`), click label "an eerie corpse". It spawns with its
+  pieces, each a separate item on the next serials: blood `0x122D`, `0x122F`, `0x122A`, bones `0x1D0B`,
+  `0x1D09`, and last "eerie whispers" `0x6C6F` (a spell effect) at serial +6..+8. Neither the art nor the
+  whispers alone is unique: the store holds 64 "dead"-art and 321 whispers ground items since September (decor,
+  spells). But "dead" art followed within 10 serials by a whispers item is unique: all 5 such pairs in the store
+  are that day's eerie corpses, every one with the same pieces in the same order. That is the rule
+  (`soul_jar.CORPSE_ART`, `WHISPERS_GAP`; until 2026-10-17 evening the code keyed on `0xB1F3` alone and would have
+  caught 1 of the 5).
+- **How often**: in Logan's ~4.5 h of play on 2026-10-17, 5 eerie corpses came into view: 13:38 (5188,667),
+  15:22 (5179,680), 15:42 (5243,667), 17:05 (5195,683) and 17:26 (5634,695), all in the Mausoleum area. He filled
+  jars at the 15:42 and 17:26 ones. The first came into view 18 tiles off and left the world model 5 s later (out
+  of range) while he fought on; he filled his jar at it 4 minutes later.
 - **Soul jars**: empty `0xA99F` ("an empty soul jar", stackable, tiledata "soul jar"; monster loot or 1,000 gp from
   an Occult Merchant), filled `0xA9A3` ("a filled soul jar captured by <name>", single-click: "(contains the soul of
   <spirit>)", "[will expire in 59m 57s]").
@@ -3433,14 +3442,29 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   corpse and its pieces deleted, then the filled jar (a new serial) in the backpack. What the server says when no
   corpse is in range wasn't seen.
 - **The alarm** (user request 2026-10-17: "a spoooky alert sound when an eerie corpse is seen (once per corpse)"):
-  the proxy watches every live session's world events. The first `item_seen` of a ground `0xB1F3` serial plays
+  the proxy watches every live session's world events. The first recognition of each eerie corpse (above; either
+  piece's `item_seen` may come first) plays
   `alerts.eerie`, a 2 s synthesized wail: a glide 330 → 494 → 196 Hz with 5.5 Hz vibrato and a voice a tritone up.
   It plays on its own thread (`winsound.PlaySound` with `SND_MEMORY` can't be asynchronous, and the relay must not
   wait). The proxy also emits the proxy event `eerie_corpse` {serial, map, x, y, z}, which goes to the store's
   events, and prints a console line. The seen serials are shared by all sessions and kept for the proxy's life,
   so a corpse that leaves the view and comes back, or that a second character sees, sounds once. `UO_QUIET` mutes
   it. Preview: `python -c "import sys; sys.path.insert(0, 'harness'); import alerts; alerts.eerie().join()"`.
-  Replaying the three Logan captures of 2026-10-17 through a SessionTap gave exactly one alarm, at 15:42:56.
+  Replaying Logan's four captures of 2026-10-17 through SessionTaps sharing one `EerieSeen` gave exactly the 5
+  alarms above, and `soul_jar.eerie_corpses` found each corpse in the world state at its alarm.
+- **The spirit alert** (user request 2026-10-17: "add an alert for our named spirit coming into view"): on entering
+  the field the server names our spirit: "If you put the spirit of Remon Stace to rest, you will receive a 33.0%
+  bonus to all further points earned this session." (live 17:27:09, 3 s after entering; 15:55:50 for Karin Winckel).
+  Eerie spirits are human-bodied mobiles named like players. The stock client single-clicks every mobile as it
+  comes into view (`0x09`), and the server's click label (`0x1C` type 6) carries the name 43 ms later: Remon
+  Stace at 17:28:32.18 → .22, Karin Winckel at 15:57:02.02 → .06. So the label is the sighting.
+  `soul_jar.SpiritWatch` (one per session, in the proxy) remembers the name. On the first label, `0x98` name or
+  speech from a mobile of that name that is in view, it plays `alerts.spirit` and emits the proxy event
+  `spirit_seen` {serial, name, x, y, z}. `alerts.spirit` is a 1.4 s rising bell chime (A5 C6 E6 A6), distinct from
+  the wail. It fires once per field session, also when the spirit was already in view when named. It forgets the
+  name at "Your body can no longer sustain itself within the Field of Souls." or 16 minutes after the naming.
+  Replaying both of Logan's runs gave one chime each, at 15:57:02 and 17:28:32. Preview:
+  `python -c "import sys; sys.path.insert(0, 'harness'); import alerts; alerts.spirit().join()"`.
 - **The hunt runner fills jars** (`--soul-jars`, default on; docs/HUNT_LOOP.md "Soul jars").
 
 ## Network observations
