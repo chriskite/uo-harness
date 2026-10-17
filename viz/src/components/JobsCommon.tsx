@@ -58,6 +58,7 @@ export function useJobPoll<T>(fetch: (tz: number, range: RangeBounds) => Promise
 }
 
 export const fetchLumber = (tz: number, range: RangeBounds) => fetchJobs("lumber", tz, range);
+export const fetchHunt = (tz: number, range: RangeBounds) => fetchJobs("hunt", tz, range);
 
 /** The plan poll: the last answer (null until the first), the last error, refresh now. */
 export interface PlanState {

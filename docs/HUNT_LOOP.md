@@ -777,7 +777,10 @@ share ([wiki Experience_Gain](https://wiki.uooutlands.com/Experience_Gain); no m
 to accumulate it). No capture shows a per-kill XP message (docs/NOTES.md "Experience"), so `xp` is the gold the corpse held when
 opened, before looting [INFERENCE: equal to the creature's value for a solo kill; the weekly bonus
 and Fortune scale gold and XP alike per the wiki]. Unlooted kills have no `xp`. The Jobs page's
-Hunting dashboard shows kills, gold and XP (docs/VISUALIZER.md §2.4).
+Hunting dashboard shows kills, gold and XP (docs/VISUALIZER.md §2.4). While a run goes, the Live
+page's Hunt job pane shows its totals, gold/hr and kills/hr over the last 5 min and damage per
+second (§2.16): every intent carries the run's `totals` as `tally`, its start as `started` and the
+visit number as `trip`.
 
 ### Loot rights (2026-10-03)
 

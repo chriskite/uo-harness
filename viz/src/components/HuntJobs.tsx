@@ -1,11 +1,8 @@
-import { fetchJobs } from "../api.ts";
 import { fmtDuration } from "../format.ts";
-import { eventView, fmtGp, fmtInt, fmtNum, fmtStamp, huntKpis, oneLocalDay, type RangeBounds } from "../jobs.ts";
+import { eventView, fmtGp, fmtInt, fmtNum, fmtStamp, huntKpis, oneLocalDay } from "../jobs.ts";
 import { EventStrip, RateChart, VisitBarsChart } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
-import { JobsHead, JobsLoading, useJobPoll, type JobDashboardProps } from "./JobsCommon.tsx";
-
-const fetchHunt = (tz: number, range: RangeBounds) => fetchJobs("hunt", tz, range);
+import { fetchHunt, JobsHead, JobsLoading, useJobPoll, type JobDashboardProps } from "./JobsCommon.tsx";
 
 /** Hunting job dashboard from /api/jobs?job=hunt (harness/jobs.py compute_hunt). */
 export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {

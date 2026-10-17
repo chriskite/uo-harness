@@ -7,6 +7,7 @@ import { EntityInspector } from "./components/EntityInspector.tsx";
 import { EventLog } from "./components/EventLog.tsx";
 import { GumpViewer } from "./components/GumpViewer.tsx";
 import { Header, type Page } from "./components/Header.tsx";
+import { HuntJobPanel } from "./components/HuntJobPanel.tsx";
 import { IntentPanel } from "./components/IntentPanel.tsx";
 import { JobsPage } from "./components/JobsPage.tsx";
 import type { JobKind } from "./components/JobsCommon.tsx";
@@ -21,6 +22,7 @@ import { PaperdollPanel } from "./components/PaperdollPanel.tsx";
 import { RazorPage } from "./components/RazorPage.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
+import { runningHunt } from "./huntjob.ts";
 import { localDay, parseRange, rangeQuery, routeQuery, routeRange, type DateRange } from "./jobs.ts";
 import { runningLumber } from "./lumberjob.ts";
 import { useViz } from "./store.ts";
@@ -50,6 +52,7 @@ export function App() {
   const nystul = useNystul();
   const [nyOpen, setNyOpen] = useState(() => localStorage.getItem(NYSTUL_OPEN_KEY) === "1");
   const lumber = runningLumber(viz.state?.intent);
+  const hunt = runningHunt(viz.state?.intent);
   const [route, setRoute] = useState(routeFromHash);
   const page = route.page;
   const [tab, setTab] = useState<Tab>("Inspector");
@@ -134,6 +137,7 @@ export function App() {
         )}
         <PaperdollPanel viz={viz} />
         {lumber && <LumberJobPanel intent={lumber} viz={viz} />}
+        {hunt && <HuntJobPanel intent={hunt} viz={viz} />}
       </aside>
       {liveMain ? (
         <main className="map">

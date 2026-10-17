@@ -2255,7 +2255,8 @@ ol.job-events li {
   gap: 6px;
   flex-wrap: wrap;
 }
-.lumber-job h3 {
+.lumber-job h3,
+.hunt-job h3 {
   margin: 8px 0 4px;
 }
 .lj-rate {
@@ -2275,6 +2276,25 @@ ol.job-events li {
   white-space: nowrap;
 }
 .lumber-job .wood-row > :last-child {
+  white-space: nowrap;
+}
+/* the left-column Hunt job pane: the target's health beside its name */
+.hj-hp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hj-hp .bar-track {
+  display: inline-block;
+  width: 64px;
+}
+.hj-hp .bar-fill {
+  display: block;
+}
+.hunt-job td.ended {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 /* lumber: where trip time goes (TimeSplitChart, the totals bar) */

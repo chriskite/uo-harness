@@ -58,6 +58,7 @@ import argparse
 import asyncio
 import collections
 import json
+import math
 import os
 import re
 import time
@@ -80,8 +81,8 @@ DIAG_TOP = 20     # packet_counts entries in the state response's diagnostics
 INTENT_TEXT_MAX = 200  # chars of an agent intent's text (set_intent)
 INTENT_HISTORY = 30    # recent agent intents kept in the state (set_intent)
 INTENT_SPOT_MAX = 64        # chars of a lumber spot id (set_intent)
-INTENT_WOODS_MAX = 32       # entries in an intent's per-wood log tally (set_intent)
-INTENT_WOOD_NAME_MAX = 40   # chars of a wood name in it
+INTENT_WOODS_MAX = 32       # entries in an intent's per-wood log tally / run tally (set_intent)
+INTENT_WOOD_NAME_MAX = 40   # chars of a wood name / tally key in it
 
 # Movement timing (docs/MOVEMENT.md, sessions 20260929_142237/_143051/_144541):
 RESYNC_REPLY_TIMEOUT_S = 1.5  # client resync: no 0xBF sub1 seed by then -> the server ignored it
@@ -121,6 +122,15 @@ CURSOR_CANCEL = 3                 # 0x6C cursor type byte: 3 = cancel
 
 def _i32(b: bytes, off: int) -> int:
     return int.from_bytes(b[off:off + 4], "big", signed=True)
+
+
+def _int_map(d, least: int | None) -> bool:
+    """Whether `d` is an intent tally: {name: int} with at most INTENT_WOODS_MAX entries,
+    names of 1..INTENT_WOOD_NAME_MAX chars, ints (not bools) of at least `least` (None: any)."""
+    return isinstance(d, dict) and len(d) <= INTENT_WOODS_MAX and all(
+        isinstance(k, str) and 0 < len(k) <= INTENT_WOOD_NAME_MAX
+        and isinstance(n, int) and not isinstance(n, bool) and (least is None or n >= least)
+        for k, n in d.items())
 
 
 class MoveAuthority:
@@ -613,8 +623,10 @@ class SessionTap:
         {"text": str, "kind"?: str, "target"?: [x, y], "target_serial"?: "0x..." (an entity
         the viz follows, e.g. the mob being fought), "loop"?: str, "trip"?: int,
         "trips"?: int, "spot"?: str (the lumber spot id), "woods"?: {wood: logs} (this
-        trip's logs by wood)} or None to clear. Stamped with `since`, logged to the jsonl
-        (so replays reproduce it) and emitted as proxy event `agent_intent`.
+        trip's logs by wood), "tally"?: {counter: int} (the run's totals so far, e.g. a
+        hunt's kills and gold), "started"?: epoch s (when the run began)} or None to clear.
+        Stamped with `since`, logged to the jsonl (so replays reproduce it) and emitted as
+        proxy event `agent_intent`.
 
         Also kept in `intents` (the last INTENT_HISTORY, oldest first) so late
         readers see recent history. An update of the same step (same kind,
@@ -642,11 +654,15 @@ class SessionTap:
             if isinstance(spot, str) and 0 < len(spot) <= INTENT_SPOT_MAX:
                 clean["spot"] = spot
             woods = intent.get("woods")                      # this trip's logs by wood; all or nothing
-            if isinstance(woods, dict) and len(woods) <= INTENT_WOODS_MAX and all(
-                    isinstance(w, str) and 0 < len(w) <= INTENT_WOOD_NAME_MAX
-                    and isinstance(n, int) and not isinstance(n, bool) and n >= 0
-                    for w, n in woods.items()):
+            if _int_map(woods, 0):
                 clean["woods"] = dict(woods)
+            tally = intent.get("tally")                      # the run's counters so far; all or nothing
+            if _int_map(tally, None):
+                clean["tally"] = dict(tally)
+            started = intent.get("started")                  # when the run began (epoch s)
+            if isinstance(started, (int, float)) and not isinstance(started, bool) \
+                    and math.isfinite(started) and started > 0:
+                clean["started"] = started
             cur = self.intent
             same = (cur is not None and clean.get("kind") is not None
                     and all(cur.get(k) == clean.get(k) for k in ("kind", "target", "target_serial", "loop", "trip")))

@@ -1873,6 +1873,25 @@ The user asked whether we could emulate the Outlands server and train the combat
   under-measured. Rejected for now: learning a policy from scratch (it would learn the sim's gaps).
 - Captures that would close the gaps are listed in docs/SIM.md "Captures wanted".
 
+## Hunt job pane in the viz (decided and built 2026-10-17)
+
+User request: a hunt job panel on the Live page like the lumber one, with gold looted per hour and DPS as
+instantaneous rates (docs/VISUALIZER.md §2.16). Decisions:
+
+- *Gold from the runner's own tally, carried on the intent.* `HuntLoop.doing` sends `tally` (its `totals`)
+  and `started` with every intent (proxy fields, §2.3); the viz keeps one sample per change from the
+  `agent_intent` events, plus the closed intent steps after a page load. Rejected: polling the store's
+  `loot` job events (no character filter in `/api/jobs`, a 15 s refresh, and the run's start isn't in the
+  store until a visit ends); the pack's gold (banking and buying move it; no history before the page).
+- *DPS in the browser from the "-N" numbers,* split by the damaged mobile's notoriety (us and green =
+  taken; hostile non-player creatures = dealt). No runner or proxy change, and the numbers carry exact
+  times. Accepted limit: the numbers name no attacker, so another player's damage on the same monsters
+  counts as dealt.
+- *Windows*: gold and kills over 5 min (loot comes a corpse at a time, ~800 gold each in the Mausoleum),
+  damage over 15 s.
+- The proxy needs a restart to pass the new fields; until then the pane shows DPS and says the tally is
+  missing.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

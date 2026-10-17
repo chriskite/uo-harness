@@ -230,6 +230,7 @@ class HuntLoop:
         self.memory = memory
         self.args = args
         self.t0 = time.monotonic()
+        self.started = round(time.time(), 1)     # the run's start (epoch s), for the viz's Hunt job pane
         self.human = Human(args.human, seed=args.seed, fast=args.human_fast, log=log,
                            sleep=self.pause if args.leave_recall else None)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
@@ -301,9 +302,12 @@ class HuntLoop:
 
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
-        """Tell the visualizer what the agent is trying to do (proxy-side only)."""
+        """Tell the visualizer what the agent is trying to do (proxy-side only), with the visit
+        number as the trip, the run's totals so far (`tally`) and when the run began."""
         self.link.intent(text, kind, target, loop="hunt",
-                         target_serial=key_of(serial) if serial is not None else None)
+                         target_serial=key_of(serial) if serial is not None else None,
+                         trip=self.visit_n or None, tally={k: int(v) for k, v in self.totals.items()},
+                         started=self.started)
 
     def _where(self, st):
         pos = st["movement"]["pos"] or [None, None]

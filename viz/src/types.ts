@@ -242,6 +242,10 @@ export interface AgentIntent {
   spot?: string;
   /** Lumber runs: this trip's logs by wood name (the runner's pack ledger). */
   woods?: Record<string, number>;
+  /** Hunt runs: the run's totals so far (loop_hunt `totals`: kills, gold, xp, hits_lost, heals, potions, …). */
+  tally?: Record<string, number>;
+  /** Hunt runs: when the run began (epoch s). */
+  started?: number;
   /** Proxy wall clock (epoch s) when this step started (kept across merged updates). */
   since: number;
   /** History entries only: when the next intent replaced it (or it was cleared). */

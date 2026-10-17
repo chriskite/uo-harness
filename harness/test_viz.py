@@ -200,7 +200,7 @@ def seed_jobs(m: memory.Memory):
 
 
 def test_intent_fields():
-    print("== agent intent: lumber spot and per-wood tally (proxy.SessionTap.set_intent) ==")
+    print("== agent intent: lumber spot and per-wood tally, hunt run tally (proxy.SessionTap.set_intent) ==")
     tap = proxy.SessionTap(viz_feed._Null(), viz_feed._Null(), viz_feed._Null())
     base = {"text": "Chopping by 1,2 (3/15 logs)", "kind": "chop", "loop": "lumber", "trip": 1, "trips": 2,
             "target": [1, 2]}
@@ -217,6 +217,21 @@ def test_intent_fields():
         check(f"malformed woods dropped: {str(woods)[:40]}", "woods" not in tap.intent, str(tap.intent))
     tap.set_intent({**base, "spot": "s" * 65})
     check("a too-long spot id dropped", "spot" not in tap.intent, str(tap.intent))
+    fight = {"text": "Fighting a shade wolf", "kind": "fight", "loop": "hunt", "trip": 1, "target_serial": "0x7B7FD"}
+    tap.set_intent({**fight, "tally": {"kills": 3, "gold": 1800, "hits_lost": -2}, "started": 1792250000.5})
+    check("a hunt run's tally (any int) and start kept",
+          tap.intent.get("tally") == {"kills": 3, "gold": 1800, "hits_lost": -2}
+          and tap.intent.get("started") == 1792250000.5, str(tap.intent))
+    n = len(tap.intents)
+    tap.set_intent({**fight, "tally": {"kills": 4, "gold": 2500, "hits_lost": -2}, "started": 1792250000.5})
+    check("a run tally update stays one step", tap.intent["tally"]["gold"] == 2500 and len(tap.intents) == n
+          and "until" not in tap.intents[-1], str(tap.intents[-1]))
+    for tally in ({"gold": 1.5}, {"gold": False}, {"": 1}, {f"k{i}": 1 for i in range(33)}):
+        tap.set_intent({**fight, "tally": tally})
+        check(f"malformed tally dropped: {str(tally)[:40]}", "tally" not in tap.intent, str(tap.intent))
+    for started in (True, 0, -5, float("nan"), float("inf"), "1792250000"):
+        tap.set_intent({**fight, "started": started})
+        check(f"bad started dropped: {started!r}", "started" not in tap.intent, str(tap.intent))
 
 
 def test_jobs():

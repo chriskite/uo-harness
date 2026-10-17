@@ -1,6 +1,8 @@
 // Pure event helpers: EventLog filtering, click labels, the running aggregates
-// (last agent action, movement log, trail, live walk memory) that outlive the
-// 500-entry display ring, and the view of the state's cumulative traffic counters.
+// (last agent action, movement log, trail, live walk memory, the Hunt job pane's damage
+// numbers and run tallies) that outlive the 500-entry display ring, and the view of the
+// state's cumulative traffic counters.
+import { foldHunt, type HuntStream } from "./huntjob.ts";
 import { SERIAL_FIELDS, toHex } from "./serial.ts";
 import type { EventData, EventEnvelope, HexSerial, Snapshot, Tile, TrafficCounts } from "./types.ts";
 
@@ -137,6 +139,8 @@ export interface Aggregates {
   lastAgent: AgentAction | null;
   /** Last world event decoded from a C2S packet (pairing aid for lastAgent). */
   lastC2SWorld: EventEnvelope | null;
+  /** Damage numbers and hunt run tallies (huntjob.ts foldHunt), trimmed by age. */
+  hunt: HuntStream;
 }
 
 export function emptyAggregates(): Aggregates {
@@ -147,6 +151,7 @@ export function emptyAggregates(): Aggregates {
     movementLog: [],
     lastAgent: null,
     lastC2SWorld: null,
+    hunt: { damage: [], tally: [], from: null },
   };
 }
 
@@ -162,6 +167,7 @@ const samePacket = (a: EventEnvelope, b: { seq: number; t: number }) =>
 /** Fold one envelope into the aggregates (mutates `agg`). */
 export function foldEvent(agg: Aggregates, env: EventEnvelope): void {
   const d = env.data;
+  foldHunt(agg.hunt, env);
   if (env.origin === "world") {
     const label = speechLabel(d);
     if (label) agg.labels[label.serial] = label.text;
@@ -218,6 +224,7 @@ export function cloneAggregates(a: Aggregates): Aggregates {
     movementLog: [...a.movementLog],
     lastAgent: a.lastAgent && { ...a.lastAgent },
     lastC2SWorld: a.lastC2SWorld,
+    hunt: { damage: [...a.hunt.damage], tally: [...a.hunt.tally], from: a.hunt.from },
   };
 }
 

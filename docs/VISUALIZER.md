@@ -284,6 +284,13 @@ The runners report what they are trying to do right now on the proxy's state por
     (`ledger.summary(kind="log")`), frozen at `stats["woods"]` once converting starts; the chop
     intent is re-sent before every chop, so the tally lags at most one chop.
   - Older proxies drop both fields; older runners don't send them.
+- **`tally` and `started`** (hunt runs, 2026-10-17): the run's counters so far (`{name: int}`, ≤ 32
+  entries, names ≤ 40 chars, any int; all or nothing like `woods`) and when the run began (epoch s,
+  a positive finite number). Neither is part of the same-step key.
+  - The hunt runner (`HuntLoop.doing`) sends its `totals` (kills, lost_kills, gold, xp, hits_lost,
+    casts, heals, potions, leaves, visits, banked, …) and `started` with every intent, and the
+    visit number as `trip`. Every intent update therefore carries the tally (§2.16 relies on it).
+  - Older proxies drop both fields; older runners don't send them.
 - **Healthbars:** under TestWorth and under every mobile whose hits are known (other mobiles'
   hits arrive as percentages). Hurt mobiles always show one; full ones from 8 px/tile zoom up.
   Colours: green, yellow below 50%, red below 25%. The attack marker is red.
@@ -923,6 +930,45 @@ docs/NOTES.md "Razor profiles and hotkeys"; decision: docs/PLAN.md "Razor hotkey
   bindings table, Revert/Save (Ctrl+S), a stale banner with Reload when Razor saved the profile
   meanwhile (polled every 10 s).
 
+### 2.16 Hunt job pane (added 2026-10-17, user request)
+
+A **Hunt job** panel in the left column, below the Paperdoll (where the Lumber job pane goes),
+shows while a hunt run is going: the current intent has `loop: "hunt"` and a kind other than
+`done` or `stopped`. The user asked for gold looted per hour and DPS as instantaneous rates.
+- **Status line:** what the run is doing, from the intent kind (`fighting`, `looting`, `healing`,
+  `hunting`, `waiting`, `travelling`, `banking`; another kind shows as itself), and the target
+  (`target_serial`) with its health bar while the world model has it. The head shows `visit N`.
+- **Now:**
+  - **gold/hr**: gold gained over the last 5 min, per hour, with the span and the run's average.
+    Samples are the run tally's gold: the stream fold (`events.ts` `Aggregates.hunt`,
+    `huntjob.ts` `foldHunt`) keeps one per change from the `agent_intent` events, which the feed
+    never compacts. Since every intent update carries the tally, a fold sample's value still held
+    at the window's start. The tally is 0 at `started`, so early in a run the window starts there.
+    Right after a page load the fold's samples begin late; the closed steps in `intents` (their
+    tally at `until`) reach further back. "measuring" under 60 s.
+  - **dmg/s dealt / taken**: the "-N" overhead numbers (`speech_heard`; Outlands sends no 0x0B)
+    over the last 15 s (shorter right after a page load; "measuring" under 5 s), by the damaged
+    mobile: ourselves or notoriety 2 (our pets, guild) is taken; notoriety 3-6 that isn't a
+    player (human body with the 0x20 flag) is dealt, from `mobiles` or `last_seen` (a corpse's
+    numbers still count). Innocents (others' pets), players and unknown mobiles count for neither.
+    The numbers name no attacker, so dealt includes anyone else's damage on those creatures.
+    The numbers are real damage (Mausoleum capture 20261017_110506: a shade wolf took ~5,000 in
+    15-18 numbers over 15-60 s; 1,343 numbers, 7 same-value pairs within 0.15 s), so 200-400 dmg/s
+    in a pet fight is real.
+  - **kills/hr**: as gold/hr, from the tally's kills.
+- **This run:** time since `started`, kills (plus kills lost to others' loot rights), gold looted
+  (and banked), XP (est.), hits lost, heals · potions, visits · leaves, all from `tally`.
+- **Past visits:** the newest 5 visit rows of all-time `/api/jobs?job=hunt` (when, time, kills,
+  gold/hr, how it ended) and the all-hunts gold/hr, kills/hr and gold/kill (all characters).
+- Without `tally` (a proxy or runner older than §2.3's `tally`/`started`) the rates other than
+  dmg/s and This run say so. Running is decided from the intent alone, as §2.11.
+- `viz/src/huntjob.ts` is the pure model (bun tests); `components/HuntJobPanel.tsx` draws it.
+- Verified in headless Chromium against a second viz server (port 8099) replaying
+  20261017_110506 (Logan Wolf's Mausoleum crawl) with each hunt intent given the tally the store's
+  kill/loot events implied: 70,332 gold/hr over 5:00 (the visit's row: 72,296); 60-400 dmg/s
+  dealt and 0.5-12 taken during fights, 0 between them; after a reload gold/hr showed at once
+  over 1:31 from the intent history.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -953,6 +999,8 @@ fixtures ("replay X, state at event N").
 │──────────────│   entities, trail)                       │ (chat timeline,  │
 │ Lumber job   │                                          │ junctures, open  │
 │ (lumber run) │                                          │ count, compose)  │
+│ Hunt job     │                                          │                  │
+│ (hunt run)   │                                          │                  │
 │              │                                          │                  │
 ├──────────────┴──────────────────────────────────────────┴──────────────────┤
 │ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics ·        │
@@ -1110,6 +1158,7 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
 | `viz/src/overseer.ts`, `components/OverseerPanel.tsx` | overseer timeline model (cursor merge, heartbeat status, chat validation) and the Overseer panel (§2.4) |
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/lumberjob.ts`, `components/LumberJobPanel.tsx` | left-column Lumber job pane: run/leg detection, spot trips and wood mixes, and the panel (§2.11) |
+| `viz/src/huntjob.ts`, `components/HuntJobPanel.tsx` | left-column Hunt job pane: run detection, the damage/tally stream fold, gold and kills per hour, damage per second by side, and the panel (§2.16) |
 | `viz/src/grove.ts` | the map's lumber grove layer: query choice, tree lookup and hover text (§2.12) |
 | `harness/nystul.py`, `nystul_ext.ts`, `nystul_tools.py`, `nystul_memory.py`, `nystul_prompt.md`, `test_nystul.py` | Nystul the Wizard: conversations and omp runs, the omp extension, the read-only tool boundary, Codex proposals (validate/apply), the system prompt, tests (§2.13) |
 | `viz/src/nystul.ts`, `markdown.ts`, `components/NystulChat.tsx`, `NystulPage.tsx`, `Markdown.tsx` | Nystul view model (validation, step labels, run summary), the markdown parser, the chat, page and renderer (§2.13) |
@@ -1170,7 +1219,10 @@ Selecting an entity (map click, serial link) opens the drawer on the Inspector t
     character`; `/api/overseer?char=` scopes junctures, chat and heartbeat, a name is 400;
     `POST /api/chat {"char"}` stores `char_serial` and stays out of another character's view.
   - Agent intent: `spot` and `woods` kept, a tally-only update stays one step, malformed `woods`
-    (negative, string, empty name, bool, list, 33 entries) and a 65-char `spot` dropped (§2.3).
+    (negative, string, empty name, bool, list, 33 entries) and a 65-char `spot` dropped (§2.3);
+    a hunt `tally` (negatives allowed) and `started` kept, a tally update stays one step, a
+    malformed `tally` (float, bool, empty name, 33 entries) and a bad `started` (bool, 0,
+    negative, NaN, inf, string) dropped.
   - `/api/lumber/grove` (§2.12): the area, every runner tree inside it, harvest-memory states
     (a fresh depleted mark with its window end, not_tree, an old unreachable ready again), trees
     past the edge only up to the margin, lookup by position (else `spot` null), 400s.
