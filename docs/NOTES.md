@@ -2226,6 +2226,15 @@ Code: `harness/outlands_web.py` (capture), `harness/web_kb.py` (wiki + news → 
   Digest `docs/research/FORUM_KB.md` (389 kB). The first `know search` afterwards took ~1 s (it
   embedded the 381 new entries); later ones ~0.2 s. "how do I become a thief and what can I
   steal" `--tag forum` → the 2026-07-09 staff notes on the thief's target.
+- **First incremental refresh (2026-10-17, 9 days after the first runs):** the three crawls,
+  launched detached together, finished in 8 s (news: 656 posts, 3 new), 23 s (forums: 171 threads
+  listed, 1 to fetch, 8 posts) and 27 s (wiki: 2 141 articles, 15 changed, mostly the Halloween
+  pages). The listing walk stops at the first page with nothing new, so the forums read 1–2 pages
+  per section. `web_kb.py sync`: 65 added, 8 updated, 12 retracted, 12 103 unchanged, 23 s; the
+  2026-10-12 patch "QoL Updates, Distro Loot Bag, Container Gumps" is now first in `ctl know search
+  "distribution loot bag" --tag patch`. `forum_kb.py run`: 1 window, 2 claims, 2 clusters
+  adjudicated, no new promotions (381 unchanged), $0.02. A refresh takes about 2 minutes, so it can
+  be run before any session that needs current patch notes.
 
 ## Dead on the home rune: fenasiqareem at witcher_296 (live 2026-10-11 16:06–16:07, Seer-22)
 
