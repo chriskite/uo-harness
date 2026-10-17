@@ -121,7 +121,9 @@ Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --cr
 import argparse
 import os
 import re
+import signal
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -153,6 +155,7 @@ ROPE_GRAPHIC = 0x14FA         # an adventurer's rope (a stack of 15 in Logan's p
 ROPE_R = 9                    # live jumps 7, 9, 10 tiles; an 11-tile target was refused: one short
 PLANNED = ("info", "return")   # leaves with no threat behind them: the planned end, taking the loot home
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
+STOP_POLL_S = 0.5             # how often watch_stop looks for a `ctl stop` (its own store connection)
 ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP flagged), a margin
 ROPE_RETRY_S = 2.0            # after a try that found no landing or got no cursor
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
@@ -2583,6 +2586,7 @@ def main():
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port, char=args.char)
     loop = HuntLoop(link, memory, args)
+    watch_stop(args.memory)
     code = 0
     try:
         loop.run()
@@ -2590,6 +2594,10 @@ def main():
         log(f"ABORTED: {e}")
         code = 1
         stop_intent(loop, f"Stopped: {e}")
+    except KeyboardInterrupt:
+        log("stopped (ctl stop)")
+        code = 1
+        stop_intent(loop, "Stopped")
     except BaseException as e:
         stop_intent(loop, f"Crashed: {type(e).__name__}: {e}")
         raise
@@ -2597,6 +2605,26 @@ def main():
         loop.end_visit("stopped")
         memory.close()
     sys.exit(code)
+
+
+def watch_stop(db):
+    """Under task_wrap (UO_TASK_ID): a thread that interrupts the main thread (KeyboardInterrupt, even in a
+    sleep or the agent gate's wait) once `ctl stop` asks to stop this task, so the visit row is written
+    (main's finally) before the wrapper's terminate: live 2026-10-17 the 15:41 and 16:17 visits (25 min, 22.7k
+    gold) were lost to stops, the store's model never saw them. The wrapper waits task_wrap.SELF_STOP_S."""
+    task_id = os.environ.get("UO_TASK_ID")
+    if not task_id:
+        return
+
+    def poll():
+        mem = Memory(db)
+        try:
+            while not task_wrap.stop_requested(mem, task_id):
+                time.sleep(STOP_POLL_S)
+        finally:
+            mem.close()
+        signal.raise_signal(signal.SIGINT)   # wakes a sleep on Windows too (_thread.interrupt_main doesn't)
+    threading.Thread(target=poll, name="watch_stop", daemon=True).start()
 
 
 if __name__ == "__main__":

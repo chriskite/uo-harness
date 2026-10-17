@@ -3107,6 +3107,13 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   - Simulator, 48 seeds: deaths 33 to 32, but damage on Logan 31916 to 40957. The simulator's monsters see
     by the server's rule (world.py `can_see`), so there they do see through those walls. Which rule the
     live monsters use is the open question [INFERENCE: the user's observation says Wall blocks].
+- **Visits lost to `ctl stop`.** The store had no row for the 15:41 visit (stopped at 15:44) or the 16:17 visit
+  (stopped at 16:39: 25 min, 22.7k gold, the hits leave), so the return model still read 96 min at 17:05. The
+  wrapper's `child.terminate()` is TerminateProcess on Windows: `main`'s `finally: end_visit("stopped")` never
+  ran. Now the hunt runner's `watch_stop` thread (under task_wrap) polls the stop key every 0.5 s and raises
+  SIGINT in the process. `signal.raise_signal` wakes a `time.sleep` on Windows; `_thread.interrupt_main`
+  doesn't, a smoke waited out the whole 30 s sleep. The KeyboardInterrupt runs the finally. The wrapper waits
+  `SELF_STOP_S` 5 s for the child before terminating it.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

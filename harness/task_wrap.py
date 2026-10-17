@@ -35,6 +35,7 @@ STOP_KEY = "task_stop"        # stop_key(task_id): ctl stop asks that task's wra
 FINISH_KEY = "task_finish"    # finish_key(task_id): ctl stop --after-trip; the task ends itself at home
 TAIL_LINES = 20
 STOP_GRACE_S = 10.0
+SELF_STOP_S = 5.0             # ctl stop: a child that watches the stop key (the hunt runner's watch_stop) ends itself this soon
 POLL_S = 0.5
 SPAWN_GRACE_S = 30.0   # an entry without a pid yet is "starting" this long
 IDENTITY_SLACK_S = 5.0  # recorded vs OS creation time of the same process
@@ -271,7 +272,10 @@ def run(spec: dict) -> int:
             while child.poll() is None:
                 if not stopped and stop_requested(mem, spec["task_id"]):
                     stopped = True
-                    child.terminate()
+                    try:
+                        child.wait(SELF_STOP_S)      # its own cleanup first (loop_hunt.watch_stop: the visit row)
+                    except subprocess.TimeoutExpired:
+                        child.terminate()
                     try:
                         child.wait(STOP_GRACE_S)
                     except subprocess.TimeoutExpired:
