@@ -547,55 +547,101 @@ Paste this (or point the session at this section) to start an overseer.
 > `act resupply --restock`).
 >
 > **Mausoleum crawl shifts (Logan Wolf, a bard tamer; docs/HUNT_LOOP.md "Pets", "Recall in, recall
-> out", "Crawl").** The pets (GraveRobber `0x000DDEFE`, a gravebug, and AlaFlambe `0x0026EF56`, a
-> phoenix) fight; the runner never does by hand what it does itself. **Shifts are continuous**
-> (user 2026-10-15): run after run until the user says stop.
+> out", "Crawl", "Taking the loot home", "Soul jars").** The pets (GraveRobber `0x000DDEFE`, a gravebug, and
+> AlaFlambe `0x0026EF56`, a phoenix) fight; the runner never does by hand what it does itself. **Shifts are
+> continuous** (user 2026-10-15): run after run until the user says stop.
+> 0. **Run ctl from the main checkout** (`python "<main checkout>/harness/ctl.py" …`, or `./ctl.cmd` with the
+>    shell's working directory in the main checkout): a worktree's ctl runs the worktree's code against its own
+>    store (docs/NOTES.md "The fourth live run"). Task logs are in `<main checkout>/logs/tasks/<task_id>.log`.
 > 1. **Start in the rental room** (the inn room, facet 3, arrival (403, 923); a recall out of it works) or
 >    at the DTF guild hall landing (4134, 1429), **with both pets beside thee** (`status.mobiles`,
->    within 3 tiles). Not inside the Mausoleum: there a recall works only beside a gold moongate, so the
->    runner can't start there.
+>    within 3 tiles). Not inside the Mausoleum: a recall works there only beside a gold moongate. **After a
+>    proxy restart** `status.mobiles` is empty, so the pets look gone: wait until they show again, or ask the
+>    user (they may need fetching).
 > 2. **In the room before every run: `act dropoff`** (the user's drop-off: gold into the bank deposit safe,
 >    loot into its tomes, research materials and resource maps into the chest, then the shelf's Resupply).
 >    Read its `reply`. From the DTF landing, `act room enter` first (Logan's own room, no owner words).
->    Then check `status`: heal potions (`0x0F0C`), vet supplies (`0x6496`), Total Refresh (`0x0F0B`) and
->    the rune tome `0x444AB1F3` in the pack. Short of potions or vet supplies after the Resupply: tell
->    the user and don't start.
+>    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"
+>    and the like): heal potions `0x0F0C`, vet supplies `0x6496`, Total Refresh `0x0F0B`, adventurer's rope,
+>    and the rune tome `0x444AB1F3`. The shelf's "Unable to resupply: no items available." also comes with
+>    a full loadout. Short of potions or vet supplies after the Resupply: tell the user and don't start.
 > 3. **Run it verbatim:**
 >    `ctl run hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 --leave-recall
 >    0x444AB1F3 --leave-gate 5203 703 --gate-dest Totem --enter-recall 0x444AB1F3 --enter-rune "Maus Near 2"
 >    --enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637`.
->    It recalls to "Maus Near 2", walks the four teleporters with the pets on "All Follow Me" (a fight on
->    the way is the pets' to take), crawls the fight level, and leaves when the user's rules say so:
->    hurt, a pet hurt or lost, **a red** (out by the crimson moongate at (5203, 703) to
->    Totem, then the tome home), or (since 2026-10-17) **the loot it carries reaching V\*** (docs/HUNT_LOOP.md
->    "Taking the loot home": the gold rate against the death rate there; ~26k gold live), after which it goes
->    into the room, runs the drop-off itself and recalls back in. Greys and oranges are no reason to leave, and nobody speaking is
->    (no speech hold on hunts). Between visits it recalls home, rests and goes back in by itself with no time limit (no
->    `--timeout`, user 2026-10-17); end it with `ctl stop --after-trip` (out with the pets, home, exit 0).
+>    No `--timeout`: since 2026-10-17 a run has no time limit (user: the return rule takes the loot home).
+>    Soul jars are on by default (`--soul-jars`). If Logan is already on Maus 3 by the arrival (the user put
+>    him there), add `--spot 5199 737` and it hunts without a walk-in.
+>    What it does, so the log reads right:
+>    - **In:** the recall to "Maus Near 2", the four teleporters with the pets on "All Follow Me" (a fight on
+>      the way: the pets guard until it's over; a pet behind: a wait for it). "return threshold: home once
+>      this visit adds N gp" on arrival is the plan, not a leave.
+>    - **On Maus 3:** the crawl patrols the waypoints zone by zone. It holds for an idle monster within 10 that
+>      would see him past the walls ("letting it come"). It doesn't patrol while a pet fights or lags more
+>      than 8 tiles ("not patrolling yet"). It heals in place: potions, the vet supplies on Logan and the pets.
+>      It runs from a never-aggro monster (elder vampire, elder vampire countess) and vets on the run.
+>    - **Out:** hurt below the leave line with no heal coming, a pet hurt or lost, **a red** (in view,
+>      tracked, or "… is attacking you!"), or **the carried value reaching V\*** (gold rate against the death
+>      rate there, with red encounters, and the measured trip; ~24k live on 2026-10-17). The leave is the
+>      crimson moongate at (5203, 703) to Totem, then the tome home, with "All Follow Me" on the way. From a
+>      red the rope jumps only while no player is on him. Greys, oranges and speech are no reason to leave.
+>    - **Home:** into the room through the house steward, the drop-off by itself, rest, then back in (10 min
+>      after a red: `--pk-wait`).
 > 4. **While it runs:** `ctl wait --timeout 150` and glance at `status` and the task log (`hits`, `intent`).
 >    Nothing to act on: ctl refuses acts while the run is on, and **never fight by hand** in the dungeon.
->    Field of Souls (until 2026-10-24): with an empty soul jar in the pack the runner fills it at any eerie corpse
->    it sees (task log "soul jar filled", job event `soul_jar`; docs/HUNT_LOOP.md "Soul jars"). A filled jar
->    decays 60 minutes after the fill, so `ctl say "@user …"` at once with the spirit's name and the time.
-> 5. **`task_done`** (home): `act room enter`, `act dropoff` (the runner drops off between visits itself, not at
->    the end), check pets and supplies (step 2), start the next run. A new loot type the user prices:
->    `ctl lumber price "loot:<the client's name>" <gp> --source user` (the carried value reads them). Say one progress line every few runs (kills, gold, deaths).
-> 6. **`task_failed` with Logan still in the Mausoleum** (a walk-in that couldn't go on, a runner error),
+>    - **"agent gate closed (agent paused); waiting"** every 5 s: the user took over (to fill a soul jar,
+>      to save Logan) or paused the agent. Leave it: the run carries on by itself once the gate opens.
+>    - **"teleported: stepping onto (X, Y) …; remembered"** on open ground (no stairs or teleporter there)
+>      right as the user took over is a bogus teleporter: the user's step moved him. Tell the user. Once they
+>      agree, delete the row from the store (`teleporters` table, columns `facet, x, y, to_x, to_y`). Live
+>      2026-10-17 17:26:28, (5615, 691) → (5618, 692) on the approach. A running run keeps avoiding the tile
+>      until it restarts.
+>    - **"Nothing to patrol to; waiting"** with Logan outside the Mausoleum: a confused run. `ctl stop` it and
+>      tell the user.
+> 5. **Field of Souls (soul jars, until 2026-10-24; docs/HUNT_LOOP.md "Soul jars", NOTES "Field of Souls").**
+>    An empty soul jar (`0xA99F`) filled at an eerie corpse (ground item `0xB1F3`) is the event's ticket
+>    (+30 score). Eerie corpses are rare and players race for them: one in about four hours of play on
+>    2026-10-17. The proxy plays a wail the first time it sees each one, runner or not (proxy event
+>    `eerie_corpse`, in the store's events).
+>    - **The runner** (`--soul-jars`, default on), with an empty jar in the pack at any bag depth and nothing
+>      on Logan, walks within 2 tiles of an eerie corpse in view on his floor and double-clicks the jar. The
+>      patrol stops for one; mid-fight only one within 2 tiles counts. It loots the empty jars monsters drop.
+>      One try per corpse. The task log says "soul jar filled" (the spirit's name) or what the server said;
+>      the job event is `soul_jar`.
+>    - **A filled jar** (`0xA9A3`, "a filled soul jar captured by …") **decays 60 minutes after the fill**
+>      unless taken to an Occult Merchant (Prevalia or Corpse Creek). That isn't automated: at a fill, `ctl
+>      say "@user …"` at once with the spirit's name and the time. Taking it in, and buying empty jars
+>      (1,000 gp from the Occult Merchant), is the user's call.
+>    - The user often takes over to fill a jar by hand (the gate closes; item 4). Afterwards the run picks up
+>      where it was.
+> 6. **`task_done`** (home): `act room enter` if not in the room, `act dropoff` (the runner drops off between
+>    visits itself, not at the end), check pets and supplies (step 2), start the next run. A new loot type the
+>    user prices: `ctl lumber price "loot:<the client's name>" <gp> --source user` (the carried value reads
+>    them). Say one progress line every few runs (kills, gold, deaths).
+> 7. **`task_failed` with Logan still in the Mausoleum** (a walk-in that couldn't go on, a runner error),
 >    **`death`**, **`pet_left_behind`** or **`pet_down`**: `ctl say "@user …"` at once with the position and
 >    the log line, and start nothing until the user answers. A ghost can't recall out, and walking out of
 >    the Mausoleum by hand is the user's call. After a death, decline every Report Murder gump (button
 >    3). Pets left in the dungeon are fine (user): the stablemaster PizzaParty in the DTF guild hall
 >    (4134, 1435) brings them back with "Retrieve Lost Followers". That isn't automated yet, so ask the
 >    user; never go back in without both pets.
-> 7. **Ending the shift or stopping a run** (the pack filling up, the user says so): **`ctl stop --after-trip`**
->    (since 2026-10-17): the run finishes the fight on Logan and its loot, goes out the way it does at time
->    up (the crimson gate to Totem, the tome home, the pets along) and exits 0 at home; wait for its
->    `task_done`, then step 5. Plain `ctl stop` stops Logan wherever he stands, in the dungeon too: only for a
->    possible GM or a server restriction (then call the user).
-> 8. **The user's play rules** (docs/HUNT_LOOP.md "Pets"; the runner keeps them, don't overrule them): pets
->    on guard and between Logan and the monsters, Logan never next to the tank, heal in place with vet
->    supplies and potions, go deeper, never pull the elder vampire or the elder vampire countess, loot
->    everything but reagents, spell scrolls and worn items (jewellery is kept), area Peacemaking in a jam.
+> 8. **Ending the shift or stopping a run** (the user says so, a server patch coming): **`ctl stop
+>    --after-trip`**: the run finishes the fight on Logan and its loot, goes out by the crimson gate to
+>    Totem and the tome home with the pets, drops off and exits 0 in the room. Wait for its `task_done`
+>    (a minute or two). Plain `ctl stop` stops Logan wherever he stands, in the dungeon too (since 2026-10-17
+>    its visit row is still written). Use it only for a possible GM, a server restriction, or a run that
+>    already ended up somewhere wrong, and then call the user.
+> 9. **The user's play rules** (docs/HUNT_LOOP.md "Pets"; the runner keeps them, don't overrule them):
+>    - Pets on guard and between Logan and the monsters; Logan never next to the tank.
+>    - Heal in place with vet supplies and potions, and vet while fleeing.
+>    - Go deeper.
+>    - Never pull the elder vampire or the elder vampire countess.
+>    - Loot everything but reagents, spell scrolls, worn items and unidentified magic weapons and armour
+>      ("heavy"). Jewellery, instruments ("supremely melodious") and hued valuables are kept.
+>    - Area Peacemaking in a jam, but never while fleeing a red.
+>    - Only reds are a reason to leave. From a red: run, no bard skills; a rope only while he isn't hitting
+>      yet.
+>    - "All Follow Me" on the walk out.
 >
 > **Travelling somewhere new.** Your own book first (`act recall <book> --check`, or open it). Else
 > a rune library: `ctl runes near X Y` (or `runes find WORDS`) names the rune that lands nearest,
