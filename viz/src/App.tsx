@@ -162,7 +162,7 @@ export function App() {
       <SideRail side="left" hidden={leftHidden} label={liveMain ? "Self · Map · Paperdoll · Jobs" : "Self · Live · Paperdoll · Jobs"} onToggle={toggleLeft} />
       {!leftHidden && (
         <aside className="left">
-          <SelfPanel world={world} />
+          <SelfPanel viz={viz} />
           {liveMain ? (
             <Panel title="Map" className="side-map">
               <MapGrid viz={viz} onSwap={swap} />

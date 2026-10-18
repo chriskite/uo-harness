@@ -79,6 +79,9 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   titled by cliloc 1075655. `{value}` is `timers[0].value` (decoded 2026-10-03, see "Stationary
   Penalty decoded" below; the parser called it `seconds` until the evening of 2026-10-03, but it is
   never a duration: the timer's `end` is, docs/WORLDMODEL.md sub 8); f2 is always 1.
+  The server doesn't always send sub 9 when a timed buff ends, so the world model's `buffs` keeps
+  ended ones. The viz (BuffList, Self panel and Inspector) hides a buff whose `ends_t` is past
+  (live: wall clock; replay: newest event time); buffs without an end stay until sub 9 (2026-10-17).
 - **Str/Dex/Int** from 0x11 were parsed but dropped by the world model (set as attributes the
   snapshot doesn't export). Fixed 2026-09-30; they're now in `self.stats`.
 - **Agent gump replies leave the client's copy on screen:** the stock client closes a gump

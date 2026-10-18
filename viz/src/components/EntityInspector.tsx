@@ -72,7 +72,7 @@ export function EntityInspector({ viz }: { viz: VizSnapshot }) {
           </span>
         )}
       </div>
-      <BuffList buffs={buffs} />
+      <BuffList all={buffs} viz={viz} />
       {children.length > 0 && (
         <>
           <h4>contents / equipment ({children.length})</h4>

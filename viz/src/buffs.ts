@@ -10,6 +10,13 @@ export function buffName(b: Buff, texts: ReadonlyMap<number, string | null>): st
   return b.title || (b.cliloc !== undefined && texts.get(b.cliloc)) || `buff ${b.icon_id}`;
 }
 
+/** The buffs still in effect at `now` (epoch s; null = clock unknown, nothing filtered). The server
+ * doesn't always send a remove when a timed buff ends (harness/world/state.py buff_ends_t), so a buff
+ * whose end (`ends_t`, our wall clock) is past is over even though it is still in the table. */
+export function activeBuffs(buffs: readonly Buff[], now: number | null): Buff[] {
+  return buffs.filter((b) => now === null || typeof b.ends_t !== "number" || b.ends_t > now);
+}
+
 /** The buffs' clilocs that name them (untitled buffs only), sorted, unique. */
 export function buffClilocs(buffs: readonly Buff[]): number[] {
   const out = new Set<number>();

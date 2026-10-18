@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buffClilocs, buffName } from "./buffs.ts";
+import { activeBuffs, buffClilocs, buffName } from "./buffs.ts";
 
 describe("buffName", () => {
   const texts = new Map<number, string | null>([[1044416, "Magic Reflection"], [1, null]]);
@@ -17,5 +17,22 @@ describe("buffName", () => {
       { icon_id: 3, title: "", cliloc: 9 },
       { icon_id: 4, title: "", cliloc: 4 },
     ])).toEqual([4, 9]);
+  });
+});
+
+describe("activeBuffs", () => {
+  const buffs = [
+    { icon_id: 1, ends_t: 100 },
+    { icon_id: 2, ends_t: 200 },
+    { icon_id: 3, ends_t: null },
+    { icon_id: 4 },
+  ];
+  test("timed buffs past their end are dropped; untimed ones stay", () => {
+    expect(activeBuffs(buffs, 150).map((b) => b.icon_id)).toEqual([2, 3, 4]);
+    expect(activeBuffs(buffs, 100).map((b) => b.icon_id)).toEqual([2, 3, 4]);
+    expect(activeBuffs(buffs, 50).map((b) => b.icon_id)).toEqual([1, 2, 3, 4]);
+  });
+  test("unknown clock filters nothing", () => {
+    expect(activeBuffs(buffs, null)).toHaveLength(4);
   });
 });

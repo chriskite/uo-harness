@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NOTORIETY } from "../format.ts";
 import { fetchClientSkillNames, skillName } from "../skills.ts";
-import type { Snapshot } from "../types.ts";
+import type { VizSnapshot } from "../store.ts";
 import { BuffList } from "./BuffList.tsx";
 import { Badge, Bar, Panel } from "./common.tsx";
 
@@ -19,7 +19,8 @@ function ItemIcon({ graphic }: { graphic: number }) {
   return <img className="item-icon" src={`api/art/${graphic}.png`} alt="" onError={() => setFailed(true)} />;
 }
 
-export function SelfPanel({ world }: { world: Snapshot | null }) {
+export function SelfPanel({ viz }: { viz: VizSnapshot }) {
+  const world = viz.state?.world ?? null;
   const [allSkills, setAllSkills] = useState(false);
   const [clientNames, setClientNames] = useState<string[] | null>(null);
   const needNames = !world?.self?.skill_names?.length;
@@ -90,7 +91,7 @@ export function SelfPanel({ world }: { world: Snapshot | null }) {
             ))}
         </div>
       </details>
-      <BuffList buffs={buffs} />
+      <BuffList all={buffs} viz={viz} />
       <details className="skills">
         <summary>
           skills {shown.length === 0 && !allSkills ? "(all 0)" : `(top ${shown.length})`}
