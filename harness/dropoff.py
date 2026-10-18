@@ -10,6 +10,11 @@ answered with one system line: "No undecoded …" / "You deposit …" / "N recyc
 steps and their entries come from the character's home (harness/data/homes.json `dropoff`); an entry is
 picked by its cliloc, not its index, so a menu that changes order can't press the wrong one.
 
+Pace (user 2026-10-17: "My Razor dropoff script finishes like instantly"): Razor sent all eight requests and
+picks in 0.12 s (21:29:49.407-.526, 3-4 ms apart, the backpack 94 ms after the stockpile's pick). Here each pick
+waits only for its menu (one round trip: the entry is chosen by cliloc) and the stockpile's cursor, nothing
+else; a step's line is the system text heard before the next step's menu (the server answers in order).
+
 Then every item in the backpack's top level (where loot lands; never the user's own bags or anything
 worn) that `to_chest` names goes into the room chest: lift, a drag pause, drop (the stock drag).
 
@@ -25,7 +30,7 @@ import actions
 import combat
 
 EVENT_WAIT_S = 3.0
-LINE_WAIT_S = 1.5             # after a pick: the server's line comes within ~0.1 s live
+LINE_WAIT_S = 1.5             # after the last pick: its line (the server's lines come within ~0.1 s live)
 RANGE = 2                     # every drop-off item stands within 2 tiles of the room's arrival tile
 
 
@@ -57,12 +62,13 @@ class _Flow:
             time.sleep(0.05)
 
     def send_wait(self, pkt: bytes, done, what: str, timeout: float) -> list:
-        self.io.poll()
+        _, pre = self.io.poll()       # what came since the last look (a previous pick's line) is kept
         try:
             self.io.send(pkt)
         except Exception as e:
             raise DropoffError(f"{what}: {e}")
-        return self.wait(done, timeout)
+        self.heard += [e for e in pre if e.get("ev") in ("speech_heard", "cliloc")]
+        return pre + self.wait(done, timeout)
 
 
 def chest_items(state: dict, rules: dict) -> list[tuple[int, dict]]:
@@ -102,19 +108,20 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
                                "stand on the room's arrival tile")
     pack = combat.backpack(items, st["movement"].get("self_serial"))
     flow, done, error = _Flow(io), [], None
+    human.wait("hotkey")              # the script's hotkey (F5); its lines then run back to back
     for s in plan["steps"]:
         serial = _serial(s["serial"])
-        human.wait("menu")
         got = flow.send_wait(actions.request_popup(serial),
                              lambda e: e.get("ev") == "popup" and _serial(e.get("serial")) == serial,
                              f"opening the menu of {s['name']}", timeout)
+        if done:                      # the previous pick's line came before this menu
+            done[-1]["lines"] += _lines(got)
         menu = next((e for e in reversed(got) if e.get("ev") == "popup" and _serial(e.get("serial")) == serial), None)
         entry = next((x for x in (menu or {}).get("entries") or [] if x.get("cliloc") == s["entry"]), None)
         if entry is None or (entry.get("flags") or 0) & 0x01:
             error = (f"{s['name']}: no menu" if menu is None else
                      f"{s['name']}: entry {s['entry']} {'disabled' if entry else 'not offered'}")
             break
-        human.wait("menu")
         if s.get("target") == "pack":
             got = flow.send_wait(actions.popup_selection(serial, entry["index"]),
                                  lambda e: e.get("ev") == "target" and e.get("active"), f"{s['name']}: the pick", timeout)
@@ -122,14 +129,15 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
             if cur is None or pack is None:
                 error = f"{s['name']}: no target cursor after the pick: {_lines(got)}"
                 break
-            human.wait("aim")
-            got = flow.send_wait(actions.target_object(cur["cursor_id"], pack, 0, 0, 0, 0x0E75,
-                                                       cur.get("cursor_type") or 0),
-                                 lambda e: bool(_lines([e])), f"{s['name']}: targeting the backpack", LINE_WAIT_S)
+            got += flow.send_wait(actions.target_object(cur["cursor_id"], pack, 0, 0, 0, 0x0E75,
+                                                        cur.get("cursor_type") or 0),
+                                  lambda e: False, f"{s['name']}: targeting the backpack", 0.0)
         else:
             got = flow.send_wait(actions.popup_selection(serial, entry["index"]),
-                                 lambda e: bool(_lines([e])), f"{s['name']}: the pick", LINE_WAIT_S)
+                                 lambda e: False, f"{s['name']}: the pick", 0.0)
         done.append({"serial": f"0x{serial:08X}", "name": s["name"], "lines": _lines(got)})
+    if done and error is None and not done[-1]["lines"]:     # the last pick's line, unless it came already
+        done[-1]["lines"] += _lines(flow.wait(lambda e: bool(_lines([e])), LINE_WAIT_S))
     moved, left = [], []
     if error is None and plan.get("chest") and plan.get("to_chest"):
         chest = _serial(plan["chest"]["serial"])

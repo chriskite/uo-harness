@@ -3441,6 +3441,14 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
   items found and added.", the shelf "Unable to resupply: no items available." (the pack held the loadout: 30 heal,
   15 cure, 15 refresh potions, 180 vet supplies). Labels in the room: "a skill mastery tome" 0x62658F0D, "magic
   item recycler" 0x6264BB54 (the user confirmed), "resource container" for the stockpile, the chest "wooden chest".
+  - **Paced like the script since 2026-10-17** (user: "The dropoff can be sped up greatly. My Razor dropoff script
+    finishes like instantly"). Razor sent all eight request/pick pairs and the backpack target in 0.12 s
+    (21:29:49.407-.526: pairs 3-4 ms apart, the target 94 ms after the stockpile's pick). `dropoff.run` waited a
+    person's "menu" pause (1.3 s median) before each request and each pick and up to 1.5 s for each line: 21.7 s
+    against the offline fake room with the normal profile. Now one hotkey press (0.25 s), then each pick right on its
+    menu's arrival (the entry still chosen by cliloc, one round trip a step), the stockpile's cursor answered at once,
+    and each step's line taken from what arrives before the next menu (the server answers in order): 0.32 s against
+    the fake, about a round trip a step live [INFERENCE: not yet run live]. test_dropoff checks the line attribution.
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 

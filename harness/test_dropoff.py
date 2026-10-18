@@ -93,6 +93,10 @@ def test_dropoff():
     want = [(int(s["serial"], 16), 1 if s["entry"] in (1095568, 3006348) else 0) for s in plan["steps"]]
     check("every step's entry picked by its cliloc, in the script's order (the recycler and the shelf: index 1)",
           out["ok"] and picks == want, f"{out.get('error')} {picks}")
+    check("each step keeps its own line, heard before the next step's menu (no wait for it in between)",
+          [len(s["lines"]) for s in out["steps"]] == [1] * len(plan["steps"])
+          and out["steps"][4]["lines"] == ["You add 3 items to the Resource Stockpile."],
+          str([s["lines"] for s in out["steps"]]))
     tgt = next((p for p in room.sent if p[0] == 0x6C), None)
     check("the stockpile's Restock cursor answered with the backpack, as the script's `target 0x445E9F92`",
           tgt == actions.target_object(7, PACK, 0, 0, 0, 0x0E75, 0), str(tgt))
