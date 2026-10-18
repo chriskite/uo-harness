@@ -145,7 +145,9 @@ def scan_all(tags):
     (largest file first; UO_TEST_WORKERS caps them, set by run_tests.py); the same
     dict as scanning them one by one."""
     by_size = sorted(tags, key=lambda t: -os.path.getsize(os.path.join(LOGS, f"session_{t}.jsonl")))
-    cap = int(os.environ.get("UO_TEST_WORKERS") or 0) or os.cpu_count() or 1
+    import cpu_budget
+    cpu_budget.limit()                # off the game's two CPUs, workers included (they inherit it)
+    cap = int(os.environ.get("UO_TEST_WORKERS") or 0) or cpu_budget.workers()
     with ProcessPoolExecutor(max_workers=max(1, min(len(tags), cap))) as ex:
         done = dict(zip(by_size, ex.map(scan_session, by_size)))
     return {t: done[t] for t in tags}

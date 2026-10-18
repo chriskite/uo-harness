@@ -24,7 +24,12 @@ import time as _wall
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+import cpu_budget  # noqa: E402
+
 EPOCH = 1791857790.0          # 2026-10-12 21:16:30 local: the trip's start (log lines read as game time)
+# careers when --careers isn't given: the old --jobs default (CPU count - 1), so a batch's draws (each career one
+# memory store) stay those of the batches in docs/NOTES.md, whatever --jobs is now
+DEFAULT_CAREERS = max(1, (os.cpu_count() or 2) - 1)
 
 
 def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = False) -> list[str]:
@@ -173,7 +178,8 @@ def main(argv=None):
     ap.add_argument("--scenario", default="mausoleum")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--runs", type=int, default=1)
-    ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    ap.add_argument("--jobs", type=int, default=max(1, cpu_budget.workers() - 1),
+                    help="worker processes (default: CPU count - 3: two logical CPUs left to the game, cpu_budget)")
     ap.add_argument("--minutes", type=float, default=30.0, help="the runner's --timeout, in game minutes")
     ap.add_argument("--at-hunt", action="store_true", help="start on the hunting level (no recall in)")
     ap.add_argument("--log", default=None, help="the runner's log (one run), or a directory (several)")
@@ -183,17 +189,19 @@ def main(argv=None):
     ap.add_argument("--set", action="append", default=[], metavar="MODULE.NAME=VALUE",
                     help="override a runner constant for the runs (an experiment), e.g. tamer.FALLBACK_S=0")
     ap.add_argument("--careers", type=int, default=0,
-                    help="split the runs into this many careers (default: --jobs), each one after another on "
+                    help="split the runs into this many careers (default: CPU count - 1), each one after another on "
                          "one memory store, as the live runner keeps its memory between runs")
     ap.add_argument("--fresh", action="store_true", help="every run on a fresh memory store (no careers)")
     a = ap.parse_args(argv)
+    if a.runs > 1:
+        cpu_budget.limit()
     seeds = list(range(a.seed, a.seed + a.runs))
     logdir = a.log if a.runs > 1 else None
     if logdir:
         os.makedirs(logdir, exist_ok=True)
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
              tuple(a.set)) for s in seeds]
-    n = len(jobs) if a.fresh else max(1, min(a.careers or a.jobs, len(jobs)))
+    n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
     if len(careers) == 1 or a.jobs <= 1:
         results = [r for c in careers for r in _pool_run(c)]

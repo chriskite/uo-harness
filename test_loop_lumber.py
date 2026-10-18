@@ -87,9 +87,10 @@ Named scenarios run alone: `python test_loop_lumber.py gazer_run wary`.
 
 Run: python test_loop_lumber.py   (~1.7 min; free private ports and a private temp log dir, removed when all
 pass; safe while the live proxy or other tests run). Two or more scenarios run as parallel child processes
-(`python test_loop_lumber.py <name>` each, at most LOOP_TEST_JOBS at a time, default the CPU count (at least 8):
-on 32 cores all at once; they mostly wait on the runner's pacing; LOOP_TEST_JOBS=1 runs them in this process
-one after another): each has its own ports and temp dir. Serially the suite took ~10 min (2026-10-04); main
+(`python test_loop_lumber.py <name>` each, at most LOOP_TEST_JOBS at a time, default the CPU count - 2 (at least
+8): they mostly wait on the runner's pacing, and all of it stays off two CPUs for the game, cpu_budget;
+LOOP_TEST_JOBS=1 runs them in this process one after another): each has its own ports and temp dir. Serially the
+suite took ~10 min (2026-10-04); main
 (two trips, the human profile, the town wall learned from walk denials) is the critical path at ~100 s.
 """
 import asyncio
@@ -5295,9 +5296,11 @@ if __name__ == "__main__":
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
+    import cpu_budget
+    cpu_budget.limit()                       # the scenarios (child processes) inherit it: two CPUs left to the game
     chosen = [fn for fn in runs if not pick or fn.__name__ in pick]
     scenarios = [fn.__name__ for fn in chosen if asyncio.iscoroutinefunction(fn)]
-    jobs = int(os.environ.get("LOOP_TEST_JOBS") or max(8, os.cpu_count() or 1))
+    jobs = int(os.environ.get("LOOP_TEST_JOBS") or max(8, cpu_budget.workers()))
     if len(scenarios) > 1 and jobs > 1:      # each in its own process, several at once
         FAILURES.extend(f"scenario {n}" for n in run_parallel(scenarios, jobs))
         chosen = [fn for fn in chosen if not asyncio.iscoroutinefunction(fn)]

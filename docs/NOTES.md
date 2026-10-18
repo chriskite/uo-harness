@@ -1995,6 +1995,19 @@ Dir: `ClassicUO/Data/Plugins/Assistant/` = `Profiles/*.xml` + `chars.lst`, `Scri
   ~7–10 ms (non-blocking connect + select), a blocking connect ~0.15 ms; a connect to a closed
   local port is refused only after ~2 s of SYN retries. test_ctl starts its unreachable-proxy CLI
   check first so those 2 s overlap other sections.
+- **Two logical CPUs left to the game (2026-10-17, user: "We need to reduce the number of cores used when testing
+  by 2, it's lagging the game pretty badly").** `harness/cpu_budget.py`: `limit()` sets the process's CPU affinity
+  to every logical CPU but the first two (0 and 1: on this 16-core/32-thread desktop, one physical core), and child
+  processes inherit it (Windows `SetProcessAffinityMask`; checked: a spawned child read mask 0xfffffffc, 30 of
+  32). Called by run_tests.py, sim/run.py (batches), test_loop_hunt, test_loop_lumber, test_nav, test_pathfind,
+  test_uomap and test_world_replay; pools size from `workers()` (CPU count - 2): run_tests' jobs and
+  `UO_TEST_WORKERS`, nav.build_from_logs, the replay tests, `LOOP_TEST_JOBS` (still at least 8: sleep-bound), and
+  sim/run.py's `--jobs` (CPU count - 3). The simulator's default careers stay CPU count - 1 (`DEFAULT_CAREERS`),
+  so a batch's draws match the earlier ones whatever `--jobs` is. Live runners never call it. With 30 CPUs the
+  suite failed test_loop_hunt twice in a row on "after re-entering, the potion ... was refused": the runner killed
+  D (`--kills 2`, the run's end) before the scripted client drink at the last drink + 10.5 s, a race the
+  hotkey-paced casts had made likelier; the fake world now keeps D alive until that drink. Two suite runs after:
+  test_loop_hunt ok; test_uomap, test_pathfind and test_world_replay fail as before the change (client data).
 
 ## Backups (NAS, since 2026-10-01)
 

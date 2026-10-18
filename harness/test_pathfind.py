@@ -47,6 +47,8 @@ def standing_zs(walk, x, y):
 
 
 def main():
+    import cpu_budget
+    cpu_budget.limit()                # build_from_logs' worker processes inherit it: two CPUs left to the game
     walk = pathfind.Walk(uomap.UoMap(0))
     print("== walk memory agrees with the client rules ==")
     mem = nav.build_from_logs(os.path.join(ROOT, "logs"))

@@ -7,17 +7,18 @@ proxy). Files start longest-first by their last measured time (logs/test_times.j
 runtime data), so the slow end-to-end tests don't end up last in the queue.
 
 Usage:
-  python harness/run_tests.py              # whole suite, jobs = CPU count // 2
+  python harness/run_tests.py              # whole suite, jobs = (CPU count - 2) // 2
   python harness/run_tests.py -j 8         # at most 8 files at once
   python harness/run_tests.py nav mover    # only files whose name contains a pattern
   python harness/run_tests.py -v           # print the full output of failing files
 
 Each file's output goes to logs/tests/<file>.txt; exit code 1 if any file failed.
 test_world.py is skipped (it only re-runs test_world_units.py + test_world_replay.py).
-Children get UO_TEST_WORKERS = CPU count // jobs (at least 2): the tests that fan out
+Children get UO_TEST_WORKERS = (CPU count - 2) // jobs (at least 2): the tests that fan out
 over the session logs in worker processes (test_nav, test_pathfind, test_uomap,
 test_world_replay) cap their pools at it, so the suite doesn't oversubscribe the CPU
-(that starves timing checks such as test_ctl's 0.4 s heartbeat window).
+(that starves timing checks such as test_ctl's 0.4 s heartbeat window). The whole run is kept
+off two logical CPUs for the game (cpu_budget.limit: an affinity mask the children inherit).
 """
 import argparse
 import glob
@@ -27,6 +28,8 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import cpu_budget
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -68,9 +71,10 @@ def run_one(rel: str, env: dict) -> tuple[str, int | str, float, str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("patterns", nargs="*", help="only files whose name contains one of these")
-    ap.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    ap.add_argument("-j", "--jobs", type=int, default=max(1, cpu_budget.workers() // 2))
     ap.add_argument("-v", "--verbose", action="store_true", help="print failing files' output")
     a = ap.parse_args()
+    cpu_budget.limit()
 
     files = discover(a.patterns)
     if not files:
@@ -80,7 +84,7 @@ def main() -> int:
     files.sort(key=lambda f: -times.get(f, 60.0))     # unknown: assume slow, start early
     os.makedirs(OUT_DIR, exist_ok=True)
     print(f"{len(files)} test files, {min(a.jobs, len(files))} at a time")
-    env = {**os.environ, "UO_TEST_WORKERS": str(max(2, (os.cpu_count() or 2) // max(1, a.jobs)))}
+    env = {**os.environ, "UO_TEST_WORKERS": str(max(2, cpu_budget.workers() // max(1, a.jobs)))}
     t0 = time.monotonic()
     failed = []
     with ThreadPoolExecutor(max_workers=a.jobs) as pool:

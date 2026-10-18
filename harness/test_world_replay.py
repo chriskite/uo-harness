@@ -164,7 +164,9 @@ def _replay_all(tags):
     """_capture_facts of each tag, in tag order. The captures are independent, so they
     replay in worker processes, the biggest first (the replays are most of this suite;
     UO_TEST_WORKERS caps the workers, set by run_tests.py)."""
-    workers = min(len(tags), int(os.environ.get("UO_TEST_WORKERS") or 0) or os.cpu_count() or 1, 16)
+    import cpu_budget
+    cpu_budget.limit()                # off the game's two CPUs, workers included (they inherit it)
+    workers = min(len(tags), int(os.environ.get("UO_TEST_WORKERS") or 0) or cpu_budget.workers(), 16)
     if workers <= 1:
         yield from map(_capture_facts, tags)
         return

@@ -46,11 +46,12 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
   crimson moongate to Totem and recalls home from there, by the runner's own rules. `--at-hunt` starts
   on the fight level instead.
 - **Memory persists across runs** (user 2026-10-13). The runs are split into `--careers` (default
-  `--jobs`) careers. Each career runs one after another on one memory store, as the live runner keeps
-  its store between runs: crawl priors, fights, avoided types, learnt teleporters. `--fresh` gives
-  every run a new store. Summaries carry `career` and `career_run`.
-- **Parallel runs**: one process per career (`--jobs` workers, default CPU threads - 1), so the
-  careers bound the parallelism. The desktop has 16 cores / 32 threads (user 2026-10-13): batches
+  CPU threads - 1, `DEFAULT_CAREERS`) careers. Each career runs one after another on one memory store, as the
+  live runner keeps its store between runs: crawl priors, fights, avoided types, learnt teleporters. `--fresh`
+  gives every run a new store. Summaries carry `career` and `career_run`.
+- **Parallel runs**: one process per career (`--jobs` workers, default CPU threads - 3), so the
+  careers bound the parallelism. A batch keeps off two logical CPUs for the game (`cpu_budget.limit`, user
+  2026-10-17). The desktop has 16 cores / 32 threads (user 2026-10-13): batches
   since then use `--runs 98 --jobs 16 --careers 14` (careers of 7 runs, as the earlier `--runs 49
   --jobs 7` ones).
 - Each run prints a row (kills, gold, damage taken, deaths, pet deaths, vet uses, potions, rule

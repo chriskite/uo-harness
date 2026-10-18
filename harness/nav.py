@@ -382,7 +382,8 @@ def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None) -> 
         pairs.append((c2s_path, s2c_path))
     if len(pairs) > 1:
         from concurrent.futures import ProcessPoolExecutor
-        cap = int(os.environ.get("UO_TEST_WORKERS") or 0) or os.cpu_count() or 1
+        import cpu_budget
+        cap = int(os.environ.get("UO_TEST_WORKERS") or 0) or cpu_budget.workers()
         ex = ProcessPoolExecutor(max_workers=min(len(pairs), cap))
         big_first = sorted(pairs, key=lambda p: -_size(p[1]))
         futures = dict(zip(big_first, (ex.submit(_session_steps, *p) for p in big_first)))

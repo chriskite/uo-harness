@@ -369,6 +369,7 @@ class World:
         self.potions = 3
         self.drinks, self.refused = [], []   # potion double-clicks: accepted / refused (cooling down)
         self.client_drank_t = None           # a potion drunk in the client (the runner can't know)
+        self.client_drink_due = False        # came_in scheduled it and it hasn't happened yet
         self.light_t = []                    # Lightning cast requests (time)
         self.reagent_refusals = []           # Lightning casts answered with 502630 (time)
         self.exit_from = []                  # where the step onto the exit teleporter came from
@@ -484,6 +485,10 @@ class World:
             return
         if self.penalty:
             amount = 1                       # "All damage is reduced to 1."
+        if serial == D and self.client_drink_due:
+            # D must outlive the scripted client drink (came_in): a runner that kills faster (hotkey-paced casts since
+            # 2026-10-17) ended the run on D's kill first, and the cooldown refusal this tests never came
+            amount = min(amount, self.mob_hits[serial] - 1)
         self.mob_hits[serial] = max(0, self.mob_hits[serial] - amount)
         self.send(damage(serial, amount))
         self.send(hits_pkt(serial, self.mob_hits[serial], HITS[serial]))
@@ -579,8 +584,10 @@ class World:
             # hard: below --heal-at, above --leave-at. The runner's own clock says ready,
             # the server refuses (500235)
             self.client_drank_t = time.time()
+            self.client_drink_due = False
             self.hurt_self(D, 25)
         ready_at = (self.drinks[-1] + 10.5) if self.drinks else time.time()
+        self.client_drink_due = True
         self.later(max(0.5, ready_at - time.time()), client_drinks_then_hit)
 
     def drink(self):
@@ -1853,6 +1860,8 @@ def collect(kids, tmp):
 
 if __name__ == "__main__":
     only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all six
+    import cpu_budget
+    cpu_budget.limit()                # the scenario children inherit it: two CPUs left to the game
     if only[:1] == ["--child"]:                       # one proxy run (run_parallel's child)
         try:
             asyncio.run(main(**SCENARIOS[only[1]]))

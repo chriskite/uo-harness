@@ -280,4 +280,6 @@ def main():
 
 
 if __name__ == "__main__":
+    import cpu_budget
+    cpu_budget.limit()                # build_from_logs' worker processes inherit it: two CPUs left to the game
     sys.exit(main())
