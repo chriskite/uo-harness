@@ -171,6 +171,16 @@ class View:
             sight = self.wall_sight or sight
         return sight.can_see(m["pos"], (tile[0], tile[1], self.z_at(tile)))
 
+    def we_see(self, m: dict, tile, r: int) -> bool:
+        """Whether we, standing on `tile`, see monster `m` within `r` by the server's rule: Map.LineOfSight from
+        us to it (a target's check, RunUO `from.InLOS(target)`; the line isn't symmetric at the ends, so not
+        `sees`, which is its sight of us)."""
+        if cheb(m["pos"], tile) > r:
+            return False
+        if self.sight is None:
+            return True
+        return self.sight.can_see((tile[0], tile[1], self.z_at(tile)), m["pos"])
+
     def engaged(self, r: int = 8) -> list[dict]:
         """Monsters in war mode fighting us or the pets (or within `r`): what the pets fight now."""
         return [m for m in self.mobs if m["war"] and (m["serial"] in self.attacking or cheb(m["pos"], self.pos) <= r)]

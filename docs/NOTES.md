@@ -3208,6 +3208,25 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     brings a new one into sight or goes nearer, and the crawl rests that waypoint and picks another.
     test_sim `test_never_aggro_walk_out` (failing before). Simulator, 144 runs (seeds 17-160, 20 min), against
     dbfcd9c: deaths 1.95 vs 2.04 a game hour, runs with a death 76 vs 79, gold 80.6k vs 78.9k an hour.
+- **Bard skills at targets out of sight** (user 2026-10-17: "The runner needs to do better at disco/peace/provo'ing
+  mobs. A lot of times it tries to bard a mob that cannot be seen and fails"). Today's hunt logs: 209 successes,
+  89 failed rolls, 63 presses refused by the skill timer, **44 "out of sight or reach"** (the same target again 10 s
+  later, up to three times). Replayed every agent target answer in 20261017_181210, _183126, _210503 (a throwaway
+  script: our tile and the target's from the world model, z from the map, `los.Sight`): all 17 "Target cannot be
+  seen." (500237) were out of sight, 78 of the 79 accepted ones in sight; the same either way round on this data, but
+  the target check is RunUO's `from.InLOS(target)` (us to it; the simulator's too) and the line isn't symmetric at the
+  ends: a tile in the test geometry saw the purger one way and not the other. Now a skill goes only at a target in
+  our sight (`Team.bard_sees`), a provoked pair both; a due one unseen gets a step to a tile that sees it
+  (`Team.bard_step`, up to 2 steps, the reposition's rules, no more eyes on us than here; checked by hand in the
+  simulator: (5266, 652) to (5268, 652), then in sight). test_sim `test_bard_sight` (failing before).
+  - Simulator, 144 runs (seeds 17-160, 20 min) against 6841b33 (76 runs with a death, 1.95 deaths and 80.6k gold
+    a game hour):
+
+    | Variant | Runs with a death | Deaths/h | Gold/h |
+    |---|---|---|---|
+    | In sight only, no step | 79 | 2.04 | 81.5k |
+    | Step allowing REPOSITION_GAIN more eyes | 85 | 2.27 | 78.5k |
+    | Step only where no more eyes (shipped) | 75 | 1.90 | 81.4k |
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

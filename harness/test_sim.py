@@ -1019,6 +1019,28 @@ def test_hold_first_sight():
     check("...and after HOLD_S without it coming, no longer", later is None, str(later))
 
 
+def test_bard_sight():
+    print("== a bard skill only at a target in sight (the live 'Target cannot be seen.' wall and its seen tile) ==")
+    # live 2026-10-17: 44 of 418 bard uses answered "Target cannot be seen."; the 17 replayed (18:12, 18:31, 21:05
+    # captures) were all out of our sight by los.Sight, 78 of the 79 answered ones in it
+    out = {}
+    for start in (WALL_FROM[:2], SEEN_FROM[:2]):
+        w = world_with([{"key": "corpse purger", "at": list(WALL_TO)}], seed=7, start=start)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.calm_until = 1e9
+        loop, clock, store, patched = hurt_loop(w, 100)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                st = loop.state()
+                loop.team.bard(st, m.serial, st["world"]["mobiles"][f"0x{m.serial:08X}"])
+            out[start] = loop.team.counts.get("bard", 0)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("behind the stone wall: no skill; from the tile the live server answered: the skill goes out",
+          out[WALL_FROM[:2]] == 0 and out[SEEN_FROM[:2]] == 1, str(out))
+
+
 def test_unseen_target_passed_over():
     print("== an idle target within APPROACH_R that can't see us (a wall between): passed over, not waited for ==")
     import tempfile
@@ -1466,7 +1488,8 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_instrument,
+              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_bard_sight,
+              test_instrument,
               test_standoff_sight,
               test_idle_pet,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,

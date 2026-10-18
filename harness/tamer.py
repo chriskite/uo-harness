@@ -404,6 +404,7 @@ class Team:
         self.pull_why = None
         self.evading = False
         self.reposition_t = -1e9
+        self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.spacing_t = -1e9
         self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
         self.tank_t = {}                 # pet serial -> the last time it stood next to a monster in war mode
@@ -1527,7 +1528,9 @@ class Team:
 
     def bard(self, st, serial: int, mob: dict) -> bool:
         """The next bard skill at a target the pets fight: discord, provoke another, peace. True when
-        one went out."""
+        one went out (or we stepped to see the target: bard_step). Only at a target we see by the server's rule
+        (bard_sees), and a provoked pair both in sight (user 2026-10-17: "A lot of times it tries to bard a mob
+        that cannot be seen and fails": 44 of 418 bard uses today answered "out of sight or reach")."""
         now = time.monotonic()
         if now < self.skill_ready or self.no_instrument:
             return False
@@ -1535,6 +1538,11 @@ class Team:
         if fx.get("los", 0) > now or cheb(self.h.pos(st), (mob["x"], mob["y"])) > BARD_RANGE:
             return False
         kind = type_key(mob.get("name"))
+        due = (self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond) or (
+            now >= self.calm_ready and (self.a.provoke or self.a.peace) and fx.get("calm", 0) <= now
+            and fx.get("immune", 0) <= now)
+        if due and not self.bard_sees(st, serial):
+            return self.bard_step(st, serial)
         if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
             return self.use(SKILL_DISCORD, serial)
         if now < self.calm_ready:
@@ -1542,14 +1550,64 @@ class Team:
         if self.a.provoke:
             others = [s for s in self.others(st, serial)
                       if self.effects.get(s, {}).get("calm", 0) <= now and self.effects.get(s, {}).get("immune", 0) <= now
+                      and self.effects.get(s, {}).get("los", 0) <= now
                       and (SKILL_PROVO, type_key((st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name")))
-                      not in self.beyond]
-            if others:
+                      not in self.beyond and self.bard_sees(st, s)]
+            if len(others) > 1 or (others and self.bard_sees(st, serial)):
                 return self.use(SKILL_PROVO, others[0], others[1] if len(others) > 1 else serial)
         if self.a.peace and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
                 and (SKILL_PEACE, kind) not in self.beyond:
             return self.use(SKILL_PEACE, serial)
         return False
+
+    def bard_sees(self, st, serial: int, tile=None) -> bool:
+        """We'd see `serial` from `tile` (where we stand) within BARD_RANGE by the server's rule (aggro.View.we_see;
+        replayed live answers 2026-10-17: the 17 "Target cannot be seen." out of sight, 78 of 79 answered ones in
+        sight). True when it isn't in the view model or there's no map."""
+        v = self.view(st)
+        m = next((m for m in v.mobs if m["serial"] == serial), None)
+        return m is None or v.we_see(m, tile or v.pos, BARD_RANGE)
+
+    def bard_step(self, st, serial: int) -> bool:
+        """A bard skill is due at `serial` and we don't see it: step (up to REPOSITION_STEPS, at most once every
+        REPOSITION_S) to the tile that sees it with the fewest eyes on us (aggro.View.stand_score), under the
+        reposition's rules (the pets within --vet-range, out of a Charge's reach and fire, not onto the tank),
+        and no more eyes on us than here (stand_score plus 0.3 a step: allowing REPOSITION_GAIN more cost the
+        simulator 9 runs with a death in 144, docs/NOTES.md "Bard skills at targets out of sight"). Never
+        mid-channel. True when we stepped."""
+        h, now = self.h, time.monotonic()
+        if now - self.bard_step_t < REPOSITION_S or now < self.vet_busy_until:
+            return False
+        self.bard_step_t = now
+        v = self.view(st)
+        m = next((m for m in v.mobs if m["serial"] == serial), None)
+        if v.walk is None or m is None:
+            return False
+        keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        spaced = [o["pos"][:2] for o in v.mobs if o["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
+        here = v.stand_score(v.pos)
+        best, best_s = None, None
+        for t, k in self.tiles_within(v, REPOSITION_STEPS).items():
+            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
+                    or any(cheb(t, n) < SPACING_R for n in spaced) or not v.we_see(m, t, BARD_RANGE):
+                continue
+            s = v.stand_score(t) + 0.3 * k
+            if best_s is None or s < best_s:
+                best, best_s = t, s
+        if best is None or best_s > here:
+            return False
+        label = "to see the bard target"
+        h.doing("reposition", f"Stepping to {best[0]},{best[1]} to see {m['kind']}", best[:2])
+        self.count("bard_los_moves")
+        log(f"{m['kind']} 0x{serial:08X} out of our sight: stepping to {best[:2]}")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS, max_route=2 * REPOSITION_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"bard step: {e}")
+        return True
 
     def _instrument(self, mark: int, cur):
         """When `cur` is the server's instrument prompt (CLILOC_PICK_INSTRUMENT: the one last played is gone;

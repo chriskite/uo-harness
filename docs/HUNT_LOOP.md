@@ -390,6 +390,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (cliloc 500118) moves the clock; "beyond your skill" stops that skill on that creature type;
    a Barding Break or "That target is currently under a barding break effect." makes it immune to
    peace/provoke for 20 s [INFERENCE: difficulty / 10 s]; "Target cannot be seen." blocks it 10 s.
+   **In sight first** (user 2026-10-17: "A lot of times it tries to bard a mob that cannot be seen and
+   fails"): a skill goes only at a target we see by the server's rule (`Team.bard_sees`, `aggro.View.we_see`:
+   from us to it, within 10), a provoked pair both seen. One due but unseen: a step (up to 2, at most every
+   3 s, never mid-channel) to the tile that sees it with the fewest eyes on us, no more than here, under the
+   reposition's rules (`Team.bard_step`); none: no skill this tick.
    **Barding songs** (`--songs`; user 2026-10-13, capture 20261013_173449): the same skills at a
    ground tile beside us play the Songs of Discordance, Peacemaking and Provocation on us and the
    pets for 15 minutes (live 15.0 % each: less damage taken from creatures, more healing received,
