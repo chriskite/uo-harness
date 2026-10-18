@@ -2006,7 +2006,7 @@ Dir: `ClassicUO/Data/Plugins/Assistant/` = `Profiles/*.xml` + `chars.lst`, `Scri
   so a batch's draws match the earlier ones whatever `--jobs` is. Live runners never call it. With 30 CPUs the
   suite failed test_loop_hunt twice in a row on "after re-entering, the potion ... was refused": the runner killed
   D (`--kills 2`, the run's end) before the scripted client drink at the last drink + 10.5 s, a race the
-  hotkey-paced casts had made likelier; the fake world now keeps D alive until that drink. Two suite runs after:
+  hotkey-paced casts had made likelier; the fake world now keeps D alive until that drink. The suite run after:
   test_loop_hunt ok; test_uomap, test_pathfind and test_world_replay fail as before the change (client data).
 
 ## Backups (NAS, since 2026-10-01)
