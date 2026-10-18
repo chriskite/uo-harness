@@ -1025,7 +1025,8 @@ def test_bard_sight():
     # captures) were all out of our sight by los.Sight, 78 of the 79 answered ones in it
     out = {}
     for start in (WALL_FROM[:2], SEEN_FROM[:2]):
-        w = world_with([{"key": "corpse purger", "at": list(WALL_TO)}], seed=7, start=start)
+        # the live answers were at a corpse purger; a bound soul stands in (no bard skill at an idle ranged one now)
+        w = world_with([{"key": "bound soul", "at": list(WALL_TO)}], seed=7, start=start)
         m = next(m for m in w.mobs.values() if m.kind == "monster")
         m.calm_until = 1e9
         loop, clock, store, patched = hurt_loop(w, 100)
@@ -1039,6 +1040,32 @@ def test_bard_sight():
             simclock.uninstall(patched)
     check("behind the stone wall: no skill; from the tile the live server answered: the skill goes out",
           out[WALL_FROM[:2]] == 0 and out[SEEN_FROM[:2]] == 1, str(out))
+
+
+def test_purger_back_off():
+    print("== an idle corpse purger would see us before the pets: back behind them; no skill at it ==")
+    # live 2026-10-17 23:14:08-12: "holding here: corpse purger in sight at 10 tiles: letting it come"; it woke at 9 with
+    # Logan the nearest of us and its barrage diseased him (-23, -26), the gravebug beside it
+    import aggro
+    w = world_with([{"key": "corpse purger", "at": [5265, 655, 0]}], seed=7, start=(5256, 654))   # live 23:14:11
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.calm_until = 1e9
+    loop, clock, store, patched = hurt_loop(w, 100)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            st = loop.state()
+            before = [x["kind"] for x in aggro.View(loop, st).first_on_us(loop.pos(st), margin=1)]
+            stepped = loop.team.back_off(st)
+            clock.advance(2.0)                          # the guarding pets trail us
+            st = loop.state()
+            after = [x["kind"] for x in aggro.View(loop, st).first_on_us(loop.pos(st), margin=1)]
+            skill = loop.team.bard(st, m.serial, st["world"]["mobiles"][f"0x{m.serial:08X}"])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("first in its sight, then stepped back: no longer before the pets; no bard skill at it",
+          before == ["corpse purger"] and stepped and after == [] and not skill and loop.team.counts.get("bard", 0) == 0,
+          f"before {before} stepped {stepped} after {after} at {w.player.pos} pets {[p.pos for p in w.pets()]}")
 
 
 def test_unseen_target_passed_over():
@@ -1529,6 +1556,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_bard_sight,
+              test_purger_back_off,
               test_instrument,
               test_standoff_sight,
               test_idle_pet,

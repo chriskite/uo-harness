@@ -2454,7 +2454,7 @@ class HuntLoop:
             log("nothing near: war mode off")
             self.human.wait("hotkey")
         if self.team is not None and (why := self.team.hold_reason(st)):
-            if self.team.pull_spot(st):
+            if self.team.back_off(st) or self.team.pull_spot(st):
                 return False
             self.doing("hold", f"Holding: {why}")
             time.sleep(POLL_S)

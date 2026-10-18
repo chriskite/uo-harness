@@ -171,6 +171,8 @@ REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 CASTER_R = 10                 # a caster in war mode this close in sight is casting at us (loop_hunt.CASTER_REACH)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
+RANGED_R = 13                 # a ranged monster in war mode this close in sight is shooting at us (the purger's barrage: 12)
+BACK_OFF_S = 2.0              # back_off at most this often
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
 HOLD_R = 10                   # ...for one within this many tiles (the 16:12 run: none at 12-13 came)
 AT_ONCE_NEAR = 6              # an "at once" stop within this of one in the last AT_ONCE_S: the way on, go
@@ -405,6 +407,7 @@ class Team:
         self.pull_why = None
         self.evading = False
         self.reposition_t = -1e9
+        self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.spacing_t = -1e9
         self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
@@ -912,6 +915,52 @@ class Team:
         m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
         return f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles: letting it come"
 
+    def back_off(self, st) -> bool:
+        """An idle corpse purger (aggro.SHY) would see us before a pet (aggro.View.first_on_us): its first sight puts
+        its aggro on us and its barrage reaches us wherever the pets stand, so step (up to PULL_STEPS, at most every
+        BACK_OFF_S) to a tile out of its sight, else farther from it than here, keeping the pets within --vet-range:
+        the guarding pets trail us, so it meets them first. User 2026-10-17: "We're frequently getting diseased by
+        the corpse purgers"; all 4 purger diseases that day came right after "holding here: corpse purger in sight
+        at 10 tiles: letting it come" (live 23:14:08-12: it woke at 9 with Logan the nearest of us, barraged him -23,
+        -26 with "You have contracted a foul disease!", the gravebug beside it). True when we stepped."""
+        h, now = self.h, time.monotonic()
+        if now - self.back_off_t < BACK_OFF_S:
+            return False
+        v = self.view(st)
+        first = [m for m in v.first_on_us(v.pos, margin=1) if m["shy"]]
+        if v.walk is None or not first:
+            return False
+        self.back_off_t = now
+        m = min(first, key=lambda m: cheb(m["pos"], v.pos))
+        here = cheb(m["pos"], v.pos)
+        keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        best, best_k = None, None
+        for t, k in self.tiles_within(v, PULL_STEPS).items():
+            if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t) \
+                    or any(cheb(t, p) > self.a.vet_range for p in keep):
+                continue
+            seen, d = v.sees(m, t, m["r"] + 1, strict=True), cheb(m["pos"], t)
+            if seen and d <= here:
+                continue
+            key = (seen, -d, v.stand_score(t), k)
+            if best_k is None or key < best_k:
+                best, best_k = t, key
+        if best is None:
+            return False
+        label = "back behind the pets"
+        h.doing("hold", f"Stepping back to {best[0]},{best[1]}: the pets first in the {m['kind']}'s sight", best[:2])
+        self.count("back_offs")
+        log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
+            f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else ""))
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"back off: {e}")
+        return True
+
     def pull_spot(self, st) -> bool:
         """Holding (hold_reason): once per group of monsters held for, the tile within PULL_STEPS where the
         fewest of them would see us before a pet (aggro.View.first_on_us: out of their sight, or the pets
@@ -1059,7 +1108,8 @@ class Team:
         if not self.a.reposition or now - self.reposition_t < REPOSITION_S:
             return False
         v = self.view(st)
-        casting = any(m["war"] and m["caster"] and v.sees(m, v.pos, CASTER_R) for m in v.mobs)
+        casting = any(m["war"] and (m["caster"] and v.sees(m, v.pos, CASTER_R)
+                                    or m["ranged"] and v.sees(m, v.pos, RANGED_R)) for m in v.mobs)
         if now < self.vet_busy_until and not casting:
             return False
         self.reposition_t = now
@@ -1517,8 +1567,12 @@ class Team:
                 self.approach(serial, mob)
                 return
         if not engaged:
-            if not on_us and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R and not self.hold_reason(st):
-                self.approach(serial, mob)
+            if not on_us and self.back_off(st):
+                return                    # a purger would see us before the pets: back behind them first
+            shy_idle = aggro.shy(type_key(mob.get("name"))) and not (mob.get("flags") or 0) & aggro.WAR
+            if not on_us and not shy_idle and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R \
+                    and not self.hold_reason(st):
+                self.approach(serial, mob)    # never toward an idle purger: it shoots from 12, it doesn't come on
                 return
             if not on_us and self.unseen(st, serial):
                 log(f"passing over {name} 0x{serial:08X}: it can't see us from "
@@ -1579,6 +1633,10 @@ class Team:
         if fx.get("los", 0) > now or cheb(self.h.pos(st), (mob["x"], mob["y"])) > BARD_RANGE:
             return False
         kind = type_key(mob.get("name"))
+        if aggro.shy(kind) and serial not in {serial_of(a["serial"]) for a in self.h.attackers(st)}:
+            # our skill draws its aggro (user 2026-10-12: an aggressive act of ours puts the mob on us) and a purger then
+            # barrages us wherever the pets stand; on us, the skills go (peace stops it)
+            return False
         due = (self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond) or (
             now >= self.calm_ready and (self.a.provoke or self.a.peace) and fx.get("calm", 0) <= now
             and fx.get("immune", 0) <= now)

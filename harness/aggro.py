@@ -105,6 +105,16 @@ def ranged(kind: str) -> bool:
     return (creatures().get(kind) or {}).get("ai") == "ranged"
 
 
+# Ranged monsters whose first sight of us we keep the pets ahead of (tamer.Team.back_off): their aggro goes to whoever
+# they see first and their attack reaches us wherever the pets stand. The corpse purger (user 2026-10-17: "We're
+# frequently getting diseased by the corpse purgers"; its barrage diseases: docs/NOTES.md "Corpse purger diseases").
+SHY = ("corpse purger",)
+
+
+def shy(kind: str) -> bool:
+    return kind in SHY
+
+
 def stealthy(kind: str) -> bool:
     """The wiki marks it a stealther (Vanish, Backstab): the Mausoleum's nightstalker, shade wolf, consort."""
     return bool((creatures().get(kind) or {}).get("stealth"))
@@ -150,7 +160,7 @@ class View:
             z = los.surface_z(self.walk, x, y, mob.get("z") or 0) if self.walk is not None else (mob.get("z") or 0)
             self.mobs.append({"serial": s, "kind": kind, "pos": (x, y, z), "war": bool((mob.get("flags") or 0) & WAR),
                               "weight": weight(kind), "caster": caster(kind), "never": kind in never,
-                              "r": aggro_range(kind)})
+                              "ranged": ranged(kind), "shy": shy(kind), "r": aggro_range(kind)})
 
     def z_at(self, tile) -> int:
         if len(tile) > 2:
@@ -209,10 +219,11 @@ class View:
 
     def stand_score(self, tile) -> float:
         """Lower is better: idle monsters that would see us there before a pet (first_on_us, by weight), a
-        --never-aggro one above all, then casters in war mode with sight of us."""
+        --never-aggro one above all, then casters and ranged monsters in war mode with sight of us."""
         idle = sum(m["weight"] for m in self.first_on_us(tile, margin=1))
         never = len(self.never_near(tile))
-        casters = sum(1 for m in self.mobs if m["war"] and m["caster"] and self.sees(m, tile, los.MAX_DISTANCE))
+        casters = sum(1 for m in self.mobs if m["war"] and (m["caster"] or m["ranged"])
+                      and self.sees(m, tile, los.MAX_DISTANCE))
         back = sum(weight(kind) for _, kind in self.backspawn_exposed(tile))
         return 100.0 * never + 10.0 * (idle + back) + 1.0 * casters
 

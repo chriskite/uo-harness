@@ -3284,6 +3284,34 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     |---|---|---|---|---|
     | Before | 73 | 1.81 | 87.8k | 95.2 |
     | Seek monsters in view | 59 | 1.45 | 95.9k | 102.0 |
+- **Corpse purger diseases** (user 2026-10-17: "We're frequently getting diseased by the corpse purgers. See if you
+  can reduce how often that happens, it's serious DOT that is hard to recover from and makes us vulnerable"). Replayed
+  every disease text in six of the day's captures (a throwaway script): 5 of 8 were "You have contracted a foul
+  disease!" with a corpse purger in war mode 6-10 tiles off seeing Logan (the others: a creature's spell, a torment,
+  the 16:38 ensnare). The task logs put each of the 4 in hunt runs right after "holding here: corpse purger in
+  sight at 10 tiles: letting it come" (18:27:58, 23:14:08, 23:15:05, 23:27:00). 23:14:08-12 replayed: Logan at 10,
+  the pets a tile behind him at 11; it woke at 9 at 23:14:11 with the pets already hitting it (-191, -189, ...),
+  yet its barrage went to Logan, the nearest it saw: -23, then -26 with the disease, 100 -> 51 in a second, the
+  gravebug beside it. A ranged monster doesn't "come on"; holding in its sight is what put its aggro on us.
+  - Disease isn't curable with what Logan carries (Alchemy's Panacea and similar mitigations are skill-based: the
+    research KB), so the lever is who it sees first.
+  - Tried in the simulator (it rarely meets purgers on the zone crawl: 1 kill in 144 runs; the loop crawl does, 167),
+    144 runs each, seeds 17-160, `--crawl-loop` unless noted:
+
+    | Variant | Runs with a death | Deaths/h | Disease dmg on Logan | Purger dmg on Logan | Purgers killed |
+    |---|---|---|---|---|---|
+    | Before | 52 | 1.28 | 6,613 | 5,978 | 167 |
+    | Never wake one (advance stops before its sight, not a target, not sought) | 74 | 2.03 | 2,754 | 3,537 | 86 |
+    | Back off behind the pets (shipped) | 57 | 1.45 | 289 | 657 | 67 |
+    | Back off, zone crawl (live default) | 59 vs 59 before | 1.45 vs 1.45 | 0 | 0 | 0 |
+
+    Keeping off every ranged type (the calamity too) cost the zone crawl 10 more runs with a death (twice the calamity
+    fights), so only the purger (`aggro.SHY`). Never waking purgers left them awake around later fights and deaths
+    rose; backing off lets them wake on a pet.
+  - Now: `Team.back_off` when an idle purger would see us before a pet (out of its sight or farther, up to 3 steps,
+    the pets within vet range; the pets trail us, so they meet it first), from the hold and from the fight; no
+    approach to an idle purger; no bard skill at one not on us; ranged monsters in war mode count as casters for the
+    reposition (within 13) and the stand score. test_sim `test_purger_back_off` (the 23:14 geometry).
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 
