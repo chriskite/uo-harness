@@ -1073,6 +1073,15 @@ in a collapsed bottom drawer (`<details>`, 300 px when open); the Movement tab s
 MovementPanel and TrafficPanel (moved there from the left column 2026-10-06, user request).
 Selecting an entity (map click, serial link) opens the drawer on the Inspector tab.
 
+**Hideable side columns (2026-10-17, user request):** a thin rail between each side column and
+the centre hides and shows that whole column (left: Self, Live view or the swapped-in map,
+Paperdoll, job panes; right: Avatar, Seer, Nystul), so the map or live view can take the
+freed width. A hidden rail shows its column's contents as a vertical label. The rails replace
+the 6 px column gaps (`column-gap: 0`; the hidden column's width is 0). A hidden column isn't
+rendered, so a live view parked there closes its stream and the server stops capturing. The
+choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden"]`. At ≤900 px
+(one column) the rails become full-width ▸/▾ bars above their sections.
+
 - **SelfPanel.** `world.self`: name, serial, vitals bars, stats, gold/weight, warmode,
   notoriety, buffs (`world.buffs[self]`), skills (top N; values ×10 fixed point, joined with
   `skill_names`). Buff names (here and in the EntityInspector, `BuffList`): the server's

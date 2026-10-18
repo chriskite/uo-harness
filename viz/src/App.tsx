@@ -34,6 +34,28 @@ type Tab = (typeof TABS)[number];
 type MainView = "map" | "live";
 const MAIN_VIEW_KEY = "uo-viz-main";
 const NYSTUL_OPEN_KEY = "uo-viz-nystul-open";
+const LEFT_HIDDEN_KEY = "uo-viz-left-hidden";
+const RIGHT_HIDDEN_KEY = "uo-viz-right-hidden";
+
+/** The strip beside a side column that hides and shows it. On a desktop it is a thin
+ *  full-height bar (the label shows only while the column is hidden); on a phone it is a
+ *  full-width bar above the column. */
+function SideRail({ side, hidden, label, onToggle }: { side: "left" | "right"; hidden: boolean; label: string; onToggle: () => void }) {
+  const action = `${hidden ? "Show" : "Hide"} ${label}`;
+  return (
+    <button
+      type="button"
+      className={`side-rail side-rail-${side}${hidden ? " collapsed" : ""}`}
+      aria-expanded={!hidden}
+      aria-label={action}
+      title={action}
+      onClick={onToggle}
+    >
+      <span className="rail-caret">▸</span>
+      <span className="rail-label">{label}</span>
+    </button>
+  );
+}
 
 /** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #nystul, #razor, with
  *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all), so they survive reloads and can be linked. No dates = today. */
@@ -51,6 +73,16 @@ export function App() {
   const overseer = useOverseer();
   const nystul = useNystul();
   const [nyOpen, setNyOpen] = useState(() => localStorage.getItem(NYSTUL_OPEN_KEY) === "1");
+  const [leftHidden, setLeftHidden] = useState(() => localStorage.getItem(LEFT_HIDDEN_KEY) === "1");
+  const [rightHidden, setRightHidden] = useState(() => localStorage.getItem(RIGHT_HIDDEN_KEY) === "1");
+  const toggleLeft = () => {
+    localStorage.setItem(LEFT_HIDDEN_KEY, leftHidden ? "0" : "1");
+    setLeftHidden(!leftHidden);
+  };
+  const toggleRight = () => {
+    localStorage.setItem(RIGHT_HIDDEN_KEY, rightHidden ? "0" : "1");
+    setRightHidden(!rightHidden);
+  };
   const lumber = runningLumber(viz.state?.intent);
   const hunt = runningHunt(viz.state?.intent);
   const [route, setRoute] = useState(routeFromHash);
@@ -124,21 +156,25 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${leftHidden ? " left-hidden" : ""}${rightHidden ? " right-hidden" : ""}`}>
       <Header viz={viz} page={page} onPage={(p) => go(p)} />
-      <aside className="left">
-        <SelfPanel world={world} />
-        {liveMain ? (
-          <Panel title="Map" className="side-map">
-            <MapGrid viz={viz} onSwap={swap} />
-          </Panel>
-        ) : (
-          <LivePanel viz={viz} onSwap={swap} />
-        )}
-        <PaperdollPanel viz={viz} />
-        {lumber && <LumberJobPanel intent={lumber} viz={viz} />}
-        {hunt && <HuntJobPanel intent={hunt} viz={viz} />}
-      </aside>
+      {/* A hidden column isn't rendered, so a live view parked there stops streaming. */}
+      <SideRail side="left" hidden={leftHidden} label={liveMain ? "Self · Map · Paperdoll · Jobs" : "Self · Live · Paperdoll · Jobs"} onToggle={toggleLeft} />
+      {!leftHidden && (
+        <aside className="left">
+          <SelfPanel world={world} />
+          {liveMain ? (
+            <Panel title="Map" className="side-map">
+              <MapGrid viz={viz} onSwap={swap} />
+            </Panel>
+          ) : (
+            <LivePanel viz={viz} onSwap={swap} />
+          )}
+          <PaperdollPanel viz={viz} />
+          {lumber && <LumberJobPanel intent={lumber} viz={viz} />}
+          {hunt && <HuntJobPanel intent={hunt} viz={viz} />}
+        </aside>
+      )}
       {liveMain ? (
         <main className="map">
           <LivePanel viz={viz} big onSwap={swap} />
@@ -148,35 +184,38 @@ export function App() {
           <MapGrid viz={viz} onSwap={hasLive ? swap : undefined} />
         </main>
       )}
-      <aside className="right">
-        <IntentPanel viz={viz} />
-        <div className="panel right-overseer">
-          <OverseerPanel feed={overseer} />
-        </div>
-        {/* A section, not <details>: details content sits in a slot box outside the flex
-            layout, so the chat grew past the panel and couldn't scroll. */}
-        <section className={`panel right-nystul${nyOpen ? " open" : ""}`}>
-          <div className="panel-head">
-            <h2>
-              <button
-                type="button"
-                className="ny-toggle"
-                aria-expanded={nyOpen}
-                onClick={() => {
-                  localStorage.setItem(NYSTUL_OPEN_KEY, nyOpen ? "0" : "1");
-                  setNyOpen(!nyOpen);
-                }}
-              >
-                <span className="ny-caret">{nyOpen ? "▾" : "▸"}</span> Nystul the Wizard
-              </button>
-            </h2>
-            <a href="#nystul" className="ny-full">
-              full page
-            </a>
+      <SideRail side="right" hidden={rightHidden} label="Avatar · Seer · Nystul" onToggle={toggleRight} />
+      {!rightHidden && (
+        <aside className="right">
+          <IntentPanel viz={viz} />
+          <div className="panel right-overseer">
+            <OverseerPanel feed={overseer} />
           </div>
-          {nyOpen && <NystulChat feed={nystul} compact />}
-        </section>
-      </aside>
+          {/* A section, not <details>: details content sits in a slot box outside the flex
+              layout, so the chat grew past the panel and couldn't scroll. */}
+          <section className={`panel right-nystul${nyOpen ? " open" : ""}`}>
+            <div className="panel-head">
+              <h2>
+                <button
+                  type="button"
+                  className="ny-toggle"
+                  aria-expanded={nyOpen}
+                  onClick={() => {
+                    localStorage.setItem(NYSTUL_OPEN_KEY, nyOpen ? "0" : "1");
+                    setNyOpen(!nyOpen);
+                  }}
+                >
+                  <span className="ny-caret">{nyOpen ? "▾" : "▸"}</span> Nystul the Wizard
+                </button>
+              </h2>
+              <a href="#nystul" className="ny-full">
+                full page
+              </a>
+            </div>
+            {nyOpen && <NystulChat feed={nystul} compact />}
+          </section>
+        </aside>
+      )}
       <details
         className="details-row"
         open={detailsOpen}

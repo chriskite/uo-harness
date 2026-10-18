@@ -188,17 +188,27 @@ h4 {
 
 /* ---------------------------------------------------------------- layout */
 
+/* Each side column has a rail (.side-rail) between it and the centre that hides and shows it.
+   The rails stand in for the column gaps (column-gap 0), so a hidden column takes no width. */
 .app {
   display: grid;
   height: 100vh;
-  grid-template-columns: 340px minmax(0, 1fr) 460px;
+  --left-w: 340px;
+  --right-w: 460px;
+  grid-template-columns: var(--left-w) 20px minmax(0, 1fr) 20px var(--right-w);
   grid-template-rows: 44px minmax(0, 1fr) auto;
   grid-template-areas:
-    "header header header"
-    "left map right"
-    "details details details";
-  gap: 6px;
+    "header header header header header"
+    "left lrail map rrail right"
+    "details details details details details";
+  gap: 6px 0;
   padding: 0 6px 6px;
+}
+.app.left-hidden {
+  --left-w: 0px;
+}
+.app.right-hidden {
+  --right-w: 0px;
 }
 .header {
   grid-area: header;
@@ -220,6 +230,49 @@ h4 {
   grid-area: right;
   min-height: 0;
   overflow: hidden;
+}
+button.side-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 0;
+  margin: 0 4px;
+  padding: 0;
+  border-color: var(--border);
+  background: linear-gradient(90deg, #17110b, #1f1710, #17110b);
+  box-shadow: none;
+  color: var(--dim);
+  font-size: 11px;
+}
+.side-rail-left {
+  grid-area: lrail;
+}
+.side-rail-right {
+  grid-area: rrail;
+}
+/* the caret points the way the column moves: towards its edge to hide, back in to show */
+.rail-caret {
+  display: inline-block;
+  line-height: 1;
+}
+.side-rail-left:not(.collapsed) .rail-caret,
+.side-rail-right.collapsed .rail-caret {
+  transform: rotate(180deg);
+}
+.rail-label {
+  writing-mode: vertical-rl;
+  font-family: var(--display);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.side-rail:not(.collapsed) .rail-label {
+  display: none;
+}
+.side-rail.collapsed {
+  border-color: var(--frame);
+  color: var(--gold);
 }
 .details-row {
   grid-area: details;
@@ -2532,6 +2585,35 @@ tr.spot-out td {
     order: 3;
     flex: none;
     overflow: visible;
+  }
+  /* the rails become full-width bars above their columns (DOM order breaks the order tie) */
+  button.side-rail {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    min-height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+  .side-rail-right {
+    order: 2;
+  }
+  .side-rail-left {
+    order: 3;
+  }
+  .side-rail .rail-label,
+  .side-rail:not(.collapsed) .rail-label {
+    display: inline;
+    writing-mode: horizontal-tb;
+  }
+  .side-rail .rail-caret,
+  .side-rail-left:not(.collapsed) .rail-caret,
+  .side-rail-right.collapsed .rail-caret {
+    transform: none;
+  }
+  .side-rail:not(.collapsed) .rail-caret {
+    transform: rotate(90deg);
   }
   .details-row {
     order: 4;
