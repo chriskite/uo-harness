@@ -3152,6 +3152,33 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   Mausoleum's `dungeon` block in harness/data/sim/mausoleum.json, now with `name` and `facet` 0). It covers
   loop_hunt, loop_lumber and `ctl recall`. Only the Mausoleum is known (box 5150-5760 x 600-760: all four
   levels walked so far); other dungeons need their own block. test_escape `test_no_recall_in_dungeon`.
+- **Dead 2 tiles from the gate (18:50 run, `hunt-20261017-185015-7931`, capture 20261017_183126; user: "We were at
+  the gate and Logan just stood there dying instead of going through").** `ctl stop --after-trip` at 19:02:59, the
+  planned walk out from (5265, 652). Replayed:
+  - 19:04:08.07 the last step, onto (5205, 701), 2 tiles from the gate (5203, 703). No agent packet for 8.5 s: a
+    humanize walk pause (`Human.after_step`: a 3-9 s look-around or a long micro pause). The hunt runner never sets
+    `Mover.danger`, the only thing that stopped those pauses (the lumber guards' zones).
+  - Meanwhile an apparition in war mode came from 6 tiles (19:04:11.5) onto his tile (19:04:14.0): -26 at 14.3.
+  - 19:04:15 the walk's stop saw the hit: "attacked on the way out; the pets guard" (`walk_in_fight`), "All Guard
+    Me" at 16.5, then -44 at 17.1, -32 at 18.7: dead at 19:04:18.7, still on (5205, 701).
+  - Fixed: `Mover.no_idle` (host predicate) skips walk pauses and sidesteps; the hunt runner's (`HuntLoop.no_idle`)
+    holds while walking out or with an attackable monster in war mode in view. Attacked on a planned walk out
+    within `GATE_DASH_R` 8 of the gate: "All Follow Me" without the wait and through the gate at once, no stand.
+    test_mover `test_no_pause_in_danger`, test_sim `test_gate_dash` (failing before: a stand until the 600 s
+    timeout).
+- **The runner was person-paced where Logan uses hotkeys** (user: "the runners actions are just so slow compared to
+  a human with Razor macros"). Cursor to answer: runner 1.08 s median (n 59, 20261017_183126), Logan by hand 0.38 s
+  (n 69, 20261012_210013) and 0.26 s (n 106, his own play in the 18:31 session); skill to skill 2.44 s (runner) vs
+  0.71 s (him). Every fight action now waits humanize `hotkey` 0.25 s / `hotkey_aim` 0.3 s (ANTICHEAT.md §8.14).
+  Simulator, 48 seeds (17-64), 20 min, both fixes against 53bcdd3:
+
+  | Code | Runs with a death | Deaths/h | Gold/h | Kills/h | Runs with a pet left behind |
+  |---|---|---|---|---|---|
+  | 53bcdd3 | 31 | 2.46 | 71.8k | 81.3 | 0 |
+  | No idling, gate dash, hotkey pace | 25 | 2.00 | 75.7k | 85.6 | 2 |
+
+  [INFERENCE] The two pets left behind are gate dashes that went through without them; the stablemaster's "Retrieve
+  Lost Followers" brings them back (user), and the overseer stops on `pet_left_behind`.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

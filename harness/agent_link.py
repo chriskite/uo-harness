@@ -475,6 +475,7 @@ class Mover:
         self.denied_t = {}           # the ones of them on map-walkable steps -> monotonic time (expire: DENY_RETRY_S)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
         self.refresh = None          # host's stamina potion: () -> True when it drank (walk_to, a denied shove)
+        self.no_idle = None          # host's (state) -> True: no walk pause or sidestep now (walk_to)
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
@@ -1118,9 +1119,11 @@ class Mover:
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
                         self._open_ahead(path[i + 1], here[2], opened, label, after)
-                    if urgent or self.danger:
+                    if urgent or self.danger or (self.no_idle is not None and self.no_idle(after)):
                         # no idling or sidesteps with a creature's zone set (live 2026-10-05, witcher_23: an
-                        # 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath)
+                        # 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath), or when
+                        # the host says so (live 2026-10-17 19:04:08-15: ~7 s still 2 tiles from the leave gate
+                        # while an apparition in war mode came 6 tiles onto us; dead at 19:04:18.7)
                         continue
                     self.human.after_step()
                     if len(path) - i > 3 and self.human.wander():

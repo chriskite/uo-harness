@@ -628,6 +628,15 @@ moongate, and never near a red one).
     more than its `recall_r` from a gold moongate (`escape.recall_forbidden`, the Mausoleum's `dungeon` block
     in harness/data/sim/mausoleum.json, the simulator's rule too). Every recall goes through it: the hunt and
     lumber runners and `ctl recall`. The leave then fails as "unusable" and the run stops where it is.
+  - **Attacked near the gate** (live 19:04, dead 2 tiles from it while the pets guarded): a planned walk out that is
+    attacked within `GATE_DASH_R` 8 tiles of the gate doesn't stand and fight (`walk_in_fight`) but goes through at
+    once: "All Follow Me" without waiting for the pets, the gate at its macro's pace. Farther out it still stands.
+  - **No walk pauses in a fight or on the way out** (`HuntLoop.no_idle` → `Mover.no_idle`): no humanize look-around
+    or sidestep while walking out or with a monster in war mode in view (the same 19:04 death began with an 8.5 s
+    pause 2 tiles from the gate).
+  - **Hotkey pace**: pet commands, bard skills and their targets, songs, potions, vet supplies, war mode, the rope
+    and the gate wait humanize `hotkey` 0.25 s / `hotkey_aim` 0.3 s / `gate_macro`, as Logan plays them off Razor
+    hotkeys (ANTICHEAT.md §8.14).
   - **Fleeing a hostile player** (an urgent leave; `--rope`, default on): "All Follow Me" at once, then
     the run to the gate. An Adventurer's Rope jump only when one is ready **and no player is on us**
     (`rope_worth`, since 2026-10-17; user: "ropes are useful for getting through groups of mobs or getting a

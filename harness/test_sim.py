@@ -602,6 +602,37 @@ def hurt_loop(w, hits, extra=()):
     return loop, clock, store, patched
 
 
+def test_gate_dash():
+    print("== attacked on a planned walk out within GATE_DASH_R of the gate: through it at once, no stand ==")
+    import loop_hunt
+    from agent_link import cheb
+    # live 2026-10-17 19:04:08-18.7: 2 tiles from the gate, an apparition on Logan, the pets guarding: dead there.
+    # Here something unseen takes a hit point every 0.5 s, so a stand never ends by itself
+    gate = (5203, 703)
+    w = world_with([], seed=7, start=(5209, 695))           # 8 tiles off: GATE_DASH_R
+    loop, clock, store, patched = hurt_loop(w, 100)
+    world_tick, last = clock.on_advance, [None]
+
+    def bleed(now):
+        world_tick(now)
+        if last[0] is None or now - last[0] >= 0.5:
+            last[0] = now
+            if w.player.hits > 60:
+                w.hurt(w.player, 1, None, kind="bleed")
+    clock.on_advance = bleed
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            t0 = loop_hunt.time.monotonic()
+            res = loop.leave_by_gate("info")
+            took = loop_hunt.time.monotonic() - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("through the gate within seconds (not a stand while the pets fight)",
+          res.get("ok") and took < 15 and cheb(w.player.pos, gate) > 100,
+          f"ok {res.get('ok')} {res.get('error')} in {took:.1f} s at {w.player.pos}")
+
+
 def test_area_first():
     print("== an apparition on our tile: a ready potion at once, then out of its reach, mid-channel ==")
     import time
@@ -1368,7 +1399,8 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_leave_from_far, test_instrument, test_standoff_sight,
+              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_instrument,
+              test_standoff_sight,
               test_idle_pet,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,

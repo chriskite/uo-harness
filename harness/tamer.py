@@ -633,7 +633,7 @@ class Team:
 
     # ------------------------------------------------------------ speech
     def say(self, text: str) -> bool:
-        self.h.human.wait("speak")
+        self.h.human.wait("hotkey")       # a Razor "Say" hotkey (humanize SCRIPT_MEDIAN)
         self.h.link.act(command(text))
         self.count("commands")
         log(f'said "{COMMANDS[text.lower()]}"')
@@ -1309,7 +1309,7 @@ class Team:
             return False
         serial, it = stacks[0]
         h.doing("vet", f"Veterinary supplies: {why}")
-        h.human.wait("use")
+        h.human.wait("hotkey")
         mark = len(h.link.events)
         h.link.act(actions.dclick(serial))
         got = h.wait_for(lambda s: any(self._vet_reply(e) for e in h.link.events[mark:]), 1.5)
@@ -1558,7 +1558,7 @@ class Team:
             log("no instrument in the pack: the bard skills and songs are off")
             return None
         serial, it = found
-        h.human.wait("aim")
+        h.human.wait("hotkey_aim")
         mark2 = len(h.link.events)
         h.link.act(actions.target_object(cur["cursor_id"], serial, it.get("x") or 0, it.get("y") or 0, it.get("z") or 0,
                                          it.get("graphic") or 0, cur.get("cursor_type") or 0))
@@ -1584,11 +1584,11 @@ class Team:
         return None
 
     def _aim(self, cur, serial: int, rng: int, bard: bool = False) -> bool:
-        """Answer the cursor `cur` with `serial` after a human aim pause and a fresh read: the target
-        still live (the monsters-only guard) and no leave rule firing, and for a bard skill no potion to
-        drink first (potion_first); else the stock Esc."""
+        """Answer the cursor `cur` with `serial` after a hotkey-paced aim (humanize "hotkey_aim") and a fresh
+        read: the target still live (the monsters-only guard) and no leave rule firing, and for a bard skill no
+        potion to drink first (potion_first); else the stock Esc."""
         h = self.h
-        h.human.wait("aim")
+        h.human.wait("hotkey_aim")
         st = h.state()
         if not h.cursor_still(st, cur):
             log("the cursor went away before the target answer")
@@ -1623,7 +1623,7 @@ class Team:
         name = mob.get("name") or f"0x{serial:08X}"
         what = SKILL_NAMES[sid] + f" on {name}" + ("" if second is None else f" onto 0x{second:08X}")
         h.doing("bard", what, (mob["x"], mob["y"]), serial)
-        h.human.wait("use")
+        h.human.wait("hotkey")
         mark = len(h.link.events)
         h.link.act(actions.use_skill(sid))
         now = time.monotonic()
@@ -1653,7 +1653,7 @@ class Team:
                                  if not (e.get("ev") == "speech_heard" and e.get("text") == TEXT_INCITE_SECOND)),
                    ANSWER_WAIT_S)
         self.answered(sid, serial, second, name, [bard_answer(e) for e in h.link.events[ans:] if bard_answer(e)])
-        h.human.wait("read")
+        h.human.wait("hotkey")
         return True
 
     def answered(self, sid: int, serial: int, second, name: str, answers: list):
@@ -1714,7 +1714,7 @@ class Team:
             return False
         h = self.h
         h.doing("bard", f"Peacemaking around us: {why}")
-        h.human.wait("use")
+        h.human.wait("hotkey")
         mark = len(h.link.events)
         h.link.act(actions.use_skill(SKILL_PEACE))
         self.count("area_peace")
@@ -1725,7 +1725,7 @@ class Team:
         if cur is None:
             log(f"area peace ({why}): no target cursor")
             return True
-        h.human.wait("aim")
+        h.human.wait("hotkey_aim")
         st = h.state()
         if not h.cursor_still(st, cur):
             return True
@@ -1753,7 +1753,7 @@ class Team:
         h = self.h
         what = f"Song of {SONG_NAMES[sid]}"
         h.doing("bard", what)
-        h.human.wait("use")
+        h.human.wait("hotkey")
         mark = len(h.link.events)
         h.link.act(actions.use_skill(sid))
         self.count("song")
@@ -1765,7 +1765,7 @@ class Team:
         if cur is None:
             log(f"{what}: no target cursor")
             return True
-        h.human.wait("aim")
+        h.human.wait("hotkey_aim")
         st = h.state()
         if not h.cursor_still(st, cur):
             log(f"{what}: the cursor went away")
@@ -1788,7 +1788,7 @@ class Team:
             log(f"{what}: playing for {SONG_S / 60:.0f} min")
         else:
             log(f"{what}: {got[0]}")
-        h.human.wait("read")
+        h.human.wait("hotkey")
         return True
 
     def song_left(self, st, sid: int, now: float) -> float:

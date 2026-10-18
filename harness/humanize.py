@@ -59,6 +59,14 @@ SCRIPT_MEDIAN = {
     # the user's escape macro through a moongate (2026-10-15: "My macro gets me out basically instantly"): the
     # gate's double-click and its menu's buttons at a macro's pace, not a reader's (live 21:57:21-25.4: 4.2 s)
     "gate_macro": 0.15,
+    # what players run off Razor hotkeys in a fight (user 2026-10-17: "we shouldn't delay things that players
+    # usually use a macro for"): pet commands (Razor "Say" hotkeys, 56 of 56 in Logan's captures), skills, potions
+    # ("I use a Razor hotkey for 'Drink Heal Potion'"), vet supplies, war mode, the rope. The press once the need
+    # shows [INFERENCE: ~0.25 s, no capture can time a decision]; the target cursor answered at his measured pace
+    # (20261012_210013: cursor -> answer median 0.38 s, n 69; 20261017_183126 by hand 0.26 s, n 106; the
+    # runner's person-paced "aim" had 1.08 s, n 59)
+    "hotkey": 0.25,
+    "hotkey_aim": 0.3,
 }
 SCRIPT_SIGMA = 0.2
 # the stock client's step cadence for a held key (ClassicUO MovementSpeed): on foot, and mounted

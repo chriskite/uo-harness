@@ -176,6 +176,7 @@ SKIP_S = 60.0                 # ...and not picked again for this long (unless it
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
+GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450)
 HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
 HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
@@ -307,6 +308,7 @@ class HuntLoop:
         self.potions = healing.PotionClock()
         self.refresh_t = -1e9        # monotonic time of our last stamina potion (refresh_potion)
         self.mover.refresh = self.refresh_potion
+        self.mover.no_idle = self.no_idle
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
         self.totals = {"kills": 0, "lost_kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0,
@@ -882,7 +884,7 @@ class HuntLoop:
             log(f"not attacking 0x{serial:08X}: {why}")
             return False
         if self.war_mode(st, True):
-            self.human.wait("use")
+            self.human.wait("hotkey")
             st = self.state()
             mob, why = self.live_target(st, serial)
             if mob is None:
@@ -986,7 +988,7 @@ class HuntLoop:
         cur = self.cast(self.spell, name)
         if cur is None:
             return False
-        self.human.wait("aim")
+        self.human.wait("hotkey_aim")
         st = self.state()
         mob, why = self.live_target(st, serial, SPELL_RANGE)
         if not self.cursor_still(st, cur):
@@ -1060,7 +1062,7 @@ class HuntLoop:
         casts instead."""
         me = st["world"]["self"]
         self.doing("heal", f"Drinking a heal potion ({me.get('hits')}/{me.get('hits_max')} hits)")
-        self.human.wait("use")
+        self.human.wait("hotkey")                     # the user's Razor "Drink Heal Potion" hotkey
         mark = len(self.link.events)
         self.link.act(actions.dclick(serial))
         answers = (healing.CLILOC_HEALED, healing.CLILOC_FULL_HEALTH)
@@ -1092,7 +1094,7 @@ class HuntLoop:
             return False
         self.refresh_t = now
         stam = me.get("stam") or 0
-        self.human.wait("use")
+        self.human.wait("hotkey")
         self.link.act(actions.dclick(pots[0][0]))
         got = self.link.wait(lambda s: (s["world"]["self"].get("stam") or 0) > stam, 1.5)
         if got is not None:
@@ -1107,7 +1109,7 @@ class HuntLoop:
         cur = self.cast(sid, "myself")
         if cur is None:
             return False
-        self.human.wait("aim")
+        self.human.wait("hotkey_aim")
         st = self.state()
         if not self.cursor_still(st, cur):
             return False
@@ -1455,7 +1457,7 @@ class HuntLoop:
             self.crawl.on_leave(self.pos(st), severity != "info")
         self.doing("leave", f"Leaving: {why}", self.spot)
         if self.war_mode(st, False):
-            self.human.wait("read")
+            self.human.wait("hotkey")
         if self.team is not None:
             self.team.follow(severity)
         self.mover.walk_to(lambda: self.spot, 0, "to the exit", max_moves=max(250, 3 * self.out_steps),
@@ -1606,7 +1608,7 @@ class HuntLoop:
             log("rope: no target cursor")
             return False
         cur = self.link.state()["world"]["target"]
-        self.human.wait("aim")
+        self.human.wait("hotkey_aim")
         self.link.act(actions.target_xyz(cur["cursor_id"], best[0], best[1], best[2], 0, cur.get("cursor_type") or 0))
         mark = len(self.link.events)
         landed = self.link.wait(lambda s: cheb(s["movement"]["pos"], best) <= 1
@@ -1636,6 +1638,7 @@ class HuntLoop:
         self.walking_out, self.pk_flight = True, flee
         t_walk = time.monotonic()
         jump = {"last": tuple(self.pos(self.link.state())[:2]), "through": False}
+        dash = False                    # attacked near the gate on a planned walk out: through it at once
 
         def through(s) -> bool:
             """From within 2 of the gate to more than GATE_THROUGH_R from it between two reads: through it (a
@@ -1674,6 +1677,14 @@ class HuntLoop:
                     if why == "through the gate" or through(self.link.state()):
                         break
                     if why and severity in PLANNED:
+                        if why == "under attack" and cheb(self.pos(self.link.state()), gate) <= GATE_DASH_R:
+                            # live 2026-10-17 19:04:15: attacked 2 tiles from the gate, the pets guarded and Logan
+                            # stood in an apparition's hits there, dead 3.5 s later (user: "We were at the gate
+                            # and Logan just stood there dying instead of going through")
+                            log(f"to the moongate: attacked {cheb(self.pos(self.link.state()), gate)} tiles from "
+                                f"it; through it now")
+                            dash = True
+                            break
                         if why == "under attack":
                             self.walk_in_fight("to the moongate", "out")
                         elif not self.wait_pets("to the moongate", None, required=False):
@@ -1692,7 +1703,8 @@ class HuntLoop:
                 me = self.link.state()["world"]["self"]
                 hurt = severity not in PLANNED and me.get("hits") is not None and self.frac(me) < self.args.heal_at
                 if not flee:          # fleeing: "All Follow Me" went out at the start of the run here
-                    self.team.follow(severity, wait=not hurt)    # hurt: through the gate now, pets or not
+                    self.team.follow(severity, wait=not (hurt or dash))   # hurt or attacked: through now, pets or not
+            fast = urgent or dash
             mark = len(self.link.events)
             st = self.link.state()
             me = st["world"]["self"]
@@ -1703,15 +1715,15 @@ class HuntLoop:
             st = self.state()                                # its guards: a potion if one is due
             serial = moongate.gate_at(st, gate)
             if serial is not None and cheb(self.pos(st), gate) <= 1:
-                self.human.wait("gate_macro" if urgent else "use")
+                self.human.wait("gate_macro")         # the user's gate macro, planned leave or not
                 self.link.act(actions.dclick(serial))
             else:
-                self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=urgent,
+                self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=fast,
                                    max_moves=max(250, 3 * self.out_steps))
             # a leave to survive: the gate's menu at the user's macro pace (live 20261015_210709 21:57:21-25.4 the red's
             # flight took 4.2 s from the gate's tile to Totem: a second "All Follow Me", the reader's pauses; the user:
             # "My macro gets me out basically instantly")
-            return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log, urgent=urgent)
+            return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log, urgent=True)
         except (Abort, moongate.GateError) as e:
             if (out := self.through_gate(gate, t_walk, through)) is not None:
                 return out
@@ -1754,7 +1766,7 @@ class HuntLoop:
             self.doing("leave", f"Leaving: {why}", tuple(self.args.leave_gate) if self.args.leave_gate
                        else self.recall_spot)
             if severity in PLANNED and self.war_mode(st, False):
-                self.human.wait("read")
+                self.human.wait("hotkey")
             if self.team is not None and not self.args.leave_gate:
                 self.team.follow(severity)
             data["react_s"] = round(time.monotonic() - t_fire, 2)
@@ -1943,6 +1955,17 @@ class HuntLoop:
             return "under attack"
         return self.pets_lagging(st)
 
+    def no_idle(self, st) -> bool:
+        """Mover.no_idle: no walk pause or sidestep while walking out or with a monster in war mode in view (live
+        2026-10-17 19:04:08-15: a ~7 s look-around pause 2 tiles from the leave gate while an apparition in war
+        mode came 6 tiles onto Logan; dead 3.5 s after its first hit). The runner never sets Mover.danger, the
+        lumber guards' zones that already stopped these pauses."""
+        if self.walking_out:
+            return True
+        world = st["world"]
+        return any((m.get("flags") or 0) & aggro.WAR and combat.attackable(world, key)[0]
+                   for key, m in world["mobiles"].items())
+
     def walk_hurt(self, st) -> bool:
         """Our hits fell since the last look (walk_in: `walk_hits`, `walk_hurt_t`)."""
         hits = st["world"]["self"].get("hits")
@@ -2004,7 +2027,7 @@ class HuntLoop:
             if not self.team.potion_first(st) and self.team.stand_off(st):
                 continue
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
-                self.human.wait("read")
+                self.human.wait("hotkey")
                 continue
             if self.team.care(st):
                 continue
@@ -2229,7 +2252,7 @@ class HuntLoop:
             return
         if not self.resent_adjacent and dist <= 1:
             self.resent_adjacent = True
-            self.human.wait("read")
+            self.human.wait("hotkey")
             self.attack(serial)
             return
         if stationary.steps_left(st["world"]):
@@ -2238,7 +2261,7 @@ class HuntLoop:
                 and self.spell_ok(st, self.spell, reserve=self.args.mana_reserve):
             done = self.cast_at(serial)
             if done:
-                self.human.wait("read")
+                self.human.wait("hotkey")
             if done or done is None:
                 return
         time.sleep(POLL_S)
@@ -2370,7 +2393,7 @@ class HuntLoop:
         if self.team is not None and not self.team.potion_first(st) and self.team.stand_off(st):
             return False                  # out of an area hit first, unless a potion is ready: it goes at once
         if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
-            self.human.wait("read")
+            self.human.wait("hotkey")
             return False
         if self.team is not None and self.team.care(st):
             return False
@@ -2393,7 +2416,7 @@ class HuntLoop:
             self.disengage()
         if self.war_mode(st, False):
             log("nothing near: war mode off")
-            self.human.wait("read")
+            self.human.wait("hotkey")
         if self.team is not None and (why := self.team.hold_reason(st)):
             if self.team.pull_spot(st):
                 return False

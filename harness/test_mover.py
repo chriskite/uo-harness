@@ -342,17 +342,20 @@ def test_danger_replan_when_near():
 
 
 def test_no_pause_in_danger():
-    print("== walk pauses: none while a creature's zone is set ==")
-    # live 2026-10-05 (witcher_23): an 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath
-    for danger, want in (({}, True), ({("seen", 7): ((20, 20), 13)}, False)):
+    print("== walk pauses: none while a creature's zone is set, or while the host's no_idle says so ==")
+    # live 2026-10-05 (witcher_23): an 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath;
+    # live 2026-10-17 19:04:08-15: ~7 s still 2 tiles from the Mausoleum's leave gate, an apparition coming on
+    for danger, no_idle, want in (({}, None, True), ({("seen", 7): ((20, 20), 13)}, None, False),
+                                  ({}, lambda st: True, False), ({}, lambda st: False, True)):
         link = FakeLink((0, 0), facing=2)
         mv = map_mover(link, OPEN)
         paused = []
         mv.human.after_step = lambda: paused.append(1) or 0.0
         mv.danger = dict(danger)
+        mv.no_idle = no_idle
         mv.walk_to(lambda: (4, 0), 0, "t")
-        check(f"danger {danger}: {'pauses offered' if want else 'no pause'}", bool(paused) == want,
-              f"{len(paused)} pauses")
+        check(f"danger {danger}, no_idle {no_idle and no_idle(None)}: {'pauses offered' if want else 'no pause'}",
+              bool(paused) == want, f"{len(paused)} pauses")
 
 
 def test_boxed_in():
