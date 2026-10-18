@@ -3196,6 +3196,18 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   - Simulator, 144 runs (seeds 17-160, 20 min), against 5a26e98: deaths 2.04 vs 1.97 a game hour, runs with a
     death 79 vs 75, gold 78.9k vs 78.5k an hour (noise: the same code gave 25 and 30 runs with a death on two seed
     sets), runs with a pet left behind 0 vs 6.
+- **The same run's end: two reds, hamstrung 6 tiles from the gate, dead (21:16:48-55.9).** Fleeing an elder
+  vampire, then "red player 0x2a377 in view at 18 tiles": "All Follow Me", a rope 9 tiles (landed), a potion
+  74 -> 86, the vet supplies on the run, the walk to the gate at run pace. 21:16:52.4-55.3 the steps went out as
+  walks (0x02 direction without 0x80, 0.41 s apart): stamina at 1 or less, which is what a hamstring does for 3 s
+  [INFERENCE from the 2.9 s window; the stock client walks then too: `stamina_ok`]. Dead at (5207, 699) at
+  21:16:55.9; the Report Murder gumps named Ted Bundtcake and "This Game SuX". No runner fault found in the flight.
+  - Before it, 21:12-21:16: 3225 "patrol to ...: stopped (a elder vampire would see us)" lines. `pull_check`'s
+    never-aggro reason fired whenever one saw us at all, so a patrol stopped before its first step and the crawl
+    retried at once (no sleep), standing in the elder vampire's sight. Now the reason fires only on a step that
+    brings a new one into sight or goes nearer, and the crawl rests that waypoint and picks another.
+    test_sim `test_never_aggro_walk_out` (failing before). Simulator, 144 runs (seeds 17-160, 20 min), against
+    dbfcd9c: deaths 1.95 vs 2.04 a game hour, runs with a death 76 vs 79, gold 80.6k vs 78.9k an hour.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

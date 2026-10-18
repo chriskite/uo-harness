@@ -843,6 +843,12 @@ class Crawl:
                             self.depleted[i] = now + RESPAWN_S
                     self.wp = None
                     log(f"crawl: more than the pull budget would see us together near {here}; patrolling elsewhere")
+                elif why.endswith("would see us"):
+                    # the way to it goes nearer a --never-aggro monster in sight (Team.pull_check): another waypoint
+                    # (live 2026-10-17 21:12-21:16 the patrol to the same one stopped thousands of times)
+                    self.depleted[self.wp] = now + RESPAWN_S
+                    log(f"crawl: the way to {w} goes nearer {why[2:-len(' would see us')]}; patrolling elsewhere")
+                    self.wp = None
         except Abort as e:
             if "no route" not in str(e) and "cut by mobiles" not in str(e):
                 raise

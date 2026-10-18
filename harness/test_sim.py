@@ -1086,6 +1086,41 @@ def test_ledge_target_not_picked():
           f"in view {mob is not None}, picked {picked}, us {w.player.pos}")
 
 
+def test_never_aggro_walk_out():
+    print("== a --never-aggro monster in sight: an advance stops on a step nearer it, not on one out of it ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 2026-10-17 21:12-21:16: 3225 "patrol to ...: stopped (a elder vampire would see us)" lines, every patrol
+    # stopped before its first step while Logan stood in the elder vampire's sight
+    w = world_with([{"key": "elder vampire", "at": [5266, 660, 0]}])
+    ev = next(m for m in w.mobs.values() if m.kind == "monster")
+    ev.calm_until = 1e9                                 # stays idle
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    out = []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            for y in (648, 648, 647, 648):              # stand, stand again (a new walk's first look), away, nearer
+                w.player.y = y
+                clock.advance(0.3)
+                out.append(loop.team.pull_check(loop.state()))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    first, again, away, nearer = out
+    check("first sight stops; the same spot again and a step away go on; a step nearer stops",
+          first and "would see us" in first and again is None and away is None and nearer and "would see us" in nearer,
+          str(out))
+
+
 def test_rope():
     print("== --rope: an Adventurer's Rope jump along the route, the following pets along; 5 s cooldown ==")
     import tempfile
@@ -1438,7 +1473,7 @@ def main():
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
-              test_rope,
+              test_never_aggro_walk_out, test_rope,
               test_rest_hurt_pet, test_walk_in, test_soul_jar):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

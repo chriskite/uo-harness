@@ -391,6 +391,7 @@ class Team:
         self.fought = {}                 # serial -> (last-seen mob dict, monotonic): mobs the pets fought
         self.chargers = set(CHARGERS)    # creature types with an area Charge (known + seen this run)
         self.hold_until = {}             # serial -> until when we hold for it to come (pull_check)
+        self.never_last = None           # (serials, nearest) of the --never-aggro monsters in sight at the last pull_check
         self.spot_for = frozenset()      # the monsters the last pull spot was chosen for
         self.standoff_t = -1e9
         self.standoff_stay = None        # why the last stand-off stayed put (logged once)
@@ -843,6 +844,17 @@ class Team:
         elif why and "at once" in why:
             self.at_once_at = [(p, t) for p, t in self.at_once_at if now - t < AT_ONCE_S] + [(v.pos[:2], now)]
         self.at_once_w = w
+        seers = v.never_near(v.pos) if why and why.endswith("would see us") else []
+        if seers:
+            # a --never-aggro monster in sight: stop only on a step that brings a new one into sight or goes nearer;
+            # walking out of its sight goes on (live 2026-10-17 21:12-21:16: 3225 "stopped (a elder vampire would see
+            # us)" lines, the patrol stopped before every first step and the runner stood in its sight)
+            seen = (frozenset(m["serial"] for m in seers), min(cheb(m["pos"], v.pos) for m in seers))
+            last, self.never_last = self.never_last, seen
+            if last is not None and seen[0] <= last[0] and seen[1] >= last[1]:
+                why = None
+        else:
+            self.never_last = None
         why = why or self.hold_reason(st)
         if why and why != self.pull_why:
             self.count("pull_holds")

@@ -562,9 +562,11 @@ what comes.
   fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
   near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they
   come to the pets from there in stages instead of being walked into.
-- **Never-aggro monsters**: their sight within 16 tiles is no-go: the patrol stops before it, the
-  crawl skips waypoints within 16 of one and routes keep out (`crawl.Crawl.observe`); the runner never
-  pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm
+- **Never-aggro monsters**: their sight within 16 tiles is no-go: the patrol stops on a step into it or
+  nearer one already seeing us (a step out of it goes on: `Team.pull_check`, live 21:12-21:16 the patrol
+  stopped before every first step, 3225 times, standing in an elder vampire's sight), and the crawl then rests
+  that waypoint; the crawl skips waypoints within 16 of one and routes keep out (`crawl.Crawl.observe`); the
+  runner never pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm
   in an area that I can manage"): "All Follow Me", then to the gate when that is away from it, else 22
   tiles beyond it, until it stops chasing. The leave rules take over when we're hurt ("when all else
   fails ... I will probably head for the gate").
