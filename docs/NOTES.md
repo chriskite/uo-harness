@@ -3338,6 +3338,33 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   on an "ERR agent paused" refusal; a BaseException like ctl stop's KeyboardInterrupt, so no `except Abort` on the
   way swallows it. The visit row is written, exit 1 (`task_failed`). test_loop_hunt `pause`: ended 0.4 s after the
   pause, no packet after it (before: gated until the test's 60 s kill, no visit row).
+- **"All Patrol" (user demo 2026-10-18 17:55:57-18:00:11, capture session_20261018_175134; user: "We can send our
+  pets to a spot away from us, e.g. to within aggro distance of a purger, while we're not in aggro range").**
+  - *How he sends it*: a Razor recorded macro, `Macros/All Patrol.macro` = `Assistant.Macros.SpeechAction|0|569|3|ENU|
+    4|32|231|21|240|All Patrol`, played by the profile hotkey Shift+S (`<key mod="4" key="83">Play: All Patrol`). On
+    the wire `ad 001d c0 0239 0003 454e5500 20e715f0 "All Patrol" 00 00`: keywords 231/351, hue 0x0239 (the hue the
+    macro was recorded in, Satanic Panic's profile hue, not Razor's 0x03B1 of the pet-command hotkeys), Razor's
+    double NUL. `actions.razor_say("All Patrol", hue=0x0239)` builds it byte for byte. 8 uses.
+  - *Server*: at once a location cursor, `6c 01 <id> 00 ...` (target_type 1, cursor_type 0 neutral), the System line
+    "Click on the location where you wish your followers to patrol." and his own overhead "All Patrol". He answered in
+    0.3-0.8 s: `6c 01 <id> 00 00000000 x y 0 0000` (serial 0, z 0, graphic 0: land). A tile out of Logan's sight:
+    cliloc 500237 "Target cannot be seen." and nothing happens (3 of 8). los.Sight (eye at z+14 to the ground tile)
+    agrees on all 8 (5 clear and accepted, 3 blocked and refused). Accepted at 4-11 tiles; nothing farther tried.
+  - *The pets*: they run there (11 tiles in ~3.5 s) and attack an idle monster within ~1-3 tiles of the spot on
+    arrival (5 of 5: a corpse purger 3 off, bound souls 3 and 1, a nightstalker 3, a tormented soul 3). After the
+    kill they stay and mill about the spot in war mode (17:57:37-45 around (5268-5275, 651-655)) until "All Follow
+    Me" / "All Guard Me". GraveRobber closes to melee; AlaFlambe stops 4-7 tiles short.
+  - *The purger shoots the pets*: 17:55:57.5 Logan at (5248, 653), an idle purger at (5262, 652) 14 tiles off, the
+    spot (5259, 652). It woke at 17:56:01 on GraveRobber and fought him; a second purger came on from (5275, 655) to
+    5 tiles from Logan (17:56:20-30) and stayed on the pets too. Logan 100/100 from 17:55:50 to 18:00:25 (both purger
+    fights, Logan walking in to 8 tiles of the first), no disease.
+  - *"All Guard Me" mid-fight doesn't call them off*: guard at 17:56:36 and 17:58:03 while they fought; they fought
+    on in war mode until the target died (17:57:06, 17:58:19).
+  - *Costs seen*: the first patrol pulled the purger, a bound soul and the second purger onto GraveRobber alone
+    (AlaFlambe hanging back): dead at 17:56:36 (98 % -> 0 in 35 s), resurrected with the vet supplies at 17:56:52.
+    The pets on patrol don't guard Logan: 18:00:10.9 patrol, the pets on a tormented soul at the spot, a second one
+    came onto Logan (18:00:26.8 "The creature torments you with a foul disease!", 100 -> 39 by 18:00:42) while
+    GraveRobber, next to both, stayed on the first.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 
