@@ -543,13 +543,13 @@ monsters that would see us there before a pet (`View.first_on_us`: in range and 
 them), so the reposition, the spacing off the tank and the retreat pick tiles out of their sight or with
 the pets between; the pull spot steps back so the pets, a tile or two behind us, end up between us and
 what comes.
+
 **Corpse purgers** (`aggro.SHY`; user 2026-10-17: "We're frequently getting diseased by the corpse purgers"): a
 ranged monster's first sight takes whoever it sees first and its barrage reaches us wherever the pets stand. When an
 idle purger would see us before a pet, the runner steps back (up to 3, out of its sight first, else farther from it,
 the pets within vet range; `Team.back_off`) so the trailing pets meet it first; it never approaches an idle purger
 (it shoots from 12, it doesn't come on) and uses no bard skill on one that isn't on us (our skill draws its aggro).
 Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel).
-
 
 | Argument | Default | Meaning |
 |---|---|---|
