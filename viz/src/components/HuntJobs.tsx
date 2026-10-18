@@ -70,10 +70,10 @@ export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {
       </div>
 
       <div className="jobs-charts">
-        <Panel title={`Deaths, leaves, speech holds (${data.events.length})`}>
+        <Panel title={`Deaths and leaves (${data.events.length})`}>
           <EventStrip spans={visits.map((v) => ({ n: v.n, t_start: v.t_start, t_end: v.t_end, label: `visit #${v.n} · ${v.kills} kills` }))} events={data.events} />
           {data.events.length === 0 ? (
-            <p className="dim">No deaths, leaves or speech holds recorded.</p>
+            <p className="dim">No deaths or leaves recorded.</p>
           ) : (
             <ol className="job-events">
               {[...data.events].reverse().map((e, i) => {
@@ -197,7 +197,6 @@ export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {
                 <th className="num">gold / kill</th>
                 <th className="num">hits lost</th>
                 <th className="num">deaths pk/mob</th>
-                <th className="num">speech holds</th>
               </tr>
             </thead>
             <tbody>
@@ -214,7 +213,6 @@ export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <td className="mono num">
                     {d.deaths.pk}/{d.deaths.mob}
                   </td>
-                  <td className="mono num">{d.speech_holds}</td>
                 </tr>
               ))}
             </tbody>

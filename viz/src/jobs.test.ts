@@ -195,12 +195,11 @@ function huntTotals(p: Partial<HuntTotals> = {}): HuntTotals {
 describe("huntKpis", () => {
   test("kills, gold and XP totals with their hourly rates; unlooted kills flagged on the XP tile", () => {
     const by = Object.fromEntries(
-      huntKpis(huntTotals({ kills: 16, gold: 1256, xp: 1256, xp_unknown_kills: 1, gold_per_kill: 17.07, kills_per_hour: 37.33, gold_per_hour: 538.2, xp_per_hour: 538.2, speech_holds: 5, speech_wait_s: 72.2 })).map((x) => [x.key, x]),
+      huntKpis(huntTotals({ kills: 16, gold: 1256, xp: 1256, xp_unknown_kills: 1, gold_per_kill: 17.07, kills_per_hour: 37.33, gold_per_hour: 538.2, xp_per_hour: 538.2 })).map((x) => [x.key, x]),
     );
     expect([by.kills!.value, by.kills!.sub]).toEqual(["16", "37 / hr"]);
     expect([by.gold!.value, by.gold!.sub]).toEqual(["1,256 gp", "538 gp / hr · 17.1 / kill"]);
     expect([by.xp!.value, by.xp!.sub]).toEqual(["1,256", "538 / hr · 1 kill not looted"]);
-    expect([by.speech!.tone, by.speech!.sub]).toEqual(["warn", "1:12 waiting"]);
     expect(by.mob!.tone).toBe("ok");
   });
   test("empty data: rates are dashes, safety tiles ok", () => {
@@ -208,7 +207,6 @@ describe("huntKpis", () => {
     expect([by.kills!.value, by.kills!.sub]).toEqual(["0", "— / hr"]);
     expect(by.gold!.sub).toBe("— gp / hr");
     expect(by.xp!.sub).toBe("— / hr");
-    expect(by.speech!.tone).toBe("ok");
   });
   test("a death to a mob turns its tile red", () => {
     const by = Object.fromEntries(huntKpis(huntTotals({ deaths: { pk: 0, mob: 1, other: 0, total: 1 } })).map((x) => [x.key, x]));

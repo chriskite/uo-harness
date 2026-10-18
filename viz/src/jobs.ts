@@ -910,12 +910,5 @@ export function huntKpis(t: HuntTotals): Kpi[] {
     { key: "mob", label: "deaths to mobs", value: String(t.deaths.mob), sub: t.deaths.other ? `+${t.deaths.other} other` : undefined, tone: t.deaths.mob ? "bad" : "ok" },
     { key: "pk", label: "deaths to PKs", value: String(t.deaths.pk), tone: t.deaths.pk ? "bad" : "ok" },
     { key: "hits", label: "hits lost", value: fmtInt(t.hits_lost), sub: `${t.heals} heal${t.heals === 1 ? "" : "s"} · ${t.potions} potion${t.potions === 1 ? "" : "s"}`, tone: "dim" },
-    {
-      key: "speech",
-      label: "speech holds",
-      value: String(t.speech_holds),
-      sub: t.speech_holds ? `${fmtDuration(t.speech_wait_s)} waiting` : undefined,
-      tone: t.speech_holds ? "warn" : "ok",
-    },
   ];
 }
