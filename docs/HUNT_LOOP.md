@@ -104,7 +104,8 @@ Each tick re-reads the proxy state and decides, in this order:
    and an eerie corpse in view: walk within 2 tiles of it and double-click the jar. Mid-fight only one that
    needs no step.
 6. **Loot** our kills' corpses when nothing is attacking us, like `ctl act loot`: human corpses
-   refused, walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
+   refused, except the one Outlands' 0xDEAD names as our kill's (a forgotten or tormented soul, a reanimated
+   knight: human bodies; 59 such corpses were left on 2026-10-17 before this), walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
    each item into the backpack, gold first, up to the weight limit. See "Loot rights" below:
    blue corpses are skipped, a refused open stops at once, only items that reach the pack count.
 7. **Fight** the target:

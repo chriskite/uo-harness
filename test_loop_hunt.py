@@ -1453,6 +1453,58 @@ def rights():
     check("every corpse handled once (never retried)", loop.looted == set(RIGHTS) and not loop.corpses, str(loop.looted))
 
 
+class SoulLink(RightsLink):
+    """A forgotten soul's corpse: a monster on a human body (0x190), its corpse unnamed when we reach it."""
+    SOUL, SOUL_C, SOUL_G, PLAYER_C, PLAYER_G = 0x0008EF35, 0x4275218A, 0x4275218B, 0x4275F19D, 0x4275F19E
+
+    def act(self, p):
+        self.sent.append(p)
+        self.rt.feed_packet("c2s", p)
+        s = int.from_bytes(p[1:5], "big") if len(p) >= 5 else None
+        if p[0] == 0x06 and s == BACKPACK:
+            self.feed(open_container(BACKPACK, 0x3C))
+        elif p[0] == 0x06 and s in (self.SOUL_C, self.PLAYER_C):
+            self.feed(open_container(s, 0x09))
+        elif p[0] == 0x07:
+            self.lifted = s
+        elif p[0] == 0x08:
+            self.gold += 900
+            self.feed(delete(self.lifted), contained(PACK_GOLD, combat.GOLD_GRAPHIC, self.gold, BACKPACK))
+
+
+def soul_corpse():
+    print("\n== a monster on a human body (forgotten soul): our kill's corpse looted; an unlinked human corpse not ==")
+    # live 2026-10-17 22:21:37 and 22:22:18 (hunt-20261017-220821-bd55): "0x4275218A (None) is a human corpse: not
+    # looted" right after "killed forgotten soul"
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(SoulLink, name, getattr(Link, name))
+    L = SoulLink
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = SoulLink()
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 100, BACKPACK),
+              human_pkt(L.SOUL, SPOT[0], SPOT[1] - 1, 3), ground_item(L.SOUL_C, combat.CORPSE_GRAPHIC, 0x190, SPOT[0], SPOT[1] - 1),
+              display_death(L.SOUL, L.SOUL_C), delete(L.SOUL), corpse_flags(L.SOUL_C, L.SOUL, name=""),
+              contained(L.SOUL_G, combat.GOLD_GRAPHIC, 900, L.SOUL_C),
+              ground_item(L.PLAYER_C, combat.CORPSE_GRAPHIC, 0x190, SPOT[0] + 1, SPOT[1] - 1),
+              contained(L.PLAYER_G, combat.GOLD_GRAPHIC, 900, L.PLAYER_C))
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    loop.state()
+    loop.corpses.append({"mob": L.SOUL, "name": "forgotten soul", "x": SPOT[0], "y": SPOT[1] - 1, "t": time.monotonic()})
+    loop.corpses.append({"mob": 0x0008F000, "name": "a vampire", "x": SPOT[0] + 1, "y": SPOT[1] - 1,
+                         "corpse": L.PLAYER_C, "t": time.monotonic()})
+    while loop.corpses:
+        loop.loot(loop.corpses[0])
+    opened = [int.from_bytes(p[1:5], "big") for p in link.sent if p[0] == 0x06]
+    store.close()
+    check("the soul's corpse (linked by 0xDEAD) opened and its gold taken; the unlinked human-bodied one never opened",
+          L.SOUL_C in opened and L.PLAYER_C not in opened and loop.totals["gold"] == 900,
+          f"opened {[hex(o) for o in opened]} gold {loop.totals['gold']}")
+
+
 # The pet team (--pets, tamer.py), in process: Logan Wolf's Mausoleum fighting (capture 20261012_210013)
 # against a scripted server. Our pets GraveRobber (gravebug) and AlaFlambe (phoenix) next to us; shade wolf
 # W1 5 tiles off, idle. Once the pets are told to guard, W1 comes on and fights the gravebug ("-N" over
@@ -1819,6 +1871,7 @@ if __name__ == "__main__":
     try:
         if not only or "rights" in only:
             rights()
+            soul_corpse()
         if not only or "pets" in only:
             pets_run()
             elsewhere_run()

@@ -3237,6 +3237,17 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   it, or the approach), every `KILL_REPEAT_S` 12 s until the pets take it. [INFERENCE: the server gives no "who it
   fights"; adjacency to another player or pet while in war mode stands in for it.] test_loop_hunt `elsewhere_run`
   (failing before). The simulator has no other players, so its numbers can't move.
+- **Kills on human bodies left unlooted** (user 2026-10-17: "Many times the runner kills a mob and then doesn't loot
+  it. 22:23ish we killed a forgotten soul and didn't loot"). 22:21:37 "killed forgotten soul", then "0x4275218A
+  (None) is a human corpse: not looted"; again 22:22:18. Today's hunt logs: **59** such skips, every one right after a
+  kill of a human-bodied monster (tormented soul 19, forgotten soul 14, reanimated knight 10, bound soul 7, newly
+  reanimated 3, one each insane reanimator, abomination, vampiric consort, corpse eater, calamity, blightmare). The
+  rule (`combat.human_corpse`: a corpse of a human body is a player's unless named "a|an … corpse") read the corpse
+  before its name came, and "forgotten soul corpse" has no article anyway. Every mobile death in two captures
+  (265 in 20261017_215839, 398 in _183126) came with Outlands' 0xDEAD naming its corpse, so now the corpse 0xDEAD
+  names for the monster we killed is looted whatever its body; any other human-bodied corpse still isn't.
+  test_loop_hunt `soul_corpse` (failing before). The rest of today's no-loots: 50 blue (another player's kill), 6
+  "no corpse seen", 1 too far.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

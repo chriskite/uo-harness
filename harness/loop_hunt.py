@@ -1204,7 +1204,9 @@ class HuntLoop:
         if corpse.get("graphic") != combat.CORPSE_GRAPHIC or corpse.get("container") is not None:
             log(f"0x{c['corpse']:08X} isn't a corpse on the ground; not looting")
             return
-        if combat.human_corpse(corpse):
+        if combat.human_corpse(corpse) and self.corpse_of.get(c["mob"]) != c["corpse"]:
+            # the server's 0xDEAD names the corpse of the monster we killed: that one is a monster's whatever its body
+            # (live 2026-10-17 22:21:37 a forgotten soul, a human body, its corpse unnamed yet, left with its loot)
             log(f"0x{c['corpse']:08X} ({corpse.get('name')}) is a human corpse: not looted")
             return
         name = corpse.get("name") or c["name"]
