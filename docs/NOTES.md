@@ -3179,6 +3179,23 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
 
   [INFERENCE] The two pets left behind are gate dashes that went through without them; the stablemaster's "Retrieve
   Lost Followers" brings them back (user), and the overseer stops on `pet_left_behind`.
+- **A minute standing at a waypoint under a ledge (21:07 run, `hunt-20261017-210718-eae4`; user: "Why is Logan
+  standing still for a full minute now?", then "it doesn't understand the z-levels put the creatures out of sight
+  above it").** 21:10:37-40 a vampire countess and a vampire, "8 tiles" off, were picked and at once passed over as
+  out of sight; 21:10:42 Logan reached the waypoint (5198, 642) and stood there until 21:11:38, when their 60 s skips
+  ran out, they were picked and passed over again. The live state then: the vampire at (5200, 648, 45), Logan at
+  (5200, 647, 25), one tile apart on the map and 11 steps apart by the stairs. Two faults:
+  - `crawl.observe` counted every wanted monster within --pull-range as a target in reach, passed-over ones too,
+    so the waypoint stayed "productive" and never depleted.
+  - Targets were by map distance alone: one on a ledge 20 above was "1 tile" off.
+  - Fixed: a target needs a walk to beside it at its height within `FLOOR_DETOUR` 4 steps more than the beeline
+    (`HuntLoop.on_our_floor`, a bounded `pathfind.plan`, cached per both tiles) when its surface is more than
+    `FLOOR_Z_TOL` 10 off our z, unless it attacks; the crawl's target-in-reach mark needs the same and no skip.
+    test_sim `test_ledge_target_not_picked` (failing before). The first version demanded the short walk at our
+    height too (a detour round a wall); the height-only rule keeps same-floor targets as they were.
+  - Simulator, 144 runs (seeds 17-160, 20 min), against 5a26e98: deaths 2.04 vs 1.97 a game hour, runs with a
+    death 79 vs 75, gold 78.9k vs 78.5k an hour (noise: the same code gave 25 and 30 runs with a death on two seed
+    sets), runs with a pet left behind 0 vs 6.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

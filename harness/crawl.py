@@ -650,7 +650,12 @@ class Crawl:
                     self.avoided[type_key(name)] = why
                     log(f"crawl: avoiding {type_key(name)}: {why}")
                 self.danger[s] = (tile, now, type_key(name), AVOID_R)
-            elif i is not None and cheb(pos, tile) <= self.a.pull_range:
+            elif i is not None and cheb(pos, tile) <= self.a.pull_range \
+                    and getattr(self.h, "skip", {}).get(s, 0) <= now \
+                    and (not hasattr(self.h, "on_our_floor") or self.h.on_our_floor(st, s, mob)):
+                # one the runner passed over (HuntLoop.skip: it can't see us, or pinned), or one on another floor
+                # (HuntLoop.on_our_floor), isn't a target in reach: live 2026-10-17 21:10:42-21:11:38 a vampire at z 45
+                # over Logan at z 25 kept (5198, 642) "productive", and he stood there until its 60 s skip ran out
                 self.target_t[i] = now
         for s, (tile, t, name, r) in list(self.danger.items()):
             if now - t > DANGER_S:

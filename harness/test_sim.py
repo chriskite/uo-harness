@@ -1054,6 +1054,38 @@ def test_unseen_target_passed_over():
           f"skipped {skipped} in {took:.1f} s, picked {picked}, at {w.player.pos}")
 
 
+def test_ledge_target_not_picked():
+    print("== a monster on a ledge above, a long way round by the stairs: not a target in reach ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 2026-10-17 21:10-21:11: a vampire at (5200, 648, 45), Logan at (5200, 647, 25), 11 steps by the stairs;
+    # picked, passed over as out of sight, picked again 60 s later, the waypoint held meanwhile
+    w = world_with([{"key": "vampire bat", "at": [5200, 648, 45]}], start=(5200, 647))
+    w.player.z = 25
+    bat = next(m for m in w.mobs.values() if m.kind == "monster")
+    bat.calm_until = 1e9                                # stays idle up there
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            st = loop.state()
+            picked = loop.pick_target(st)
+            mob = st["world"]["mobiles"].get(f"0x{bat.serial:08X}")
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the bat on the ledge (in view, 1 tile off on the map) is not picked", mob is not None and picked is None,
+          f"in view {mob is not None}, picked {picked}, us {w.player.pos}")
+
+
 def test_rope():
     print("== --rope: an Adventurer's Rope jump along the route, the following pets along; 5 s cooldown ==")
     import tempfile
@@ -1405,7 +1437,8 @@ def main():
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,
-              test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_rope,
+              test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
+              test_rope,
               test_rest_hurt_pet, test_walk_in, test_soul_jar):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

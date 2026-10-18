@@ -375,6 +375,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    each and dropped; user: "waiting for <mob> to come on when the mob can't see Logan through walls").
    The patrol meets it later the usual way (the hold, the pull spot). Walking on into its sight instead
    cost the simulator 9 more runs with a death in 48 (NOTES "Targets behind walls").
+   A monster at another height (its surface more than `FLOOR_Z_TOL` 10 off our z) that only a long way round on
+   foot reaches (no walk to beside it at its height within `FLOOR_DETOUR` 4 steps more than the beeline:
+   a ledge or a floor above or below, `HuntLoop.on_our_floor`) isn't a target at all unless it attacks, and
+   doesn't hold a crawl waypoint either; neither does a passed-over one (user 2026-10-17: "it doesn't
+   understand the z-levels put the creatures out of sight above it").
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
    (the other onto a second other, or onto our target), then Peacemaking on the target (it stops

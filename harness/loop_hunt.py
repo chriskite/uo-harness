@@ -144,6 +144,7 @@ import escape as escape_mod  # noqa: E402
 import healing  # noqa: E402
 import los  # noqa: E402
 import nav  # noqa: E402
+import pathfind  # noqa: E402
 import moongate  # noqa: E402
 import threats  # noqa: E402
 import room as room_mod  # noqa: E402
@@ -177,6 +178,8 @@ LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
 GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
+FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
+FLOOR_Z_TOL = 10              # ...ending within this of its surface z (live: a vampire on a ledge 20 above, 11 steps round)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450)
 HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
 HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
@@ -294,6 +297,7 @@ class HuntLoop:
         self.spell_block = {}        # serial -> monotonic time until spells at it are skipped
         self.no_reagents = set()     # spell ids the server refused for reagents this visit (502630)
         self.skip = {}               # serial -> monotonic time until pick_target passes it over (pinned)
+        self.floor_seen = {}         # serial -> (its tile, our tile, on our floor?) (on_our_floor's cache)
         self.progress_t = 0.0        # monotonic: the engaged target was last adjacent or hurt
         self.hurt_t = {}             # serial -> monotonic time of its latest damage (event or "-N")
         if args.pull_range > SPELL_RANGE:
@@ -687,6 +691,8 @@ class HuntLoop:
                 continue
             if self.live_target(st, s)[0] is None:
                 continue
+            if s not in attacking and not self.on_our_floor(st, s, mob):
+                continue
             cands.append((s, mob))
         if pull and self.engaged is not None and any(s == self.engaged for s, _ in cands) \
                 and (self.engaged in attacking or not attacking):
@@ -701,6 +707,34 @@ class HuntLoop:
         anchor = self.anchor(st)
         near = [(s, m) for s, m in cands if cheb(anchor, (m["x"], m["y"])) <= self.args.pull_range]
         return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0] if near else None
+
+    def on_our_floor(self, st, serial: int, mob: dict) -> bool:
+        """At our height (its map surface within FLOOR_Z_TOL of our z), or else a short walk reaches a tile beside
+        `mob` at its height: at most FLOOR_DETOUR steps more than its straight-line distance. A monster on a ledge
+        or floor above or below, reached only by a long way round, isn't a target in reach (user 2026-10-17: "it
+        doesn't understand the z-levels put the creatures out of sight above it"; live 21:10-21:11 a vampire at
+        (5200, 648, 45) one tile from Logan at (5200, 647, 25), 11 steps away by the stairs: picked, passed over as
+        out of sight, picked again 60 s later, holding the waypoint meanwhile). True without map data. Cached per
+        (its tile, our tile).
+        """
+        pos = self.pos(st)
+        key = ((mob["x"], mob["y"], mob.get("z")), tuple(pos[:3]))
+        seen = self.floor_seen.get(serial)
+        if seen is not None and seen[0] == key:
+            return seen[1]
+        walk = self.mover.walk_map(st)
+        if walk is None:
+            return True
+        z = los.surface_z(walk, mob["x"], mob["y"], mob.get("z") or 0)
+        if abs(z - pos[2]) <= FLOOR_Z_TOL:
+            ok = True                   # our height: the same-floor rules as before (a detour round a wall is fine)
+        else:
+            goal = nav.within((mob["x"], mob["y"]), 1, lambda sz: abs(sz - z) <= FLOOR_Z_TOL)
+            tele = self.mover.teleporter_tiles(st["world"]["self"].get("map"))
+            budget = max(0, cheb(pos, (mob["x"], mob["y"])) - 1) + FLOOR_DETOUR
+            ok = pathfind.plan(walk, pos[:3], goal, occupied=tele, max_steps=budget) is not None
+        self.floor_seen[serial] = (key, ok)
+        return ok
 
     def worn(self, st, serial) -> bool:
         it = st["world"]["items"].get(key_of(serial)) or {}
