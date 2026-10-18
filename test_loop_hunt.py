@@ -1720,6 +1720,40 @@ def pets_run():
           str(refused))
 
 
+def elsewhere_run():
+    print("\n== pets: a monster already fighting another player: 'All Kill' at it, no waiting for it to come on ==")
+    # user 2026-10-17: "It 'waits for them to come on' but the mob is already aggro'd on something else"
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(TamerLink, name, getattr(Link, name))
+    W4, OTHER = 0x00061E01, 0x00099001
+    out = {}
+    for busy in (True, False):
+        db = os.path.join(tempfile.mkdtemp(), "harness.db")
+        store = memory.Memory(db)
+        link = TamerLink()
+        link.phase = "after"                                # no scripted fight of its own
+        link.feed(login_pkt(), hits_pkt(SELF, 100, 100), equip(BACKPACK, 0x0E75, 0x15),
+                  mobile20(GRAVEBUG, SPOT[0] + 1, SPOT[1], 387, noto=2), name_pkt(GRAVEBUG, "GraveRobber"),
+                  mobile20(PHOENIX, SPOT[0], SPOT[1] + 1, 832, noto=2), name_pkt(PHOENIX, "AlaFlambe"),
+                  mobile20(W4, SPOT[0] + 5, SPOT[1], SHADE_WOLF, flags=0x40 if busy else 0), name_pkt(W4, "a shade wolf"),
+                  human_pkt(OTHER, SPOT[0] + 6, SPOT[1], 1, player=True), name_pkt(OTHER, "Someone Else"))
+        args = loop_hunt.arg_parser().parse_args(["--pets", "--pet", "GraveRobber", "--pet", "alaflambe", "--no-loot",
+                                                  "--no-songs", "--human", "off", "--no-map",
+                                                  "--spot", str(SPOT[0]), str(SPOT[1]), "--memory", db])
+        loop = loop_hunt.HuntLoop(link, store, args)
+        try:
+            loop.team.setup(loop.state())
+            for _ in range(3):
+                loop.team.fight(W4)
+        finally:
+            store.close()
+        out[busy] = [x[3] for x in link.log if x[1] == "target" and x[2] == "kill"]
+    check("in war mode beside another player: 'All Kill' answered with it; idle beside him: no 'All Kill'",
+          out[True] == [W4] and out[False] == [], str(out))
+
+
 SCENARIOS = {"default": {}, "staff": {"staff": True}, "fight": {"fight": FIGHT}, "crawl": {"crawl": True},
              "recall": {"recall": True}}
 
@@ -1787,6 +1821,7 @@ if __name__ == "__main__":
             rights()
         if not only or "pets" in only:
             pets_run()
+            elsewhere_run()
     except BaseException:                             # serial: the runs after it never started
         reap(kids, tmp)
         raise

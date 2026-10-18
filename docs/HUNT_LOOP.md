@@ -380,6 +380,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    a ledge or a floor above or below, `HuntLoop.on_our_floor`) isn't a target at all unless it attacks, and
    doesn't hold a crawl waypoint either; neither does a passed-over one (user 2026-10-17: "it doesn't
    understand the z-levels put the creatures out of sight above it").
+   **Someone else's fight**: a target in war mode within `ELSEWHERE_R` 2 of another player or a pet not ours,
+   not on us or our pets, with neither pet in war mode within 12 of it (`Team.elsewhere`), won't come on: the
+   pets get "All Kill" at it at once when we see it within 10 (a no-riskier step to see it first, `bard_step`;
+   farther, the approach), every 12 s while they haven't taken it (user 2026-10-17: "We need to just 'all
+   kill' if the mob is already aggro'd on something else").
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
    (the other onto a second other, or onto our target), then Peacemaking on the target (it stops

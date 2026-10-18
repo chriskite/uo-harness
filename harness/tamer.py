@@ -105,6 +105,7 @@ ENGAGED_S = 10.0              # a target hurt this recently, a pet within PET_RE
 PET_REACH = 12                # the phoenix's Epic Barrage reaches 12 tiles (patch 2022-03-16); the gravebug melees
 PET_NEAR = 1                  # a war-mode monster this close to a pet that took damage is fighting it
 KILL_AFTER_S = 4.0            # a mob attacking us that the pets haven't hurt for this long: "All Kill"
+ELSEWHERE_R = 2               # a monster in war mode this close to another player or a pet not ours fights them (elsewhere)
 KILL_REPEAT_S = 12.0
 IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
 PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the pets nor us this long is dropped...
@@ -589,6 +590,29 @@ class Team:
                 out.add(s)
                 self.fought[s] = (mob, now)
         return out
+
+    def elsewhere(self, st, mob: dict) -> str | None:
+        """Who `mob` fights when it's someone else's fight: in war mode with another player, or a pet not ours,
+        within ELSEWHERE_R (user 2026-10-17: "The runner seems not to have a concept of mobs that are fighting
+        other players (and their pets). It 'waits for them to come on' but the mob is already aggro'd on something
+        else"). The name of the nearest such mobile, else None."""
+        import threats
+        if not (mob.get("flags") or 0) & threats.FLAG_WARMODE or mob.get("x") is None:
+            return None
+        world, me = st["world"], self.h.me(st)
+        labels = world.get("labels") or {}
+        best = None
+        for key, o in world["mobiles"].items():
+            s = serial_of(key)
+            if s == me or s in self.roster or o.get("x") is None or o.get("dead"):
+                continue
+            d = cheb((o["x"], o["y"]), (mob["x"], mob["y"]))
+            if d > ELSEWHERE_R or (best is not None and d >= best[0]):
+                continue
+            kind, player, _ = threats.identify(o, labels.get(key))
+            if player or o.get("pet"):
+                best = (d, labels.get(key) or o.get("name") or f"0x{s:08X}")
+        return best[1] if best else None
 
     def others(self, st, serial: int) -> list[int]:
         """Other monsters in the fight within BARD_RANGE, nearest first: attacking us or the pets."""
@@ -1475,6 +1499,23 @@ class Team:
                 and self.effects.get(serial, {}).get("los", 0) < now:
             self.all_kill(serial)
             return
+        if not on_us and serial not in self.pet_attackers(st) and (who := self.elsewhere(st, mob)) is not None \
+                and not any(p["war"] and not p["dead"] and cheb((p["x"], p["y"]), (mob["x"], mob["y"])) <= PET_REACH
+                            for p in self.pets(st)):
+            # already fighting someone else and our pets on nothing near it: it won't come on; the pets go at it
+            # (user 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else")
+            if cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE and self.bard_sees(st, serial):
+                if now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
+                        and self.effects.get(serial, {}).get("los", 0) < now:
+                    log(f"{name} 0x{serial:08X} is fighting {who}: 'All Kill' at it")
+                    self.all_kill(serial)
+                    return
+            elif cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE:
+                if self.bard_step(st, serial):        # in range, out of our sight: a step that sees it
+                    return
+            elif not engaged:
+                self.approach(serial, mob)
+                return
         if not engaged:
             if not on_us and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R and not self.hold_reason(st):
                 self.approach(serial, mob)

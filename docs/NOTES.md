@@ -3227,6 +3227,16 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     | In sight only, no step | 79 | 2.04 | 81.5k |
     | Step allowing REPOSITION_GAIN more eyes | 85 | 2.27 | 78.5k |
     | Step only where no more eyes (shipped) | 75 | 1.90 | 81.4k |
+- **Monsters fighting other players** (user 2026-10-17: "The runner seems not to have a concept of mobs that are
+  fighting other players (and their pets). It 'waits for them to come on' but the mob is already aggro'd on something
+  else so we're wasting our time standing around. We need to just 'all kill' if the mob is already aggro'd on
+  something else"). `Team.fight` only knew "on us", "on our pets" (hurt with a pet near: `engaged`) and else "wait
+  for it to come on"; a monster another player fought was hurt by his blows, so it was never dropped as pinned
+  either. Now `Team.elsewhere`: in war mode within `ELSEWHERE_R` 2 of a player not us or a pet not ours, and none of
+  our pets in war mode within 12 of it: "All Kill" at it when in our sight within 10 (else a no-riskier step to see
+  it, or the approach), every `KILL_REPEAT_S` 12 s until the pets take it. [INFERENCE: the server gives no "who it
+  fights"; adjacency to another player or pet while in war mode stands in for it.] test_loop_hunt `elsewhere_run`
+  (failing before). The simulator has no other players, so its numbers can't move.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 
