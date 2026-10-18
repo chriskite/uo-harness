@@ -3709,6 +3709,19 @@ Code: `harness/fos_field.py`. The viz overlay: docs/VISUALIZER.md §2.17. User: 
 - **What two runs show** (30 min watched): 21 spawns and 60 in-view deaths, too few for spawn points. The
   densest so far: the east shore around (6370, 660) (Hard 7244, 628), 3 spawns in ~1.5 min watched. Deaths are
   densest at (6294, 710) (Hard 7168, 678) and on the east shore. Each run adds ~10 spawns and ~30 deaths.
+- **Reading a run back from the store** (how runs 3–6 were analysed, 2026-10-18). Window: `fos_session` to the
+  ejection line over our own head. There are no 0x0B damage packets. The overhead numbers come as `speech_heard`
+  over the mobile:
+  - hue 89 "-N" over a monster: damage dealt by us and our pets;
+  - hue 946 "-N" over us or a pet: damage taken;
+  - hue 2213 "+N": a heal.
+
+  Every payout is a system line "You increase your [EventScore by N. Current score is S", so points per kill and
+  points inside come from those. An effigy is "You will now receive a 4.0% bonus …". Eerie spirits are graphic
+  400, hue 23999 and notoriety 3. Players share body 400, so the graphic alone doesn't pick them out. Deathbloom
+  plants are item `0x5D4A` with a `0xAA12` piece on the next serial, both labelled "deathbloom". Positions of
+  items and mobiles need a world replay (`replay.timed_packets` through a `proxy.SessionTap`, as
+  `fos_field.replay_events` does; ~3 s per session), because `item_seen` rows carry no position.
 
 ## Network observations
 
