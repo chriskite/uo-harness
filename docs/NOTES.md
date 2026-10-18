@@ -3261,6 +3261,26 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   names for the monster we killed is looted whatever its body; any other human-bodied corpse still isn't.
   test_loop_hunt `soul_corpse` (failing before). The rest of today's no-loots: 50 blue (another player's kill), 6
   "no corpse seen", 1 too far.
+- **Patrolling away from monsters on screen** (user 2026-10-17: "We're constantly 'patrolling' away or 'hunting for
+  monsters' when there are high value mobs on screen we could go fight instead of walking away"). Replayed every
+  patrol start of hunt-20261017-220821-bd55 (capture 20261017_215839, a throwaway script: the monsters we'd fight in
+  the world model within 18 tiles at that moment): **102 of 159** had one in view, and **68** of those walked away
+  from all of them. The crawl only fought what `pick_target` offered (within --pull-range, not passed over); the
+  waypoint choice scored staleness, value and distance and ignored what was in view, and the waypoint dwell
+  ("Hunting for monsters around") ignored it too. Now `Crawl.seek`: a monster we'd fight within 18 tiles (not
+  never-aggro, not an avoided type, on our floor), beyond the pull range or passed over, whose area is in an open
+  zone and not near an avoided creature, the best by the store's gold a fighting minute over the route there; the
+  next waypoint is its area; a patrol elsewhere stops for one (once a second at most); a dwell ends for one. The
+  patrol there stops on the usual rules (a target in reach, the hold when it sees us, the pull budget).
+  test_sim `test_crawl_seeks_in_view` (a wolf 15 tiles west, its area just visited: the old crawl ended 19 and 10
+  tiles off, now 8). The simulator's disease tick could remove a disease twice when the hit before killed (a crash
+  in seed 147 once the runs went elsewhere): guarded.
+  - Simulator, 144 runs (seeds 17-160, 20 min) against 2acbb09+ (the loot fix):
+
+    | Code | Runs with a death | Deaths/h | Gold/h | Kills/h |
+    |---|---|---|---|---|
+    | Before | 73 | 1.81 | 87.8k | 95.2 |
+    | Seek monsters in view | 59 | 1.45 | 95.9k | 102.0 |
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

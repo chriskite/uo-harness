@@ -604,7 +604,7 @@ class World:
             if t >= dz[0]:
                 self.hurt(m, dz[2], None, "disease")
                 dz[0], dz[1] = dz[0] + dz[3], dz[1] - 1
-                if dz[1] <= 0:
+                if dz[1] <= 0 and dz in m.diseases:     # the hit above may have cleared them (a death)
                     m.diseases.remove(dz)
                     if not m.diseases and m.kind == "player":
                         self._sys("You are no longer diseased.")

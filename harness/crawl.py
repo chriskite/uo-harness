@@ -54,6 +54,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import aggro  # noqa: E402
+import combat  # noqa: E402
 import nav  # noqa: E402
 import threats  # noqa: E402
 from agent_link import Abort, log  # noqa: E402
@@ -79,6 +80,8 @@ D0 = 20.0               # route steps that halve a waypoint's score
 TELEPORT_GAP = 2        # no waypoint within this many tiles of a teleporter
 MAX_ROUTE = 400         # floor BFS bound (route steps from the start)
 MAX_TILES = 60000
+SEEK_R = 18             # a monster in view this close (the client's view range) is patrolled toward (Crawl.seek)
+SEEK_EVERY_S = 1.0      # the patrol's look for one (interrupt) at most this often
 ARTICLE = re.compile(r"^(a|an|the)\s+", re.I)
 
 
@@ -451,6 +454,8 @@ class Crawl:
         self.leg_t = 0.0             # when we set out for it (targets met on the way count for it)
         self.glance_s = 0.0
         self.pets_held = None        # why the last patrol waited for the pets (HuntLoop.patrol_hold), logged once
+        self.seek_for = None         # serial of the monster in view the patrol is heading for (seek), else None
+        self.seek_t = -1e9           # the patrol's last look for one (interrupt)
         self.visited = {}            # waypoint -> monotonic time of our last stay
         self.depleted = {}           # waypoint -> monotonic time it may be chosen again
         self.target_t = {}           # waypoint -> monotonic time a target was last in reach there
@@ -712,7 +717,56 @@ class Crawl:
             return "a leave rule"
         if h.pick_target(st) is not None:
             return "a target in reach"
+        now = time.monotonic()
+        if self.seek_for is None and now - self.seek_t >= SEEK_EVERY_S:
+            self.seek_t = now
+            if (found := self.seek(st, h.pos(st))) is not None and found[0] != self.wp:
+                return f"{found[1]} in view at {found[2]} tiles"
         return None
+
+    def seek(self, st, pos):
+        """A monster in view worth patrolling toward rather than away from (user 2026-10-17: "We're constantly
+        'patrolling' away or 'hunting for monsters' when there are high value mobs on screen we could go fight";
+        live 22:08-22:40, 102 of 159 patrol starts had one within 18 tiles, 68 of them walked away from all):
+        a monster we'd fight (wanted, attackable, not --never-aggro, not a type we avoid, on our floor) within
+        SEEK_R, beyond --pull-range or passed over (pick_target has the rest), whose area is in an open zone, not
+        near an avoided creature, and not where we stand. The best by its gold a fighting minute (the store's
+        estimate) over the route there. -> (waypoint index, kind, tiles, serial) or None. The patrol to that
+        waypoint stops on the usual rules (a target in reach, the hold when it sees us, the pull budget)."""
+        h, world = self.h, st["world"]
+        labels = world.get("labels") or {}
+        me = st["movement"]["self_serial"]
+        never = set(getattr(self.a, "never_aggro", None) or aggro.NEVER_AGGRO)
+        roster = set(getattr(getattr(h, "team", None), "roster", {}) or {})
+        mono = time.monotonic()
+        start = self.floor.nearest(pos)
+        if start is None:
+            return None
+        dist = self.floor.bfs(start)
+        here = self.cell_of.get(start)
+        best, best_s = None, 0.0
+        for key, mob in world["mobiles"].items():
+            s = int(key, 16) if isinstance(key, str) else key
+            if s == me or s in roster or s in h.dead or mob.get("x") is None or mob.get("pet"):
+                continue
+            tile = (mob["x"], mob["y"])
+            d = cheb(pos, tile)
+            skipped = getattr(h, "skip", {}).get(s, 0) > mono
+            if d > SEEK_R or (d <= self.a.pull_range and not skipped):
+                continue
+            name = labels.get(key) or mob.get("name")
+            if type_key(name) in never or not h.wanted(world, key, mob) or not combat.attackable(world, key)[0] \
+                    or self.avoid(st, key, mob):
+                continue
+            i = self.cell_of.get(self.floor.nearest(tile) or tile)
+            if i is None or i == here or self.zone[i] > self.unlocked or self.dangerous(i) or self.wps[i] not in dist:
+                continue
+            if hasattr(h, "on_our_floor") and not h.on_our_floor(st, s, mob):
+                continue
+            score = max(self.model.estimate(name)["gold_min"], 1.0) / (1.0 + dist[self.wps[i]] / D0)
+            if score > best_s:
+                best, best_s = (i, type_key(name), d, s), score
+        return best
 
     def dangerous(self, i) -> bool:
         w = self.wps[i]
@@ -785,6 +839,13 @@ class Crawl:
                 until = (self.target_t[i] + self.a.crawl_depleted_s) if productive else self.arrived_t + self.glance_s
             self.visited[i] = now
             if now < until:
+                if not self.a.crawl_loop and now - self.seek_t >= SEEK_EVERY_S:
+                    self.seek_t = now
+                    if (found := self.seek(st, pos)) is not None:
+                        # don't stand here "hunting" with one worth fighting in view elsewhere (user 2026-10-17)
+                        log(f"crawl: {found[1]} in view at {found[2]} tiles; not waiting here")
+                        self.wp, self.arrived_t = None, None
+                        return
                 what = self.a.target_name.strip() or "monsters"
                 h.doing("wait", f"Hunting for {what} around {self.wps[i][0]},{self.wps[i][1]} "
                                 f"(zone {self.zone[i]}, {h.totals['kills']} killed)", self.wps[i])
@@ -797,13 +858,20 @@ class Crawl:
                                                      if self.a.crawl_loop else
                                                      f"depleted ({self.kills_at[i]} kill(s), no target for "
                                                      f"{self.a.crawl_depleted_s:.0f} s); moving on"))
-            self.wp, self.arrived_t = None, None
+            self.wp, self.arrived_t, self.seek_for = None, None, None
         if self.wp is not None and self.dangerous(self.wp):
             log(f"crawl: {self.wps[self.wp]} is near a creature we avoid now; choosing another")
             self.wp, self.arrived_t = None, None
         if self.wp is None:
             self.update_zones()
-            self.wp = self.choose(pos)
+            found = None if self.a.crawl_loop else self.seek(st, pos)
+            if found is not None:
+                self.wp, self.seek_for = found[0], found[3]
+                log(f"crawl: {found[1]} 0x{found[3]:08X} in view at {found[2]} tiles: patrolling toward it "
+                    f"({self.wps[found[0]]})")
+            else:
+                self.seek_for = None
+                self.wp = self.choose(pos)
             if self.wp is None:
                 self.depleted.clear()                    # nothing left: rest periods end early
                 self.wp = self.choose(pos)
@@ -832,6 +900,8 @@ class Crawl:
                                   max_moves=max(250, 2 * max(self.floor.dist_exit.values())))
             if why:
                 log(f"patrol to {w}: stopped ({why})")
+                if " in view at " in why:
+                    self.wp = None          # Crawl.seek chooses the waypoint by it on the next idle
                 if "at once" in why:
                     # this way in shows us to more than the pull budget together (aggro.View.overpull): the
                     # waypoints around here rest, the patrol goes elsewhere (sim fight1949: the next one chosen

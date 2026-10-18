@@ -1108,6 +1108,46 @@ def test_ledge_target_not_picked():
           f"in view {mob is not None}, picked {picked}, us {w.player.pos}")
 
 
+def test_crawl_seeks_in_view():
+    print("== the crawl patrols toward a monster in view beyond the pull range, not away from it ==")
+    import tempfile
+    import crawl
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 22:08-22:40: 102 of 159 patrol starts had a monster we'd fight within 18 tiles; 68 walked away from all
+    out = []
+    for seed in (1, 2, 3):
+        w = world_with([{"key": "shade wolf", "at": [5251, 651, 0]}])     # 15 tiles west of FLOOR (old: walked to 19)
+        wolf = next(m for m in w.mobs.values() if m.kind == "monster")
+        wolf.calm_until = 1e9
+        link, clock = link_for(w)
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", str(seed)])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                st = loop.state()
+                loop.spot = loop.fight_spot = tuple(loop.pos(st)[:2])
+                loop.crawl = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+                loop.crawl.setup(loop.state())
+                c = loop.crawl
+                # its area patrolled a moment ago, as live: the waypoint score (staleness) sends the patrol elsewhere
+                c.visited[c.cell_of[c.floor.nearest(wolf.pos[:2])]] = crawl.time.monotonic()
+                before = sim_cheb(w.player.pos, wolf.pos)
+                loop.crawl.idle(loop.state())
+                out.append((before, sim_cheb(w.player.pos, wolf.pos)))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("each of 3 seeds: the first patrol ends nearer the wolf, within the pull range",
+          all(a > b and b <= 8 for a, b in out), str(out))
+
+
 def test_never_aggro_walk_out():
     print("== a --never-aggro monster in sight: an advance stops on a step nearer it, not on one out of it ==")
     import tempfile
@@ -1496,7 +1536,7 @@ def main():
               test_heal_in_place,
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
-              test_never_aggro_walk_out, test_rope,
+              test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_soul_jar):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

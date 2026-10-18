@@ -868,6 +868,10 @@ Everything hunted before the crawl is zone 1: all 386 floor tiles of the box the
   - The runner walks the tour in order, past areas it cleared within 10 min and areas of avoided
     creatures.
   - There's no hold at a waypoint: a cleared area is marked depleted and the walk goes on at once.
+  - **Monsters in view first** (`Crawl.seek`, user 2026-10-17): a monster we'd fight within 18 tiles beyond the
+    pull range (or passed over) sets the next waypoint (its area, open zones only, not near an avoided creature, the
+    best by gold a fighting minute over the route), stops a patrol elsewhere and ends a waypoint's dwell. Live
+    before: 68 of 159 patrol starts walked away from every such monster in view.
   - Built for the Mausoleum `--pets` hunt: the zone gating never got the crawl past x 5224, short
     of the bound souls and corpse purgers Logan fought (docs/SIM.md).
 - **Moving keeps the Stationary Penalty away**: patrol walks are steps; the longest stay is a
