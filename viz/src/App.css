@@ -1052,6 +1052,52 @@ table.evtable {
 .side-map .reaper-legend {
   display: none;
 }
+/* the Field of Souls countdown (MapGrid; docs/VISUALIZER.md §2.18), under the map buttons */
+.fos-timer {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid #8a6a2e;
+  border-radius: 2px;
+  background: rgba(14, 10, 6, 0.88);
+  color: #e8dcc0;
+  pointer-events: auto;
+}
+.fos-timer .fos-left {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f5d77a;
+}
+.fos-timer .fos-what {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: #c4b292;
+}
+.fos-timer.urgent {
+  border-color: #ef4444;
+  background: rgba(60, 8, 8, 0.92);
+  animation: fos-pulse 1s ease-in-out infinite;
+}
+.fos-timer.urgent .fos-left {
+  color: #fca5a5;
+}
+@keyframes fos-pulse {
+  50% {
+    box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.7);
+  }
+}
+.side-map .fos-timer {
+  top: 6px;
+  right: auto;
+  left: 6px;
+}
 
 /* ---------------------------------------------------------------- event log */
 

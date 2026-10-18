@@ -35,11 +35,12 @@ import argparse
 import datetime
 import json
 import os
-import re
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import soul_jar  # noqa: E402
 
 NORMAL_BOX = (6200, 600, 6396, 804)          # the island in the field frame: x0, y0, x1, y1 (exclusive)
 HARD_OFFSET = (874, -32)
@@ -51,15 +52,17 @@ VIEW_R = 18          # mobiles come into view this far off (63 of 102 first sigh
 SPAWN_R = 14         # first seen this close: it appeared inside the view
 ARRIVAL_S = 3.0      # first sightings this soon after a jump of ours are the view filling in, not spawns
 JUMP_TILES = 8       # our position moving this far between two looks is a jump (entering, a teleport)
-FIELD_S = 16 * 60.0  # a field session lasts 15 minutes
+FIELD_S = 16 * 60.0  # a field session lasts 15 minutes: the map's window after the naming
+SESSION_S = 893.0    # the naming -> the ejection: 892.8, 893.9 and 892.2 s in Logan's three runs
+WARN_S = 90.0        # the warning before the ejection (user request 2026-10-17: "a 90s warning sound")
+LEAVE_GRACE_S = 10.0  # off the island this long after the naming, or past the end this long: the session is over
 CELL = 4
 WATCH_GAP_S = 120.0  # time between two of our steps counts as watching for at most this long (pets fight, we stand)
 DIED_S = 2.0         # a corpse's 0xDEAD this soon after its mobile was pruned as dead: it died in view
 BACKFILL_SEQ0 = 1_000_000_000
 EVENT_START = datetime.datetime(2026, 10, 17).timestamp()   # local midnight of the event's first day
-SYSTEM_SERIAL = 0xFFFFFFFF
-MOBILE_SERIAL_MAX = 0x3FFFFFFF
-_NAMED = re.compile(r"^If you put the spirit of (.+?) to rest, you will receive")
+SYSTEM_SERIAL = soul_jar.SYSTEM_SERIAL
+MOBILE_SERIAL_MAX = soul_jar.MOBILE_SERIAL_MAX
 
 
 def cheb(ax, ay, bx, by) -> int:
@@ -85,7 +88,10 @@ def fos_name(text: str | None) -> str | None:
 
 
 class FieldLog:
-    """One session's field watcher (module docstring): feed() returns the proxy events to emit."""
+    """One session's field watcher (module docstring): feed() returns the proxy events to emit. It also keeps
+    the field session's clock (status(): the viz's countdown; timer(): the `fos_warning` WARN_S before the
+    ejection, which the live proxy sounds), started at the naming and ended by the ejection text, by leaving
+    the island, or LEAVE_GRACE_S past SESSION_S."""
 
     def __init__(self):
         self.mobs: set[int] = set()
@@ -93,6 +99,7 @@ class FieldLog:
         self.last = None             # our (x, y, map) at the previous look
         self.arrived_t = None        # when our position last jumped
         self.died: dict[int, float] = {}   # serial -> when it was pruned as dead (0xAF: died in view)
+        self.session: dict | None = None   # {instance, spirit, named, ends, warned} while in the field
 
     def feed(self, events, now: float, state) -> list[dict]:
         out = []
@@ -107,8 +114,13 @@ class FieldLog:
             if ev == "prune" and e.get("why") == "dead":
                 self.died[e["serial"]] = now        # 0xAF: it died in view; its 0xDEAD comes a packet or two later
             elif ev == "speech_heard":
+                if e.get("text") == soul_jar.EJECTED_TEXT:   # live 18:47:20.28, from our own serial
+                    self.session = None
+                    continue
                 if e.get("serial") == SYSTEM_SERIAL:
-                    if (m := _NAMED.match(e.get("text") or "")) and (f := to_field(me.x, me.y)):
+                    if (m := soul_jar.NAMED.match(e.get("text") or "")) and (f := to_field(me.x, me.y)):
+                        self.session = {"instance": f[0], "spirit": m.group(1), "named": now,
+                                        "ends": now + SESSION_S, "warned": False}
                         out.append({"ev": "fos_session", "instance": f[0], "spirit": m.group(1), "x": me.x, "y": me.y})
                     continue
                 s = e.get("serial") or 0
@@ -133,7 +145,31 @@ class FieldLog:
                             "corpse": f"0x{c:08X}", "x": it.x, "y": it.y, "z": it.z, "in_view": in_view})
         if len(self.died) > 256:
             self.died = {s: t for s, t in self.died.items() if now - t <= DIED_S}
-        return out
+        return out + self.timer(now, state)
+
+    def timer(self, now: float, state) -> list[dict]:
+        """The session clock (also called on the proxy's 0.1 s timer): `fos_warning` once WARN_S before the
+        ejection; the session forgotten past its end or off the island (a recall out)."""
+        s = self.session
+        if s is None:
+            return []
+        me = state.self
+        if now > s["ends"] + LEAVE_GRACE_S or (now - s["named"] > LEAVE_GRACE_S and me.x is not None
+                                                and to_field(me.x, me.y) is None):
+            self.session = None
+            return []
+        if not s["warned"] and now >= s["ends"] - WARN_S:
+            s["warned"] = True
+            return [{"ev": "fos_warning", "instance": s["instance"], "left_s": round(s["ends"] - now, 1)}]
+        return []
+
+    def status(self, now: float) -> dict | None:
+        """The session for the state port (the viz's countdown), or None outside the field."""
+        s = self.session
+        if s is None:
+            return None
+        return {"instance": s["instance"], "spirit": s["spirit"], "named": round(s["named"], 3),
+                "ends": round(s["ends"], 3), "left_s": round(max(0.0, s["ends"] - now), 1), "warn_s": WARN_S}
 
 
 # --------------------------------------------------------------------------- the map

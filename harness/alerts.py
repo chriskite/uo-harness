@@ -15,7 +15,9 @@
 - spirit(): a rising bell chime (A minor arpeggio, bell partials), so it can't be
   taken for the wail. Our name-match eerie spirit came into view in the Field of
   Souls (user request 2026-10-17; the proxy, soul_jar.SpiritWatch).
-  Both synthesized sounds return at once: they play on their own thread, so the
+- toll(): two deep bell tolls (a struck-bell spectrum with a low hum). 90 seconds
+  left in the Field of Souls (user request 2026-10-17; the proxy, fos_field.FieldLog).
+  The synthesized sounds return at once: they play on their own thread, so the
   proxy's relay never waits for them, one at a time.
 """
 from __future__ import annotations
@@ -47,6 +49,14 @@ SPIRIT_PARTIAL = (2.76, 0.4)      # the bell's partial: frequency ratio, loudnes
 SPIRIT_DECAY_S = 0.35             # e-folding time of each bell
 SPIRIT_LEN_S = 1.4
 SPIRIT_LEVEL = 0.45
+# toll(): strikes (start s) of a bell at TOLL_HZ; partials (frequency ratio, loudness, e-folding s): the hum an
+# octave down, the strike, a minor third, a fifth, the octave, an inharmonic upper partial
+TOLL_STRIKES = (0.0, 1.1)
+TOLL_HZ = 147.0
+TOLL_PARTIALS = ((0.5, 0.5, 1.6), (1.0, 1.0, 1.0), (1.19, 0.45, 0.7), (1.5, 0.3, 0.6), (2.0, 0.35, 0.5),
+                 (2.74, 0.25, 0.3))
+TOLL_LEN_S = 2.8
+TOLL_LEVEL = 0.8                  # the partials rarely line up: peaks ~0.65 of full scale
 
 _wavs: dict[str, bytes] = {}
 _sound_lock = threading.Lock()   # one synthesized sound at a time: a second waits for the first to finish
@@ -117,11 +127,23 @@ def _spirit_samples():
         yield SPIRIT_LEVEL * fade * v / (1.0 + share) / 2.0
 
 
-_BUILDERS = {"eerie": _eerie_samples, "spirit": _spirit_samples}
+def _toll_samples():
+    total = sum(a for _, a, _ in TOLL_PARTIALS)
+    for i in range(int(TOLL_LEN_S * RATE)):
+        t, v = i / RATE, 0.0
+        for start in TOLL_STRIKES:
+            if t >= start:
+                u = t - start
+                v += sum(a * math.exp(-u / d) * math.sin(2 * math.pi * TOLL_HZ * r * u) for r, a, d in TOLL_PARTIALS)
+        fade = min(1.0, (TOLL_LEN_S - t) / 0.2)
+        yield TOLL_LEVEL * fade * v / total
+
+
+_BUILDERS = {"eerie": _eerie_samples, "spirit": _spirit_samples, "toll": _toll_samples}
 
 
 def sound_wav(name: str) -> bytes:
-    """The synthesized sound `name` ("eerie", "spirit") as WAV bytes, built on first use."""
+    """The synthesized sound `name` ("eerie", "spirit", "toll") as WAV bytes, built on first use."""
     if name not in _wavs:
         _wavs[name] = _wav(_BUILDERS[name]())
     return _wavs[name]
@@ -152,6 +174,11 @@ def eerie(sound: bool = True) -> threading.Thread | None:
 def spirit(sound: bool = True) -> threading.Thread | None:
     """The name-match spirit chime, on its own daemon thread (returned; None when quiet)."""
     return _start("spirit", sound)
+
+
+def toll(sound: bool = True) -> threading.Thread | None:
+    """The Field of Souls 90-second warning, on its own daemon thread (returned; None when quiet)."""
+    return _start("toll", sound)
 
 
 def open_gm(mem) -> list[int]:

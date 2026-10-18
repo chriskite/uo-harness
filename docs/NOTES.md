@@ -3470,6 +3470,14 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   15:22 (5179,680), 15:42 (5243,667), 17:05 (5195,683) and 17:26 (5634,695), all in the Mausoleum area. He filled
   jars at the 15:42 and 17:26 ones. The first came into view 18 tiles off and left the world model 5 s later (out
   of range) while he fought on; he filled his jar at it 4 minutes later.
+- **The session clock** (Logan's three runs): the server names the spirit 3.05–3.09 s after the instance gump's
+  answer and ejects us 892.2–893.9 s after the naming. Ejection is "Your body can no longer sustain itself within
+  the Field of Souls." spoken over **our own head** (our serial, type 0), not as system text; `SpiritWatch`
+  missed it until 2026-10-17 evening. A filled jar's click label counts down too: "[14m 30s left until
+  ejected]" at 18:32:50.3 matched the 18:47:20.3 ejection exactly; "[13m 30s ...]" at 15:57:10.6 was 3 s
+  short. `fos_field.FieldLog` keeps the clock (`SESSION_S` 893). The state port's `field` drives the viz's
+  countdown, and `fos_warning` 90 s before the end sounds `alerts.toll` (two deep bell tolls) in a live
+  session. A replay of run 3 warned at 18:45:51.1, 89.2 s before the real ejection.
 - **Soul jars**: empty `0xA99F` ("an empty soul jar", stackable, tiledata "soul jar"; monster loot or 1,000 gp from
   an Occult Merchant), filled `0xA9A3` ("a filled soul jar captured by <name>", single-click: "(contains the soul of
   <spirit>)", "[will expire in 59m 57s]").

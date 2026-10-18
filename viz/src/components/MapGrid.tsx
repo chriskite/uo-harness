@@ -5,6 +5,7 @@ import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../fa
 import { cellOutline, fetchGrove, groveQuery, treeAt, treeText, type GroveResponse, type TreeState } from "../grove.ts";
 import { runningLumber } from "../lumberjob.ts";
 import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
+import { fieldTimer } from "../fieldtimer.ts";
 import { hex } from "../serial.ts";
 import {
   NEAR_FIELD,
@@ -304,6 +305,8 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     () => buildScene(viz, layers, groveOn ? grove : null, reaperLayer),
     [viz, layers, groveOn, grove, reaperLayer],
   );
+  // Field of Souls: the time left before the ejection (§2.18; the proxy state's `field`, null outside the field).
+  const fieldView = fieldTimer(viz.state?.field);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -817,6 +820,16 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       {viz.state?.world?.self?.dead && (
         <div className="map-dead" title="the character's body is a ghost (the client's Mobile.IsDead rule)">
           You are dead
+        </div>
+      )}
+      {fieldView && (
+        <div className={fieldView.urgent ? "fos-timer urgent" : "fos-timer"} title={fieldView.title}>
+          <span className="fos-left">{fieldView.left}</span>
+          <span className="fos-what">
+            left in the field
+            <br />
+            {fieldView.text}
+          </span>
         </div>
       )}
       <canvas

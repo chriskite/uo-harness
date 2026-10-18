@@ -107,7 +107,7 @@ def test_spirit():
         a._world(proxy.S2C, P.delete(remon))
         show(a, remon, "Remon Stace")
         check("out of view and back: no second chime", len(sounds) == 1)
-        a._world(proxy.S2C, P.system_text(soul_jar.EJECTED_TEXT))
+        a._world(proxy.S2C, P.says(0x00104A60, "Logan Wolf", soul_jar.EJECTED_TEXT, hue=946, body=400))   # over our head
         clock[0] += 120
         a._world(proxy.S2C, P.system_text(named.format("Ava Estney")))   # the next jar's session
         show(a, ava, "Ava Estney", 6305, 707)
@@ -116,6 +116,10 @@ def test_spirit():
         clock[0] += soul_jar.FIELD_S + 1
         show(a, 0x00031F01, "Milo Fabre")
         check("named over 16 minutes ago (the session is over): nothing", len(sounds) == 2)
+        a._world(proxy.S2C, P.system_text(named.format("Ada Wolfe")))
+        a._world(proxy.S2C, P.says(0x00104A60, "Logan Wolf", soul_jar.EJECTED_TEXT, hue=946, body=400))
+        show(a, 0x00031F02, "Ada Wolfe")
+        check("ejected (the text over our own head, live 18:47:20): its spirit no longer chimes", len(sounds) == 2)
         b = tap(None)
         b.spirit = soul_jar.SpiritWatch()
         show(b, remon, "Remon Stace")

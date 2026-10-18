@@ -51,6 +51,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import fos_field  # noqa: E402
 import pathfind  # noqa: E402
 import proxy  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
@@ -424,6 +425,9 @@ class ReplayDriver(Feed):
             self.items, self.t_end = self._approx(rows)
             self.order = "approx"
         self.tap = proxy.SessionTap(_Null(), _Null(), _Null(), walkers=pathfind.Walkers())
+        # the Field of Souls record and clock, silent (no alarms): replays and `memory.py ingest` get the
+        # fos_* events and the countdown the live proxy has
+        self.tap.field = fos_field.FieldLog()
         # a capture whose re-anchors all came after quiet (made before the per-step re-anchor,
         # ANTICHEAT.md §10 A11) replays with that behaviour, so its recorded decisions reproduce
         reanchors = [r for r in rows if r.get("ev") == "reanchor_client"]

@@ -41,8 +41,8 @@ SYSTEM_SERIAL = 0xFFFFFFFF
 MOBILE_SERIAL_MAX = 0x3FFFFFFF
 _SPIRIT = re.compile(r"My name was (.+?)\.*'?$")
 # on entering the Field of Souls (live 17:27:09, 3 s after the entry; 15:55:50 for Karin Winckel)
-_MATCH = re.compile(r"^If you put the spirit of (.+?) to rest, you will receive")
-EJECTED_TEXT = "Your body can no longer sustain itself within the Field of Souls."
+NAMED = re.compile(r"^If you put the spirit of (.+?) to rest, you will receive")
+EJECTED_TEXT = "Your body can no longer sustain itself within the Field of Souls."   # over our own head
 FIELD_S = 16 * 60.0     # a session lasts 15 minutes: the spirit is forgotten after this
 
 
@@ -136,11 +136,12 @@ class SpiritWatch:
         StateStore: its click labels and mobiles), else None."""
         named = False
         for e in events:
-            if e.get("ev") == "speech_heard" and e.get("serial") == SYSTEM_SERIAL:
-                if m := _MATCH.match(e.get("text") or ""):
-                    self.name, self.until, self.found, named = m.group(1), now + FIELD_S, False, True
-                elif e.get("text") == EJECTED_TEXT:
-                    self.name = None
+            if e.get("ev") != "speech_heard":
+                continue
+            if e.get("serial") == SYSTEM_SERIAL and (m := NAMED.match(e.get("text") or "")):
+                self.name, self.until, self.found, named = m.group(1), now + FIELD_S, False, True
+            elif e.get("text") == EJECTED_TEXT:      # over our own head (live 18:47:20.28), not the system's
+                self.name = None
         if self.name is None or self.found:
             return None
         if now > self.until:

@@ -54,8 +54,10 @@ never sound), each on its own thread:
   plays alerts.eerie (a ghostly wail) and emits proxy event `eerie_corpse` {serial, map, x, y, z};
 - the first time this session's name-match eerie spirit comes into view in the Field of
   Souls it plays alerts.spirit (a rising chime) and emits `spirit_seen` {serial, name, x, y, z}.
-The field map's record (fos_field.FieldLog, per live session, silent; the viz's reaper heatmap):
-proxy events `fos_session`, `fos_mob` and `fos_corpse` (fos_field.py docstring).
+The field map's record and clock (fos_field.FieldLog, per session, silent, replays too; the viz's
+reaper heatmap and countdown): proxy events `fos_session`, `fos_mob`, `fos_corpse` and `fos_warning`
+(90 s before the ejection, which a live session sounds with alerts.toll), and the state's `field`
+{instance, spirit, named, ends, left_s, warn_s} while in the field (null otherwise).
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
@@ -589,7 +591,8 @@ class SessionTap:
         self.profile_hue = None
         self.eerie = None                # live sessions: soul_jar.EerieSeen shared by all (eerie corpse alarm)
         self.spirit = None               # live sessions: this character's soul_jar.SpiritWatch (spirit alarm)
-        self.field = None                # live sessions: this character's fos_field.FieldLog (field map record)
+        self.field = None                # this character's fos_field.FieldLog (field map record and clock)
+        self.alarms = False              # live sessions: play the sounds (fos_warning's toll); never in replays
 
     def _log(self, **kw):
         kw["t"] = round(self.wall(), 3)
@@ -632,6 +635,11 @@ class SessionTap:
         for ev, note in self.moveauth.expire(now):
             self._log(ev=ev, note=note)
             self._proxy_event(ev, note=note)
+        if self.field is not None:      # the field clock between world events (the 90 s warning)
+            try:
+                self._field_events(self.field.timer(self.wall(), self.world.state))
+            except Exception as e:  # noqa: BLE001 - never let the clock touch the relay
+                self._log(ev="alarm_error", note=f"{type(e).__name__}: {e}")
 
     def set_intent(self, intent) -> str | None:
         """The agent's current intent, for readers only (never sent anywhere):
@@ -734,8 +742,18 @@ class SessionTap:
             self._proxy_event("spirit_seen", serial=f"0x{serial:08X}", name=self.spirit.name, x=m.x, y=m.y, z=m.z)
             print(f"[proxy] {who}: our spirit {self.spirit.name} (0x{serial:08X}) in view at {m.x},{m.y}", flush=True)
             alerts.spirit()
-        for e in self.field.feed(new, t, st) if self.field is not None else ():
-            self._proxy_event(e.pop("ev"), **e)
+        self._field_events(self.field.feed(new, t, st) if self.field is not None else ())
+
+    def _field_events(self, events):
+        """FieldLog's proxy events; `fos_warning` (90 s left in the field) also tolls in a live session."""
+        for e in events:
+            ev = e.pop("ev")
+            self._proxy_event(ev, **e)
+            if ev == "fos_warning":
+                print(f"[proxy] {self.world.state.self.name or 'session ' + str(self.tag)}: "
+                      f"{e['left_s']:.0f} s left in the Field of Souls", flush=True)
+                if self.alarms:
+                    alerts.toll()
 
     def diagnostics(self) -> dict:
         """World-model coverage counters (meta-information, not world state)."""
@@ -778,6 +796,7 @@ class SessionTap:
             },
             "intent": self.intent,
             "intents": list(self.intents),
+            "field": self.field.status(self.wall()) if self.field is not None else None,
         })
         return out
 
@@ -1155,6 +1174,7 @@ async def handle_client(client_reader, client_writer, args):
     tap.eerie = args.eerie
     tap.spirit = soul_jar.SpiritWatch()
     tap.field = fos_field.FieldLog()
+    tap.alarms = True
     print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{tag}.jsonl)")
 
     timer = asyncio.create_task(_movement_timer(tap, client_writer))

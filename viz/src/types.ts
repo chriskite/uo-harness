@@ -1,6 +1,8 @@
 // Types for the state-port contract (docs/VISUALIZER.md §1, §1.4, §2.1).
 // Snapshot serials are '0x%08X' strings; event serials are ints (serial.ts normalizes).
 
+import type { FieldClock } from "./fieldtimer.ts";
+
 /** Snapshot-side serial key, always '0x%08X'. */
 export type HexSerial = string;
 
@@ -222,6 +224,8 @@ export interface StateResponse {
   /** Recent intents, oldest first (at most 30); updates of the same step are merged,
    * past steps carry `until`. The last entry is the current intent unless it was cleared. */
   intents?: AgentIntent[];
+  /** The Field of Souls session while we're in it (harness/fos_field.py FieldLog.status), else null/absent. */
+  field?: FieldClock | null;
 }
 
 /** An agent runner's current intent (harness/proxy.py SessionTap.set_intent).

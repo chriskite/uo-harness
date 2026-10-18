@@ -1002,6 +1002,31 @@ the field map" and `harness/fos_field.py`.
     deaths in 0.8 min";
   - no console errors.
 
+### 2.18 Field of Souls countdown (added 2026-10-17, user request)
+
+User: "Can the viz UI overlay how much time is left on the map when I'm in FoS? And can I get a 90s warning
+sound?"
+- **Badge:** under the map buttons while we're in the field. It shows the time left (m:ss), "left in the field"
+  and the instance and spirit; hover for the ejection time. In the last 90 s it turns red and pulses.
+- **Source:** the state's `field` (§1; `fos_field.FieldLog.status`): `{instance, spirit, named, ends, left_s,
+  warn_s}` while in the field, else null.
+  - `left_s` is computed at the state response by the proxy (or the replay) clock. The viz's own clock, a phone's
+    on the LAN or the replay's, plays no part.
+  - The clock starts when the server names our spirit and ends `fos_field.SESSION_S` = 893 s later. The naming
+    to the ejection measured 892.8, 893.9 and 892.2 s in Logan's three runs.
+  - The session is gone at the ejection text, when we leave the island (a recall out), or 10 s past the end.
+- **The warning:** proxy event `fos_warning` 90 s before the end, also on the proxy's 0.1 s timer between
+  world events. A live session plays `alerts.toll`, two deep bell tolls; replays and ingest never sound.
+  - Since this change replays (`viz_feed.ReplayDriver`) run FieldLog too, so they show the badge and the fos_*
+    events. `memory.py ingest` stores those events for captures it ingests.
+- `viz/src/fieldtimer.ts` is the pure model (bun tests); `MapGrid.tsx` draws the badge. Python:
+  `test_fos_field.py` `test_clock`.
+- Verified in headless Chromium against a second viz server (port 8091) replaying 20261017_183126:
+  - the badge read "14:25 left in the field / Normal · spirit Swithin Stace", next to the reaper heatmap;
+  - at 1:22 left it was red (`fos-timer urgent`);
+  - after the ejection the state's `field` was null and the badge gone;
+  - the replay printed "90 s left in the Field of Souls" at the warning.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see

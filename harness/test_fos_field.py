@@ -118,9 +118,58 @@ def test_reaper_map():
     check("spawn points in the field frame", sorted(map(tuple, r["spawns"])) == [(6302, 702), (6302, 702)], str(r["spawns"]))
 
 
+def test_clock():
+    print("== the field clock: the countdown in the state, one toll 90 s before the ejection (live only), the end ==")
+    import alerts
+    tolls = []
+    orig = alerts.toll
+    alerts.toll = lambda sound=True: tolls.append(1)
+    try:
+        def entered(alarms):
+            t, clock = field_tap()
+            t.alarms = alarms
+            t._world(proxy.S2C, P.login(ME, 400, 6321, 776, 0))         # the Normal entry (live 18:32:25)
+            t.world.state.self.map = 0
+            clock[0] += 3
+            t._world(proxy.S2C, P.system_text(NAMED))                    # the clock starts at the naming
+            return t, clock
+        t, clock = entered(True)
+        f = t.state(snapshot=False)["field"]
+        check("named: the state's field with the end SESSION_S on", f is not None and f["ends"] - f["named"] == ff.SESSION_S
+              and f["left_s"] == ff.SESSION_S and f["instance"] == "normal", str(f))
+        clock[0] += ff.SESSION_S - ff.WARN_S - 0.2
+        t.tick(0)
+        check("not yet at 90.2 s left", not tolls and not logged(t, "fos_warning"))
+        clock[0] += 0.2
+        t.tick(0)
+        t.tick(0)
+        w = logged(t, "fos_warning")
+        check("90 s left, between world events (the 0.1 s timer): one fos_warning, one toll",
+              len(w) == 1 and w[0]["left_s"] == 90.0 and tolls == [1], f"{w} {tolls}")
+        clock[0] += 89
+        t._world(proxy.S2C, P.says(ME, "Logan Wolf", ff.soul_jar.EJECTED_TEXT, hue=946, body=400))   # over our head
+        check("ejected: no field in the state", t.state(snapshot=False)["field"] is None)
+        r, rclock = entered(False)                                       # a replay: same events, silent
+        rclock[0] += ff.SESSION_S - ff.WARN_S
+        r.tick(0)
+        check("a replay tap: the fos_warning, no toll", len(logged(r, "fos_warning")) == 1 and tolls == [1])
+        e, eclock = entered(True)
+        eclock[0] += 60
+        e._world(proxy.S2C, P.mobile(ME, 400, 1500, 1600, 0))            # recalled out a minute in
+        eclock[0] += ff.LEAVE_GRACE_S
+        e.tick(0)
+        eclock[0] += ff.SESSION_S
+        e.tick(0)
+        check("left the island early: the session ends, no warning", e.state(snapshot=False)["field"] is None
+              and not logged(e, "fos_warning") and tolls == [1])
+    finally:
+        alerts.toll = orig
+
+
 def main():
     test_field_log()
     test_reaper_map()
+    test_clock()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
 

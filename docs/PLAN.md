@@ -1929,6 +1929,15 @@ Souls"; docs/HUNT_LOOP.md "Soul jars"). Decisions:
   - Rejected: corpse positions alone. They are 3–4 times as many, but most are reapers that died out of view.
   - Rejected: a new store table. Proxy events reuse the event log and its `ev, t` index.
   - Rejected: backfilling by `memory.py ingest`. It only replays captures not yet in the store.
+- *The field countdown and its 90 s toll run on the proxy's clock from the spirit's naming* (user request, the
+  same evening; docs/VISUALIZER.md §2.18). The naming comes 3.1 s after entering and the ejection 893 ± 1 s
+  after it in all three runs. So `fos_field.FieldLog` keeps the session and the state port carries the time
+  left. The viz never does clock arithmetic, so a phone on the LAN or a replay shows the right time. The toll is
+  decided on the proxy's 0.1 s timer as well as on world events, so it comes even when the field is quiet.
+  - Rejected: the filled jar's "[13m 30s left until ejected]" label. It only comes when the jar is clicked, and
+    it was off by 3 s once.
+  - Rejected: the viz playing the sound. Nothing would sound with the viz closed, and once per open tab with
+    several open.
 
 ## Risks
 
