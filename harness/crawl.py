@@ -648,6 +648,16 @@ class Crawl:
                     log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
                 self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_MAX + aggro.NEVER_MARGIN)
                 continue
+            kept = (getattr(getattr(self.h, "team", None), "kept_off", None) or {}).get(s, 0)
+            if kept > now and (mob.get("flags") or 0) & aggro.WAR:
+                self.h.team.kept_off.pop(s, None)         # awake now: the fight's rules (reposition out of its sight)
+            elif kept > now:
+                # an idle corpse purger backed off from (tamer.Team.back_off): its sight is no-go for the patrol and
+                # the routes until then (live 2026-10-18 12:05:09-25: the patrol walked back into it four times)
+                if self.danger.get(s, (None, 0, None))[2] != "kept":
+                    log(f"crawl: keeping out of sight of the {type_key(name)} at {tile} for {kept - now:.0f} s")
+                self.danger[s] = (tile, now, "kept", aggro.aggro_range(type_key(name)) + 1)
+                continue
             why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s) \
                 if getattr(self.a, "crawl_avoid_types", True) is not False else None
             if why:
@@ -663,7 +673,7 @@ class Crawl:
                 # over Logan at z 25 kept (5198, 642) "productive", and he stood there until its 60 s skip ran out
                 self.target_t[i] = now
         for s, (tile, t, name, r) in list(self.danger.items()):
-            if now - t > DANGER_S:
+            if now - t > DANGER_S or (name == "kept" and (getattr(self.h.team, "kept_off", None) or {}).get(s, 0) <= now):
                 del self.danger[s]
                 continue
             danger_zones[f"crawl:{s:08X}"] = (tile, r)

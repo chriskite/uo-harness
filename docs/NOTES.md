@@ -3312,6 +3312,32 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     the pets within vet range; the pets trail us, so they meet it first), from the hold and from the fight; no
     approach to an idle purger; no bard skill at one not on us; ranged monsters in war mode count as casters for the
     reposition (within 13) and the stand score. test_sim `test_purger_back_off` (the 23:14 geometry).
+  - **The first live shift with the back-off (2026-10-18 11:39-12:07, hunt-20261018-113915-8228)**: 5 back-offs, no
+    stall, no pet left behind, but still diseased by a purger at 12:05:26. 12:05:09-25 replayed from the task log:
+    back off, then "toward a target" (a bound soul it couldn't see) or "patrol to (5283, 651)" (Crawl.seek patrolling
+    toward the purger itself) on into its sight, "holding here: corpse purger in sight at 10 tiles: letting it
+    come", back off, four times; then the patrol "stopped (under attack)" and the barrage. The sim showed the same
+    loop in that geometry (test_sim `test_purger_no_ping_pong`: 7 back-offs, 37 of 97 looks in its first sight).
+    Fixed: no hold for a purger; an advance stops on a step into an idle purger's sight before the pets (the
+    never-aggro rule: only a step that brings it into sight or nearer; the crawl rests that waypoint); one backed
+    off from is kept off for 60 s (`Team.kept_off`), its sight a crawl danger zone (no waypoint near it, not sought,
+    routes bend round), dropped when it wakes. After: 1 back-off, 2 looks. An "All Kill" at an idle purger once the
+    pets were nearer it never fired in 144 runs (the back-off leaves it beyond 10 tiles or out of sight), so it went.
+
+    | Loop crawl, 144 runs | Runs with a death | Deaths/h | Gold/h | Disease dmg | Purger dmg | Purgers killed |
+    |---|---|---|---|---|---|---|
+    | Back off (01122fc) | 57 | 1.45 | 95.7k | 289 | 657 | 67 |
+    | Back off + keep off | 54 | 1.36 | 98.9k | 0 | 0 | 0 |
+
+    The zone crawl: 59 runs with a death, 1.45/h, 95.9k gold/h both. Purgers now go unfought in the sim unless they
+    wake by themselves; live they also wake on other players and wander.
+- **A paused agent gate ends the hunt run** (user 2026-10-18, after the 12:07 run kept walking out of the
+  Mausoleum under `stop --after-trip` while he played Logan, and sat gated until the overseer stopped it at 12:33:
+  "have the run end once I pause the agent gate"). `Link.end_on_pause` (set by loop_hunt's `main` only; the lumber
+  runner and ctl still wait) raises `agent_link.GatePaused` on the first state read whose `gate.paused` is set or
+  on an "ERR agent paused" refusal; a BaseException like ctl stop's KeyboardInterrupt, so no `except Abort` on the
+  way swallows it. The visit row is written, exit 1 (`task_failed`). test_loop_hunt `pause`: ended 0.4 s after the
+  pause, no packet after it (before: gated until the test's 60 s kill, no visit row).
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

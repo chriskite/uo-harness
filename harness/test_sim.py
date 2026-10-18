@@ -1068,6 +1068,37 @@ def test_purger_back_off():
           f"before {before} stepped {stepped} after {after} at {w.player.pos} pets {[p.pos for p in w.pets()]}")
 
 
+def test_purger_no_ping_pong():
+    print("== an idle corpse purger backed off from: the crawl doesn't walk back into its sight ==")
+    # live 2026-10-18 12:05:09-25: back off, then "toward a target" / "patrol to (5283, 651)" (seeking the purger) on
+    # into its sight, "letting it come", back off, four times; then its barrage and a foul disease
+    import aggro
+    import crawl
+    w = world_with([{"key": "corpse purger", "at": [5265, 655, 0]}], seed=7, start=(5256, 654))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.calm_until = 1e9                                  # never wakes by sight: only the pets' attack does
+    loop, clock, store, patched = hurt_loop(w, 100)
+    seen = ticks = 0
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.crawl = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            loop.crawl.setup(loop.state())
+            t0 = crawl.time.monotonic()
+            while crawl.time.monotonic() - t0 < 90 and m.hits > 0 and m.target is None:
+                loop.tick()
+                st = loop.state()
+                v = aggro.View(loop, st)
+                ticks += 1
+                seen += bool([x for x in v.first_on_us(v.pos, margin=1) if x["shy"]])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    backs = loop.team.counts.get("back_offs", 0)
+    check("at most 2 back-offs and in its first sight on at most 2 looks (it fights the pets or is left alone)",
+          backs <= 2 and seen <= 2, f"back_offs {backs}, first sight on {seen} of {ticks} looks, purger on "
+          f"{m.target}, hits {m.hits}, at {w.player.pos}")
+
+
 def test_unseen_target_passed_over():
     print("== an idle target within APPROACH_R that can't see us (a wall between): passed over, not waited for ==")
     import tempfile

@@ -48,11 +48,14 @@ Then a recall run (--enter-recall / --leave-recall / --bank-gold): from town by 
 landing by a golden gate, out at once from a red in view and from "X is attacking you!", a refused
 recall walked to the arrival, gold banked at home, back in after --pk-wait (notes above RECALL_S).
 
+Then the default NPD once more with the agent gate paused right after the first attack (`pause`): the run ends
+at once (exit 1, the visit row written) and sends nothing more.
+
 Then, in process (no proxy), the loot-rights run: a blue corpse skipped without a packet, a refused
 open with no lift, a rejected lift not counted (docs/HUNT_LOOP.md "Loot rights"). And the pet team run
 (--pets, notes above GRAVEBUG; docs/HUNT_LOOP.md "Pets").
 
-Run: python test_loop_hunt.py [rights|pets|default|staff|fight|crawl|recall]   (about a minute for all:
+Run: python test_loop_hunt.py [rights|pets|default|staff|fight|crawl|recall|pause]   (about a minute for all:
      the proxy runs go in parallel child processes, output in this order; private ports and log
      dirs; safe while the live proxy runs)
 """
@@ -1132,7 +1135,7 @@ def check_recall(world, text, rc, rows, js, evs):
           str([{k: r.get(k) for k in ("kills", "spot", "fight_spot", "ended")} for r in rows]))
 
 
-async def main(staff=False, fight=None, crawl=False, recall=False):
+async def main(staff=False, fight=None, crawl=False, recall=False, pause=False):
     os.makedirs(LOGDIR, exist_ok=True)
     for f in os.listdir(LOGDIR):
         os.remove(os.path.join(LOGDIR, f))
@@ -1186,10 +1189,20 @@ async def main(staff=False, fight=None, crawl=False, recall=False):
                 "--human", "normal", "--seed", "7", "--human-fast", "0.2", "--no-map",
                 stdout=fh, stderr=asyncio.subprocess.STDOUT)
             try:
-                await asyncio.wait_for(runner.wait(), timeout=300 if crawl or recall else 200)
+                if pause:
+                    # the user takes over mid-fight: the gate paused right after the first attack
+                    t0 = time.monotonic()
+                    while not any(p[0] == 0x05 for p in world.c2s) and time.monotonic() - t0 < 60 \
+                            and runner.returncode is None:
+                        await asyncio.sleep(0.05)
+                    state_req({"op": "gate", "action": "pause"})
+                    paused_at, paused_t = len(world.c2s), time.monotonic()
+                await asyncio.wait_for(runner.wait(), timeout=60 if pause else 300 if crawl or recall else 200)
+                ended_t = time.monotonic()
             except TimeoutError:
                 runner.kill()
                 await runner.wait()
+                ended_t = time.monotonic()
         text = open(runner_out, encoding="utf-8", errors="replace").read()
         print("---- runner output ----\n" + text + "-----------------------")
         after = state_req({"op": "state", "since": 1 << 62})["world"]
@@ -1208,6 +1221,15 @@ async def main(staff=False, fight=None, crawl=False, recall=False):
         c2s = world.c2s
         if recall:
             check_recall(world, text, runner.returncode, rows, js, evs)
+            return
+        if pause:
+            took = ended_t - paused_t
+            check("gate paused mid-fight: the run ends at once (exit 1, 'the agent gate was paused')",
+                  runner.returncode == 1 and "stopped: the agent gate was paused" in text and took < 15,
+                  f"rc {runner.returncode} {took:.1f} s after the pause")
+            check("...nothing more sent after the pause", len(world.c2s) == paused_at,
+                  str([p.hex() for p in world.c2s[paused_at:]][:5]))
+            check("...and the visit row is written", len(rows) == 1 and rows[0].get("ended") == "stopped", str(rows))
             return
         check_penalty(world, text, rows, "crawl" if crawl else "fight spot" if fight else "staff" if staff
                       else "default", fight=bool(fight))
@@ -1814,7 +1836,7 @@ def elsewhere_run():
 
 
 SCENARIOS = {"default": {}, "staff": {"staff": True}, "fight": {"fight": FIGHT}, "crawl": {"crawl": True},
-             "recall": {"recall": True}}
+             "recall": {"recall": True}, "pause": {"pause": True}}
 
 
 def run_parallel(names):
@@ -1859,7 +1881,7 @@ def collect(kids, tmp):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all six
+    only = sys.argv[1:]               # e.g. `crawl`: just that run (iterating); none: all of them
     import cpu_budget
     cpu_budget.limit()                # the scenario children inherit it: two CPUs left to the game
     if only[:1] == ["--child"]:                       # one proxy run (run_parallel's child)

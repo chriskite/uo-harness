@@ -74,7 +74,7 @@ asks for + 1, out and back to the fight spot, never over a known teleporter tile
 before it comes it repositions 2-4 steps out and back (--reposition-s). Leaving to
 survive comes first. Episode rows count `stationary_clears` and `repositions`.
 
-Guards: overall timeout, movement stall, the agent gate (Link.act waits it out),
+Guards: overall timeout, movement stall, the agent gate (a pause ends the run: GatePaused; a break is waited out),
 server restriction text, death (`death` juncture, stop; no corpse runs). No speech
 hold (user 2026-10-15: "GMs don't check attendance for dungeon crawling and stopping
 because a player speaks will definitely get us killed"). Junctures: `threat` when leaving,
@@ -152,8 +152,8 @@ import soul_jar  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
 import task_wrap  # noqa: E402
-from agent_link import (Abort, Link, Mover, bank_opened, cheb, containers_to_open, find_banker, log,  # noqa: E402
-                        same_floor, serial_of)
+from agent_link import (Abort, GatePaused, Link, Mover, bank_opened, cheb, containers_to_open,  # noqa: E402
+                        find_banker, log, same_floor, serial_of)
 from errand_bank import GATING_WORDS  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -2453,8 +2453,10 @@ class HuntLoop:
         if self.war_mode(st, False):
             log("nothing near: war mode off")
             self.human.wait("hotkey")
+        if self.team is not None and self.team.back_off(st):
+            return False                  # a corpse purger would see us before the pets: back behind them
         if self.team is not None and (why := self.team.hold_reason(st)):
-            if self.team.back_off(st) or self.team.pull_spot(st):
+            if self.team.pull_spot(st):
                 return False
             self.doing("hold", f"Holding: {why}")
             time.sleep(POLL_S)
@@ -2779,6 +2781,7 @@ def main():
 
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port, char=args.char)
+    link.end_on_pause = True                 # the user took over: the run ends (agent_link.GatePaused)
     loop = HuntLoop(link, memory, args)
     watch_stop(args.memory)
     code = 0
@@ -2788,6 +2791,10 @@ def main():
         log(f"ABORTED: {e}")
         code = 1
         stop_intent(loop, f"Stopped: {e}")
+    except GatePaused as e:
+        log(f"stopped: {e}")
+        code = 1
+        stop_intent(loop, "Stopped: the agent gate was paused")
     except KeyboardInterrupt:
         log("stopped (ctl stop)")
         code = 1

@@ -545,10 +545,13 @@ the pets between; the pull spot steps back so the pets, a tile or two behind us,
 what comes.
 
 **Corpse purgers** (`aggro.SHY`; user 2026-10-17: "We're frequently getting diseased by the corpse purgers"): a
-ranged monster's first sight takes whoever it sees first and its barrage reaches us wherever the pets stand. When an
-idle purger would see us before a pet, the runner steps back (up to 3, out of its sight first, else farther from it,
-the pets within vet range; `Team.back_off`) so the trailing pets meet it first; it never approaches an idle purger
-(it shoots from 12, it doesn't come on) and uses no bard skill on one that isn't on us (our skill draws its aggro).
+ranged monster's first sight takes whoever it sees first and its barrage reaches us wherever the pets stand. It isn't
+held for (it doesn't come on). An advance (patrol, approach) stops on a step into an idle purger's sight before the
+pets ("a corpse purger would see us"; the crawl then patrols elsewhere), and the runner steps back (up to 3, out of
+its sight first, else farther from it, the pets within vet range; `Team.back_off`). One backed off from is kept off
+for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint near it, routes bend round,
+not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into it four times, then its
+barrage). Never an approach to an idle purger, no bard skill on one that isn't on us (our skill draws its aggro).
 Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel).
 
 | Argument | Default | Meaning |
@@ -906,9 +909,13 @@ area hunted so far) and opens zone 2 only when the numbers allow it; watch the l
 
 ## Guards
 
-Overall timeout, movement stall, the agent gate (actions wait out a pause or break), server
-restriction text (`server_restriction` juncture, stop), death (`death` juncture with the attackers
-and threats, stop: no corpse runs).
+Overall timeout, movement stall, the agent gate, server restriction text (`server_restriction` juncture,
+stop), death (`death` juncture with the attackers and threats, stop: no corpse runs). **A paused gate ends
+the run** (since 2026-10-18; user: "have the run end once I pause the agent gate", after a run walked on out
+of the Mausoleum while he played Logan): the first state read or refused action that shows it raises
+`agent_link.GatePaused` (`Link.end_on_pause`, set in `main`), the visit row is written, "stopped: the agent
+gate was paused (the user took over)", exit 1, and nothing more is sent. A scheduled break is still waited
+out. test_loop_hunt `pause`.
 
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
 stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech

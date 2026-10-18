@@ -589,8 +589,11 @@ Paste this (or point the session at this section) to start an overseer.
 >      after a red: `--pk-wait`).
 > 4. **While it runs:** `ctl wait --timeout 150` and glance at `status` and the task log (`hits`, `intent`).
 >    Nothing to act on: ctl refuses acts while the run is on, and **never fight by hand** in the dungeon.
->    - **"agent gate closed (agent paused); waiting"** every 5 s: the user took over (to fill a soul jar,
->      to save Logan) or paused the agent. Leave it: the run carries on by itself once the gate opens.
+>    - **"stopped: the agent gate was paused (the user took over)"** and a `task_failed` (exit 1): the user
+>      paused the agent to play Logan (to fill a soul jar, to save him). Since 2026-10-18 the hunt run ends at
+>      once on a pause rather than waiting (user: "have the run end once I pause the agent gate"; the 12:07 run
+>      walked on out of the Mausoleum while he played). Ack it, `ctl say "@user …"` with Logan's position, and
+>      start nothing until the user hands back (step 7). A scheduled break still only waits.
 >    - **"teleported: stepping onto (X, Y) …; remembered"** on open ground (no stairs or teleporter there)
 >      right as the user took over is a bogus teleporter: the user's step moved him. Tell the user. Once they
 >      agree, delete the row from the store (`teleporters` table, columns `facet, x, y, to_x, to_y`). Live
@@ -613,9 +616,8 @@ Paste this (or point the session at this section) to start an overseer.
 >      unless taken to an Occult Merchant (Prevalia or Corpse Creek). That isn't automated: at a fill, `ctl
 >      say "@user …"` at once with the spirit's name and the time. Taking it in, and buying empty jars
 >      (1,000 gp from the Occult Merchant), is the user's call.
->    - The user often takes over to fill a jar by hand (the gate closes; item 4). Afterwards the run picks up
->      where it was: a walk waits out the closed gate (since 2026-10-17; before, a pause over ~3 min mid-walk
->      aborted the run with "walk gated too long").
+>    - The user often takes over to fill a jar by hand (the gate closes; item 4): the run ends there, and the
+>      next one starts only when the user says so.
 >    - **The Field of Souls itself is the user's** (the rules: `ctl know search "Field of Souls" --tag news`). On
 >      entering, the server names a spirit ("If you put the spirit of <name> to rest, you will receive a …%
 >      bonus …"), and the proxy chimes when that spirit comes into view (`alerts.spirit`, proxy event

@@ -173,6 +173,7 @@ CASTER_R = 10                 # a caster in war mode this close in sight is cast
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 RANGED_R = 13                 # a ranged monster in war mode this close in sight is shooting at us (the purger's barrage: 12)
 BACK_OFF_S = 2.0              # back_off at most this often
+KEEP_OFF_S = 60.0             # ...and the purger it backed off from isn't sought this long (loop_hunt.SKIP_S)
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
 HOLD_R = 10                   # ...for one within this many tiles (the 16:12 run: none at 12-13 came)
 AT_ONCE_NEAR = 6              # an "at once" stop within this of one in the last AT_ONCE_S: the way on, go
@@ -408,6 +409,7 @@ class Team:
         self.evading = False
         self.reposition_t = -1e9
         self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
+        self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.spacing_t = -1e9
         self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
@@ -853,13 +855,17 @@ class Team:
         return self._view
 
     def pull_check(self, st) -> str | None:
-        """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, or
+        """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, a --never-aggro
+        monster or an idle corpse purger (aggro.SHY) that would see us before a pet (back_off steps out), or
         hold_reason. Its "at once" (more than the budget idle in sight together) only on a step that adds to
         what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
         budget = self.a.pull_budget
         v = self.view(st)
         why = v.overpull(budget) if budget > 0 else (f"a {v.never_near(v.pos)[0]['kind']} would see us"
                                                      if v.never_near(v.pos) else None)
+        shy = self.shy_first(v, v.pos)
+        if not why and shy:
+            why = f"a {shy[0]['kind']} would see us"
         w = sum(m["weight"] for m in v.wakes(v.pos))
         now = time.monotonic()
         if why and "at once" in why and w <= self.at_once_w + 1e-6:
@@ -872,11 +878,12 @@ class Team:
         elif why and "at once" in why:
             self.at_once_at = [(p, t) for p, t in self.at_once_at if now - t < AT_ONCE_S] + [(v.pos[:2], now)]
         self.at_once_w = w
-        seers = v.never_near(v.pos) if why and why.endswith("would see us") else []
+        seers = v.never_near(v.pos) + shy if why and why.endswith("would see us") else []
         if seers:
-            # a --never-aggro monster in sight: stop only on a step that brings a new one into sight or goes nearer;
-            # walking out of its sight goes on (live 2026-10-17 21:12-21:16: 3225 "stopped (a elder vampire would see
-            # us)" lines, the patrol stopped before every first step and the runner stood in its sight)
+            # a --never-aggro monster in sight (or a purger before the pets): stop only on a step that brings a new one
+            # into sight or goes nearer; walking out of its sight goes on (live 2026-10-17 21:12-21:16: 3225 "stopped (a
+            # elder vampire would see us)" lines, the patrol stopped before every first step and the runner stood in its
+            # sight)
             seen = (frozenset(m["serial"] for m in seers), min(cheb(m["pos"], v.pos) for m in seers))
             last, self.never_last = self.never_last, seen
             if last is not None and seen[0] <= last[0] and seen[1] >= last[1]:
@@ -908,12 +915,18 @@ class Team:
         now = time.monotonic()
         seen = []
         for m in v.wakes(v.pos, margin=0, strict=True):
+            if m["shy"]:
+                continue                  # it shoots from where it stands, it doesn't come on (back_off)
             if cheb(m["pos"], v.pos) <= HOLD_R and self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
                 seen.append(m)
         if not seen:
             return None
         m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
         return f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles: letting it come"
+
+    def shy_first(self, v, tile) -> list[dict]:
+        """Idle corpse purgers (aggro.SHY) that would see us on `tile` before a pet (aggro.View.first_on_us)."""
+        return [m for m in v.first_on_us(tile, margin=1) if m["shy"]]
 
     def back_off(self, st) -> bool:
         """An idle corpse purger (aggro.SHY) would see us before a pet (aggro.View.first_on_us): its first sight puts
@@ -922,15 +935,20 @@ class Team:
         the guarding pets trail us, so it meets them first. User 2026-10-17: "We're frequently getting diseased by
         the corpse purgers"; all 4 purger diseases that day came right after "holding here: corpse purger in sight
         at 10 tiles: letting it come" (live 23:14:08-12: it woke at 9 with Logan the nearest of us, barraged him -23,
-        -26 with "You have contracted a foul disease!", the gravebug beside it). True when we stepped."""
+        -26 with "You have contracted a foul disease!", the gravebug beside it). It isn't held for (hold_reason: it
+        doesn't come on), an advance stops on a step into its sight before the pets (pull_check), and once backed off
+        from, the patrol doesn't seek it for KEEP_OFF_S (crawl.Crawl.seek); live 2026-10-18 12:05:09-25 back off, then
+        the patrol or an approach on into its sight, "letting it come", back off, four times, then its barrage. True
+        when we stepped."""
         h, now = self.h, time.monotonic()
         if now - self.back_off_t < BACK_OFF_S:
             return False
         v = self.view(st)
-        first = [m for m in v.first_on_us(v.pos, margin=1) if m["shy"]]
+        first = self.shy_first(v, v.pos)
         if v.walk is None or not first:
             return False
         self.back_off_t = now
+        self.kept_off.update((m["serial"], now + KEEP_OFF_S) for m in first)
         m = min(first, key=lambda m: cheb(m["pos"], v.pos))
         here = cheb(m["pos"], v.pos)
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]

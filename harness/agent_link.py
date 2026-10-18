@@ -137,6 +137,13 @@ class Abort(Exception):
     pass
 
 
+class GatePaused(BaseException):
+    """The agent gate was paused while Link.end_on_pause (the hunt runner: user 2026-10-18, after the run walked on
+    out of the Mausoleum while he played Logan, "have the run end once I pause the agent gate"). A BaseException,
+    as KeyboardInterrupt for `ctl stop`, so no `except Exception` / `except Abort` on the way takes it for a failed
+    action."""
+
+
 def log(msg: str):
     print(time.strftime("%H:%M:%S"), msg, flush=True)
 
@@ -320,6 +327,7 @@ class Link:
         self.events = []
         self.event_t = []            # each event's time (envelope t), parallel to events
         self.last = None
+        self.end_on_pause = False    # the agent gate paused (the user took over): raise GatePaused, don't wait
 
     def _req(self, req: dict) -> bytes:
         if self.char:
@@ -333,7 +341,8 @@ class Link:
         return self._recv(self.ctl, n).decode()
 
     def act(self, pkt: bytes):
-        """Send an action; wait out a paused/break gate, abort on any other refusal."""
+        """Send an action; wait out a paused/break gate (a pause raises GatePaused under end_on_pause), abort on any
+        other refusal."""
         waited = False
         while True:
             resp = self.send(pkt)
@@ -341,6 +350,7 @@ class Link:
                 if waited:
                     log("agent gate open again; resuming")
                 return
+            self.check_pause(resp)
             if resp.startswith(GATE_WAIT):
                 if not waited:
                     log(f"agent gate closed ({resp[4:]}); waiting")
@@ -348,6 +358,11 @@ class Link:
                 time.sleep(GATE_POLL_S)
                 continue
             raise Abort(f"action 0x{pkt[0]:02X} refused: {resp}")
+
+    def check_pause(self, resp: str):
+        """end_on_pause and the gate refused us as paused: GatePaused."""
+        if self.end_on_pause and resp.startswith(GATE_WAIT[0]):
+            raise GatePaused("the agent gate was paused (the user took over)")
 
     @staticmethod
     def _recv(sock, n: int) -> bytes:
@@ -364,6 +379,8 @@ class Link:
         resp = json.loads(self.st_file.readline())
         if not resp.get("ok"):
             raise Abort(f"state port: {resp.get('error')}")
+        if self.end_on_pause and (resp.get("gate") or {}).get("paused"):
+            raise GatePaused("the agent gate was paused (the user took over)")
         world = [env for env in resp["events"] if env["origin"] == "world"]
         self.events.extend(env["data"] for env in world)
         self.event_t.extend(env.get("t", 0.0) for env in world)
@@ -538,8 +555,11 @@ class Mover:
                 time.sleep(0.02 if "pacing" in resp else 0.1)
                 continue
             if resp.startswith(GATE_WAIT):
+                if getattr(self.link, "end_on_pause", False):
+                    self.link.check_pause(resp)
                 # paused or on a break: wait it out, as Link.act does (live 2026-10-17 17:26:28-17:29:48 the user
-                # took over mid-walk to fill a soul jar; the old 40-poll cap aborted the run in the Mausoleum)
+                # took over mid-walk to fill a soul jar; the old 40-poll cap aborted the run in the Mausoleum). The
+                # hunt runner ends on a pause instead (Link.end_on_pause)
                 if not gated:
                     log(f"agent gate closed ({resp[4:]}); waiting")
                     gated = True
