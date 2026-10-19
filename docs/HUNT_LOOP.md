@@ -386,8 +386,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    fights: live 2026-10-19 10:10:57-10:11:28 two tormented souls on other players were waited for 15 s each while
    the pets stood at our side in war mode 7 tiles off, the old "within 12" rule) (`Team.elsewhere`), won't come on: the
    pets get "All Kill" at it at once when we see it within 10 (a no-riskier step to see it first, `bard_step`;
-   farther, the approach), every 12 s while they haven't taken it (user 2026-10-17: "We need to just 'all
-   kill' if the mob is already aggro'd on something else").
+   no such step, e.g. behind a wall: a walk toward it until we see it, at most 10 moves, `walk_to_see`, and one
+   still unseen 10 s after that is passed over for 60 s; farther, the approach), every 12 s while they haven't
+   taken it (user 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The
+   simulator found the walk missing: from Logan's live tile (5242, 683) the first soul stood behind a wall
+   (los.Sight), no tile within 2 steps saw it, and the fixed rule still waited 15 s (test_sim
+   `test_on_another_player`).
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
    (the other onto a second other, or onto our target), then Peacemaking on the target (it stops

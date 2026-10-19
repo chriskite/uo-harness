@@ -822,6 +822,43 @@ def test_idle_pet():
           f"kill commands {said}, phoenix target {af.target}")
 
 
+def test_on_another_player():
+    print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
+    # live 20261019_095934 10:10:57-10:11:28 (hunt-20261019-100618-80b2): a tormented soul in war mode on Lord Phaze at
+    # (5236, 676), Logan at (5242, 683) with both pets beside him in war mode (guarding keeps the flag): the runner read
+    # the pets as on it and waited "for it to come on" 15 s, twice. Seen from (5243, 674), 7 tiles east, "All Kill"
+    # goes at once (4b06515); from Logan's own (5242, 683) a wall stands between (los.Sight), no tile within bard_step's
+    # 2 steps sees it, and 4b06515 still waited: walk round until we see it (walk_to_see)
+    for start, within, what in (((5243, 674), 6.0, "in sight 7 tiles off"),
+                                ((5242, 683), 12.0, "behind the wall, Logan's live tile")):
+        w = world_with([{"key": "tormented soul", "at": [5236, 677, 0]}], seed=7, start=start, others=True)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.hits = m.hits_max = 10 ** 6
+        phaze = w.add_other(5236, 676, w.stand_z(5236, 676, w.player.z), name="Lord Phaze", stay=1e6, dps=1.0)
+        m.target, m.threat, phaze.target = phaze.serial, {phaze.serial: 1e9}, m.serial
+        w._warm(m, True)
+        loop, clock, store, patched = hurt_loop(w, 100)
+        took = None
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                mark, t0 = w.metrics["kill_commands"], w.t
+                for _ in range(40):
+                    clock.advance(0.5)
+                    for p in w.pets():
+                        if p.target is None:
+                            w._warm(p, True)    # live: guarding, in war mode at Logan's side between fights
+                    loop.tick()
+                    if w.metrics["kill_commands"] > mark:
+                        took = w.t - t0
+                        break
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        check(f"{what}: 'All Kill' at the monster on Lord Phaze within {within:.0f} s",
+              took is not None and took <= within and w.metrics["kill_on_others"] >= 1,
+              f"after {took} s from {start} (now {w.player.pos[:2]}), kill commands at it {w.metrics['kill_on_others']}")
+
+
 def test_others_corpse_not_looted():
     print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
     # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
@@ -1804,7 +1841,7 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet, test_others_corpse_not_looted,
+              test_idle_pet, test_on_another_player, test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,

@@ -115,6 +115,7 @@ KILL_REPEAT_S = 12.0
 IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
 PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the pets nor us this long is dropped...
 SKIP_S = 60.0                 # ...and passed over this long
+SEE_WALK_S = 10.0             # a monster on another player still unseen this soon after a walk to see it: passed over
 GUARD_REPEAT_S = 8.0
 APPROACH_R = 6                # [INFERENCE] aggro range: a target the pets haven't engaged is approached to this
 APPROACH_MOVES = 10
@@ -428,6 +429,7 @@ class Team:
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
         self.patrol_failed = {}           # serial -> monotonic: no patrol at it until then (refused, timed out)
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
+        self.see_walk_t = {}              # serial -> the last walk_to_see at it
         self.spacing_t = -1e9
         self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
         self.tank_t = {}                 # pet serial -> the last time it stood next to a monster in war mode
@@ -1738,6 +1740,8 @@ class Team:
             elif cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE:
                 if self.bard_step(st, serial):        # in range, out of our sight: a step that sees it
                     return
+                if not engaged and self.walk_to_see(st, serial, mob, who):
+                    return                            # no step sees it (behind a wall): round to where we do
             elif not engaged:
                 self.approach(serial, mob)
                 return
@@ -1797,6 +1801,40 @@ class Team:
             if not str(e).startswith(label):
                 raise
             log(f"approach: {e}")
+
+    def walk_to_see(self, st, serial: int, mob: dict, who: str) -> bool:
+        """A monster fighting another player (`who`) within BARD_RANGE but out of our sight, no step of bard_step
+        seeing it: walk toward it until we see it (then "All Kill" can target it), at most APPROACH_MOVES. Live
+        2026-10-19 10:10:57 (simulator test_on_another_player): a tormented soul on Lord Phaze behind a wall 6 tiles
+        off, no tile within 2 steps saw it, the runner waited 15 s for it to come on. A second walk within
+        SEE_WALK_S that still doesn't see it passes it over (SKIP_S). True when we walked or passed it over."""
+        h, now, label = self.h, time.monotonic(), "to see the target"
+        name = mob.get("name") or f"0x{serial:08X}"
+        if now < self.vet_busy_until:
+            return False
+        if now - self.see_walk_t.get(serial, -1e9) < SEE_WALK_S:
+            log(f"passing over {name} 0x{serial:08X}: fighting {who} out of our sight; skipping it for {SKIP_S:.0f} s")
+            h.skip[serial] = now + SKIP_S
+            h.disengage("dropped")
+            return True
+        self.see_walk_t[serial] = now
+        h.doing("approach", f"Walking to see {name} (fighting {who})", (mob["x"], mob["y"]), serial)
+        log(f"{name} 0x{serial:08X} is fighting {who} out of our sight: walking to see it")
+
+        def where():
+            m = h.link.last["world"]["mobiles"].get(f"0x{serial:08X}") or mob
+            return m["x"], m["y"]
+
+        def stop(s):
+            return self.bard_sees(s, serial) or self.engaged(s, serial) \
+                or serial in {serial_of(a["serial"]) for a in h.attackers(s)} or self.pull_check(s)
+        try:
+            h.mover.walk_to(where, 1, label, max_moves=APPROACH_MOVES, stop=stop)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"walk to see: {e}")
+        return True
 
     def bard(self, st, serial: int, mob: dict) -> bool:
         """The next bard skill at a target the pets fight: discord, provoke another, peace. True when
