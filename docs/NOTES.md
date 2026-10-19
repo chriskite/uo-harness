@@ -3387,6 +3387,11 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     sim may undersell it; it stays opt-in until a live trial. Unchanged by the flag: bard skills now also go at a
     purger the pets fight (the demo's Discordance), no provocation of one they haven't, and a walk to a hurt pet
     stops on a step into an idle purger's first sight.
+  - **First live use (2026-10-18 22:13:40, hunt-20261018-220541-66e2, SeerLoganWolf8):** "'All Patrol' to (5275,
+    651), 2 from the corpse purger 0x0019D2BF at 13 tiles", "the pets are on it; 'All Guard Me'"; Discordance on
+    it; it died 22:14:24 (+920), the second of the pair (0x0019D507) came into the fight and died 22:14:43 (+977).
+    No potion on Logan from 22:13:40 to 22:15:20 (the next two against a bound soul), no "You have contracted a foul
+    disease!" all shift, the pets above 90 %. One sample; 8 runs that shift, the other 7 met no purger.
 - **The red flight that stood still (2026-10-18 21:14, hunt-20261018-211045-0f63, capture session_20261018_203339;
   user: "Why was that attempt to run from a red so awful? We kept standing still").** Chaos Agent (red) came on at
   1 tile at 21:14:21.4 mid-fight (a vampire countess, a bat, a corpsebride); the first running step 0.5 s later.
