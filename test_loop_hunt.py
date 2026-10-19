@@ -1812,14 +1812,17 @@ def elsewhere_run():
         setattr(TamerLink, name, getattr(Link, name))
     W4, OTHER = 0x00061E01, 0x00099001
     out = {}
-    for busy in (True, False):
+    for case in ("busy", "busy, pets in war mode", "idle"):
+        busy, pets_war = case != "idle", 0x40 if "pets in war" in case else 0
         db = os.path.join(tempfile.mkdtemp(), "harness.db")
         store = memory.Memory(db)
         link = TamerLink()
         link.phase = "after"                                # no scripted fight of its own
+        # live 2026-10-19 10:10:57-10:11:28: the guarding pets stay in war mode between fights, 7 tiles from a
+        # tormented soul on Lord Phaze; read as "the pets are on it", no 'All Kill', and 15 s waiting for it twice
         link.feed(login_pkt(), hits_pkt(SELF, 100, 100), equip(BACKPACK, 0x0E75, 0x15),
-                  mobile20(GRAVEBUG, SPOT[0] + 1, SPOT[1], 387, noto=2), name_pkt(GRAVEBUG, "GraveRobber"),
-                  mobile20(PHOENIX, SPOT[0], SPOT[1] + 1, 832, noto=2), name_pkt(PHOENIX, "AlaFlambe"),
+                  mobile20(GRAVEBUG, SPOT[0] + 1, SPOT[1], 387, noto=2, flags=pets_war), name_pkt(GRAVEBUG, "GraveRobber"),
+                  mobile20(PHOENIX, SPOT[0], SPOT[1] + 1, 832, noto=2, flags=pets_war), name_pkt(PHOENIX, "AlaFlambe"),
                   mobile20(W4, SPOT[0] + 5, SPOT[1], SHADE_WOLF, flags=0x40 if busy else 0), name_pkt(W4, "a shade wolf"),
                   human_pkt(OTHER, SPOT[0] + 6, SPOT[1], 1, player=True), name_pkt(OTHER, "Someone Else"))
         args = loop_hunt.arg_parser().parse_args(["--pets", "--pet", "GraveRobber", "--pet", "alaflambe", "--no-loot",
@@ -1832,9 +1835,10 @@ def elsewhere_run():
                 loop.team.fight(W4)
         finally:
             store.close()
-        out[busy] = [x[3] for x in link.log if x[1] == "target" and x[2] == "kill"]
-    check("in war mode beside another player: 'All Kill' answered with it; idle beside him: no 'All Kill'",
-          out[True] == [W4] and out[False] == [], str(out))
+        out[case] = [x[3] for x in link.log if x[1] == "target" and x[2] == "kill"]
+    check("in war mode beside another player: 'All Kill' answered with it (the pets in war mode at our side too); "
+          "idle beside him: no 'All Kill'",
+          out["busy"] == [W4] and out["busy, pets in war mode"] == [W4] and out["idle"] == [], str(out))
 
 
 SCENARIOS = {"default": {}, "staff": {"staff": True}, "fight": {"fight": FIGHT}, "crawl": {"crawl": True},

@@ -1723,10 +1723,12 @@ class Team:
             self.all_kill(serial)
             return
         if not on_us and serial not in self.pet_attackers(st) and (who := self.elsewhere(st, mob)) is not None \
-                and not any(p["war"] and not p["dead"] and cheb((p["x"], p["y"]), (mob["x"], mob["y"])) <= PET_REACH
+                and not any(p["war"] and not p["dead"] and cheb((p["x"], p["y"]), (mob["x"], mob["y"])) <= ELSEWHERE_R
                             for p in self.pets(st)):
-            # already fighting someone else and our pets on nothing near it: it won't come on; the pets go at it
-            # (user 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else")
+            # already fighting someone else and our pets not beside it: it won't come on; the pets go at it (user
+            # 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The pets'
+            # war flag alone isn't a fight: guarding, they keep it between fights (live 2026-10-19 10:10:57-10:11:28 at
+            # our side 7 tiles from a tormented soul on Lord Phaze, read as "on it" within PET_REACH: two 15 s waits)
             if cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE and self.bard_sees(st, serial):
                 if now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
                         and self.effects.get(serial, {}).get("los", 0) < now:

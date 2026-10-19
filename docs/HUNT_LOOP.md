@@ -382,7 +382,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    doesn't hold a crawl waypoint either; neither does a passed-over one (user 2026-10-17: "it doesn't
    understand the z-levels put the creatures out of sight above it").
    **Someone else's fight**: a target in war mode within `ELSEWHERE_R` 2 of another player or a pet not ours,
-   not on us or our pets, with neither pet in war mode within 12 of it (`Team.elsewhere`), won't come on: the
+   not on us or our pets, with neither pet in war mode beside it (within 2; the guarding pets keep war mode between
+   fights: live 2026-10-19 10:10:57-10:11:28 two tormented souls on other players were waited for 15 s each while
+   the pets stood at our side in war mode 7 tiles off, the old "within 12" rule) (`Team.elsewhere`), won't come on: the
    pets get "All Kill" at it at once when we see it within 10 (a no-riskier step to see it first, `bard_step`;
    farther, the approach), every 12 s while they haven't taken it (user 2026-10-17: "We need to just 'all
    kill' if the mob is already aggro'd on something else").
