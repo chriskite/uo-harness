@@ -82,6 +82,9 @@ TEXT_VET_BEGIN = "You begin using veterinary supplies."
 TEXT_VET_FINISH = "You finish using veterinary supplies."
 TEXT_VET_NEEDLESS = "You or your nearby followers do not require healing."
 TEXT_VET_FAR = "You are too far away from any of your followers to heal them."
+# A channel still running (his own Razor vet loop's, live 2026-10-18 21:14:29.1-34.3: the runner's tries at 30.8 and
+# 33.8 got this and each waited out the 1.5 s reply timeout, standing in a red's flight)
+TEXT_ITEM_WAIT = "You must wait a few moments before you may use this item again."
 # A bonded pet's ghost within reach at a channel's finish comes back (live 20261014_221341: GraveRobber died
 # 22:35:53.1, 3.1 s into a channel begun before; at its finish, 2.0 s later, this line, the 0xBF sub 0x19 alive
 # flag and 31 % hits, then the heal to 65 %; no gump; Logan ran with "All Follow Me" meanwhile, the ghost
@@ -519,6 +522,9 @@ class Team:
                     self.vet_busy_until = min(self.vet_busy_until, now)
                     if text == TEXT_VET_FAR:
                         log("vet supplies: too far from every pet at the finish")
+                elif text == TEXT_VET_BEGIN:
+                    # ours, or his own Razor vet loop's (live 2026-10-18 21:14:14.0 and 21:14:29.1): no try meanwhile
+                    self.vet_busy_until = max(self.vet_busy_until, now + VET_BUSY_S)
                 elif m := SONG_ENDS.match(text):
                     sid = {v: k for k, v in SONG_NAMES.items()}[m.group(1)]
                     self.songs[sid] = 0.0                   # live: 15 min 4 s after it started
@@ -1533,6 +1539,7 @@ class Team:
         """Veterinary supplies when vet_needed and no channel runs: the stock double-click on the
         smallest stack (healing.in_pack: any bag depth, no bag opened), its answer read. `us_below`: our
         own share of hits that calls for it instead of --heal-at (on the run: 1.0, any damage)."""
+        self.update(st)                   # a channel begun or finished since the last look (his own vet loop too)
         h, now = self.h, time.monotonic()
         if now < self.vet_busy_until:
             return False
@@ -1561,6 +1568,8 @@ class Team:
             log(f"vet supplies ({it.get('amount')} left): {why}")
         elif reply == "needless":
             self.vet_busy_until = now + VET_IDLE_S
+        elif reply == "busy":
+            self.vet_busy_until = now + VET_BUSY_S        # a channel runs (its finish line frees it: update)
         else:
             self.vet_busy_until = now + USE_RETRY_S
         return True
@@ -1568,7 +1577,8 @@ class Team:
     @staticmethod
     def _vet_reply(e) -> str | None:
         if e.get("ev") == "speech_heard":
-            return {TEXT_VET_BEGIN: "begin", TEXT_VET_NEEDLESS: "needless", TEXT_VET_FAR: "far"}.get(e.get("text"))
+            return {TEXT_VET_BEGIN: "begin", TEXT_VET_NEEDLESS: "needless", TEXT_VET_FAR: "far",
+                    TEXT_ITEM_WAIT: "busy"}.get(e.get("text"))
         if e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_ACTION_WAIT:
             return "wait"
         return None

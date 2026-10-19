@@ -1127,6 +1127,30 @@ def test_patrol_pull():
           f"targets {targets} pets {pets} on Logan {hit} guards {w.metrics['guard_commands']}")
 
 
+def test_vet_channel_not_ours():
+    print("== a vet channel begun by his own Razor loop: the runner's try neither goes out nor waits for a reply ==")
+    # live 2026-10-18 21:14:29.1 his loop began a channel mid-flight; the runner's tries at 30.8 and 33.8 got "You must
+    # wait a few moments before you may use this item again." and each stood out the 1.5 s reply wait
+    import healing
+    w = world_with([], seed=7, start=(5253, 653))
+    loop, clock, store, patched = hurt_loop(w, 60)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            st = loop.state()
+            serial, _ = healing.in_pack(st["world"], loop.me(st), tamer.VET_SUPPLIES_GRAPHIC)[0]
+            loop.link.send(actions.dclick(serial))           # the client's own use
+            clock.advance(0.3)
+            uses = w.metrics["vet_uses"]
+            t0 = tamer.time.monotonic()
+            went = loop.team.vet(loop.state(), us_below=1.0)
+            took = tamer.time.monotonic() - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("no try (the channel known busy), no wait", not went and took < 0.3 and w.metrics["vet_uses"] == uses,
+          f"went {went} took {took:.2f} s uses {w.metrics['vet_uses']} (was {uses})")
+
+
 def test_unseen_target_passed_over():
     print("== an idle target within APPROACH_R that can't see us (a wall between): passed over, not waited for ==")
     import tempfile
@@ -1615,7 +1639,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_bard_sight,
-              test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull,
+              test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_instrument,
               test_standoff_sight,
               test_idle_pet,

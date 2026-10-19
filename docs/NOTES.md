@@ -3387,6 +3387,24 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     sim may undersell it; it stays opt-in until a live trial. Unchanged by the flag: bard skills now also go at a
     purger the pets fight (the demo's Discordance), no provocation of one they haven't, and a walk to a hurt pet
     stops on a step into an idle purger's first sight.
+- **The red flight that stood still (2026-10-18 21:14, hunt-20261018-211045-0f63, capture session_20261018_203339;
+  user: "Why was that attempt to run from a red so awful? We kept standing still").** Chaos Agent (red) came on at
+  1 tile at 21:14:21.4 mid-fight (a vampire countess, a bat, a corpsebride); the first running step 0.5 s later.
+  From 21:14:21.9 to the user's takeover at 21:14:35.3 the runner covered 14 tiles in 13.4 s, about 4 s of running:
+  it stood four times, ~7.7 s in all, -35 at 22.7 and -13/-13/-21 meanwhile.
+  - 23.0-23.9: a step denied, then a vet channel begun on us (fine: a step doesn't stop it).
+  - 25.6-28.1: a heal potion refused by its cooldown (10.3 s after the last), then "[Rope" got 500119 (an action
+    just before) and the rope waited its whole 1.5 s for a cursor that never came; then the potion.
+  - 30.4-32.4 and 33.8-35.3: the vet supplies tried while a channel ran that **his own Razor vet loop** had begun
+    (client 0x06 at 21:14:29.1; also 21:14:14.0): "You must wait a few moments before you may use this item again."
+    isn't a reply `Team.vet` knew, so each try stood out the 1.5 s reply wait; the second came after a step denied
+    by a shadowguard in the way (a shove needs full stamina: a Total Refresh at 35.7).
+  - The user then played without pausing the gate, and the runner's potions/walk interleaved with his steps
+    (21:14:35.7-37.3) until it died at 21:14:44 (he was ensnared at 41.4).
+  - Fixed: that line is a "busy" reply (ends the wait at once, no try until the finish line); a channel begun by
+    anyone (TEXT_VET_BEGIN, his loop's too) marks the vet busy (`Team.update`, now read at the top of `Team.vet`);
+    the rope's cursor wait ends on 500119. The sim answers a try mid-channel with the live line. test_sim
+    `test_vet_channel_not_ours` (before: a try went out).
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

@@ -1639,8 +1639,12 @@ class HuntLoop:
             return False
         mark = len(self.link.events)
         self.link.act(actions.say_ascii("[Rope"))
-        if self.link.wait(lambda s: any(e.get("ev") == "target" for e in self.link.events[mark:])
-                          and (s["world"].get("target") or {}).get("active"), ROPE_WAIT_S) is None:
+        # an item use just before (a potion, the vet supplies) makes it "You must wait to perform another action."
+        # (500119): no cursor comes; live 2026-10-18 21:14:26.1-27.1 the flight stood the whole ROPE_WAIT_S for it
+        if self.link.wait(lambda s: any(e.get("ev") == "target" or (e.get("ev") == "cliloc"
+                                                                  and e.get("cliloc") == tamer.CLILOC_ACTION_WAIT)
+                                        for e in self.link.events[mark:]), ROPE_WAIT_S) is None \
+                or not (self.link.state()["world"].get("target") or {}).get("active"):
             log("rope: no target cursor")
             return False
         cur = self.link.state()["world"]["target"]

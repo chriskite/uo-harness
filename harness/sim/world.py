@@ -1492,7 +1492,8 @@ class World:
     def _vet(self, s):
         pl, v = self.player, self.sc["vet"]
         if self.vet_end is not None:
-            self.send(P.cliloc(tamer.CLILOC_ACTION_WAIT))
+            # live 2026-10-18 21:14:30.9 and 33.9, a channel running: this line, not 500119
+            self._sys(tamer.TEXT_ITEM_WAIT)
             return
         rng = v["range"]
         need = [m for m in self.pets() if (m.ghost or (m.alive and (m.hits < m.hits_max or m.poison_until > self.t)))
