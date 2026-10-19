@@ -3392,6 +3392,16 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     it; it died 22:14:24 (+920), the second of the pair (0x0019D507) came into the fight and died 22:14:43 (+977).
     No potion on Logan from 22:13:40 to 22:15:20 (the next two against a bound soul), no "You have contracted a foul
     disease!" all shift, the pets above 90 %. One sample; 8 runs that shift, the other 7 met no purger.
+- **A clean escape from the red Malito (2026-10-19 10:29:06-30, hunt-20261019-102426-3a9c, capture
+  session_20261019_095934; user: "That was an AWESOME escape").** Seen at 17 tiles at 10:29:06.5, "LEAVING ... red
+  player in view at 18 tiles", "All Follow Me" 0.5 s later; he closed to 2 tiles in 4 s (Telekinesis, a stuck
+  explosion potion with a "5" count, Flamestrike -27, Mind Blast -27, the potion's blast -24, Explosion, Energy
+  Bolt, Magic Arrow, his pets on "all kill"). Logan ran 72 steps to the crimson gate (arrived 10:29:25.9, ~0.27 s
+  a step with replans), healed on the way with two potions (+21 at 11.2, +25 at 21.5, 10.3 s apart) and three vet
+  channels (begun 10.5 / 17.5 / 24.6, +22 and +15 at their finishes; no refused try), low point 32/100 at 17.0;
+  the gate's menu came at once, Totem 10:29:26, the tome home at 10:29:30, the pets with him all the way (1-2
+  tiles). Weak spot: both rope jumps failed ((5227, 653) "That location is blocked." 501942; (5208, 698) "Target
+  cannot be seen." 500237), each followed by a denied step and "You are no longer hindered." ~1 s later.
 - **Stuck beside the leave gate (2026-10-19 10:19:31-35, hunt-20261019-100618-80b2, capture
   session_20261019_095934; user: "Logan just standing right next to the red gate but not going through. He was
   dying so I moved him manually").** A planned leave (the return rule, 21,393 gp) reached (5204, 702) beside the
