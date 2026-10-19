@@ -3409,6 +3409,10 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     isn't tried again that run. (5227, 653) sits on a stack of statics topped at z 22 with nothing on it: why the
     server called it blocked is open [INFERENCE: its fit check]. The simulator now answers a rope with the live
     refusals and the ground-sight rule. test_sim `test_rope_sight` (the 10:29:20 tile; before: 500237).
+  - First live flight after the fix (2026-10-19 11:23:15-32, hunt-20261019-112052-4400): the red "Lady This Game
+    SuX" in view at 17 tiles 2 s after the arrival on Maus 3; "All Follow Me", rope to (5208, 730) 9 tiles landed
+    (11:23:17), a vet channel on the run, rope to (5204, 704) 4 tiles landed beside the gate (11:23:23), Totem
+    11:23:24, home 11:23:27, in the room 11:23:32 with both pets; 3 hits lost in all.
 - **Stuck beside the leave gate (2026-10-19 10:19:31-35, hunt-20261019-100618-80b2, capture
   session_20261019_095934; user: "Logan just standing right next to the red gate but not going through. He was
   dying so I moved him manually").** A planned leave (the return rule, 21,393 gp) reached (5204, 702) beside the
