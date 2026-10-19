@@ -58,6 +58,7 @@ THINK_S = 0.5             # a monster/pet re-decides its target this often (RunU
 LEASH = 24                # a monster chasing beyond this from home gives up [INFERENCE]
 LOST_S = 8.0              # ...or after its target was out of sight this long [INFERENCE]
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
+PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
 ACTION_DELAY_S = 0.5      # item uses this close together: cliloc 500119 (RunUO ActionDelay) [INFERENCE]
 RECALL_S = 1.9            # power words -> arrival (live 1.95-2.09 s, escape.RECALL_CAST_S)
@@ -135,8 +136,9 @@ class Mob:
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
-    mode: str = "follow"          # pets: follow, guard, kill, stay
+    mode: str = "follow"          # pets: follow, guard, kill, stay, patrol
     kill: int | None = None
+    patrol: tuple | None = None   # pets on "All Patrol": the (x, y) clicked
     devour_t: float = 0.0
     last_hurt_t: float = -1e9
     path: list = field(default_factory=list)
@@ -174,6 +176,7 @@ class World:
                         "team_damage": 0.0, "vet_uses": 0, "potions": 0, "bard": {}, "steps": 0, "denied_steps": 0,
                         "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "violations": [],
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
+                        "patrol_commands": 0,
                         "fights": [], "hunt_s": 0.0}
         self.skill_ready = 0.0
         self.calm_ready = 0.0
@@ -1028,7 +1031,12 @@ class World:
         else:
             m.target = None
             self._warm(m, False)
-            if m.mode != "stay" and t >= m.next_step and cheb(m.pos, owner.pos) > follow:
+            if m.mode == "patrol" and m.patrol is not None:
+                # live: they run to the spot and stay about it until called back (17:57:37-45)
+                if t >= m.next_step and cheb(m.pos, m.patrol) > 0:
+                    m.next_step = self._due(m.next_step, m.spec["step_s"])
+                    self._step_toward(m, m.patrol, 0)
+            elif m.mode != "stay" and t >= m.next_step and cheb(m.pos, owner.pos) > follow:
                 m.next_step = self._due(m.next_step, m.spec["step_s"])
                 self._step_toward(m, owner.pos, follow)
             if m.hits < m.hits_max and t - m.last_hurt_t > 10 and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
@@ -1052,6 +1060,13 @@ class World:
         if m.mode == "follow":
             m.target = None                      # following: it comes along, whatever hits it [INFERENCE]
             return
+        if m.mode == "patrol" and m.patrol is not None and m.target is None and cheb(m.pos, m.patrol) <= 1:
+            # live demo 2026-10-18: on arrival they attacked an idle monster 1-3 tiles from the spot (5 of 5)
+            near = [o for o in self.mobs.values() if o.kind == "monster" and o.alive and not o.hidden_until
+                    and cheb(o.pos, m.patrol) <= PATROL_TAKE_R and self.can_see(m, o)]
+            if near:
+                m.target = min(near, key=lambda o: cheb(o.pos, m.pos)).serial
+                return
         mine = [o for o in on_us if o.target == m.serial]
         if mine and m.target is None:
             m.target = min(mine, key=lambda o: cheb(o.pos, m.pos)).serial
@@ -1168,22 +1183,27 @@ class World:
         if text == "all guard me":
             self.metrics["guard_commands"] += 1
             for m in pets:
-                m.mode, m.kill = "guard", None
+                m.mode, m.kill, m.patrol = "guard", None, None
         elif text == "all follow me":
             self.metrics["follow_commands"] += 1
             for m in pets:
-                m.mode, m.kill, m.target = "follow", None, None
+                m.mode, m.kill, m.target, m.patrol = "follow", None, None, None
         elif text in ("all stop", "all stay"):
             for m in pets:
-                m.mode, m.kill, m.target = "stay", None, None
+                m.mode, m.kill, m.target, m.patrol = "stay", None, None, None
         elif text == "all kill":
             self.metrics["kill_commands"] += 1
             self._cursor({"kind": "kill"})
+        elif text == "all patrol":
+            # live 2026-10-18 17:55:57: a location cursor at once, then this line
+            self.metrics["patrol_commands"] += 1
+            self._cursor({"kind": "patrol"}, cursor_type=0, target_type=1)
+            self._sys("Click on the location where you wish your followers to patrol.")
 
-    def _cursor(self, pending):
+    def _cursor(self, pending, cursor_type=1, target_type=0):
         self.cid += 1
         self.pending = {**pending, "cid": self.cid}
-        self.send(P.cursor(self.cid, 1))
+        self.send(P.cursor(self.cid, cursor_type, target_type))
 
     # bard skills
     def _skill(self, sid):
@@ -1237,6 +1257,19 @@ class World:
         f = parse_packet("c2s", p)
         pend, self.pending = self.pending, None
         if pend is None or f.get("cursor_id") != pend["cid"]:
+            return
+        if pend["kind"] == "patrol":
+            # live: a tile out of our sight is "Target cannot be seen." and nothing happens (3 of 8)
+            x, y = f.get("x"), f.get("y")
+            if f.get("target_type") != 1 or x is None or x == 0x7FFFFFFF:
+                return
+            pl = self.player
+            if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), (x, y, self.stand_z(x, y, pl.z))) is not None:
+                self.send(P.cliloc(500237))
+                return
+            for m in self.pets():
+                if m.alive and not m.ghost:
+                    m.mode, m.kill, m.patrol = "patrol", None, (x, y)
             return
         if pend["kind"] == "rope":
             self._rope_target(pend, f)

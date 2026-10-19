@@ -3362,9 +3362,31 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     on in war mode until the target died (17:57:06, 17:58:19).
   - *Costs seen*: the first patrol pulled the purger, a bound soul and the second purger onto GraveRobber alone
     (AlaFlambe hanging back): dead at 17:56:36 (98 % -> 0 in 35 s), resurrected with the vet supplies at 17:56:52.
+    The user: "Ignore GR dying I just didn't have my vet supply loop running, just a mistake".
     The pets on patrol don't guard Logan: 18:00:10.9 patrol, the pets on a tormented soul at the spot, a second one
     came onto Logan (18:00:26.8 "The creature torments you with a foul disease!", 100 -> 39 by 18:00:42) while
     GraveRobber, next to both, stayed on the first.
+  - **Built as `--patrol-pull`, off by default (2026-10-18; user after the demo: "Ignore GR dying I just didn't
+    have my vet supply loop running").** `Team.patrol_pull` / `patrol_spot` / `patrol_watch` (docs/HUNT_LOOP.md);
+    the simulator models the command (docs/SIM.md). Loop crawl, 144 runs each, seeds 17-160:
+
+    | Variant | Runs with a death | Pet-death runs | Deaths/h | Gold/h | Disease dmg | Purger dmg | Purgers killed | Patrols |
+    |---|---|---|---|---|---|---|---|---|
+    | Keep off (HEAD, = `--no-patrol-pull`) | 54 | 46 | 1.36 | 98.9k | 0 | 0 | 0 | 0 |
+    | Patrol, first cut | 76 | 103 | 2.04 | 91.3k | 1,955 | 4,609 | 161 | 92 |
+    | + walk to a hurt pet stops at any advance rule (pull_check) | 73 | 101 | 1.92 | 94.8k | 221 | 970 | 102 | 83 |
+    | + bard skills at a purger the pets fight | 65 | 100 | 1.67 | 94.8k | 493 | 1,232 | 101 | 89 |
+    | pull_check stop narrowed to a purger's first sight (the zone crawl lost pets with it: 64 vs 48) | 68 | 98 | 1.77 | 92.9k | 1,751 | 3,394 | 166 | 86 |
+    | + no provocation of a purger the pets haven't hurt (shipped, flag on) | 71 | 97 | 1.86 | 92.6k | 1,768 | 3,502 | 170 | 87 |
+
+    The zone crawl with the shipped code: 57 runs with a death (59 before), pet deaths 50 (48), 1 patrol. The
+    patrolled purger never hit Logan (0 of 1,213 in the first diagnosis); the damage came from the second purger of
+    the pair (the sim's two purger spawns stand 8 apart, (5266, 655) and (5274, 652), as live 17:56:17), out of view
+    when the patrol goes and taking Logan by first sight as he moved about the fights that followed (bound souls,
+    repositions, vet, the walk out). Sim purger fights also run slower than live (docs/SIM.md "Limits"), so the
+    sim may undersell it; it stays opt-in until a live trial. Unchanged by the flag: bard skills now also go at a
+    purger the pets fight (the demo's Discordance), no provocation of one they haven't, and a walk to a hurt pet
+    stops on a step into an idle purger's first sight.
 
 ## The fifth live run: two apparitions on Logan, dead at the gate (test shard, 2026-10-15 12:53)
 

@@ -2441,6 +2441,8 @@ class HuntLoop:
         if self.corpses and not attackers:
             self.loot(self.corpses[0])
             return False
+        if self.team is not None and self.team.patrol_watch(st):
+            return False                  # the pets on "All Patrol" at a purger: we stand, then 'All Guard Me'
         target = self.pick_target(st, pull=not winding)
         if target is not None:
             if target != self.engaged and self.engaged is not None:
@@ -2455,6 +2457,8 @@ class HuntLoop:
             self.human.wait("hotkey")
         if self.team is not None and self.team.back_off(st):
             return False                  # a corpse purger would see us before the pets: back behind them
+        if self.team is not None and not winding and self.team.patrol_pull(st):
+            return False                  # an idle purger in reach: the pets sent to wake it ("All Patrol")
         if self.team is not None and (why := self.team.hold_reason(st)):
             if self.team.pull_spot(st):
                 return False
@@ -2709,6 +2713,11 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--rope", action=argparse.BooleanOptionalAction, default=True,
                     help="fleeing a hostile player by --leave-gate: 'All Follow Me' at once and an Adventurer's "
                          "Rope jump toward the gate whenever one is ready, as Logan fled reds")
+    ap.add_argument("--patrol-pull", action=argparse.BooleanOptionalAction, default=False,
+                    help="--pets: wake an idle corpse purger with 'All Patrol' at a tile beside it while we stand "
+                         "out of its sight, so its barrage goes to the pets; 'All Guard Me' once they're on it "
+                         "(user 2026-10-18, docs/NOTES.md 'All Patrol'). Off by default: the simulator's loop crawl "
+                         "lost more runs to deaths with it (71 vs 54 of 144) than keeping off purgers")
     ap.add_argument("--hold-first-sight", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets, nothing fighting: stop where an idle monster first sees us within its aggro "
                          "range and let it come (up to 10 s each), as Logan at the nightstalker room's edge")

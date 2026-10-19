@@ -551,8 +551,21 @@ pets ("a corpse purger would see us"; the crawl then patrols elsewhere), and the
 its sight first, else farther from it, the pets within vet range; `Team.back_off`). One backed off from is kept off
 for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint near it, routes bend round,
 not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into it four times, then its
-barrage). Never an approach to an idle purger, no bard skill on one that isn't on us (our skill draws its aggro).
-Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel).
+barrage). Never an approach to an idle purger, no bard skill on one the pets haven't hurt and that isn't on us, nor a
+provocation of one (our skill draws its aggro; once the pets fight it the skills go, as the user's Discordance in the
+demo). A walk to a hurt pet stops on a step into an idle purger's sight before the pets. Ranged monsters in war mode
+count as casters for the reposition (out of their sight within 13, even mid-channel).
+
+**"All Patrol" at a purger** (`--patrol-pull`, off by default; `Team.patrol_pull`, user 2026-10-18 "We can send our
+pets to a spot away from us, e.g. to within aggro distance of a purger, while we're not in aggro range"; the demo in
+docs/NOTES.md "All Patrol"). Nothing fighting, nothing on us, both pets within vet range, and the purger (within 14)
+not seeing us before the pets: the runner says "All Patrol" (his Razor macro's bytes, hue 0x0239) and clicks a tile
+1-2 from it, within 11 of us and in our sight (los.Sight, as the server's 500237 check), with no other monster within
+4 of it nor seeing where we'd stand to vet the pets there. It stands; once the purger is awake with a pet on it,
+"All Guard Me" (they fight on: live), at once if something comes onto us, and after 10 s without it (the purger then
+passed over for 60 s). Off by default: in the simulator's loop crawl (144 runs) it lost 71 runs to a death against
+54 keeping off purgers, pet deaths 97 runs against 46, gold 92.6k/h against 98.9k; the purger patrolled at never hit
+Logan, the second purger of the pair did as the fight drew him in (docs/NOTES.md). The zone crawl rarely meets one.
 
 | Argument | Default | Meaning |
 |---|---|---|

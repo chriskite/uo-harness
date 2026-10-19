@@ -62,8 +62,9 @@ def stam(serial, cur, top):
     return b"\xa3" + u32(serial) + u16(top) + u16(cur)
 
 
-def cursor(cid, cursor_type=1):
-    return b"\x6c\x00" + u32(cid) + bytes([cursor_type]) + bytes(20)
+def cursor(cid, cursor_type=1, target_type=0):
+    """0x6C target cursor: target_type 0 an object, 1 a location ("All Patrol": `6c 01 <id> 00 ...`, live 2026-10-18)."""
+    return b"\x6c" + bytes([target_type]) + u32(cid) + bytes([cursor_type]) + bytes(20)
 
 
 def equip(item, graphic, layer, owner):

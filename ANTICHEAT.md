@@ -300,6 +300,13 @@ Working rules, each tied to a detection surface above:
       commands) use 0x03B1. Sending "room"/"bank"/"[aspect" via `razor_say` would therefore put
       them in a colour neither the user's typing nor his macros ever produce: the fix above is
       the Razor-faithful one too.
+    - **"All Patrol" is a recorded macro, not a Say hotkey (2026-10-18, capture 20261018_175134; docs/NOTES.md
+      "All Patrol").** His `All Patrol.macro` (Shift+S) went out 8 of 8 times as `ad 001d c0 0239 ...` with
+      Razor's double NUL: hue 0x0239, the hue it was recorded in, not 0x03B1. The runner sends exactly that
+      (`tamer.COMMAND_HUES`, high confidence: byte-identical). [INFERENCE] Gap: by the Razor source a macro
+      replays in the hue the client last typed in this session, so after Logan types something the user's own
+      Shift+S would go out in 0x0170 while the runner's stays 0x0239. Low impact (he hardly types: his "room" is a
+      macro too), not handled.
 
 ## 9. Open questions
 

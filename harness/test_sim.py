@@ -1099,6 +1099,34 @@ def test_purger_no_ping_pong():
           f"{m.target}, hits {m.hits}, at {w.player.pos}")
 
 
+def test_patrol_pull():
+    print("== an idle corpse purger 12 tiles off: 'All Patrol' beside it, the pets wake it, it shoots them ==")
+    # live demo 2026-10-18 17:55:57.5: Logan 14 tiles from an idle purger, the spot 3 from it; it woke on GraveRobber
+    # and fought the pets, Logan 100/100 throughout
+    w = world_with([{"key": "corpse purger", "at": [5265, 655, 0]}], seed=7, start=(5253, 653))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100, extra=("--patrol-pull",))
+    targets = set()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 90 and m.alive:
+                loop.tick()
+                if m.target is not None:
+                    targets.add(m.target)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    pets = {p.serial for p in w.pets()}
+    hit = w.metrics.get("player_damage_by", {}).get("corpse purger", 0) + w.metrics.get("player_damage_by", {}).get(
+        "disease", 0)
+    check("one patrol, the purger killed on the pets alone, nothing of it on Logan, 'All Guard Me' after",
+          loop.team.counts.get("patrols", 0) == 1 and w.metrics["patrol_commands"] == 1 and not m.alive
+          and targets and targets <= pets and hit == 0 and w.metrics["guard_commands"] >= 2,
+          f"patrols {loop.team.counts.get('patrols', 0)} cmds {w.metrics['patrol_commands']} purger alive {m.alive} "
+          f"targets {targets} pets {pets} on Logan {hit} guards {w.metrics['guard_commands']}")
+
+
 def test_unseen_target_passed_over():
     print("== an idle target within APPROACH_R that can't see us (a wall between): passed over, not waited for ==")
     import tempfile
@@ -1587,7 +1615,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_bard_sight,
-              test_purger_back_off,
+              test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull,
               test_instrument,
               test_standoff_sight,
               test_idle_pet,

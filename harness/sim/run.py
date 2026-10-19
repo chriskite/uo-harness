@@ -141,6 +141,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "pet_damage_by": m.get("pet_damage_by", {}),
             "vet_uses": m["vet_uses"], "potions": m["potions"],
             "bard": m["bard"], "guard_commands": m["guard_commands"], "kill_commands": m["kill_commands"],
+            "patrol_commands": m["patrol_commands"],
             "follow_commands": m["follow_commands"], "aggressive_acts": m["aggressive_acts"],
             "recalls": m["recalls"], "steps": m["steps"], "denied_steps": m["denied_steps"],
             "death_causes": m.get("death_causes", []),

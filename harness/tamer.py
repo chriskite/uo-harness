@@ -19,7 +19,8 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   every recall or walk out (user directive 2026-10-11, knowledge #17043: a pet was left behind),
   waiting up to FOLLOW_WAIT_S for the pets to come within FOLLOW_R.
 - **Pet commands are Razor-shaped speech** (actions.razor_say: hue 0x03B1, double NUL; every pet
-  command in Logan Wolf's captures) and only the phrases in COMMANDS. Nothing here or in `ctl` ever
+  command in Logan Wolf's captures; "All Patrol" his recorded macro's hue 0x0239, COMMAND_HUES) and only the
+  phrases in COMMANDS. Nothing here or in `ctl` ever
   says or picks anything that releases or transfers a pet (`irreversible`; user 2026-10-12: "make
   sure we don't release my pets on accident").
 - **Bard skills** (0x12 type 0x24 "<id> 0", then the target cursor, Razor-fast live: median 0.23 s
@@ -66,6 +67,7 @@ import actions
 import aggro
 import combat
 import healing
+import los
 import nav
 from agent_link import Abort, cheb, log, serial_of
 
@@ -179,6 +181,13 @@ HOLD_R = 10                   # ...for one within this many tiles (the 16:12 run
 AT_ONCE_NEAR = 6              # an "at once" stop within this of one in the last AT_ONCE_S: the way on, go
 AT_ONCE_S = 120.0
 PULL_STEPS = 3                # a pull spot within this many steps
+# "All Patrol" at an idle corpse purger (Team.patrol_pull; live demo 2026-10-18 17:55-18:00, docs/NOTES.md "All
+# Patrol"): the pets run to a ground tile and attack an idle monster 1-3 tiles from it; the purger then shoots them
+PATROL_R = 14                 # a purger this close to us
+PATROL_MAX_R = 11             # a spot this close to us (live: accepted at 4-11; nothing farther tried)
+PATROL_SPOT_R = 2             # ...and this close to the purger (live: they took monsters 1-3 off the spot)
+PATROL_CLEAR_R = 4            # ...with no other monster this close to it
+PATROL_WAIT_S = 10.0          # the pets on it by then (live: 3.5 s for 11 tiles), else called back and passed over
 # A forgotten soul's spell leaves fire (0x6D70, hue 0x08D8) on the tile it hit, 5.4-5.7 s (7 in capture
 # 20261014_210020: 6 under the gravebug it tanked, 1 under the phoenix, at the instant of a 13-20 hit).
 # None of them hurt anyone standing on or beside it (the phoenix 5.7 s on one, Logan beside it), but the
@@ -189,8 +198,11 @@ FIRE_STEPS = 2                # a tile out of the fire within this many steps
 BACKSPAWN_MERGE = 3           # stealther spawn spots closer than this are one (Team.backspawn)
 SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
 
-# The only phrases ever said to the pets, as Logan Wolf's hotkeys say them
-COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come")}
+# The only phrases ever said to the pets, as Logan Wolf's hotkeys say them: Razor's built-in Say hotkeys in its hue
+# 0x03B1; "All Patrol" his recorded macro (Shift+S), in the hue it was recorded in (docs/NOTES.md "All Patrol")
+COMMANDS = {c.lower(): c for c in ("All Guard Me", "All Follow Me", "All Kill", "All Stop", "All Stay", "All Come",
+                                   "All Patrol")}
+COMMAND_HUES = {"All Patrol": 0x0239}
 # Anything that gives a pet away: "<name> release", "all release", the context menu's Release/Transfer
 IRREVERSIBLE = re.compile(r"\b(release|transfer)\b", re.I)
 ANSWER_OK = re.compile(r"^You play successfully, (disrupting|pacifying|provoking)")
@@ -237,7 +249,7 @@ def command(text: str) -> bytes:
     phrase = COMMANDS.get(" ".join((text or "").split()).lower())
     if phrase is None:
         raise ValueError(f"{text!r} is not a pet command we say ({sorted(COMMANDS.values())})")
-    return actions.razor_say(phrase)
+    return actions.razor_say(phrase, hue=COMMAND_HUES.get(phrase, actions.RAZOR_SPEECH_HUE))
 
 
 def duration(text: str) -> float | None:
@@ -410,6 +422,8 @@ class Team:
         self.reposition_t = -1e9
         self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
         self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
+        self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
+        self.patrol_failed = {}           # serial -> monotonic: no patrol at it until then (refused, timed out)
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.spacing_t = -1e9
         self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
@@ -979,6 +993,127 @@ class Team:
             log(f"back off: {e}")
         return True
 
+    def patrol_pull(self, st, serial: int | None = None) -> bool:
+        """--patrol-pull: "All Patrol" at a ground tile beside an idle corpse purger (aggro.SHY) within PATROL_R, so
+        the pets wake it and its barrage goes to them (user 2026-10-18: "We can send our pets to a spot away from us,
+        e.g. to within aggro distance of a purger, while we're not in aggro range"; live demo 17:55-18:00, docs/NOTES.md
+        "All Patrol": both purgers woken that way shot the pets, Logan 100/100). Only with nothing fighting, nothing
+        on us, every pet alive in view within --vet-range, and the purger not seeing us before the pets (back_off
+        goes first). The spot: patrol_spot. `serial`: only that purger. True when the command went out (patrol_watch
+        takes it from there) or its cursor failed."""
+        if not getattr(self.a, "patrol_pull", False) or self.patrol is not None:
+            return False
+        h, now = self.h, time.monotonic()
+        v = self.view(st)
+        if v.walk is None or v.engaged() or h.attackers(st) or self.shy_first(v, v.pos):
+            return False
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        if len(pets) < len(self.roster) or any(p["dist"] > self.a.vet_range for p in pets):
+            return False
+        best = None
+        for m in sorted(v.mobs, key=lambda m: cheb(m["pos"], v.pos)):
+            if not m["shy"] or m["war"] or (serial is not None and m["serial"] != serial) \
+                    or cheb(m["pos"], v.pos) > PATROL_R or self.patrol_failed.get(m["serial"], 0) > now \
+                    or h.skip.get(m["serial"], 0) > now:
+                continue
+            if (spot := self.patrol_spot(v, m)) is not None:
+                best = (m, spot)
+                break
+        if best is None:
+            return False
+        m, (tx, ty, tz) = best
+        s = m["serial"]
+        h.doing("pets", f"Sending the pets to patrol by the {m['kind']}", (tx, ty), s)
+        mark = len(h.link.events)
+        self.say("all patrol")                # his Razor macro on Shift+S: a hotkey's pace
+        cur = self._cursor(mark)
+        if cur is None:
+            log("'All Patrol': no target cursor")
+            self.patrol_failed[s] = now + SKIP_S
+            return True
+        h.human.wait("hotkey_aim")           # live: the click 0.3-0.8 s after the cursor
+        if not h.cursor_still(h.state(), cur):
+            log("'All Patrol': the cursor went away")
+            return True
+        h.link.act(actions.target_xyz(cur["cursor_id"], tx, ty, tz, 0, cur.get("cursor_type") or 0))
+        h.wait_for(lambda _: any(e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS
+                                 for e in h.link.events[mark:]), 0.6)
+        if any(e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS for e in h.link.events[mark:]):
+            log(f"'All Patrol' to {(tx, ty)}: cannot be seen; not trying the {m['kind']} again for {SKIP_S:.0f} s")
+            self.patrol_failed[s] = now + SKIP_S
+            self.count("patrol_refused")
+            return True
+        self.patrol = {"serial": s, "kind": m["kind"], "spot": (tx, ty), "t": time.monotonic()}
+        self.count("patrols")
+        log(f"'All Patrol' to {(tx, ty)}, {cheb(m['pos'], (tx, ty))} from the {m['kind']} 0x{s:08X} at "
+            f"{cheb(m['pos'], v.pos)} tiles: the pets wake it, not us")
+        return True
+
+    def patrol_spot(self, v, m) -> tuple | None:
+        """Where to send the pets for idle monster `m` (patrol_pull): a standable tile within PATROL_SPOT_R of it and
+        PATROL_MAX_R of us, in our sight (eye to the ground: the server answers a tile out of it with 500237 "Target
+        cannot be seen."; los.Sight agreed on all 8 of the demo's clicks), no other monster within PATROL_CLEAR_R
+        (the pets take on what they find there) or seeing where we'll stand to vet them (sees_fight), and no
+        --never-aggro one seeing it. The nearest to it, then to us. (x, y, z) or None."""
+        mx, my, mz = m["pos"]
+        x, y, z = v.pos
+        best, best_k = None, None
+        for dx in range(-PATROL_SPOT_R, PATROL_SPOT_R + 1):
+            for dy in range(-PATROL_SPOT_R, PATROL_SPOT_R + 1):
+                t = (mx + dx, my + dy)
+                if t == (mx, my) or cheb(t, v.pos) > PATROL_MAX_R:
+                    continue
+                k = (max(abs(dx), abs(dy)), cheb(t, v.pos))
+                if best_k is not None and k >= best_k:
+                    continue
+                tz = v.walk.new_z(t[0], t[1], mz, 0)
+                if tz is None or (v.sight is not None
+                                  and v.sight.point_blocked((x, y, z + los.EYE), (t[0], t[1], tz)) is not None):
+                    continue
+                spot = (t[0], t[1], tz)
+                if any(o["serial"] != m["serial"] and (cheb(o["pos"], t) <= PATROL_CLEAR_R
+                                                       or self.sees_fight(v, o, spot)) for o in v.mobs) \
+                        or v.never_near(spot):
+                    continue
+                best, best_k = (t[0], t[1], tz), k
+        return best
+
+    def sees_fight(self, v, o, spot) -> bool:
+        """Whether idle monster `o` would wake to us vetting the pets at `spot`: in sight of it within its aggro range
+        plus --vet-range (we walk to a hurt pet: to_pet). The simulator, the first patrol rule (another monster only
+        not within PATROL_CLEAR_R of the spot): all 1213 of the purger damage on Logan came from a second purger, never
+        the one patrolled at, as he walked in to vet the pets."""
+        return not o["war"] and v.sees(o, spot, o["r"] + self.a.vet_range)
+
+    def patrol_watch(self, st) -> bool:
+        """After patrol_pull: "All Guard Me" once the purger is awake with a pet in war mode near it (a fight they're
+        in goes on: live 17:56:36 and 17:58:03 they fought on to the kill), at once when something is on us (pets on
+        patrol don't guard us: live 18:00:26 a second tormented soul on Logan, 100 -> 39), and after PATROL_WAIT_S
+        without it (the purger passed over for SKIP_S). Meanwhile we stand. True while it holds the tick."""
+        p = self.patrol
+        if p is None:
+            return False
+        h, now = self.h, time.monotonic()
+        mob = st["world"]["mobiles"].get(f"0x{p['serial']:08X}")
+        gone = mob is None or mob.get("x") is None or p["serial"] in h.dead
+        awake = not gone and bool((mob.get("flags") or 0) & aggro.WAR)
+        on_it = awake and any(q["war"] and not q["dead"] and cheb((q["x"], q["y"]), (mob["x"], mob["y"])) <= PET_REACH
+                              for q in self.pets(st))
+        late = now - p["t"] > PATROL_WAIT_S
+        if h.attackers(st) or gone or on_it or late:
+            self.patrol = None
+            why = ("something on us" if h.attackers(st) else "it's gone" if gone else "the pets are on it" if on_it
+                   else f"the pets not on it after {PATROL_WAIT_S:.0f} s")
+            if late and not on_it:
+                self.patrol_failed[p["serial"]] = now + SKIP_S
+                self.count("patrol_timeouts")
+            log(f"patrol at the {p['kind']} 0x{p['serial']:08X}: {why}; 'All Guard Me'")
+            self.say("all guard me")
+            return True
+        h.doing("pets", f"The pets are patrolling to the {p['kind']}", p["spot"], p["serial"])
+        time.sleep(0.2)
+        return True
+
     def pull_spot(self, st) -> bool:
         """Holding (hold_reason): once per group of monsters held for, the tile within PULL_STEPS where the
         fewest of them would see us before a pet (aggro.View.first_on_us: out of their sight, or the pets
@@ -1462,7 +1597,13 @@ class Team:
             m = self.h.link.last["world"]["mobiles"].get(f"0x{p['serial']:08X}") or p
             return m["x"], m["y"]
         try:
-            h.mover.walk_to(where, 1, label, max_moves=combat.VIEW_RANGE)
+            # to a live pet: stopping where an idle corpse purger would see us before the pets (shy_first). Sim: the walk
+            # in beside the pets fighting a patrolled purger woke the second purger of the pair onto Logan (all 1213 of
+            # its damage, the first patrol rule); pull_check's every rule here cost the zone crawl pet deaths (64 vs 48)
+            def purger_first(s):
+                v = self.view(s)
+                return f"a {first[0]['kind']} would see us" if (first := self.shy_first(v, v.pos)) else None
+            h.mover.walk_to(where, 1, label, max_moves=combat.VIEW_RANGE, stop=None if p["dead"] else purger_first)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1592,6 +1733,8 @@ class Team:
                     and not self.hold_reason(st):
                 self.approach(serial, mob)    # never toward an idle purger: it shoots from 12, it doesn't come on
                 return
+            if not on_us and shy_idle and self.patrol_pull(st, serial):
+                return                    # the pets sent to wake it ("All Patrol"); patrol_watch calls them back
             if not on_us and self.unseen(st, serial):
                 log(f"passing over {name} 0x{serial:08X}: it can't see us from "
                     f"{cheb(h.pos(st), (mob['x'], mob['y']))} tiles; skipping it for {SKIP_S:.0f} s")
@@ -1651,9 +1794,11 @@ class Team:
         if fx.get("los", 0) > now or cheb(self.h.pos(st), (mob["x"], mob["y"])) > BARD_RANGE:
             return False
         kind = type_key(mob.get("name"))
-        if aggro.shy(kind) and serial not in {serial_of(a["serial"]) for a in self.h.attackers(st)}:
-            # our skill draws its aggro (user 2026-10-12: an aggressive act of ours puts the mob on us) and a purger then
-            # barrages us wherever the pets stand; on us, the skills go (peace stops it)
+        if aggro.shy(kind) and serial not in {serial_of(a["serial"]) for a in self.h.attackers(st)} \
+                and not self.engaged(st, serial):
+            # our skill draws its aggro before the pets hit it (user 2026-10-12: an aggressive act of ours puts the mob on
+            # us) and a purger then barrages us wherever the pets stand; on us, or on the pets, the skills go (live demo
+            # 2026-10-18 17:56:02: his Discordance on the purger GraveRobber fought, never a hit on Logan)
             return False
         due = (self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond) or (
             now >= self.calm_ready and (self.a.provoke or self.a.peace) and fx.get("calm", 0) <= now
@@ -1669,7 +1814,11 @@ class Team:
                       if self.effects.get(s, {}).get("calm", 0) <= now and self.effects.get(s, {}).get("immune", 0) <= now
                       and self.effects.get(s, {}).get("los", 0) <= now
                       and (SKILL_PROVO, type_key((st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name")))
-                      not in self.beyond and self.bard_sees(st, s)]
+                      not in self.beyond and self.bard_sees(st, s)
+                      # a purger the pets haven't hurt: our skill draws its barrage (sim: "Provocation on a corpse
+                      # purger onto" the patrolled one put the second of the pair on Logan)
+                      and not (aggro.shy(type_key((st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name")))
+                               and not self.engaged(st, s))]
             if len(others) > 1 or (others and self.bard_sees(st, serial)):
                 return self.use(SKILL_PROVO, others[0], others[1] if len(others) > 1 else serial)
         if self.a.peace and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \

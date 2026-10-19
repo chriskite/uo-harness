@@ -1196,7 +1196,9 @@ async def main(staff=False, fight=None, crawl=False, recall=False, pause=False):
                             and runner.returncode is None:
                         await asyncio.sleep(0.05)
                     state_req({"op": "gate", "action": "pause"})
-                    paused_at, paused_t = len(world.c2s), time.monotonic()
+                    paused_t = time.monotonic()
+                    await asyncio.sleep(0.3)      # what the gate let through just before the pause reaches the server
+                    paused_at = len(world.c2s)
                 await asyncio.wait_for(runner.wait(), timeout=60 if pause else 300 if crawl or recall else 200)
                 ended_t = time.monotonic()
             except TimeoutError:

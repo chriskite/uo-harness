@@ -634,6 +634,12 @@ long way out through the countess room. That walk is the open problem now, not t
   - Not known: the gold gates' menus and the ways back up.
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).
+  Patrol ("All Patrol", since 2026-10-18 from the user's demo, docs/NOTES.md "All Patrol"): a location
+  cursor, "Target cannot be seen." for a tile out of our sight, the pets run to the tile, attack a monster
+  within 3 of it (`PATROL_TAKE_R`) and stay about the spot; "All Guard Me" leaves the target they fight.
+- Purgers against the pets run slower than live: a patrol-pulled purger took 33-42 s to kill in the sim
+  (54 % left at 16 s), live 14 s with a Discordance (17:56:01-15). Its disease ticks (21, Logan's live
+  number) hit the pets unscaled [INFERENCE]: both make purger fights dearer for the pets than seen.
 - The rune tome's charges aren't spent (36 on the trip); the ping-pong above would have emptied it.
 - Monster positions and respawns aren't carried across a career's runs: only the runner's memory is.
 
