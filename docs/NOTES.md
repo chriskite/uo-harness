@@ -3392,6 +3392,17 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     it; it died 22:14:24 (+920), the second of the pair (0x0019D507) came into the fight and died 22:14:43 (+977).
     No potion on Logan from 22:13:40 to 22:15:20 (the next two against a bound soul), no "You have contracted a foul
     disease!" all shift, the pets above 90 %. One sample; 8 runs that shift, the other 7 met no purger.
+- **Two walk-in bugs from the 2026-10-18 evening shift (SeerLoganWolf8), fixed.**
+  - hunt-20261018-210443-1cbe 21:05:41-43: attacked 3 tiles from the last teleporter (5522, 637), "keeping off
+    the tank: (5522, 636)" chose a tile that was a teleporter too (unknown till then; teleporters come in
+    fields), the step put Logan on Maus 3 at (5199, 736), and the walk on to (5522, 637) aborted "no route from
+    (5199, 736)". Now `walk_in_through` counts a teleporter as passed within 3 of its known arrival, and
+    `Team.tiles_within` leaves out known teleporter tiles and their neighbours. test_sim
+    `test_walk_in_through_neighbour` (before: "no route onto it").
+  - hunt-20261018-212957-c791 21:29:58: restarted on Maus 3 at (5209, 689) with `--spot 5199 737`, 48 tiles off;
+    `at_hunt` only looked within 18 tiles (the crawl floor isn't built before the start), so it recalled: "unusable
+    no recall ... inside the Mausoleum". Now `resume_inside` when recall is forbidden where we stand. test_sim
+    `test_restart_inside` (before: that abort).
 - **The red flight that stood still (2026-10-18 21:14, hunt-20261018-211045-0f63, capture session_20261018_203339;
   user: "Why was that attempt to run from a red so awful? We kept standing still").** Chaos Agent (red) came on at
   1 tile at 21:14:21.4 mid-fight (a vampire countess, a bat, a corpsebride); the first running step 0.5 s later.

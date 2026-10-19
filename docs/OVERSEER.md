@@ -570,8 +570,12 @@ Paste this (or point the session at this section) to start an overseer.
 >    0x444AB1F3 --leave-gate 5203 703 --gate-dest Totem --enter-recall 0x444AB1F3 --enter-rune "Maus Near 2"
 >    --enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637`.
 >    No `--timeout`: since 2026-10-17 a run has no time limit (user: the return rule takes the loot home).
->    Soul jars are on by default (`--soul-jars`). If Logan is already on Maus 3 by the arrival (the user put
->    him there), add `--spot 5199 737` and it hunts without a walk-in.
+>    Soul jars are on by default (`--soul-jars`). **Started inside the Mausoleum** (the user left Logan there,
+>    a restart after a stop): the same command, no `--spot` needed. Since 2026-10-18 the runner sees it can't
+>    recall there: anywhere on Maus 3 it hunts from where he stands ("started inside, on the hunt level"); on an
+>    earlier level it walks the rest of the teleporters from the first one it can reach. (Before, `--spot 5199
+>    737` was needed and worked only within 18 tiles of the arrival: run hunt-20261018-212957-c791 tried to
+>    recall from 48 tiles off.)
 >    What it does, so the log reads right:
 >    - **In:** the recall to "Maus Near 2", the four teleporters with the pets on "All Follow Me" (a fight on
 >      the way: the pets guard until it's over; a pet behind: a wait for it). "return threshold: home once

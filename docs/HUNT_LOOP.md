@@ -635,6 +635,15 @@ moongate, and never near a red one).
   and out of the Mausoleum").
   - The approach is the tile the route onto each one arrives from (a teleporter on stairs is entered
     from one side only).
+  - **Through by another step** (`walk_in_through`, since 2026-10-18): within 3 tiles of a teleporter's known
+    arrival (the store's teleporters), it and those before it count as passed. Live 21:05:41-43 the step off the
+    tank under attack went onto (5522, 636), a teleporter beside the known (5522, 637), and out to Maus 3; the walk
+    on to it aborted "no route from (5199, 736)". The tiles the fight steps choose from (`Team.tiles_within`:
+    spacing, reposition, the pull spot, the back-off) leave out known teleporter tiles and the tiles beside them.
+  - **Started inside** (`resume_inside`, since 2026-10-18): with `--enter-recall` where no recall is allowed
+    (escape.recall_forbidden), the hunt is `--spot` or the last `--enter-via`'s known arrival; on its level (the
+    crawl's floor from here holds it) the run hunts from where it stands, else it walks the rest in from the first
+    `--enter-via` teleporter it can reach. Live 21:29:58 a restart 48 tiles from `--spot` tried to recall.
   - **The pets follow the whole way** (since 2026-10-15, as the user does it, capture 20261013_204518: one
     "All Follow Me" after the landing for all four teleporters, the first "All Guard Me" on the fight
     level; live 22:20:56 the runner's "All Guard Me" at the landing set the pets fighting there and Logan

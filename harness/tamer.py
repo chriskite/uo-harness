@@ -1175,14 +1175,18 @@ class Team:
 
     @staticmethod
     def tiles_within(v: aggro.View, steps: int) -> dict:
-        """{(x, y, z): walking steps} from where we stand, up to `steps` (pathfind.Walk.can_walk)."""
+        """{(x, y, z): walking steps} from where we stand, up to `steps` (pathfind.Walk.can_walk), never onto a known
+        teleporter tile or one beside it (teleporters come in fields: live 2026-10-18 21:05:41 the step off the tank 3
+        tiles from the known one at (5522, 637) went onto (5522, 636), unknown till then, and out to Maus 3)."""
+        tele = [t for t in v.h.mover.teleporter_tiles(v.st["world"]["self"].get("map")) if cheb(t, v.pos) <= steps + 1]
+        near = {(x + dx, y + dy) for x, y in tele for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
         out, frontier = {v.pos: 0}, [v.pos]
         for k in range(1, steps + 1):
             nxt = []
             for x, y, z in frontier:
                 for d in range(8):
                     n = v.walk.can_walk(x, y, z, d)
-                    if n is not None and n not in out:
+                    if n is not None and n not in out and n[:2] not in near:
                         out[n] = k
                         nxt.append(n)
             frontier = nxt

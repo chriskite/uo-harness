@@ -1151,6 +1151,71 @@ def test_vet_channel_not_ours():
           f"went {went} took {took:.2f} s uses {w.metrics['vet_uses']} (was {uses})")
 
 
+def test_restart_inside():
+    print("== started on Maus 3 far from --spot with the walk-in arguments: hunts from there, no recall ==")
+    # live 2026-10-18 21:29:58 (hunt-20261018-212957-c791): from (5209, 689), 48 tiles from --spot 5199 737,
+    # "recall to Maus Near 2 failed: unusable no recall from (5209, 689): inside the Mausoleum"
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([], seed=7, start=(5209, 689))
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--spot", "5199", "737"], 10, at_hunt=False)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    err, hunted = None, []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.hunt = lambda: hunted.append(loop.pos(loop.state())[:2])
+            try:
+                loop.run()
+            except loop_hunt.Abort as e:
+                err = str(e)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("no abort, no recall, the hunt begins where it stands with the crawl's floor",
+          err is None and hunted and w.metrics["recalls"] == 0 and loop.crawl is not None,
+          f"err {err!r} hunted {hunted} recalls {w.metrics['recalls']}")
+
+
+def test_walk_in_through_neighbour():
+    print("== the walk-in put through a teleporter by another step: on, not 'no route' ==")
+    # live 2026-10-18 21:05:41-43 (hunt-20261018-210443-1cbe): attacked 3 tiles from the last teleporter (5522, 637),
+    # the step off the tank went onto (5522, 636) and out to Maus 3 (5199, 736); the walk on aborted "no route"
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([], seed=7, start=(5199, 736))
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=False)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    store.teleporter_record(0, 5522, 637, 0, 5199, 737, 17)       # learned on earlier walks in
+    err = None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            try:
+                loop.walk_in([tuple(t) for t in args.enter_via][-1:])
+            except loop_hunt.Abort as e:
+                err = str(e)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the last teleporter counted as passed: no abort, still on Maus 3", err is None
+          and sim_cheb(w.player.pos, (5199, 737)) <= 3, f"err {err!r} at {w.player.pos}")
+
+
+
 def test_unseen_target_passed_over():
     print("== an idle target within APPROACH_R that can't see us (a wall between): passed over, not waited for ==")
     import tempfile
@@ -1640,6 +1705,7 @@ def main():
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_bard_sight,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
+              test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
               test_idle_pet,

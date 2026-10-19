@@ -200,6 +200,7 @@ TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
 WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets (a teleporter, a lag)
 WALK_IN_LAG_R = 8             # --enter-via: a pet farther than this (or out of view) stops the walk until it catches up
+WALK_IN_ARRIVED_R = 3         # --enter-via: this close to a teleporter's known arrival, we are through it (walk_in_through)
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
@@ -1950,6 +1951,45 @@ class HuntLoop:
         if self.team is not None:
             self.team.landed(self.state(), "in")
 
+    def resume_inside(self, st):
+        """Started inside the dungeon (no recall from here: escape.recall_forbidden) and away from --spot. Live
+        2026-10-18 21:29:58: a restart on Maus 3 48 tiles from --spot tried to recall in ("unusable no recall from
+        (5209, 689)"). The hunt is the last --enter-via teleporter's known arrival unless --spot says otherwise;
+        when the crawl's floor from here holds it, we're on the hunt level: hunt from here. Else the walk in from
+        the first --enter-via teleporter we can reach."""
+        facet = st["world"]["self"].get("map") or 0
+        tiles = [tuple(t) for t in (self.args.enter_via or [])]
+        dest = self.memory.teleporters(facet).get(tiles[-1][:2]) if tiles else None
+        if self.spot is None and dest is not None:
+            arrival = tuple(dest[1:3])
+            self.spot, self.fight_spot = arrival, self.fight_spot or arrival
+            self.recall_spot = self.recall_spot or arrival
+        if self.spot is not None and (self.args.crawl or self.args.crawl_loop):
+            c = crawl.Crawl(self, crawl.load_prior(self.memory.con, self.spot, self.args.crawl_depth_risk))
+            try:
+                c.setup(st)
+            except ValueError as e:
+                log(f"crawl: {e}")
+            else:
+                near = c.floor.nearest(self.spot) if c.floor is not None else None
+                if near is not None and cheb(near, self.spot) <= WALK_IN_ARRIVED_R:
+                    self.crawl = c
+                    log(f"started inside, on the hunt level (the crawl floor from {self.pos(st)[:2]} holds "
+                        f"{self.spot}): hunting from here")
+                    return
+        for k, tile in enumerate(tiles):
+            if self.mover.plan(st, nav.within(tile[:2], 0), mobiles=False)[0]:
+                log(f"started inside the dungeon at {self.pos(st)[:2]}: the walk in from the teleporter at "
+                    f"{tile[0]},{tile[1]}")
+                self.walk_in(tiles[k:])
+                if self.spot is None:
+                    here = tuple(self.pos(self.link.state())[:2])
+                    self.spot, self.fight_spot = here, self.fight_spot or here
+                    self.recall_spot = self.recall_spot or here
+                return
+        raise Abort(f"started inside the dungeon at {self.pos(st)[:2]}: not on the hunt level and no --enter-via "
+                    f"teleporter in reach (no recall from here)")
+
     def walk_in(self, tiles):
         """After the recall in (a dungeon lets us recall only beside a gold moongate: user 2026-10-13):
         onto each --enter-via teleporter in order, the pets on 'All Follow Me' the whole way, said once
@@ -1965,28 +2005,51 @@ class HuntLoop:
         self.walk_hits, self.walk_hurt_t = None, -1e9
         if self.team is not None:
             self.team.follow()
-        for tile in tiles:
+        i = 0
+        while (i := self.walk_in_through(tiles, i)) < len(tiles):
+            tile = tiles[i]
             label = f"to the teleporter at {tile[0]},{tile[1]}"
             self.doing("enter", f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
             if self.team is not None:
                 self.team.song(self.state())
-            # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
-            # (the Mausoleum's at 5554,700: from 5554,701 northwards, the step denied and then the move)
-            path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
-            near = tuple(path[-2]) if path and len(path) >= 2 else None
-            if near is None:
-                raise Abort(f"{label}: no route onto it")
-            while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
-                if why == "under attack":
-                    self.walk_in_fight(label)
-                else:
-                    self.wait_pets(label, None)
-            if self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
-                self.wait_pets(label, tile[:2])
-            here = tuple(self.pos(self.link.state())[:2])
-            self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+            try:
+                # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
+                # (the Mausoleum's at 5554,700: from 5554,701 northwards, the step denied and then the move)
+                path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+                near = tuple(path[-2]) if path and len(path) >= 2 else None
+                if near is None:
+                    raise Abort(f"{label}: no route onto it")
+                while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
+                    if why == "under attack":
+                        self.walk_in_fight(label)
+                    else:
+                        self.wait_pets(label, None)
+                if self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
+                    self.wait_pets(label, tile[:2])
+                here = tuple(self.pos(self.link.state())[:2])
+                self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+            except Abort as e:
+                if self.walk_in_through(tiles, i) == i:
+                    raise
+                log(f"{label}: {e}; but we are through it already (at its arrival)")
             if self.team is not None:
                 self.team.landed(self.state(), "in")
+            i += 1
+
+    def walk_in_through(self, tiles, i: int) -> int:
+        """The index of the first --enter-via teleporter from `i` on still ahead: past every one whose known
+        arrival (the store's teleporters) we stand within WALK_IN_ARRIVED_R of. Live 2026-10-18 21:05:41-43: under
+        attack 3 tiles from the last one, the step off the tank went onto its neighbour (5522, 636), also a
+        teleporter, and put us on Maus 3 at (5199, 736); the walk on to it then aborted, "no route from (5199, 736)"."""
+        st = self.link.state()
+        facet = st["world"]["self"].get("map") or 0
+        pos = tuple(self.pos(st)[:2])
+        known = self.memory.teleporters(facet)
+        for j in range(len(tiles) - 1, i - 1, -1):
+            dest = known.get(tuple(tiles[j][:2]))
+            if dest is not None and (dest[0] or 0) == facet and cheb(pos, dest[1:3]) <= WALK_IN_ARRIVED_R:
+                return j + 1
+        return i
 
     def walk_in_stop(self, st) -> str | None:
         """walk_in's stop: something attacking us or our hits falling (a calamity casts from 13 tiles,
@@ -2506,7 +2569,11 @@ class HuntLoop:
                 + (f"; {d}: no attack spell, potions before heal spells inside" if d else ""))
         if self.team is not None:
             self.team.setup(st)
-        if self.args.enter_recall is not None and not self.at_hunt(st):
+        if self.args.enter_recall is not None and not self.at_hunt(st) \
+                and escape_mod.recall_forbidden(self.pos(st), st["world"]["self"].get("map")):
+            self.resume_inside(st)            # no recall from here: started inside the dungeon
+            st = self.state()
+        elif self.args.enter_recall is not None and not self.at_hunt(st):
             self.enter_by_recall()
             st = self.state()
         elif self.args.enter and not self.at_hunt(st):
