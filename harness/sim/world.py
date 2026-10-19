@@ -1672,9 +1672,16 @@ class World:
         if x is None or x == 0x7FFFFFFF:
             return
         z = self.stand_z(x, y, f.get("z") or pl.z)
-        ok = (cheb(pl.pos, (x, y)) <= ROPE_R and self.walk.objects(x, y)
-              and not self._occupied(x, y) and self.sight.can_see(pl.pos, (x, y, z)))
-        if not ok:
+        # live 2026-10-19 10:29:07.6 and 20.6: "That location is blocked." (501942) and "Target cannot be seen."
+        # (500237), each followed by a denied step; sight as for a ground target, our eye to the tile's ground
+        if cheb(pl.pos, (x, y)) > ROPE_R:
+            self.send(P.cliloc(500446))
+            return
+        if not self.walk.objects(x, y) or self._occupied(x, y):
+            self.send(P.cliloc(501942))
+            return
+        if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), (x, y, z)) is not None:
+            self.send(P.cliloc(500237))
             return
         came = [m for m in self.pets() if m.alive and m.mode == "follow" and cheb(m.pos, pl.pos) <= 12]
         it = self.items[pend["item"]]

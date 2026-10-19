@@ -1419,6 +1419,36 @@ def test_rope():
     check("...and no second jump within the cooldown", again is False)
 
 
+def test_rope_sight():
+    print("== --rope from (5207, 689) toward the gate: no landing out of our sight as a ground target ==")
+    # live 2026-10-19 10:29:20.1-21.3 fleeing the red Malito: "[Rope" at (5208, 698) from (5207, 689), "Target cannot be
+    # seen." (500237), a denied step and ~1 s hindered with him 2 tiles off; eye to eye it looked clear
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([], start=(5207, 689))
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            mark = len(loop.link.events)
+            jumped = loop.rope_jump((5203, 703))
+            refused = [e.get("cliloc") for e in loop.link.events[mark:] if e.get("ev") == "cliloc"
+                       and e.get("cliloc") in loop_hunt.ROPE_REFUSED]
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("a jump to a tile we see, or none tried: never 'Target cannot be seen.'", not refused,
+          f"jumped {jumped} refused {refused} at {w.player.pos} misses {loop.totals.get('rope_misses', 0)}")
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -1732,7 +1762,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight,
+              test_bard_sight, test_rope_sight,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,

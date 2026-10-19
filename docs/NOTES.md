@@ -3402,6 +3402,13 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
   the gate's menu came at once, Totem 10:29:26, the tome home at 10:29:30, the pets with him all the way (1-2
   tiles). Weak spot: both rope jumps failed ((5227, 653) "That location is blocked." 501942; (5208, 698) "Target
   cannot be seen." 500237), each followed by a denied step and "You are no longer hindered." ~1 s later.
+  - Fixed (user: "I would expect we'd never try to rope to a tile we can't see"): `rope_jump` picks a landing in our
+    sight as a ground target, eye (z from the map's surface where we stand: the world model's z lags) to the tile's
+    ground, the check the "All Patrol" clicks matched 8 of 8; the old eye-to-eye check with the model's z passed
+    (5208, 698), the ground check finds it blocked at (5207, 693, 15). A refused landing (501942, 500237, 500446)
+    isn't tried again that run. (5227, 653) sits on a stack of statics topped at z 22 with nothing on it: why the
+    server called it blocked is open [INFERENCE: its fit check]. The simulator now answers a rope with the live
+    refusals and the ground-sight rule. test_sim `test_rope_sight` (the 10:29:20 tile; before: 500237).
 - **Stuck beside the leave gate (2026-10-19 10:19:31-35, hunt-20261019-100618-80b2, capture
   session_20261019_095934; user: "Logan just standing right next to the red gate but not going through. He was
   dying so I moved him manually").** A planned leave (the return rule, 21,393 gp) reached (5204, 702) beside the

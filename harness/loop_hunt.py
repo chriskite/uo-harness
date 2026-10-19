@@ -272,6 +272,7 @@ class HuntLoop:
         self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
         self.rope_next = 0.0                     # --rope: the next rope jump not before
+        self.rope_refused = set()                # --rope: (x, y) landings the server refused this run
         self._drinking = False
         self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
         self._looked_t = -1e9
@@ -1627,7 +1628,13 @@ class HuntLoop:
         sight = los.sight_for(self.mover.walkers, st["world"]["self"].get("map")) if walk is not None else None
         if not path or sight is None:
             return False
-        pos = tuple(self.pos(st)[:3])
+        # in our sight as a ground target is checked: from our eye (z from the map's surface where we stand, not the
+        # world model's z, which lags) to the tile's ground (as the "All Patrol" clicks: 8 of 8 agreed with the
+        # server). Live 2026-10-19 10:29:20.6: (5208, 698) from (5207, 689), eye to eye clear by a stale z, "Target
+        # cannot be seen." (500237): ~1 s standing (hindered) 2 tiles from the red Malito
+        x0, y0, zw = self.pos(st)[:3]
+        pos = (x0, y0, los.surface_z(walk, x0, y0, zw))
+        eye = (x0, y0, pos[2] + los.EYE)
         occupied = self.mover.occupied(st)      # live 13:40:52.9 "That location is blocked." (a summon on it)
         best, cur = None, pos
         for t in path[1:]:
@@ -1636,7 +1643,8 @@ class HuntLoop:
             cur = walk.can_walk(cur[0], cur[1], cur[2], nav.direction(cur[:2], t[:2]))
             if cur is None or cur[:2] != tuple(t[:2]):
                 break
-            if cheb(pos, cur) >= 4 and sight.can_see(pos, cur) and cur[:2] not in occupied:
+            if cheb(pos, cur) >= 4 and sight.point_blocked(eye, cur) is None and cur[:2] not in occupied \
+                    and cur[:2] not in self.rope_refused:
                 best = cur
         if best is None:
             return False
@@ -1658,9 +1666,16 @@ class HuntLoop:
                                 or any(e.get("ev") == "cliloc" and e.get("cliloc") in ROPE_REFUSED
                                        for e in self.link.events[mark:]), ROPE_WAIT_S) is not None \
             and cheb(self.pos(self.link.state()), best) <= 1
+        refused = next((e.get("cliloc") for e in self.link.events[mark:]
+                        if e.get("ev") == "cliloc" and e.get("cliloc") in ROPE_REFUSED), None)
+        if refused is not None:
+            # never that landing again this run (live 10:29:07.6 (5227, 653, 22), the top of a stack of statics:
+            # "That location is blocked." with no mobile or item on it [INFERENCE: the server's fit check there])
+            self.rope_refused.add(tuple(best[:2]))
         self.rope_next = time.monotonic() + ROPE_COOLDOWN_S
         self.count("ropes" if landed else "rope_misses")
-        log(f"rope to {best[:2]} ({cheb(pos, best)} tiles): " + ("landed" if landed else "no jump"))
+        log(f"rope to {best[:2]} ({cheb(pos, best)} tiles): " + ("landed" if landed else
+                                                                 f"no jump (cliloc {refused})" if refused else "no jump"))
         return landed
 
     def leave_by_gate(self, severity: str) -> dict:
