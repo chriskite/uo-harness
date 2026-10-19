@@ -3392,6 +3392,15 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     it; it died 22:14:24 (+920), the second of the pair (0x0019D507) came into the fight and died 22:14:43 (+977).
     No potion on Logan from 22:13:40 to 22:15:20 (the next two against a bound soul), no "You have contracted a foul
     disease!" all shift, the pets above 90 %. One sample; 8 runs that shift, the other 7 met no purger.
+- **Stuck beside the leave gate (2026-10-19 10:19:31-35, hunt-20261019-100618-80b2, capture
+  session_20261019_095934; user: "Logan just standing right next to the red gate but not going through. He was
+  dying so I moved him manually").** A planned leave (the return rule, 21,393 gp) reached (5204, 702) beside the
+  crimson gate at 10:19:31.94, hit 100 -> 79 there. "All Follow Me" 32.30; the state read before the click ran the
+  guards, whose on-the-run vet supplies went at 32.55 (us at 79); the gate's double-click at 32.75 got cliloc 500119
+  "You must wait to perform another action." (0.07 s later) and no menu; `moongate.travel` waited its MENU_WAIT_S
+  and the run aborted ("no 'Moongate Destinations' menu at (5204, 702)"), leaving Logan there with the pets. Fixed:
+  the click goes again after 500119 (`GATE_CLICK_TRIES` 3, 0.6 s apart). The simulator's gate now obeys the action
+  delay as live. test_sim `test_gate_after_vet` (before: that abort).
 - **Two walk-in bugs from the 2026-10-18 evening shift (SeerLoganWolf8), fixed.**
   - hunt-20261018-210443-1cbe 21:05:41-43: attacked 3 tiles from the last teleporter (5522, 637), "keeping off
     the tank: (5522, 636)" chose a tile that was a teleporter too (unknown till then; teleporters come in

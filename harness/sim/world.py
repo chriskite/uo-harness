@@ -1413,6 +1413,11 @@ class World:
             if cheb((it["x"], it["y"]), pl.pos) > 1:
                 self.send(P.cliloc(500446))
                 return
+            if self.t - self.last_use_t < ACTION_DELAY_S:
+                # live 2026-10-19 10:19:32.55-32.82: the vet supplies, then the gate 0.2 s later: 500119, no menu
+                self.send(P.cliloc(tamer.CLILOC_ACTION_WAIT))
+                return
+            self.last_use_t = self.t
             self._gate_menu(self.gates[(it["x"], it["y"])])
             return
         if self.t - self.last_use_t < ACTION_DELAY_S:

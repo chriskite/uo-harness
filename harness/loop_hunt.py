@@ -176,6 +176,8 @@ PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
+GATE_CLICK_TRIES = 3          # the gate's double-click again after 500119 (an item use just before it)...
+GATE_CLICK_WAIT_S = 0.6       # ...as read this long after each (the refusal came 0.07 s after the click live)
 GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
 GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
@@ -1757,7 +1759,19 @@ class HuntLoop:
             serial = moongate.gate_at(st, gate)
             if serial is not None and cheb(self.pos(st), gate) <= 1:
                 self.human.wait("gate_macro")         # the user's gate macro, planned leave or not
-                self.link.act(actions.dclick(serial))
+                for _ in range(GATE_CLICK_TRIES):
+                    # an item use just before (the guards' vet supplies on the run, a potion) makes the server answer
+                    # 500119 "You must wait to perform another action." and send no menu: again once it's over (live
+                    # 2026-10-19 10:19:32.55 the vet, 32.75 the gate refused, the run aborted beside it, Logan dying)
+                    mark = len(self.link.events)
+                    self.link.act(actions.dclick(serial))
+                    self.wait_for(lambda s: any(e.get("ev") in ("gump_open", "cliloc") for e in self.link.events[mark:]),
+                                  GATE_CLICK_WAIT_S)
+                    if not any(e.get("ev") == "cliloc" and e.get("cliloc") == tamer.CLILOC_ACTION_WAIT
+                               for e in self.link.events[mark:]):
+                        break
+                    log("the moongate: 'You must wait to perform another action.'; clicking it again")
+                    time.sleep(tamer.USE_RETRY_S)
             else:
                 self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate, urgent=fast,
                                    max_moves=max(250, 3 * self.out_steps))

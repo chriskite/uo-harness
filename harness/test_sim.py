@@ -633,6 +633,34 @@ def test_gate_dash():
           f"ok {res.get('ok')} {res.get('error')} in {took:.1f} s at {w.player.pos}")
 
 
+def test_gate_after_vet():
+    print("== hurt at the leave gate: the vet supplies, then the gate refused (500119): clicked again, through ==")
+    import loop_hunt
+    from agent_link import cheb
+    # live 2026-10-19 10:19:32.30-35 (hunt-20261019-100618-80b2): beside the gate at 79/100, the vet supplies at
+    # 32.55, the gate's double-click at 32.75 answered 500119 "You must wait to perform another action.", no menu:
+    # "ABORTED: recall home failed (moongate: no 'Moongate Destinations' menu at (5204, 702))", Logan left standing
+    gate = (5203, 703)
+    w = world_with([], seed=7, start=(5209, 697))
+    loop, clock, store, patched = hurt_loop(w, 79)            # a potion at the start: none ready at the gate
+    world_tick, hit = clock.on_advance, [False]
+
+    def at_gate(now):
+        world_tick(now)
+        if not hit[0] and cheb(w.player.pos, gate) <= 1:
+            hit[0] = True
+            w.hurt(w.player, 21, None, kind="bleed")       # 100 -> 79 there, as live
+    clock.on_advance = at_gate
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = loop.leave_by_gate("info")
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("through the gate", res.get("ok") and cheb(w.player.pos, gate) > 100,
+          f"ok {res.get('ok')} {res.get('error')} at {w.player.pos} vet uses {w.metrics['vet_uses']}")
+
+
 def test_area_first():
     print("== an apparition on our tile: a ready potion at once, then out of its reach, mid-channel ==")
     import time
@@ -1703,7 +1731,8 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
-              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_bard_sight,
+              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
+              test_bard_sight,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
