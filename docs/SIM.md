@@ -60,6 +60,10 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
   beside the live trip's; `--json` prints every run's summary (with `death_causes`: who did the damage
   in the 15 s before a death, `junctures`, `kills_by`, `bard`, ...).
 - Seeds make runs reproducible (the world's randomness and the runner's `--seed`).
+- `--others`: other (blue) players on the fight level (the scenario's `others`, "Other players" below). Off by
+  default, so batches stay comparable with the earlier ones; `all:` then adds an `others` block (in-view numbers
+  against the captures', their kills, the runner's "All Kill" at a monster on one, opens of their corpses, seconds
+  engaged on a monster fighting one before ours hurt it, kills lost to their loot rights).
 
 ## Pieces
 
@@ -67,7 +71,7 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
 |---|---|
 | `sim/clock.py` | `SimClock` + `install()`: every loaded harness module's `time` becomes a view of the virtual clock (`monotonic`, `time`, `sleep`, `strftime` on game time), so the runner's 100+ direct `time.*` calls run unchanged. `sleep(dt)` advances the world. |
 | `sim/link.py` | `SimLink`: `act`/`send` (walks get their sequence number, as the proxy stamps them), `state`/`movement` (the server's position as movement truth, the client model's snapshot, events), `wait`/`pos`/`open_containers` from `agent_link.Link`. A state read costs 20 ms of game time, a packet 2 ms. |
-| `sim/world.py` | The server (module docstring): walking by `pathfind.Walk.can_walk` on the install's map (z from the map), line of sight by `los.Sight`, monster and pet AI, bard skills, vet supplies, potions, Stationary Penalty, corpses and loot, the rune tome (escape.py's gump layout), our death. |
+| `sim/world.py` | The server (module docstring): walking by `pathfind.Walk.can_walk` on the install's map (z from the map), line of sight by `los.Sight`, monster and pet AI, other players (`--others`), bard skills, vet supplies, potions, Stationary Penalty, corpses and loot, the rune tome (escape.py's gump layout), our death. |
 | `sim/packets.py` | The S2C packets in the Outlands V10/V12 shapes the world model reads. |
 | `sim/scenario.py` | Loads `harness/data/sim/mausoleum.json` and builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence); `fit_bard` re-derives the barding skill. |
 | `sim/calibrate.py` | The capture extractor that wrote `mausoleum_observed.json` (its rules are in the file's `rules`). |
@@ -496,6 +500,10 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   shade wolves, a banshee, corpsebrides; new: tormented souls twice, a corpse purger, a reanimated knight
   with an apparition, a banshee with a bat): with the new calibration the simulator is far harsher than its
   0.17 deaths per game hour of 2026-10-13, nearer the live runs of 2026-10-15.
+- **A monster on another player behind a wall was still waited for** (fixed 27b3e84, `tamer.walk_to_see`; found with
+  the other players, "Other players" below): the live 10:10:57 case of 2026-10-19 put in the simulator, Lord
+  Phaze's tormented soul stood out of Logan's sight from his tile (5242, 683), no tile within bard_step's 2 steps
+  saw it, and 4b06515's "All Kill" rule waited 15 s for it to come on. Now the runner walks round until it sees it.
 
 ## Monster mechanics audit (2026-10-15)
 
@@ -614,11 +622,69 @@ The step-off takes a third off the apparitions' share. The pet hold itself moved
 time up (14 of 48 dead between the fight and the crimson gate): more kills, deeper zones open [INFERENCE], and a
 long way out through the countess room. That walk is the open problem now, not the apparitions.
 
+## Other players (2026-10-19)
+
+User request 2026-10-19: other (non-hostile) players in the simulator, so the pets runner's handling of monsters
+fighting someone else, loot rights on their kills and crowded spawns can be tested and A/B'd. Off by default
+(`run.py --others`, the scenario's `others.enabled`); reds are out of scope. The numbers come from 19 live captures
+with Logan on Maus 3 (6.69 h, docs/NOTES.md "Other players at the Mausoleum"); each parameter's evidence is in
+`mausoleum.json`'s `others.note`.
+
+- **Who**: blue players (notoriety 1, 92 % of the live sightings), a human body, flags 0x20 as every live player's
+  0x20/0x77, a player's name (16 seen live) as name and click label: the runner's `threats.identify` calls them
+  players. 47 % come with a pet or summon (live 266 of 565), drawn by the live sightings (giant and black widows,
+  liches, a vampire, a colossal spitting viper, a sun wyrmling, ...) with the live tag ("(bonded)" or "(summoned)").
+- **Coming and going**: they arrive at a spawn area out of our view, 11 an hour across the level (Poisson), and stay
+  5-30 min (mode 10) [INFERENCE: both level-wide, not observable; set so the in-view numbers match]; some are there
+  at the start. They run (0.2 s a step) to a spawn area within 40 tiles, stand about it 5-40 s, and go on; their time
+  up, they leave once out of our view.
+- **Fighting**: a player takes a monster on itself or its pet, else the nearest in its sight within 10 that isn't
+  on our party [INFERENCE], and hits it every 1.5 s from up to 8 tiles (its pet in melee, 60 % of the damage) at a
+  group rate drawn per player from the live kills (178-885 hits/s, mode 456). Monsters take them as targets by the
+  same rules as us (first sight, threat). They never die (healed at a quarter) [INFERENCE]. No "-N" over their
+  fights, as live; their hits on a banshee trigger its dematerialize as ours do.
+- **Loot rights**: a monster another player did more damage to than our party leaves a blue corpse (0xDEAD notoriety
+  1, live 160 of 164), sent when it comes into our view; opening one answers "You may not loot this corpse." (and a
+  lift from it `27 05`). Such kills aren't in `kills` (`others_kills`).
+- **In view, live against the simulator** (144-run batches, players on, the code of 27b3e84):
+
+  | | live | zone crawl | loop crawl |
+  |---|---|---|---|
+  | one or more players in view | 27.4 % | 31.2 % | 31.4 % |
+  | players in view, mean | 0.36 | 0.41 | 0.39 |
+  | arrivals in view an hour | 82 | 66 | 77 |
+  | in-view stay p25 / median / p75 / p90, s | 3.9 / 8 / 25 / 44 | 3 / 11 / 28 / 52 | 4 / 10 / 22 / 43 |
+  | monsters on a player dying in view an hour | 42 | 34 | 30 |
+  | our credited kills that were theirs (blue) | 12 % (task logs 10-16..19) | 9 % | 9 % |
+
+- **A/B** (144 runs each, seeds 17/65/113 x 48, 20 min; "waited" = seconds the runner was engaged on a monster fighting
+  another player before any of ours hurt it, by `World.engaged_fn`):
+
+  | | Runs with a death | Deaths/h | Gold/h | Kills/h | Pet-death runs | "All Kill" at a monster on a player | Kills lost to their loot rights | Their corpses opened | Waited, s (monsters) |
+  |---|---|---|---|---|---|---|---|---|---|
+  | Zone crawl, players off | 58 | 1.46 | 96.0k | 101.6 | 53 | - | 0 | - | - |
+  | Zone crawl, players on | 45 | 1.05 | 80.5k | 84.3 | 42 | 333 | 363 | 0 | 1,455 (375) |
+  | Zone crawl, players on, before 27b3e84 | 51 | 1.21 | 82.1k | 85.6 | 42 | 280 | 395 | 0 | 1,991 (406) |
+  | Loop crawl, players off | 62 | 1.60 | 98.1k | 104.8 | 43 | - | 0 | - | - |
+  | Loop crawl, players on | 52 | 1.27 | 82.2k | 81.6 | 43 | 274 | 318 | 0 | 1,234 (309) |
+  | Loop crawl, players on, before 27b3e84 | 56 | 1.38 | 82.1k | 81.7 | 44 | 217 | 327 | 0 | 1,352 (295) |
+
+  Players take a sixth of the gold and kills (they kill 260-270 monsters an hour across the level) and a quarter of
+  the deaths [INFERENCE: fewer monsters left to wake us]. The runner never tried one of their corpses; the walk to
+  see a monster on a player behind a wall (27b3e84) cut the waits by a quarter on the zone crawl at no cost. The
+  waits left are ~4 s a monster: the approach and the "All Kill" itself.
+- **Why off by default**: players move every headline number 15-30 % (gold, kills, deaths), so with them on no batch
+  would compare with the tables above this section. Use `--others` for anything players touch (targets on others,
+  loot rights, crowding), and for a final check of a change.
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
   teleporters and the monsters first seen near it.
-- No other players or tamers (the trip saw six players), no item loot beyond gold, no skill gain,
+- Other players since 2026-10-19 ("Other players" below), blue only: no reds (PKs), no chat, trades or
+  guild/party play, no greens or greys (3.6 % of the sightings), and they never die. Their routes (spawn area to
+  spawn area, standing about each), damage cadence and reach, the monsters they pick (not one on our party) and
+  their pets' share are [INFERENCE]. No item loot beyond gold, no skill gain,
   no pet levels or xp, no Society job. The countess' drain and the poisons are generic (the wiki's; no
   drain heal was ever seen); the bound soul's bleed as an area on everyone within a tile, the
   transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].

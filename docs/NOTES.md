@@ -3858,6 +3858,70 @@ Code: `harness/fos_field.py`. The viz overlay: docs/VISUALIZER.md §2.17. User: 
   items and mobiles need a world replay (`replay.timed_packets` through a `proxy.SessionTap`, as
   `fos_field.replay_events` does; ~3 s per session), because `item_seen` rows carry no position.
 
+## Other players at the Mausoleum (19 live captures 2026-10-13 to 10-19, measured 2026-10-19)
+
+Measured for the simulator's other players (docs/SIM.md "Other players"). A throwaway script replayed every capture
+(`replay.timed_packets` -> `WorldRuntime`) and sampled once a second while Logan Wolf (0x00104A60) stood on Maus 3
+(x 5170-5290, y 620-740): every mobile within 18 tiles, `threats.identify` for players (not Logan, not a ghost), his
+pets (0x000DDEFE, 0x0026EF56) apart, other pets = non-human bodies with a pet tag or notoriety 1/2. Live server only:
+20261013_173449, _204518, 20261014_170144, _173858, _210020, _221341, 20261015_210709, 20261017_110506, _133304,
+_151814, _155426, _181210, _183126, _210503, _215839, 20261018_113717, _175134, _203339, 20261019_095934 (the
+2026-10-15 test-shard captures left out). 6.69 h, 24,098 samples.
+
+- **How often someone is there**: at least one other player in view 27.4 % of the time; 0.36 on average, 1.3 when
+  any (seconds with 0/1/2/3/4+: 17,486 / 5,148 / 1,087 / 283 / 94; at most 10).
+- **Who**: 92 % of player-seconds blue (8,044), 2.8 % red (246), 2.7 % green (233), 0.9 % grey (80); in war mode 37 %
+  of them. Every player's 0x20/0x77 carries flags 0x20 (20261019_095934: all 8 players near Logan at 10:10-10:11).
+- **Coming and going**: 565 in-view appearances (gaps over 30 s split them) by 240 names (65 unnamed: no click label
+  yet); 551 arrived while Logan was there: 82 an hour. In view they stay briefly: median 8.0 s (p10 1.0, p25 3.9, p75
+  25, p90 44, mean 17.5; n 525 not cut by Logan leaving). They mostly run through.
+- **Pets**: 266 of the 565 had a pet or summon not ours within 4 tiles (0.35 such pets in view on average). Tags: 6,308
+  bonded, 2,128 summoned, 20 tame sightings; notoriety 1 (8,158), 2 (290), 6 (57). Most seen: a giant black widow
+  (894 s), a black widow (769), liches (547, three names), a vampire (419, summoned), a colossal spitting viper (354), a
+  sun wyrmling (298), a colossal black widow (225).
+- **Where** (player-seconds by the nearest scenario spawn; biased to where Logan was [INFERENCE]): the apparition at
+  (5210, 717) 709, the shadow minion (5210, 696) 645, the shadowguard (5242, 651) 598, the corpsebride (5229, 651)
+  523, the shadowguard (5193, 681) 487, the vampire bat (5207, 683) 447, the shade wolf (5210, 660) 398: all over
+  the west and middle rooms, none favoured.
+- **What they fight**: the captures' 0x2F swings are only Logan's own (225 at monsters, 1 at a player), so "fighting"
+  is a monster in war mode within 2 tiles of another player or pet and more than 2 from Logan and his pets: 320
+  monsters, 393 such episodes: shade wolves 54, banshees 42, shadowguards 38, tormented souls 32, corpsebrides 30,
+  vampires 26, vampire bats 26, shadow minions 23, nightstalkers 18, forgotten souls 17, elder vampires 16, elder
+  vampire countesses 15, apparitions 13, vampire countesses 9, consorts 7, purgers 7.
+- **How long a monster on them lasts**: of the 393 episodes 164 ended in its death (within 5 s of the last sample
+  beside them), 52 with it out of war mode, 84 out of our view. With the start seen (n 97): median 9.9 s to death
+  (p10 1.3, p25 3.9, p75 16.3, p90 22.5); shadowguard 11.0 s (n 15), shade wolf 8.3 (13), banshee 1.5 (13, its
+  dematerialize ends the adjacency), corpsebride 17.6 (10). Their damage rate (the type's hits x its share at the
+  start / seconds, n 89): p10 178, p25 306, median 456, p75 625, p90 885 hits a second, three times our pets'.
+- **Their corpses**: 160 of the 164 were blue to us (0xDEAD notoriety 1), 4 grey; of all 279 monsters seen dying after
+  being on another player, 230 blue. No "-N" damage numbers over their fights (20261019_095934 10:10:51-10:11:30: Lord
+  Karpola's potions on two tormented souls showed only the "5".."1" countdowns).
+- **Onto us**: 31 of the 393 episodes were followed within 15 s by the monster in war mode beside Logan or a pet and
+  away from any other player: an upper bound on switches to us (our own "All Kill" at it counts too).
+- **Live loot rights**: the 29 hunt task logs of 2026-10-16..19 have 62 "someone else's kill (blue)" against 516
+  "killed" lines (12 %).
+- **The simulator with them** (docs/SIM.md "Other players"; `run.py --others`, 144 runs each, seeds 17/65/113 x 48,
+  20 min, the code of 27b3e84):
+
+  | | Runs with a death | Deaths/h | Gold/h | Kills/h | Pet-death runs | "All Kill" at a monster on a player | Kills lost to their loot rights | s engaged on one before ours hurt it |
+  |---|---|---|---|---|---|---|---|---|
+  | Zone crawl, players off | 58 | 1.46 | 96.0k | 101.6 | 53 | - | 0 | - |
+  | Zone crawl, players on | 45 | 1.05 | 80.5k | 84.3 | 42 | 333 | 363 | 1,455 (375 monsters) |
+  | Loop crawl, players off | 62 | 1.60 | 98.1k | 104.8 | 43 | - | 0 | - |
+  | Loop crawl, players on | 52 | 1.27 | 82.2k | 81.6 | 43 | 274 | 318 | 1,234 (309) |
+
+  With them a sixth less gold and kills (they kill 260-270 monsters an hour across the level, 30-37 an hour in our view
+  against the captures' 42) and a quarter fewer deaths [INFERENCE: fewer monsters left to wake]. The runner never
+  opened one of their corpses (0 refused opens); 9 % of its credited kills were theirs (live 12 %). In view the
+  simulator has someone 31-33 % of the time (live 27 %), 0.39-0.44 on average (0.36), 66-80 arrivals an hour (82),
+  stays median 10-11 s (8).
+- **Found by the simulator**: from Logan's live tile at 10:10:57 the tormented soul on Lord Phaze stood behind a wall,
+  and 4b06515's "All Kill" rule still waited 15 s (it needs a tile seeing it within bard_step's 2 steps). Fixed by
+  walking round until it is seen (27b3e84, docs/HUNT_LOOP.md "Someone else's fight"). Players on, the fix against the
+  code before it: zone crawl 45 vs 51 runs with a death (1.05 vs 1.21 an hour), gold 80.5k vs 82.1k, seconds engaged
+  on a monster on a player before ours hurt it 1,455 vs 1,991, "All Kill" at one 333 vs 280; loop crawl 52 vs 56 (1.27
+  vs 1.38), 82.2k vs 82.1k, 1,234 vs 1,352 s.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
