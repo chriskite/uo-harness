@@ -33,10 +33,12 @@ def check(name, cond, extra=""):
         FAILURES.append(name)
 
 
-def world_with(spawns, seed=1, start=FLOOR):
+def world_with(spawns, seed=1, start=FLOOR, others=False):
     sc = load()
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["player"]["start"] = [start[0], start[1], 0]
+    if others:
+        sc["others"] = {**sc["others"], "enabled": True, "arrive_per_h": 0.0}   # the test places its own (add_other)
     return World(sc, seed=seed)
 
 
@@ -818,6 +820,41 @@ def test_idle_pet():
         simclock.uninstall(patched)
     check("'All Kill' at the gravebug's target, the phoenix on it", said >= 1 and af.target == m.serial,
           f"kill commands {said}, phoenix target {af.target}")
+
+
+def test_others_corpse_not_looted():
+    print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
+    # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
+    # killed by another player on Maus 3 left a blue one (docs/NOTES.md "Other players at the Mausoleum")
+    w = world_with([{"key": "shade wolf", "at": [5236, 677, 0]}], seed=7, start=(5243, 674), others=True)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 6000
+    other = w.add_other(5236, 676, w.stand_z(5236, 676, w.player.z), name="Lord Phaze", stay=1e6, dps=700.0)
+    m.target, m.threat, other.target = other.serial, {other.serial: 1e9}, m.serial
+    w._warm(m, True)
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gold0 = w.metrics["gold_looted"]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            after = 0
+            for _ in range(120):
+                clock.advance(0.5)
+                loop.tick()
+                after += m.serial not in w.mobs
+                if after > 20 and not loop.corpses:      # 10 s after the death: the runner's loot pass is over
+                    break
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    corpse = next((it for it in w.items.values() if it.get("kind") == "corpse" and it["owner"] == m.serial), None)
+    hurt_by_pets = sum(v for s, v in m.damage_by.items() if s in {p.serial for p in w.pets()})
+    check("the kill is the other player's: a blue corpse", corpse is not None and corpse["others"] and corpse["noto"] == 1,
+          f"corpse {corpse and {k: corpse[k] for k in ('noto', 'others')}}, damage {m.damage_by}")
+    check("the pets fought it (the runner's kill to credit), the corpse never opened, no gold from it",
+          hurt_by_pets > 0 and w.metrics["blue_corpse_opens"] == 0 and w.metrics["gold_looted"] == gold0
+          and loop.totals["lost_kills"] == 1,
+          f"pets' damage {hurt_by_pets}, opens {w.metrics['blue_corpse_opens']}, gold {w.metrics['gold_looted'] - gold0}, "
+          f"lost kills {loop.totals['lost_kills']}")
 
 
 def test_leave_called_off():
@@ -1767,7 +1804,7 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet,
+              test_idle_pet, test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,

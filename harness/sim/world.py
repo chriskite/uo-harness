@@ -34,8 +34,13 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   and refusal texts the live server sends.
 - **Veterinary supplies, heal potions, the Stationary Penalty, corpses and loot, the rune tome
   recall** (home and back), and our death.
+- **Other players** (scenario `others`, off unless `enabled`; docs/SIM.md "Other players"): blue
+  players (human body, flags 0x20, a player's name), some with a pet or summon, who arrive on the
+  level, run between spawn areas, fight the monsters near them at a measured damage rate and leave;
+  monsters take them as targets by the same first-sight and threat rules as us. Their kills' corpses
+  are blue (0xFF sub 0xDEAD notoriety 1) and an open of one is refused. They never die [INFERENCE].
 
-Not modelled: other players, other tamers' pets, the Society job, item durability, skill gains.
+Not modelled: red players, chat or trades with players, the Society job, item durability, skill gains.
 """
 from __future__ import annotations
 
@@ -80,6 +85,9 @@ TEXT_SONG_WAIT = "You must wait a few moments before performing another barding 
 TEXT_ROPE_PROMPT = "Where do you wish to traverse to?"
 ROPE_R = 10
 ROPE_COOLDOWN_S = 5.0
+OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (never ours: not in `team()`)
+FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
+TEXT_NOT_YOURS = "You may not loot this corpse."   # live answer to opening another's kill (docs/HUNT_LOOP.md)
 
 
 def cheb(a, b) -> int:
@@ -143,6 +151,11 @@ class Mob:
     last_hurt_t: float = -1e9
     path: list = field(default_factory=list)
     stuck: int = 0
+    owner: int | None = None      # another player's pet: its player's serial; a player: its pet's
+    dps: float = 0.0              # another player's (and its pet's) damage per second on its target
+    leave_t: float = 0.0          # another player leaves the level after this
+    dest: tuple | None = None     # ... runs to this spawn area next
+    linger_until: float = 0.0     # ... stands about it until then
 
     @property
     def pos(self):
@@ -178,6 +191,19 @@ class World:
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
                         "patrol_commands": 0,
                         "fights": [], "hunt_s": 0.0}
+        oth = scenario.get("others") or {}
+        self.others_on = bool(oth.get("enabled"))
+        self.orng = random.Random(seed * 7919 + 17)  # the other players' own draws: the rest of the world's stay put
+        self.next_other_t = None              # the next other player's arrival on the level
+        self.engaged_fn = None                # sim.run: the runner's engaged target (metrics only)
+        self.others_in_view = {}              # other player serial -> time it came into our view
+        if self.others_on:
+            self.metrics.update({"others_arrived": 0, "others_kills": 0, "others_kills_in_view": 0, "others_view_s": {},
+                                 "others_dwell": [],
+                                 "kill_on_others": 0, "blue_corpse_opens": 0, "wait_on_others_s": 0.0,
+                                 "wait_on_others_mobs": 0})
+        self._waited_on = set()
+        self.other_serials = set()            # every other player's and pet's serial (loot rights after they left)
         self.skill_ready = 0.0
         self.calm_ready = 0.0
         self.song_ready = 0.0
@@ -249,6 +275,8 @@ class World:
             self.spawns.append({**s, "mob": None})
         for i in range(len(self.spawns)):
             self._spawn(i)
+        if self.others_on:
+            self._others_setup()
 
     def _spawn(self, i):
         sp = self.spawns[i]
@@ -268,6 +296,217 @@ class World:
         m.next_think = self.t + self.rng.uniform(0, THINK_S)
         self.mobs[m.serial] = m
         sp["mob"] = m.serial
+
+    # ------------------------------------------------------------ other players (scenario `others`)
+    def others(self) -> list:
+        """Other players and their pets on the level (none unless the scenario's `others` is enabled)."""
+        return [m for m in self.mobs.values() if m.kind in OTHERS] if self.others_on else []
+
+    def _oroll(self, r) -> float:
+        if len(r) >= 3:
+            return self.orng.triangular(r[0], r[1], min(max(r[2], r[0]), r[1]))
+        return self.orng.uniform(r[0], r[1])
+
+    def _others_setup(self):
+        """The players already on the level at the start (Poisson, arrival rate x mean stay), then the first arrival."""
+        o = self.sc["others"]
+        a = self.sc.get("area")
+        self.other_spots = [tuple(s["at"]) for s in self.sc["spawns"]
+                            if not a or (a[0] <= s["at"][0] <= a[2] and a[1] <= s["at"][1] <= a[3])]
+        self.next_other_serial = o.get("serial0", 0x00200000)
+        if not self.other_spots:
+            return
+        rate = o["arrive_per_h"] / 3600.0
+        st = o["stay_s"]
+        mean = (st[0] + st[1] + (st[2] if len(st) > 2 else (st[0] + st[1]) / 2)) / 3
+        n, p, lim = 0, self.orng.random(), math.exp(-rate * mean)
+        while p > lim:
+            n += 1
+            p *= self.orng.random()
+        for _ in range(n):
+            self._other_arrive(stay=self.orng.random() * self._oroll(st))
+        self.next_other_t = self.orng.expovariate(rate) if rate > 0 else None
+
+    def _other_serial(self) -> int:
+        self.next_other_serial += 1
+        self.other_serials.add(self.next_other_serial)
+        return self.next_other_serial
+
+    def _free_beside(self, x, y, z):
+        if not self._occupied(x, y):
+            return x, y
+        for dx, dy in nav.DIR_DELTA:
+            if not self._occupied(x + dx, y + dy) and self.walk.can_walk(x, y, z, nav.direction((x, y), (x + dx, y + dy))):
+                return x + dx, y + dy
+        return None
+
+    def _other_arrive(self, stay=None):
+        """Another player comes onto the level at a spawn area out of our view (with its pet, by `pet_share`)."""
+        o, r, pl = self.sc["others"], self.orng, self.player
+        spots = [s for s in self.other_spots if cheb(s, pl.pos) > VIEW + 2] or self.other_spots
+        sx, sy, sz = r.choice(spots)
+        z = self.stand_z(sx, sy, sz)
+        at = self._free_beside(sx, sy, z)
+        if at is None:
+            return
+        pk = r.choices(o["pets"], weights=[p.get("w", 1) for p in o["pets"]])[0] \
+            if r.random() < o.get("pet_share", 0.0) else None
+        self.add_other(at[0], at[1], z, pet=pk, stay=stay if stay is not None else self._oroll(o["stay_s"]))
+
+    def add_other(self, x, y, z, name=None, pet=None, stay=None, dps=None) -> Mob:
+        """Another player at (x, y, z) (and `pet`, a scenario `others.pets` row, beside it); `stay` seconds on the
+        level, `dps` its damage rate (else drawn)."""
+        o, r = self.sc["others"], self.orng
+        used = {m.name for m in self.mobs.values() if m.kind == "other"}
+        name = name or r.choice([n for n in o["names"] if n not in used] or o["names"])
+        hp = o.get("hits", 1000)
+        m = Mob(self._other_serial(), "other", "other player", name, r.choice(o.get("bodies", [0x190])), x, y, z,
+                hits=hp, hits_max=hp, noto=o.get("notoriety", 1), spec=o)
+        m.dps = self._oroll(o["dps"]) if dps is None else dps
+        m.leave_t = self.t + (stay if stay is not None else self._oroll(o["stay_s"]))
+        m.next_think = self.t + r.uniform(0, THINK_S)
+        self.mobs[m.serial] = m
+        beside = self._free_beside(x, y, z) if pet is not None else None
+        if beside is not None:
+            php = pet.get("hits", 2000)
+            p = Mob(self._other_serial(), "otherpet", pet["name"], pet["name"], pet["body"], beside[0], beside[1], z,
+                    hits=php, hits_max=php, noto=m.noto, spec=pet)
+            p.owner, m.owner = m.serial, p.serial
+            self.mobs[p.serial] = p
+        self.metrics["others_arrived"] += 1
+        self._view()
+        return m
+
+    def _other_gone(self, m: Mob):
+        """Another player (and its pet) leaves the level: gone from the world, out of every monster's mind."""
+        for s in (m.serial, m.owner):
+            x = self.mobs.get(s)
+            if x is None or x.kind not in OTHERS:
+                continue
+            if s in self.viewing:
+                self.send(P.delete(s))
+                self.viewing.discard(s)
+            for mob in self.mobs.values():
+                if mob.target == s:
+                    mob.target = None
+                mob.threat.pop(s, None)
+            del self.mobs[s]
+
+    def _other(self, m: Mob):
+        """Another player: fight the monster it picked (`_other_think`), else run between spawn areas, standing
+        about each a while; once its stay is up, off out of our view and gone."""
+        t, o = self.t, self.sc["others"]
+        if t >= m.next_think:
+            m.next_think = t + THINK_S
+            self._other_think(m)
+        tgt = self.mobs.get(m.target) if m.target is not None else None
+        if tgt is not None and tgt.alive:
+            self._warm(m, True)
+            if tgt.hidden_until:
+                return
+            d = cheb(m.pos, tgt.pos)
+            if d <= o["reach"] and self.can_see(m, tgt):
+                if t >= m.next_swing:
+                    m.next_swing = self._due(m.next_swing, o["every_s"])
+                    share = 1.0 - o["pet_part"] if m.owner in self.mobs else 1.0
+                    self.hurt(tgt, m.dps * o["every_s"] * share * self.orng.uniform(0.8, 1.2), m, "other")
+            elif t >= m.next_step:
+                m.next_step = self._due(m.next_step, o["step_s"])
+                self._step_toward(m, tgt.pos, 1)
+            return
+        m.target = None
+        self._warm(m, False)
+        pl = self.player
+        if t >= m.leave_t:
+            if cheb(m.pos, pl.pos) > VIEW:
+                self._other_gone(m)
+                return
+            if m.dest is None or cheb(m.dest, pl.pos) <= VIEW + 2:
+                far = [s for s in self.other_spots if cheb(s, pl.pos) > VIEW + 2]
+                m.dest = self.orng.choice(far) if far else None
+                m.linger_until = 0.0
+        if m.linger_until > t:
+            return
+        if m.dest is None:
+            near = [s for s in self.other_spots if 3 < cheb(s, m.pos) <= o.get("roam_r", 40)] or self.other_spots
+            m.dest = self.orng.choice(near)
+        if t < m.next_step:
+            return
+        m.next_step = self._due(m.next_step, o["step_s"])
+        if cheb(m.pos, m.dest) <= 1:
+            m.dest, m.linger_until = None, t + self._oroll(o["linger_s"])
+        elif not self._step_toward(m, m.dest, 1):
+            m.cd["lost"] = m.cd.get("lost", 0) + 1
+            if m.cd["lost"] >= 6:                    # no way there: another spot
+                m.dest, m.cd["lost"] = None, 0
+        else:
+            m.cd["lost"] = 0
+
+    def _other_think(self, m: Mob):
+        """Another player's target: a monster on it or its pet, else (while its stay lasts) the nearest one within
+        `engage_r` in its sight that isn't fighting our party [INFERENCE: they don't take ours]."""
+        o = self.sc["others"]
+        cur = self.mobs.get(m.target) if m.target is not None else None
+        if cur is not None and cur.alive and cheb(cur.pos, m.pos) <= LEASH:
+            return
+        mine, team = {m.serial, m.owner}, {x.serial for x in self.team()}
+        near = [x for x in self.mobs.values() if x.kind == "monster" and x.alive and not x.hidden_until
+                and x.expires is None and cheb(x.pos, m.pos) <= o["engage_r"]]
+        pick = [x for x in near if x.target in mine]
+        if not pick and self.t < m.leave_t:
+            pick = [x for x in near if x.target not in team and self.can_see(m, x)]
+        m.target = min(pick, key=lambda x: cheb(x.pos, m.pos)).serial if pick else None
+
+    def _other_pet(self, m: Mob):
+        """Another player's pet: on its player's target (or a monster on itself), else at its player's side."""
+        t, o = self.t, self.sc["others"]
+        owner = self.mobs.get(m.owner)
+        if owner is None:
+            self._other_gone(m)
+            return
+        tgt = self.mobs.get(owner.target) if owner.target is not None else None
+        if tgt is None or not tgt.alive or tgt.hidden_until:
+            tgt = next((x for x in self.mobs.values() if x.kind == "monster" and x.alive and x.target == m.serial
+                        and not x.hidden_until), None)
+        if tgt is not None:
+            self._warm(m, True)
+            if cheb(m.pos, tgt.pos) <= 1:
+                if t >= m.next_swing:
+                    m.next_swing = self._due(m.next_swing, o["every_s"])
+                    self.hurt(tgt, owner.dps * o["every_s"] * o["pet_part"] * self.orng.uniform(0.8, 1.2), m, "other")
+            elif t >= m.next_step:
+                m.next_step = self._due(m.next_step, o["step_s"])
+                self._step_toward(m, tgt.pos, 1)
+            return
+        self._warm(m, False)
+        if t >= m.next_step and cheb(m.pos, owner.pos) > 1:
+            m.next_step = self._due(m.next_step, o["step_s"])
+            self._step_toward(m, owner.pos, 1)
+
+    def _others_sample(self):
+        """Once a second: players in our view while we're on the level (`others_view_s`: count -> seconds, their
+        in-view stays `others_dwell`), and the runner's engaged target while it fights another player and no one
+        of ours has hurt it (`wait_on_others_s`)."""
+        pl, a, mt = self.player, self.sc.get("area"), self.metrics
+        here = not pl.ghost and a and a[0] <= pl.x <= a[2] and a[1] <= pl.y <= a[3]
+        seen = {m.serial for m in self.mobs.values() if m.kind == "other" and cheb(m.pos, pl.pos) <= VIEW} if here else set()
+        if here:
+            mt["others_view_s"][len(seen)] = mt["others_view_s"].get(len(seen), 0) + 1
+        for s in list(self.others_in_view):
+            if s not in seen:
+                mt["others_dwell"].append(round(self.t - self.others_in_view.pop(s), 1))
+        for s in seen - set(self.others_in_view):
+            self.others_in_view[s] = self.t
+        e = self.engaged_fn() if self.engaged_fn is not None else None
+        mob = self.mobs.get(e) if e is not None else None
+        if mob is not None and mob.kind == "monster" and mob.target in self.mobs \
+                and self.mobs[mob.target].kind in OTHERS:
+            ours = {x.serial for x in self.team()} | {p.serial for p in self.pets()}
+            if not any(s in ours for s in mob.damage_by):
+                mt["wait_on_others_s"] += 1.0
+                if e not in self._waited_on:
+                    self._waited_on.add(e)
+                    mt["wait_on_others_mobs"] += 1
 
     def login_packets(self) -> list[bytes]:
         """What the server sends at login: our character, pack contents, pets and the view."""
@@ -299,13 +538,19 @@ class World:
     def _in_view(self, m) -> bool:
         return cheb(m.pos, self.player.pos) <= VIEW
 
+    def _flags(self, m: Mob, war: bool) -> int:
+        return (0x40 if war else 0) | (FLAG_PLAYER if m.kind == "other" else 0)
+
     def _show(self, m: Mob):
-        flags = 0x40 if m.warmode else 0
+        flags = self._flags(m, m.warmode)
         body = GHOST_BODY if m.ghost and m.kind == "player" else m.body
         self.send(P.mobile(m.serial, body, m.x, m.y, m.z, noto=m.noto, flags=flags, d=m.d),
                   P.name(m.serial, m.name), P.hits(m.serial, m.pct(), 100))
         if m.kind == "pet":
             self.send(P.says(m.serial, m.name, "(bonded)", kind=0, hue=946, body=m.body))   # its click label's line
+        elif m.kind == "otherpet":
+            # live, other players' pets: "(bonded)" 6308, "(summoned)" 2128, "(tame)" 20 sightings (docs/NOTES.md)
+            self.send(P.says(m.serial, m.name, m.spec.get("tag", "(bonded)"), kind=0, hue=946, body=m.body))
         if m.kind == "pet" and m.ghost:
             self.send(P.pet_dead(m.serial))
 
@@ -341,7 +586,7 @@ class World:
         if m.warmode != on:
             m.warmode = on
             if m.serial in self.viewing:
-                self.send(P.mobile(m.serial, m.body, m.x, m.y, m.z, noto=m.noto, flags=0x40 if on else 0, d=m.d))
+                self.send(P.mobile(m.serial, m.body, m.x, m.y, m.z, noto=m.noto, flags=self._flags(m, on), d=m.d))
 
     def _overhead(self, m: Mob, text: str, kind=0):
         if m.serial == self.player.serial or m.serial in self.viewing:
@@ -411,14 +656,18 @@ class World:
         elif victim.kind == "pet":
             self.count("pet_damage_taken", victim.name, n)
             self.count("pet_damage_by", by.key if by is not None else kind, n)
-        self._overhead(victim, f"-{n}")
+        if victim.kind not in OTHERS and (by is None or by.kind not in OTHERS):
+            self._overhead(victim, f"-{n}")      # live: no "-N" over another player's fight (20261019_095934 10:11)
         if victim.kind == "player":
             self.send(P.hits(victim.serial, max(0, int(victim.hits)), int(victim.hits_max)))
         elif victim.serial in self.viewing:
             self.send(P.hits(victim.serial, victim.pct(), 100))
-        if victim.hits <= 0:
+        if victim.kind in OTHERS:
+            if victim.hits < victim.hits_max * 0.25:
+                victim.hits = victim.hits_max    # they heal themselves and never die here [INFERENCE]
+        elif victim.hits <= 0:
             self.die(victim, by)
-        elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
+        elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet") + OTHERS:
             sp = next((s for s in victim.spec.get("specials", []) if s["kind"] == "dematerialize"), None)
             if sp is not None and not victim.hidden_until and self.t >= victim.cd.get("dematerialize", 0.0):
                 self._dematerialize(victim, sp)
@@ -465,8 +714,10 @@ class World:
         ours = sum(v for s, v in m.damage_by.items() if s in {t.serial for t in self.team()} or
                    (s in self.mobs and self.mobs[s].kind == "pet"))
         noto = 3 if ours * 2 >= sum(m.damage_by.values()) else 1
+        theirs = sum(v for s, v in m.damage_by.items() if s in self.other_serials)   # another player's, here or gone
+        others = noto == 1 and theirs > ours
         self.items[corpse] = {"kind": "corpse", "x": m.x, "y": m.y, "z": m.z, "body": m.body, "owner": m.serial,
-                              "name": f"{m.name} corpse", "noto": noto, "t": self.t}
+                              "name": f"{m.name} corpse", "noto": noto, "t": self.t, "others": others}
         lo, hi = m.spec.get("gold", [0, 0])
         gold = self.rng.randint(int(lo), int(hi)) if hi else 0
         if gold:
@@ -475,10 +726,15 @@ class World:
         if m.serial in self.viewing:
             self.send(P.display_death(m.serial, corpse), P.delete(m.serial))
         self.viewing.discard(m.serial)
-        self.viewing_items.add(corpse)
-        self.send(P.ground_item(corpse, combat.CORPSE_GRAPHIC, m.body, m.x, m.y, m.z),
-                  P.corpse_flags(corpse, m.serial, f"{m.name} corpse", noto))
-        if m.expires is None:                       # a transfixed copy is no kill (kills_by still shows it)
+        if not others or cheb(m.pos, self.player.pos) <= VIEW:   # another's kill out of view: `_view` shows it later
+            self.viewing_items.add(corpse)
+            self.send(P.ground_item(corpse, combat.CORPSE_GRAPHIC, m.body, m.x, m.y, m.z),
+                      P.corpse_flags(corpse, m.serial, f"{m.name} corpse", noto))
+        if others:
+            self.count("others_kills")                   # another player's kill: blue to us, not ours
+            if cheb(m.pos, self.player.pos) <= VIEW and not self.player.ghost:
+                self.count("others_kills_in_view")
+        elif m.expires is None:                       # a transfixed copy is no kill (kills_by still shows it)
             self.metrics["kills"] += 1
         self.count("kills_by", m.key)
         self.metrics["fights"].append({"key": m.key, "t": round(self.t, 1), "hits": m.hits_max,
@@ -575,15 +831,28 @@ class World:
         if not self.penalty and t - self.last_step_t >= PENALTY_STILL_S:
             self._apply_penalty()
         pl = self.player
+        near_others = []
+        if self.others_on:
+            if self.next_other_t is not None and t >= self.next_other_t:
+                self._other_arrive()
+                self.next_other_t = t + self.orng.expovariate(self.sc["others"]["arrive_per_h"] / 3600.0)
+            near_others = [(o.x, o.y) for o in self.mobs.values() if o.kind in OTHERS]
         for m in list(self.mobs.values()):
             if m.serial not in self.mobs:
                 continue
             self._effects(m)
             if m.kind == "monster" and m.alive:
-                if cheb(m.pos, pl.pos) <= 2 * VIEW or m.target is not None:
+                if cheb(m.pos, pl.pos) <= 2 * VIEW or m.target is not None \
+                        or any(cheb(o, m.pos) <= 14 for o in near_others):
                     self._monster(m)
             elif m.kind == "pet":
                 self._pet(m)
+            elif m.kind == "other":
+                self._other(m)
+            elif m.kind == "otherpet":
+                self._other_pet(m)
+        if self.others_on and int(round(t / TICK_S)) % 10 == 0:
+            self._others_sample()
         area = self.sc.get("area")
         if area and not pl.ghost and area[0] <= pl.x <= area[2] and area[1] <= pl.y <= area[3]:
             self.metrics["hunt_s"] += TICK_S
@@ -688,7 +957,8 @@ class World:
         """Pick the target: a provoked monster's victim; a transfixed copy: us; else the highest threat in
         sight (damage taken, our aggressive acts before the pets hurt it); else, once one of us is within
         its aggro range and in sight, a guarding pet near us (the trip: all 11 monsters we hadn't acted
-        on went to a pet first, docs/NOTES.md), or the nearest of us when no pet guards nearby."""
+        on went to a pet first, docs/NOTES.md), or the nearest of us when no pet guards nearby. Other players
+        and their pets are candidates by the same rules (`others`)."""
         t = self.t
         if m.provoke and m.provoke[0] in self.mobs:
             m.target = m.provoke[0]
@@ -706,7 +976,7 @@ class World:
             return
         if cur is not None and self.can_see(m, cur):
             m.seen_target_t = t
-        cands = [o for o in self.team() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)]
+        cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)]
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
         if threat:
@@ -731,7 +1001,7 @@ class World:
         # whichever of us it sees first, the nearest seen, a pet on a tie (user 2026-10-15: "Any mob that
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
-        o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind == "player", -o.spec.get("threat_x", 1.0)))
+        o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other"), -o.spec.get("threat_x", 1.0)))
         m.target, m.seen_target_t = o.serial, t
         m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
 
@@ -1303,6 +1573,8 @@ class World:
             return
         kind = pend["kind"]
         if kind == "kill":
+            if tgt.target in self.mobs and self.mobs[tgt.target].kind in OTHERS:
+                self.count("kill_on_others")         # "All Kill" at a monster fighting another player
             for m in self.pets():
                 if m.alive and not m.ghost:
                     m.mode, m.kill, m.target = "kill", serial, serial
@@ -1402,6 +1674,11 @@ class World:
         if kind == "corpse":
             if cheb((it["x"], it["y"]), pl.pos) > 2:
                 self.send(P.cliloc(500446))
+                return
+            if it.get("others"):
+                # another player's kill (blue): live "You may not loot this corpse." (docs/HUNT_LOOP.md "Loot rights")
+                self.count("blue_corpse_opens")
+                self._sys(TEXT_NOT_YOURS)
                 return
             self._open(s, CORPSE_GUMP)
             return
@@ -1564,7 +1841,7 @@ class World:
         it = self.items.get(s)
         corpse = self.items.get(it.get("container")) if it else None
         if it is None or corpse is None or corpse.get("kind") != "corpse" \
-                or cheb((corpse["x"], corpse["y"]), self.player.pos) > 2:
+                or cheb((corpse["x"], corpse["y"]), self.player.pos) > 2 or corpse.get("others"):
             self.send(b"\x27\x05")
             return
         self.lifted = s

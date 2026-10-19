@@ -62,12 +62,13 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
 
 
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
-             at_hunt: bool = False, sets: tuple = (), db: str | None = None) -> dict:
+             at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
     memory store (a career's, kept across its runs: crawl priors, fights, avoided types, learnt
-    teleporters), else a fresh one."""
+    teleporters), else a fresh one. `others`: other players on the level (the scenario's `others`, off by
+    default so earlier batches stay comparable)."""
     import ast
     import importlib
     import loop_hunt
@@ -91,6 +92,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     sc = load(scenario)
     if not at_hunt:
         sc["player"]["start"] = sc["recall"]["rows"][0]["at"]
+    if others:
+        sc["others"]["enabled"] = True
     if "--vet-range" in extra:
         # the runner's --vet-range is the character's (the Healer's Codex "Without Borders" adds 1/2/3 tiles,
         # knowledge #11343): the simulated supplies reach as far, else the runner stands where they don't
@@ -109,6 +112,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     loop = None
     try:
         loop = loop_hunt.HuntLoop(link, store, args)
+        world.engaged_fn = lambda: loop.engaged
         loop.run()
     except Abort as e:
         outcome, error = "aborted", str(e)
@@ -145,6 +149,10 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "follow_commands": m["follow_commands"], "aggressive_acts": m["aggressive_acts"],
             "recalls": m["recalls"], "steps": m["steps"], "denied_steps": m["denied_steps"],
             "death_causes": m.get("death_causes", []),
+            "others": {k: m[k] for k in ("others_arrived", "others_kills", "others_kills_in_view", "others_view_s",
+                                         "others_dwell",
+                                         "kill_on_others", "blue_corpse_opens", "wait_on_others_s",
+                                         "wait_on_others_mobs") if k in m} if world.others_on else None,
             "violations": m["violations"], "junctures": juncs,
             "runner_totals": dict(loop.totals) if loop is not None else None,
             "episodes": len(episodes)}
@@ -156,12 +164,13 @@ def _pool_run(job):
     career, runs = job
     db = os.path.join(tempfile.mkdtemp(prefix="sim_career_"), "harness.db")
     out_all = []
-    for k, (seed, extra, scenario, minutes, log, at_hunt, sets) in enumerate(runs):
+    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others) in enumerate(runs):
         out = open(log, "w", encoding="utf-8") if log else open(os.devnull, "w")
         old = sys.stdout
         sys.stdout = out
         try:
-            r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None)
+            r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
+                         others=others)
         finally:
             sys.stdout = old
             out.close()
@@ -193,6 +202,8 @@ def main(argv=None):
                     help="split the runs into this many careers (default: CPU count - 1), each one after another on "
                          "one memory store, as the live runner keeps its memory between runs")
     ap.add_argument("--fresh", action="store_true", help="every run on a fresh memory store (no careers)")
+    ap.add_argument("--others", action="store_true",
+                    help="other players on the level (the scenario's `others`; off by default, docs/SIM.md)")
     a = ap.parse_args(argv)
     if a.runs > 1:
         cpu_budget.limit()
@@ -201,7 +212,7 @@ def main(argv=None):
     if logdir:
         os.makedirs(logdir, exist_ok=True)
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
-             tuple(a.set)) for s in seeds]
+             tuple(a.set), a.others) for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
     if len(careers) == 1 or a.jobs <= 1:
@@ -245,7 +256,33 @@ def aggregate(results: list[dict]) -> dict:
             "runs_with_pet_death": sum(1 for r in ok if r["pet_deaths"]),
             "runs_with_pet_left_behind": left,
             "crashed": sum(1 for r in results if r.get("outcome") == "crashed"),
-            "violations": sum(len(r["violations"]) for r in ok)}
+            "violations": sum(len(r["violations"]) for r in ok),
+            **({"others": others_summary(ok)} if any(r.get("others") for r in ok) else {})}
+
+
+def others_summary(ok: list[dict]) -> dict:
+    """Other players across runs: in our view on the level (the share of seconds with one or more, the mean count,
+    in-view arrivals an hour and stays: the capture's numbers in docs/NOTES.md), their kills, and the runner's
+    dealings with them ("All Kill" at a monster on one, opens of their corpses, seconds engaged on a monster
+    fighting one before any of ours hurt it, the runner's own kills lost to their loot rights)."""
+    rs = [r["others"] for r in ok if r.get("others")]
+    view = {}
+    for o in rs:
+        for n, s in o["others_view_s"].items():
+            view[int(n)] = view.get(int(n), 0) + s
+    secs = sum(view.values()) or 1e-9
+    dwell = sorted(d for o in rs for d in o["others_dwell"])
+    return {"view_any": round(sum(s for n, s in view.items() if n) / secs, 3),
+            "view_mean": round(sum(n * s for n, s in view.items()) / secs, 2),
+            "arrivals_in_view_per_h": round(len(dwell) / (secs / 3600), 1),
+            "dwell_q": [dwell[int(p * (len(dwell) - 1))] for p in (0.25, 0.5, 0.75, 0.9)] if dwell else [],
+            "arrived": sum(o["others_arrived"] for o in rs), "their_kills": sum(o["others_kills"] for o in rs),
+            "their_kills_in_view_per_h": round(sum(o.get("others_kills_in_view", 0) for o in rs) / (secs / 3600), 1),
+            "kill_on_others": sum(o["kill_on_others"] for o in rs),
+            "blue_corpse_opens": sum(o["blue_corpse_opens"] for o in rs),
+            "wait_on_others_s": round(sum(o["wait_on_others_s"] for o in rs)),
+            "wait_on_others_mobs": sum(o["wait_on_others_mobs"] for o in rs),
+            "lost_kills": sum((r.get("runner_totals") or {}).get("lost_kills", 0) for r in ok)}
 
 
 def load_trip(scenario: str) -> dict:
