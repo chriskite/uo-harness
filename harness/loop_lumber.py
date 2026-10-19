@@ -106,7 +106,7 @@ from dataclasses import replace
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import (Abort, Link, Mover, cheb, containers_to_open, log, reach_z,  # noqa: E402
+from agent_link import (Abort, Link, Mover, cheb, containers_to_open, log, not_above, reach_z,  # noqa: E402
                         same_floor, serial_of)
 import uomap  # noqa: E402
 import pathfind  # noqa: E402
@@ -4224,9 +4224,11 @@ class LumberLoop:
         if library:
             lib = places.library(row["library"])
             tome_xy = tuple(row["tome_pos"][:2])
+            tome_z = row["tome_pos"][2] if len(row["tome_pos"]) > 2 else None
             self.doing("to_library", f"Walking to the {lib['name']}", tome_xy)
-            try:
-                self.mover.walk_to(lambda: tome_xy, lib["use_range"] - 1, "to the rune library")
+            try:     # on the shelves' floor, not the one above them (live 2026-10-19: "That cannot be seen.")
+                self.mover.walk_to(lambda: tome_xy, lib["use_range"] - 1, "to the rune library",
+                                   z_ok=not_above(tome_z) if tome_z is not None else None)
                 if self.wait_for(lambda s: row["tome"] in s["world"]["items"], 3.0) is None:
                     raise Abort(f"the tome {row['tome']} holding {row['name']!r} isn't at the {lib['name']} "
                                 f"({tome_xy})")

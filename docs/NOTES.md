@@ -2416,6 +2416,19 @@ heals, no dispels, no locked doors and no heal potions.
   - **Earlier runs.** The same spin ran in `lumber-20261008-140452-1f74` (~4.5 min) and
     `lumber-20261009-225707-3ed7` (~10 min), and each ended on its own.
   - **Fixed 2026-10-17.** `add_local_trees` leaves out trees within an escaped creature's reach.
+- **"That cannot be seen.": the library walk ended on the floor above the shelves (live 2026-10-19, Seer-41/42).**
+  The DTF guild house library floor is z 6, its tomes stand at z 7-22, and there are upper floors at z 26 and
+  ~45-49 over the same tiles.
+  - **What failed.** The walk to a tome targets only (x, y), within 1 tile. At 11:34 and from 17:59 the planner
+    took a 28-36-step route up the stairs instead of the usual 15-17 on the ground floor, and ended at
+    (4151,1430)/(4155,1430)/(4151,1427) at z 26-27. Every tome double-click got the System line "That cannot
+    be seen." (13 in the store, 11 of them that day), and the landing shelf didn't open from up there either.
+  - **Runs.** Five runs aborted at the start: 4c55, 5c2a, 4aea, 2783, 2fec. Seer-42 recalled Dan to the
+    ground floor by the book's default rune.
+  - **Cause of the switch.** Why the planner preferred the stairs from 17:59 isn't known. One plan saw "an
+    object arrived after the plan" upstairs.
+  - **Fixed 2026-10-19.** `agent_link.not_above(tome z)`: the walk ends on a floor at or below the tome, at
+    most two storeys down (Cambria's floor z 0-6 under tomes at z 25-37 passes).
 
 ## A "thief" who killed: gorilkaenjoyer at witcher_105 (live 2026-10-10, Seer-17)
 

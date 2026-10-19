@@ -496,6 +496,31 @@ def test_height_goal():
           tuple(link.here) in {(5, 2), (6, 2), (7, 2)} and link.z == 5, f"{link.here} z {link.z}")
 
 
+def test_not_above():
+    print("== a tome on a shelf: walk to its floor, not the shorter way to the floor above it ==")
+    # live 2026-10-19 (DTF guild house): the library walk took the stairs and ended at z 26 over tomes at z 7-22;
+    # "That cannot be seen." and no tome opened. Here the shelf (6,3) holds a tome at z 19. Ground z 6: along y=0
+    # to x 12, down x=12 and back along y=4 to (7,4) beside the shelf, ~21 steps. Stairs at (0,1) z 16 lead to an
+    # upper floor z 26 along y=2 whose (5,2) is beside the shelf too, ~7 steps.
+    levels = {(x, 0): {6} for x in range(13)}
+    levels.update({(12, y): {6} for y in range(1, 5)})
+    levels.update({(x, 4): {6} for x in range(7, 12)})
+    levels[(0, 1)] = {16}
+    levels.update({(x, 2): {26} for x in range(6)})
+    walls = {(x, y) for x in range(-1, 14) for y in range(-1, 6)} - set(levels)
+    for z_ok, want in ((None, ((5, 2), 26)), (agent_link.not_above(19), ((7, 4), 6))):
+        layered = LayeredWalk(levels)
+        link = FakeLink((0, 0), facing=2, walls=walls, z=6, z_walk=layered)
+        mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=True)
+        mv.walkers.put(0, layered)
+        mv.walk_to(lambda: (6, 3), 1, "to the rune library", z_ok=z_ok)
+        what = ("not_above(19): the long way on the ground floor, beside the shelf at z 6" if z_ok
+                else "without it: the short way up the stairs, beside the shelf but on the floor above it (z 26)")
+        check(what, (tuple(link.here), link.z) == want, f"{link.here} z {link.z}")
+    check("not_above: the floor below (z 6, and Cambria's z 0 under tomes at z 37) yes; the floor above (z 26) no",
+          agent_link.not_above(19)(6) and agent_link.not_above(37)(0) and not agent_link.not_above(22)(26))
+
+
 def test_teleporter():
     print("== invisible teleporter on the route: survive it, remember it, route around it next time ==")
     import tempfile
@@ -683,6 +708,7 @@ def main():
     test_danger_sticky()
     test_shove_denied()
     test_height_goal()
+    test_not_above()
     test_teleporter()
     test_moongate_gumps()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")

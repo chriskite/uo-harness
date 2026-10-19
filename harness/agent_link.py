@@ -133,6 +133,15 @@ def same_floor(ref_z: int):
     return lambda z: abs(z - ref_z) <= FLOOR_SPAN
 
 
+def not_above(obj_z: int):
+    """z_ok for using an object that stands above the floor, like a tome on a bookshelf: on a floor at
+    or below it, at most two storeys down, never on a floor above it. The server refuses an object it
+    judges out of sight with "That cannot be seen." (live 2026-10-19: the walk to the DTF rune library
+    ended on the floor above the shelves, z 26 over tomes at z 7-22, and no tome opened; Cambria's
+    tomes stand at z 25-37 over a floor at z 0-6)."""
+    return lambda z: obj_z - 2 * FLOOR_SPAN <= z <= obj_z
+
+
 class Abort(Exception):
     pass
 

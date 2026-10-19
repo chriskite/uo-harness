@@ -796,7 +796,10 @@ lumbering spot as we can via rune tomes in the rune library or our own rune tome
 backpack, never public moongates or starting at banks and walking". The landing is the rune
 nearest the grove of the home rune library or the character's own books, with a walking route
 into the grove, dangerous ones (`places.danger_hint`, the DTF "Bad Places" tome) left out
-(`lumber_opt.landing_for`, the same choice `ctl lumber plan` shows). Home: the own book's default
+(`lumber_opt.landing_for`, the same choice `ctl lumber plan` shows). The walk to a library tome
+ends on a floor at or below it (`agent_link.not_above`, since 2026-10-19: the DTF guild house's
+walk took the stairs and stood on the floor above the shelves, z 26 over tomes at z 7-22, and the
+server answered "That cannot be seen."; `test_mover.py` `test_not_above`). Home: the own book's default
 rune (Outland Dan: runebook `0x49865F8F`, "DTF Loot Chest" → 4134,1429), the house steward's
 "Room" → "Visit Other Rooms" → the owner's row (Logan Wolf's room, arrival 403,923 on facet 3),
 the logs converted there, the boards added to the room's **Resource Stockpile** `0x62645C82`
