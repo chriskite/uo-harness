@@ -236,6 +236,10 @@ FLAG_WARMODE = 0x40              # EntityFlags.WarMode (EntityFlags.cs:18)
 
 ALLY_NOTORIETY = 2               # green: our guild or alliance (friendly; never a thief, never fled from)
 _TITLE = re.compile(r"^\S.* the [A-Za-z][A-Za-z' -]*$")
+# A named NPC of a faction or company, "<Name> of <Owner>'s <Group>": the Time Quest Hub's "Roan of Grere's Fighters",
+# "Delric of Grere's Rangers", "Alden of Grere's Magi" (live 2026-10-20: innocent, human body, no player flag; their
+# idle lines held mining twice and one, "You like dags?", read as an attendance check; the user: "Just another NPC")
+_COMPANY_NPC = re.compile(r"^[A-Z][A-Za-z'-]* of [A-Z][A-Za-z'-]*'s [A-Z][A-Za-z' -]*$")
 ASSUMED_PLAYER = "human body, no npc evidence (assumed player)"
 _CREATURE = re.compile(r"^(a|an) ", re.IGNORECASE)
 # a server-spawned name without an article: two or more all-lowercase words ("ghostly footman", live 2026-10-08)
@@ -495,6 +499,8 @@ def identify(mob: dict, label: str | None, monster_before: bool = False) -> tupl
                                  else "body unknown"]
     if text and _TITLE.match(text):
         return "npc", False, [f"title label {text!r} (heuristic)"]
+    if text and _COMPANY_NPC.match(text):
+        return "npc", False, [f"company label {text!r} (heuristic)"]
     if text and (_CREATURE.match(text) or _LOWER_NAME.match(text)):
         # A human body named like a creature ("an orc hunter", "a prevalian footman", "ghostly
         # footman") with no player flag is a server-spawned mobile, not a player (live 2026-10-03

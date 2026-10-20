@@ -67,6 +67,13 @@ def test_speaker():
     w["labels"][f"0x{PLAYER:08X}"] = "Raynor the herbalist"
     check("ignored: a human with a 'Name the <title>' label and no player flag (an NPC)",
           speaker(w, said(PLAYER, "Hail adventurer")) is None)
+    w["labels"][f"0x{PLAYER:08X}"] = "Alden of Grere's Magi"
+    check("ignored: a human with a '<Name> of <Owner>'s <Group>' label and no player flag (a Time Quest Hub NPC, "
+          "live 2026-10-20 'You like dags?')", speaker(w, said(PLAYER, "You like dags?", name="Alden")) is None)
+    w["mobiles"][f"0x{PLAYER:08X}"]["flags"] = 0x20
+    check("the same label with the player flag still counts (a player is a player whatever his name)",
+          speaker(w, said(PLAYER, "You like dags?", name="Alden")) is not None)
+    w["mobiles"][f"0x{PLAYER:08X}"]["flags"] = 0
     w["labels"].pop(f"0x{PLAYER:08X}")
     check("a human body without npc evidence counts (the conservative reading)",
           speaker(w, said(PLAYER, "hello")) is not None)
