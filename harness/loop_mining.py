@@ -17,8 +17,10 @@ capture 20261019_200350, docs/NOTES.md "Live hand-mining capture"):
   first (STAND_DIST_SCALE), out of every escaped creature's reach. "You do not see any harvestable
   resources nearby." marks the stand's blocks depleted; the leg runs dry when no stand is left.
 - **Smelting** at the spot's natural forge (its `forge`), within forge_range tiles: a double-click
-  per ore stack (501988 at once; 2 ingots an ore), when fewer than --smelt-free stones remain and at
-  the leg's end. The ingots go into the trapped pouch and stay carried: nothing is stored at home
+  per ore stack (501988 at once; 2 ingots an ore), between stands once --smelt-ore ore is carried (ore
+  carried in from an earlier leg too: user 2026-10-19, after a tracked red's recall took 263 raw ore
+  home), mid-stand when fewer than --smelt-free stones remain, and at the leg's end. The ingots go
+  into the trapped pouch and stay carried: nothing is stored at home
   (user decision 2026-10-19), and at home the run doesn't Restock the storage shelf (it took the
   three live trapped pouches out of the pack, docs/NOTES.md "Storage shelves").
   A forge that answers "not near a forge" disables the spot (a runner row in mining_spots).
@@ -73,6 +75,7 @@ class MineLoop(loop_lumber.LumberLoop):
         self.no_route_stands = set()  # this leg: stands no route reached
         self.trip_field_s = 0.0      # this trip: field seconds of its finished legs (--field-min across hops)
         self.leg_t0 = None           # monotonic start of the current harvest_trip's field time
+        self.unsmeltable = set()     # this leg: ore stacks the forge refused or didn't answer (not tried again)
 
     # ------------------------------------------------------------ the pickaxe
     def pickaxes(self, st) -> list:
@@ -151,6 +154,7 @@ class MineLoop(loop_lumber.LumberLoop):
 
     def leg(self, n, hops: int) -> dict | None:
         self.dry_blocks, self.no_route_stands, self.leg_t0 = set(), set(), None
+        self.unsmeltable = set()     # ore stacks this leg's forge didn't take (refused or no answer): not again
         return super().leg(n, hops)
 
     def convert(self):
@@ -328,27 +332,44 @@ class MineLoop(loop_lumber.LumberLoop):
             self._acting = False
 
     # ------------------------------------------------------------ smelting
+    def smeltable(self, st) -> list:
+        """[(serial, item)] of the ore stacks carried that this leg's forge hasn't failed on."""
+        return [(s, it) for s, it in self.in_pack(st, ORE) if s not in self.unsmeltable]
+
+    def smeltable_ore(self, st) -> int:
+        return sum(it.get("amount") or 1 for _, it in self.smeltable(st))
+
     def needs_smelt(self, st) -> bool:
-        """Ore carried and fewer than --smelt-free stones left."""
+        """Smeltable ore carried and fewer than --smelt-free stones left (smelt mid-stand)."""
         me = st["world"].get("self") or {}
         wmax, w = (me.get("stats") or {}).get("weight_max"), me.get("weight")
-        return wmax is not None and w is not None and self.count(st, ORE) > 0 and wmax - w < self.args.smelt_free
+        return wmax is not None and w is not None and self.smeltable_ore(st) > 0 and wmax - w < self.args.smelt_free
 
-    def smelt_reply(self, mark) -> str | None:
-        """'ok' / 'refused' / 'not_near' from the forge's answer since events[mark], or None."""
-        sm = self.k["smelt"]
+    def smelt_due(self, st) -> str | None:
+        """Between stands: 'weight' (needs_smelt) or 'batch' (--smelt-ore smeltable ore carried), else None."""
+        if self.needs_smelt(st):
+            return "weight"
+        return "batch" if self.smeltable_ore(st) >= self.args.smelt_ore else None
+
+    def smelt_reply(self, mark) -> tuple | None:
+        """('ok' | 'refused' | 'not_near', 0) or ('lockout', seconds) from the answer since events[mark], or None."""
+        sm, lock = self.k["smelt"], self.k["travel_lockout"]
         for ev in self.since(mark):
             if ev.get("ev") == "cliloc":
                 n = ev.get("cliloc")
                 if n == sm["ok_cliloc"]:
-                    return "ok"
+                    return ("ok", 0)
                 if n in sm["refused_clilocs"]:
-                    return "refused"
+                    return ("refused", 0)
                 if n in sm["not_near_clilocs"]:
-                    return "not_near"
-            elif ev.get("ev") == "speech_heard" and any((ev.get("text") or "").startswith(t)
-                                                        for t in sm["not_near_texts"]):
-                return "not_near"
+                    return ("not_near", 0)
+            elif ev.get("ev") == "speech_heard":
+                t = ev.get("text") or ""
+                if any(t.startswith(x) for x in sm["not_near_texts"]):
+                    return ("not_near", 0)
+                if t.startswith(lock["text_prefix"]):     # [INFERENCE] the travel lockout may hold smelting too
+                    digits = [int(w) for w in t.split() if w.isdigit()]
+                    return ("lockout", digits[0] if digits else lock["seconds"])
         return None
 
     def smelt(self, why: str) -> int:
@@ -356,47 +377,57 @@ class MineLoop(loop_lumber.LumberLoop):
         the trapped pouch (stash). A forge that says it isn't one disables the spot (Abort). A `smelt`
         job event; returns the ingots made."""
         st = self.state()
-        stacks = self.in_pack(st, ORE)
+        stacks = self.smeltable(st)
         if not stacks:
             return 0
         fx, fy = self.k["forge"]["x"], self.k["forge"]["y"]
         sm = self.k["smelt"]
-        ore0, ingots0 = self.count(st, ORE), self.count(st, INGOTS)
+        ore0, ingots0 = sum(it.get("amount") or 1 for _, it in stacks), self.count(st, INGOTS)
         t0 = time.monotonic()
         self.doing("to_forge", f"To the forge at {fx},{fy} to smelt {ore0} ore", (fx, fy))
         self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge")
         self.doing("smelt", f"Smelting {ore0} ore at the forge at {fx},{fy}", (fx, fy))
         spot = self.k["spot"]["id"]
         for serial, it in stacks:
-            st = self.state()
-            if self.item(st, serial) is None:
-                continue
-            closed = containers_to_open(st["world"], serial)
-            if closed:
-                self.link.open_containers(closed, self.human)
-            self.human.wait("smelt_use")
-            mark = len(self.link.events)
-            self.ledger.expect(("consumed", serial))
-            self.link.act(actions.dclick(serial))
-            self.wait_for(lambda s, mark=mark: self.smelt_reply(mark) is not None, SMELT_WAIT_S)
-            reply = self.smelt_reply(mark)
-            if reply == "ok":
-                continue
-            if reply == "refused":
-                log(f"smelt: the forge refused {it.get('amount') or 1} ore (0x{serial:08X}); skipping that stack")
-                continue
-            if reply == "not_near":
-                row = next((r for r in self.memory.mining_spot_rows() if r["id"] == spot), None)
-                reason = f"forge ({fx},{fy}) doesn't smelt (runner, {time.strftime('%Y-%m-%d %H:%M')})"
-                self.memory.mining_spot_put(spot, "disabled", row["data"] if row else {},
-                                            row["source"] if row else "runner", reason)
-                self.memory.job_event(self.JOB, "smelt", {"why": why, "forge": [fx, fy], "ok": False, "trip": self.trip_n,
-                                                          "spot": spot, "reason": reason}, **self._where(self.link.state()))
-                raise Abort(f"the forge at ({fx},{fy}) doesn't smelt: spot disabled")
-            log(f"smelt: no answer to 0x{serial:08X} within {SMELT_WAIT_S:.0f} s; going on")
+            for _try in range(2):                       # a second press only after a travel lockout
+                st = self.state()
+                if self.item(st, serial) is None:
+                    break
+                closed = containers_to_open(st["world"], serial)
+                if closed:
+                    self.link.open_containers(closed, self.human)
+                self.human.wait("smelt_use")
+                mark = len(self.link.events)
+                self.ledger.expect(("consumed", serial))
+                self.link.act(actions.dclick(serial))
+                self.wait_for(lambda s, mark=mark: self.smelt_reply(mark) is not None, SMELT_WAIT_S)
+                reply, secs = self.smelt_reply(mark) or (None, 0)
+                if reply == "lockout" and _try == 0:
+                    wait = secs + self.human.rng.uniform(1.0, 3.0)
+                    log(f"smelt: travel lockout reported: waiting {wait:.0f} s")
+                    self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", (fx, fy))
+                    self.pause(wait, "lockout")
+                    self.timing["lockout_s"] += wait
+                    continue
+                if reply == "ok":
+                    break
+                if reply == "not_near":
+                    row = next((r for r in self.memory.mining_spot_rows() if r["id"] == spot), None)
+                    reason = f"forge ({fx},{fy}) doesn't smelt (runner, {time.strftime('%Y-%m-%d %H:%M')})"
+                    self.memory.mining_spot_put(spot, "disabled", row["data"] if row else {},
+                                                row["source"] if row else "runner", reason)
+                    self.memory.job_event(self.JOB, "smelt", {"why": why, "forge": [fx, fy], "ok": False,
+                                                              "trip": self.trip_n, "spot": spot, "reason": reason},
+                                          **self._where(self.link.state()))
+                    raise Abort(f"the forge at ({fx},{fy}) doesn't smelt: spot disabled")
+                self.unsmeltable.add(serial)            # refused or no answer: not this leg again (no smelt loop)
+                log(f"smelt: {'the forge refused' if reply == 'refused' else 'no answer to'} "
+                    f"{it.get('amount') or 1} ore (0x{serial:08X}); leaving that stack this leg")
+                break
         st = self.state()
         made = self.count(st, INGOTS) - ingots0
-        ore = ore0 - self.count(st, ORE)
+        tried = {s for s, _ in stacks}
+        ore = ore0 - sum(it.get("amount") or 1 for s, it in self.in_pack(st, ORE) if s in tried)
         dt = time.monotonic() - t0
         self.stats["smelts"] = self.stats.get("smelts", 0) + 1
         self.stats["ore_smelted"] = self.stats.get("ore_smelted", 0) + ore
@@ -492,8 +523,8 @@ class MineLoop(loop_lumber.LumberLoop):
                     log(f"field time up ({self.args.field_min:g} min) at {tally['ore']} ore")
                     break
                 try:
-                    if self.needs_smelt(self.state()):
-                        self.smelt("weight")
+                    if (due := self.smelt_due(self.state())) is not None:
+                        self.smelt(due)
                         continue
                     stand = self.next_stand(stands)
                     if stand is None:
@@ -509,7 +540,7 @@ class MineLoop(loop_lumber.LumberLoop):
                     self.escape(e)
                 except KeepAway as e:
                     self.keep_away(e)
-            if not self.ending and self.count(self.state(), ORE) > 0:
+            if not self.ending and self.smeltable_ore(self.state()) > 0:
                 try:
                     self.smelt("leg end")
                 except Escape as e:
@@ -622,7 +653,10 @@ def main():
     loop_lumber.common_args(ap)
     ap.add_argument("--spots", default=mining_opt.SEEDS, help="seed spot file (tests)")
     ap.add_argument("--field-min", type=float, default=60.0, help="field minutes per trip across hops")
-    ap.add_argument("--smelt-free", type=float, default=40.0, help="smelt when fewer free stones remain")
+    ap.add_argument("--smelt-free", type=float, default=40.0,
+                    help="smelt mid-stand when fewer free stones remain")
+    ap.add_argument("--smelt-ore", type=int, default=40,
+                    help="between stands, smelt once this much ore is carried (a stand gives ~40-50)")
     ap.add_argument("--regrow-min", type=float, default=mining_opt.REGROW_MIN,
                     help="skip an ore block for this long after a stand reaching it said nothing nearby")
     ap.add_argument("--loop", default=os.path.join(loop_lumber.DATA, "loops", "mining.json"),

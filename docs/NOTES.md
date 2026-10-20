@@ -4097,10 +4097,18 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     (0.5 per field hour each).
   - Dig loop: `dig_use` 0.2 s after the reply, reply wait `--attempt-timeout` 5 s, at most 120 digs a stand. A stand
     ends at "You do not see any harvestable resources nearby." (its 8x8 blocks depleted for `--regrow-min` 60), at
-    the forge call (fewer than `--smelt-free` 40 stones free), or at the field time. The server's stationary text
+    a weight smelt (fewer than `--smelt-free` 40 stones free), or at the field time. The server's stationary text
     without the buff in view walks 6 steps out and back (`Stationary.walk_off`); more than 3 at one stand abort.
   - Smelting: walk within 2 of the spot's `forge`, a double-click per ore stack 0.65 s apart (`smelt_use`), then the
-    ingots into the trapped pouch (`stash`). A `smelt` job event per visit (`ok`, `ore`, `ingots`, `s`).
+    ingots into the trapped pouch (`stash`). A `smelt` job event per visit (`why` batch/weight/leg end, `ok`, `ore`,
+    `ingots`, `s`). **Between stands once `--smelt-ore` 40 ore is carried** (since 2026-10-19), ore carried in from
+    an earlier leg included, so it goes first. The first live run dug ~225 ore at forge_1193_1066 over 5 stands. It
+    never smelted: the only triggers were then 40 stones free and the leg's end. A tracked red (AIice Cooper, 77
+    tiles) then sent Dan home by recall with 263 raw ore loose in the pack (weight 563/650; mining-20261019-215055-990f).
+    An escape recall never stops at the forge, so at most one stand's ore now rides home raw. A stack the forge
+    refuses or doesn't answer is left for the rest of the leg (`unsmeltable`), not retried in a loop. A travel-lockout
+    answer to a smelt is waited out and the stack tried once more [INFERENCE: whether the lockout holds smelting is
+    unseen].
   - At home nothing is converted or stored, and the room shelf's Restock is skipped: it takes live trapped pouches
     (above, "Storage shelves"), and the live one holds the ingots. Check the ingots with `ctl status`
     (`backpack.counts` 0x1BF2).
