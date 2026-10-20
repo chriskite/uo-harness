@@ -98,6 +98,9 @@ model + replay were migrated to it (all 18 captures: 0 length mismatches, 0 pars
 - Harness memory: `python harness/memory.py stats`; backfill captures the store hasn't seen with
   `python harness/memory.py ingest`; 2D plan on stored walk evidence:
   `python harness/nav.py plan x1,y1 x2,y2 [--facet F]`.
+- Ore nodes from the map files (mining research, docs/NOTES.md "Mining: …"):
+  `python harness/ore_nodes.py scan` (facet summary + gitignored `harness/data/ore_nodes.json`),
+  `python harness/ore_nodes.py near X Y [--radius R]` (one place, single-family stands for test digs).
 - Lumber loop: `python harness/loop_lumber.py --trips 1`. On a captcha it pauses and beeps
   for you to solve it in the client (captcha mode `human`, the default); the viz header's
   `captcha [human|auto]` toggle switches to auto-solve from the gump layout. Harvest outcomes

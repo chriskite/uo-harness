@@ -3989,23 +3989,26 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   a grid intersection you reach all 4 surrounding nodes), "along mountainsides … inconsistent … touching the
   mountain", "ore per mining node" 7-11, "harvest node depletion time" 10-20 s, "mining node spacing" 6-10 tiles;
   trees are exempt from the 8×8 rule. The map file is stored in the same 8×8 blocks.
-- **Node geometry from map0.uoo (throwaway numpy scan, 2026-10-19).** Statics parse vectorized: 10,773,929 records
-  in 0.9 s, spot-checked against `UoMap.statics`. Candidate mineable = land named rock/cave/flat mountain; reach =
+- **Node geometry from the map files: `python harness/ore_nodes.py scan` (whole facet, ~4 s, writes the gitignored
+  `harness/data/ore_nodes.json`) and `ore_nodes.py near X Y [--radius R]`** (one place: families in reach, best
+  stands, single-family stands for test digs, forge sites, nearest rune). Rules in its docstring: mineable = land
+  named rock / cave / flat mountain and "cave floor" statics (`--land` / `--statics` change the families); reach =
   Chebyshev 2 from a walkable tile (approximation: passable land or a SURFACE static, no IMPASSABLE static, z
-  ignored); outside 50 tiles of the 10 atlas towns and 18 of the 40 learned guard points. The overworld ends at
-  x ≈ 4500 (ocean 4500-4700, dungeon levels east of it). Overworld: 15,292 node blocks (18,087 with the RunUO-style
-  id list + cave-floor statics 0x053B-0x054F, which tiledata names "cave floor"); stand tiles reaching 1/2/3/4
-  blocks: 130,836 / 62,704 / 3,587 / 8,548. Dungeon side: ~18,000 more blocks. Hits: Granite Quarry (3406,979) 21
-  blocks within 24 tiles and 114 four-node stands; Mountain Cave Tunnel (3315,630) 37 / 208; Prevalia Quarry 34;
-  Snow Cave 28. Misses show Outlands' own tile list: Tarsands Mine is "sandstone rock" / "ash" land, Old Papua and
-  Mt. Petram caves are "cave floor" statics outside 0x053B-0x054F (64 cave-floor ids exist) and "obsidian" land.
-  Not in client data: the valid id list, region rules (towns, no-harvest areas, dungeons), and node state (ore left,
-  colour, respawn), which only digging reveals.
+  ignored); outside `lumber_opt.TOWN_RADIUS` of the atlas towns and `lumber_forest.GUARD_KEEP` of the learned guard
+  points. It reads the map in 128-block-row bands through `UoMap.land_rows` / `statics_rows` (vectorized, checked
+  against `land()` / `statics()` in test_uomap.py). map0 overworld (x < 4600: ocean from 4500 to 4700, dungeon
+  levels east of it), 2026-10-19: 15,992 node blocks; stands reaching 1/2/3/4 nodes 138,942 / 73,563 / 4,184 /
+  12,377; dungeon side 22,354 more blocks. Hits: Granite Quarry (3406,979) 21 blocks within 24 tiles and 114
+  four-node stands; Mountain Cave Tunnel (3315,630) 37 / 208; Prevalia Quarry 34; Snow Cave 28; Old Papua Cave
+  through its cave-floor statics. Misses show Outlands' own tile list: Tarsands Mine is "sandstone rock" / "ash"
+  land, Mt. Petram's caves "obsidian". Not in client data: the valid id list, region rules (towns, no-harvest areas,
+  dungeons), and node state (ore left, colour, respawn), which only digging reveals.
 - **Natural forges sit in the mining terrain.** 129 small-forge statics (0x0FB1) on map0, 96 in the overworld, 7 of
   those within a town radius; many stand on "rock" land: Andaria Rolling Hills (2482,677) (2551,665) …, Prevalia
   Quarry (1193,1066) (1227,1142) (1254,1148) (1259,1116), Sandshear Quarry (3731,2492), Vine Covered Cave
-  (826,1068,z-10), Desert Quarry (1347,2809,z-50). 78 have ≥ 10 node blocks within 40 tiles; 2,518 of the 15,292
-  overworld node blocks lie within ~40 tiles of a non-town one. Jaseowns' script checks for these ("natural forges").
+  (826,1068,z-10), Desert Quarry (1347,2809,z-50). 78 have ≥ 10 node blocks within 40 tiles. The script groups all
+  forge statics (0x0FB1, 0x197A-0x19A9) into 193 sites, 17 in towns; 3,116 of the 15,992 overworld node blocks lie
+  within 40 tiles of a non-town site. Jaseowns' script checks for these ("natural forges").
   The store also saw 808 distinct dynamic 0x0FB1 forges (player houses/vendors; `item_seen` carries no position).
 - **Pack animals (store facts, PackAnimal scout 2026-10-19):** Stablemaster prices (k103, `buy_list` sessions
   40/41): pack horse 500, pack llama 500, Pack Ox 2000 gp; capacity 2000 / 4000 st (k5144) and **125 items** (live

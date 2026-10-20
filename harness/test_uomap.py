@@ -431,6 +431,25 @@ def test_display_name():
     check("no real item name keeps a % after resolving", not left, str([td.item(g).name for g in left[:5]]))
 
 
+def test_rows(m):
+    print("block-row readers (land_rows / statics_rows) = land() / statics()")
+    import collections
+    import random
+    rnd = random.Random(5)
+    for by in (0, 327, 520, m.blocks_h - 2):        # map top, Shelter (y 2 616-2 631), dungeon side, bottom
+        ids, zs = m.land_rows(by, by + 2)
+        eq(f"rows {by}-{by + 1}: grid shape", ids.shape, (16, m.width))
+        cells = [(rnd.randrange(m.width), rnd.randrange(16)) for _ in range(300)]
+        bad = [(x, y) for x, y in cells if (int(ids[y, x]), int(zs[y, x])) != m.land(x, by * 8 + y)]
+        eq(f"rows {by}-{by + 1}: 300 land cells", bad, [])
+        x, y, z, g, hue = m.statics_rows(by, by + 2)
+        got = collections.Counter(zip(x.tolist(), y.tolist(), z.tolist(), g.tolist(), hue.tolist()))
+        want = collections.Counter((sx, sy, s.z, s.graphic, s.hue)
+                                   for sx, sy, s in m.iter_statics(0, by * 8, m.width - 1, by * 8 + 15))
+        check(f"rows {by}-{by + 1}: every static ({sum(want.values())})", got == want,
+              f"(missing {sum((want - got).values())}, extra {sum((got - want).values())})")
+
+
 def main():
     maps = {i: UoMap(i) for i in (0, 1, 3)}
     scans = scan_all(all_sessions())
@@ -444,6 +463,7 @@ def main():
     test_login_spot(maps[0], positions)
     test_inn(maps[0], positions, items)
     test_walkmem(maps[0], positions, mems, skipped, dyn)
+    test_rows(maps[0])
     test_self_positions(maps, positions, dyn)
     print()
     if FAILURES:

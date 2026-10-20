@@ -7,6 +7,8 @@ Format spec, evidence and open questions: docs/MAP.md.
     m.land_stretch(x, y)            # -> LandStretch(z, avg_z, min_z, max_z, textured)
     m.statics(x, y)                 # -> [Static(graphic, z, hue), ...]
     m.iter_statics(x0, y0, x1, y1)  # -> (x, y, Static) over a rectangle
+    m.land_rows(by0, by1)           # -> numpy (ids, z) grids of whole 8-tile block rows
+    m.statics_rows(by0, by1)        # -> numpy (x, y, z, graphic, hue) of those rows' statics
     td = m.tiledata                 # TileData (landdata.uoo + artdata.uoo)
     td.land(tile_id)                # -> LandTile(id, flags, tex_id, name)
     td.item(graphic)                # -> ItemTile(id, flags, weight, layer, count, anim_id, height, name,
@@ -453,6 +455,52 @@ class UoMap:
             if _I64.unpack_from(self._mm, self._lut + k * 8)[0] != NO_STATICS:
                 n += 1
         return n
+
+    # -- whole block rows as numpy arrays (facet-wide scans: ore_nodes.py) ---
+    def land_rows(self, by0, by1):
+        """Land of block rows [by0, by1) as numpy arrays (ids u32, z i16) of shape
+        (rows * 8, width): element [y - by0 * 8, x] is land(x, y). One read of the
+        block-ordered cells, no per-cell unpacking. Rows outside the map are dropped."""
+        import numpy as np
+        by0, by1 = max(by0, 0), min(by1, self.blocks_h)
+        n = max(by1 - by0, 0)
+        cells = np.frombuffer(self._mm, dtype=np.dtype([("id", "<u4"), ("z", "<i2")]),
+                              count=n * self.blocks_w * 64,
+                              offset=MAP_HEADER + by0 * self.blocks_w * 64 * LAND_CELL)
+        grid = cells.reshape(n, self.blocks_w, 8, 8).transpose(0, 2, 1, 3).reshape(n * 8, self.width)
+        return np.ascontiguousarray(grid["id"]), np.ascontiguousarray(grid["z"])
+
+    def statics_rows(self, by0, by1):
+        """Every static of block rows [by0, by1) as numpy arrays (x, y, z, graphic, hue),
+        block by block in file order, leaving out the records Chunk.Load skips (as
+        statics() does)."""
+        import numpy as np
+        by0, by1 = max(by0, 0), min(by1, self.blocks_h)
+        bw = self.blocks_w
+        k0 = by0 * bw
+        lut = np.frombuffer(self._mm, "<i8", count=max(by1 - by0, 0) * bw, offset=self._lut + k0 * 8)
+        keys = np.nonzero(lut != NO_STATICS)[0]
+        raw = np.frombuffer(self._mm, np.uint8)
+
+        def u32(p):
+            return (raw[p].astype(np.uint32) | (raw[p + 1].astype(np.uint32) << 8)
+                    | (raw[p + 2].astype(np.uint32) << 16) | (raw[p + 3].astype(np.uint32) << 24))
+        pos = MAP_HEADER + lut[keys]
+        counts = u32(pos).astype(np.int64)
+        keys, pos, counts = keys[counts > 0], pos[counts > 0], counts[counts > 0]
+        first = np.cumsum(counts) - counts
+        rec_block = np.repeat(np.arange(len(keys)), counts)
+        off = pos[rec_block] + 4 + STATIC_REC * (np.arange(int(counts.sum())) - first[rec_block])
+        delta = raw[off].astype(np.int64)
+        graphic = u32(off + 1)
+        hue = raw[off + 5].astype(np.uint16) | (raw[off + 6].astype(np.uint16) << 8)
+        z = (raw[off + 7].astype(np.uint16) | (raw[off + 8].astype(np.uint16) << 8)).view(np.int16)
+        run = np.cumsum(delta)
+        cell = run - np.repeat(run[first] - delta[first], counts)   # the running cell index per block
+        keep = (graphic != 0) & (graphic != 0xFFFFFFFF) & (cell < 64)
+        key = keys[rec_block[keep]] + k0
+        cell = cell[keep]
+        return (key % bw) * 8 + (cell & 7), (key // bw) * 8 + (cell >> 3), z[keep], graphic[keep], hue[keep]
 
     # Tree graphics the server refuses to harvest. 0x0C9E (tiledata "o'hii tree")
     # answered cliloc 500489 "You can't use an axe on that." on all 9 tries in the

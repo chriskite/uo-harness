@@ -282,6 +282,10 @@ gives 0 for any z in 0…255 and −1 for small negative z.
 - Self positions from 0x1B/0x20/0x77, 16 distinct on facet 0, including z 20 upstairs, z 21 on
   the inn stairs, z −20 in the sunken area at (1912,2556), and the stretched (1898,2621 z10): each
   equals the land avg z or a Surface/Bridge top.
+- Block-row readers (2026-10-19, `UoMap.land_rows` / `statics_rows`, numpy over the mmap, used by
+  `harness/ore_nodes.py`): 300 random land cells per row pair and every static of the row pairs at
+  y 0, 2 616 (Shelter, 55 005 statics), 4 160 (31 378) and the last rows equal `land()` /
+  `iter_statics()`. All of map0's 10.77 M statics parse in under a second.
 
 Throwaway full-map scans (not in the test) confirmed the per-facet figures in the table above.
 
