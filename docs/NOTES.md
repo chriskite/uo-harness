@@ -4000,7 +4000,8 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   "rock" (279 ids), "cave" (61), "flat mountain" (3) are the candidate mineable terrain; Outlands keeps its own
   valid land/static list (patch 2019-02-25, k9636), so mineability has to be learned like `not_tree`.
 - **Mechanics (wiki):** ore weighs 2 stones (k13575; 8 before 2022-06-07, k6712), ingots 0.025: carried as ore,
-  weight ends a trip after ~150 ore at ~300 st free [INFERENCE]; smelted on the way (natural forges below) it stops
+  weight ends a trip after ~310 ore for Outland Dan (weight_max 650 with his Camping, user 2026-10-19; ~28 st of gear);
+  smelted on the way (natural forges below) it stops
   binding, as for logs. One ore smelts to 2 ingots and needs the skill to mine that colour (k12631); whether
   smelting can fail is disputed (wiki k13579: chance by Mining skill; community k198: never fails). Colour table
   k12628/k12629 (min skill, `(skill − offset)/0.8 × (1 + tool bonus)`, base node chances iron 81.75 % … avarite
