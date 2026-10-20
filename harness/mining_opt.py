@@ -206,10 +206,10 @@ def hop_choice(run: dict, carried_ore: float, leg_h: float) -> tuple[bool, dict]
     first in the rental room, as the lumber runner decides for its logs (user 2026-10-20: "the same way we store
     boards ... when we head home and we have enough ingots that it's too risky to carry them back into the
     field, we store them"; lumber_opt.hop_choice). Both ways the next leg is the same; they differ by the load
-    at risk and the room's time. A hop risks the load (`carried_ore`: ingots / 2 plus raw ore, in ore) to a
-    death on the way in (LOCKOUT_S) and in the leg (`leg_h`, the trip's field time left) at the spot's death
-    hazard (posterior mean `death_h`); storing first costs STORE_FIRST_S at its rate (`expected_ore_h`).
-    Returns (hop?, the terms)."""
+    at risk and the room's time. A hop risks what the room would store (`carried_ore`: the ingots / 2, in ore;
+    raw ore stays carried either way: the stockpile leaves it, live 2026-10-19 22:44:39) to a death on the way in
+    (LOCKOUT_S) and in the leg (`leg_h`, the trip's field time left) at the spot's death hazard (posterior mean
+    `death_h`); storing first costs STORE_FIRST_S at its rate (`expected_ore_h`). Returns (hop?, the terms)."""
     p = -math.expm1(-run["death_h"] * (max(0.0, leg_h) + lumber_opt.LOCKOUT_S / 3600.0))
     risk = carried_ore * p
     cost = run["expected_ore_h"] * STORE_FIRST_S / 3600.0

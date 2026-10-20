@@ -1969,8 +1969,10 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   - A trip's end, an abort's way home and `stop --after-trip` all end in the room, where the ingots are stored.
   - A leg cut short (dry, a threat's recall, every stand in a creature's reach) is home at the landing. There
     `mining_opt.hop_choice` weighs the load against the room's time:
-    - hop: the carried load (ingots / 2 + raw ore, in ore) × P(death) on the way in (`LOCKOUT_S`) and over the
-      trip's field time left, at the next spot's posterior death hazard;
+    - hop: the ingots the room would store (ingots / 2, in ore) × P(death) on the way in (`LOCKOUT_S`) and over the
+      trip's field time left, at the next spot's posterior death hazard. Raw ore rides along either way: the
+      stockpile leaves it, so it doesn't count. Until 13:11 on 2026-10-20 it did, and a leg with 0 ingots went into
+      the room to "store the 0 ingots".
     - store first: `STORE_FIRST_S` (60 s: the room and a new run) at the spot's expected ore/h.
   - The runner hops when the risk is no more than the room's cost. Otherwise the leg goes into the room, stores,
     and the trip ends there.

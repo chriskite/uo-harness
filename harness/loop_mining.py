@@ -415,7 +415,9 @@ class MineLoop(loop_lumber.LumberLoop):
         risk = None
         if why_not is None:
             leg_h = max(0.0, self.args.field_min * 60 - self.trip_field_s) / 3600.0
-            go, risk = mining_opt.hop_choice(pick, self.count(st, INGOTS) / 2 + self.count(st, ORE), leg_h)
+            # only what the room would take counts: raw ore rides along either way (the stockpile leaves it;
+            # live 2026-10-20 13:11:55 the room was chosen to "store the 0 ingots" over 21 ore of raw-ore risk)
+            go, risk = mining_opt.hop_choice(pick, self.count(st, INGOTS) / 2, leg_h)
             if not go:
                 why_not = (f"storing the {ingots} ingots first is worth more (a hop to {pick['spot']} risks "
                            f"{risk['risk_ore']} ore, the room costs {risk['store_cost_ore']})")
