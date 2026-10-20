@@ -1,6 +1,6 @@
 {
- "_doc": "Mining seed spots: non-town overworld forge sites with ore nodes around them (python harness/ore_nodes.py spots; mining_opt.load_spots). 'candidate' spots run only after `ctl mining spot set <id> --status active`.",
- "generated": "2026-10-19T21:31:18",
+ "_doc": "Mining seed spots: non-town overworld forge sites with ore nodes around them (python harness/ore_nodes.py spots; mining_opt.load_spots), all active (user 2026-10-19); `ctl mining spot set <id> --status disabled` parks one.",
+ "generated": "2026-10-19T22:23:07",
  "spots": [
   {
    "id": "forge_2599_620",
@@ -23,7 +23,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_431_1977",
@@ -46,7 +46,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2497_708",
@@ -69,7 +69,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1279_1149",
@@ -92,7 +92,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2620_561",
@@ -115,7 +115,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2564_535",
@@ -138,7 +138,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2426_413",
@@ -161,7 +161,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2551_665",
@@ -184,7 +184,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1474_709",
@@ -207,7 +207,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1494_2559",
@@ -230,7 +230,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2113_2175",
@@ -253,7 +253,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1227_1142",
@@ -299,7 +299,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1462_2932",
@@ -322,7 +322,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1524_2698",
@@ -345,7 +345,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1339_1189",
@@ -368,7 +368,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1939_1430",
@@ -391,7 +391,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2681_633",
@@ -414,7 +414,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1917_1114",
@@ -437,7 +437,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_299_1722",
@@ -460,7 +460,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1516_718",
@@ -483,7 +483,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1340_1290",
@@ -506,7 +506,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1563_2654",
@@ -529,7 +529,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1821_1808",
@@ -552,7 +552,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1915_714",
@@ -575,7 +575,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2544_743",
@@ -598,7 +598,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1439_2436",
@@ -621,7 +621,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1193_1066",
@@ -667,7 +667,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1396_1206",
@@ -690,7 +690,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1173_2397",
@@ -713,7 +713,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_3537_1948",
@@ -736,7 +736,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2106_2222",
@@ -759,7 +759,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1978_2553",
@@ -782,7 +782,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2765_549",
@@ -805,7 +805,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1180_1793",
@@ -828,7 +828,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_2778_476",
@@ -851,7 +851,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1600_1004",
@@ -874,7 +874,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1684_1519",
@@ -897,7 +897,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1383_1146",
@@ -920,7 +920,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1679_1565",
@@ -943,7 +943,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1696_1438",
@@ -966,7 +966,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1924_1755",
@@ -989,7 +989,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_826_1068",
@@ -1012,7 +1012,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_3731_2492",
@@ -1035,7 +1035,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1333_1918",
@@ -1058,7 +1058,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_789_1809",
@@ -1081,7 +1081,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1044_1360",
@@ -1104,7 +1104,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1951_1523",
@@ -1127,7 +1127,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1987_1609",
@@ -1150,7 +1150,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   },
   {
    "id": "forge_1517_1178",
@@ -1173,7 +1173,7 @@
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
-   "status": "candidate"
+   "status": "active"
   }
  ]
 }

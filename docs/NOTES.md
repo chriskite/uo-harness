@@ -4083,10 +4083,11 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   - Run it from the plan: `./ctl.cmd --char "Outland Dan" mining plan` → `ctl run mining --spot forge_1227_1142
     --trips 1 --field-min 60 --timeout 6300` (the plan's `command`). By hand for a short test:
     `./ctl.cmd --char "Outland Dan" run mining --spot forge_1227_1142 --trips 1 --hops 0 --field-min 10`.
-  - Seed spots: `python harness/ore_nodes.py spots --active-near 1178 1119` (~4 s) wrote 51 spots to
-    `harness/data/mining_spots.json` (committed); two are active, the Prevalia Quarry forges `forge_1227_1142` (83
-    node blocks) and `forge_1193_1066` (63, the capture's forge; its nearest rune is "12 - Urk Fort/Smugglers Den").
-    (1254,1148) lies within 40 of the richer Shrine:Honor site (1279,1149), which is a candidate.
+  - Seed spots: `python harness/ore_nodes.py spots` (~4 s) writes 51 spots to `harness/data/mining_spots.json`
+    (committed), every one active since 2026-10-19 (user: "All 49" candidates on, the planner explores them; before,
+    only the two Prevalia Quarry forges were). Two have no landing with a walking route in (forge_431_1977,
+    forge_789_1809: `why_not` "no landing"). The capture's forge is forge_1193_1066 (63 node blocks; nearest rune
+    "12 - Urk Fort/Smugglers Den"). (1254,1148) lies within 40 of the richer Shrine:Honor site (1279,1149).
   - **No danger words (user 2026-10-19: "The spot I recalled into was safe").** Until then `places.danger_hint`
     left out every rune or forge site whose name held a monster-place word (orc, brigan, smuggler, crypt, …): the
     capture's own forge was dropped for "Smugglers Den" (the seed file had 44 spots, 51 without the filter), and

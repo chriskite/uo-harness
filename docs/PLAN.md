@@ -1964,9 +1964,10 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); not
   40 tiles, the richest of any within 40 tiles of each other. Rune names don't filter anything (user 2026-10-19:
   the "Urk Fort/Smugglers Den" landing at Prevalia Quarry was safe; `places.danger_hint` and its monster-place
   words were removed from the landings, `lumber discover` and the mining seeds alike; the guild's own "Bad Places"
-  tomes still keep their runes out of the landings). Generated spots are
-  `candidate` except near Prevalia Quarry (`--active-near 1178 1119`): the rest run only after the user approves
-  them. A forge that answers "not near a forge" disables its spot from the runner (a store row).
+  tomes still keep their runes out of the landings). Every generated spot is active (user 2026-10-19, "All 49":
+  until then only the two Prevalia Quarry forges were, the rest parked as candidates awaiting approval); the
+  planner's Thompson sampling explores them and learns which pay. A forge that answers "not near a forge" disables
+  its spot from the runner (a store row).
 - *The runner is a LumberLoop subclass.* The trip, the threat checks, escapes, the speech hold, captcha, the
   landings and the way home are the lumber runner's, proven over hundreds of trips; LumberLoop got class hooks
   (`JOB`, `SKILL`, `YIELD`, `STASH`, `POUCHED`, `CARRIED`, `HOME_DONE`) and methods (`setup_tool`, `leg_row`,

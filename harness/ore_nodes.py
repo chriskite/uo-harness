@@ -4,7 +4,6 @@ the repo and the store know").
     python harness/ore_nodes.py scan [--facet 0] [--out PATH] [--land NAMES] [--statics NAMES]
     python harness/ore_nodes.py near X Y [--radius 40] [--facet 0] [--land NAMES] [--statics NAMES]
     python harness/ore_nodes.py spots [--facet 0] [--out harness/data/mining_spots.json] [--min-nodes 20]
-                                      [--active-near X Y]
 
 Model (community facts, single sources; RunUO's ore bank is 8x8 too [INFERENCE]): a mining node
 is one 8x8 map block, the blocks the map file is stored in. Smart Harvest (a pickaxe double-click)
@@ -35,8 +34,8 @@ tiledata files and the memory store (read-only); sends nothing anywhere.
 `spots` writes the mining runner's seed spots (loop_mining.py, mining_opt.py): one per non-town
 overworld forge site with --min-nodes node blocks within FORGE_NEAR tiles, outside lumber_opt's
 no-go areas, at most one site per FORGE_NEAR tiles (the richest). Each spot's area is the square
-FORGE_NEAR around the forge; it is 'active' within ACTIVE_NEAR tiles of --active-near, else
-'candidate' (`ctl mining spot set`).
+FORGE_NEAR around the forge. Every spot is 'active' (user 2026-10-19: all of them, the planner learns
+which are worth it); `ctl mining spot set <id> --status disabled` parks one.
 """
 import argparse
 import json
@@ -72,7 +71,6 @@ FORGE_NEAR = 40           # tiles: the node blocks a forge site serves
 OVERWORLD_X = {0: 4600}   # map0: ocean from x 4 500 to 4 700, the dungeon levels east of it
 MIN_AREA = 20             # blocks: the summary's "large area"
 SPOTS = os.path.join(HERE, "data", "mining_spots.json")
-ACTIVE_NEAR = 60          # tiles: `spots --active-near X Y` makes the spots this close 'active'
 
 
 class Tiles:
@@ -546,7 +544,7 @@ def _names(v):
     return tuple(s.strip().lower() for s in v.split(",") if s.strip())
 
 
-def seed_spots(doc, facet, min_nodes, active_near=None) -> list[dict]:
+def seed_spots(doc, facet, min_nodes) -> list[dict]:
     """The mining seed spots of a scan document (module doc, `spots`): richest forge sites first."""
     taken = []
     sites = [s for s in doc["forges"] if not s["town"] and s["side"] == "overworld" and s["nodes_near"] >= min_nodes
@@ -559,12 +557,11 @@ def seed_spots(doc, facet, min_nodes, active_near=None) -> list[dict]:
     for s in taken:
         x, y = s["x"], s["y"]
         rune = (s.get("rune") or {}).get("name")
-        active = active_near is not None and max(abs(x - active_near[0]), abs(y - active_near[1])) <= ACTIVE_NEAR
         out.append({"id": f"forge_{x}_{y}", "name": f"{rune or 'unnamed'} forge ({x},{y})", "facet": facet,
                     "area": {"center": [x, y], "radius": FORGE_NEAR, "note": "ore_nodes.py spots"},
                     "forge": {"x": x, "y": y, "z": s["z"]}, "nodes": s["nodes_near"],
                     "pvp": True, "hazard_prior": 0.5, "source": "ore_nodes",
-                    "status": "active" if active else "candidate"})
+                    "status": "active"})
     return out
 
 
@@ -588,8 +585,6 @@ def main(argv=None):
     sp = sub.add_parser("spots", parents=[common], help="mining seed spots at the forge sites (module doc)")
     sp.add_argument("--out", default=SPOTS, help="seed spot JSON (mining_opt.SEEDS)")
     sp.add_argument("--min-nodes", type=int, default=20, help="node blocks within FORGE_NEAR of the forge")
-    sp.add_argument("--active-near", type=int, nargs=2, metavar=("X", "Y"), default=None,
-                    help=f"spots within {ACTIVE_NEAR} tiles of X Y are 'active', the rest 'candidate'")
     sp.add_argument("--band", type=int, default=BAND, help="block rows per pass")
     a = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -603,10 +598,10 @@ def main(argv=None):
     t0 = time.time()
     doc = build(scan(m, tiles, rects, a.band), a.facet, tiles, towns, gps, runes)
     if a.cmd == "spots":
-        spots = seed_spots(doc, a.facet, a.min_nodes, a.active_near)
+        spots = seed_spots(doc, a.facet, a.min_nodes)
         _write_json(a.out, {"_doc": "Mining seed spots: non-town overworld forge sites with ore nodes around them "
-                                    "(python harness/ore_nodes.py spots; mining_opt.load_spots). 'candidate' spots run "
-                                    "only after `ctl mining spot set <id> --status active`.",
+                                    "(python harness/ore_nodes.py spots; mining_opt.load_spots), all active (user "
+                                    "2026-10-19); `ctl mining spot set <id> --status disabled` parks one.",
                             "generated": doc["generated"], "spots": spots}, indent=1)
         for s in spots:
             print(f"{s['id']:<18} {s['nodes']:4d} nodes  {s['status']:<9} {s['name']}")
