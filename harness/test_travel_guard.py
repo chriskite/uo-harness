@@ -163,6 +163,13 @@ def test_own_pet_teaches_nothing():
           "is learned; our mount is own_pets",
           0xE4 not in p.aggressive_bodies and 0x1E in p.aggressive_bodies and p.own_pets == frozenset({0x0154FE11}),
           (sorted(p.aggressive_bodies), sorted(p.own_pets)))
+    mem.job_event("mining", "monster_seen", {"serial": "0x001E54C0", "name": "a quarry miner", "body": 400},
+                  facet=0, x=1158, y=1060)
+    mem.job_event("lumber", "monster_seen", {"serial": "0x00000124", "name": "a harpy", "body": 0x1E},
+                  facet=0, x=1300, y=1060)
+    tiles = travel_guard.remembered_tiles(mem, 0, (1158, 1060))
+    check("routes don't bend round a passive name's sighting (a quarry miner, live 2026-10-19); a harpy's still",
+          (1158, 1060) not in tiles and (1300, 1060) in tiles, len(tiles))
     mem.close()
 
 

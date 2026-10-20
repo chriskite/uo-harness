@@ -112,11 +112,16 @@ def learned_params(memory, base: threats.Params = threats.Params()) -> threats.P
     return p
 
 
-def remembered_tiles(memory, facet, pos, radius: int = REMEMBER_R) -> set:
-    """Tiles within `radius` of recent monster sightings near `pos` on `facet`."""
+def remembered_tiles(memory, facet, pos, radius: int = REMEMBER_R,
+                     passive_names: frozenset = threats.Params().passive_names) -> set:
+    """Tiles within `radius` of recent monster sightings near `pos` on `facet`; a sighting of a passive
+    name isn't one (live 2026-10-19: 'a quarry miner' at Prevalia Quarry, a decorative NPC on a brigand's body,
+    was seen as hostile and would have bent routes round the quarry for 30 days)."""
     out = set()
     for s in sightings(memory):
         if s.get("x") is None or (s.get("facet") or 0) != (facet or 0):
+            continue
+        if (s.get("name") or "").lower() in passive_names:
             continue
         if pos is not None and cheb((s["x"], s["y"]), pos) > REMEMBER_WITHIN:
             continue

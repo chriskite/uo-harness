@@ -96,8 +96,9 @@ comes, in order, from (_aggressive):
      RunUO]), else not, war mode and body notwithstanding
   3. war-mode flag 0x40 (EntityFlags.cs:18), unless the body is in
      `passive_bodies` or the label in `passive_names`
-  4. `aggressive_bodies`, then `passive_bodies`/`passive_names`, notoriety 6,
-     then `monster_default_aggressive`
+  4. `passive_bodies`/`passive_names`, then `aggressive_bodies`, notoriety 6,
+     then `monster_default_aggressive`. A passive name beats an aggressive body: bodies are
+     shared (body 400 is the brigands' and a quarry miner's, 2026-10-19), the label isn't.
 The default is False (2026-09-30): a creature that goes for you enters war
 mode. In the NPD capture 20260930_110946, 10 of 15 mongbats (the ones that
 fought) showed 0x40, while sheep, giant rats, hinds, an eagle, a great hart,
@@ -316,7 +317,11 @@ class Params:
         "a rabbit", "a jack rabbit", "a cat", "a dog", "a chicken",
         # user 2026-10-05: Dan stood right on a wisp unharmed ("IIRC wisps are passive"; RunUO's Wisp is
         # FightMode.Aggressor); its 13-tile zone boxed in witcher_36 (lumber-20261005-203104-4d45)
-        "a wisp"})
+        "a wisp",
+        # user 2026-10-19: a decorative NPC at Prevalia Quarry ("*digs*", knowledge k4090), grey (notoriety 3)
+        # on the human body 400 the brigands taught as aggressive; the mining run walked away from it
+        # (mining-20261019-215055-990f, forge_1193_1066)
+        "a quarry miner"})
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
     # creature reach (module docstring "Reach"): ranged bodies, and the farthest
@@ -564,11 +569,11 @@ def _aggressive(mob, text, params: Params, at_us: bool = False, how: str = "swin
     passive_name = bool(text) and text.lower() in params.passive_names
     if flags & FLAG_WARMODE and body not in params.passive_bodies and not passive_name:
         return True, "war mode"
-    if body in params.aggressive_bodies:
-        return True, "aggressive body"
     if body in params.passive_bodies or passive_name:
         why = "passive body" if body in params.passive_bodies else "passive name"
         return False, why + (", war mode (fighting someone else)" if flags & FLAG_WARMODE else "")
+    if body in params.aggressive_bodies:
+        return True, "aggressive body"
     if noto in params.aggressive_notoriety:
         return True, f"notoriety {noto}"
     return params.monster_default_aggressive, "default"

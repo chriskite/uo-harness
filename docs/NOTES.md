@@ -4107,6 +4107,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   - Live checks still open: whether a packed pickaxe's double-click equips it as in the capture (else equip with
     `combat.equip_packets`), whether Prevalia's map forges smelt for the runner, and the mounted-mining answer
     (cliloc 501864 aborts the run).
+  - **"a quarry miner" is a decorative NPC, not a threat** (user 2026-10-19). In the first live run
+    (mining-20261019-215055-990f, forge_1193_1066, 21:54:06) Dan walked away from one ("ESCAPE 1/8: monster a quarry
+    miner at 8 tiles"). Its zone then bent the next walk into a 118-step detour. The NPC was 0x001E54C0: grey
+    (notoriety 3), human body 400, no player flag. Body 400 is in the learned aggressive bodies, taught by 14
+    `monster_seen` sightings of brigands and a rebel soldier on it (15 more on body 401), so every grey human-bodied
+    NPC with a creature label counted as aggressive.
+  - Fix: "a quarry miner" joined `threats.Params.passive_names`, and a passive name now beats a learned aggressive
+    body (`threats._aggressive`: bodies are shared, labels aren't). `travel_guard.remembered_tiles` skips
+    passive-name sightings, as `learned_params` already did, so routes no longer bend round the quarry for 30 days.
+    The tracked-red recall in the same run (Piers Beardkeep at 67 tiles) was the 100-tile tracking rule working as
+    meant.
 
 ## Network observations
 

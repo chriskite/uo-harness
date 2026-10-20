@@ -213,6 +213,12 @@ def test_monsters():
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
                params=Params(monster_default_aggressive=True, passive_names=frozenset({"a blood ape"})))
     eq("passive_names param -> ignore", one(a, 0x300).action, "ignore")
+    miner = mob(0x306, 2, 0, body=0x190, noto=3, flags=0)
+    brigand = mob(0x307, 2, 1, body=0x190, noto=3, flags=0)
+    a = assess(state([miner, brigand], labels={0x306: "a quarry miner", 0x307: "a brigand ransacker"}),
+               recall_s=4.0, margin_s=1.0, now=NOW, params=Params(aggressive_bodies=frozenset({0x190})))
+    eq("a passive name beats the aggressive body it shares with the brigands (live 2026-10-19: a quarry miner)",
+       (one(a, 0x306).kind, one(a, 0x306).action, one(a, 0x307).action), ("monster", "ignore", "flee"))
     a = assess(st, recall_s=4.0, margin_s=1.0, now=NOW,
                params=Params(monster_default_aggressive=True, monster_s_per_tile=0.2))
     eq("faster monsters param -> far ape flees (eta 3.8)", one(a, 0x303).action, "flee")
