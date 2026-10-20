@@ -15,7 +15,8 @@ all 4 surrounding nodes").
   Outlands keeps its own list (patch 2019-02-25), so these are candidates until a dig confirms a
   family; `near` names stands whose reach holds a single family, for those test digs.
 - walkable tile (approximation, z ignored): passable land that isn't water or void, or a SURFACE
-  static on it, and no IMPASSABLE static on it. The runner's pathfinder decides for real.
+  static on it, and no IMPASSABLE static on it. Over a cave the mountain's surface counts too, so the
+  runner (loop_mining.candidate_stands) keeps only the stands its z-aware walk reaches.
 - node: an 8x8 block with a mineable tile within REACH of a walkable tile.
 - stand: a walkable tile with a node's mineable tile within REACH; n = the nodes it reaches.
 - excluded (no node tile, no stand): lumber_opt.TOWN_RADIUS around the atlas towns and

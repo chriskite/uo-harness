@@ -53,10 +53,12 @@ def standable(walk, x, y) -> list[int]:
     return sorted({o[3] for o in walk.objects(x, y) if o[2] & (pathfind.POF_SURFACE | pathfind.POF_BRIDGE)})
 
 
-def reachable(walk, start, radius: int) -> dict:
+def reachable(walk, start, radius: int | None = None, box=None) -> dict:
     """{(x, y): sorted zs} reachable from start (x, y, z) by the walk rules
-    without leaving the square of `radius` around start."""
+    without leaving the square of `radius` around start, or the inclusive
+    rectangle `box` (x0, y0, x1, y1) instead."""
     sx, sy, sz = start
+    x0, y0, x1, y1 = box if box is not None else (sx - radius, sy - radius, sx + radius, sy + radius)
     seen = {(sx, sy, sz)}
     out = collections.defaultdict(set)
     out[(sx, sy)].add(sz)
@@ -68,7 +70,7 @@ def reachable(walk, start, radius: int) -> dict:
             if nxt is None:
                 continue
             nx, ny, nz = nxt
-            if abs(nx - sx) > radius or abs(ny - sy) > radius or (nx, ny, nz) in seen:
+            if not (x0 <= nx <= x1 and y0 <= ny <= y1) or (nx, ny, nz) in seen:
                 continue
             seen.add((nx, ny, nz))
             out[(nx, ny)].add(nz)

@@ -141,8 +141,48 @@ def test_memory():
     m.close()
 
 
+def test_reachable_stands():
+    print("candidate stands: only the ones the walk reaches from where we stand")
+    import loop_mining
+    import ore_nodes
+    # a landing 30 tiles north of the area (center (50, 50), radius 10), a corridor down into its north half;
+    # a wall along y 50 cuts the south half off except by a loop east through x 75, outside the area but within
+    # STAND_MARGIN; a pocket at (42, 58) has no way in; (47, 32) beside the corridor isn't walkable at all
+    open_ = {(50, y) for y in range(20, 41)} | {(x, y) for x in range(40, 61) for y in range(40, 61) if y != 50}
+    open_ -= {(x, y) for x in range(40, 45) for y in range(56, 61)}
+    open_ |= {(42, 58)} | {(x, 45) for x in range(60, 76)} | {(75, y) for y in range(45, 56)}
+    open_ |= {(x, 55) for x in range(60, 76)}
+
+    class Walk:
+        m = SimpleNamespace(tiledata=None)
+
+        def can_walk(self, x, y, z, d):
+            nx, ny = x + (0, 1, 1, 1, 0, -1, -1, -1)[d], y + (-1, -1, 0, 1, 1, 1, 0, -1)[d]
+            return (nx, ny, 0) if z == 0 and (nx, ny) in open_ else None
+    stands = [{"x": 45, "y": 45, "n": 1, "blocks": [[5, 5]]}, {"x": 55, "y": 57, "n": 1, "blocks": [[6, 7]]},
+              {"x": 42, "y": 58, "n": 1, "blocks": [[5, 7]]}, {"x": 47, "y": 32, "n": 1, "blocks": [[5, 4]]}]
+    saved = ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log
+    ore_nodes.area_stands = lambda *a, **k: [dict(s) for s in stands]
+    ore_nodes.exclusions = lambda facet, db: ([], [], [])
+    ore_nodes.Tiles = lambda td: None
+    loop_mining.log = lambda s: None
+    try:
+        loop = object.__new__(MineLoop)
+        loop.k = {"harvest": {"area": {"center": [50, 50], "radius": 10}, "stands": []}, "spot": {"id": "t"}}
+        loop.facet, loop._ore_tiles, loop.dry_blocks = 0, None, set()
+        loop.args = SimpleNamespace(memory=":memory:", regrow_min=60)
+        loop.memory = SimpleNamespace(mine_blocks_state=lambda facet, blocks: {})
+        loop.mover = SimpleNamespace(walk_map=lambda st: Walk())
+        loop.link = SimpleNamespace(pos=lambda st: [50, 20, 0, 4])
+        got = sorted((s["x"], s["y"]) for s in loop.candidate_stands({}))
+    finally:
+        ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log = saved
+    check("the north half and the south half by the loop outside the area; not the pocket, not off the walk",
+          got == [(45, 45), (55, 57)], got)
+
+
 def main():
-    for t in (test_outcome, test_plan, test_memory):
+    for t in (test_outcome, test_plan, test_memory, test_reachable_stands):
         t()
     print()
     if FAILURES:

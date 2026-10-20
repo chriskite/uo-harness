@@ -39,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
 from agent_link import Abort, cheb, containers_to_open, log, serial_of  # noqa: E402
+import localmap  # noqa: E402
 import loop_lumber  # noqa: E402
 from loop_lumber import Escape, KeepAway  # noqa: E402
 import lumber_opt  # noqa: E402
@@ -56,6 +57,8 @@ STATIONARY_MAX = 3           # "A stationary penalty is in effect" this often at
 # disabled and the leg moves on (live 2026-10-19, forge_1696_1438: the Paladin forge inside Prevalia, whose map
 # "stands" were the city walls, took ~3 s of route planning each over 434 stands)
 UNWORKABLE_STANDS = 8
+# Tiles beyond the box around the area and us that the reachability flood (candidate_stands) may cross
+STAND_MARGIN = 40
 BUSY_RETRY_S = 0.4           # after 500119 "You must wait to perform another action."
 EQUIP_WAIT_S = 3.0           # a packed pickaxe's double-click until it is in hand
 SMELT_WAIT_S = 4.0           # an ore stack's double-click until the forge's answer (live: at once)
@@ -477,13 +480,26 @@ class MineLoop(loop_lumber.LumberLoop):
     # ------------------------------------------------------------ stands
     def candidate_stands(self, st) -> list:
         """The area's stands (ore_nodes.area_stands on the map; the spot's `stands` without one) with
-        at least one available block (avail)."""
+        at least one available block (avail). On the map only the stands the walk rules reach from where we
+        stand (localmap.reachable, z-aware, within STAND_MARGIN of the area and us): area_stands ignores z,
+        and over a cave the mountain's surface counts as ground (live 2026-10-19, forge_2599_620: a cave of
+        'cave floor' statics at z 0 under 'snow' land at z 65; 647 of its 2357 stands lay on the unreachable
+        surface, each "no route" after a ~3 s search)."""
         area = self.k["harvest"]["area"]
         walk = self.mover.walk_map(st)
         if walk is not None:
             self._ore_tiles = self._ore_tiles or ore_nodes.Tiles(walk.m.tiledata)
             rects, _, _ = ore_nodes.exclusions(self.facet, self.args.memory)
-            stands = ore_nodes.area_stands(walk.m, self._ore_tiles, rects, area["center"], area["radius"])
+            (cx, cy), r = area["center"], area["radius"] + ore_nodes.REACH
+            x, y, z = (int(v) for v in self.link.pos(st)[:3])
+            box = (min(x, cx - r) - STAND_MARGIN, min(y, cy - r) - STAND_MARGIN,
+                   max(x, cx + r) + STAND_MARGIN, max(y, cy + r) + STAND_MARGIN)
+            reached = localmap.reachable(walk, (x, y, z), box=box)
+            every = ore_nodes.area_stands(walk.m, self._ore_tiles, rects, area["center"], area["radius"])
+            stands = [s for s in every if (s["x"], s["y"]) in reached]
+            if len(stands) < len(every):
+                log(f"{len(every) - len(stands)} of {len(every)} map stands at {self.k['spot']['id']} can't be walked "
+                    f"to from here (another level, walled off)")
         else:
             stands = [dict(s) for s in self.k["harvest"]["stands"]]
         for s in stands:
