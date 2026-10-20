@@ -106,6 +106,13 @@ def test_plan():
           rows["A"]["rate_ore_h"])
     out = mining_opt.plan({"cand": spot("cand", "candidate")}, [], NOW, random.Random(1), {"cand": LANDING})
     check("no eligible spot: ok false with an error", out["ok"] is False and "no eligible" in out["error"], out)
+    cooled = {s["id"]: s for s in (spot("dry", x=1200), spot("hot", x=1300))}
+    out = mining_opt.plan(cooled, [trip("dry", 100, ago_min=30, dry=True), trip("hot", 50, ago_min=10, why="threat: x")],
+                          NOW, random.Random(1), {sid: LANDING for sid in cooled})
+    rows = {r["id"]: r for r in out["spots"]}
+    check("every spot cooling down: when each is ready, and the soonest in the error (the overseer waits that long)",
+          out["ok"] is False and rows["hot"]["ready_in_min"] == 20 and rows["dry"]["ready_in_min"] == 30
+          and out["retry_in_min"] == 20 and "the first one ready: hot in 20 min" in out["error"], out)
 
 
 def test_memory():

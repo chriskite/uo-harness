@@ -19,6 +19,7 @@ Eligible: active, not in a lumber_opt no-go area, a landing known, no threat the
 lumber_opt.COOLDOWN_S and not run dry within REGROW_MIN.
 """
 import copy
+import math
 import os
 import random
 import sys
@@ -127,7 +128,7 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
                    1.0 / pooled[k] + sum(w * o["field_h"] for w, o in zip(ws, mine))) for k in ("died", "sent_home")}
         last = mine[-1] if mine else None
         landing = (landings or {}).get(sid)
-        why = None
+        why, ready_in = None, None
         if sid in exclude:
             why = "current spot"
         elif s.get("status") != "active":
@@ -138,8 +139,10 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
             why = "no landing"
         elif last is not None and (last["sent_home"] or last["died"]) and now - last["t1"] < lumber_opt.COOLDOWN_S:
             why = f"threat {round((now - last['t1']) / 60)} min ago"
+            ready_in = lumber_opt.COOLDOWN_S - (now - last["t1"])
         elif last is not None and last["dry"] and now - last["t1"] < REGROW_MIN * 60:
             why = f"dry {round((now - last['t1']) / 60)} min ago"
+            ready_in = REGROW_MIN * 60 - (now - last["t1"])
         mean_score = _score(alpha / beta, haz["sent_home"][0] / haz["sent_home"][1], haz["died"][0] / haz["died"][1],
                             death_cost_h)
         models[sid] = {"alpha": alpha, "beta": beta, "haz": haz, "score": mean_score}
@@ -153,12 +156,17 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
                      "landing": None if landing is None else {k: landing.get(k)
                                                               for k in ("name", "dist", "source", "library")},
                      "last_trip_h_ago": None if last is None else round((now - last["t1"]) / 3600.0, 1),
-                     "nodes": s.get("nodes")})
+                     "nodes": s.get("nodes"),
+                     "ready_in_min": None if ready_in is None else math.ceil(ready_in / 60)})
     rows.sort(key=lambda r: (not r["eligible"], -r["score_ore_h"]))
     eligible = [r["id"] for r in rows if r["eligible"]]
     out = {"ok": True, "now": now, "prior_ore_h": round(mean), "spots": rows}
     if not eligible:
-        return {"ok": False, "error": "no eligible mining spot (see spots[].why_not)", "spots": rows}
+        waits = sorted((r["ready_in_min"], r["id"]) for r in rows if r["ready_in_min"] is not None)
+        err = "no eligible mining spot (see spots[].why_not)"
+        if waits:
+            err += f"; the first one ready: {waits[0][1]} in {waits[0][0]} min"
+        return {"ok": False, "error": err, "spots": rows, "retry_in_min": waits[0][0] if waits else None}
 
     def draw(sid):
         m = models[sid]
