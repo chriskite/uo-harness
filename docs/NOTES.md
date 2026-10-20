@@ -4287,6 +4287,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
         running first").
       - Tests: test_loop_lumber `unit_escape_crowd`.
 
+  - **The room's small forge** (2026-10-20, bought and placed by the user in Logan Wolf's DTF rental room).
+    - `ctl status` ground_items with Dan in the room: "forge", serial 0x4FD0EBA1, graphic 0x0FB1 (in
+      `ore_nodes.FORGES`), at (403,923,2) on facet 3. That is the room's arrival tile, so smelting needs no walk.
+    - It is homes.json `forge` for Outland Dan and Logan Wolf. The mining runner smelts the carried ore there
+      before the store (docs/PLAN.md "With a forge in the rental room").
+    - Whether the server smelts at a house forge in a rental room is to be confirmed by the first live run.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

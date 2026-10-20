@@ -157,6 +157,7 @@ LOADOUT_POUCHES = 3
 # the room's Resource Stockpile (live 2026-10-05: Logan Wolf's room, 2 tiles north of the arrival): its menu, the
 # Add Items button (2) with the server's prompt and a cursor; a targeted stack "You add 1 item(s) ..."
 STOCKPILE, STOCKPILE_POS, STOCKPILE_GUMP = 0x62645C82, (403, 921), 0x6ECE2ABE
+ROOM_FORGE, ROOM_FORGE_POS = 0x4FD0EBA1, (403, 923)       # the room's small forge (live serial and tile, 2026-10-20)
 STOCKPILE_LAYOUT = ("{ resizepic 18 25 11571 666 535 }{ text 305 16 2655 1 }{ button 93 53 2118 2118 1 0 100 }"
                     "{ button 96 508 2151 2154 1 0 2 }{ button 589 516 2118 2117 1 0 12 }{ text 610 513 149 3 }")
 with open(f"{ROOT}/harness/testdata/shelf_gumps.json", encoding="utf-8") as _f:
@@ -542,6 +543,7 @@ class World:
         self.stolen = 0
         self.chest_stack = None           # (serial, amount): the boards in the home chest
         self.stockpile = None             # {"boards": n, "adds": [stack serials], "gumps": set, "closed": n}: none
+        self.room_forge = False           # a forge in the rental room (the mining runner smelts there; homes `forge`)
         self.pile_cursor = None           # the cursor id Add Items gave
         self.pouch_hue = {p: 38 for p in POUCHES}   # trapped pouches in the pack (hue 38 live, 0 gone off)
         self.pops = []                    # (pouch, time, 'us' | 'thief')
@@ -932,6 +934,8 @@ class World:
             self.send(ground_item(ROOM_SHELF, 0xAFC5, *ROOM_SHELF_POS, 2))   # "storage shelf" (live)
         if self.stockpile is not None:
             self.send(ground_item(STOCKPILE, 0x59FA, *STOCKPILE_POS, 2))     # "a resource stockpile" (live)
+        if self.room_forge:
+            self.send(ground_item(ROOM_FORGE, 0x0FB1, *ROOM_FORGE_POS, 2))   # "forge" (live)
 
     def stockpile_gump(self):
         """The Resource Stockpile's menu (a fresh serial each time, as live), the board count on its line."""
@@ -1843,21 +1847,23 @@ def write_libraries(path):
         json.dump(doc, f)
 
 
-def write_homes(path, stockpile=False):
+def write_homes(path, stockpile=False, forge=False):
     """The test character's home (harness/home.py format): the simulated landing, home library, room
-    (Logan Wolf's, as live) and chest; with `stockpile`, the room's Resource Stockpile."""
+    (Logan Wolf's, as live) and chest; with `stockpile`, the room's Resource Stockpile; with `forge`, its forge."""
     home = {"library": "simhome", "landing": [*HOME_RUNE_POS, 0], "facet": 0,
             "room": {"owner": "logan", "facet": ROOM_FACET, "arrival": [*ROOM_ARRIVAL, 1], "exit": "steward"},
             "chest": {"serial": f"0x{CHEST:08X}", "name": "paragon chest (drake)", "pos": [*CHEST_POS, 2]}}
     if stockpile:
         home["stockpile"] = {"serial": f"0x{STOCKPILE:08X}", "pos": [*STOCKPILE_POS, 2]}
+    if forge:
+        home["forge"] = {"serial": f"0x{ROOM_FORGE:08X}", "name": "forge", "pos": [*ROOM_FORGE_POS, 2]}
     doc = {"homes": {CHAR_NAME: home}}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(doc, f)
 
 
 def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpile=False, more_spots=(),
-                      routes=None, banks=()) -> dict:
+                      routes=None, banks=(), forge=False) -> dict:
     """The runner's simulated data files in `tmp`: spots, Witcher table, rune libraries, homes, memory db, bank
     markers (`banks`: [(x, y)] on facet 0, Banks_and_Healers.xml's format; none by default, so no run depends
     on the install's file); `routes` ({lumber_opt.route_key: tiles}) pre-seeds the db's landing-route cache (the
@@ -1868,7 +1874,7 @@ def write_world_files(tmp, trees=(GOOD_TREE, DRY_TREE), spot_extra=None, stockpi
     write_spot(paths["spots"], trees, more_spots, **(spot_extra or {}))
     write_witcher(paths["witcher"])
     write_libraries(paths["libraries"])
-    write_homes(paths["homes"], stockpile)
+    write_homes(paths["homes"], stockpile, forge)
     with open(paths["markers"], "w", encoding="utf-8") as f:
         f.write("<Pack>" + "".join(f'<Marker Name="Sim Bank {i}" X="{x}" Y="{y}" Facet="0" Icon="BANK" />'
                                    for i, (x, y) in enumerate(banks)) + "</Pack>")
@@ -2290,7 +2296,7 @@ async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=N
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
     paths = write_world_files(tempfile.mkdtemp(dir=LOGDIR), trees, spot_extra, stockpile=world.stockpile is not None,
-                              more_spots=more_spots, routes=routes, banks=banks)
+                              more_spots=more_spots, routes=routes, banks=banks, forge=world.room_forge)
     if spots_doc is not None:
         with open(paths["spots"], "w", encoding="utf-8") as f:
             json.dump(spots_doc, f)

@@ -21,10 +21,11 @@ mine_hop: two spots, one rock each; the first runs dry, the runner asks the plan
 excluded) and goes on to the second with the ingots carried (--hops 1); that one dry too, the room, every ingot
 into the stockpile, exit 0.
 mine_dry_start: every block dug out already: the carried ore smelted before leaving. mine_unworkable: every
-stand refuses mining: the spot disabled.
+stand refuses mining: the spot disabled. mine_room_forge / mine_room_forge_abort: a forge in the rental room
+(homes `forge`): no smelt at the spots' forge on leaving, the ore smelted at home before the store.
 
-Run: python test_loop_mining.py [mine_main|mine_hop|mine_dry_start|mine_unworkable]   (~4 min; private ports and
-temp dir, like test_loop_lumber.py)
+Run: python test_loop_mining.py [mine_main|mine_hop|mine_dry_start|mine_unworkable|mine_room_forge|
+mine_room_forge_abort]   (~6 min; private ports and temp dir, like test_loop_lumber.py)
 """
 import asyncio
 import os
@@ -71,6 +72,7 @@ class MineWorld(T.World):
         self.doubles = 0
         self.replies = {"success": 0, "fail": 0, "nothing_near": 0}
         self.smelted = []                 # ore per smelt
+        self.smelted_room = []            # ore per smelt at the room's forge (room_forge)
         self.smelt_refused = 0
         self.login_extra = [T.equip(PICKAXE, 0x0E86, 0x01), self.status()]
         # the room's Resource Stockpile (homes.json gets it: run_scenario): its context menu's Restock, the cursor
@@ -204,7 +206,8 @@ class MineWorld(T.World):
         self.send(self.status())
 
     def smelt(self, serial):
-        if self.cheb(FORGE_POS) > 2:
+        room = self.facet == T.ROOM_FACET
+        if (self.cheb(T.ROOM_FORGE_POS) > 2 or not self.room_forge) if room else self.cheb(FORGE_POS) > 2:
             self.smelt_refused += 1
             self.send(T.cliloc(500420))
             return
@@ -214,6 +217,8 @@ class MineWorld(T.World):
         self.send(T.cliloc(501988))
         self.send(self.status())
         self.smelted.append(n)
+        if room:
+            self.smelted_room.append(n)
 
 
 SPOTS_DOC = {"spots": [{"id": "sim", "name": "simulated rocks", "facet": 0,
@@ -389,6 +394,73 @@ async def mine_dry_start():
         store.close()
 
 
+async def mine_room_forge():
+    print("\n== mine_room_forge: a forge in the rental room: no field smelt (the weight never calls for it), the raw "
+          "ore carried on across the hop and smelted at home, every ingot into the stockpile ==")
+    world = carrying_ore(MineWorld())
+    world.room_forge = True
+    doc = {"spots": [spot_doc("sim", "simulated rocks A", [STAND_A]), spot_doc("sim2", "simulated rocks B", [STAND_B])]}
+    routes = {T.lumber_opt.route_key({"x": lx, "y": ly}, s): max(1, T.lumber_opt.area_dist(s["area"], (lx, ly)))
+              for s in doc["spots"] for (lx, ly) in (T.BOOK_RUNE_POS, T.RUNE_POS)}
+    text, code, store, _rows = await T.run_scenario(
+        world, "mine_room_forge", [], ["--trips", "1", "--hops", "1", "--human", "off", "--smelt-free", "20",
+                                       "--field-min", "30"],
+        script="harness/loop_mining.py", spots_doc=doc, routes=routes)
+    try:
+        T.check("runner exited 0 in the rental room", code == 0 and world.facet == T.ROOM_FACET,
+                f"{code}, facet {world.facet}")
+        rows = store.episodes("mining")
+        T.check("two legs: sim hopped, sim2 stored",
+                [(r.get("spot"), r.get("outcome")) for r in rows] == [("sim", "hopped"), ("sim2", "stored")],
+                str([(r.get("spot"), r.get("outcome"), r.get("why")) for r in rows]))
+        all_ore = CARRIED_ORE + ORE[ROCK_A] + ORE[ROCK_B]
+        smelts = [(e["data"].get("at"), e["data"].get("why"), e["data"].get("ore"))
+                  for e in store.job_events("mining") if e["kind"] == "smelt"]
+        T.check("one smelt: at home in the room, all the ore of both legs and the carried-in ore; none at the spots' "
+                "forge", smelts == [("room", "home", all_ore)] and world.smelted_room == [all_ore]
+                and world.smelt_refused == 0, f"{smelts}, room {world.smelted_room}, refused {world.smelt_refused}")
+        T.check("the hop carried leg 1's raw ore (no ingots), and the row says so",
+                len(rows) == 2 and (rows[0].get("hop") or {}).get("carried") == 0
+                and rows[0]["hop"].get("carried_ore") == CARRIED_ORE + ORE[ROCK_A], str(rows[0].get("hop") if rows else None))
+        T.check("every ingot into the resource stockpile, leg 2's row made and stored them; nothing left in the pack",
+                world.pile_ingots == 2 * all_ore and rows[1].get("stored") == 2 * all_ore
+                and rows[1].get("ingots_by_metal") == {"iron": 2 * all_ore}
+                and rows[1].get("carried_end") == {"ore": 0, "ingots": 0},
+                f"pile {world.pile_ingots}, row {[rows[1].get(k) for k in ('stored', 'ingots_by_metal', 'carried_end')]}")
+    finally:
+        store.close()
+
+
+async def mine_room_forge_abort():
+    print("\n== mine_room_forge_abort: every block dug out, the leg aborts at once: no smelt on leaving, the carried "
+          "ore smelted at the room's forge after the way home ==")
+    world = carrying_ore(MineWorld())
+    world.room_forge = True
+    blocks = [tuple(b) for s in (STAND_A, STAND_B) for b in s["blocks"]]
+
+    def prepare(db):
+        m = T.memory.Memory(db)
+        m.mine_blocks_mark(0, blocks, "depleted")
+        m.close()
+    text, code, store, _rows = await T.run_scenario(
+        world, "mine_room_forge_abort", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
+        script="harness/loop_mining.py", spots_doc=SPOTS_DOC, prepare=prepare)
+    try:
+        T.check("the abort ends the run (exit 1) in the rental room", code == 1 and world.facet == T.ROOM_FACET
+                and "no ore stand with an available node" in text, f"{code}, facet {world.facet}")
+        smelts = [(e["data"].get("at"), e["data"].get("why"), e["data"].get("ore"))
+                  for e in store.job_events("mining") if e["kind"] == "smelt"]
+        T.check("the carried ore smelted at home, not on leaving", smelts == [("room", "home", CARRIED_ORE)]
+                and world.smelted_room == [CARRIED_ORE] and world.dug == 0, str(smelts))
+        T.check("its ingots into the resource stockpile, no ore left",
+                world.pile_ingots == 2 * CARRIED_ORE and not any(g in ORE_GS or g == INGOT_G
+                                                                 for g, _, _ in world.stacks.values()),
+                f"pile {world.pile_ingots}, {world.stacks}")
+    finally:
+        store.close()
+
+
+
 async def mine_unworkable():
     print("\n== mine_unworkable: every stand answers 'Harvesting is not allowed in this area.': after "
           "UNWORKABLE_STANDS in a row the spot is disabled and the leg goes home ==")
@@ -417,7 +489,7 @@ async def mine_unworkable():
         store.close()
 
 
-runs = [mine_main, mine_hop, mine_dry_start, mine_unworkable]
+runs = [mine_main, mine_hop, mine_dry_start, mine_unworkable, mine_room_forge, mine_room_forge_abort]
 
 
 if __name__ == "__main__":

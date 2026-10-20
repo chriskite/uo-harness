@@ -17,14 +17,16 @@ capture 20261019_200350, docs/NOTES.md "Live hand-mining capture"):
   first (STAND_DIST_SCALE), out of every escaped creature's reach. "You do not see any harvestable
   resources nearby." marks the stand's blocks depleted; the leg runs dry when no stand is left.
 - **Smelting** at the spot's natural forge (its `forge`), within forge_range tiles: a double-click
-  per ore stack (501988 at once; 2 ingots an ore) when fewer than --smelt-free stones remain, and before
-  leaving the spot: at the leg's end (dry, field time up, a break or stop request) and before a plain
-  abort's way home (user 2026-10-19: "just before we get full on weight or leave the spot"); a threat's
-  recall goes home at once, raw ore and all. The ingots go
+  per ore stack (501988 at once; 2 ingots an ore) when fewer than --smelt-free stones remain. With a
+  forge in the rental room (homes.json `forge`, user 2026-10-20) that's all the field smelting: the
+  rest of the ore rides home (across hops too) and is smelted there before the store (convert). Without
+  one also before leaving the spot: at the leg's end (dry, field time up, a break or stop request) and
+  before a plain abort's way home (user 2026-10-19: "just before we get full on weight or leave the
+  spot"); a threat's recall goes home at once, raw ore and all. The ingots go
   into the trapped pouch and ride along across hops; at the trip's end in the rental room they go into
   the Resource Stockpile by its context menu's Restock with our backpack, which takes them out of the
   live pouch (user 2026-10-19), and then the storage shelf's Restock and Resupply run as for lumber.
-  A forge that answers "not near a forge" disables the spot (a runner row in mining_spots).
+  A spot forge that answers "not near a forge" disables the spot (a runner row in mining_spots).
 - **A trip** digs --field-min field minutes in all, across hops: a leg that runs dry goes home and,
   with --hops left, on to the next spot mining_opt plans (greedy, the current spot excluded).
 Each dig is a mine_attempts row; each stand a `stand` job event; each smelt a `smelt` job event;
@@ -257,7 +259,20 @@ class MineLoop(loop_lumber.LumberLoop):
         return super().leg(n, hops)
 
     def convert(self):
-        log("mining: no conversion at home (the ingots go into the resource stockpile as they are)")
+        """In the rental room before the store: the carried ore smelted at the room's forge (room_forge; user
+        2026-10-20: a small forge in the room "the runner can use to smelt ore at home"), so it is stored as ingots.
+        Without one the raw ore rides along to the next trip's field forge. A forge that fails is logged; the store
+        goes on."""
+        ore = sum(it.get("amount") or 1 for _, it in self.in_pack(self.state(), ORE))
+        if not ore:
+            return
+        if self.room_forge is None:
+            log(f"mining: {ore} raw ore carried and no forge in the room: it rides along to a field forge")
+            return
+        try:
+            self.smelt("home", room=True)
+        except Abort as x:
+            log(f"no smelt at home: {x}; the ore stays in the pack")
 
     def store(self) -> int:
         """The ingots into the room's Resource Stockpile (ingots_to_stockpile). Then, with none left in the pack, the
@@ -413,14 +428,17 @@ class MineLoop(loop_lumber.LumberLoop):
         pick = out.get("pick")
         why_not = self.hop_blocked(st) or (None if pick else out.get("error"))
         risk = None
+        ore = self.count(st, ORE)
         if why_not is None:
             leg_h = max(0.0, self.args.field_min * 60 - self.trip_field_s) / 3600.0
-            # only what the room would take counts: raw ore rides along either way (the stockpile leaves it;
-            # live 2026-10-20 13:11:55 the room was chosen to "store the 0 ingots" over 21 ore of raw-ore risk)
-            go, risk = mining_opt.hop_choice(pick, self.count(st, INGOTS) / 2, leg_h)
+            # only what the room would take counts: the ingots, and the raw ore too when the room's forge smelts it
+            # (room_forge); without one it rides along either way (live 2026-10-20 13:11:55 the room was chosen to
+            # "store the 0 ingots" over 21 ore of raw-ore risk)
+            at_risk = self.count(st, INGOTS) / 2 + (ore if self.room_forge is not None else 0)
+            go, risk = mining_opt.hop_choice(pick, at_risk, leg_h)
             if not go:
-                why_not = (f"storing the {ingots} ingots first is worth more (a hop to {pick['spot']} risks "
-                           f"{risk['risk_ore']} ore, the room costs {risk['store_cost_ore']})")
+                why_not = (f"storing the {ingots} ingots{f' and {ore} ore' if ore else ''} first is worth more (a hop "
+                           f"to {pick['spot']} risks {risk['risk_ore']} ore, the room costs {risk['store_cost_ore']})")
         if why_not is not None:
             self.memory.job_event(self.JOB, "hop", {"trip": self.trip_n, "from": here, "reason": reason,
                                                     "why_not": why_not, "risk": risk}, **self._where(st))
@@ -428,10 +446,10 @@ class MineLoop(loop_lumber.LumberLoop):
             return None
         self.settle_at_home()
         self.memory.job_event(self.JOB, "hop", {"trip": self.trip_n, "from": here, "reason": reason, "carried": ingots,
-                                                "hop": pick, "risk": risk}, **self._where(st))
-        log(f"hop ({reason}): on to {pick['spot']} with {ingots} ingots (risks {risk['risk_ore']} ore; the room "
-            f"would cost {risk['store_cost_ore']})")
-        return {"spot": pick["spot"], "why": reason, "carried": ingots, "mode": "exploit",
+                                                "carried_ore": ore, "hop": pick, "risk": risk}, **self._where(st))
+        log(f"hop ({reason}): on to {pick['spot']} with {ingots} ingots{f' and {ore} ore' if ore else ''} (risks "
+            f"{risk['risk_ore']} ore; the room would cost {risk['store_cost_ore']})")
+        return {"spot": pick["spot"], "why": reason, "carried": ingots, "carried_ore": ore, "mode": "exploit",
                 "logs_per_trip": None, "gain_logs": None}
 
     def hop_to(self, hop: dict):
@@ -553,22 +571,39 @@ class MineLoop(loop_lumber.LumberLoop):
                     return ("lockout", digits[0] if digits else lock["seconds"])
         return None
 
-    def smelt(self, why: str) -> int:
-        """Walk to the spot's forge and double-click each ore stack (smelt_use pace); the ingots into
-        the trapped pouch (stash). A forge that says it isn't one disables the spot (Abort). A `smelt`
-        job event; returns the ingots made."""
+    @property
+    def room_forge(self) -> dict | None:
+        """The rental room's forge (homes.json `forge`: serial, pos), or None. With one the carried ore is smelted at
+        home (convert) and the field forge only when the weight calls for it."""
+        return (self.home or {}).get("forge")
+
+    def smelt(self, why: str, room: bool = False) -> int:
+        """Walk to the forge and double-click each ore stack (smelt_use pace). The spot's forge: the stacks
+        it hasn't failed on this leg, the ingots into the trapped pouch (stash); a forge that says it isn't one
+        disables the spot (Abort). `room`: the rental room's forge (room_forge), every ore stack carried, the
+        ingots left loose for the stockpile; a forge that isn't one aborts and disables nothing. A `smelt` job
+        event (`at` 'spot' or 'room'); returns the ingots made."""
         st = self.state()
-        stacks = self.smeltable(st)
+        stacks = self.in_pack(st, ORE) if room else self.smeltable(st)
         if not stacks:
             return 0
-        fx, fy = self.k["forge"]["x"], self.k["forge"]["y"]
+        if room:
+            forge = self.room_forge
+            fserial = int(forge["serial"], 16)
+            if self.wait_for(lambda s: self.item(s, fserial) is not None, 3.0) is None:
+                raise Abort(f"the room's forge {forge['serial']} isn't in view in the rental room")
+            fx, fy = forge["pos"][:2]
+            where = "the room's forge"
+        else:
+            fx, fy = self.k["forge"]["x"], self.k["forge"]["y"]
+            where = f"the forge at {fx},{fy}"
         sm = self.k["smelt"]
         ore0, ingots0 = sum(it.get("amount") or 1 for _, it in stacks), self.count(st, INGOTS)
         metals0 = by_metal(self.in_pack(st, INGOTS))
         t0 = time.monotonic()
-        self.doing("to_forge", f"To the forge at {fx},{fy} to smelt {ore0} ore", (fx, fy))
+        self.doing("to_forge", f"To {where} to smelt {ore0} ore", (fx, fy))
         self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge")
-        self.doing("smelt", f"Smelting {ore0} ore at the forge at {fx},{fy}", (fx, fy))
+        self.doing("smelt", f"Smelting {ore0} ore at {where}", (fx, fy))
         spot = self.k["spot"]["id"]
         for serial, it in stacks:
             for _try in range(2):                       # a second press only after a travel lockout
@@ -594,15 +629,17 @@ class MineLoop(loop_lumber.LumberLoop):
                 if reply == "ok":
                     break
                 if reply == "not_near":
-                    row = next((r for r in self.memory.mining_spot_rows() if r["id"] == spot), None)
+                    at = "room" if room else "spot"
                     reason = f"forge ({fx},{fy}) doesn't smelt (runner, {time.strftime('%Y-%m-%d %H:%M')})"
-                    self.memory.mining_spot_put(spot, "disabled", row["data"] if row else {},
-                                                row["source"] if row else "runner", reason)
-                    self.memory.job_event(self.JOB, "smelt", {"why": why, "forge": [fx, fy], "ok": False,
+                    if not room:
+                        row = next((r for r in self.memory.mining_spot_rows() if r["id"] == spot), None)
+                        self.memory.mining_spot_put(spot, "disabled", row["data"] if row else {},
+                                                    row["source"] if row else "runner", reason)
+                        self._forge_failed = True
+                    self.memory.job_event(self.JOB, "smelt", {"why": why, "at": at, "forge": [fx, fy], "ok": False,
                                                               "trip": self.trip_n, "spot": spot, "reason": reason},
                                           **self._where(self.link.state()))
-                    self._forge_failed = True
-                    raise Abort(f"the forge at ({fx},{fy}) doesn't smelt: spot disabled")
+                    raise Abort(f"{where} doesn't smelt" + ("" if room else ": spot disabled"))
                 self.unsmeltable.add(serial)            # refused or no answer: not this leg again (no smelt loop)
                 log(f"smelt: {'the forge refused' if reply == 'refused' else 'no answer to'} "
                     f"{it.get('amount') or 1} ore (0x{serial:08X}); leaving that stack this leg")
@@ -620,19 +657,22 @@ class MineLoop(loop_lumber.LumberLoop):
         self.stats["ingots_made"] = self.stats.get("ingots_made", 0) + made
         add_to(self.stats, "ingots_by_metal", made_m)
         self.timing["smelt_s"] = self.timing.get("smelt_s", 0.0) + dt
-        self.memory.job_event(self.JOB, "smelt", {"why": why, "forge": [fx, fy], "stacks": len(stacks), "ore": ore,
-                                                  "ingots": made, "metals": made_m, "s": round(dt, 1),
-                                                  "trip": self.trip_n, "spot": spot, "ok": True}, **self._where(st))
-        log(f"smelted {ore} ore into {made} ingots at the forge ({fx},{fy}) ({why})")
-        self.stash()
+        self.memory.job_event(self.JOB, "smelt", {"why": why, "at": "room" if room else "spot", "forge": [fx, fy],
+                                                  "stacks": len(stacks), "ore": ore, "ingots": made, "metals": made_m,
+                                                  "s": round(dt, 1), "trip": self.trip_n, "spot": spot, "ok": True},
+                                          **self._where(st))
+        log(f"smelted {ore} ore into {made} ingots at {where} ({why})")
+        if not room:                                    # at home they go into the stockpile next
+            self.stash()
         return made
 
     def smelt_leaving(self, e: Abort):
         """A plain abort takes us away from the spot (home_on_abort's recall): smelt the carried ore first.
         Not when stopping at once is safer (unsafe_stop: a player or red, death, a captcha restriction, the
-        gate, possible staff, a speech hold), when we aren't out at the spot, or when the forge itself failed.
-        A failure is logged; the abort goes on either way."""
-        if not self.afield or self._forge_failed or self.unsafe_stop(e) \
+        gate, possible staff, a speech hold), when we aren't out at the spot, when the forge itself failed,
+        or when the room has a forge (room_forge: the ore is smelted at home, no walk to the field forge with
+        the abort's cause around). A failure is logged; the abort goes on either way."""
+        if not self.afield or self._forge_failed or self.room_forge is not None or self.unsafe_stop(e) \
                 or not self.smeltable_ore(self.link.state()):
             return
         try:
@@ -737,8 +777,9 @@ class MineLoop(loop_lumber.LumberLoop):
     def harvest_trip(self) -> int:
         """Dig at stands until --field-min (across the trip's hops), the stands run dry, or every stand
         left is within a creature's reach; smelt when the weight calls for it and before leaving the spot (the
-        leg's end, a break or stop, a plain abort: smelt_leaving). A monster escape or a suspected thief
-        leaves the stand, digging goes on at the next one out of reach."""
+        leg's end, a break or stop, a plain abort: smelt_leaving), the latter only without a room forge
+        (room_forge: the ore rides home or on to the next spot, smelted in the room). A monster escape or a
+        suspected thief leaves the stand, digging goes on at the next one out of reach."""
         tally = {"ore": 0, "attempts": 0, "successes": 0, "doubles": 0, "unknown": 0}
         try:
             if self.ending:
@@ -781,7 +822,8 @@ class MineLoop(loop_lumber.LumberLoop):
                     self.escape(e)
                 except KeepAway as e:
                     self.keep_away(e)
-            if self.smeltable_ore(self.state()) > 0:     # leaving the spot, a break or stop request too
+            # leaving the spot, a break or stop request too; with a room forge the ore is smelted at home
+            if self.room_forge is None and self.smeltable_ore(self.state()) > 0:
                 try:
                     self.smelt("leg end")
                 except Escape as e:

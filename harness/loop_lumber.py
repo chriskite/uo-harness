@@ -4679,6 +4679,8 @@ class LumberLoop:
                 row["woods"] = woods
             if hop is not None:
                 row["hop"] = {k: hop.get(k) for k in ("spot", "logs_per_trip", "carried", "gain_logs", "mode")}
+                if "carried_ore" in hop:                 # the mining runner's raw ore carried on
+                    row["hop"]["carried_ore"] = hop["carried_ore"]
             self.episode(row)
             log(f"trip {n} leg {hops + 1} {outcome}: {row}")
         self.doing("trip_done", self.trip_done_text(n))

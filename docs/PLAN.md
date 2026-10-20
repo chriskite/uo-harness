@@ -1989,6 +1989,17 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
 
   A threat's recall never stops at the forge, so its ore comes home raw and is smelted with the next leg's. Rejected
   the same day: a smelt after each stand once 40 ore was carried (commit 2a255fe), too often for the risk it covers.
+- *With a forge in the rental room, smelt there; the field forge only for the weight* (user 2026-10-20: a small forge
+  in the inn room "the runner can use to smelt ore at home"; homes.json `forge`).
+  - In the room, before the store (`MineLoop.convert`), every carried ore stack is smelted at the room's forge.
+    That covers a trip's end, an abort's or a threat's recall home and a leg with no hop.
+  - In the field only the 40-stones-free smelt is left. The leg-end smelt and the smelt before a plain abort's way
+    home are dropped. The ore rides home, or on to the next spot across a hop, and leaving a spot no longer walks to
+    its forge with whatever ended the leg around.
+  - `hop_choice` now counts the raw ore as part of what the room would store, since the room smelts it.
+  - Without a room forge (another home) the field rules above stand.
+  - Kept: the field weight smelt. Going home at full weight instead would cost a room round trip (~60 s,
+    `STORE_FIRST_S`) every ~310 ore against a forge walk at the spot.
 - *A spot is a forge with ore around it*, one per non-town overworld forge site with at least 20 node blocks within
   40 tiles, the richest of any within 40 tiles of each other. Rune names don't filter anything (user 2026-10-19:
   the "Urk Fort/Smugglers Den" landing at Prevalia Quarry was safe; `places.danger_hint` and its monster-place
