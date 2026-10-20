@@ -4235,6 +4235,16 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - Since then `MineLoop.hatchets_ready` tops up to `PICKAXES_CARRY` (2) pickaxes from the room's chest before
       each trip in the room (`pickaxes_from_chest`; the trip row's `pickaxes` {have, from_chest}). With none
       carried or in the chest it posts `low_supplies` and makes no trip (test_loop_mining mine_main).
+  - **Ingot values** (user 2026-10-20: "A commodity deed of 5000 iron ingots is worth 150k gold"): price row
+    `ingot:iron` = 30 gp (`ctl lumber price ingot:iron 30 --source user`, prices id 89). Other metals have no
+    price yet; record each as `ingot:<metal>` when the user names one.
+    - Since then each leg row has `ingots_by_metal` (made by its smelts) and `stored_by_metal` (into the stockpile),
+      keyed by `loop_mining.METALS`: the RunUO resource hues 0 iron, 2419 dull copper, 2406 shadow iron, 2413 copper,
+      2418 bronze, 2213 gold, 2425 agapite, 2207 verite, 2219 valorite; any other hue is "hue N".
+    - [INFERENCE] that Outlands keeps these hues: its stockpile lists ingots in exactly these plus 1763. Dan's first
+      coloured ingots (10, hue 2419) came at Mining ~skill of a dull copper miner.
+    - The `smelt` job event has `metals`; the drop-off log line names them ("added 640 ingots … (630 iron, 10 dull
+      copper; …)").
 
 ## Network observations
 

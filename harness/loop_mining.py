@@ -58,6 +58,11 @@ PICKAXES = (0x0E85, 0x0E86)
 PICKAXES_CARRY = 2
 ORE = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
 INGOTS = (0x1BF2,)
+# Ingot hue -> metal (RunUO CraftResources hues [INFERENCE for Outlands]: its Resource Stockpile lists ingots of exactly
+# these hues plus 1763, docs/NOTES.md "Resource Stockpile"); another hue is "hue N". The leg row's ingots_by_metal /
+# stored_by_metal use these names; the Jobs page prices them as ingot:<metal> (user 2026-10-20: iron 30 gp)
+METALS = {0: "iron", 2419: "dull copper", 2406: "shadow iron", 2413: "copper", 2418: "bronze", 2213: "gold",
+          2425: "agapite", 2207: "verite", 2219: "valorite"}
 LAYER_ONE_HANDED = 0x01
 STAND_DIST_SCALE = 20        # steps (tiles without a map): a stand this far counts half as much as one here (next_stand)
 STATIONARY_MAX = 3           # "A stationary penalty is in effect" this often at one stand: abort
@@ -77,6 +82,31 @@ EQUIP_WAIT_S = 3.0           # a packed pickaxe's double-click until it is in ha
 SMELT_WAIT_S = 4.0           # an ore stack's double-click until the forge's answer (live: at once)
 INGOT_WAIT_S = 2.0           # after the last smelt answer: until 2 ingots an ore are in the pack (the count)
 STOCKPILE_WAIT_S = 3.0       # the stockpile's answer to the Restock's backpack target (live: 46 ms, deletes first)
+
+
+def metal(hue) -> str:
+    return METALS.get(int(hue or 0), f"hue {int(hue or 0)}")
+
+
+def by_metal(items) -> dict:
+    """{metal: ingots} of [(serial, item)] ingot stacks."""
+    out = {}
+    for _, it in items:
+        name = metal(it.get("hue"))
+        out[name] = out.get(name, 0) + (it.get("amount") or 1)
+    return out
+
+
+def gained(after: dict, before: dict) -> dict:
+    """{metal: n} that `after` holds more of than `before` (n > 0 only)."""
+    return {k: after.get(k, 0) - before.get(k, 0) for k in after if after.get(k, 0) > before.get(k, 0)}
+
+
+def add_to(stats: dict, key: str, counts: dict):
+    """Sum `counts` ({metal: n}) into stats[key]."""
+    tot = stats.setdefault(key, {})
+    for k, n in counts.items():
+        tot[k] = tot.get(k, 0) + n
 
 
 class MineLoop(loop_lumber.LumberLoop):
@@ -257,6 +287,7 @@ class MineLoop(loop_lumber.LumberLoop):
         pile = self.home.get("stockpile")
         st = self.state()
         before = self.count(st, INGOTS)
+        before_m = by_metal(self.in_pack(st, INGOTS))
         if pile is None or not before:
             return 0
         serial, where = int(pile["serial"], 16), tuple(pile["pos"][:2])
@@ -281,12 +312,17 @@ class MineLoop(loop_lumber.LumberLoop):
                     for t in [(e.get("text") or "").strip()] if t.startswith("You ")]
         if res["ok"]:                                 # live the ingots' deletes came 46 ms after the target, then the line
             self.wait_for(lambda s: bool(answers()), STOCKPILE_WAIT_S)
-        left = self.count(self.state(), INGOTS)
+        st = self.state()
+        left = self.count(st, INGOTS)
         added = before - left                         # only what the server took left the pack
+        stored_m = gained(before_m, by_metal(self.in_pack(st, INGOTS)))
         self.stats["stored"] = self.stats.get("stored", 0) + added
         self.stats["stockpiled"] = self.stats.get("stockpiled", 0) + added
-        log(f"added {added} ingots to the resource stockpile (Restock with the backpack: "
-            f"{'; '.join(answers()) or 'no answer'})" + (f"; {left} still in the pack" if left else ""))
+        add_to(self.stats, "stored_by_metal", stored_m)
+        log(f"added {added} ingots to the resource stockpile "
+            f"({', '.join(f'{n} {k}' for k, n in sorted(stored_m.items(), key=lambda kv: -kv[1])) or 'none'}; "
+            f"Restock with the backpack: {'; '.join(answers()) or 'no answer'})"
+            + (f"; {left} still in the pack" if left else ""))
         if not res["ok"]:
             raise Abort(f"resource stockpile: {res['error']}; {left} ingot(s) left in the pack")
         return added
@@ -526,6 +562,7 @@ class MineLoop(loop_lumber.LumberLoop):
         fx, fy = self.k["forge"]["x"], self.k["forge"]["y"]
         sm = self.k["smelt"]
         ore0, ingots0 = sum(it.get("amount") or 1 for _, it in stacks), self.count(st, INGOTS)
+        metals0 = by_metal(self.in_pack(st, INGOTS))
         t0 = time.monotonic()
         self.doing("to_forge", f"To the forge at {fx},{fy} to smelt {ore0} ore", (fx, fy))
         self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge")
@@ -574,14 +611,16 @@ class MineLoop(loop_lumber.LumberLoop):
         if ore:      # live 2026-10-20 11:42:13: "109 ore into 0 ingots", then 218 stashed: they came after the answer
             st = self.wait_for(lambda s: self.count(s, INGOTS) >= ingots0 + 2 * ore, INGOT_WAIT_S) or self.state()
         made = self.count(st, INGOTS) - ingots0
+        made_m = gained(by_metal(self.in_pack(st, INGOTS)), metals0)
         dt = time.monotonic() - t0
         self.stats["smelts"] = self.stats.get("smelts", 0) + 1
         self.stats["ore_smelted"] = self.stats.get("ore_smelted", 0) + ore
         self.stats["ingots_made"] = self.stats.get("ingots_made", 0) + made
+        add_to(self.stats, "ingots_by_metal", made_m)
         self.timing["smelt_s"] = self.timing.get("smelt_s", 0.0) + dt
         self.memory.job_event(self.JOB, "smelt", {"why": why, "forge": [fx, fy], "stacks": len(stacks), "ore": ore,
-                                                  "ingots": made, "s": round(dt, 1), "trip": self.trip_n,
-                                                  "spot": spot, "ok": True}, **self._where(st))
+                                                  "ingots": made, "metals": made_m, "s": round(dt, 1),
+                                                  "trip": self.trip_n, "spot": spot, "ok": True}, **self._where(st))
         log(f"smelted {ore} ore into {made} ingots at the forge ({fx},{fy}) ({why})")
         self.stash()
         return made

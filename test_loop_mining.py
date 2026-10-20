@@ -270,6 +270,9 @@ async def mine_main():
                 and world.pile_restocks[0][0] == T.BACKPACK and row.get("stored") == row.get("stockpiled") == 2 * world.dug
                 and not [s for s, (g, _, _) in world.stacks.items() if g == INGOT_G],
                 f"pile {world.pile_ingots}, restocks {world.pile_restocks}, row {row.get('stored')}/{row.get('stockpiled')}")
+        T.check("the row counts them by metal (the Jobs page prices ingot:<metal>): all iron here, made and stored",
+                row.get("ingots_by_metal") == {"iron": 2 * world.dug} and row.get("stored_by_metal") == {"iron": 2 * world.dug},
+                f"made {row.get('ingots_by_metal')}, stored {row.get('stored_by_metal')}")
         T.check("then the storage shelf's Restock with the backpack and Resupply (the ingots out first); no theft "
                 "suspected", world.restocks == [("room", T.BACKPACK)] and bool(row.get("restock"))
                 and not [j for j in store.junctures() if j["kind"] == "theft_suspected"],
