@@ -36,6 +36,7 @@ import test_loop_lumber as T
 from world.parsers import parse_packet
 
 PICKAXE = 0x44ADB600
+CHEST_PICKS = (0x44ADB701, 0x44ADB702)    # spare pickaxes in the room's chest (mine_main)
 ORE_G, INGOT_G = 0x19B9, 0x1BF2
 ORE_GS = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
 ROCK_A, ROCK_B = (104, 203), (95, 197)
@@ -78,6 +79,8 @@ class MineWorld(T.World):
         self.pile_ingots = 0              # ingots the stockpile's Restock took
         self.pile_restocks = []           # (target serial, stacks taken) per Restock cursor answered
         self.pile_cursor_r = None         # the cursor id the Restock pick gave
+        self.chest_picks = set()          # spare pickaxes lying in the room's chest (the scenario puts them there)
+        self.taken_picks = []             # chest pickaxes dropped into our backpack, in order
 
     @property
     def weight(self):
@@ -94,6 +97,22 @@ class MineWorld(T.World):
         return bytes(pkt)
 
     def on_packet(self, p):
+        if p[0] == 0x06 and int.from_bytes(p[1:5], "big") == T.CHEST and self.chest_picks:
+            super().on_packet(p)                        # the chest opens (0x24), then its spare pickaxes
+            if self.facet == T.ROOM_FACET and self.cheb(T.CHEST_POS) <= 2:
+                for s in sorted(self.chest_picks):
+                    self.send(T.contained(s, 0x0E86, 1, T.CHEST))
+            return
+        if p[0] == 0x08 and self.lifted is not None and self.lifted["serial"] in self.chest_picks:
+            f = parse_packet("c2s", p)
+            s, self.lifted = f["serial"], None
+            if f["container"] == T.BACKPACK and self.facet == T.ROOM_FACET and self.cheb(T.CHEST_POS) <= 2:
+                self.chest_picks.discard(s)
+                self.taken_picks.append(s)
+                self.send(T.contained(s, 0x0E86, 1, T.BACKPACK))
+            else:
+                self.drops_refused += 1
+            return
         if p[0] == 0x06:
             serial = int.from_bytes(p[1:5], "big")
             if serial == PICKAXE or (serial in self.stacks and self.stacks[serial][0] in ORE_GS):
@@ -206,6 +225,7 @@ async def mine_main():
     print("\n== mine_main: dig two rocks dry, smelt at the forge, home, the ingots into the resource stockpile ==")
     world = MineWorld()
     world.shelf_stock = {"room": 0, "landing": 0}      # the storage shelves: Restock + Resupply after the stockpile
+    world.chest_picks = set(CHEST_PICKS)               # two spares in the room's chest; one worn: one comes out
     st = parse_packet("s2c", world.status())
     T.check("the simulated status packet carries our weight and weight_max",
             (st.get("weight"), st.get("weight_max"), st.get("hits"), st.get("mana")) == (BASE_WEIGHT, WEIGHT_MAX, 100, 100),
@@ -217,6 +237,12 @@ async def mine_main():
     try:
         T.check("runner exited 0", code == 0, str(code))
         T.check("it ended in the rental room", world.facet == T.ROOM_FACET, str(world.facet))
+        rows0 = store.episodes("mining")
+        T.check("before the trip one spare pickaxe came out of the room's chest (PICKAXES_CARRY 2), the row says so",
+                len(world.taken_picks) == 1 and world.taken_picks[0] in CHEST_PICKS and len(world.chest_picks) == 1
+                and rows0 and (rows0[0].get("pickaxes") or {}).get("have") == 2
+                and (rows0[0].get("pickaxes") or {}).get("from_chest") == [f"0x{world.taken_picks[0]:08X}"],
+                f"taken {world.taken_picks}, row {rows0[0].get('pickaxes') if rows0 else None}")
         first = next((i for i, p in enumerate(world.c2s) if p[0] == 0x06 and int.from_bytes(p[1:5], "big") == PICKAXE),
                      None)
         home = next((i for i, p in enumerate(world.c2s) if p[0] == 0xBF and p[3:5] == b"\x00\x13"

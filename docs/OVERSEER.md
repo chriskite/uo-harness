@@ -561,8 +561,9 @@ Paste this (or point the session at this section) to start an overseer.
 > runner disabled the spot: tell the user. So does an `unworkable` job event: 8 stands in a row had no route or
 > allowed no mining (a forge inside a town, ore behind walls). Disable a spot yourself
 > (`ctl mining spot set <id> --status disabled --reason …`) whose landing puts Dan among monsters at once, and tell
-> the user. A pickaxe must be worn or carried (`low_supplies`, item
-> `pickaxe`, otherwise). **Ending a mining shift:** `ctl stop --after-trip` and wait for its
+> the user. Pickaxes wear out (live: one after ~500–1000 digs). Before each trip in the room the runner tops
+> up to 2 carried from the room's chest; with none carried and none in the chest it posts `low_supplies`
+> (item `pickaxe`) and makes no trip: tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
 > `task_done`: the leg ends at home in the rental room, the ingots into the stockpile.
 > **Every spot cooling down** (`ok: false`, `retry_in_min` set): each spot is kept out for 30 min after a threat
 > sent Dan home from it (a tracked red included) and 60 min after it ran dry. `spots[].ready_in_min` says when

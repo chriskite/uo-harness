@@ -4224,6 +4224,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       ingots first is worth more …" or "hop … (risks X ore; the room would cost Y)".
     - Before this (2026-10-19 evening to 2026-10-20 noon) every hop carried the ingots on, e.g. 1242 and 2554
       ingots in mining-20261020-105606-baf5.
+  - **Pickaxes wear out in the hand** (capture session_20261020_102748).
+    - The server re-sends the worn pickaxe's 0x2E equip after its digs, then deletes it (0x1D) while worn.
+    - 0x4C982C26: 532 re-sends from 10:30:46, gone at 11:20:45.
+    - 0x4D057279: 1005 re-sends, gone at 12:18:24. With no spare left, the leg aborted home
+      (mining-20261020-115828-d1e0: "no pickaxe worn, in the backpack or in a bag in it"; the 1522 ingots were
+      stored).
+    - [INFERENCE] about 500–1000 digs a pickaxe. Its uses-left label isn't read, unlike the lumber runner's hatchets.
+    - The room chest 0x4AE0DD2C held 7 spare pickaxes (graphic 0x0E86) and 15 hatchets.
+    - Since then `MineLoop.hatchets_ready` tops up to `PICKAXES_CARRY` (2) pickaxes from the room's chest before
+      each trip in the room (`pickaxes_from_chest`; the trip row's `pickaxes` {have, from_chest}). With none
+      carried or in the chest it posts `low_supplies` and makes no trip (test_loop_mining mine_main).
 
 ## Network observations
 

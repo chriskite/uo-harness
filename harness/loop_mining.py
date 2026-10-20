@@ -52,6 +52,10 @@ import stationary  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
 
 PICKAXES = (0x0E85, 0x0E86)
+# Pickaxes a trip starts with, topped up from the room's chest (hatchets_ready). Live 2026-10-20 each wore out in the
+# hand mid-leg: 0x4C982C26 after ~530 digs (11:20:45), 0x4D057279 after ~1000 (12:18:24); with none left the leg
+# aborted home
+PICKAXES_CARRY = 2
 ORE = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
 INGOTS = (0x1BF2,)
 LAYER_ONE_HANDED = 0x01
@@ -119,15 +123,55 @@ class MineLoop(loop_lumber.LumberLoop):
         return found[0][1]
 
     def hatchets_ready(self, in_room: bool):
-        """Before a trip: a pickaxe worn or carried, else a `low_supplies` juncture and no trip."""
+        """Before a trip: PICKAXES_CARRY pickaxes worn or carried. Short and in the rental room, the room
+        chest's pickaxes come into the pack (pickaxes_from_chest). None at all: a `low_supplies` juncture and
+        no trip. The trip row's `pickaxes`."""
         n = len(self.pickaxes(self.state()))
+        taken = []
+        if n < PICKAXES_CARRY and in_room:
+            taken = self.pickaxes_from_chest(PICKAXES_CARRY - n)
+            n = len(self.pickaxes(self.state()))
         if n == 0:
-            self.memory.juncture(self.JOB, "low_supplies", "No pickaxe carried: no trip", "attention",
-                                 {"item": "pickaxe", "have": 0, "need": 1, "trip": self.trip_n,
-                                  "how": "a provisioner sells a Pickaxe (25 gp): ctl act buy <provisioner serial> "
-                                         "pickaxe"})
-            raise Abort("no pickaxe carried: no trip")
-        self.pre_stats["pickaxes"] = {"have": n}
+            self.memory.juncture(self.JOB, "low_supplies", "No pickaxe carried or in the room's chest: no trip",
+                                 "attention", {"item": "pickaxe", "have": 0, "need": 1, "trip": self.trip_n,
+                                               "how": "put pickaxes into the room's chest, or a provisioner sells a "
+                                                      "Pickaxe (25 gp): ctl act buy <provisioner serial> pickaxe"})
+            raise Abort("no pickaxe carried or in the room's chest: no trip")
+        self.pre_stats["pickaxes"] = {"have": n, "from_chest": taken}
+
+    def pickaxes_from_chest(self, want: int) -> list:
+        """Up to `want` pickaxes out of the room's chest into the pack (opened like a player would; the stock
+        lift and drop), as the lumber runner takes hatchets (hatchets_from_chest). Returns the serials taken."""
+        chest, where = loop_lumber.home_mod.chest_serial(self.home), tuple(self.home["chest"]["pos"][:2])
+        name = self.home["chest"].get("name") or "chest"
+        if self.wait_for(lambda s: self.item(s, chest) is not None, 3.0) is None:
+            log(f"pickaxes: the {name} isn't in view; none taken from it")
+            return []
+        if cheb(self.link.pos(self.link.state()), where) > loop_lumber.CHEST_REACH:
+            self.mover.walk_to(lambda: where, 1, f"to the {name}")
+        self.open_for((chest, True))
+        taken, tried = [], set()
+        while len(taken) < want:
+            st = self.link.state()
+            s = next((serial_of(k) for k, it in st["world"]["items"].items()
+                      if it.get("graphic") in PICKAXES and serial_of(k) not in tried
+                      and serial_of(it.get("container") or "0") == chest), None)
+            if s is None:
+                break
+            tried.add(s)
+            pack = self.backpack(st)
+            log(f"pickaxes: 0x{s:08X} out of the {name}")
+            self.human.wait("use")
+            self.link.act(actions.lift(s, 1))
+            self.human.wait("drag")
+            self.link.act(actions.drop(s, loop_lumber.DROP_AUTO, loop_lumber.DROP_AUTO, 0, 0, pack))
+            if self.wait_for(lambda st2: s in loop_lumber.ledger_mod.pack_items(st2, pack), 4.0) is None:
+                log(f"pickaxes: 0x{s:08X} did not come into the backpack")
+                continue
+            taken.append(f"0x{s:08X}")
+        if len(taken) < want:
+            log(f"pickaxes: the {name} had {len(taken)} of the {want} wanted")
+        return taken
 
     def snapshot(self, st) -> dict:
         """Who digs this trip and with what: Mining, mount, buffs and the pickaxe."""
