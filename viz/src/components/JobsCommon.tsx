@@ -8,6 +8,7 @@ import { Badge } from "./common.tsx";
 export const JOBS = [
   { key: "lumber", label: "Lumber" },
   { key: "hunt", label: "Hunting" },
+  { key: "mining", label: "Mining" },
 ] as const;
 export type JobKind = (typeof JOBS)[number]["key"];
 
@@ -59,6 +60,7 @@ export function useJobPoll<T>(fetch: (tz: number, range: RangeBounds) => Promise
 
 export const fetchLumber = (tz: number, range: RangeBounds) => fetchJobs("lumber", tz, range);
 export const fetchHunt = (tz: number, range: RangeBounds) => fetchJobs("hunt", tz, range);
+export const fetchMining = (tz: number, range: RangeBounds) => fetchJobs("mining", tz, range);
 
 /** The plan poll: the last answer (null until the first), the last error, refresh now. */
 export interface PlanState {

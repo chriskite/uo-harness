@@ -736,6 +736,120 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
     }
 
 
+# ------------------------------------------------------------------ mining
+MINING_PER_STAND_KINDS = ("stand", "smelt")   # folded into the legs' figures, not the timeline
+CARRIED_LABEL = "ingots carried (never stored)"
+
+
+def _mine_blank():
+    return {"legs": 0, "stored": 0, "hopped": 0, "aborted": 0, "field_s": 0.0, "timed_ore": 0, "ore": 0,
+            "ingots_made": 0, "attempts": 0, "successes": 0, "doubles": 0, "smelts": 0, "dry": 0,
+            "deaths": 0, "sent_home": 0}
+
+
+def _mine_add(agg, leg):
+    agg["legs"] += 1
+    if leg["outcome"] in ("stored", "hopped", "aborted"):
+        agg[leg["outcome"]] += 1
+    for k in ("ore", "ingots_made", "attempts", "successes", "doubles", "smelts"):
+        agg[k] += leg[k]
+    if leg["field_s"] is not None:
+        agg["field_s"] += leg["field_s"]
+        agg["timed_ore"] += leg["ore"]
+    agg["dry"] += leg["dry"]
+    agg["deaths"] += leg["died"]
+    agg["sent_home"] += leg["sent_home"]
+
+
+def _mine_finish(agg):
+    """Rates: ore per field hour over the legs with field time (timed_ore), the digs' success rate."""
+    agg["field_s"] = round(agg["field_s"], 1)
+    agg["field_hours"] = round(agg["field_s"] / 3600.0, 3)
+    agg["ore_per_hour"] = _rate(agg.pop("timed_ore"), agg["field_s"])
+    agg["success_rate"] = _ratio(agg["successes"], agg["attempts"])
+    return agg
+
+
+def _leg_row(i, row):
+    import mining_opt
+    t0, t1 = row.get("t_start"), row.get("t_end")
+    obs = mining_opt.trip_obs(row)
+    field_s = round(obs["field_h"] * 3600.0, 1) if obs is not None else None
+    carried = row.get("carried_end") if isinstance(row.get("carried_end"), dict) else {}
+    ore = int(_num(row.get("ore")))
+    why = row.get("why") or ""
+    return {"n": i + 1, "trip": row.get("trip"), "leg": row.get("leg"), "t_start": t0, "t_end": t1,
+            "duration_s": round(t1 - t0, 1) if _num(t0, None) is not None and _num(t1, None) is not None else None,
+            "spot": row.get("spot"), "outcome": row.get("outcome"), "why": row.get("why"),
+            "ore": ore, "ingots_made": int(_num(row.get("ingots_made"))), "smelts": int(_num(row.get("smelts"))),
+            "attempts": int(_num(row.get("attempts"))), "successes": int(_num(row.get("successes"))),
+            "doubles": int(_num(row.get("doubles"))),
+            "field_s": field_s, "ore_per_hour": _rate(ore, field_s),
+            "dry": bool(row.get("dry")), "time_up": bool(row.get("time_up")),
+            "creature_blocked": bool(row.get("creature_blocked")),
+            "died": obs["died"] if obs is not None else why.startswith("died"),
+            "sent_home": bool(obs and obs["sent_home"]),
+            "ingots_carried": _num(carried.get("ingots"), None),
+            "events": {}}
+
+
+def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0, utc_offset_s: int = 0,
+                   window_s: float = ROLLING_WINDOW_S, until: float | None = None) -> dict:
+    """Pure core of the mining dashboard. episodes: loop_mining leg rows (one per leg, loop
+    `mining`); events: job_events dicts of the mining job.
+
+    Field time is mining_opt.trip_obs's (the harvest phase less walk_out_s and lockout_s, so
+    the planner and the dashboard agree); a leg without t_start/t_end has none and stays out
+    of the rates. Deaths and sent-home threats are trip_obs's too, read off each leg's why.
+    Ingots are never stored: they ride in the trapped pouch, so `carried_now` is the newest
+    leg's carried_end.ingots. Stand and smelt events count per leg; the rest are the timeline."""
+    since = float(since)
+    rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
+    rows.sort(key=lambda r: _num(r.get("t_start"), 0))
+    legs = [_leg_row(i, r) for i, r in enumerate(rows)]
+    evs = sorted(({**e, "data": e.get("data") if isinstance(e.get("data"), dict) else {}}
+                  for e in events if in_range(_num(e.get("t"), 0), since, until)),
+                 key=lambda e: (e["t"], e.get("id") or 0))
+
+    totals, days, spots = _mine_blank(), {}, {}
+    for leg in legs:
+        _mine_add(totals, leg)
+        if leg["t_start"] is not None:
+            _mine_add(days.setdefault(_day(leg["t_start"], utc_offset_s), _mine_blank()), leg)
+        s = spots.setdefault(leg["spot"] or "?", {**_mine_blank(), "last_t": None})
+        _mine_add(s, leg)
+        last = leg["t_end"] if leg["t_end"] is not None else leg["t_start"]
+        if last is not None and (s["last_t"] is None or last > s["last_t"]):
+            s["last_t"] = last
+    stands = 0
+    for e in evs:
+        stands += e["kind"] == "stand"
+        for leg in legs:
+            if leg["t_start"] is not None and leg["t_end"] is not None and leg["t_start"] <= e["t"] <= leg["t_end"]:
+                leg["events"][e["kind"]] = leg["events"].get(e["kind"], 0) + 1
+                break
+    _mine_finish(totals)
+    totals["stands"] = stands
+    stamps = [t for leg in legs for t in (leg["t_start"], leg["t_end"]) if t is not None] + [e["t"] for e in evs]
+    totals["first_t"] = min(stamps) if stamps else None
+    totals["last_t"] = max(stamps) if stamps else None
+    carried = next((leg for leg in reversed(legs) if leg["ingots_carried"] is not None), None)
+    return {
+        "job": "mining", "since": since, "until": until, "utc_offset_s": utc_offset_s, "window_s": window_s,
+        "legs": legs,
+        "totals": totals,
+        "days": [{"day": d, **_mine_finish(a)} for d, a in sorted(days.items())],
+        "spots": [{"spot": sid, **_mine_finish(a)}
+                  for sid, a in sorted(spots.items(), key=lambda kv: (-kv[1]["ore"], kv[0]))],
+        "carried_now": None if carried is None else {
+            "ingots": carried["ingots_carried"], "t": carried["t_end"] if carried["t_end"] is not None else carried["t_start"],
+            "spot": carried["spot"], "label": CARRIED_LABEL},
+        "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
+                    "x": e.get("x"), "y": e.get("y"), "data": e["data"]}
+                   for e in evs if e["kind"] not in MINING_PER_STAND_KINDS],
+    }
+
+
 _DEFAULT = object()
 
 
@@ -744,7 +858,7 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | No
     """Analytics from a harness.memory.Memory, or empty ones for memory None (no store
     yet), over [since, until) (until None = open-ended); the store reads are bounded
     by the range too (indexes episodes_loop_t, job_events_job_t, harvest_attempts_t).
-    `hunt` gets compute_hunt(); every other job the trip analytics, logs valued
+    `hunt` gets compute_hunt(), `mining` compute_mining(); every other job the trip analytics, logs valued
     from the store's board:<wood> price history. `woods`: a load_woods() dict, None for
     no fallback values, or default = harness/data/woods.json if present. Harvest
     outcomes come only for the lumber job (harvest_attempts has no job column).
@@ -757,6 +871,8 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | No
     events = memory.job_events(job, since, until) if memory is not None else []
     if job == "hunt":
         return compute_hunt(episodes, events, since, utc_offset_s, window_s, until)
+    if job == "mining":
+        return compute_mining(episodes, events, since, utc_offset_s, window_s, until)
     if woods is _DEFAULT:
         woods = load_woods()
     attempts = harvest_rows(memory, since, until) if memory is not None and job == "lumber" else None
@@ -784,7 +900,8 @@ def main(argv=None):
         out = analytics(m, a.job, a.since, a.until, utc_offset_s=time.localtime().tm_gmtoff)
     finally:
         m.close()
-    keys = ("totals", "days", "monsters") if a.job == "hunt" else ("totals", "days", "harvest")
+    keys = {"hunt": ("totals", "days", "monsters"), "mining": ("totals", "days", "spots", "carried_now")}.get(
+        a.job, ("totals", "days", "harvest"))
     print(json.dumps({k: out[k] for k in keys}, indent=1))
     return 0
 

@@ -25,7 +25,9 @@
   states, by spot id or by a position inside it; bad params 400
 - job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
   logs/hr, deaths by cause, thefts, value from woods and the board price
-  history (as of each trip's end), since filter, determinism
+  history (as of each trip's end), since filter, determinism; hunt visits;
+  mining legs (field time as mining_opt.trip_obs, per day at a local midnight,
+  per spot, ingots carried)
 - /api/jobs, /api/overseer (cursors, newest-200 window, open junctures,
   heartbeat; per character: ?char=<serial> scopes rows and heartbeat, names -> 400),
   POST /api/chat (stored as a user row, with `char` its char_serial; empty / whitespace / too
@@ -488,6 +490,76 @@ def test_hunt_jobs():
     m.close()
 
 
+def test_mining_jobs():
+    print("== mining analytics (harness/jobs.py compute_mining) ==")
+    path = os.path.join(tempfile.mkdtemp(), "harness.db")
+    m = memory.Memory(path)
+    tz = 7200                                  # local = UTC+2: local midnight of day 2 is DAY - 7200
+
+    def leg(spot, trip, n, outcome, why, t0, t1, harvest, walk, lock, ore, att, succ, dbl, smelts, made, ingots, **kw):
+        m.episode("mining", {"spot": spot, "trip": trip, "leg": n, "outcome": outcome, "why": why,
+                             "t_start": t0, "t_end": t1, "phases_s": {"harvest": harvest, "to_room": 30.0},
+                             "walk_out_s": walk, "lockout_s": lock, "ore": ore, "attempts": att, "successes": succ,
+                             "doubles": dbl, "smelts": smelts, "ingots_made": made,
+                             "carried_end": {"ore": 0, "ingots": ingots}, **kw})
+    # leg 1 hopped off a dry spot A: harvest 1500 s less a 60 s walk out and a 240 s lockout = 1200 s field
+    leg("A", 1, 1, "hopped", "the area ran dry at 120 ore", 1000.0, 2800.0, 1500.0, 60.0, 240.0,
+        120, 150, 100, 20, 2, 240, 240, dry=True)
+    leg("B", 1, 2, "stored", "", 3000.0, 6000.0, 2500.0, 100.0, None, 200, 260, 180, 20, 3, 400, 640, time_up=True)
+    # leg 3 at local 23:40 of day 1, aborted by a threat (300 s field); leg 4 at local 00:10 of day 2
+    leg("A", 2, 1, "aborted", "threat: PK in view", DAY - tz - 1200, DAY - tz - 700, 400.0, 0.0, 100.0,
+        30, 40, 25, 0, 0, 0, 640)
+    leg("B", 3, 1, "stored", "", DAY - tz + 600, DAY - tz + 2400, 1800.0, 0.0, 0.0, 150, 200, 130, 20, 1, 360, 1000)
+    m.episode("lumber", {"trip": 1, "t_start": 1500.0, "t_end": 1600.0, "logs": 9})
+    m.job_event("mining", "stand", {"trip": 1, "spot": "A", "ore": 60}, t=1500.0)
+    m.job_event("mining", "smelt", {"ore": 120, "ingots": 240, "ok": True}, t=2000.0)
+    m.job_event("mining", "pk_seen", {"name": "Bob"}, t=DAY - tz - 1000)
+    m.job_event("lumber", "death", {"cause": "pk"}, t=1500.0)
+    a = jobs.analytics(m, "mining", 0, utc_offset_s=tz)
+    t = a["totals"]
+    check("mining totals: 4 legs (1 hopped, 2 stored, 1 aborted kept), 500 ore, 1000 ingots, digs and smelts summed",
+          (t["legs"], t["hopped"], t["stored"], t["aborted"], t["ore"], t["ingots_made"], t["attempts"],
+           t["successes"], t["doubles"], t["smelts"], t["dry"]) == (4, 1, 2, 1, 500, 1000, 650, 435, 60, 6, 1)
+          and t["success_rate"] == 0.67, str(t))
+    check("field time = harvest - walk out - lockout (1200 + 2400 + 300 + 1800 s); ore/h over it",
+          [r["field_s"] for r in a["legs"]] == [1200.0, 2400.0, 300.0, 1800.0]
+          and t["field_s"] == 5700.0 and t["field_hours"] == round(5700 / 3600, 3)
+          and t["ore_per_hour"] == round(500 * 3600 / 5700, 2) and a["legs"][0]["ore_per_hour"] == 360.0, str(t))
+    check("threats: the aborted leg's 'threat:' sent us home (mining_opt.trip_obs), no deaths",
+          (t["sent_home"], t["deaths"]) == (1, 0) and [r["sent_home"] for r in a["legs"]] == [False, False, True, False])
+    days = {d["day"]: d for d in a["days"]}
+    check("per day at UTC+2: legs 1-3 on 01-01 (leg 3 at 23:40 local), leg 4 on 01-02 (00:10 local)",
+          list(days) == ["1970-01-01", "1970-01-02"]
+          and (days["1970-01-01"]["legs"], days["1970-01-01"]["ore"], days["1970-01-01"]["field_s"]) == (3, 350, 3900.0)
+          and (days["1970-01-02"]["legs"], days["1970-01-02"]["ore"], days["1970-01-02"]["ore_per_hour"]) == (1, 150, 300.0),
+          str({d: (x["legs"], x["ore"]) for d, x in days.items()}))
+    utc = jobs.analytics(m, "mining", 0, utc_offset_s=0)
+    check("per day at UTC: all four legs on 01-01", [(d["day"], d["legs"]) for d in utc["days"]] == [("1970-01-01", 4)])
+    sp = {s["spot"]: s for s in a["spots"]}
+    check("per spot: B first (350 ore over 4200 s field = 300/h), A 150 ore over 1500 s = 360/h, 1 dry, last leg end",
+          [s["spot"] for s in a["spots"]] == ["B", "A"]
+          and (sp["B"]["legs"], sp["B"]["ore"], sp["B"]["ore_per_hour"], sp["B"]["last_t"]) == (2, 350, 300.0, DAY - tz + 2400)
+          and (sp["A"]["legs"], sp["A"]["ore"], sp["A"]["ore_per_hour"], sp["A"]["dry"], sp["A"]["last_t"])
+          == (2, 150, 360.0, 1, DAY - tz - 700), str(a["spots"]))
+    check("carried now: the newest leg's carried_end.ingots, labelled as never stored",
+          a["carried_now"] == {"ingots": 1000, "t": DAY - tz + 2400, "spot": "B", "label": "ingots carried (never stored)"},
+          str(a["carried_now"]))
+    check("leg rows: outcome, why, dry/time_up, stand/smelt events counted in leg 1; timeline without them",
+          [(r["outcome"], r["dry"], r["time_up"]) for r in a["legs"]]
+          == [("hopped", True, False), ("stored", False, True), ("aborted", False, False), ("stored", False, False)]
+          and a["legs"][2]["why"] == "threat: PK in view" and a["legs"][0]["events"] == {"stand": 1, "smelt": 1}
+          and [e["kind"] for e in a["events"]] == ["pk_seen"] and t["stands"] == 1, str([r["events"] for r in a["legs"]]))
+    upto = jobs.analytics(m, "mining", 0, DAY - tz, utc_offset_s=tz)
+    check("until local midnight: legs 1-3, carried now = leg 3's 640",
+          (upto["totals"]["legs"], upto["carried_now"]["ingots"]) == (3, 640), str(upto["totals"]["legs"]))
+    empty = jobs.analytics(None, "mining", 0)
+    check("no store: zeros and nulls, no carried ingots, no division errors",
+          empty["legs"] == [] and empty["days"] == [] and empty["spots"] == [] and empty["carried_now"] is None
+          and empty["totals"]["ore"] == 0 and empty["totals"]["ore_per_hour"] is None
+          and empty["totals"]["success_rate"] is None and empty["totals"]["first_t"] is None, str(empty["totals"]))
+    m.close()
+
+
 def test_grove_route(m: memory.Memory, base: str):
     """GET /api/lumber/grove on the server over store `m` (the map files are read-only
     from the install dir; without them the route has no trees to show)."""
@@ -703,6 +775,10 @@ def test_overseer_routes(logdir):
         check("no store: /api/jobs?job=hunt is the hunt shape, empty, store=false",
               hb["store"] is False and hb["job"] == "hunt" and hb["visits"] == [] and hb["totals"]["kills"] == 0,
               str(hb.get("totals")))
+        mb = get(base + "/api/jobs?job=mining")
+        check("no store: /api/jobs?job=mining is the mining shape, empty, nothing carried, store=false",
+              mb["store"] is False and mb["job"] == "mining" and mb["legs"] == [] and mb["carried_now"] is None
+              and mb["totals"]["ore"] == 0, str(mb.get("totals")))
         check("no store: /api/overseer empty, heartbeat null", ov["store"] is False and ov["chat"] == []
               and ov["open"] == 0 and ov["heartbeat"] is None)
         cm = get(base + "/api/captcha")
@@ -1349,6 +1425,7 @@ def main():
         test_jobs()
         test_lumber_travel()
         test_hunt_jobs()
+        test_mining_jobs()
         test_overseer_routes(logdir)
         test_live()
     finally:

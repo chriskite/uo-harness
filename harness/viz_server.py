@@ -47,9 +47,10 @@ live only, replay ignores it; without one the proxy serves its only session or e
   GET  /api/facet     facet picture metadata ({"available": false, "error"} without one)
   GET  /api/facet/<cx>/<cy>.png  256x256-tile chunk of the 1 px/tile facet picture
                       (harness/facet.py; read-only from the install dir)
-  GET  /api/jobs?job=lumber|hunt[&since=T][&until=T][&tz=M]  job analytics from the memory
-                      store over [since, until) epoch s (harness/jobs.py; tz = minutes east of
-                      UTC for the per-day split, default the server's local offset), cached 2 s
+  GET  /api/jobs?job=lumber|hunt|mining[&since=T][&until=T][&tz=M]  job analytics from the memory
+                      store over [since, until) epoch s (harness/jobs.py: hunt -> compute_hunt, mining ->
+                      compute_mining, else the lumber trip shape; tz = minutes east of UTC for the
+                      per-day split, default the server's local offset), cached 2 s
   GET  /api/jobs/plan  {plan, store}: the lumber optimizer's plan (jobs.lumber_plan, all
                       history), recomputed once a minute; the Jobs page loads it on its own
   GET  /api/fos/reapers  the Field of Souls reaper heatmap (fos_field.reaper_map: field geometry,

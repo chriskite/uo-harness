@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addDays, boardsRateSeries, eventView, legText, localDay, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals, type JobTrip } from "./jobs.ts";
+import { addDays, boardsRateSeries, eventView, legEnd, legText, localDay, miningKpis, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals, type JobTrip, type MiningTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -215,6 +215,44 @@ describe("huntKpis", () => {
   test("fmtInt", () => {
     expect(fmtInt(null)).toBe("—");
     expect(fmtInt(1234.6)).toBe("1,235");
+  });
+});
+
+function miningTotals(p: Partial<MiningTotals> = {}): MiningTotals {
+  return {
+    legs: 0, stored: 0, hopped: 0, aborted: 0, field_s: 0, field_hours: 0, ore: 0, ingots_made: 0, attempts: 0,
+    successes: 0, doubles: 0, smelts: 0, dry: 0, deaths: 0, sent_home: 0, ore_per_hour: null, success_rate: null,
+    stands: 0, first_t: null, last_t: null, ...p,
+  };
+}
+
+describe("miningKpis / legEnd", () => {
+  test("ore, ingots, ore per field hour, field hours, dig success and the carried ingots", () => {
+    const by = Object.fromEntries(
+      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1 }), {
+        ingots: 1000, t: 81600, spot: "B", label: "ingots carried (never stored)",
+      }).map((x) => [x.key, x]),
+    );
+    expect([by.ore!.value, by.ore!.sub]).toEqual(["500", "435 digs landed · 60 doubles"]);
+    expect([by.ingots!.value, by.ingots!.sub]).toEqual(["1,000", "6 smelts"]);
+    expect(by.oph!.value).toBe("316");
+    expect([by.field!.value, by.field!.sub]).toEqual(["1.58 h", "1h 35m"]);
+    expect([by.rate!.value, by.rate!.sub]).toEqual(["67%", "650 digs"]);
+    expect([by.carried!.value, by.carried!.tone]).toEqual(["1,000", "info"]);
+    expect([by.legs!.sub, by.threats!.value, by.threats!.tone]).toEqual(["1 hopped · 1 aborted", "0 · 1", "warn"]);
+  });
+  test("empty range: dashes for rates and the carried ingots, safety tile ok", () => {
+    const by = Object.fromEntries(miningKpis(miningTotals(), null).map((x) => [x.key, x]));
+    expect([by.ore!.value, by.oph!.value, by.rate!.value, by.carried!.value, by.carried!.tone]).toEqual(["0", "—", "—", "—", "dim"]);
+    expect([by.ingots!.sub, by.threats!.tone]).toEqual(["0 smelts", "ok"]);
+  });
+  test("legEnd: death and threat first, else the outcome with why the digging stopped", () => {
+    const base = { outcome: "stored", dry: false, time_up: false, creature_blocked: false, died: false, sent_home: false };
+    expect(legEnd({ ...base, dry: true, outcome: "hopped" })).toEqual({ text: "hopped · dry", tone: "info" });
+    expect(legEnd({ ...base, time_up: true })).toEqual({ text: "stored · time up", tone: "ok" });
+    expect(legEnd({ ...base, outcome: "aborted" })).toEqual({ text: "aborted", tone: "warn" });
+    expect(legEnd({ ...base, outcome: "aborted", sent_home: true })).toEqual({ text: "threat", tone: "warn" });
+    expect(legEnd({ ...base, outcome: "aborted", died: true, sent_home: false })).toEqual({ text: "died", tone: "bad" });
   });
 });
 

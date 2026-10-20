@@ -22,11 +22,12 @@ import {
 import { EventStrip, LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
 import { Badge, Panel, Skeleton } from "./common.tsx";
 import { HuntJobs } from "./HuntJobs.tsx";
+import { MiningJobs } from "./MiningJobs.tsx";
 import { fetchLumber, JobsHead, JobsLoading, useJobPoll, usePlan, type JobDashboardProps, type JobKind, type PlanState } from "./JobsCommon.tsx";
 
 /** The Jobs page: one dashboard per job, picked by the switch in its head, over the head's date range. */
 export function JobsPage({ job, ...props }: JobDashboardProps & { job: JobKind }) {
-  return job === "hunt" ? <HuntJobs {...props} /> : <LumberJobs {...props} />;
+  return job === "hunt" ? <HuntJobs {...props} /> : job === "mining" ? <MiningJobs {...props} /> : <LumberJobs {...props} />;
 }
 
 /** Lumber job dashboard from /api/jobs?job=lumber (harness/jobs.py compute). */

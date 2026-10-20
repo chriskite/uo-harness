@@ -57,12 +57,13 @@ function SideRail({ side, hidden, label, onToggle }: { side: "left" | "right"; h
   );
 }
 
-/** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #nystul, #razor, with
+/** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #jobs/mining, #nystul, #razor, with
  *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all), so they survive reloads and can be linked. No dates = today. */
 function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
   const [path = "", query = ""] = location.hash.split("?", 2);
   const range = routeRange(query, localDay(Date.now() / 1000));
   if (path === "#jobs/hunt") return { page: "Jobs", job: "hunt", range };
+  if (path === "#jobs/mining") return { page: "Jobs", job: "mining", range };
   if (path === "#nystul") return { page: "Nystul", job: "lumber", range };
   if (path === "#razor") return { page: "Razor", job: "lumber", range };
   return { page: path === "#jobs" ? "Jobs" : "Live", job: "lumber", range };
@@ -124,7 +125,7 @@ export function App() {
           ? "nystul"
           : p === "Razor"
             ? "razor"
-            : (job === "hunt" ? "jobs/hunt" : "jobs") + (q ? `?${q}` : "");
+            : (job === "lumber" ? "jobs" : `jobs/${job}`) + (q ? `?${q}` : "");
     setRoute({ page: p, job, range });
   };
 

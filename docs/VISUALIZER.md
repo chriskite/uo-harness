@@ -342,8 +342,8 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
   → `{"ok": true, "id": N}`; without `char` the row is unscoped and every character's overseer sees it.
   Text must be a string of 1..2000 characters after trimming; anything else is **400**, and bodies
   over 64 KiB are **413**. Besides this, the viz writes only the captcha mode (§2.2a).
-- `GET /api/jobs?job=lumber|hunt[&since=T][&until=T][&tz=M]` → `harness/jobs.py` `analytics()`
-  plus `store` (`hunt` gets the hunt shape below, any other job the trip shape). `since`/`until`
+- `GET /api/jobs?job=lumber|hunt|mining[&since=T][&until=T][&tz=M]` → `harness/jobs.py` `analytics()`
+  plus `store` (`hunt` and `mining` get their shapes below, any other job the trip shape). `since`/`until`
   bound the range [since, until) in epoch seconds (no `until` = open-ended); a non-finite value or
   `until` <= `since` is **400**. `tz` is minutes east of UTC for the per-day split (the browser
   sends its own; default the server's local offset). Cached 2 s per (job, since, until, tz).
@@ -391,8 +391,8 @@ indexes of docs/MEMORY.md "Indexes for time-range reads".
   price. A trip without a `woods` breakdown counts all its logs as `ordinary`, since the Shelter
   Island loop only chops ordinary trees. Logs of a wood with no known value are counted in
   `value_unpriced_logs` and never priced by guess. The value is null when no log could be priced.
-- CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt] [--since T]` prints totals, days and
-  harvest outcomes (hunt: totals, days and monsters).
+- CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt|mining] [--since T]` prints totals, days and
+  harvest outcomes (hunt: totals, days and monsters; mining: totals, days, spots and carried_now).
 
 **Lumber optimizer analytics (added 2026-10-03, user request: the dashboard shows what the
 self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
@@ -437,6 +437,27 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
 - **Timeline:** every hunt event except `kill`/`loot` (deaths, leaves, speech holds and resumes).
 - Per day: visits, active time, kills, gold, XP, gold/kill, hits lost, deaths, speech holds.
 
+**Mining analytics (`jobs.compute_mining`, pure; added 2026-10-19).** Inputs: `Memory.episodes("mining")`
+(one row per leg of `harness/loop_mining.py`, docs/NOTES.md "The mining runner") and the mining job events.
+- **Field time** is `mining_opt.trip_obs`'s, imported rather than copied, so the dashboard and the
+  planner (`ctl mining plan`) measure the same thing: the leg's `phases_s.harvest` less `walk_out_s`
+  and `lockout_s`. A leg without `t_start`/`t_end` has none and stays out of the rates; its ore still
+  counts in the totals.
+- **Rates:** ore per field hour over the legs with field time; digs land = `successes / attempts`
+  (busy and lockout replies are never counted as digs by the runner).
+- **Deaths and threats** are `trip_obs`'s too, read off each leg's `why`: died, or sent home by a threat
+  (`threat:`, escaped by recall, fled into the guards, a creature recall).
+- **Per leg:** spot, trip and leg number, outcome (`stored` / `hopped` / `aborted`) and why, ore,
+  digs, smelts, ingots made, field time and ore/hr, dry / time_up / creature_blocked, and
+  `carried_end.ingots`; the `stand` and `smelt` events inside it are counted on the row.
+- **Totals:** legs by outcome, field hours, ore, ingots made, ore/hr, digs, success rate, doubles, smelts,
+  dry legs, deaths, threats that sent us home, stands worked (`stand` events).
+- **Per day** (the local day of `t_start`) and **per spot** (legs, ore, ore/hr, dry legs, the newest leg's
+  end) carry the same figures.
+- **`carried_now`:** the newest leg in the range's `carried_end.ingots`, labelled `ingots carried (never
+  stored)`: the runner smelts at the spot's forge and keeps the ingots in the trapped pouch.
+- **Timeline:** every mining event except `stand`/`smelt` (hops, deaths, PK sightings, recalls, flees).
+
 **UI**
 - **Page switch** in the header: `Live` (the layout of §4) and `Jobs`. The page is kept in the URL
   hash (`#jobs`), so a reload or a link keeps it.
@@ -457,13 +478,13 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     and that messages wait in the store until then.
   - Compose: Enter sends, Shift+Enter adds a new line, with an `n/2000` counter. It uses the same
     validation as the server.
-- **Jobs page:** one dashboard per job, switched in its head (`Lumber` / `Hunting`). Both refresh
-  every 15 s or with ↻.
-  - **Date range** (2026-10-05, user request), a row under the head shared by both jobs: presets
+- **Jobs page:** one dashboard per job, switched in its head (`Lumber` / `Hunting` / `Mining`). All
+  refresh every 15 s or with ↻.
+  - **Date range** (2026-10-05, user request), a row under the head shared by all jobs: presets
     `All`, `Today`, `7 days`, `30 days` (the last N local days including today, open-ended so new
     trips keep showing) and a `from`/`to` pair of local dates, both inclusive (`to`'s `min` is
     `from`). It lives in the hash with the job, so it survives reloads and can be linked:
-    `#jobs?from=2026-10-01&to=2026-10-05`, `#jobs/hunt?from=2026-10-01` (bad dates are dropped, a
+    `#jobs?from=2026-10-01&to=2026-10-05`, `#jobs/hunt?from=2026-10-01`, `#jobs/mining?all` (bad dates are dropped, a
     reversed pair swapped; `viz/src/jobs.ts` `parseRange`). **Default: Today** (2026-10-08, user
     request): a hash with no dates means today, and `All` is the explicit `#jobs?all`
     (`routeRange`/`routeQuery`). The browser turns it into
@@ -556,6 +577,20 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   - Verified in headless Chromium on a copy of the live store (4 visits, 19 mongbat kills, 299 gp,
     1 kill not looted, 5 speech holds): tiles 19 kills (37/hr), 299 gp (538 gp/hr, 16.6/kill),
     299 XP; the Lumber/Hunting switch and a reload kept `#jobs/hunt`; no page errors.
+- **Mining dashboard** (2026-10-19, `components/MiningJobs.tsx`, tiles from `jobs.ts` `miningKpis`):
+  - KPI tiles: ore dug (digs landed, doubles), ingots made (smelts), ore per field hour, field hours, digs
+    land (success rate, digs), ingots carried now (never stored), legs (hopped, aborted), deaths · threats.
+    A line under them says what field time is and that the ingots stay carried.
+  - A spots table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the legs-and-
+    events strip with the event list (hops, threats, deaths).
+  - The legs table, newest first: start, spot, trip · leg, field time, ore, ore/hr, digs (landed), smelts,
+    ingots made, ingots carried, how it ended (`jobs.ts` `legEnd`: died, threat, else the outcome with dry /
+    time up / creature in reach) and the `why`. Then a per-day table.
+  - With no legs in the range the tiles show 0 or `—` and each panel says nothing is recorded yet.
+  - Verified 2026-10-19 in headless Chrome (1600×1000) against a private `viz_server.py --live --state-port 1`
+    (no proxy) on a temp store with 3 synthetic legs (603 ore, 1,206 ingots, a hop off a dry spot, a threat
+    abort): tiles 603 ore, 630 ore/field hr, 67% of 780 digs, 1,206 ingots carried; and on an empty store:
+    clean empty panels; no page errors.
 
 **Verified in headless Chromium, 2026-09-29** (1600×1000; `--replay 20260929_163420 --port 12760
 --no-facet`, on a temp copy of the store holding the 5 real Shelter Island trips, plus seeded chat

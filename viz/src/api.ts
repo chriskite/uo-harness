@@ -4,7 +4,7 @@
 // and the overseer chat (§2.4), the Nystul assistant chat, and the Razor
 // hotkeys page (profiles from the Razor Assistant dir, hotkey saves).
 import { getChar, type Session, withChar } from "./character.ts";
-import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
+import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type MiningResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
 import type { NystulConversation, NystulList, NystulModels } from "./nystul.ts";
 import type { Binding, ProfileDoc, RazorSummary } from "./razor.ts";
 import type { OverseerResponse } from "./overseer.ts";
@@ -44,13 +44,14 @@ export async function postPlayback(action: PlaybackAction): Promise<void> {
  *  `tz` = minutes east of UTC for the per-day split. */
 export function fetchJobs(job: "lumber", tz: number, range: RangeBounds): Promise<JobsResponse>;
 export function fetchJobs(job: "hunt", tz: number, range: RangeBounds): Promise<HuntResponse>;
-export async function fetchJobs(job: string, tz: number, range: RangeBounds): Promise<JobsResponse | HuntResponse> {
+export function fetchJobs(job: "mining", tz: number, range: RangeBounds): Promise<MiningResponse>;
+export async function fetchJobs(job: string, tz: number, range: RangeBounds): Promise<JobsResponse | HuntResponse | MiningResponse> {
   const q = new URLSearchParams({ job, tz: String(tz) });
   if (range.since !== null) q.set("since", String(range.since));
   if (range.until !== null) q.set("until", String(range.until));
   const r = await fetch(`/api/jobs?${q}`, { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/jobs: HTTP ${r.status} ${await r.text()}`);
-  return (await r.json()) as JobsResponse | HuntResponse;
+  return (await r.json()) as JobsResponse | HuntResponse | MiningResponse;
 }
 
 /** The lumber optimizer's plan (seconds to compute when the server's per-minute cache is cold). */

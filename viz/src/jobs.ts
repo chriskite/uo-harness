@@ -912,3 +912,138 @@ export function huntKpis(t: HuntTotals): Kpi[] {
     { key: "hits", label: "hits lost", value: fmtInt(t.hits_lost), sub: `${t.heals} heal${t.heals === 1 ? "" : "s"} · ${t.potions} potion${t.potions === 1 ? "" : "s"}`, tone: "dim" },
   ];
 }
+
+// ------------------------------------------------------------------ mining job
+// /api/jobs?job=mining (harness/jobs.py compute_mining). One row per leg of loop_mining; field
+// time is mining_opt.trip_obs's (harvest phase less the walk out and the lockout). Ingots are
+// never stored: they ride in the trapped pouch, so the newest leg's carried_end is what we hold.
+
+export interface MiningAgg {
+  legs: number;
+  stored: number;
+  hopped: number;
+  aborted: number;
+  field_s: number;
+  field_hours: number;
+  ore: number;
+  ingots_made: number;
+  attempts: number;
+  successes: number;
+  doubles: number;
+  smelts: number;
+  /** legs that ended with the area dry */
+  dry: number;
+  deaths: number;
+  /** legs a threat sent home (recall, guards, threat:) */
+  sent_home: number;
+  /** ore per field hour over the legs with field time; null with none */
+  ore_per_hour: number | null;
+  success_rate: number | null;
+}
+
+export interface MiningTotals extends MiningAgg {
+  /** stands worked (stand job events) */
+  stands: number;
+  first_t: number | null;
+  last_t: number | null;
+}
+
+export interface MiningDay extends MiningAgg {
+  day: string;
+}
+
+export interface MiningSpot extends MiningAgg {
+  spot: string;
+  /** end of the spot's newest leg (its start when it has no end) */
+  last_t: number | null;
+}
+
+export interface MiningLeg {
+  /** 1-based over all legs in the answer */
+  n: number;
+  trip: number | null;
+  leg: number | null;
+  t_start: number | null;
+  t_end: number | null;
+  duration_s: number | null;
+  spot: string | null;
+  outcome: string | null;
+  why: string | null;
+  ore: number;
+  ingots_made: number;
+  smelts: number;
+  attempts: number;
+  successes: number;
+  doubles: number;
+  /** null without t_start/t_end */
+  field_s: number | null;
+  ore_per_hour: number | null;
+  dry: boolean;
+  time_up: boolean;
+  creature_blocked: boolean;
+  died: boolean;
+  sent_home: boolean;
+  /** carried_end.ingots: ingots in the pack when the leg ended */
+  ingots_carried: number | null;
+  events: Record<string, number>;
+}
+
+export interface CarriedNow {
+  ingots: number;
+  t: number | null;
+  spot: string | null;
+  label: string;
+}
+
+export interface MiningResponse {
+  job: "mining";
+  since: number;
+  until: number | null;
+  utc_offset_s: number;
+  window_s: number;
+  store: boolean;
+  legs: MiningLeg[];
+  totals: MiningTotals;
+  days: MiningDay[];
+  spots: MiningSpot[];
+  /** the newest leg's carried_end.ingots in the range; null with no leg that records it */
+  carried_now: CarriedNow | null;
+  /** job events except the per-stand ones (stand, smelt) */
+  events: JobEvent[];
+}
+
+/** How a leg ended in a few words: "dry", "time up", "creature in reach", else the outcome. */
+export function legEnd(l: Pick<MiningLeg, "outcome" | "dry" | "time_up" | "creature_blocked" | "died" | "sent_home">): { text: string; tone: Tone } {
+  if (l.died) return { text: "died", tone: "bad" };
+  if (l.sent_home) return { text: "threat", tone: "warn" };
+  const why = l.dry ? "dry" : l.time_up ? "time up" : l.creature_blocked ? "creature in reach" : null;
+  const out = l.outcome ?? "?";
+  return { text: why ? `${out} · ${why}` : out, tone: outcomeKind(l.outcome) };
+}
+
+/** The mining KPI tile row, in display order. */
+export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
+  const hours = fmtHours(t.field_s);
+  return [
+    { key: "ore", label: "ore dug", value: fmtInt(t.ore), sub: `${fmtInt(t.successes)} digs landed · ${fmtInt(t.doubles)} doubles`, tone: "info", hint: "Ore dug over the legs in the range (a double gives 2)." },
+    { key: "ingots", label: "ingots made", value: fmtInt(t.ingots_made), sub: `${t.smelts} smelt${t.smelts === 1 ? "" : "s"}`, tone: "info", hint: "Ingots the field smelts made at the spots' forges." },
+    { key: "oph", label: "ore / field hr", value: fmtNum(t.ore_per_hour, 0), sub: "the planner's rate", tone: "info", hint: "Ore per field hour: the harvest phase less the walk out and the travel lockout (mining_opt.trip_obs)." },
+    { key: "field", label: "field hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of the legs' field time." },
+    {
+      key: "rate", label: "digs land", value: t.success_rate === null ? "—" : `${Math.round(t.success_rate * 100)}%`, sub: `${fmtInt(t.attempts)} digs`, tone: "dim",
+      hint: "Successful digs over all counted digs (success + fail; busy and lockout replies don't count).",
+    },
+    {
+      key: "carried", label: "ingots carried", value: carried ? fmtInt(carried.ingots) : "—", sub: "never stored", tone: carried ? "info" : "dim",
+      hint: "Ingots in the pack (the trapped pouch) when the newest leg ended. They are never stored: a death loses them.",
+    },
+    {
+      key: "legs", label: "legs", value: String(t.legs), sub: `${t.hopped} hopped · ${t.aborted} aborted`, tone: "dim",
+      hint: `Legs that started in the range, aborted ones included: ${t.stored} ended at home, ${t.hopped} hopped on to another spot, ${t.aborted} aborted.`,
+    },
+    {
+      key: "threats", label: "deaths · threats", value: `${t.deaths} · ${t.sent_home}`, sub: "threats sent us home", tone: t.deaths ? "bad" : t.sent_home ? "warn" : "ok",
+      hint: "Legs that ended in a death, and legs a threat sent home (recall, the guards, a threat: reason).",
+    },
+  ];
+}
