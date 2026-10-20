@@ -14,6 +14,7 @@ import type { JobKind } from "./components/JobsCommon.tsx";
 import { LivePanel } from "./components/LivePanel.tsx";
 import { LumberJobPanel } from "./components/LumberJobPanel.tsx";
 import { MapGrid } from "./components/MapGrid.tsx";
+import { MiningJobPanel } from "./components/MiningJobPanel.tsx";
 import { MovementPanel } from "./components/MovementPanel.tsx";
 import { NystulChat, useNystul } from "./components/NystulChat.tsx";
 import { NystulPage } from "./components/NystulPage.tsx";
@@ -25,6 +26,7 @@ import { TrafficPanel } from "./components/TrafficPanel.tsx";
 import { runningHunt } from "./huntjob.ts";
 import { localDay, parseRange, rangeQuery, routeQuery, routeRange, type DateRange } from "./jobs.ts";
 import { runningLumber } from "./lumberjob.ts";
+import { runningMining } from "./miningjob.ts";
 import { useViz } from "./store.ts";
 
 const TABS = ["Inspector", "Gumps", "Census", "Diagnostics", "Movement", "Events"] as const;
@@ -86,6 +88,7 @@ export function App() {
   };
   const lumber = runningLumber(viz.state?.intent);
   const hunt = runningHunt(viz.state?.intent);
+  const mining = runningMining(viz.state?.intent);
   const [route, setRoute] = useState(routeFromHash);
   const page = route.page;
   const [tab, setTab] = useState<Tab>("Inspector");
@@ -174,6 +177,7 @@ export function App() {
           <PaperdollPanel viz={viz} />
           {lumber && <LumberJobPanel intent={lumber} viz={viz} />}
           {hunt && <HuntJobPanel intent={hunt} viz={viz} />}
+          {mining && <MiningJobPanel intent={mining} viz={viz} />}
         </aside>
       )}
       {liveMain ? (

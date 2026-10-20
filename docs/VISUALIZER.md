@@ -472,6 +472,10 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   runner smelts at the spot's forge and, at each trip's end at home, drops the ingots into the room's
   Resource Stockpile (its Restock, cursor answered with the backpack); so this is what was still in the
   pack when that leg ended (after a hop or abort, or what the stockpile didn't take).
+- **`open_leg`** (added 2026-10-20 for the Mining job pane, §2.19): the `stand` and `smelt` events after the
+  newest leg's `t_end` (all of them with no leg), `{since, stands, smelts, ingots_made}`. Smelts count only
+  `ok` ones, as the runner's `smelts`. While a run is going that is the leg in progress: its row is
+  written only when it ends.
 - **Timeline:** every mining event except `stand`/`smelt` (hops, deaths, PK sightings, recalls, flees).
 
 **UI**
@@ -1084,6 +1088,50 @@ sound?"
   - after the ejection the state's `field` was null and the badge gone;
   - the replay printed "90 s left in the Field of Souls" at the warning.
 
+### 2.19 Mining job pane (added 2026-10-20, user request)
+
+A **Mining job** panel in the left column, below the Paperdoll (where the Lumber and Hunt job panes go),
+shows while a mining run is going: the current intent has `loop: "mining"` and a kind other than `done`,
+`break_due` or `stopped` (`trip_done` is between trips and keeps it). Running is decided from the intent
+alone, as §2.11.
+- **Status line:** what the run is doing, from the intent kind: `heading out`, `digging` (`to_stand`,
+  `dig`), `to the forge` / `smelting`, `lockout`, `escaping`, `hopping` (`hop_plan`, `hop`) or `home`
+  (recall home, the room, the stockpile, `trip_done`). Kinds that happen anywhere (`captcha`, `speech`,
+  `track`) take the newest earlier history entry with a phase. Then the spot id and the target tile.
+- **This trip:**
+  - **Ore/hr now:** the ore dug over the last 5 min at the spot, per hour (`currentOreRate`), next to
+    the spot's all-time field rate. It works like the lumber pane's rate, with these differences:
+    - The tally is the runner's per-leg ore count in its `to_stand`/`dig` texts ("Mining by x,y (N ore)").
+      The intent carries no ore field, so no proxy or runner change was needed.
+    - Smelting, escapes and captchas are field time (as `mining_opt.trip_obs`). They keep the last tally.
+    - The field run starts at the end of the last step away from the spot or of the travel lockout. A new
+      leg (heading out, a hop) starts again at 0.
+  - **Ore dug:** the trip's finished legs plus the leg in progress (its tally from the intent).
+  - **Smelts · ingots made:** the finished legs' plus `open_leg`'s (§2.4). It shows "—" on a viz server
+    older than `open_leg`.
+- **Carried now**, from the live snapshot:
+  - ore (`0x19B7`-`0x19BA`) and ingots (`0x1BF2`): stack amounts at any depth in the backpack, so the
+    trapped pouches count;
+  - pickaxes (`0x0E85`/`0x0E86`) worn and in the backpack;
+  - ingots stored today: today's `ingots_stored` from the per-day rows.
+- **Legs this trip:** each finished leg's number, spot, ore, field ore/hr and end (`legEnd`, as on the Jobs
+  page), then the leg in progress marked `now`; below, the spot's all-time legs, ore, ore/hr and dry legs.
+  - The trip's legs are the newest leg rows with the intent's trip number. Their leg numbers count down
+    to 1, and each but the newest hopped on. A row that didn't hop ends a trip, so it is the newest only
+    at `trip_done`.
+  - Rows that started before the newest history entry of another trip or loop are left out. That drops
+    an earlier run's trip with the same number.
+- It polls the all-time `/api/jobs?job=mining` every 15 s only while it is shown (`useJobPoll`).
+- `viz/src/miningjob.ts` is the pure model (bun tests); `components/MiningJobPanel.tsx` draws it. Python:
+  `test_viz.py` `test_mining_jobs` (`open_leg`).
+- Verified in headless Chrome against the live viz (Outland Dan mining `forge_2616_662`, trip 1/1):
+  - "digging", 1948 ore/hr over 2:55, 95 ore dug;
+  - carried: 95 ore, 0 ingots, 1 pickaxe worn and 2 in the pack;
+  - stored today: 5,294 ingots; leg 1 `now`;
+  - smelts "—", since the stack's viz server predates `open_leg`.
+  - A second viz server (port 8099) on the same proxy and store showed `0 · 0` smelts with
+    `open_leg` `{stands: 7, smelts: 0}`.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -1116,6 +1164,8 @@ fixtures ("replay X, state at event N").
 │ (lumber run) │                                          │ count, compose)  │
 │ Hunt job     │                                          │                  │
 │ (hunt run)   │                                          │                  │
+│ Mining job   │                                          │                  │
+│ (mining run) │                                          │                  │
 │              │                                          │                  │
 ├──────────────┴──────────────────────────────────────────┴──────────────────┤
 │ ▸ details — Containers · Inspector · Gumps · Census · Diagnostics ·        │
@@ -1283,6 +1333,7 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
 | `viz/src/jobs.ts`, `chart.ts`, `components/JobsPage.tsx`, `components/Charts.tsx` | Jobs page view model (KPIs, event wording, theft rule, wood shares), SVG chart geometry, the dashboard and its charts (§2.4) |
 | `viz/src/lumberjob.ts`, `components/LumberJobPanel.tsx` | left-column Lumber job pane: run/leg detection, spot trips and wood mixes, and the panel (§2.11) |
 | `viz/src/huntjob.ts`, `components/HuntJobPanel.tsx` | left-column Hunt job pane: run detection, the damage/tally stream fold, gold and kills per hour, damage per second by side, and the panel (§2.16) |
+| `viz/src/miningjob.ts`, `components/MiningJobPanel.tsx` | left-column Mining job pane: run/phase detection, the ore tally and ore per hour from the intent texts, this trip's legs, what is carried, and the panel (§2.19) |
 | `viz/src/grove.ts` | the map's lumber grove layer: query choice, tree lookup and hover text (§2.12) |
 | `harness/nystul.py`, `nystul_ext.ts`, `nystul_tools.py`, `nystul_memory.py`, `nystul_prompt.md`, `test_nystul.py` | Nystul the Wizard: conversations and omp runs, the omp extension, the read-only tool boundary, Codex proposals (validate/apply), the system prompt, tests (§2.13) |
 | `viz/src/nystul.ts`, `markdown.ts`, `components/NystulChat.tsx`, `NystulPage.tsx`, `Markdown.tsx` | Nystul view model (validation, step labels, run summary), the markdown parser, the chat, page and renderer (§2.13) |

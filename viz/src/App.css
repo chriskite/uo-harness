@@ -2379,7 +2379,8 @@ ol.job-events li {
   flex-wrap: wrap;
 }
 .lumber-job h3,
-.hunt-job h3 {
+.hunt-job h3,
+.mining-job h3 {
   margin: 8px 0 4px;
 }
 .lj-rate {
@@ -2416,6 +2417,13 @@ ol.job-events li {
 }
 .hunt-job td.ended {
   max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the left-column Mining job pane: long spot ids in the legs table */
+.mining-job td.ml-spot {
+  max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
