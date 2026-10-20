@@ -27,7 +27,7 @@
   logs/hr, deaths by cause, thefts, value from woods and the board price
   history (as of each trip's end), since filter, determinism; hunt visits;
   mining legs (field time as mining_opt.trip_obs, per day at a local midnight,
-  per spot, ingots carried)
+  per spot, ingots carried, ingots valued per metal from ingot:<metal> price rows)
 - /api/jobs, /api/overseer (cursors, newest-200 window, open junctures,
   heartbeat; per character: ?char=<serial> scopes rows and heartbeat, names -> 400),
   POST /api/chat (stored as a user row, with `char` its char_serial; empty / whitespace / too
@@ -511,12 +511,23 @@ def test_mining_jobs():
     leg("A", 2, 1, "aborted", "threat: PK in view", DAY - tz - 1200, DAY - tz - 700, 400.0, 0.0, 100.0,
         30, 40, 25, 0, 0, 0, 640)
     leg("B", 3, 1, "stored", "", DAY - tz + 600, DAY - tz + 2400, 1800.0, 0.0, 0.0, 150, 200, 130, 20, 1, 360, 10,
-        stored=990, stockpiled=990)
+        stored=990, stockpiled=990, ingots_by_metal={"iron": 300, "valorite": 60},
+        stored_by_metal={"iron": 900, "valorite": 90})
+    # ingot:iron 20 gp from t 4000 (after leg 1's end: leg 1 takes the first row), 30 gp from local midnight
+    # (after leg 3's end, before leg 4's); valorite has no row; a board row is not an ingot price
+    m.price_record("ingot:iron", 20, "vendor", t=4000.0)
+    m.price_record("ingot:iron", 30, "user", t=DAY - tz)
+    m.price_record("board:ordinary", 99, "vendor", t=100.0)
     m.episode("lumber", {"trip": 1, "t_start": 1500.0, "t_end": 1600.0, "logs": 9})
     m.job_event("mining", "stand", {"trip": 1, "spot": "A", "ore": 60}, t=1500.0)
     m.job_event("mining", "smelt", {"ore": 120, "ingots": 240, "ok": True}, t=2000.0)
     m.job_event("mining", "pk_seen", {"name": "Bob"}, t=DAY - tz - 1000)
     m.job_event("lumber", "death", {"cause": "pk"}, t=1500.0)
+    # the leg in progress after the newest leg (ended DAY - tz + 2400): 2 stands, a smelt, a failed smelt
+    m.job_event("mining", "stand", {"trip": 1, "spot": "B", "ore": 12}, t=DAY - tz + 2500)
+    m.job_event("mining", "smelt", {"ore": 30, "ingots": 60, "ok": True}, t=DAY - tz + 2600)
+    m.job_event("mining", "stand", {"trip": 1, "spot": "B", "ore": 18}, t=DAY - tz + 2700)
+    m.job_event("mining", "smelt", {"ok": False, "reason": "forge doesn't smelt"}, t=DAY - tz + 2800)
     a = jobs.analytics(m, "mining", 0, utc_offset_s=tz)
     t = a["totals"]
     check("mining totals: 4 legs (1 hopped, 2 stored, 1 aborted kept), 500 ore, 1000 ingots, 1630 stored, digs and smelts summed",
@@ -553,7 +564,36 @@ def test_mining_jobs():
           [(r["outcome"], r["dry"], r["time_up"]) for r in a["legs"]]
           == [("hopped", True, False), ("stored", False, True), ("aborted", False, False), ("stored", False, False)]
           and a["legs"][2]["why"] == "threat: PK in view" and a["legs"][0]["events"] == {"stand": 1, "smelt": 1}
-          and [e["kind"] for e in a["events"]] == ["pk_seen"] and t["stands"] == 1, str([r["events"] for r in a["legs"]]))
+          and [e["kind"] for e in a["events"]] == ["pk_seen"] and t["stands"] == 3, str([r["events"] for r in a["legs"]]))
+    check("open leg: the stand/smelt events after the newest leg's end (failed smelts aside)",
+          a["open_leg"] == {"since": DAY - tz + 2400, "stands": 2, "smelts": 1, "ingots_made": 60}, str(a["open_leg"]))
+    iron20, iron30 = {"gp": 20.0, "t": 4000.0, "source": "vendor"}, {"gp": 30.0, "t": DAY - tz, "source": "user"}
+    check("leg metals: old rows all iron from ingots_made/stockpiled; new rows from the by-metal fields",
+          [(r["metals_made"], r["metals_stored"]) for r in a["legs"]]
+          == [({"iron": 240}, {}), ({"iron": 400}, {"iron": 640}), ({}, {}),
+              ({"iron": 300, "valorite": 60}, {"iron": 900, "valorite": 90})], str([r["metals_made"] for r in a["legs"]]))
+    check("leg prices: before the first row the first row (20), between (20), after the second (30); valorite none",
+          [r["ingot_prices"] for r in a["legs"]]
+          == [{"iron": iron20}, {"iron": iron20}, {}, {"iron": iron30, "valorite": None}],
+          str([r["ingot_prices"] for r in a["legs"]]))
+    check("leg gold: stored and made at the leg's prices, null when nothing priced, valorite unpriced",
+          [(r["value_gp"], r["made_value_gp"], r["value_unpriced_ingots"], r["made_unpriced_ingots"]) for r in a["legs"]]
+          == [(None, 4800.0, 0, 0), (12800.0, 8000.0, 0, 0), (None, None, 0, 0), (27000.0, 9000.0, 90, 60)],
+          str([(r["value_gp"], r["made_value_gp"]) for r in a["legs"]]))
+    check("gold totals: 39800 stored, 21800 made, 90 unpriced; gp/field h = 21800 over 5700 s",
+          (t["value_gp"], t["made_value_gp"], t["value_unpriced_ingots"], t["made_unpriced_ingots"], t["gp_per_field_hour"])
+          == (39800.0, 21800.0, 90, 60, round(21800 * 3600 / 5700, 2)), str(t))
+    check("gold per day: 01-01 12800 stored / 12800 made over 3900 s; 01-02 27000 / 9000 over 1800 s, 90 unpriced",
+          [(d["value_gp"], d["made_value_gp"], d["value_unpriced_ingots"], d["gp_per_field_hour"]) for d in a["days"]]
+          == [(12800.0, 12800.0, 0, round(12800 * 3600 / 3900, 2)), (27000.0, 9000.0, 90, 18000.0)],
+          str(a["days"]))
+    check("gold per spot: B 39800 stored, A none stored",
+          (sp["B"]["value_gp"], sp["A"]["value_gp"], sp["A"]["made_value_gp"]) == (39800.0, None, 4800.0), str(a["spots"]))
+    check("metals table: iron (price now 30, user) with its legs' gp, valorite unpriced",
+          t["metals"] == [{"name": "iron", "made": 940, "stored": 1540, "made_gp": 21800.0, "stored_gp": 39800.0,
+                           "price_gp": 30.0, "price_t": DAY - tz, "price_source": "user"},
+                          {"name": "valorite", "made": 60, "stored": 90, "made_gp": None, "stored_gp": None,
+                           "price_gp": None, "price_t": None, "price_source": None}], str(t["metals"]))
     upto = jobs.analytics(m, "mining", 0, DAY - tz, utc_offset_s=tz)
     check("until local midnight: legs 1-3, carried now = leg 3's 640",
           (upto["totals"]["legs"], upto["carried_now"]["ingots"]) == (3, 640), str(upto["totals"]["legs"]))
@@ -561,7 +601,10 @@ def test_mining_jobs():
     check("no store: zeros and nulls, no carried ingots, no division errors",
           empty["legs"] == [] and empty["days"] == [] and empty["spots"] == [] and empty["carried_now"] is None
           and empty["totals"]["ore"] == 0 and empty["totals"]["ore_per_hour"] is None
-          and empty["totals"]["success_rate"] is None and empty["totals"]["first_t"] is None, str(empty["totals"]))
+          and empty["totals"]["success_rate"] is None and empty["totals"]["first_t"] is None
+          and empty["totals"]["value_gp"] is None and empty["totals"]["gp_per_field_hour"] is None
+          and empty["totals"]["metals"] == []
+          and empty["open_leg"] == {"since": None, "stands": 0, "smelts": 0, "ingots_made": 0}, str(empty["totals"]))
     m.close()
 
 

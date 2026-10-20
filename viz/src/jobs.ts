@@ -918,6 +918,8 @@ export function huntKpis(t: HuntTotals): Kpi[] {
 // time is mining_opt.trip_obs's (harvest phase less the walk out and the lockout). At each trip's
 // end the runner drops the ingots into the room's Resource Stockpile (ingots_stored); the newest
 // leg's carried_end is what was still in the pack (after a hop or abort, or what the stockpile left).
+// Gold: each leg's ingots per metal at the store's newest ingot:<metal> price at or before the leg's
+// end (the first row before it); a metal with no row is unpriced, never guessed.
 
 export interface MiningAgg {
   legs: number;
@@ -942,6 +944,27 @@ export interface MiningAgg {
   /** ore per field hour over the legs with field time; null with none */
   ore_per_hour: number | null;
   success_rate: number | null;
+  /** the ingots stored at each leg's prices; null when none could be priced */
+  value_gp: number | null;
+  /** the ingots made at each leg's prices; null when none could be priced */
+  made_value_gp: number | null;
+  /** stored ingots of a metal without any ingot:<metal> price row */
+  value_unpriced_ingots: number;
+  made_unpriced_ingots: number;
+  /** made_value_gp per field hour over the legs with field time; null when nothing made was priced */
+  gp_per_field_hour: number | null;
+}
+
+/** One metal of the range: ingots made and stored, the price now (newest ingot:<metal> row), the gp at the legs' own prices. */
+export interface MetalRow {
+  name: string;
+  made: number;
+  stored: number;
+  made_gp: number | null;
+  stored_gp: number | null;
+  price_gp: number | null;
+  price_t: number | null;
+  price_source: string | null;
 }
 
 export interface MiningTotals extends MiningAgg {
@@ -949,6 +972,8 @@ export interface MiningTotals extends MiningAgg {
   stands: number;
   first_t: number | null;
   last_t: number | null;
+  /** per metal, most made first; absent from viz servers older than 2026-10-20 */
+  metals?: MetalRow[];
 }
 
 export interface MiningDay extends MiningAgg {
@@ -976,6 +1001,15 @@ export interface MiningLeg {
   ingots_made: number;
   /** the leg row's stockpiled: ingots that went into the room's Resource Stockpile; 0 when absent */
   ingots_stored: number;
+  /** {metal: ingots}; rows without the by-metal fields count everything as iron */
+  metals_made: Record<string, number>;
+  metals_stored: Record<string, number>;
+  value_gp: number | null;
+  made_value_gp: number | null;
+  value_unpriced_ingots: number;
+  made_unpriced_ingots: number;
+  /** {metal: the per-ingot price the values used, null = unpriced} */
+  ingot_prices: Record<string, BoardPrice | null>;
   smelts: number;
   attempts: number;
   successes: number;
@@ -1000,6 +1034,16 @@ export interface CarriedNow {
   label: string;
 }
 
+/** The stand and smelt events after the newest leg's end: the leg in progress while a run is going. */
+export interface OpenLeg {
+  /** the newest leg's t_end; null with no leg */
+  since: number | null;
+  stands: number;
+  /** smelts that worked (ok not false) */
+  smelts: number;
+  ingots_made: number;
+}
+
 export interface MiningResponse {
   job: "mining";
   since: number;
@@ -1013,6 +1057,8 @@ export interface MiningResponse {
   spots: MiningSpot[];
   /** the newest leg's carried_end.ingots in the range; null with no leg that records it */
   carried_now: CarriedNow | null;
+  /** absent from viz servers older than 2026-10-20 */
+  open_leg?: OpenLeg;
   /** job events except the per-stand ones (stand, smelt) */
   events: JobEvent[];
 }
@@ -1026,6 +1072,13 @@ export function legEnd(l: Pick<MiningLeg, "outcome" | "dry" | "time_up" | "creat
   return { text: why ? `${out} · ${why}` : out, tone: outcomeKind(l.outcome) };
 }
 
+/** "30 gp/ingot (user, 2026-10-20)"; "unpriced" for a null price. */
+export function fmtIngotPrice(m: Pick<MetalRow, "price_gp" | "price_t" | "price_source">): string {
+  if (m.price_gp === null) return "unpriced";
+  const when = m.price_t === null ? "" : `, ${new Date(m.price_t * 1000).toLocaleDateString("en-CA")}`;
+  return `${m.price_gp} gp/ingot (${m.price_source ?? "?"}${when})`;
+}
+
 /** The mining KPI tile row, in display order. */
 export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
   const hours = fmtHours(t.field_s);
@@ -1033,7 +1086,15 @@ export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
     { key: "ore", label: "ore dug", value: fmtInt(t.ore), sub: `${fmtInt(t.successes)} digs landed · ${fmtInt(t.doubles)} doubles`, tone: "info", hint: "Ore dug over the legs in the range (a double gives 2)." },
     { key: "ingots", label: "ingots made", value: fmtInt(t.ingots_made), sub: `${t.smelts} smelt${t.smelts === 1 ? "" : "s"}`, tone: "info", hint: "Ingots the field smelts made at the spots' forges." },
     { key: "stored", label: "ingots stored", value: fmtInt(t.ingots_stored), sub: "into the stockpile", tone: "info", hint: "Ingots the runner put into the room's Resource Stockpile at the trips' ends (Restock with the backpack)." },
+    {
+      key: "gold", label: "gold stored", value: fmtGp(t.value_gp), sub: t.value_unpriced_ingots > 0 ? `${fmtInt(t.value_unpriced_ingots)} ingots unpriced` : "at each leg's prices", tone: "info",
+      hint: "The ingots stored, each metal at the store's newest ingot:<metal> price (ctl price rows) as of the leg's end (the first row for legs before it). Legs without a by-metal count are all iron; a metal with no price row is unpriced, not guessed.",
+    },
     { key: "oph", label: "ore / field hr", value: fmtNum(t.ore_per_hour, 0), sub: "the planner's rate", tone: "info", hint: "Ore per field hour: the harvest phase less the walk out and the travel lockout (mining_opt.trip_obs)." },
+    {
+      key: "gph", label: "gold / field hr", value: fmtGp(t.gp_per_field_hour), sub: t.made_unpriced_ingots > 0 ? `${fmtInt(t.made_unpriced_ingots)} made unpriced` : `${fmtGp(t.made_value_gp)} made`, tone: "info",
+      hint: "The ingots made, at each leg's ingot prices, per field hour (over the legs with field time): the production rate in gold.",
+    },
     { key: "field", label: "field hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of the legs' field time." },
     {
       key: "rate", label: "digs land", value: t.success_rate === null ? "—" : `${Math.round(t.success_rate * 100)}%`, sub: `${fmtInt(t.attempts)} digs`, tone: "dim",

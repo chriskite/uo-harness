@@ -4241,8 +4241,8 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - Since then each leg row has `ingots_by_metal` (made by its smelts) and `stored_by_metal` (into the stockpile),
       keyed by `loop_mining.METALS`: the RunUO resource hues 0 iron, 2419 dull copper, 2406 shadow iron, 2413 copper,
       2418 bronze, 2213 gold, 2425 agapite, 2207 verite, 2219 valorite; any other hue is "hue N".
-    - [INFERENCE] that Outlands keeps these hues: its stockpile lists ingots in exactly these plus 1763. Dan's first
-      coloured ingots (10, hue 2419) came at Mining ~skill of a dull copper miner.
+    - [INFERENCE] that Outlands keeps these hues: its stockpile lists ingots in exactly these plus 1763. Dan's
+      drop-off on 2026-10-19 22:44:39 held 10 ingots of hue 2419 (dull copper by this map) beside 1080 of hue 0.
     - The `smelt` job event has `metals`; the drop-off log line names them ("added 640 ingots … (630 iron, 10 dull
       copper; …)").
 

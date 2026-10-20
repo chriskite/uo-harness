@@ -80,25 +80,27 @@ def wood_value(woods: dict | None, name: str):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def board_prices(rows: list[dict]) -> dict:
-    """{wood: ([t, ...], [row, ...])}, oldest first, from price rows ({item, price_gp,
-    t, source}, e.g. Memory.price_history("board:")); items other than board:<wood>
-    and rows without a numeric t or price are skipped."""
+def price_series(rows: list[dict], prefix: str) -> dict:
+    """{name: ([t, ...], [row, ...])}, oldest first, from price rows ({item, price_gp,
+    t, source}, e.g. Memory.price_history(prefix)) whose item is <prefix><name>
+    ("board:" for woods, "ingot:" for metals); other items and rows without a numeric
+    t or price are skipped."""
     out = {}
-    ok = [r for r in rows if str(r.get("item", "")).startswith("board:")
+    ok = [r for r in rows if str(r.get("item", "")).startswith(prefix)
           and _num(r.get("t"), None) is not None and _num(r.get("price_gp"), None) is not None]
     for r in sorted(ok, key=lambda r: r["t"]):
-        ts, ps = out.setdefault(r["item"][len("board:"):], ([], []))
+        ts, ps = out.setdefault(r["item"][len(prefix):], ([], []))
         ts.append(r["t"])
         ps.append(r)
     return out
 
 
-def price_at(boards: dict | None, woods: dict | None, name: str, t) -> dict | None:
-    """The price of one log of wood `name` at time t ({gp, t, source}): the newest
-    board:<name> row at or before t; before the first row (or t None) the first row;
-    with no row the woods.json value ({gp, t: None, source: "woods.json"}); else None."""
-    ts, ps = (boards or {}).get(name, ((), ()))
+def price_at(series: dict | None, woods: dict | None, name: str, t) -> dict | None:
+    """The price of one unit of `name` at time t ({gp, t, source}): the newest row of
+    `series` (a price_series()) at or before t; before the first row (or t None) the first
+    row; with no row the woods.json value ({gp, t: None, source: "woods.json"}; pass
+    woods None for no fallback); else None."""
+    ts, ps = (series or {}).get(name, ((), ()))
     if ps:
         i = bisect.bisect_right(ts, t) if t is not None else 0
         p = ps[max(i, 1) - 1]
@@ -296,7 +298,7 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
             until: float | None = None) -> dict:
     """Pure core. episodes: trip row dicts; events: job_events dicts
     ({t, kind, data, facet, x, y}); attempts: harvest_attempts rows
-    (t, facet, x, y, z, outcome, amount); boards: board_prices() of the price history.
+    (t, facet, x, y, z, outcome, amount); boards: price_series(..., "board:") of the price history.
     Only what falls in [since, until) counts (module conventions)."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
@@ -739,38 +741,73 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
 # ------------------------------------------------------------------ mining
 MINING_PER_STAND_KINDS = ("stand", "smelt")   # folded into the legs' figures, not the timeline
 CARRIED_LABEL = "ingots carried"
+DEFAULT_METAL = "iron"   # what a leg row without ingots_by_metal / stored_by_metal counts as
 
 
 def _mine_blank():
     return {"legs": 0, "stored": 0, "hopped": 0, "aborted": 0, "field_s": 0.0, "timed_ore": 0, "ore": 0,
             "ingots_made": 0, "ingots_stored": 0, "attempts": 0, "successes": 0, "doubles": 0, "smelts": 0, "dry": 0,
-            "deaths": 0, "sent_home": 0}
+            "deaths": 0, "sent_home": 0, "value_gp": None, "made_value_gp": None, "value_unpriced_ingots": 0,
+            "made_unpriced_ingots": 0, "timed_made_gp": 0.0}
+
+
+def _add_gp(a, b):
+    return a if b is None else round((a or 0) + b, 2)
 
 
 def _mine_add(agg, leg):
     agg["legs"] += 1
     if leg["outcome"] in ("stored", "hopped", "aborted"):
         agg[leg["outcome"]] += 1
-    for k in ("ore", "ingots_made", "ingots_stored", "attempts", "successes", "doubles", "smelts"):
+    for k in ("ore", "ingots_made", "ingots_stored", "attempts", "successes", "doubles", "smelts",
+              "value_unpriced_ingots", "made_unpriced_ingots"):
         agg[k] += leg[k]
+    agg["value_gp"] = _add_gp(agg["value_gp"], leg["value_gp"])
+    agg["made_value_gp"] = _add_gp(agg["made_value_gp"], leg["made_value_gp"])
     if leg["field_s"] is not None:
         agg["field_s"] += leg["field_s"]
         agg["timed_ore"] += leg["ore"]
+        agg["timed_made_gp"] += leg["made_value_gp"] or 0
     agg["dry"] += leg["dry"]
     agg["deaths"] += leg["died"]
     agg["sent_home"] += leg["sent_home"]
 
 
 def _mine_finish(agg):
-    """Rates: ore per field hour over the legs with field time (timed_ore), the digs' success rate."""
+    """Rates: ore and gold (of the ingots made) per field hour over the legs with field time
+    (timed_ore, timed_made_gp), the digs' success rate."""
     agg["field_s"] = round(agg["field_s"], 1)
     agg["field_hours"] = round(agg["field_s"] / 3600.0, 3)
     agg["ore_per_hour"] = _rate(agg.pop("timed_ore"), agg["field_s"])
+    timed_gp = agg.pop("timed_made_gp")
+    agg["gp_per_field_hour"] = _rate(timed_gp, agg["field_s"]) if agg["made_value_gp"] is not None else None
     agg["success_rate"] = _ratio(agg["successes"], agg["attempts"])
     return agg
 
 
-def _leg_row(i, row):
+def _metals(row, by_key, total_key) -> dict:
+    """{metal: ingots} from the leg's by-metal field, else its total counted wholly as iron
+    (rows before the by-metal fields)."""
+    by = row.get(by_key)
+    if isinstance(by, dict):
+        return {str(k): int(_num(v)) for k, v in by.items() if int(_num(v))}
+    n = int(_num(row.get(total_key)))
+    return {DEFAULT_METAL: n} if n else {}
+
+
+def _value(metals, ingots, t_at, used):
+    """(gp, None when nothing could be priced; unpriced ingots); `used` gets each metal's price."""
+    value, unpriced = None, 0
+    for name, n in metals.items():
+        p = used[name] = price_at(ingots, None, name, t_at)
+        if p is None:
+            unpriced += n
+        else:
+            value = round((value or 0) + p["gp"] * n, 2)
+    return value, unpriced
+
+
+def _leg_row(i, row, ingots=None):
     import mining_opt
     t0, t1 = row.get("t_start"), row.get("t_end")
     obs = mining_opt.trip_obs(row)
@@ -778,10 +815,18 @@ def _leg_row(i, row):
     carried = row.get("carried_end") if isinstance(row.get("carried_end"), dict) else {}
     ore = int(_num(row.get("ore")))
     why = row.get("why") or ""
+    t_at = _num(t1, None) if _num(t1, None) is not None else _num(t0, None)
+    made, stored = _metals(row, "ingots_by_metal", "ingots_made"), _metals(row, "stored_by_metal", "stockpiled")
+    used = {}
+    value, unpriced = _value(stored, ingots, t_at, used)
+    made_value, made_unpriced = _value(made, ingots, t_at, used)
     return {"n": i + 1, "trip": row.get("trip"), "leg": row.get("leg"), "t_start": t0, "t_end": t1,
             "duration_s": round(t1 - t0, 1) if _num(t0, None) is not None and _num(t1, None) is not None else None,
             "spot": row.get("spot"), "outcome": row.get("outcome"), "why": row.get("why"),
             "ore": ore, "ingots_made": int(_num(row.get("ingots_made"))), "ingots_stored": int(_num(row.get("stockpiled"))),
+            "metals_made": made, "metals_stored": stored,
+            "value_gp": value, "made_value_gp": made_value, "value_unpriced_ingots": unpriced,
+            "made_unpriced_ingots": made_unpriced, "ingot_prices": used,
             "smelts": int(_num(row.get("smelts"))),
             "attempts": int(_num(row.get("attempts"))), "successes": int(_num(row.get("successes"))),
             "doubles": int(_num(row.get("doubles"))),
@@ -795,7 +840,7 @@ def _leg_row(i, row):
 
 
 def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0, utc_offset_s: int = 0,
-                   window_s: float = ROLLING_WINDOW_S, until: float | None = None) -> dict:
+                   window_s: float = ROLLING_WINDOW_S, until: float | None = None, ingots: dict | None = None) -> dict:
     """Pure core of the mining dashboard. episodes: loop_mining leg rows (one per leg, loop
     `mining`); events: job_events dicts of the mining job.
 
@@ -806,11 +851,22 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
     with the backpack), recorded as the leg's `stockpiled` (`ingots_stored`; 0 when absent). So
     `carried_now` is the newest leg's carried_end.ingots: what was still in the pack when it ended
     (after a hop or abort, or what the stockpile didn't take). Stand and smelt events count per
-    leg; the rest are the timeline."""
+    leg; the rest are the timeline. `open_leg` sums the stand and smelt events after the newest
+    leg's end: the leg in progress while a run is going (its row is written when it ends).
+
+    Gold: `ingots` is price_series(..., "ingot:") of the store's price history. Each leg values its
+    ingots per metal (`ingots_by_metal` / `stored_by_metal`; rows before those fields count their
+    `ingots_made` / `stockpiled` wholly as iron) at the newest ingot:<metal> row at or before its
+    end (t_start when it has none; before the first row the first row): `value_gp` the ingots
+    stored, `made_value_gp` the ingots made, null when nothing could be priced. Metals without
+    any row are never guessed: counted in `value_unpriced_ingots` (stored) and
+    `made_unpriced_ingots`. `gp_per_field_hour` is the made value over field time. totals.metals:
+    per metal the ingots made and stored, the price now (newest row) and the gp at the legs' own
+    prices."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
-    legs = [_leg_row(i, r) for i, r in enumerate(rows)]
+    legs = [_leg_row(i, r, ingots) for i, r in enumerate(rows)]
     evs = sorted(({**e, "data": e.get("data") if isinstance(e.get("data"), dict) else {}}
                   for e in events if in_range(_num(e.get("t"), 0), since, until)),
                  key=lambda e: (e["t"], e.get("id") or 0))
@@ -837,7 +893,11 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
     stamps = [t for leg in legs for t in (leg["t_start"], leg["t_end"]) if t is not None] + [e["t"] for e in evs]
     totals["first_t"] = min(stamps) if stamps else None
     totals["last_t"] = max(stamps) if stamps else None
+    totals["metals"] = _metal_rows(legs, ingots)
     carried = next((leg for leg in reversed(legs) if leg["ingots_carried"] is not None), None)
+    last_end = max((t for leg in legs if (t := _num(leg["t_end"], None)) is not None), default=None)
+    tail = [e for e in evs if e["kind"] in MINING_PER_STAND_KINDS and (last_end is None or e["t"] > last_end)]
+    smelted = [e["data"] for e in tail if e["kind"] == "smelt" and e["data"].get("ok") is not False]
     return {
         "job": "mining", "since": since, "until": until, "utc_offset_s": utc_offset_s, "window_s": window_s,
         "legs": legs,
@@ -848,10 +908,35 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
         "carried_now": None if carried is None else {
             "ingots": carried["ingots_carried"], "t": carried["t_end"] if carried["t_end"] is not None else carried["t_start"],
             "spot": carried["spot"], "label": CARRIED_LABEL},
+        "open_leg": {"since": last_end, "stands": sum(e["kind"] == "stand" for e in tail),
+                     "smelts": len(smelted), "ingots_made": int(sum(_num(d.get("ingots")) for d in smelted))},
         "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
                     "x": e.get("x"), "y": e.get("y"), "data": e["data"]}
                    for e in evs if e["kind"] not in MINING_PER_STAND_KINDS],
     }
+
+
+def _metal_rows(legs, ingots) -> list[dict]:
+    """Per metal (made or stored in the legs, or with a price row), most made first: ingots made and
+    stored, the price now (newest row) with its time and source, and the gp of the ingots made and
+    stored at each leg's own price."""
+    out = {}
+    for leg in legs:
+        for key, gp_key, metals in (("made", "made_gp", leg["metals_made"]), ("stored", "stored_gp", leg["metals_stored"])):
+            for name, n in metals.items():
+                r = out.setdefault(name, {"made": 0, "stored": 0, "made_gp": None, "stored_gp": None})
+                r[key] += n
+                p = leg["ingot_prices"].get(name)
+                if p is not None:
+                    r[gp_key] = round((r[gp_key] or 0) + p["gp"] * n, 2)
+    for name in ingots or {}:
+        out.setdefault(name, {"made": 0, "stored": 0, "made_gp": None, "stored_gp": None})
+    rows = []
+    for name, r in out.items():
+        now = price_at(ingots, None, name, float("inf"))
+        rows.append({"name": name, **r, "price_gp": now and now["gp"], "price_t": now and now["t"],
+                     "price_source": now and now["source"]})
+    return sorted(rows, key=lambda r: (-r["made"], -r["stored"], r["name"]))
 
 
 _DEFAULT = object()
@@ -876,11 +961,12 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | No
     if job == "hunt":
         return compute_hunt(episodes, events, since, utc_offset_s, window_s, until)
     if job == "mining":
-        return compute_mining(episodes, events, since, utc_offset_s, window_s, until)
+        ingots = price_series(memory.price_history("ingot:"), "ingot:") if memory is not None else None
+        return compute_mining(episodes, events, since, utc_offset_s, window_s, until, ingots)
     if woods is _DEFAULT:
         woods = load_woods()
     attempts = harvest_rows(memory, since, until) if memory is not None and job == "lumber" else None
-    boards = board_prices(memory.price_history("board:")) if memory is not None else None
+    boards = price_series(memory.price_history("board:"), "board:") if memory is not None else None
     out = compute(episodes, events, attempts, woods, job, since, utc_offset_s, window_s, boards, until)
     if job == "lumber":
         import lumber_opt

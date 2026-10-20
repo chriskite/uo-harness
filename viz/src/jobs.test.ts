@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addDays, boardsRateSeries, eventView, legEnd, legText, localDay, miningKpis, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals, type JobTrip, type MiningTotals } from "./jobs.ts";
+import { addDays, boardsRateSeries, eventView, fmtIngotPrice, legEnd, legText, localDay, miningKpis, parseRange, presetRange, rangeBounds, rangeQuery, routeQuery, routeRange, splitShares, fmtGp, fmtHours, fmtInt, fmtNum, huntKpis, kpis, outcomeKind, phaseList, theftLoss, tripHome, woodShares, type HuntTotals, type JobEvent, type JobTotals, type JobTrip, type MiningTotals } from "./jobs.ts";
 
 function totals(p: Partial<JobTotals> = {}): JobTotals {
   return {
@@ -222,6 +222,7 @@ function miningTotals(p: Partial<MiningTotals> = {}): MiningTotals {
   return {
     legs: 0, stored: 0, hopped: 0, aborted: 0, field_s: 0, field_hours: 0, ore: 0, ingots_made: 0, ingots_stored: 0, attempts: 0,
     successes: 0, doubles: 0, smelts: 0, dry: 0, deaths: 0, sent_home: 0, ore_per_hour: null, success_rate: null,
+    value_gp: null, made_value_gp: null, value_unpriced_ingots: 0, made_unpriced_ingots: 0, gp_per_field_hour: null,
     stands: 0, first_t: null, last_t: null, ...p,
   };
 }
@@ -229,7 +230,7 @@ function miningTotals(p: Partial<MiningTotals> = {}): MiningTotals {
 describe("miningKpis / legEnd", () => {
   test("ore, ingots, ore per field hour, field hours, dig success and the carried ingots", () => {
     const by = Object.fromEntries(
-      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, ingots_stored: 1630, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1 }), {
+      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, ingots_stored: 1630, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1, value_gp: 39800, made_value_gp: 21800, value_unpriced_ingots: 90, made_unpriced_ingots: 60, gp_per_field_hour: 13768.42 }), {
         ingots: 1000, t: 81600, spot: "B", label: "ingots carried",
       }).map((x) => [x.key, x]),
     );
@@ -241,11 +242,19 @@ describe("miningKpis / legEnd", () => {
     expect([by.rate!.value, by.rate!.sub]).toEqual(["67%", "650 digs"]);
     expect([by.carried!.value, by.carried!.tone]).toEqual(["1,000", "info"]);
     expect([by.legs!.sub, by.threats!.value, by.threats!.tone]).toEqual(["1 hopped · 1 aborted", "0 · 1", "warn"]);
+    expect([by.gold!.value, by.gold!.sub]).toEqual(["39,800 gp", "90 ingots unpriced"]);
+    expect([by.gph!.value, by.gph!.sub]).toEqual(["13,768 gp", "60 made unpriced"]);
+    expect(Object.keys(by).slice(0, 6)).toEqual(["ore", "ingots", "stored", "gold", "oph", "gph"]);
   });
   test("empty range: dashes for rates and the carried ingots, safety tile ok", () => {
     const by = Object.fromEntries(miningKpis(miningTotals(), null).map((x) => [x.key, x]));
     expect([by.ore!.value, by.oph!.value, by.rate!.value, by.carried!.value, by.carried!.tone]).toEqual(["0", "—", "—", "—", "dim"]);
     expect([by.ingots!.sub, by.threats!.tone]).toEqual(["0 smelts", "ok"]);
+    expect([by.gold!.value, by.gold!.sub, by.gph!.value, by.gph!.sub]).toEqual(["—", "at each leg's prices", "—", "— made"]);
+  });
+  test("fmtIngotPrice: per ingot with source and date, unpriced for none", () => {
+    expect(fmtIngotPrice({ price_gp: 30, price_t: null, price_source: "user" })).toBe("30 gp/ingot (user)");
+    expect(fmtIngotPrice({ price_gp: null, price_t: null, price_source: null })).toBe("unpriced");
   });
   test("legEnd: death and threat first, else the outcome with why the digging stopped", () => {
     const base = { outcome: "stored", dry: false, time_up: false, creature_blocked: false, died: false, sent_home: false };

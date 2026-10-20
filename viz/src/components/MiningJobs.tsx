@@ -1,8 +1,19 @@
 import { fmtDuration } from "../format.ts";
-import { eventView, fmtInt, fmtNum, fmtStamp, legEnd, miningKpis, oneLocalDay } from "../jobs.ts";
+import { eventView, fmtGp, fmtIngotPrice, fmtInt, fmtNum, fmtStamp, legEnd, miningKpis, oneLocalDay, type MiningLeg } from "../jobs.ts";
 import { EventStrip } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
 import { fetchMining, JobsHead, JobsLoading, useJobPoll, type JobDashboardProps } from "./JobsCommon.tsx";
+
+/** The tooltip of a leg's gold: each metal's ingots and the per-ingot price the value used. */
+function legPrices(l: MiningLeg): string | undefined {
+  const metals = { ...l.metals_made, ...l.metals_stored };
+  const lines = Object.keys(metals).map((m) => {
+    const p = l.ingot_prices[m] ?? null;
+    const n = `${fmtInt(l.metals_stored[m] ?? 0)} stored · ${fmtInt(l.metals_made[m] ?? 0)} made`;
+    return `${m}: ${n} at ${fmtIngotPrice({ price_gp: p && p.gp, price_t: p && p.t, price_source: p && p.source })}`;
+  });
+  return lines.join("\n") || undefined;
+}
 
 /** Mining job dashboard from /api/jobs?job=mining (harness/jobs.py compute_mining). */
 export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
@@ -13,6 +24,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
   const carried = data.carried_now;
   const sameDay = oneLocalDay(legs.flatMap((l) => (l.t_start === null ? [] : [l.t_start])));
   const maxOre = Math.max(1, ...data.spots.map((s) => s.ore));
+  const metals = t.metals ?? [];
   return (
     <div className="jobs">
       <JobsHead
@@ -126,6 +138,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <th className="num">smelts</th>
                   <th className="num">ingots made</th>
                   <th className="num">stored</th>
+                  <th className="num">gold stored</th>
                   <th className="num">carried</th>
                   <th>ended</th>
                   <th>why</th>
@@ -151,6 +164,10 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                       <td className="mono num">{l.smelts}</td>
                       <td className="mono num">{fmtInt(l.ingots_made)}</td>
                       <td className="mono num">{fmtInt(l.ingots_stored)}</td>
+                      <td className="mono num" title={legPrices(l)}>
+                        {fmtGp(l.value_gp)}
+                        {l.value_unpriced_ingots > 0 && <span className="dim"> +{fmtInt(l.value_unpriced_ingots)} unpriced</span>}
+                      </td>
                       <td className="mono num">{fmtInt(l.ingots_carried)}</td>
                       <td>
                         <Badge kind={end.tone}>{end.text}</Badge>
@@ -179,6 +196,8 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                 <th className="num">smelts</th>
                 <th className="num">ingots made</th>
                 <th className="num">ingots stored</th>
+                <th className="num">gold stored</th>
+                <th className="num">gold / field hr</th>
                 <th className="num">deaths · threats</th>
               </tr>
             </thead>
@@ -194,6 +213,12 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <td className="mono num">{d.smelts}</td>
                   <td className="mono num">{fmtInt(d.ingots_made)}</td>
                   <td className="mono num">{fmtInt(d.ingots_stored)}</td>
+                  <td className="mono num" title={d.value_unpriced_ingots > 0 ? `${fmtInt(d.value_unpriced_ingots)} stored ingots unpriced` : undefined}>
+                    {fmtGp(d.value_gp)}
+                  </td>
+                  <td className="mono num" title={`${fmtGp(d.made_value_gp)} of ingots made`}>
+                    {fmtGp(d.gp_per_field_hour)}
+                  </td>
                   <td className="mono num">
                     {d.deaths} · {d.sent_home}
                   </td>
@@ -201,6 +226,38 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
               ))}
             </tbody>
           </table>
+        </Panel>
+      )}
+
+      {metals.length > 0 && (
+        <Panel title={`Metals (${metals.length})`}>
+          <table className="counts">
+            <thead>
+              <tr>
+                <th>metal</th>
+                <th className="num">ingots made</th>
+                <th className="num">ingots stored</th>
+                <th>price now</th>
+                <th className="num">made at the legs' prices</th>
+                <th className="num">stored at the legs' prices</th>
+              </tr>
+            </thead>
+            <tbody>
+              {metals.map((m) => (
+                <tr key={m.name}>
+                  <td className="mono">{m.name}</td>
+                  <td className="mono num">{fmtInt(m.made)}</td>
+                  <td className="mono num">{fmtInt(m.stored)}</td>
+                  <td className={m.price_gp === null ? "dim" : "mono"}>{fmtIngotPrice(m)}</td>
+                  <td className="mono num">{fmtGp(m.made_gp)}</td>
+                  <td className="mono num">{fmtGp(m.stored_gp)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="dim">
+            Prices are the store's ingot:&lt;metal&gt; rows; each leg uses the newest one at or before its end. A metal without any row stays unpriced.
+          </p>
         </Panel>
       )}
     </div>

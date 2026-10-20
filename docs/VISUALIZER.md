@@ -392,7 +392,8 @@ indexes of docs/MEMORY.md "Indexes for time-range reads".
   Island loop only chops ordinary trees. Logs of a wood with no known value are counted in
   `value_unpriced_logs` and never priced by guess. The value is null when no log could be priced.
 - CLI: `python harness/jobs.py [--db PATH] [--job lumber|hunt|mining] [--since T]` prints totals, days and
-  harvest outcomes (hunt: totals, days and monsters; mining: totals, days, spots and carried_now).
+  harvest outcomes (hunt: totals, days and monsters; mining: totals with the metals table, days, spots and
+  carried_now).
 
 **Lumber optimizer analytics (added 2026-10-03, user request: the dashboard shows what the
 self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
@@ -452,9 +453,21 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   ore/hr, dry / time_up / creature_blocked, and `carried_end.ingots`; the `stand` and `smelt` events
   inside it are counted on the row.
 - **Totals:** legs by outcome, field hours, ore, ingots made, ingots stored, ore/hr, digs, success rate, doubles, smelts,
-  dry legs, deaths, threats that sent us home, stands worked (`stand` events).
+  dry legs, deaths, threats that sent us home, stands worked (`stand` events), and the gold below.
 - **Per day** (the local day of `t_start`) and **per spot** (legs, ore, ore/hr, dry legs, the newest leg's
   end) carry the same figures.
+- **Gold (added 2026-10-20, user: "A commodity deed of 5000 iron ingots is worth 150k gold").** Valued
+  the way lumber values logs, from the store's `ingot:<metal>` price rows (`Memory.price_history("ingot:")`,
+  `jobs.price_series`, shared with lumber's `board:` series): each metal of a leg at the newest row at or
+  before the leg's `t_end` (`t_start` without one; before the first row, the first row). A leg's metals come
+  from `ingots_by_metal` / `stored_by_metal` (`metals_made` / `metals_stored`); older rows count their
+  `ingots_made` / `stockpiled` wholly as `iron`. Per leg: `value_gp` (ingots stored), `made_value_gp`
+  (ingots made), each null when nothing could be priced, `value_unpriced_ingots` / `made_unpriced_ingots`
+  (metals with no row at all, never guessed) and `ingot_prices` (the price each metal used). Totals, days
+  and spots sum them and add `gp_per_field_hour` (the made value over the field time of the legs with
+  one; null when nothing made was priced). `totals.metals`: per metal the ingots made and stored, the
+  price now (newest row, with `price_t` and `price_source`) and `made_gp` / `stored_gp` at the legs' own
+  prices, most made first.
 - **`carried_now`:** the newest leg in the range's `carried_end.ingots`, labelled `ingots carried`. The
   runner smelts at the spot's forge and, at each trip's end at home, drops the ingots into the room's
   Resource Stockpile (its Restock, cursor answered with the backpack); so this is what was still in the
@@ -582,14 +595,19 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     299 XP; the Lumber/Hunting switch and a reload kept `#jobs/hunt`; no page errors.
 - **Mining dashboard** (2026-10-19, `components/MiningJobs.tsx`, tiles from `jobs.ts` `miningKpis`):
   - KPI tiles: ore dug (digs landed, doubles), ingots made (smelts), ingots stored (into the room's Resource
-    Stockpile), ore per field hour, field hours, digs land (success rate, digs), ingots carried now (left in
+    Stockpile), gold stored (the stored ingots at each leg's prices; sub the unpriced count when any), ore per
+    field hour, gold per field hour (the ingots made in gold), field hours, digs land (success rate, digs),
+    ingots carried now (left in
     the pack at the newest leg's end), legs (hopped, aborted), deaths · threats. A line under them says what
     field time is and that each trip's ingots go into the stockpile at home.
   - A spots table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the legs-and-
     events strip with the event list (hops, threats, deaths).
   - The legs table, newest first: start, spot, trip · leg, field time, ore, ore/hr, digs (landed), smelts,
-    ingots made, ingots stored, ingots carried, how it ended (`jobs.ts` `legEnd`: died, threat, else the outcome with dry /
-    time up / creature in reach) and the `why`. Then a per-day table (with ingots stored).
+    ingots made, ingots stored, gold stored (tooltip: each metal's ingots and the price used), ingots carried,
+    how it ended (`jobs.ts` `legEnd`: died, threat, else the outcome with dry /
+    time up / creature in reach) and the `why`. Then a per-day table (with ingots stored, gold stored and
+    gold per field hour) and a metals table (ingots made and stored, the price per ingot now with its source
+    and date, `jobs.ts` `fmtIngotPrice`, and the gp made and stored at the legs' own prices).
   - With no legs in the range the tiles show 0 or `—` and each panel says nothing is recorded yet.
   - Verified 2026-10-19 in headless Chrome (1600×1000) against a private `viz_server.py --live --state-port 1`
     (no proxy) on a temp store with 3 synthetic legs (603 ore, 1,206 ingots, a hop off a dry spot, a threat
