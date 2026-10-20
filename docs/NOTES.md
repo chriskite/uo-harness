@@ -4035,6 +4035,31 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   forge statics (0x0FB1, 0x197A-0x19A9) into 193 sites, 17 in towns; 3,116 of the 15,992 overworld node blocks lie
   within 40 tiles of a non-town site. Jaseowns' script checks for these ("natural forges").
   The store also saw 808 distinct dynamic 0x0FB1 forges (player houses/vendors; `item_seen` carries no position).
+- **Live hand-mining capture (2026-10-19, Outland Dan, session 20261019_200350, `loop_mine.py timeline`).** Before it
+  the user trained Mining at Ace the miner in Prevalia (context menu "Train Mining", 500 gp dropped on him, cliloc
+  501540). At Prevalia Quarry, from 4:41 to 14:12 into the session:
+  - **Dig = a stock double-click on the pickaxe, no cursor.** The capture has 0 target cursors. Double-clicking the
+    pickaxe in the pack equips it (layer 1). Double-clicking it in the hand digs, and the result comes ~1.0 s
+    later. Pressing again sooner gives cliloc 500119 "You must wait to perform another action." (20×). As with
+    lumber, each dig closes the last decoy captcha gump (random id, no buttons) and opens a new one.
+  - **Results:** 141 × cliloc 1007072 "You dig some iron ore and put it in your backpack.", 1 ore each, 48 of them
+    preceded by the plain text "Harvest double yield/loot triggered." (2 ore). 86 × cliloc 503043 "You loosen some
+    rocks but fail…", 37.9 % fails for Dan's skill. Each success is followed by "(Harvest Aspect N/25000 xp)" from
+    self. Nothing in reach: plain text "You do not see any harvestable resources nearby." (44×). 503040 "no metal"
+    never came. No colored ore. Total: 189 iron ore.
+  - **Gates:** the first dig on the landing raised the real captcha at once (gump 1, answered by hand, "Captcha
+    successful."). Then the server said "A stationary penalty is in effect (must move 5 tiles to remove)."; there was
+    no "harvest" lockout cliloc for it. After 5 steps a dig 52 s after the recall said "You have recently traveled
+    and must wait 7 seconds before you may begin harvesting." A world save ("The world is saving, please wait." …
+    "World save complete") passed with nothing else.
+  - **ore_nodes.py predictions held.** The single-family stand (1150,1065) (only "cave floor" statics in reach) gave
+    8 successes / 12 ore, so **cave-floor statics are minable**. The rock-only stand (1176,1117) (2 nodes) gave
+    27 ore. The 4-node stand (1192,1094) gave 44. That is ~11-13 ore per node, matching the community's 7-11 /
+    10-15. Other stands: 9-20 successes each. Stands the user tried after others had drained the blocks answered
+    "do not see" at once.
+  - **Smelting:** at (1193,1065), within 2 tiles of the natural forge (1193,1066), a stock double-click on an ore
+    stack (10, then 179) answered cliloc 501988 at once. There was no cursor and no fail, and 189 ore became 378 iron
+    ingots (0x1BF2) in one stack. Map forge statics work.
 - **Pack animals (store facts, PackAnimal scout 2026-10-19):** Stablemaster prices (k103, `buy_list` sessions
   40/41): pack horse 500, pack llama 500, Pack Ox 2000 gp; capacity 2000 / 4000 st (k5144) and **125 items** (live
   labels "[N/CAP stones] [N/125 items]", type 0 hue 946, answered to the client's own 0x09; one ox hit 125/125 at
