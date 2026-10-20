@@ -4173,6 +4173,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       - Before: the first stand from the landing (2598,531) was 51 tiles away and 137 steps round the cave.
       - Now: (2582,582), 64 steps.
       - Mobiles, danger zones and learned denies aren't in the flood; the Mover's A* still goes round them.
+  - **Escape goals in rock, Dan stood under arrows** (live 2026-10-20 10:35, Desert Outpost forge_1494_2559,
+    mining-20261020-103013-9d9c; recall landing "Desert Outpost" from the DTF library).
+    - What happened: a nomadic horse archer (0x0029864D, body 400, ranged) came within 8 tiles of Dan at (1502,2586),
+      shooting from (1500,2578). `escape_tiles` gave three straight-away goals, (1505,2598), (1495,2598) and
+      (1520,2597), all unstandable. Each walk failed "no route within 24 steps", and the run before the recall took 0
+      steps. Six recalls in a row (book charge and spell alternating, 1.2–1.8 s into the cast) were disturbed by
+      15–24 hits each, 100 → 19 hits, with two heal potions drunk. The user then ran Dan to (1484,2596), 18 steps
+      west-southwest, and the next recall landed.
+    - Also there: a nomadic rifleman (notoriety 3) and a fire elemental.
+    - Fix: escape goals come from the z-aware walk flood (docs/LUMBER_LOOP.md "Escape goals are walkable tiles on the
+      map"). Replayed: (1487,2598) in 15 steps.
 
 ## Network observations
 

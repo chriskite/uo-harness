@@ -974,8 +974,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   swinging at us (0x2F, defender = self), posts the urgent `threat` juncture as before with
   `data.action = "escape"`, and the runner walks away from it: to a tile 2 beyond its reach
   (`ESCAPE_MARGIN`; the reach is its flee radius, or for a ranged creature the 12-tile spell range
-  if that is more, since 2026-10-03: "Running from a creature" below), preferring tiles walked
-  before within 60° of straight away, else straight away or 45° to either side. Then it carries on
+  if that is more, since 2026-10-03: "Running from a creature" below). On the map (since 2026-10-20)
+  the goal is a tile the walk rules reach from us, the fewest steps first, not toward the creature
+  before straight away; without one, tiles walked before within 60° of straight away, else straight
+  away or 45° to either side. Then it carries on
   with the next tree out of the reach of every creature it escaped from this trip, around where it
   is and where it was (an escape in the convert or bank phase repeats that phase). It stops
   instead (`data.action = "abort"`, or `recall` far from home) when the creature keeps pace (see
@@ -1053,6 +1055,17 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     (no pauses), and no walk idles or sidesteps while any creature zone is set (`Mover.danger`; live
     2026-10-05, witcher_23: an 8.9 s walk pause with an air dragon closing in, then two breaths, -61
     and -39, killed Dan).
+  - **Escape goals are walkable tiles on the map** (`escape_tiles`, since 2026-10-20). Before, the goals were
+    straight-line tiles away from the creature, which in rough ground can be rock. Live 2026-10-20 10:35 at
+    Desert Outpost (mining, forge_1494_2559) all three were unstandable: no route within the escape bound,
+    and `gain_distance` couldn't take a step. A nomadic horse archer 8 tiles north then shot Dan from 100 to
+    20 hits through six disturbed recalls, until the user ran him 18 steps west by hand.
+    - Now `localmap.steps` (a z-aware BFS, `ESCAPE_SEARCH_R` 40 around us, ~0.06 s) lists the reachable tiles.
+      The goals are the ones clear of every zone and `ESCAPE_RUN` off, within the bounded route length
+      (`ESCAPE_ROUTE_MIN` / `ESCAPE_DETOUR`). In order: the fewest steps not toward the creature, the fewest
+      within 60° of away, the fewest anywhere.
+    - Replayed at that spot: (1487,2598) in 15 steps, (1483,2605) in 22, (1486,2598) in 15
+      (test_loop_lumber.py `unit_escape_walkable`).
   - **A creature we already ran from that comes back into flee range ends the trip** (`check_threats`:
     its serial is in `self.danger`): it hunts us, and another escape only brings it along (the same
     air dragon followed two escapes).

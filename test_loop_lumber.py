@@ -4810,13 +4810,38 @@ def unit_escape_direction():
     print("\n== escape_tiles: away from the player, whichever side he is on ==")
     import types
     import loop_lumber
-    fake = SimpleNamespace(danger={}, mover=SimpleNamespace(danger={}, mem_for=lambda f: SimpleNamespace(tiles=set())))
+    fake = SimpleNamespace(danger={}, mover=SimpleNamespace(danger={}, walk_map=lambda s: None,
+                                                            mem_for=lambda f: SimpleNamespace(tiles=set())))
     fake.escape_tiles = types.MethodType(loop_lumber.LumberLoop.escape_tiles, fake)
     st = {"movement": {"pos": [100, 100, 0, 0]}, "world": {"self": {"map": 0}}}
     east = fake.escape_tiles(st, [(104, 100)])
     west = fake.escape_tiles(st, [(96, 100)])
     check("a player 4 tiles east: the goals lie west; 4 tiles west: east",
           east and all(g[0] < 100 for g in east) and west and all(g[0] > 100 for g in west), f"{east} {west}")
+
+
+def unit_escape_walkable():
+    """On the map the escape goals are tiles the walk reaches, fewest steps first (live 2026-10-20 10:35, Desert
+    Outpost: the three straight-away goals were rock, no route within the bound, Dan stood under a horse archer's
+    arrows through six disturbed recalls, 100 to 20 hits; the way out was 18 steps west)."""
+    print("\n== escape_tiles on the map: walkable goals when straight away is rock ==")
+    import types
+    import loop_lumber
+    # a creature 8 tiles north; south of us is rock; a passage runs west along y 100, then south along x 60
+    open_ = {(x, 100) for x in range(60, 101)} | {(60, y) for y in range(100, 141)}
+
+    class Walk:
+        def can_walk(self, x, y, z, d):
+            nx, ny = x + (0, 1, 1, 1, 0, -1, -1, -1)[d], y + (-1, -1, 0, 1, 1, 1, 0, -1)[d]
+            return (nx, ny, 0) if (nx, ny) in open_ else None
+    fake = SimpleNamespace(danger={}, mover=SimpleNamespace(danger={}, walk_map=lambda s: Walk(),
+                                                            mem_for=lambda f: SimpleNamespace(tiles=set())))
+    fake.escape_tiles = types.MethodType(loop_lumber.LumberLoop.escape_tiles, fake)
+    st = {"movement": {"pos": [100, 100, 0, 0]}, "world": {"self": {"map": 0}}}
+    goals = fake.escape_tiles(st, [(100, 92)])
+    check("every goal is walkable and ESCAPE_RUN off; the first the nearest on foot not toward it, (80, 100)",
+          goals and all(g in open_ and loop_lumber.cheb(g, (100, 92)) >= loop_lumber.ESCAPE_RUN for g in goals)
+          and goals[0] == (80, 100), str(goals))
 
 
 def unit_thief_out():
@@ -5306,6 +5331,7 @@ if __name__ == "__main__":
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
             unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
+            unit_escape_walkable,
             unit_hop_salvage, unit_named_attacker, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_local_trees_spin, unit_zone_stall,

@@ -111,6 +111,7 @@ from agent_link import (Abort, Link, Mover, cheb, containers_to_open, log, not_a
 import uomap  # noqa: E402
 import pathfind  # noqa: E402
 import nav  # noqa: E402
+import localmap  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import guards  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
@@ -257,6 +258,10 @@ AGGRO_R = 13
 # An escape runs far, not a few steps (user, 2026-10-05: "a few steps isn't going to break aggro"):
 # its goal is at least ESCAPE_RUN tiles from what we flee [INFERENCE: past perception and view]
 ESCAPE_RUN = 20
+# Escape goals on the map: tiles the walk rules reach from us within this many tiles (escape_tiles). Straight-away
+# tiles alone can be rock: live 2026-10-20 10:35 at Desert Outpost all three were unstandable, no route within the
+# bound, and a horse archer shot Dan from 100 to 20 hits through six disturbed recalls; the way out was 18 steps west
+ESCAPE_SEARCH_R = 40
 # Before a recall away from creatures, run until each attacker is this far: a 2 s cast next to them
 # is disturbed, and a caster's spells reach 12 (threats.CREATURE_SPELL_RANGE)
 RECALL_GAP = threats.CREATURE_SPELL_RANGE + 2
@@ -3793,14 +3798,16 @@ class LumberLoop:
         return kept, following, gone
 
     def escape_tiles(self, st, run_from=()) -> list:
-        """Escape goals, best first: up to two tiles walked before (walk memory)
-        at least ESCAPE_RUN tiles from each of `run_from` and out of every zone (the
-        runner's escaped-from monsters, the Mover's: aggro zones of the creatures in view,
-        thieves), within 60 degrees of straight away from them, nearest first; then the
-        first such tile straight away and 45 degrees to either side. "Away" sums the unit
-        vectors from every zone centre and every `run_from` point (the players of a pk
-        escape: until 2026-10-11 only creature zones counted, so with a player alone the
-        direction fell back to due east whichever side he came from)."""
+        """Escape goals, best first, each at least ESCAPE_RUN tiles from each of `run_from` and out of every
+        zone (the runner's escaped-from monsters, the Mover's: aggro zones of the creatures in view, thieves).
+        "Away" sums the unit vectors from every zone centre and every `run_from` point (the players of a pk
+        escape: until 2026-10-11 only creature zones counted, so with a player alone the direction fell back
+        to due east whichever side he came from).
+        On the map: the tiles the walk rules reach from us within ESCAPE_SEARCH_R (localmap.steps, z-aware),
+        in reach of a bounded escape route (ESCAPE_ROUTE_MIN / ESCAPE_DETOUR), the fewest steps first: the
+        best not toward them (within 90 degrees of straight away), the best within 60, the best anywhere. Without a map: up to
+        two tiles walked before (walk memory) within 60 degrees of away, nearest first; then the first such
+        tile straight away and 45 degrees to either side."""
         pos = tuple(st["movement"]["pos"][:2])
         zones = list(self.danger.values())
         avoid = zones + [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
@@ -3814,11 +3821,26 @@ class LumberLoop:
         if vx == vy == 0.0:
             vx = 1.0
         vn = math.hypot(vx, vy)
+
+        def away(t) -> float:                         # cosine between (t - pos) and straight away
+            d = math.hypot(t[0] - pos[0], t[1] - pos[1])
+            return ((t[0] - pos[0]) * vx + (t[1] - pos[1]) * vy) / (d * vn) if d else -1.0
+        walk = self.mover.walk_map(st)
+        if walk is not None:
+            z = st["movement"]["pos"][2]
+            steps = localmap.steps(walk, (pos[0], pos[1], int(z or 0)), radius=ESCAPE_SEARCH_R)
+            cands = [t for t, n in steps.items()
+                     if n <= max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(pos, t)) and clear(t)]
+            goals = []
+            for floor in (0.0, 0.5, -1.0):
+                best = min((t for t in cands if t not in goals and away(t) >= floor),
+                           key=lambda t: (steps[t], -away(t)), default=None)
+                if best is not None:
+                    goals.append(best)
+            return goals
         known = []
         for t in self.mover.mem_for(st["world"]["self"].get("map")).tiles:
-            d = math.hypot(t[0] - pos[0], t[1] - pos[1])
-            if d and cheb(t, pos) <= 40 and clear(t) \
-                    and ((t[0] - pos[0]) * vx + (t[1] - pos[1]) * vy) / (d * vn) >= 0.5:
+            if t != pos and cheb(t, pos) <= 40 and clear(t) and away(t) >= 0.5:
                 known.append(t)
         goals = sorted(known, key=lambda t: cheb(t, pos))[:2]
         for deg in (0, 45, -45):
