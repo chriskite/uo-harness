@@ -1953,7 +1953,10 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); not
   (the planner charges half a stint of ore per death). Rejected: carrying ore home (a trip ends after ~310 ore for
   Dan) and a pack animal (none owned, thieves steal from it, docs/NOTES.md "Pack animals").
 - *A spot is a forge with ore around it*, one per non-town overworld forge site with at least 20 node blocks within
-  40 tiles, the richest of any within 40 tiles of each other, runes named dangerous left out. Generated spots are
+  40 tiles, the richest of any within 40 tiles of each other. Rune names don't filter anything (user 2026-10-19:
+  the "Urk Fort/Smugglers Den" landing at Prevalia Quarry was safe; `places.danger_hint` and its monster-place
+  words were removed from the landings, `lumber discover` and the mining seeds alike; the guild's own "Bad Places"
+  tomes still keep their runes out of the landings). Generated spots are
   `candidate` except near Prevalia Quarry (`--active-near 1178 1119`): the rest run only after the user approves
   them. A forge that answers "not near a forge" disables its spot from the runner (a store row).
 - *The runner is a LumberLoop subclass.* The trip, the threat checks, escapes, the speech hold, captcha, the

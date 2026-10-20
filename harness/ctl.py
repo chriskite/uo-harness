@@ -3264,7 +3264,7 @@ def cmd_lumber(a, mem):
         spots = lumber_opt.load_spots(mem)
         return {"ok": True, "spots": [
             {**{k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "pvp",
-                                      "hazard_prior", "danger_hint", "route_tiles", "tree_count", "merged_into")},
+                                      "hazard_prior", "route_tiles", "tree_count", "merged_into")},
              "area": {k: (len(v) if k == "cells" else v) for k, v in (s.get("area") or {}).items()}}
             for s in sorted(spots.values(), key=lambda s: (s["status"] != "active", s["id"]))]}
     if op == "spot" and a.spot_op == "add":
@@ -3309,7 +3309,6 @@ def cmd_lumber(a, mem):
             umap.find_trees, places.witcher_runes_in(a.library), spots, library=a.library, radius=a.radius,
             search=lumber_opt.RUNE_SEARCH if a.search is None else a.search, min_trees=a.min_trees,
             max_route=lumber_opt.MAX_RUNE_ROUTE if a.max_route is None else a.max_route, route_fn=route_fn,
-            include_dangerous=a.include_dangerous,
             towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
             guard_points=mem.guard_points(a.facet))
         found.sort(key=lambda s: -s["tree_count"])
@@ -3615,8 +3614,6 @@ def _lumber_parser(sub):
     r.add_argument("--reason")
     q = ls.add_parser("discover", help="propose tree-dense areas near Witcher runes as candidate spots (map data)")
     q.add_argument("--library", default="cambria", help="the rune library whose Witcher runes to search around")
-    q.add_argument("--include-dangerous", action="store_true",
-                   help="also runes named after monster places (Brigand Camp, Orc Fort, ...)")
     q.add_argument("--facet", type=int, default=0)
     q.add_argument("--radius", type=int, default=14)
     q.add_argument("--min-trees", type=int, default=25)

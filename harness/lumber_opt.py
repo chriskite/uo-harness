@@ -290,8 +290,8 @@ def landing_for(spot: dict, home: dict | None, books=(), route_ok=None, bad=()) 
     close to the grove as we can): the first places.landings row nearest the area
     (a square's centre, a forest's nearest edge: `dist` is landing_dist), from the rune
     library at home (home.libraries: trips start at home and
-    reach its tomes on foot) and the character's own books (places.known_books), dangerous
-    landings left out, and those in `bad` (landing_key: a recall to them landed elsewhere,
+    reach its tomes on foot) and the character's own books (places.known_books), the 'Bad Places'
+    tomes' landings left out, and those in `bad` (landing_key: a recall to them landed elsewhere,
     bad_landings), for which route_ok(row, spot) holds (a walking route from the
     landing into the grove; None: no check). None when no landing qualifies."""
     import home as homes
@@ -2240,7 +2240,7 @@ def _lattice(c, reach: int) -> set:
 
 def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius=14,
                      search=RUNE_SEARCH, min_trees=25, max_route=MAX_RUNE_ROUTE, route_fn=None,
-                     include_dangerous=False, towns=(), guard_points=()) -> tuple:
+                     towns=(), guard_points=()) -> tuple:
     """Candidate spots reached by Witcher runes (places.witcher()["runes"]), at most
     one per rune. Every window with at least min_trees trees whose centre lies within
     `search` tiles of an eligible rune (grove_windows) is ranked globally, most
@@ -2250,14 +2250,12 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
     from the rune's tile into it (route_fn) is missing or longer than max_route
     (after ROUTE_TRIES such failures the rune is given up). So a grove two runes
     reach goes to the nearer one, and a rune whose best grove is taken gets its
-    next best. Runes named after monster places (places.danger_hint: "Brigand
-    Camp", "Orc Fort", ...) are left out unless include_dangerous, and so are runes
-    that already have a spot (`witcher_<id>`). A candidate is an area like any spot:
+    next best. Runes that already have a spot (`witcher_<id>`) are left out (a rune's
+    name says nothing about danger: user 2026-10-19). A candidate is an area like any spot:
     trips reach it from home by the landing nearest it (landing_for), which need not be
     this rune; route_tiles is the walk from this rune's landing. Returns (candidates,
     {reason: count} of the runes left out)."""
     import numpy as np
-    import places
     skipped = {}
 
     def skip(why):
@@ -2266,21 +2264,19 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
     for r in runes:
         if r.get("x") is None:
             skip("no coordinates")
-        elif (danger := places.danger_hint(r["name"])) and not include_dangerous:
-            skip("monster name")
         elif f"witcher_{r['id']}" in spots:
             skip("already a spot")
         else:
-            eligible.append((r, danger))
+            eligible.append(r)
     if not eligible:
         return [], skipped
     reach = search + radius
-    xs, ys = [r["x"] for r, _ in eligible], [r["y"] for r, _ in eligible]
+    xs, ys = [r["x"] for r in eligible], [r["y"] for r in eligible]
     pts = np.array([(tx, ty) for tx, ty, _z, _g in trees_fn(min(xs) - reach, min(ys) - reach,
                                                             max(xs) + reach, max(ys) + reach)],
                    dtype=np.int64).reshape(-1, 2)
     options = []                                     # (-trees, tiles from the rune, rune index, cx, cy)
-    for i, (r, _) in enumerate(eligible):
+    for i, r in enumerate(eligible):
         n, cx, cy = grove_windows(pts, r["x"], r["y"], search, radius)
         k = n >= min_trees
         d = np.maximum(np.abs(cx[k] - r["x"]), np.abs(cy[k] - r["y"]))
@@ -2304,7 +2300,7 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
         if key in taken or key in townish or no_go(0, (cx, cy)) is not None:
             hits.setdefault(i, set()).add("taken" if key in taken else "town" if key in townish else "no-go")
             continue
-        r, danger = eligible[i]
+        r = eligible[i]
         route = route_fn((r["x"], r["y"]), {"center": [cx, cy], "radius": radius}) if route_fn is not None else None
         if route_fn is not None and (route is None or route > max_route):
             failed[i] = failed.get(i, 0) + 1
@@ -2314,7 +2310,7 @@ def discover_witcher(trees_fn, runes, spots, *, library: str = "cambria", radius
                     "facet": 0, "area": {"center": [cx, cy], "radius": radius,
                                          "note": f"{n} tree statics {d} tiles from Witcher rune {r['id']} "
                                                  f"({r['x']},{r['y']}, {library} library)"},
-                    "trees": [], "pvp": True, "hazard_prior": 0.5, "danger_hint": danger,
+                    "trees": [], "pvp": True, "hazard_prior": 0.5,
                     "tree_count": n, "rune_distance": d, "route_tiles": route})
         done.add(i)
         taken |= _lattice((cx, cy), 2 * radius)

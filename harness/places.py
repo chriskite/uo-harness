@@ -30,13 +30,6 @@ LIBRARIES = os.path.join(HERE, "data", "rune_libraries.json")
 CLIENT_DATA = os.path.join(uomap.INSTALL, "ClassicUO", "Data", "Client")
 ATLAS = {"poi": "POI.xml", "caravan": "Healer_Caravans.xml", "shrine": "Shrines.xml",
          "town": "Townships.xml", "moongate": "Moongates.xml", "dungeon": "Dungeons.xml"}
-# Place-name words that mean monsters live there (POI.xml and Witcher rune names, e.g. "Brigand
-# Camp 1", "Orc Fort 2", "Ratman Hovel", "Necromancers Swamp") [INFERENCE from the names]
-DANGER_WORDS = ("brigan", "orc", "lizardm", "savage", "daemon", "dragon", "necromancer", "ratman",
-                "cemetery", "crypt", "graveyard", "ogre", "terathan", "harpy", "lair", "troll", "ettin",
-                "cult", "undead", "spider", "arachnid", "minotaur", "kraul", "barbaric", "tribal", "smuggler",
-                "bandit", "pirate", "haunted", "volcano", "tomb", "pits", "dungeon", "cavernam")
-_WORD = re.compile(r"[a-z]+")
 _WITCHER_ROW = re.compile(r"^\s*(\d+[a-z]?)\s*(?:-\s.*)?$", re.I)
 AT_LIBRARY = 20                  # tiles from a library's stand: "standing in it"
 
@@ -212,12 +205,6 @@ def atlas(kinds=tuple(ATLAS), root: str = CLIENT_DATA) -> list:
     return out
 
 
-def danger_hint(name: str) -> list:
-    """DANGER_WORDS in a place name ([] = nothing known)."""
-    words = _WORD.findall((name or "").lower())
-    return sorted({d for d in DANGER_WORDS for w in words if w.startswith(d)})
-
-
 # ------------------------------------------------------------ own books and landings
 OWN_BOOKS_KEY = "own_books"      # meta key: {character: {book serial: escape.read_book dict + t}}
 
@@ -245,8 +232,11 @@ def known_books(mem, character: str | None) -> list:
     return sorted(out, key=lambda b: -(b.get("t") or 0))
 
 
-def _danger(name: str, title: str | None) -> list:
-    return danger_hint(name) + (["bad places"] if "bad places" in (title or "").lower() else [])
+def _danger(title: str | None) -> list:
+    """["bad places"] for a rune in a tome or book titled so (the DTF guild's 'Bad Places' tomes: dungeons and
+    their entrances), else []. A place's own name says nothing (user 2026-10-19: the "Urk Fort/Smugglers Den"
+    landing at Prevalia Quarry was safe)."""
+    return ["bad places"] if "bad places" in (title or "").lower() else []
 
 
 def landings(x: int, y: int, facet: int = 0, *, libraries=("cambria",), books=(),
@@ -257,9 +247,8 @@ def landings(x: int, y: int, facet: int = 0, *, libraries=("cambria",), books=()
     without a facet counts as facet 0 in a tome, which carries none; a runebook rune whose map hue
     isn't known is left out). Rows {source "library"|"book", library,
     tome, tome_title, tome_pos, witcher, book, kind, book_title, entry (the book's index), name, x, y, dist,
-    danger}; library fields are None on book rows and the reverse. `danger`: the
-    danger_hint words of the name, plus "bad places" when the tome or book is titled
-    so (the DTF 'Bad Places' tome); such rows are left out unless include_dangerous."""
+    danger}; library fields are None on book rows and the reverse. `danger`: ["bad places"] when the tome
+    or book is titled so (the DTF 'Bad Places' tomes), else []; such rows are left out unless include_dangerous."""
     rows = []
     for lib_id in libraries:
         if library(lib_id)["facet"] != facet:
@@ -267,7 +256,7 @@ def landings(x: int, y: int, facet: int = 0, *, libraries=("cambria",), books=()
         for r in runes(lib_id):
             if r["x"] is not None:
                 rows.append({"source": "library", **r, "book": None, "kind": None, "book_title": None,
-                             "entry": None, "danger": _danger(r["name"], r["tome_title"])})
+                             "entry": None, "danger": _danger(r["tome_title"])})
     for b in books:
         for r in b.get("runes") or []:
             rf = r.get("facet")
@@ -278,7 +267,7 @@ def landings(x: int, y: int, facet: int = 0, *, libraries=("cambria",), books=()
             rows.append({"source": "book", "library": None, "tome": None, "tome_title": None, "tome_pos": None,
                          "witcher": None, "book": b["serial"], "kind": b.get("kind"), "book_title": b.get("title"),
                          "entry": r.get("i"), "name": r["name"], "x": r["x"], "y": r["y"],
-                         "danger": _danger(r["name"], b.get("title"))})
+                         "danger": _danger(b.get("title"))})
     for r in rows:
         r["dist"] = max(abs(r["x"] - x), abs(r["y"] - y))
     rows = sorted((r for r in rows if include_dangerous or not r["danger"]),

@@ -541,30 +541,34 @@ def test_landings():
     s = spot("g", 3000, 3000)
     book = {"serial": "0x49865F8F", "kind": "runebook", "title": "Dan's book", "default": 0,
             "runes": [{"i": 0, "name": "DTF Loot Chest", "x": 4134, "y": 1429, "facet": 0},
-                      {"i": 1, "name": "Orc Fort 9", "x": 3000, "y": 3000, "facet": 0},
+                      {"i": 1, "name": "Orc Fort 9", "x": 3002, "y": 3000, "facet": 0},
                       {"i": 2, "name": "Grove A", "x": 3001, "y": 3000, "facet": 0},
                       {"i": 3, "name": "Grove B", "x": 3003, "y": 3000, "facet": 0}]}
     bad = {"serial": "0x1", "kind": "runetome", "title": "Bad Places", "runes": [{"i": 0, "name": "Glade", "x": 3000,
                                                                                "y": 3002}]}
     books = [book, bad]
     got = lo.landing_for(s, HOME, books)
-    check("the nearest landing wins; a monster-named rune and a 'Bad Places' book are skipped",
-          got is not None and got["name"] == "Grove A" and got["source"] == "book" and got["dist"] == 1, got)
+    check("the nearest landing wins", got is not None and got["name"] == "Grove A" and got["source"] == "book"
+          and got["dist"] == 1, got)
     asked = []
 
     def no_a(row, sp):
         asked.append(row["name"])
         return row["name"] != "Grove A"
     nxt = lo.landing_for(s, HOME, books, no_a)
-    check("no walking route from it: the next nearest", nxt["name"] == "Grove B" and asked == ["Grove A", "Grove B"],
-          (nxt, asked))
+    check("no walking route from it: the next nearest, a rune named after a monster place like any other "
+          "(user 2026-10-19)", nxt["name"] == "Orc Fort 9" and asked == ["Grove A", "Orc Fort 9"], (nxt, asked))
+    asked.clear()
+    only_b = lo.landing_for(s, HOME, books, lambda row, sp: asked.append(row["name"]) or row["name"] == "Grove B")
+    check("a 'Bad Places' book's rune (Glade, 2 tiles off) is never asked",
+          only_b["name"] == "Grove B" and asked == ["Grove A", "Orc Fort 9", "Grove B"], asked)
     lib = lo.landing_for(s, HOME, books, lambda row, sp: row["source"] == "library")
     check("no own rune with a route: the home library's nearest (DTF)", lib["source"] == "library"
           and lib["library"] == "dtf" and lib["dist"] > 3, lib)
     check("nothing reachable: None", lo.landing_for(s, HOME, books, lambda row, sp: False) is None)
     bad = {lo.landing_key(got, 0)}
     check("a landing remembered as bad (its recall put us elsewhere): the next nearest",
-          lo.landing_for(s, HOME, books, bad=bad)["name"] == "Grove B", bad)
+          lo.landing_for(s, HOME, books, bad=bad)["name"] == "Orc Fort 9", bad)
     check("the home in harness/data/homes.json is this one; it recalls out from its own library only",
           homes.for_character("outland dan") == HOME and homes.libraries(HOME) == ["dtf"])
 
@@ -679,7 +683,7 @@ def test_libraries():
 
 
 def test_discover_witcher():
-    print("== discover from Witcher runes: trees near the rune, a route in, no monster camps or towns ==")
+    print("== discover from Witcher runes: trees near the rune, a route in, no towns; a rune's name doesn't matter ==")
     import places
     runes = [{"id": "1", "name": "Quiet Grove", "x": 1000, "y": 1000, "tome": "0x1"},
              {"id": "2", "name": "Brigand Camp 1", "x": 2000, "y": 1000, "tome": "0x1"},
@@ -691,7 +695,8 @@ def test_discover_witcher():
     fn = lambda x0, y0, x1, y1: [t for t in trees if x0 <= t[0] <= x1 and y0 <= t[1] <= y1]  # noqa: E731
     route = lambda start, area: None if start == (4000, 1000) else 12                     # noqa: E731
     found, skipped = lo.discover_witcher(fn, runes, {}, route_fn=route, towns=[(3000, 1030)])
-    check("only the quiet grove", [s["id"] for s in found] == ["witcher_1"], [s["id"] for s in found])
+    check("the quiet grove, and the grove by 'Brigand Camp 1' (a place's name says nothing: user 2026-10-19)",
+          [s["id"] for s in found] == ["witcher_1", "witcher_2"], [s["id"] for s in found])
     s = found[0] if found else {}
     check("an area like any spot (no bank, access or travel: trips reach it from home), with the route in "
           "from its rune",
@@ -699,11 +704,8 @@ def test_discover_witcher():
           and s.get("route_tiles") == 12 and s.get("pvp") is True
           and s.get("tree_count", 0) >= 60 and abs(s["area"]["center"][1] - 1010) <= 7, s)
     check("the others left out for the right reasons",
-          skipped == {"monster name": 1, "in or by a town (no harvesting there)": 1,
+          skipped == {"in or by a town (no harvesting there)": 1,
                       "no short route from the rune": 1, "few trees": 1}, skipped)
-    check("monster words in place names", places.danger_hint("Orc Fort 2") == ["orc"]
-          and places.danger_hint("Western Ruins Brigands 3") == ["brigan"] and places.danger_hint("Brigan Camp 2") == ["brigan"]
-          and places.danger_hint("Cedar Forest") == [])
     check("the committed tables: 360 Witcher runes, each in one of the 14 Cambria tomes",
           len(places.witcher()["runes"]) == 360 and len(places.library()["tomes"]) == 14
           and sum(len(t["rows"]) for t in places.library()["tomes"]) == 360

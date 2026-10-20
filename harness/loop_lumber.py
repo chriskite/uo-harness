@@ -4186,7 +4186,7 @@ class LumberLoop:
     def landing(self) -> dict | None:
         """The landing trips recall to, chosen once a run (lumber_opt.landing_for, as `ctl lumber
         plan` shows it): the rune nearest the grove of our home's rune library (home.libraries)
-        and our own books, dangerous ones left out, with a walking route from it into the grove.
+        and our own books, the 'Bad Places' tomes' left out, with a walking route from it into the grove.
         Routes are planned on the map with the Mover's planner (lumber_opt.make_route_fn) and
         cached in the store (lumber_opt.landing_routes); without a map (--no-map) only cached
         answers count and an unknown route counts as there."""

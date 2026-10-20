@@ -221,7 +221,7 @@ Logs/hour stands in for gold/hour until colored-wood prices exist (user, 2026-10
 Decision and rejected alternatives: docs/PLAN.md "Self-optimizing lumber".
 
 **Spots.** A spot = a tree area (`area`, `trees`, `pvp`, `hazard_prior`; discovered ones also
-`danger_hint`, `route_tiles`, `tree_count`). Nothing about getting there: **every trip starts and
+`route_tiles`, `tree_count`). Nothing about getting there: **every trip starts and
 ends at the character's home** (user decision 2026-10-04, "Home and the way out" below), so no spot
 has a bank, a banker, a travel note or a Young flag any more (store rows that still carry `banker`,
 `access`, `home`, `requires_young`, `travel`, `travel_min` are ignored). Seeds:
@@ -332,9 +332,10 @@ house (landing 4134,1429), the DTF rune library (stand 4152,1429) and Logan Wolf
 its secure chest. A trip leaves the room through the house steward, recalls out to the **landing
 nearest the grove** (`lumber_opt.landing_for`: the first `places.landings` row from the home rune
 library and the character's own runebooks/rune tomes, `places.known_books`, nearest the area: a
-square's centre, a forest's nearest cell, where `dist` is tiles to that edge; a landing whose name
-has a monster word or whose tome/book is titled "Bad Places" is
-skipped; a landing needs a walking route into the grove (a square's inner half, any cell of a
+square's centre, a forest's nearest cell, where `dist` is tiles to that edge; a landing whose
+tome/book is titled "Bad Places" is skipped (a rune's own name, "Orc Fort" or "Smugglers Den", counts for
+nothing since 2026-10-19: user, the Urk Fort/Smugglers Den landing at Prevalia Quarry was safe); a landing
+needs a walking route into the grove (a square's inner half, any cell of a
 forest), else the next nearest), chops, recalls home
 on its own book's default rune, enters the room, converts and stores. No public moongates, no
 walking from a bank. The route check plans on the map with the runner's budget (`make_route_fn`,
@@ -803,7 +804,7 @@ both waited out by the first chop), then the user's rule: "always recall as clos
 lumbering spot as we can via rune tomes in the rune library or our own rune tomes/books in our
 backpack, never public moongates or starting at banks and walking". The landing is the rune
 nearest the grove of the home rune library or the character's own books, with a walking route
-into the grove, dangerous ones (`places.danger_hint`, the DTF "Bad Places" tome) left out
+into the grove, the DTF "Bad Places" tomes' runes left out (a rune's name doesn't count since 2026-10-19)
 (`lumber_opt.landing_for`, the same choice `ctl lumber plan` shows). The walk to a library tome
 ends on a floor at or below it (`agent_link.not_above`, since 2026-10-19: the DTF guild house's
 walk took the stairs and stood on the floor above the shelves, z 26 over tomes at z 7-22, and the

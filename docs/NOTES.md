@@ -4083,11 +4083,15 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   - Run it from the plan: `./ctl.cmd --char "Outland Dan" mining plan` → `ctl run mining --spot forge_1227_1142
     --trips 1 --field-min 60 --timeout 6300` (the plan's `command`). By hand for a short test:
     `./ctl.cmd --char "Outland Dan" run mining --spot forge_1227_1142 --trips 1 --hops 0 --field-min 10`.
-  - Seed spots: `python harness/ore_nodes.py spots --active-near 1178 1119` (~4 s) wrote 44 spots to
-    `harness/data/mining_spots.json` (committed). Only `forge_1227_1142` (Prevalia Quarry, 83 node blocks) is
-    active. The capture's forge (1193,1066) is left out: its nearest rune "12 - Urk Fort/Smugglers Den" has a danger
-    word (`places.danger_hint`; `--include-dangerous` keeps it). (1254,1148) lies within 40 of the richer Shrine:Honor
-    site (1279,1149), which is a candidate.
+  - Seed spots: `python harness/ore_nodes.py spots --active-near 1178 1119` (~4 s) wrote 51 spots to
+    `harness/data/mining_spots.json` (committed); two are active, the Prevalia Quarry forges `forge_1227_1142` (83
+    node blocks) and `forge_1193_1066` (63, the capture's forge; its nearest rune is "12 - Urk Fort/Smugglers Den").
+    (1254,1148) lies within 40 of the richer Shrine:Honor site (1279,1149), which is a candidate.
+  - **No danger words (user 2026-10-19: "The spot I recalled into was safe").** Until then `places.danger_hint`
+    left out every rune or forge site whose name held a monster-place word (orc, brigan, smuggler, crypt, …): the
+    capture's own forge was dropped for "Smugglers Den" (the seed file had 44 spots, 51 without the filter), and
+    `lumber discover` and the landings skipped such runes too. Removed everywhere; only the DTF guild's "Bad
+    Places" tomes (dungeons and their entrances, named so by the guild) still keep their runes out of the landings.
   - `ctl mining plan` without the proxy needs `--char NAME` for the home (no mining trip row names the character
     yet). With no mining trips the score is 585 ore/h: the 1300 prior less the pooled hazards' priors
     (0.5 per field hour each).

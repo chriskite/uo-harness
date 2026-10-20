@@ -63,8 +63,9 @@ def test_landings():
           rows[:3])
     check("library rows carry the tome and no book fields",
           all(r["tome"] and r["tome_pos"] and r["book"] is None and r["kind"] is None for r in rows))
-    check("dangerous landings left out: no 'Bad Places' tome, no monster-place name",
-          not any(r["danger"] for r in rows) and not any("bad places" in (r["tome_title"] or "").lower() for r in rows))
+    check("'Bad Places' tome landings left out; a monster-place name is kept (user 2026-10-19)",
+          not any(r["danger"] for r in rows) and not any("bad places" in (r["tome_title"] or "").lower() for r in rows)
+          and any("Brigand Camp" in r["name"] for r in rows))
     every = places.landings(4134, 1429, libraries=("dtf", "cambria"), include_dangerous=True)
     bad = [r for r in every if r["danger"]]
     check("include_dangerous keeps them, flagged",
@@ -91,10 +92,10 @@ def test_landings():
                                              {"i": 2, "name": "Unread", "x": None, "y": None, "facet": None},
                                              {"i": 3, "name": "Tome rune", "x": 3, "y": 3, "facet": None}]}
     got = places.landings(0, 0, libraries=(), books=[odd])
-    check("tome runes: dangerous names skipped, other facets and unread tiles left out, no facet = facet 0, "
-          "the book's index kept", [(r["name"], r["entry"]) for r in got] == [("Tome rune", 3)], got)
+    check("tome runes: a monster-place name kept, other facets and unread tiles left out, no facet = facet 0, "
+          "the book's index kept", [(r["name"], r["entry"]) for r in got] == [("Orc Fort", 0), ("Tome rune", 3)], got)
     check("a runebook rune whose map hue is unknown (no facet) is left out: its tile may be on another map",
-          places.landings(0, 0, libraries=(), books=[{**odd, "kind": "runebook"}]) == [])
+          [r["name"] for r in places.landings(0, 0, libraries=(), books=[{**odd, "kind": "runebook"}])] == ["Orc Fort"])
     check("a book titled 'Bad Places' is dangerous",
           places.landings(0, 0, libraries=(), books=[{**odd, "title": "Bad Places"}]) == [])
 

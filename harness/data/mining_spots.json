@@ -1,6 +1,6 @@
 {
  "_doc": "Mining seed spots: non-town overworld forge sites with ore nodes around them (python harness/ore_nodes.py spots; mining_opt.load_spots). 'candidate' spots run only after `ctl mining spot set <id> --status active`.",
- "generated": "2026-10-19T21:01:28",
+ "generated": "2026-10-19T21:31:18",
  "spots": [
   {
    "id": "forge_2599_620",
@@ -509,6 +509,29 @@
    "status": "candidate"
   },
   {
+   "id": "forge_1563_2654",
+   "name": "Brigand Camp 2 forge (1563,2654)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1563,
+     2654
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1563,
+    "y": 2654,
+    "z": 0
+   },
+   "nodes": 69,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
    "id": "forge_1821_1808",
    "name": "Jonny's House forge (1821,1808)",
    "facet": 0,
@@ -599,6 +622,29 @@
    "hazard_prior": 0.5,
    "source": "ore_nodes",
    "status": "candidate"
+  },
+  {
+   "id": "forge_1193_1066",
+   "name": "12 - Urk Fort/Smugglers Den forge (1193,1066)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1193,
+     1066
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1193,
+    "y": 1066,
+    "z": 1
+   },
+   "nodes": 63,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "active"
   },
   {
    "id": "forge_1347_2809",
@@ -756,6 +802,52 @@
     "z": 0
    },
    "nodes": 52,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1180_1793",
+   "name": "Ruins and Underground Lair forge (1180,1793)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1180,
+     1793
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1180,
+    "y": 1793,
+    "z": -30
+   },
+   "nodes": 50,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2778_476",
+   "name": "270 - Cavernam (Outside South East) forge (2778,476)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2778,
+     476
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2778,
+    "y": 476,
+    "z": 0
+   },
+   "nodes": 48,
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
@@ -969,6 +1061,52 @@
    "status": "candidate"
   },
   {
+   "id": "forge_789_1809",
+   "name": "70 - Orc Fort 3 (South) forge (789,1809)",
+   "facet": 0,
+   "area": {
+    "center": [
+     789,
+     1809
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 789,
+    "y": 1809,
+    "z": 2
+   },
+   "nodes": 25,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1044_1360",
+   "name": "Western Ruins Brigand 3 forge (1044,1360)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1044,
+     1360
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1044,
+    "y": 1360,
+    "z": 21
+   },
+   "nodes": 24,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
    "id": "forge_1951_1523",
    "name": "276 - Prevalia Zoo (East) forge (1951,1523)",
    "facet": 0,
@@ -1009,6 +1147,29 @@
     "z": 0
    },
    "nodes": 21,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1517_1178",
+   "name": "Brigand Camp 1 forge (1517,1178)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1517,
+     1178
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1517,
+    "y": 1178,
+    "z": 0
+   },
+   "nodes": 20,
    "pvp": true,
    "hazard_prior": 0.5,
    "source": "ore_nodes",
