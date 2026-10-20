@@ -4319,6 +4319,11 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       per-ore walk unchanged: success 98.6 %, 1.27 ore per dig, ~1520 ore per field hour, 66.6 gp per ore (68.1 if
       avarite unlocks). That is ~101k gp per field hour and ~71k gp net per clock hour (range ~66k–85k: death
       hazard 0.25–0.37 per running hour, the per-ore walk fixed or shrinking with the digging).
+    - The Jobs > Mining tile "gold / active hr" (`jobs.compute_mining` `gp_per_active_hour`: gold stored over the
+      legs plus gaps of up to 2 min between them) leaves out breaks, stops and a death's downtime. It read 72.8k for
+      that day up to 14:38, the projection's base window. On that measure the projection at 100 is ~93k (88k–110k).
+      The legs from 14:38 to 16:04 (skill 68.5–72, the planner's best spots) already read 93.5k: the choice of spot
+      and the failed legs weigh as much as skill.
 
 ## Network observations
 
