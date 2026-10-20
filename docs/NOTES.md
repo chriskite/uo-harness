@@ -4131,6 +4131,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     passive-name sightings, as `learned_params` already did, so routes no longer bend round the quarry for 30 days.
     The tracked-red recall in the same run (Piers Beardkeep at 67 tiles) was the 100-tile tracking rule working as
     meant.
+  - **Two spots disabled after the first runs with all spots on** (user 2026-10-19):
+    - forge_789_1809: its landing, rune "69", put Dan inside Orc Fort 3. Orcs at 7 tiles at once, recalled 0.76 s after
+      sight (mining-20261019-222352-b8b5).
+    - forge_1696_1438, the "Paladin" forge: it sits inside Prevalia, 92 tiles from the town's atlas marker
+      (1604,1524), beyond `lumber_opt.TOWN_RADIUS` 50, so the town filter missed it. Its 434 map "stands" were along
+      the city walls. Every one gave "no route" at ~3 s of planning each (mining-20261019-222522-86e8, stopped by
+      hand). The two "Prevalia Sewers" forges (75 and 80 tiles from the marker) may be the same.
+  - Since then the runner disables a spot by itself after `UNWORKABLE_STANDS` (8) stands in a row with no route or
+    "Harvesting is not allowed in this area." It writes a `disabled` mining_spots row ("N ore stands in a row
+    unreachable or not minable (runner, date)") and an `unworkable` job event. The leg then ends early (episode
+    `unworkable`) and may hop on (test_loop_mining.py mine_unworkable).
 
 ## Network observations
 

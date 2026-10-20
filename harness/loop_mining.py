@@ -52,6 +52,10 @@ INGOTS = (0x1BF2,)
 LAYER_ONE_HANDED = 0x01
 STAND_DIST_SCALE = 20        # tiles: a stand this far counts half as much as one here (next_stand)
 STATIONARY_MAX = 3           # "A stationary penalty is in effect" this often at one stand: abort
+# Ore stands in a row with no route to them or "Harvesting is not allowed in this area." mark the spot unworkable: it is
+# disabled and the leg moves on (live 2026-10-19, forge_1696_1438: the Paladin forge inside Prevalia, whose map
+# "stands" were the city walls, took ~3 s of route planning each over 434 stands)
+UNWORKABLE_STANDS = 8
 BUSY_RETRY_S = 0.4           # after 500119 "You must wait to perform another action."
 EQUIP_WAIT_S = 3.0           # a packed pickaxe's double-click until it is in hand
 SMELT_WAIT_S = 4.0           # an ore stack's double-click until the forge's answer (live: at once)
@@ -78,6 +82,7 @@ class MineLoop(loop_lumber.LumberLoop):
         self.leg_t0 = None           # monotonic start of the current harvest_trip's field time
         self.unsmeltable = set()     # this leg: ore stacks the forge refused or didn't answer (not tried again)
         self._forge_failed = False   # this leg: the forge said it isn't one (smelt_leaving tries no more)
+        self.fruitless = 0           # this leg: stands in a row with no route or no mining allowed (UNWORKABLE_STANDS)
 
     # ------------------------------------------------------------ the pickaxe
     def pickaxes(self, st) -> list:
@@ -156,6 +161,7 @@ class MineLoop(loop_lumber.LumberLoop):
 
     def leg(self, n, hops: int) -> dict | None:
         self.dry_blocks, self.no_route_stands, self.leg_t0 = set(), set(), None
+        self.fruitless = 0           # stands in a row with no route or no mining allowed (UNWORKABLE_STANDS)
         self.unsmeltable = set()     # ore stacks this leg's forge didn't take (refused or no answer): not again
         self._forge_failed = False
         return super().leg(n, hops)
@@ -206,7 +212,24 @@ class MineLoop(loop_lumber.LumberLoop):
             return f"the area ran dry at {ore} ore"
         if self.stats.get("creature_blocked"):
             return f"every stand left was within a creature's reach at {ore} ore"
+        if self.stats.get("unworkable"):
+            return f"the spot is unworkable ({self.stats['unworkable']})"
         return None
+
+    def unworkable(self):
+        """UNWORKABLE_STANDS stands in a row had no route or allowed no mining: the spot is disabled in the store
+        (a `disabled` mining_spots row; mining_opt plans it no more) and the leg ends (stats `unworkable`)."""
+        spot = self.k["spot"]["id"]
+        reason = (f"{self.fruitless} ore stands in a row unreachable or not minable (runner, "
+                  f"{time.strftime('%Y-%m-%d %H:%M')})")
+        row = next((r for r in self.memory.mining_spot_rows() if r["id"] == spot), None)
+        self.memory.mining_spot_put(spot, "disabled", row["data"] if row else {}, row["source"] if row else "runner",
+                                    reason)
+        st = self.link.state()
+        self.memory.job_event(self.JOB, "unworkable", {"spot": spot, "trip": self.trip_n, "reason": reason,
+                                                       "no_route": len(self.no_route_stands)}, **self._where(st))
+        self.stats["unworkable"] = reason
+        log(f"spot {spot} disabled: {reason}; leaving it")
 
     def try_hop(self, reason: str, timed, recall: bool) -> dict | None:
         """The leg ended early (`reason`): home, then on to the spot mining_opt picks (greedy, this one
@@ -548,6 +571,9 @@ class MineLoop(loop_lumber.LumberLoop):
                             log(f"the area ran dry at {tally['ore']} ore (every stand dug out or unreachable)")
                         break
                     self.dig_stand(stand, tally)
+                    if self.fruitless >= UNWORKABLE_STANDS:
+                        self.unworkable()
+                        break
                 except Escape as e:
                     self.escape(e)
                 except KeepAway as e:
@@ -584,6 +610,7 @@ class MineLoop(loop_lumber.LumberLoop):
             if "no route" not in str(e):
                 raise
             self.no_route_stands.add((x, y))
+            self.fruitless += 1
             log(f"ore stand {x},{y}: no route; trying the next one")
             return
         z = self.link.pos(self.link.state())[2]
@@ -610,6 +637,7 @@ class MineLoop(loop_lumber.LumberLoop):
                 if out != "none":
                     tally["unknown"] = 0
                 if out in ("success", "fail"):
+                    self.fruitless = 0
                     rec["attempts"] += 1
                     tally["attempts"] += 1
                     if out == "success":
@@ -623,6 +651,7 @@ class MineLoop(loop_lumber.LumberLoop):
                 elif out in ("nothing_near", "no_harvest"):
                     blocks = stand["blocks"]
                     self.memory.mine_blocks_mark(self.facet, blocks, "depleted" if out == "nothing_near" else out)
+                    self.fruitless = self.fruitless + 1 if out == "no_harvest" else 0
                     self.dry_blocks.update(blocks)
                     self.memory.mine_record(self.facet, x, y, z, out, 0)
                     rec["end"] = out

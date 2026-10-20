@@ -44,8 +44,10 @@ NOTHING_NEAR = "You do not see any harvestable resources nearby."
 
 
 class MineWorld(T.World):
-    def __init__(self):
+    def __init__(self, no_harvest: bool = False):
         super().__init__("mining")
+        self.no_harvest = no_harvest      # mine_unworkable: every dig answers "Harvesting is not allowed in this area."
+        self.no_harvest_replies = 0
         self.ore_left = dict(ORE)
         self.last_dig = None
         self.busy_replies = 0
@@ -102,6 +104,10 @@ class MineWorld(T.World):
         asyncio.get_running_loop().call_later(1.0, self.dig_reply)
 
     def dig_reply(self):
+        if self.no_harvest:
+            self.no_harvest_replies += 1
+            self.send(T.sys_text("Harvesting is not allowed in this area."))
+            return
         rock = next((r for r in ORE if self.cheb(r) <= 2 and self.ore_left[r] > 0), None)
         if rock is None:
             self.replies["nothing_near"] += 1
@@ -288,7 +294,35 @@ async def mine_dry_start():
         store.close()
 
 
-runs = [mine_main, mine_hop, mine_dry_start]
+async def mine_unworkable():
+    print("\n== mine_unworkable: every stand answers 'Harvesting is not allowed in this area.': after "
+          "UNWORKABLE_STANDS in a row the spot is disabled and the leg goes home ==")
+    import loop_mining
+    world = MineWorld(no_harvest=True)
+    stands = [{"x": 96 + i, "y": 204, "n": 1, "blocks": [[200 + i, 0]]} for i in range(loop_mining.UNWORKABLE_STANDS + 2)]
+    doc = {"spots": [{**SPOTS_DOC["spots"][0], "stands": stands}]}
+    text, code, store, _rows = await T.run_scenario(
+        world, "mine_unworkable", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
+        script="harness/loop_mining.py", spots_doc=doc)
+    try:
+        T.check("runner exited 0 in the rental room", code == 0 and world.facet == T.ROOM_FACET,
+                f"{code}, facet {world.facet}")
+        ends = [e["data"]["end"] for e in store.job_events("mining") if e["kind"] == "stand"]
+        T.check(f"{loop_mining.UNWORKABLE_STANDS} no-harvest stands, then no more digging",
+                ends == ["no_harvest"] * loop_mining.UNWORKABLE_STANDS
+                and world.no_harvest_replies == loop_mining.UNWORKABLE_STANDS, f"{ends}, {world.no_harvest_replies}")
+        rows = {r["id"]: r for r in store.mining_spot_rows()}
+        T.check("the spot is disabled in the store with the reason",
+                (rows.get("sim") or {}).get("status") == "disabled"
+                and "unreachable or not minable" in ((rows.get("sim") or {}).get("reason") or ""), str(rows.get("sim")))
+        ep = store.episodes("mining")
+        T.check("the leg ended early as unworkable", len(ep) == 1 and ep[0].get("unworkable")
+                and ep[0].get("outcome") == "stored", str([(r.get("outcome"), r.get("unworkable")) for r in ep]))
+    finally:
+        store.close()
+
+
+runs = [mine_main, mine_hop, mine_dry_start, mine_unworkable]
 
 
 if __name__ == "__main__":

@@ -558,7 +558,10 @@ Paste this (or point the session at this section) to start an overseer.
 > smelts at the spot's forge and comes home into the rental room; **the ingots stay carried** in the
 > trapped pouch and nothing is stored (user decision 2026-10-19: a death loses them, so say so when the
 > pouch holds many). A `smelt` job event with `ok: false` means the spot's forge didn't smelt and the
-> runner disabled the spot: tell the user. A pickaxe must be worn or carried (`low_supplies`, item
+> runner disabled the spot: tell the user. So does an `unworkable` job event: 8 stands in a row had no route or
+> allowed no mining (a forge inside a town, ore behind walls). Disable a spot yourself
+> (`ctl mining spot set <id> --status disabled --reason …`) whose landing puts Dan among monsters at once, and tell
+> the user. A pickaxe must be worn or carried (`low_supplies`, item
 > `pickaxe`, otherwise). **Ending a mining shift:** `ctl stop --after-trip` and wait for its
 > `task_done`: the leg ends at home in the rental room with the ingots carried.
 > **Every spot cooling down** (`ok: false`, `retry_in_min` set): each spot is kept out for 30 min after a threat
