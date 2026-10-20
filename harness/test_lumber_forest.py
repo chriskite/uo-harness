@@ -133,8 +133,43 @@ def test_build_store():
     mem.close()
 
 
+def test_own_cap():
+    print("== one spot regrown to its own cap: it grows on, its neighbour keeps its cells, a rebuild keeps the cap ==")
+    d = tempfile.mkdtemp()
+    seeds = os.path.join(d, "seeds.json")
+    with open(seeds, "w") as fh:
+        json.dump({"spots": []}, fh)
+    mem = Memory(os.path.join(d, "h.db"))
+    for sid, (x, y) in {"west": (405, 430), "east": (635, 430)}.items():   # one woodland, 1 701 trees
+        mem.lumber_spot_put(sid, "active", {"id": sid, "name": f"Witcher {sid}: Wood", "facet": 0,
+                                            "area": win(x, y), "trees": [], "pvp": True, "hazard_prior": 0.5},
+                            "discover")
+    world = World(lattice(400, 640, 400, 460))
+    trees = lambda: lf.Trees(world.trees_fn)  # noqa: E731
+    kw = dict(now=1.0, cap=300)
+    first = lf.build(lo.load_spots(mem, seeds), 0, trees(), world.stand_z, world.step, {}, **kw)
+    lf.apply(mem, first["writes"], lo.load_spots(mem, seeds))
+    before = lo.load_spots(mem, seeds)
+    one = lf.build(before, 0, trees(), world.stand_z, world.step, {}, only="west", own_cap=600, **kw)
+    lf.apply(mem, one["writes"], before)
+    after = lo.load_spots(mem, seeds)
+    w0, w1, e1 = before["west"], after["west"], after["east"]
+    check("--spot west --cap 600: only west written; it holds about twice the trees and keeps its old cells",
+          [x[0] for x in one["writes"]] == ["west"] and w1["forest"]["claimed"] >= 600 > w0["forest"]["claimed"]
+          and {tuple(c) for c in w0["area"]["cells"]} <= {tuple(c) for c in w1["area"]["cells"]}
+          and w1["forest"]["own_cap"] == 600, (w0["forest"], w1["forest"]))
+    check("east unchanged, and west's new cells stay out of east's",
+          e1 == before["east"] and not ({tuple(c) for c in w1["area"]["cells"]}
+                                        & {tuple(c) for c in e1["area"]["cells"]}), e1["area"]["cells"][:3])
+    full = lf.build(after, 0, trees(), world.stand_z, world.step, {}, **kw)
+    fw = next(x for x in full["writes"] if x[0] == "west")[2]
+    check("a later full rebuild (cap 300) keeps west's own cap of 600",
+          fw["forest"]["own_cap"] == 600 and fw["forest"]["claimed"] >= 600, fw["forest"])
+    mem.close()
+
+
 if __name__ == "__main__":
-    for fn in (test_extent, test_cap_and_merge, test_build_store):
+    for fn in (test_extent, test_cap_and_merge, test_build_store, test_own_cap):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

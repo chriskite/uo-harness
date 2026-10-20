@@ -120,14 +120,18 @@ def walk_fns(walk):
     return stand_z, step
 
 
-def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH, cap: int = CAP) -> list:
+def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH, cap: int = CAP,
+         caps: dict | None = None) -> list:
     """Grow every source's window into its forest (module doc). sources: [(id, window area
     {center, radius})], the most-tried first (a tile both windows hold goes to the first).
-    stop: a Zones (or tile predicate) the fill doesn't enter outside the windows.
+    stop: a Zones (or tile predicate) the fill doesn't enter outside the windows. caps: {id: trees}
+    for a spot with its own cap (user 2026-10-19: witcher_280 to 1 200), else `cap`; two territories
+    merge while together they hold at most the larger of their caps.
     -> [{"members": [ids], "cells": [(cx, cy)], "claimed": trees claimed, "trees": tree
     statics in the cells}], members in source order; a source whose window has no walkable
     forest ground comes back alone with no cells."""
     n = len(sources)
+    lab_cap = [(caps or {}).get(sid, cap) for sid, _w in sources]
     owner, claimed = {}, set()
     count, done = [0] * n, [False] * n
     touch = set()
@@ -141,7 +145,7 @@ def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH,
                 if (tx, ty) not in claimed and trees.at(tx, ty):
                     claimed.add((tx, ty))
                     count[lab] += 1
-        if count[lab] >= cap:
+        if count[lab] >= lab_cap[lab]:
             done[lab] = True
 
     for lab, (_sid, w) in enumerate(sources):
@@ -182,7 +186,7 @@ def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH,
         best = None
         for a, b in touch:
             ra, rb = find(a), find(b)
-            if ra != rb and size[ra] + size[rb] <= cap:
+            if ra != rb and size[ra] + size[rb] <= max(lab_cap[ra], lab_cap[rb]):
                 k = (size[ra] + size[rb], min(ra, rb), max(ra, rb))
                 best = k if best is None or k < best else best
         if best is None:
@@ -190,6 +194,7 @@ def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH,
         _, ra, rb = best
         parent[rb] = ra
         size[ra] += size[rb]
+        lab_cap[ra] = max(lab_cap[ra], lab_cap[rb])
 
     C = lumber_opt.CELL
     votes = {}
@@ -276,17 +281,32 @@ def trip_counts(memory) -> dict:
 
 
 def build(spots: dict, facet: int, trees: Trees, stand_z, step, trips: dict, *, towns=(), guard_points=(),
-          cap: int = CAP, now: float | None = None) -> dict:
+          cap: int = CAP, now: float | None = None, only: str | None = None, own_cap: int | None = None) -> dict:
     """The forests of every active spot on `facet` (and of the spots an earlier build merged),
     as store writes: {"forests": [summary], "writes": [(id, status, data, reason)],
     "ungrown": [ids]}. Each spot's data is its current spot (lumber_opt.load_spots) with
-    the forest's area, or its window back and `merged_into`."""
+    the forest's area, or its window back and `merged_into`. A spot whose forest has an
+    `own_cap` grows to that many trees, not `cap`. `only`: regrow that one spot alone (with
+    `own_cap` as its new own cap, when given), keeping out of every other spot's cells, so no
+    other spot changes (user 2026-10-19: "the witcher_280 spot could be expanded")."""
     now = time.time() if now is None else now
     src = [s for s in spots.values() if int(s.get("facet") or 0) == facet and s.get("area")
            and (s.get("status") == "active" or (s.get("status") == "disabled" and s.get("merged_into")))]
     src.sort(key=lambda s: (-trips.get(s["id"], 0), s["id"]))
-    stop = no_go(spots, facet, towns, guard_points)
-    got = grow([(s["id"], window_of(s)) for s in src], trees, stand_z, step, stop, cap=cap)
+    caps = {s["id"]: int(s["forest"]["own_cap"]) for s in src if (s.get("forest") or {}).get("own_cap")}
+    zones = no_go(spots, facet, towns, guard_points)
+    stop = zones
+    if only is not None:
+        if own_cap is not None:
+            caps[only] = int(own_cap)
+        C = lumber_opt.CELL
+        taken = {(int(c[0]), int(c[1])) for s in src if s["id"] != only and s.get("status") == "active"
+                 for c in s["area"].get("cells") or ()}
+        src = [spots[only]]
+
+        def stop(x, y):
+            return zones(x, y) or (x // C, y // C) in taken
+    got = grow([(s["id"], window_of(s)) for s in src], trees, stand_z, step, stop, cap=cap, caps=caps)
     forests, writes, ungrown = [], [], []
     for f in got:
         if not f["cells"]:
@@ -301,7 +321,8 @@ def build(spots: dict, facet: int, trees: Trees, stand_z, step, trips: dict, *, 
         data.update(area=forest_area(f["cells"], window, f["trees"]), tree_count=f["trees"],
                     name=f"{name} forest ({f['trees']} trees" + (f", {len(merged) + 1} spots)" if merged else ")"),
                     forest={"window": window, "base_name": name, "trees": f["trees"], "claimed": f["claimed"],
-                            "cells": len(f["cells"]), "link": trees.link, "cap": cap, "built_t": round(now, 1)})
+                            "cells": len(f["cells"]), "link": trees.link, "cap": caps.get(keeper, cap),
+                            "built_t": round(now, 1), **({"own_cap": caps[keeper]} if keeper in caps else {})})
         writes.append((keeper, "active", data, None))
         for sid in merged:
             s = spots[sid]

@@ -3328,17 +3328,22 @@ def cmd_lumber(a, mem):
         umap = uomap.UoMap(a.facet)
         stand_z, step = lumber_forest.walk_fns(pathfind.Walk(umap))
         spots = lumber_opt.load_spots(mem)
+        if a.spot is not None and (a.spot not in spots or spots[a.spot].get("status") != "active"):
+            raise CtlError(f"--spot {a.spot}: not an active spot")
         t0 = time.time()
         got = lumber_forest.build(
             spots, a.facet, lumber_forest.Trees(umap.find_trees), stand_z, step, lumber_forest.trip_counts(mem),
             towns=[(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == a.facet],
-            guard_points=mem.guard_points(a.facet), cap=lumber_forest.CAP if a.cap is None else a.cap)
+            guard_points=mem.guard_points(a.facet),
+            cap=lumber_forest.CAP if a.cap is None or a.spot is not None else a.cap,
+            only=a.spot, own_cap=a.cap if a.spot is not None else None)
         if not a.dry_run:
             lumber_forest.apply(mem, got["writes"], spots)
-            mem.chat_post("overseer", f"lumber forests (facet {a.facet}): {len(got['forests'])} forest spot(s), "
-                                      f"{sum(len(f['merged']) for f in got['forests'])} spot(s) merged", "action",
-                          data={"cmd": "lumber forests", "forests": [[f["id"], f["trees"], f["merged"]]
-                                                                    for f in got["forests"]]})
+            what = f"{a.spot}'s forest regrown" + (f" to its own cap {a.cap}" if a.cap else "") if a.spot \
+                else f"{len(got['forests'])} forest spot(s), {sum(len(f['merged']) for f in got['forests'])} merged"
+            mem.chat_post("overseer", f"lumber forests (facet {a.facet}): {what}", "action",
+                          data={"cmd": "lumber forests", "spot": a.spot, "cap": a.cap,
+                                "forests": [[f["id"], f["trees"], f["merged"]] for f in got["forests"]]})
         return {"ok": True, "facet": a.facet, "forests": got["forests"], "ungrown": got["ungrown"],
                 "saved": not a.dry_run, "seconds": round(time.time() - t0, 1)}
     if op == "price":
@@ -3568,7 +3573,12 @@ def _lumber_parser(sub):
     q = ls.add_parser("forests", help="grow every active spot over the forest around it (map data; "
                                       "spots that meet merge up to the cap; docs/LUMBER_LOOP.md §6 'Forest spots')")
     q.add_argument("--facet", type=int, default=0)
-    q.add_argument("--cap", type=int, default=None, help="trees per forest spot at most (default 800)")
+    q.add_argument("--cap", type=int, default=None,
+                   help="trees per forest spot at most (default 800); with --spot: that spot's own cap, kept "
+                        "for later rebuilds")
+    q.add_argument("--spot", default=None,
+                   help="regrow only this active spot, keeping out of every other spot's cells (no other spot "
+                        "changes)")
     q.add_argument("--dry-run", action="store_true", help="list, don't save")
     q = ls.add_parser("price", help="record an observed price, e.g. hatchet:copper 1200, board:ordinary 9, "
                                     "reagent:black_pearl 5 or recall_charge 30 (supplies: what a trip's recalls cost)")

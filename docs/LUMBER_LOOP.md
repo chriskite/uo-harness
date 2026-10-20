@@ -262,6 +262,14 @@ spot's area is the forest around its window:
   them (nearest first) and counts as at the grove within 10 tiles of a cell (`AT_GROVE`).
 - **Rebuild** after approving candidates or disabling a spot: `ctl lumber forests [--dry-run]`
   (~12 s for 127 spots on facet 0).
+- **One spot, its own cap** (since 2026-10-19, user: "the witcher_280 spot could be expanded... the
+  west and south edges have thick groves that the runner won't chop"): `ctl lumber forests --spot ID
+  --cap N [--dry-run]` regrows that spot alone up to N trees, keeping out of every other spot's
+  cells, so no other spot changes. N is kept as the spot's `forest.own_cap`, and later full rebuilds
+  grow it to N, not `CAP`. Two territories merge while together they hold at most the larger of
+  their caps. witcher_280 had stopped at the 800 cap with the woodland running on west; its own cap
+  1 200 took it from 836 to 1 177 trees (158 → 232 cells, x 256 → 232). Its south edge is
+  witcher_279's forest (Andarian Scout Camp), left as its own spot.
 - First build (2026-10-07): 127 spots → 93 forests (34 merged), 35–836 trees, median 165; 54 of
   90 eligible spots are still grove-bound (was 118 of 123); median planned net logs/h 2 427 →
   2 717. witcher_265 51 → 558 trees (its woodland is split with witcher_26, 656), witcher_89
