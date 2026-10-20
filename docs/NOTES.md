@@ -4310,12 +4310,15 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       time, the 60 s travel lockouts 8.4 %, smelting 2 %. The rest (38 %) was walking between stands and escapes:
       1.32 s per ore.
     - The ore was worth 59.8 gp each (2 ingots; 92 % iron; dull copper, shadow iron and copper ingots are worth less
-      than iron). Recall charges were 46 × 200 gp. Field time was 82.6 % of the hours running (death downtime left
-      out). Net: ~54k gp per clock hour, with the death's 35 min downtime included.
+      than iron). Supplies were 23 own-book recall charges (the price row `recall_charge` is 8 gp: user 2026-10-20,
+      "Recall scrolls are 8gp each from player vendors"; it was 200 gp), 83 reagents and 1 trapped pouch, ~460 gp
+      in all: noise. Field time was 82.6 % of the hours running (death downtime left out). Net: ~56k gp per clock
+      hour, with the death's 35 min downtime included.
     - Projection at 100 skill (user request, 2026-10-20), from the wiki's base node chances and colour formula, the
       measured 1.18 multiplier, a colour share of 0.8 calibrated on dull copper to bronze, and doubles and the
       per-ore walk unchanged: success 98.6 %, 1.27 ore per dig, ~1520 ore per field hour, 66.6 gp per ore (68.1 if
-      avarite unlocks). That is ~101k gp per field hour and ~69k gp net per clock hour (range ~64k–83k).
+      avarite unlocks). That is ~101k gp per field hour and ~71k gp net per clock hour (range ~66k–85k: death
+      hazard 0.25–0.37 per running hour, the per-ore walk fixed or shrinking with the digging).
 
 ## Network observations
 
