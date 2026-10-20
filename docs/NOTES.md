@@ -3939,6 +3939,48 @@ _151814, _155426, _181210, _183126, _210503, _215839, 20261018_113717, _175134, 
   on a monster on a player before ours hurt it 1,455 vs 1,991, "All Kill" at one 333 vs 280; loop crawl 52 vs 56 (1.27
   vs 1.38), 82.2k vs 82.1k, 1,234 vs 1,352 s.
 
+## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
+
+Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0
+mining episodes, job events, ore clilocs or ore items, and no session contains a dig (the "hand mining" of
+20261003_150103 is captcha data mining, `captcha_mine.py`). `harness/loop_mine.py` is the M0 demo-timeline tool,
+not a miner. Everything below is wiki/community/client-file evidence until a demo capture confirms it.
+- **No cursor (wiki).** Smart Harvest page (knowledge k13044): "Mining no longer requires targeting yourself. A
+  double click on the pickaxe triggers Smart Harvest"; Mining page k12626 the same. The older Discord fact k157
+  (dclick + target self) predates it. Jaseowns' "Ultimate Mining Script" (fetched 2026-10-19, last change 2024-04-19)
+  agrees: equip the pickaxe if the right hand is empty (`dclicktype 'pickaxe'`), then only `hotkey 'Use item in
+  hand'`, no Target Self, polling sysmsgs 25 × 250 ms after each use.
+- **Its message substrings:** "You dig" (success), "You loosen" (fail), "You do not see any" / "any harvestable"
+  (nothing left in reach: "Move to next spot"), "harvesting is not allowed", "travel" (60 s lockout), "You must
+  wait", "world is saving" / "save complete", "Captcha successful". Stock Cliloc.enu ids: 1007072-1007080 "You dig
+  some <iron..valorite> ore and put it in your backpack.", 503044 generic dig, 503043 / 501869 "You loosen some
+  rocks but fail to find any useable ore.", 503040 / 501866 "There is no metal here to mine.", 501862 / 503036
+  "You can't mine there.", 501864 "You can't mine while riding or flying." (Outlands allows mounted mining, k1713),
+  501988 smelt success. Outlands sent the lumber success as plain text, not a cliloc, so match both.
+- **Its weight/smelt logic:** stop below 30 stones free (`diffweight <= 30`); ore (graphic 6585 = 0x19B9) moved in
+  30s onto a friendly pack horse/llama (body 291/292) until its label reads ~[1960+/2000; smelt by double-clicking
+  each ore stack within 2 tiles of a forge (`findtype "forge"` or 0x0FB1), on the pack animal too; with no forge
+  in reach the dclick answers "You do not see any nearby forges"; ingots (7154 = 0x1BF2) into a hue-38 pouch.
+- **Tiledata (artdata.uoo):** pickaxe 0x0E85/0x0E86 (layer 1, one-handed, wearable), shovel 0x0F39/0x0F3A (treasure
+  only, k12515), iron ore 0x19B7-0x19BA (hue = colour), iron ingot 0x1BF2, forge 0x0FB1 / 0x19A9. Land tiles named
+  "rock" (279 ids), "cave" (61), "flat mountain" (3) are the candidate mineable terrain; Outlands keeps its own
+  valid land/static list (patch 2019-02-25, k9636), so mineability has to be learned like `not_tree`.
+- **Mechanics (wiki):** ore weighs 2 stones (k13575; 8 before 2022-06-07, k6712), ingots 0.025, so **weight, not
+  risk, ends a mining trip** (lumber's `LOG_WEIGHT` 0.025 never binds). One ore smelts to 2 ingots, needs the skill
+  to mine that colour, can't fail (k12631, k198). Colour table k12628/k12629 (min skill, `(skill − offset)/0.8 ×
+  (1 + tool bonus)`, base node chances iron 81.75 % … avarite 0.25 %); a coloured node falls back to iron on 50 %
+  of swings and below its skill always. Pickaxe bonus/uses k12630 (iron 1000 uses). Nodes respawn in 30-60 min
+  with a random colour (k2078); a node gives one colour per round (forum f542). 60 s lockout and Stationary Penalty
+  as for lumber (k12626/7); captcha the same gump (NOTES "CAPTCHA facts"). No mining in town regions except
+  Shelter while Young. Forges: towns, player houses, Nusero (the only dungeon with forges, k986). Pack Ox 4000 st,
+  horse/llama 2000 st (k5144); pack animals can't enter dungeons (k16221).
+- **Store schema gap:** `harvest_nodes` / `harvest_attempts` have no skill column, and `lumber_opt.logs_per_success`,
+  `store_inputs` and `grove_view` read every row, so mining rows would bias the lumber planner. Episodes and
+  job events are keyed by a free-text loop/job name and need nothing.
+- **Runes near rock:** Witcher 206 Granite Quarry (3406,979), 317 Sandshear Quarry (3784,2484), 325 Tarsands Mine
+  (3970,2584; Tarsands is dangerous, k246); DTF tomes add Prevalia Quarry (1178,1119), Mt. Petram caves. A "quarry
+  miner" NPC emotes "*digs*" near Witcher 254 (k4090).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
