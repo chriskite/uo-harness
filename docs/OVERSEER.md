@@ -744,6 +744,12 @@ Paste this (or point the session at this section) to start an overseer.
    (`modelRoles.OVERSEER` in the omp config; `/model` → Roles changes it), so every overseer
    subagent runs on that model instead of the parent's (user decision 2026-10-07). The agent's
    prompt sends it to §5.
+   **Mausoleum shifts with a fixer** (since 2026-10-20, user): `/skill:mausoleum-shift`
+   (`.omp/skills/mausoleum-shift/SKILL.md`) makes the main session dispatch the Seer for Logan Wolf, then
+   watch it read-only and fix the code and docs behind every issue the Seer or the user reports. The Seer
+   reports mid-shift with `write agent://Main` and keeps the shift (Logan safe, no new run) until the
+   parent says the fix is in; the parent never runs `ctl wait` for Logan (it would advance the Seer's
+   cursors) nor acts while the Seer runs.
 3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
    bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the
    overseer.
