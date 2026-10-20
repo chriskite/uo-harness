@@ -128,6 +128,15 @@ def test_hop_choice():
           late and not deadly)
 
 
+def test_death_events():
+    print("a death event within a leg (or just after it) makes the leg a death, not a threat sent home")
+    row = {"spot": "A", "t_start": NOW - 600, "t_end": NOW, "phases_s": {"harvest": 300}, "ore": 50,
+           "why": "threat: monster a cursed remnant at 18 tiles; escaped by recall to (1883, 1810) in 5.37 s"}
+    near, far = mining_opt.trip_obs(row, [NOW + 0.5]), mining_opt.trip_obs(row, [NOW + 3600])
+    check("live 2026-10-20 13:14:57: the death 0.5 s after the row's end counts; one an hour later doesn't",
+          near["died"] and not near["sent_home"] and not far["died"] and far["sent_home"], (near, far))
+
+
 def test_memory():
     print("the store's mining tables")
     m = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
@@ -211,7 +220,7 @@ def test_reachable_stands():
 
 
 def main():
-    for t in (test_outcome, test_plan, test_hop_choice, test_memory, test_reachable_stands):
+    for t in (test_outcome, test_plan, test_hop_choice, test_death_events, test_memory, test_reachable_stands):
         t()
     print()
     if FAILURES:

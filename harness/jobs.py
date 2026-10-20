@@ -807,10 +807,10 @@ def _value(metals, ingots, t_at, used):
     return value, unpriced
 
 
-def _leg_row(i, row, ingots=None):
+def _leg_row(i, row, ingots=None, deaths=()):
     import mining_opt
     t0, t1 = row.get("t_start"), row.get("t_end")
-    obs = mining_opt.trip_obs(row)
+    obs = mining_opt.trip_obs(row, deaths)
     field_s = round(obs["field_h"] * 3600.0, 1) if obs is not None else None
     carried = row.get("carried_end") if isinstance(row.get("carried_end"), dict) else {}
     ore = int(_num(row.get("ore")))
@@ -846,7 +846,8 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
 
     Field time is mining_opt.trip_obs's (the harvest phase less walk_out_s and lockout_s, so
     the planner and the dashboard agree); a leg without t_start/t_end has none and stays out
-    of the rates. Deaths and sent-home threats are trip_obs's too, read off each leg's why.
+    of the rates. Deaths and sent-home threats are trip_obs's too, read off each leg's why and the
+    `death` events among `events` (a death within a leg or DEATH_SLACK_S after it).
     At each trip's end the runner drops the ingots into the room's Resource Stockpile (its Restock
     with the backpack), recorded as the leg's `stockpiled` (`ingots_stored`; 0 when absent). So
     `carried_now` is the newest leg's carried_end.ingots: what was still in the pack when it ended
@@ -866,7 +867,8 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
-    legs = [_leg_row(i, r, ingots) for i, r in enumerate(rows)]
+    deaths = [_num(e.get("t"), 0) for e in events if e.get("kind") == "death"]
+    legs = [_leg_row(i, r, ingots, deaths) for i, r in enumerate(rows)]
     evs = sorted(({**e, "data": e.get("data") if isinstance(e.get("data"), dict) else {}}
                   for e in events if in_range(_num(e.get("t"), 0), since, until)),
                  key=lambda e: (e["t"], e.get("id") or 0))

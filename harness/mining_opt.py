@@ -42,6 +42,7 @@ STINT_MIN = 60           # field minutes one run should dig (the runner's --fiel
 # the stockpile's and the shelf's Restock and Resupply (live 2026-10-20 11:47:34-49: 7 s to the room, 8 s storing;
 # ~10 s out, lumber_opt ROOM_EXIT_S), then the overseer's plan and the next run's start [INFERENCE: ~30 s]
 STORE_FIRST_S = 60.0
+DEATH_SLACK_S = 10.0     # a `death` job event this long after a leg's end still counts as that leg's (trip_obs)
 
 
 # ------------------------------------------------------------------ spots
@@ -83,16 +84,19 @@ def spot_knowledge(base: dict, spot: dict) -> dict:
 
 
 # ------------------------------------------------------------------ evidence
-def trip_obs(row: dict) -> dict | None:
+def trip_obs(row: dict, deaths=()) -> dict | None:
     """One mining trip row (episodes, loop mining) as the model's observation, or None without
-    times. Field time is the harvest phase less the walk out and the lockout waited at the spot."""
+    times. Field time is the harvest phase less the walk out and the lockout waited at the spot. A leg died
+    when its why says so or a `death` job event (`deaths`: their times) falls within it, up to DEATH_SLACK_S
+    after its end (live 2026-10-20 13:14:57: Dan died at forge_1821_1808 and the row's why read "threat: … escaped
+    by recall": the death's position jump passed for the recall's arrival)."""
     t0, t1 = row.get("t_start"), row.get("t_end")
     if t0 is None or t1 is None:
         return None
     harvest = (row.get("phases_s") or {}).get("harvest") or 0.0
     field_h = max(0.0, harvest - (row.get("walk_out_s") or 0.0) - (row.get("lockout_s") or 0.0)) / 3600.0
     why = row.get("why") or ""
-    died = why.startswith("died")
+    died = why.startswith("died") or any(t0 <= d <= t1 + DEATH_SLACK_S for d in deaths)
     sent_home = not died and (why.startswith("threat:") or "escaped by recall" in why or "fled into the guards" in why
                               or bool((row.get("creature") or {}).get("recalled")))
     return {"spot": row.get("spot"), "t0": t0, "t1": t1, "ore": row.get("ore", 0) or 0, "field_h": field_h,
@@ -110,9 +114,10 @@ def _score(lam: float, h_s: float, h_d: float, death_cost_h: float) -> float:
 
 # ------------------------------------------------------------------ the plan
 def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: dict, draws: int = DRAWS,
-         exploit: bool = False, stint_min: float = STINT_MIN, exclude=()) -> dict:
-    """The next mining run (module doc). `landings`: {spot id: lumber_opt.landing_for row or None}."""
-    obs = [o for o in (trip_obs(e) for e in episodes) if o is not None]
+         exploit: bool = False, stint_min: float = STINT_MIN, exclude=(), deaths=()) -> dict:
+    """The next mining run (module doc). `landings`: {spot id: lumber_opt.landing_for row or None}; `deaths`:
+    the times of the mining job's `death` events (trip_obs)."""
+    obs = [o for o in (trip_obs(e, deaths) for e in episodes) if o is not None]
     measured = [o for o in obs if o["field_h"] > 0.05]
     mean = (sum(o["ore"] for o in measured) / sum(o["field_h"] for o in measured)
             if len(measured) >= 3 else PRIOR_ORE_H)
@@ -238,7 +243,8 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_m
     if home is None:
         return {"ok": False, "error": f"no home in harness/data/homes.json for {who}"}
     landings = lumber_opt.spot_landings(memory, spots, home, places.known_books(memory, who), route_check)
+    deaths = [e["t"] for e in memory.job_events("mining") if e.get("kind") == "death" and e.get("t") is not None]
     out = plan(spots, episodes, now, random.Random(seed), landings, exploit=exploit, stint_min=stint_min,
-               exclude=exclude)
+               exclude=exclude, deaths=deaths)
     out["character"] = None if char is None else {"name": char["name"], "serial": char["serial"]}
     return out

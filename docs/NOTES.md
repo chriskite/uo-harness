@@ -4257,6 +4257,30 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       2026-10-19 22:44:39 held 10 ingots of hue 2419 beside 1080 of hue 0.
     - The `smelt` job event has `metals`; the drop-off log line names them ("added 640 ingots … (630 iron, 10 dull
       copper; …)").
+  - **Dan died at the Prevalia Cemetary Crypt landing** (2026-10-20 13:14:57, mining-20261020-131415-e57a,
+    forge_1821_1808, the overseer's explore pick, P(best) 0.03).
+    - The DTF rune "Prevalia Cemetary Crypt" (1892,1785) lands in a graveyard with cursed remnants: 4 serials
+      0x002DC8CC/CD, 0x002DCB94, 0x002DC6CF, ranged, one shot hit for 57.
+    - Timeline:
+      - A remnant was in flee range 1 s after the landing.
+      - The first escape leg went 12 steps north. A recall at 13:14:42 was disturbed by a second remnant.
+      - The run out of reach ("running 14 tiles from 2 creatures") then went 44 steps south, deeper into the
+        graveyard, with 3–4 attackers by (1894,1798).
+      - At 13:14:49 the runner judged "a cursed remnant keeps its distance (12 tiles, a shot every 4.85 s)" and
+        stood still to cast right after a shot. That cast was disturbed too: another remnant was 1 tile off.
+      - It then waited 5 s for a shot that didn't come, cast again, and died (57 → 0 from one shot at 12 tiles).
+    - The death's position change was taken for the recall's arrival: "recall try 2: arrived … escaped by recall to
+      (1883, 1810)". So the leg row's why reads like a threat sent home.
+    - Done: on the user's word ("it's a graveyard full of mobs") the landing is marked bad
+      (`lumber_opt.mark_bad_landing`, meta lumber_bad_landings 0:1892,1785) for lumber and mining alike, and
+      forge_1821_1808 is disabled.
+    - `mining_opt.trip_obs` now also counts the job's `death` events within a leg (or `DEATH_SLACK_S` 10 s after it)
+      as a death, in the plan and the Jobs page. With that, the spot shows 1 death and the pooled death hazard went
+      to ~0.45/h (test_mining `test_death_events`).
+    - Not fixed:
+      - `escape.recall` should not report an arrival when we are dead.
+      - The out-of-reach run looks only at the current attackers, not at other hostiles in view on its route.
+      - The "keeps its distance" wait stands still with another attacker at 1 tile.
 
 ## Network observations
 
