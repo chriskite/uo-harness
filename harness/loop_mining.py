@@ -58,11 +58,11 @@ PICKAXES = (0x0E85, 0x0E86)
 PICKAXES_CARRY = 2
 ORE = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
 INGOTS = (0x1BF2,)
-# Ingot hue -> metal (RunUO CraftResources hues [INFERENCE for Outlands]: its Resource Stockpile lists ingots of exactly
-# these hues plus 1763, docs/NOTES.md "Resource Stockpile"); another hue is "hue N". The leg row's ingots_by_metal /
-# stored_by_metal use these names; the Jobs page prices them as ingot:<metal> (user 2026-10-20: iron 30 gp)
-METALS = {0: "iron", 2419: "dull copper", 2406: "shadow iron", 2413: "copper", 2418: "bronze", 2213: "gold",
-          2425: "agapite", 2207: "verite", 2219: "valorite"}
+# Ingot hue -> metal: the materials table the lumber runner's hatchets use (harness/data/hatchets.json: RunUO's resource
+# hues, avarite 1763 from community Razor scripts; Outlands' Resource Stockpile lists ingots of exactly these hues).
+# Another hue is "hue N". The leg row's ingots_by_metal / stored_by_metal use these names; the Jobs page prices them
+# as ingot:<metal> (user 2026-10-20: iron 30 gp ... avarite 743)
+METALS = {int(m["hue"]): m["name"] for m in lumber_opt.load_hatchets()["materials"]}
 LAYER_ONE_HANDED = 0x01
 STAND_DIST_SCALE = 20        # steps (tiles without a map): a stand this far counts half as much as one here (next_stand)
 STATIONARY_MAX = 3           # "A stationary penalty is in effect" this often at one stand: abort

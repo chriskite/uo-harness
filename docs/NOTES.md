@@ -4237,13 +4237,24 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       carried or in the chest it posts `low_supplies` and makes no trip (test_loop_mining mine_main).
   - **Ingot values** (user 2026-10-20: "A commodity deed of 5000 iron ingots is worth 150k gold"): price row
     `ingot:iron` = 30 gp (`ctl lumber price ingot:iron 30 --source user`, prices id 89). The user's prices the same
-    day (gp per ingot, source user): dull copper 24, copper 28, shadow iron 26, bronze 52. Gold, agapite, verite
-    and valorite have none yet: their ingots count as unpriced on the Jobs page until the user names a price.
+    day, in gp per ingot (source user):
+
+    | Metal | gp | Metal | gp |
+    |---|---|---|---|
+    | dull copper | 24 | gold | 80 |
+    | shadow iron | 26 | agapite | 160 |
+    | copper | 28 | verite | 181 |
+    | bronze | 52 | valorite | 285 |
+    | | | avarite | 743 |
+
+    Every metal now has a price.
     - Since then each leg row has `ingots_by_metal` (made by its smelts) and `stored_by_metal` (into the stockpile),
-      keyed by `loop_mining.METALS`: the RunUO resource hues 0 iron, 2419 dull copper, 2406 shadow iron, 2413 copper,
-      2418 bronze, 2213 gold, 2425 agapite, 2207 verite, 2219 valorite; any other hue is "hue N".
-    - [INFERENCE] that Outlands keeps these hues: its stockpile lists ingots in exactly these plus 1763. Dan's
-      drop-off on 2026-10-19 22:44:39 held 10 ingots of hue 2419 (dull copper by this map) beside 1080 of hue 0.
+      keyed by `loop_mining.METALS`. That map comes from the hatchets' materials table (harness/data/hatchets.json):
+      0 iron, 2419 dull copper, 2406 shadow iron, 2413 copper, 2418 bronze, 2213 gold, 2425 agapite, 2207 verite,
+      2219 valorite, 1763 avarite (from community Razor scripts). Any other hue is "hue N".
+    - Live 2026-10-20 13:04:22 the first drop-off with the counts: 304 iron, 22 dull copper, 16 copper, 14 shadow iron.
+    - [INFERENCE] that Outlands keeps these hues: its stockpile lists ingots in exactly these hues. Dan's drop-off on
+      2026-10-19 22:44:39 held 10 ingots of hue 2419 beside 1080 of hue 0.
     - The `smelt` job event has `metals`; the drop-off log line names them ("added 640 ingots … (630 iron, 10 dull
       copper; …)").
 
