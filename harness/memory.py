@@ -45,6 +45,14 @@ Tables
                     history stays: the newest per item drives planning (hatchet
                     economics, supplies); jobs.py values each trip's logs at the
                     board:<wood> price as of the trip
+  mine_attempts     v7. Every dig outcome of the mining runner (loop_mining.py) on its
+                    stand tile: success/fail (amount = ore), nothing_near, no_harvest
+  mine_blocks       v7. Ore by 8x8 map block (the server's ore bank): depleted_at
+                    when a stand reaching it said nothing nearby (regrowth window),
+                    no_harvest for good once the server said harvesting isn't allowed
+  mining_spots      v7. Mining spots the planner chooses between (mining_opt.py):
+                    status overrides of the seeds in harness/data/mining_spots.json
+                    and rows the runner wrote (a forge that doesn't smelt: disabled)
 
 Characters (v6)
   episodes, job_events, junctures and chat carry char_serial (the player serial;
@@ -86,7 +94,7 @@ import nav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "harness", "data", "harness.db")
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 UNKNOWN_Z = -32768
 
 SCHEMA = """
@@ -176,6 +184,17 @@ CREATE TABLE IF NOT EXISTS prices(
     id INTEGER PRIMARY KEY, item TEXT NOT NULL, price_gp REAL NOT NULL, t REAL NOT NULL,
     source TEXT NOT NULL, note TEXT);
 CREATE INDEX IF NOT EXISTS prices_item_t ON prices(item, t);
+CREATE TABLE IF NOT EXISTS mine_attempts(
+    t REAL NOT NULL, facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
+    z INTEGER NOT NULL, outcome TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS mine_attempts_t ON mine_attempts(t);
+CREATE TABLE IF NOT EXISTS mine_blocks(
+    facet INTEGER NOT NULL, bx INTEGER NOT NULL, by INTEGER NOT NULL,
+    depleted_at REAL, no_harvest INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(facet, bx, by)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS mining_spots(
+    id TEXT PRIMARY KEY, status TEXT NOT NULL, data TEXT NOT NULL, reason TEXT,
+    source TEXT NOT NULL, created_t REAL NOT NULL, updated_t REAL NOT NULL);
 """
 
 
@@ -377,6 +396,39 @@ class Memory:
         c.execute("INSERT INTO harvest_attempts VALUES(?,?,?,?,?,?,?)", (t, facet, x, y, z, outcome, amount))
         c.commit()
 
+    # -- mining (loop_mining.py) -------------------------------------------------
+    def mine_record(self, facet, x, y, z, outcome, amount=0, t=None):
+        """One dig outcome on the stand tile (x, y, z): success/fail (amount: the ore it gave),
+        nothing_near or no_harvest."""
+        t = time.time() if t is None else t
+        self.con.execute("INSERT INTO mine_attempts VALUES(?,?,?,?,?,?,?)", (t, facet, x, y, z, outcome, amount))
+        self.con.commit()
+
+    def mine_blocks_mark(self, facet, blocks, outcome, t=None):
+        """Mark ore blocks [(bx, by)]: 'depleted' (nothing nearby: depleted_at = t, the regrowth
+        window) or 'no_harvest' (harvesting not allowed: ruled out for good)."""
+        if outcome not in ("depleted", "no_harvest"):
+            raise ValueError(f"mine block outcome must be depleted or no_harvest, not {outcome!r}")
+        t = time.time() if t is None else t
+        c = self.con
+        for bx, by in blocks:
+            c.execute("INSERT OR IGNORE INTO mine_blocks(facet, bx, by) VALUES(?,?,?)", (facet, bx, by))
+            if outcome == "depleted":
+                c.execute("UPDATE mine_blocks SET depleted_at=? WHERE facet=? AND bx=? AND by=?", (t, facet, bx, by))
+            else:
+                c.execute("UPDATE mine_blocks SET no_harvest=1 WHERE facet=? AND bx=? AND by=?", (facet, bx, by))
+        c.commit()
+
+    def mine_blocks_state(self, facet, blocks) -> dict:
+        """{(bx, by): {"depleted_at", "no_harvest"}} for those of `blocks` with a row."""
+        out = {}
+        for bx, by in set(map(tuple, blocks)):
+            row = self.con.execute("SELECT depleted_at, no_harvest FROM mine_blocks WHERE facet=? AND bx=? AND by=?",
+                                   (facet, bx, by)).fetchone()
+            if row is not None:
+                out[(bx, by)] = {"depleted_at": row[0], "no_harvest": bool(row[1])}
+        return out
+
     # -- episodes --------------------------------------------------------------
     def episode(self, loop: str, row: dict, char_serial=INHERIT):
         self.con.execute("INSERT INTO episodes(loop, t_start, t_end, data, char_serial) VALUES(?,?,?,?,?)",
@@ -560,38 +612,68 @@ class Memory:
         return {(x, y) for x, y in self.con.execute(
             "SELECT x, y FROM guard_points WHERE facet = ?", (0 if facet is None else facet,))}
 
-    # -- lumber spots and prices (lumber_opt.py, docs/LUMBER_LOOP.md §6) ---------------
+    # -- lumber and mining spots, prices (lumber_opt.py, mining_opt.py, docs/LUMBER_LOOP.md §6) -------
     SPOT_STATUSES = ("active", "candidate", "disabled")
+    SPOT_TABLES = ("lumber_spots", "mining_spots")
 
-    def lumber_spot_rows(self) -> list[dict]:
-        """Every lumber_spots row: {id, status, data, reason, source, created_t, updated_t}."""
+    def _spot_table(self, table: str) -> str:
+        if table not in self.SPOT_TABLES:
+            raise ValueError(f"no spot table {table!r}")
+        return table
+
+    def _spot_rows(self, table: str) -> list[dict]:
         keys = ("id", "status", "data", "reason", "source", "created_t", "updated_t")
         out = []
         for row in self.con.execute("SELECT id, status, data, reason, source, created_t, updated_t "
-                                    "FROM lumber_spots ORDER BY id"):
+                                    f"FROM {self._spot_table(table)} ORDER BY id"):
             d = dict(zip(keys, row))
             d["data"] = json.loads(d["data"])
             out.append(d)
         return out
 
-    def lumber_spot_put(self, spot_id: str, status: str, data: dict, source: str,
-                        reason: str | None = None, t: float | None = None):
-        """Insert or replace a spot row (data {} = a status override of a seed spot);
-        created_t survives replacement."""
+    def _spot_put(self, table: str, spot_id: str, status: str, data: dict, source: str,
+                  reason: str | None = None, t: float | None = None):
         if status not in self.SPOT_STATUSES:
             raise ValueError(f"status must be one of {self.SPOT_STATUSES}")
         t = time.time() if t is None else t
         self.con.execute(
-            "INSERT INTO lumber_spots(id, status, data, reason, source, created_t, updated_t) "
+            f"INSERT INTO {self._spot_table(table)}(id, status, data, reason, source, created_t, updated_t) "
             "VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status, "
             "data=excluded.data, reason=excluded.reason, source=excluded.source, updated_t=excluded.updated_t",
             (spot_id, status, json.dumps(data), reason, source, t, t))
         self.con.commit()
 
+    def _spot_delete(self, table: str, spot_id: str):
+        self.con.execute(f"DELETE FROM {self._spot_table(table)} WHERE id = ?", (spot_id,))
+        self.con.commit()
+
+    def lumber_spot_rows(self) -> list[dict]:
+        """Every lumber_spots row: {id, status, data, reason, source, created_t, updated_t}."""
+        return self._spot_rows("lumber_spots")
+
+    def lumber_spot_put(self, spot_id: str, status: str, data: dict, source: str,
+                        reason: str | None = None, t: float | None = None):
+        """Insert or replace a spot row (data {} = a status override of a seed spot);
+        created_t survives replacement."""
+        self._spot_put("lumber_spots", spot_id, status, data, source, reason, t)
+
     def lumber_spot_delete(self, spot_id: str):
         """Remove a spot row (`ctl lumber discover` replacing its own earlier candidates)."""
-        self.con.execute("DELETE FROM lumber_spots WHERE id = ?", (spot_id,))
-        self.con.commit()
+        self._spot_delete("lumber_spots", spot_id)
+
+    def mining_spot_rows(self) -> list[dict]:
+        """Every mining_spots row: {id, status, data, reason, source, created_t, updated_t}."""
+        return self._spot_rows("mining_spots")
+
+    def mining_spot_put(self, spot_id: str, status: str, data: dict, source: str,
+                        reason: str | None = None, t: float | None = None):
+        """Insert or replace a mining spot row (data {} = a status override of a seed spot);
+        created_t survives replacement."""
+        self._spot_put("mining_spots", spot_id, status, data, source, reason, t)
+
+    def mining_spot_delete(self, spot_id: str):
+        """Remove a mining spot row."""
+        self._spot_delete("mining_spots", spot_id)
 
     def price_record(self, item: str, price_gp: float, source: str, note: str | None = None,
                      t: float | None = None) -> int:
@@ -881,7 +963,8 @@ def stats(db: str) -> dict:
     con = connect(db)
     out = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
            for t in ("sessions", "events", "walk_moves", "harvest_nodes", "harvest_attempts", "episodes",
-                     "junctures", "chat", "job_events", "teleporters", "knowledge", "lumber_spots", "prices")}
+                     "junctures", "chat", "job_events", "teleporters", "knowledge", "lumber_spots", "prices",
+                     "mine_attempts", "mine_blocks", "mining_spots")}
     con.close()
     return out
 

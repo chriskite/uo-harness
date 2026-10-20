@@ -1,0 +1,39 @@
+{
+  "_doc": "Common mining knowledge (capture 20261019_200350, docs/NOTES.md 'Live hand-mining capture'); the spot adds area/forge/stands (mining_opt.spot_knowledge).",
+  "source_session": "20261019_200350",
+  "harvest": {
+    "use_tool": "stock double-click on the equipped pickaxe; no cursor",
+    "attempt_seconds": 1.0,
+    "success_clilocs": [503044, 1007072, 1007073, 1007074, 1007075, 1007076, 1007077, 1007078, 1007079, 1007080],
+    "fail_clilocs": [503043, 501869],
+    "double_text": "Harvest double yield/loot triggered.",
+    "nothing_near_texts": ["You do not see any harvestable resources nearby."],
+    "nothing_near_clilocs": [503040, 501866],
+    "no_harvest_texts": ["Harvesting is not allowed in this area."],
+    "no_harvest_clilocs": [501862, 503036, 501863, 503037],
+    "busy_clilocs": [500119],
+    "mounted_clilocs": [501864, 503038],
+    "stationary_text_prefix": "A stationary penalty is in effect"
+  },
+  "smelt": {
+    "ok_cliloc": 501988,
+    "not_near_clilocs": [500420],
+    "not_near_texts": ["You do not see any nearby forges"],
+    "refused_clilocs": [501986, 501987],
+    "forge_range": 2
+  },
+  "travel_lockout": {
+    "seconds": 60,
+    "after": "room exit (teleport)",
+    "text_prefix": "You have recently traveled and must wait"
+  },
+  "captcha": {
+    "gump_id": "0x00000001",
+    "answer_entry_id": 2,
+    "answer_max_len": 3,
+    "guide_button": 1,
+    "submit_button": "random per captcha: 594 in the demo, 843 live 2026-09-29; the one reply button besides guide_button (last in the layout)",
+    "ok_text": "Captcha successful.",
+    "decoy_gumps": "every harvest attempt also opens a gump with lines ['Captcha','Guide','Type the Value','Click when complete'], a random gump id, no buttons, offscreen text, noclose/nodispose. Never reply to it; detect the real captcha by gump id + text entry + a reply button besides guide_button, never by text or a fixed button id."
+  }
+}

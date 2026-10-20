@@ -205,7 +205,7 @@ def test_migrate_v5():
           m.episodes("lumber") == [{"logs": 3}] and [j["char_serial"] for j in m.junctures()] == [None]
           and [c["text"] for c in m.chat()] == ["hi"] and len(m.job_events("lumber")) == 1)
     ver = m.con.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
-    check("schema version 6", ver == "6", ver)
+    check("migrated to the current schema version", ver == str(memory.SCHEMA_VERSION), ver)
     m.close()
     m = Memory(path)          # reconnecting an already migrated file is a no-op
     check("second connect keeps the rows", len(m.junctures()) == 1)

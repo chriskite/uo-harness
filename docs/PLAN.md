@@ -1939,6 +1939,41 @@ Souls"; docs/HUNT_LOOP.md "Soul jars"). Decisions:
   - Rejected: the viz playing the sound. Nothing would sound with the viz closed, and once per open tab with
     several open.
 
+## Mining runner: smelt in the field, keep the ingots (decided and built offline 2026-10-19)
+
+User request after the live hand-mining capture 20261019_200350 (docs/NOTES.md "Live hand-mining capture"): a mining
+job like the lumber one, run by the overseer, with a planner choosing the spot. Built: `harness/loop_mining.py`
+(`ctl run mining`), `harness/mining_opt.py` (`ctl mining plan|spots|spot set`), seed spots from the map
+(`python harness/ore_nodes.py spots`, `harness/data/mining_spots.json`), `harness/data/loops/mining.json`, store
+schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); not run live yet. Decisions:
+
+- *Smelt at the spot's natural forge and keep the ingots carried* (user choice "smelt in field, keep carrying").
+  Ore weighs 2 stones, an ingot 0.025: smelting on the way removes the weight limit on a trip, as converting does
+  for logs. Nothing is stored at home; the ingots ride in the trapped pouch across trips, and a death loses them
+  (the planner charges half a stint of ore per death). Rejected: carrying ore home (a trip ends after ~310 ore for
+  Dan) and a pack animal (none owned, thieves steal from it, docs/NOTES.md "Pack animals").
+- *A spot is a forge with ore around it*, one per non-town overworld forge site with at least 20 node blocks within
+  40 tiles, the richest of any within 40 tiles of each other, runes named dangerous left out. Generated spots are
+  `candidate` except near Prevalia Quarry (`--active-near 1178 1119`): the rest run only after the user approves
+  them. A forge that answers "not near a forge" disables its spot from the runner (a store row).
+- *The runner is a LumberLoop subclass.* The trip, the threat checks, escapes, the speech hold, captcha, the
+  landings and the way home are the lumber runner's, proven over hundreds of trips; LumberLoop got class hooks
+  (`JOB`, `SKILL`, `YIELD`, `STASH`, `POUCHED`, `CARRIED`, `HOME_DONE`) and methods (`setup_tool`, `leg_row`,
+  `trip_done_text`, `remember_faction_zone`), and `main` split into `common_args`/`run_loop`. Lumber behaviour is
+  unchanged (test_loop_lumber.py all pass; its fakes take the hooks via `loop_fake`).
+- *Stands from the map, ore state by 8x8 block.* `ore_nodes.area_stands` lists the area's stands with the blocks
+  each reaches; "nothing nearby" marks those blocks depleted (`mine_blocks`, regrowth window 60 min), "not allowed"
+  rules them out for good. The next stand: most available blocks, nearer first. Separate tables (`mine_attempts`,
+  `mine_blocks`, `mining_spots`) keep mining rows out of `harvest_attempts`, which the lumber planner reads unfiltered.
+- *A small planner*: Thompson sampling over ore per field hour (Gamma posterior, prior 1300 ore/h from the capture),
+  net of sent-home and death hazards; no trip-size or tool terms. A trip digs `--field-min` field minutes across
+  hops; a leg that runs dry hops to the greedy pick (current spot excluded) with `--hops` left.
+- *No Restock of the room's storage shelf after a mining trip*, unlike lumber: Restock took the three live trapped
+  pouches out of the pack (docs/NOTES.md "Storage shelves"), and the live pouch holds the carried ingots. Spent
+  pouches go into the chest instead.
+- *Not built*: a viz Jobs tab for mining, ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and
+  the next dig equips the spare or aborts with none).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

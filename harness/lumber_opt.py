@@ -79,7 +79,7 @@ WOODS_FILE = os.path.join(DATA, "woods.json")
 
 HATCHET_GRAPHICS = (0x0F43, 0x0F44)
 LAYER_MOUNT = 0x19
-LUMBERJACKING_ID = 44             # skills.mul order; looked up by name when the names are known
+SKILL_IDS = {"Lumberjacking": 44, "Mining": 45}   # skills.mul order; looked up by name when the names are known
 
 HALF_LIFE_DAYS = 14.0             # a trip's weight halves every two weeks: competition, PKs and patches change
 PRIOR_CV_MIN = 0.15               # a new spot's rate prior is at least this uncertain: the between-spot spread
@@ -467,7 +467,9 @@ def skill_value(me: dict, name: str = "Lumberjacking"):
     """A skill's value from the world model's self (tenths on the wire), or None."""
     skills = me.get("skills") or {}
     names = me.get("skill_names") or []
-    sid = names.index(name) if name in names else LUMBERJACKING_ID
+    sid = names.index(name) if name in names else SKILL_IDS.get(name)
+    if sid is None:
+        return None
     sk = skills.get(str(sid)) or skills.get(sid)
     v = _num((sk or {}).get("value"))
     return None if v is None else v / 10.0

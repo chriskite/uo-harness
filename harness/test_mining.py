@@ -1,0 +1,149 @@
+"""Behaviour of the mining pieces without a server: the runner's dig classifier (loop_mining.MineLoop.outcome)
+on the live capture's messages (20261019_200350, docs/NOTES.md "Live hand-mining capture"), the spot planner
+(mining_opt.plan: eligibility, the pick, the prior) and the store's mining tables (memory.py v7).
+
+Run: python harness/test_mining.py
+"""
+import json
+import os
+import random
+import sys
+import tempfile
+from types import SimpleNamespace
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import mining_opt  # noqa: E402
+from loop_mining import MineLoop  # noqa: E402
+from memory import Memory  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FAILURES = []
+NOW = 2_000_000_000.0
+
+
+def check(name, cond, detail=""):
+    print(f"  {'PASS' if cond else 'FAIL'} {name}{'' if cond else ' ' + str(detail)}")
+    if not cond:
+        FAILURES.append(name)
+
+
+def speech(text):
+    return {"ev": "speech_heard", "text": text}
+
+
+def cl(n):
+    return {"ev": "cliloc", "cliloc": n}
+
+
+def test_outcome():
+    print("the dig classifier on the capture's messages")
+    with open(os.path.join(HERE, "data", "loops", "mining.json"), encoding="utf-8") as f:
+        know = json.load(f)
+    loop = object.__new__(MineLoop)
+    loop.k = know
+
+    def out(events):
+        loop.link = SimpleNamespace(events=list(events))
+        return loop.outcome(0)
+    double = "Harvest double yield/loot triggered."
+    check("double yield, then 1007072: two ore", out([speech(double), cl(1007072)]) == ("success", 2))
+    check("1007072 alone: one ore", out([cl(1007072)]) == ("success", 1))
+    check("503043 'You loosen some rocks': a fail", out([cl(503043)]) == ("fail", 0))
+    check("500119 'You must wait': busy", out([cl(500119)]) == ("busy", 0))
+    check("the travel lockout with its seconds",
+          out([speech("You have recently traveled and must wait 7 seconds before you may begin harvesting.")])
+          == ("lockout", 7))
+    check("the stationary penalty",
+          out([speech("A stationary penalty is in effect (must move 5 tiles to remove).")]) == ("stationary", 0))
+    check("nothing in reach",
+          out([speech("You do not see any harvestable resources nearby.")]) == ("nothing_near", 0))
+    check("a no-harvest area", out([speech("Harvesting is not allowed in this area.")]) == ("no_harvest", 0))
+    check("riding", out([cl(501864)]) == ("mounted", 0))
+    check("no reply yet: None", out([speech("(Harvest Aspect 120/25000 xp)")]) is None)
+
+
+def spot(sid, status="active", x=1000):
+    return {"id": sid, "name": sid, "status": status, "facet": 0, "area": {"center": [x, 1000], "radius": 40},
+            "forge": {"x": x, "y": 1000, "z": 0}, "nodes": 30}
+
+
+def trip(sid, ore, hours=0.5, ago_min=600, why=None, dry=False):
+    t1 = NOW - ago_min * 60
+    return {"spot": sid, "t_start": t1 - hours * 3600 - 300, "t_end": t1, "phases_s": {"harvest": hours * 3600 + 120},
+            "walk_out_s": 100, "lockout_s": 20, "ore": ore, "why": why, "dry": dry}
+
+
+LANDING = {"name": "a rune", "dist": 10, "source": "library", "library": "dtf", "x": 0, "y": 0}
+
+
+def test_plan():
+    print("the planner: eligibility, the pick, the prior")
+    spots = {s["id"]: s for s in (spot("A", x=1000), spot("B", x=1100), spot("dry", x=1200), spot("hot", x=1300),
+                                  spot("cand", "candidate", x=1400), spot("far", x=1500))}
+    episodes = [trip("A", 1000, ago_min=600 + i) for i in range(3)] + [trip("B", 250, ago_min=700 + i) for i in range(3)]
+    episodes += [trip("dry", 100, ago_min=30, dry=True), trip("hot", 50, ago_min=10, why="threat: a red at 9 tiles")]
+    landings = {sid: (None if sid == "far" else LANDING) for sid in spots}
+    out = mining_opt.plan(spots, episodes, NOW, random.Random(1), landings, exploit=True)
+    rows = {r["id"]: r for r in out["spots"]}
+    check("a dry trip 30 min ago keeps the spot out", rows["dry"]["why_not"] == "dry 30 min ago", rows["dry"]["why_not"])
+    check("a threat 10 min ago keeps the spot out", rows["hot"]["why_not"] == "threat 10 min ago",
+          rows["hot"]["why_not"])
+    check("a candidate isn't planned", rows["cand"]["why_not"] == "candidate", rows["cand"]["why_not"])
+    check("no landing: not planned", rows["far"]["why_not"] == "no landing", rows["far"]["why_not"])
+    check("exploit picks the 2000 ore/h spot over the 500 one", out["pick"]["spot"] == "A", out["pick"])
+    check("P(best) of the 2000 ore/h spot > 0.9", rows["A"]["p_best"] > 0.9, rows["A"]["p_best"])
+    check("its command runs it", out["pick"]["command"].startswith("ctl run mining --spot A --trips 1 --field-min 60"),
+          out["pick"]["command"])
+    check("ineligible rows sort last", [r["eligible"] for r in out["spots"]] == [True, True, False, False, False, False])
+    out = mining_opt.plan(spots, episodes, NOW, random.Random(1), landings, exploit=True, exclude={"A"})
+    rows = {r["id"]: r for r in out["spots"]}
+    check("exclude drops the current spot", rows["A"]["why_not"] == "current spot" and out["pick"]["spot"] == "B",
+          (rows["A"]["why_not"], out["pick"]["spot"]))
+    out = mining_opt.plan(spots, [], NOW, random.Random(1), landings)
+    rows = {r["id"]: r for r in out["spots"]}
+    check("a spot without trips has the prior rate", rows["A"]["rate_ore_h"] == mining_opt.PRIOR_ORE_H,
+          rows["A"]["rate_ore_h"])
+    out = mining_opt.plan({"cand": spot("cand", "candidate")}, [], NOW, random.Random(1), {"cand": LANDING})
+    check("no eligible spot: ok false with an error", out["ok"] is False and "no eligible" in out["error"], out)
+
+
+def test_memory():
+    print("the store's mining tables")
+    m = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
+    m.mine_blocks_mark(0, [(10, 20), (11, 20)], "depleted", t=100.0)
+    st = m.mine_blocks_state(0, [(10, 20), (11, 20), (12, 20)])
+    check("depleted blocks carry depleted_at; unknown ones have no row",
+          st == {(10, 20): {"depleted_at": 100.0, "no_harvest": False},
+                 (11, 20): {"depleted_at": 100.0, "no_harvest": False}}, st)
+    m.mine_blocks_mark(0, [(10, 20)], "no_harvest", t=150.0)
+    m.mine_blocks_mark(0, [(10, 20)], "depleted", t=200.0)
+    st = m.mine_blocks_state(0, [(10, 20)])
+    check("no_harvest sticks after a later 'depleted'", st[(10, 20)] == {"depleted_at": 200.0, "no_harvest": True}, st)
+    try:
+        m.mine_blocks_mark(0, [(1, 1)], "success")
+        check("an unknown block outcome is refused", False)
+    except ValueError:
+        check("an unknown block outcome is refused", True)
+    m.mining_spot_put("forge_1_2", "disabled", {"forge": {"x": 1, "y": 2, "z": 0}}, "runner", "no smelt")
+    rows = m.mining_spot_rows()
+    check("mining_spot_put round-trips", len(rows) == 1 and rows[0]["id"] == "forge_1_2"
+          and rows[0]["status"] == "disabled" and rows[0]["data"] == {"forge": {"x": 1, "y": 2, "z": 0}}
+          and rows[0]["reason"] == "no smelt", rows)
+    check("the lumber spots stay empty", m.lumber_spot_rows() == [])
+    m.close()
+
+
+def main():
+    for t in (test_outcome, test_plan, test_memory):
+        t()
+    print()
+    if FAILURES:
+        print(f"FAILED: {len(FAILURES)}: {FAILURES}")
+        return 1
+    print("ALL PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

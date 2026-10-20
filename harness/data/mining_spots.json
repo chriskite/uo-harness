@@ -1,0 +1,1018 @@
+{
+ "_doc": "Mining seed spots: non-town overworld forge sites with ore nodes around them (python harness/ore_nodes.py spots; mining_opt.load_spots). 'candidate' spots run only after `ctl mining spot set <id> --status active`.",
+ "generated": "2026-10-19T21:01:28",
+ "spots": [
+  {
+   "id": "forge_2599_620",
+   "name": "45 - Andaria Rolling Hills forge (2599,620)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2599,
+     620
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2599,
+    "y": 620,
+    "z": 0
+   },
+   "nodes": 110,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_431_1977",
+   "name": "283 forge (431,1977)",
+   "facet": 0,
+   "area": {
+    "center": [
+     431,
+     1977
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 431,
+    "y": 1977,
+    "z": 50
+   },
+   "nodes": 107,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2497_708",
+   "name": "43 - Andaria Rolling Hills (South) forge (2497,708)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2497,
+     708
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2497,
+    "y": 708,
+    "z": 15
+   },
+   "nodes": 102,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1279_1149",
+   "name": "Shrine:Honor forge (1279,1149)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1279,
+     1149
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1279,
+    "y": 1149,
+    "z": 1
+   },
+   "nodes": 100,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2620_561",
+   "name": "267 forge (2620,561)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2620,
+     561
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2620,
+    "y": 561,
+    "z": 0
+   },
+   "nodes": 95,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2564_535",
+   "name": "267 - Tanners Northern Fort (South) forge (2564,535)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2564,
+     535
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2564,
+    "y": 535,
+    "z": 0
+   },
+   "nodes": 90,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2426_413",
+   "name": "EV-1 forge (2426,413)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2426,
+     413
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2426,
+    "y": 413,
+    "z": 0
+   },
+   "nodes": 89,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2551_665",
+   "name": "45 - Andaria Rolling Hills forge (2551,665)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2551,
+     665
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2551,
+    "y": 665,
+    "z": 15
+   },
+   "nodes": 89,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1474_709",
+   "name": "260 forge (1474,709)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1474,
+     709
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1474,
+    "y": 709,
+    "z": 0
+   },
+   "nodes": 86,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1494_2559",
+   "name": "Desert Outpost forge (1494,2559)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1494,
+     2559
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1494,
+    "y": 2559,
+    "z": 1
+   },
+   "nodes": 86,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2113_2175",
+   "name": "Horseshoe Bay Cemetary forge (2113,2175)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2113,
+     2175
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2113,
+    "y": 2175,
+    "z": 0
+   },
+   "nodes": 86,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1227_1142",
+   "name": "Prevalia Quarry forge (1227,1142)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1227,
+     1142
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1227,
+    "y": 1142,
+    "z": 1
+   },
+   "nodes": 83,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "active"
+  },
+  {
+   "id": "forge_2616_662",
+   "name": "268 - Riverrun forge (2616,662)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2616,
+     662
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2616,
+    "y": 662,
+    "z": 0
+   },
+   "nodes": 82,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1462_2932",
+   "name": "125 - Hidden Valley forge (1462,2932)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1462,
+     2932
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1462,
+    "y": 2932,
+    "z": -40
+   },
+   "nodes": 80,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1524_2698",
+   "name": "108 - Desert Outpost (South) forge (1524,2698)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1524,
+     2698
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1524,
+    "y": 2698,
+    "z": 0
+   },
+   "nodes": 80,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1339_1189",
+   "name": "272 - Honor Shrine forge (1339,1189)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1339,
+     1189
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1339,
+    "y": 1189,
+    "z": 1
+   },
+   "nodes": 76,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1939_1430",
+   "name": "275 forge (1939,1430)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1939,
+     1430
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1939,
+    "y": 1430,
+    "z": 5
+   },
+   "nodes": 75,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2681_633",
+   "name": "269 - Norse Settlement forge (2681,633)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2681,
+     633
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2681,
+    "y": 633,
+    "z": 0
+   },
+   "nodes": 75,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1917_1114",
+   "name": "48 - Urukton Bluffs forge (1917,1114)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1917,
+     1114
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1917,
+    "y": 1114,
+    "z": 61
+   },
+   "nodes": 74,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_299_1722",
+   "name": "Nusero Outside forge (299,1722)",
+   "facet": 0,
+   "area": {
+    "center": [
+     299,
+     1722
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 299,
+    "y": 1722,
+    "z": 0
+   },
+   "nodes": 72,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1516_718",
+   "name": "261 - Northwest Caravan (South) forge (1516,718)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1516,
+     718
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1516,
+    "y": 718,
+    "z": 0
+   },
+   "nodes": 70,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1340_1290",
+   "name": "17 - Prevalia Keep forge (1340,1290)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1340,
+     1290
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1340,
+    "y": 1290,
+    "z": 58
+   },
+   "nodes": 69,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1821_1808",
+   "name": "Jonny's House forge (1821,1808)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1821,
+     1808
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1821,
+    "y": 1808,
+    "z": -100
+   },
+   "nodes": 69,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1915_714",
+   "name": "264 forge (1915,714)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1915,
+     714
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1915,
+    "y": 714,
+    "z": 0
+   },
+   "nodes": 69,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2544_743",
+   "name": "268 forge (2544,743)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2544,
+     743
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2544,
+    "y": 743,
+    "z": 15
+   },
+   "nodes": 67,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1439_2436",
+   "name": "Cathedral & Inn (Book) forge (1439,2436)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1439,
+     2436
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1439,
+    "y": 2436,
+    "z": 25
+   },
+   "nodes": 64,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1347_2809",
+   "name": "Desert Quary forge (1347,2809)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1347,
+     2809
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1347,
+    "y": 2809,
+    "z": -50
+   },
+   "nodes": 63,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1396_1206",
+   "name": "272 forge (1396,1206)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1396,
+     1206
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1396,
+    "y": 1206,
+    "z": 53
+   },
+   "nodes": 62,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1173_2397",
+   "name": "105 - Prevalia Gate Caravan forge (1173,2397)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1173,
+     2397
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1173,
+    "y": 2397,
+    "z": 65
+   },
+   "nodes": 58,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_3537_1948",
+   "name": "Time Quest Hub forge (3537,1948)",
+   "facet": 0,
+   "area": {
+    "center": [
+     3537,
+     1948
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 3537,
+    "y": 1948,
+    "z": 0
+   },
+   "nodes": 57,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2106_2222",
+   "name": "Horseshoe Bay Cemetary forge (2106,2222)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2106,
+     2222
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2106,
+    "y": 2222,
+    "z": 0
+   },
+   "nodes": 56,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1978_2553",
+   "name": "Shelter Island forge (1978,2553)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1978,
+     2553
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1978,
+    "y": 2553,
+    "z": 0
+   },
+   "nodes": 55,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_2765_549",
+   "name": "Riverrun Lodge forge (2765,549)",
+   "facet": 0,
+   "area": {
+    "center": [
+     2765,
+     549
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 2765,
+    "y": 549,
+    "z": 0
+   },
+   "nodes": 52,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1600_1004",
+   "name": "35 - Prevalia Kings Manor Cabin forge (1600,1004)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1600,
+     1004
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1600,
+    "y": 1004,
+    "z": 0
+   },
+   "nodes": 43,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1684_1519",
+   "name": "Prevalia Sewers forge (1684,1519)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1684,
+     1519
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1684,
+    "y": 1519,
+    "z": 50
+   },
+   "nodes": 43,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1383_1146",
+   "name": "272 forge (1383,1146)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1383,
+     1146
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1383,
+    "y": 1146,
+    "z": -29
+   },
+   "nodes": 42,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1679_1565",
+   "name": "Prevalia Sewers forge (1679,1565)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1679,
+     1565
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1679,
+    "y": 1565,
+    "z": 20
+   },
+   "nodes": 41,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1696_1438",
+   "name": "Paladin forge (1696,1438)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1696,
+     1438
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1696,
+    "y": 1438,
+    "z": 65
+   },
+   "nodes": 34,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1924_1755",
+   "name": "Prevalia Cemetary forge (1924,1755)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1924,
+     1755
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1924,
+    "y": 1755,
+    "z": -15
+   },
+   "nodes": 32,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_826_1068",
+   "name": "9 - Vine Covered Cave forge (826,1068)",
+   "facet": 0,
+   "area": {
+    "center": [
+     826,
+     1068
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 826,
+    "y": 1068,
+    "z": -10
+   },
+   "nodes": 30,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_3731_2492",
+   "name": "317 - Sandshear Quarry forge (3731,2492)",
+   "facet": 0,
+   "area": {
+    "center": [
+     3731,
+     2492
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 3731,
+    "y": 2492,
+    "z": 10
+   },
+   "nodes": 30,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1333_1918",
+   "name": "Hunters Blind 2 forge (1333,1918)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1333,
+     1918
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1333,
+    "y": 1918,
+    "z": 0
+   },
+   "nodes": 29,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1951_1523",
+   "name": "276 - Prevalia Zoo (East) forge (1951,1523)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1951,
+     1523
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1951,
+    "y": 1523,
+    "z": 5
+   },
+   "nodes": 24,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  },
+  {
+   "id": "forge_1987_1609",
+   "name": "Dock | Prevalia South forge (1987,1609)",
+   "facet": 0,
+   "area": {
+    "center": [
+     1987,
+     1609
+    ],
+    "radius": 40,
+    "note": "ore_nodes.py spots"
+   },
+   "forge": {
+    "x": 1987,
+    "y": 1609,
+    "z": 0
+   },
+   "nodes": 21,
+   "pvp": true,
+   "hazard_prior": 0.5,
+   "source": "ore_nodes",
+   "status": "candidate"
+  }
+ ]
+}

@@ -83,6 +83,24 @@ def test_corner():
           res["tiles"][:2, :2].tolist() == [[1, 1], [1, 1]], res["tiles"][:2, :2].tolist())
 
 
+def test_area_stands():
+    print("area_stands: the stands around a centre with the blocks each reaches")
+    land = np.full((32, 32), GRASS)
+    for x, y in ((6, 6), (10, 6), (6, 10), (10, 10)):
+        land[y, x] = ROCK
+    m, tiles = Map(land), on.Tiles(TileData(), ("rock",), ("cave floor",))
+    _, st = run(m)
+    got = {(s["x"], s["y"]): s for s in on.area_stands(m, tiles, [], (6, 6), 3)}
+    check("block corner (8,8) reaches the four blocks around it",
+          (got.get((8, 8)) or {}).get("blocks") == [[0, 0], [0, 1], [1, 0], [1, 1]], got.get((8, 8)))
+    check("every stand's n is its block count, as stands() counts",
+          all(s["n"] == len(s["blocks"]) == st[k] for k, s in got.items()), got)
+    check("(4,4) off the corner reaches only block (0,0)", (got.get((4, 4)) or {}).get("blocks") == [[0, 0]])
+    check("a stand beyond the radius is left out", (12, 12) in st and (12, 12) not in got
+          and max(max(abs(x - 6), abs(y - 6)) for x, y in got) <= 3, sorted(got))
+    check("an area with no rock: none", on.area_stands(m, tiles, [], (26, 26), 2) == [])
+
+
 def test_mountain_core():
     print("rock farther than 2 tiles from walkable ground is no node")
     land = np.full((40, 40), GRASS)
@@ -155,8 +173,8 @@ def test_areas():
 
 
 def main():
-    for t in (test_corner, test_mountain_core, test_statics, test_exclusions, test_bands, test_forge_sites,
-              test_areas):
+    for t in (test_corner, test_area_stands, test_mountain_core, test_statics, test_exclusions, test_bands,
+              test_forge_sites, test_areas):
         t()
     print()
     if FAILURES:

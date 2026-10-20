@@ -85,7 +85,8 @@ import tracking  # noqa: E402
 HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
          "bank": os.path.join(HERE, "errand_bank.py"),
-         "hunt": os.path.join(HERE, "loop_hunt.py")}
+         "hunt": os.path.join(HERE, "loop_hunt.py"),
+         "mining": os.path.join(HERE, "loop_mining.py")}
 # Tests only: JSON {name: script path} replacing TASKS. Production never sets it.
 TEST_TASKS_ENV = "UO_CTL_TEST_TASKS"
 LOG_DIR = os.path.join(ROOT, "logs", "tasks")
@@ -716,15 +717,19 @@ def cmd_stop(a, mem):
     tid = e["task_id"]
     if a.after_trip:
         # the graceful stop: the task ends itself at home (the lumber runner: LumberLoop.ending, like a break
-        # due: stop harvesting, home, convert, store, exit 0; the hunt runner: HuntLoop.finished, as at time up:
-        # the fights on us, the loot, out with the pets, home, exit 0); task_done wakes `wait` when it has
-        if e.get("task") not in ("lumber", "hunt"):
-            raise CtlError(f"--after-trip is honoured by lumber and hunt runs only ({tid} is {e.get('task')}); plain stop")
+        # due: stop harvesting, home, convert, store, exit 0; the mining runner the same with nothing to convert
+        # or store; the hunt runner: HuntLoop.finished, as at time up: the fights on us, the loot, out with the
+        # pets, home, exit 0); task_done wakes `wait` when it has
+        if e.get("task") not in ("lumber", "hunt", "mining"):
+            raise CtlError(f"--after-trip is honoured by lumber, mining and hunt runs only ({tid} is {e.get('task')}); "
+                           "plain stop")
         tw.meta_set(mem, tw.finish_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
         mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
                       data={"cmd": "stop", "task_id": tid, "after_trip": True})
-        how = ("the run ends its trip at home (convert, store) and exits 0" if e.get("task") == "lumber" else
-               "the hunt finishes the fight on us and its loot, leaves the way it leaves at time up and exits 0 at home")
+        how = {"lumber": "the run ends its trip at home (convert, store) and exits 0",
+               "mining": "the run ends its leg at home in the rental room (ingots stay carried) and exits 0"}.get(
+            e.get("task"),
+            "the hunt finishes the fight on us and its loot, leaves the way it leaves at time up and exits 0 at home")
         return {"ok": True, "task_id": tid, "after_trip": True, "next": f"{how}: wait for its task_done"}
     tw.meta_set(mem, tw.stop_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
     mem.chat_post("overseer", f"stop {tid}", "action", data={"cmd": "stop", "task_id": tid})
@@ -3366,6 +3371,54 @@ def cmd_lumber(a, mem):
     raise CtlError(f"unknown lumber op {op}")
 
 
+def cmd_mining(a, mem):
+    """The mining job (harness/mining_opt.py, loop_mining.py): `plan` picks the spot for the next
+    `run mining` (Thompson sampling); `spots` and `spot set` manage the spots."""
+    import mining_opt
+    heartbeat(mem)
+    op = a.mining_op
+    if op == "plan":
+        world = serial = pos = facet = None
+        try:
+            resp = state_query(a.state_port, char=a.char)
+        except (OSError, ValueError):
+            resp = {}
+        if resp.get("ok"):
+            world, mv = resp.get("world") or {}, resp.get("movement") or {}
+            serial, pos = mv.get("self_serial"), mv.get("pos")
+            facet = (world.get("self") or {}).get("map")
+        out = mining_opt.plan_from_store(mem, world, serial, pos, facet, stint_min=a.stint_min, seed=a.seed,
+                                         exploit=a.exploit,
+                                         who=a.char if a.char and not a.char.lower().startswith("0x") else None)
+        out["proxy"] = bool(resp.get("ok"))
+        if not a.all and out.get("spots") is not None:
+            out["spots"] = [r for r in out["spots"] if r["status"] == "active"]
+        p, g = out.get("pick"), out.get("greedy")
+        text = (f"mining plan: {p['spot']} ({p['mode']}, P(best) {p['p_best']:.2f}, ~{p['expected_ore_h']} ore/h, "
+                f"landing {(p.get('landing') or {}).get('name')}) -> {p['command']}"
+                + (f"; greedy {g['spot']} (~{g['expected_ore_h']} ore/h) -> {g['command']}"
+                   if g and g["spot"] != p["spot"] else "")) if p \
+            else f"mining plan: {out.get('error')}"
+        mem.chat_post("overseer", text, "action", data={"cmd": "mining plan", "pick": p, "greedy": g})
+        return out
+    if op == "spots":
+        spots = mining_opt.load_spots(mem)
+        return {"ok": True, "spots": [
+            {k: s.get(k) for k in ("id", "name", "status", "reason", "source", "facet", "pvp", "hazard_prior", "nodes",
+                                   "forge", "area")}
+            for s in sorted(spots.values(), key=lambda s: (s["status"] != "active", s["id"]))]}
+    if op == "spot" and a.spot_op == "set":
+        spots = mining_opt.load_spots(mem)
+        if a.id not in spots:
+            raise CtlError(f"unknown mining spot {a.id}")
+        row = next((r for r in mem.mining_spot_rows() if r["id"] == a.id), None)
+        mem.mining_spot_put(a.id, a.status, row["data"] if row else {}, row["source"] if row else "overseer", a.reason)
+        mem.chat_post("overseer", f"mining spot set {a.id} {a.status}" + (f" ({a.reason})" if a.reason else ""),
+                      "action", data={"cmd": "mining spot set", "id": a.id, "status": a.status})
+        return {"ok": True, "id": a.id, "status": a.status, "reason": a.reason}
+    raise CtlError(f"unknown mining op {op}")
+
+
 # ---------------------------------------------------------------------- main
 class JsonParser(argparse.ArgumentParser):
     """Usage errors come back as the one JSON object too."""
@@ -3393,8 +3446,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("task_id", nargs="?")
     p.add_argument("--grace", type=float, default=20.0, help="seconds to let the wrapper report")
     p.add_argument("--after-trip", action="store_true",
-                   help="end gracefully: the lumber run stops harvesting, goes home, converts, stores and exits 0 "
-                        "(returns at once; task_done follows). Without it the task is killed where it stands")
+                   help="end gracefully: a lumber run stops harvesting, goes home, converts, stores and exits 0; a "
+                        "mining run ends its leg at home in the rental room with the ingots carried; a hunt finishes "
+                        "its fight and leaves (returns at once; task_done follows). Without it the task is killed "
+                        "where it stands")
     p.set_defaults(fn=cmd_stop)
     sub.add_parser("break").set_defaults(fn=cmd_break)
     p = sub.add_parser("pk", help="known PKs: fled on sight by the lumber runner")
@@ -3522,6 +3577,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_screenshot)
     _know_parser(sub)
     _lumber_parser(sub)
+    _mining_parser(sub)
     return ap
 
 
@@ -3593,6 +3649,27 @@ def _lumber_parser(sub):
     q.add_argument("--history", nargs="?", const="", metavar="PREFIX",
                    help="every observation, oldest first; PREFIX keeps matching items (e.g. board:)")
     p.set_defaults(fn=cmd_lumber)
+
+
+def _mining_parser(sub):
+    p = sub.add_parser("mining", help="mining job: plan, spots")
+    ms = p.add_subparsers(dest="mining_op", required=True)
+    q = ms.add_parser("plan", help="where to mine next (and the landing rune out; Thompson sampling); the run digs "
+                                   "--stint-min field minutes, smelts at the spot's forge and keeps the ingots carried")
+    q.add_argument("--stint-min", type=float, default=60.0, help="field minutes the run digs (its --field-min)")
+    q.add_argument("--seed", type=int, default=None, help=argparse.SUPPRESS)
+    q.add_argument("--all", action="store_true", help="also candidate/disabled spots")
+    q.add_argument("--exploit", action="store_true",
+                   help="pick the greedy spot (best posterior-mean ore/h) instead of the Thompson draw; "
+                        "`greedy.command` is its run either way")
+    ms.add_parser("spots", help="every mining spot with its status")
+    q = ms.add_parser("spot")
+    ss = q.add_subparsers(dest="spot_op", required=True)
+    r = ss.add_parser("set", help="approve (active), park (candidate) or disable a mining spot")
+    r.add_argument("id")
+    r.add_argument("--status", choices=("active", "candidate", "disabled"), required=True)
+    r.add_argument("--reason")
+    p.set_defaults(fn=cmd_mining)
 
 
 def _know_parser(sub):

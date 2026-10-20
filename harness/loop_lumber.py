@@ -470,6 +470,15 @@ def alert(sound: bool = True):
 
 
 class LumberLoop:
+    # What the job harvests and carries; a subclass (loop_mining.MineLoop) sets its own
+    JOB = "lumber"                  # job_event / juncture / episode / intent name
+    SKILL = "Lumberjacking"         # the trip row's skill_end / skill_gain
+    YIELD = LOGS                    # carried at a leg's start (carried_in)
+    STASH = LOGS                    # stash() moves these into the trapped pouch
+    POUCHED = LOGS + BOARDS         # a pouch holding these is the live one (log_pouch)
+    CARRIED = {"logs": LOGS, "boards": BOARDS}   # the theft event's and trip row's carried counts
+    HOME_DONE = "boards stored"     # what a finished trip did at home (run's log lines)
+
     def __init__(self, link: Link, memory: Memory, know: dict, args, base: dict | None = None):
         self.link = link
         self.k = know
@@ -553,8 +562,7 @@ class LumberLoop:
         self.spot_routes = {}        # spot id -> guards.Route from the spot to the guards (guard_route_ready)
         self.guard_summary = None    # this escape's guard route as its job events record it (guard_route)
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
-        self.hatchets = lumber_opt.load_hatchets()
-        self.want_hatchet = lumber_opt.parse_hatchet_spec(args.hatchet)   # --hatchet material[+quality]
+        self.setup_tool(args)
         self.trip_t0 = None
         self.timing = {}             # this trip's walk_out_s / chop_s / tree_walk_s / lockout_s / stationary_s
         self.travel = []             # this trip's travel legs (travel_leg): the episode row's `travel`
@@ -587,6 +595,11 @@ class LumberLoop:
         self.suspects = {}           # serial -> name: players we stepped away from this trip (keep_away)
         self.escaped_from = {}       # serial -> escapes from that creature this trip (ESCAPES_PER_MONSTER)
 
+    def setup_tool(self, args):
+        """The run's harvesting tool choice (__init__): the hatchet table and --hatchet."""
+        self.hatchets = lumber_opt.load_hatchets()
+        self.want_hatchet = lumber_opt.parse_hatchet_spec(args.hatchet)   # --hatchet material[+quality]
+
     @staticmethod
     def new_creature_tally() -> dict:
         """The trip row's `creature`: escapes (walk-aways, runs from damage included), hits
@@ -601,7 +614,7 @@ class LumberLoop:
     def doing(self, kind: str, text: str, target=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only)."""
         self._intent = (kind, text, target)
-        self.link.intent(text, kind, target, loop="lumber", trip=self.trip_n, trips=self.args.trips,
+        self.link.intent(text, kind, target, loop=self.JOB, trip=self.trip_n, trips=self.args.trips,
                          spot=self.k["spot"]["id"], woods=self.trip_woods())
 
     def trip_woods(self) -> dict:
@@ -825,7 +838,7 @@ class LumberLoop:
                 "hits": me.get("hits"), "hits_max": me.get("hits_max"), "stam": me.get("stam"),
                 "stam_max": me.get("stam_max"), "poisoned": me.get("poisoned"), "frozen": frozen or frozen_hint,
                 "standing": standing, "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
-        self.later(lambda data=data, where=self._where(st): self.memory.job_event("lumber", "flee_aid", data, **where))
+        self.later(lambda data=data, where=self._where(st): self.memory.job_event(self.JOB, "flee_aid", data, **where))
         return True
 
     def care_ok(self, st) -> bool:
@@ -877,7 +890,7 @@ class LumberLoop:
             if standing:
                 data["failure"] = failure
             self.later(lambda data=data, where=self._where(st):
-                       self.memory.job_event("lumber", "flee_aid", data, **where))
+                       self.memory.job_event(self.JOB, "flee_aid", data, **where))
         try:
             mark = len(self.link.events)
             self.link.act(actions.cast_spell(sid))
@@ -971,7 +984,7 @@ class LumberLoop:
                 "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
 
         def record(ok, failure):
-            self.later(lambda: self.memory.job_event("lumber", "dispel", {**data, "ok": ok, "failure": failure},
+            self.later(lambda: self.memory.job_event(self.JOB, "dispel", {**data, "ok": ok, "failure": failure},
                                                      **self._where(st)))
             if not self._checking:
                 self.flush_later()
@@ -1090,7 +1103,7 @@ class LumberLoop:
             log(f"ward ({where}): {name} {'up' if up else f'not up ({why})'}; mana {mana0} -> {mana}")
             data = {"spell": name, "where": where, "ok": up, "why": why, "mana": mana0, "mana_after": mana,
                     "mode": self.mode, "trip": self.trip_n, "spot": self.k["spot"]["id"]}
-            self.later(lambda data=data, at=self._where(st): self.memory.job_event("lumber", "ward", data, **at))
+            self.later(lambda data=data, at=self._where(st): self.memory.job_event(self.JOB, "ward", data, **at))
             return up
         finally:
             self._acting = False
@@ -1142,7 +1155,7 @@ class LumberLoop:
                 data = {**t.to_dict(), "source": "view", "counted": t.serial not in self.counted}
                 self.counted.add(t.serial)
                 self.later(lambda data=data, where=self._where(st):
-                           self.memory.job_event("lumber", "pk_seen", data, **where))
+                           self.memory.job_event(self.JOB, "pk_seen", data, **where))
             if t.player and t.distance >= 0:
                 self.players_seen[t.serial] = t.name
         by_serial = {t.serial: t for t in a.threats}
@@ -1240,9 +1253,9 @@ class LumberLoop:
                 self.monster_stop(st, a, worst, swung, why)
             finally:
                 hit.update(action="recall" if self.creature["recalled"] and not recalled else "stop", why=why)
-                self.memory.job_event("lumber", "monster_hit", hit, **self._where(st))
+                self.memory.job_event(self.JOB, "monster_hit", hit, **self._where(st))
         hit["action"] = "walk_on" if walking else "run"
-        self.memory.job_event("lumber", "monster_hit", hit, **self._where(st))
+        self.memory.job_event(self.JOB, "monster_hit", hit, **self._where(st))
         if len(attackers) == 1:
             self.watch.params = travel_guard.learn_hit(self.watch.params, worst.body, worst.distance, 1)
         self.watch.acknowledge()
@@ -1312,7 +1325,7 @@ class LumberLoop:
         row = self.hit_row(st, a, attackers, ranged, unseen, spells, worst=attackers[0] if attackers else None,
                            walking=True, since_run_s=None)
         write = (lambda row=row, where=self._where(where_st or st):
-                 self.memory.job_event("lumber", "monster_hit", {**row, "action": action}, **where))
+                 self.memory.job_event(self.JOB, "monster_hit", {**row, "action": action}, **where))
         if self._checking:
             self.later(write)
         else:
@@ -1495,13 +1508,17 @@ class LumberLoop:
             where = self._where(st)
 
             def write():
-                self.memory.job_event("lumber", "faction_waypost", data, **where)
-                row = next((r for r in self.memory.lumber_spot_rows() if r["id"] == spot), None)
-                self.memory.lumber_spot_put(spot, row["status"] if row else "active",
-                                            {**(row["data"] if row else {}), "faction_zone": zone},
-                                            row["source"] if row else "runner", row["reason"] if row else None)
+                self.memory.job_event(self.JOB, "faction_waypost", data, **where)
+                self.remember_faction_zone(spot, zone)
             self.later(write)                  # after this check's escape (check_threats)
             return
+
+    def remember_faction_zone(self, spot: str, zone: dict):
+        """The spot's store row gets `faction_zone` (note_waypost)."""
+        row = next((r for r in self.memory.lumber_spot_rows() if r["id"] == spot), None)
+        self.memory.lumber_spot_put(spot, row["status"] if row else "active",
+                                    {**(row["data"] if row else {}), "faction_zone": zone},
+                                    row["source"] if row else "runner", row["reason"] if row else None)
 
     # ------------------------------------------------------------ tracking reds
     def track_observe(self, st):
@@ -1565,7 +1582,7 @@ class LumberLoop:
                 "spaces": hit["spaces"], "mode": hit["mode"], "in_range": near, "react": react,
                 "react_range": self.args.track_react_range, "counted": counted, "trip": self.trip_n}
         self.later(lambda data=data, where=self._where(st):
-                   self.memory.job_event("lumber", "pk_seen", data, **where))
+                   self.memory.job_event(self.JOB, "pk_seen", data, **where))
         log(f"tracking: red {hit['name'] or f'0x{serial:08X}'} {hit['distance']} tiles away"
             + ("" if near else " (a known PK: escaping)" if react
                else f" (beyond {self.args.track_react_range}: logged only)"))
@@ -1609,7 +1626,7 @@ class LumberLoop:
         if not res["ok"]:
             log(f"tracking: not on ({res.get('error') or 'the server did not confirm'}); "
                 f"next try in {self.args.track_retry_s:.0f} s")
-        self.memory.job_event("lumber", "tracking", {"where": where, "ok": res["ok"], "clicks": res["clicks"],
+        self.memory.job_event(self.JOB, "tracking", {"where": where, "ok": res["ok"], "clicks": res["clicks"],
                                                      "error": res.get("error"), "skill": sk, "trip": self.trip_n},
                               **self._where(st))
 
@@ -1617,7 +1634,7 @@ class LumberLoop:
         self.trk.unavailable = why
         log(f"tracking unavailable ({why}); lumbering without it")
         st = self.link.state()
-        self.memory.job_event("lumber", "tracking", {"where": where, "ok": False, "unavailable": why,
+        self.memory.job_event(self.JOB, "tracking", {"where": where, "ok": False, "unavailable": why,
                                                      "skill": tracking.skill(st["world"]), "trip": self.trip_n},
                               **self._where(st))
 
@@ -1726,7 +1743,7 @@ class LumberLoop:
         rec.update(ok=res["ok"], action="already" if res.get("already") else "activated" if res["ok"] else "failed",
                    charges=res.get("charges"), error=res.get("error"))
         st = self.link.state()
-        self.memory.job_event("lumber", "aspect", {"where": where, "trip": self.trip_n, **rec,
+        self.memory.job_event(self.JOB, "aspect", {"where": where, "trip": self.trip_n, **rec,
                                                    "texts": res.get("texts"), "aspect_hue": self.aspect_hue},
                               **self._where(st))
         if not res["ok"]:
@@ -1773,7 +1790,7 @@ class LumberLoop:
         if key in self.aspect_warned:
             return
         self.aspect_warned.add(key)
-        self.memory.juncture("lumber", "low_supplies", text, "attention",
+        self.memory.juncture(self.JOB, "low_supplies", text, "attention",
                              {"item": item, "have": have, "need": need, "why": key, "trip": self.trip_n,
                               "missing": suit["missing"], "plain": suit["plain"], "pieces": suit["pieces"],
                               "how": "ctl act aspect activate armor harvest (all six armor pieces worn)"})
@@ -1891,7 +1908,7 @@ class LumberLoop:
                     self.creature["recall_fails"] = fails
                     if fails == RECALL_ALERT_TRIES:
                         pos = tuple(self.link.pos(self.link.state())[:2])
-                        self.memory.juncture("lumber", "threat", f"Recall failing ({fail}) with "
+                        self.memory.juncture(self.JOB, "threat", f"Recall failing ({fail}) with "
                                              f"{self.threat_name(worst)} after us at {pos}: still running from it",
                                              "urgent",
                                              {"action": "keep_running", "why": why, "failure": fail, "fails": fails,
@@ -2161,7 +2178,7 @@ class LumberLoop:
             data["why"] = why
         if pk and self.guard_summary is not None:
             data["guards"] = self.guard_summary      # the way to the guards this escape found (guard_route)
-        self.memory.job_event("lumber", "recall", data, **self._where(st))
+        self.memory.job_event(self.JOB, "recall", data, **self._where(st))
         self.travel.append(leg_summary({"leg": "escape", "s": res["elapsed_s"], **data}))
         if not res["ok"]:
             return f"recall failed after {res['attempts']} cast(s): {res['failure']}"
@@ -2174,7 +2191,7 @@ class LumberLoop:
         except Abort:
             pass
         summary = self.post_threat(st, a, worst, swung, "recall", why, what=what)
-        self.memory.juncture("lumber", "pk_escape" if pk else "threat",
+        self.memory.juncture(self.JOB, "pk_escape" if pk else "threat",
                              f"Recalled away from {summary} ({res['kind']} {res['method']}, "
                              f"{res['press_to_arrival_s']} s); stopped", "urgent", data)
         self.recalled_home = True        # trip(): home_after_recall, into the room to convert and store
@@ -2234,9 +2251,9 @@ class LumberLoop:
                 "flight_s": round(time.monotonic() - t0, 2), "called_guards": bool(near),
                 "threat": worst.to_dict() if worst else None,
                 "attackers": self.attacker_list(swung), **(extra or {})}
-        self.memory.job_event("lumber", "guard_flight", data, **self._where(st))
+        self.memory.job_event(self.JOB, "guard_flight", data, **self._where(st))
         summary = self.post_threat(st, a, worst, swung, "guards")
-        self.memory.juncture("lumber", "pk_escape",
+        self.memory.juncture(self.JOB, "pk_escape",
                              f"Fled into the guards from {summary} ({data['flight_s']} s); stopped", "urgent", data)
         raise Unsafe(f"threat: {summary}; fled into the guards at {tuple(pos[:2])}")
 
@@ -2266,9 +2283,9 @@ class LumberLoop:
         if why:
             data["why"] = why
         what = "escaping" if action == "escape" else "stopping"
-        self.memory.juncture("lumber", "threat", f"Threat: {summary}; {what}" + (f" ({why})" if why else ""),
+        self.memory.juncture(self.JOB, "threat", f"Threat: {summary}; {what}" + (f" ({why})" if why else ""),
                              "urgent", data)
-        self.memory.job_event("lumber", "flee", data, **self._where(st))
+        self.memory.job_event(self.JOB, "flee", data, **self._where(st))
         return summary
 
     def threat_stop(self, st, a, worst, swung, cls, why=None, what=None):
@@ -2294,11 +2311,10 @@ class LumberLoop:
             n = sum(e.get("amount") or 1 for e in lost)
             what = ", ".join(sorted({e.get("wood") or f"0x{e['graphic']:04X}" for e in lost}))
             carried = None if before is None else {
-                "logs": sum(r["amount"] for r in before.values() if r["graphic"] in LOGS),
-                "boards": sum(r["amount"] for r in before.values() if r["graphic"] in BOARDS)}
-            self.memory.juncture("lumber", "theft_suspected", f"{n} item(s) left the pack unexplained: {what}",
+                k: sum(r["amount"] for r in before.values() if r["graphic"] in g) for k, g in self.CARRIED.items()}
+            self.memory.juncture(self.JOB, "theft_suspected", f"{n} item(s) left the pack unexplained: {what}",
                                  "attention", d.to_dict())
-            self.memory.job_event("lumber", "theft", {"amount": n, "items": lost, "carried": carried},
+            self.memory.job_event(self.JOB, "theft", {"amount": n, "items": lost, "carried": carried},
                                   **self._where(st))
             log(f"pack lost {n} item(s) without a cause ({what}); suspected theft, carrying on")
 
@@ -2377,7 +2393,7 @@ class LumberLoop:
         data = {"trigger": trigger, "action": "recall" if recall else "abort", "why": why,
                 "suspect": worst.to_dict() if worst else None, "trip": self.trip_n,
                 "spot": self.k["spot"]["id"], **(extra or {})}
-        self.memory.job_event("lumber", "thief", data, **self._where(st))
+        self.memory.job_event(self.JOB, "thief", data, **self._where(st))
         self.stats["thief"] = trigger
         log(f"THIEF: {why}")
         what = None if worst else "a thief at our trapped pouch"
@@ -2417,8 +2433,8 @@ class LumberLoop:
         names = ", ".join(f"{t.kind} {t.name or f'0x{t.serial:08X}'} at {t.distance} tiles" for t in e.suspects)
         data = {"trigger": "near", "action": "keep_away", "suspects": [t.to_dict() for t in e.suspects],
                 "from": list(here), "trip": self.trip_n, "spot": self.k["spot"]["id"]}
-        self.memory.job_event("lumber", "thief", data, **self._where(st))
-        self.memory.juncture("lumber", "thief_near", f"Suspected thief while harvesting: {names}; stepping away",
+        self.memory.job_event(self.JOB, "thief", data, **self._where(st))
+        self.memory.juncture(self.JOB, "thief_near", f"Suspected thief while harvesting: {names}; stepping away",
                              "attention", data)
         self.stats["keep_aways"] = self.stats.get("keep_aways", 0) + 1
         log(f"KEEP AWAY: {names}; stepping out of reach")
@@ -2469,7 +2485,7 @@ class LumberLoop:
             log(f"STAFF IN VIEW: {w['label'] or w['name'] or w['serial']} (body {w['body']}, hue {w['hue']}, "
                 f"at {w['x']},{w['y']})")
             if w.pop("first"):
-                self.memory.job_event("lumber", "staff_sighting", {**w, "trip": self.trip_n, "mode": self.mode},
+                self.memory.job_event(self.JOB, "staff_sighting", {**w, "trip": self.trip_n, "mode": self.mode},
                                       **self._where(st))
         if seen:
             self.suspect_staff(seen, st)
@@ -2493,11 +2509,11 @@ class LumberLoop:
         resume = self._intent
         self.doing("speech", f"Paused: {name} " + ("in view" if first["text"] is None else "spoke nearby")
                    + "; waiting for the overseer")
-        data = {"hold": True, "task": "lumber", "trip": self.trip_n, "speakers": who, **self._where(st)}
-        jid = self.memory.juncture("lumber", "speech_nearby",
+        data = {"hold": True, "task": self.JOB, "trip": self.trip_n, "speakers": who, **self._where(st)}
+        jid = self.memory.juncture(self.JOB, "speech_nearby",
                                    f"{name} {what(first)} nearby; harvesting paused until the "
                                    f"all-clear (ack)"[:300], "urgent", data)
-        self.memory.job_event("lumber", "speech_hold", data, **self._where(st))
+        self.memory.job_event(self.JOB, "speech_hold", data, **self._where(st))
         if not self.suspect_staff(who, st):
             alert(not self.args.quiet)
         t0, heard, lines = time.monotonic(), {w["serial"] for w in who}, list(who)
@@ -2525,7 +2541,7 @@ class LumberLoop:
         gm = [{"id": g["id"], "source": g["source"], "summary": g["summary"]}
               for g in self.memory.junctures(after_id=min(gms) - 1, limit=max(gms) - min(gms) + 1)
               if g["id"] in gms] if gms else []
-        self.memory.job_event("lumber", "speech_clear",
+        self.memory.job_event(self.JOB, "speech_clear",
                               {"juncture": jid, "waited_s": round(waited, 1), "gm_suspected": gm, "lines": lines},
                               **self._where(st))
         self.speech.clear(heard)
@@ -2544,8 +2560,8 @@ class LumberLoop:
             w = hinted[0]
             name = w["label"] or w["name"] or w["serial"]
             log(f"POSSIBLE STAFF: {name} ({', '.join(staff_hints(w))}); staff alarm")
-            alerts.post_gm(self.memory, "lumber", f"{name}: {', '.join(staff_hints(w))}",
-                           {"task": "lumber", "trip": self.trip_n, "speakers": hinted, **self._where(st)},
+            alerts.post_gm(self.memory, self.JOB, f"{name}: {', '.join(staff_hints(w))}",
+                           {"task": self.JOB, "trip": self.trip_n, "speakers": hinted, **self._where(st)},
                            not self.args.quiet)
         return bool(alerts.open_gm(self.memory))
 
@@ -2571,8 +2587,8 @@ class LumberLoop:
             return cause
         self.death_recorded = True
         data = {"reason": reason, "cause": cause, "threats": a.to_dict() if a else None}
-        self.memory.juncture("lumber", "death", f"Died ({cause}): {reason}", "urgent", data)
-        self.memory.job_event("lumber", "death", data, **self._where(st))
+        self.memory.juncture(self.JOB, "death", f"Died ({cause}): {reason}", "urgent", data)
+        self.memory.job_event(self.JOB, "death", data, **self._where(st))
         return cause
 
     def state(self):
@@ -2611,7 +2627,7 @@ class LumberLoop:
         """The live trapped pouch for the wood: the one already holding some (one pouch a
         trip), else the shallowest; None without one."""
         pack = self.backpack(st)
-        held = pouch.holding(st["world"], pack, LOGS + BOARDS)
+        held = pouch.holding(st["world"], pack, self.POUCHED)
         live = held or pouch.live(st["world"], pack)
         return live[0] if live else None
 
@@ -2730,12 +2746,12 @@ class LumberLoop:
             return
         how = "stock GM hatchets on the shelf, or raise the loadout's hatchet count"
         if have <= 0:
-            self.memory.juncture("lumber", "low_supplies", "No hatchet carried, none on the shelf or in the chest: "
+            self.memory.juncture(self.JOB, "low_supplies", "No hatchet carried, none on the shelf or in the chest: "
                                  "no trip", "attention", {"item": "hatchet uses", "have": 0, "need": need,
                                                           "trip": self.trip_n, "how": how})
             raise Abort("no hatchet carried, and none on the shelf or in the chest: no trip")
         log(f"hatchets: only {have} uses carried for the {need} the trip may take; going anyway")
-        self.memory.juncture("lumber", "low_supplies", f"Hatchets hold {have} uses, the trip may take {need}: "
+        self.memory.juncture(self.JOB, "low_supplies", f"Hatchets hold {have} uses, the trip may take {need}: "
                              "it goes on, and stops when the last one breaks", "attention",
                              {"item": "hatchet uses", "have": have, "need": need, "trip": self.trip_n, "how": how})
 
@@ -2856,7 +2872,7 @@ class LumberLoop:
         log(f"CAPTCHA up: agent paused, waiting for the solve in the client ({why})")
         paused = "Captcha up — paused until it is solved"
         self.doing("captcha", paused)
-        jid = self.memory.juncture("lumber", "captcha", f"Captcha up; agent paused until solved ({why})",
+        jid = self.memory.juncture(self.JOB, "captcha", f"Captcha up; agent paused until solved ({why})",
                                    "urgent", {"trip": self.trip_n, "mode": "auto" if auto_failed else "human"})
         alert(not self.args.quiet)
         next_beep = t0 + self.args.captcha_beep_s
@@ -3417,7 +3433,7 @@ class LumberLoop:
                                     row["source"] if row else "runner", reason)
         pos = list(self.link.pos(st)[:2])
         log(f"{why}: spot {spot_id} disabled ({reason}); recalling home")
-        self.memory.juncture("lumber", "stuck", f"Boxed in by creatures at {spot_id} {tuple(pos)}: spot disabled, "
+        self.memory.juncture(self.JOB, "stuck", f"Boxed in by creatures at {spot_id} {tuple(pos)}: spot disabled, "
                              f"recalling home", "attention",
                              {"pos": pos, "reason": why, "spot": spot_id, "disabled": True, "trip": self.trip_n,
                               "creatures": [{"serial": f"0x{g[0].serial:08X}", "name": g[0].name, "at": list(g[1]),
@@ -3567,7 +3583,7 @@ class LumberLoop:
         finally:
             self.harvesting = False
             rec["s"] = round(time.monotonic() - t_stand, 1)
-            self.memory.job_event("lumber", "stand", rec, facet=self.facet, x=x, y=y)
+            self.memory.job_event(self.JOB, "stand", rec, facet=self.facet, x=x, y=y)
 
     @staticmethod
     def faced_text(stand, faced, near) -> str:
@@ -3658,7 +3674,7 @@ class LumberLoop:
                 zone = ((m["x"], m["y"]), self.zone_r(t))
                 self.danger[t.serial] = self.danger[("was", t.serial)] = zone
                 self.mover.danger[t.serial] = self.mover.danger[("was", t.serial)] = zone   # routes bend around
-                travel_guard.record(self.memory, st, t, (m["x"], m["y"]), job="lumber")
+                travel_guard.record(self.memory, st, t, (m["x"], m["y"]), job=self.JOB)
         names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
         run_from = list(start.values())
         log(f"ESCAPE {self.escapes}/{ESCAPES_PER_TRIP}: {e.summary}")
@@ -3714,7 +3730,7 @@ class LumberLoop:
                 self.mover.danger.pop(("seen", s), None)
                 if s in unseen:              # it hit us from out of view: no leash measured
                     how = gone[s] = "out of view all along"
-            self.memory.job_event("lumber", "leash", {
+            self.memory.job_event(self.JOB, "leash", {
                 "serial": f"0x{s:08X}", "name": t.name, "body": t.body, "how": how, "legs": legs, "steps": steps,
                 "seconds": secs, "from": list(start[s]) if s in start else None,
                 "last_seen": list(last[s]) if s in last else None, "us": list(here),
@@ -3825,7 +3841,7 @@ class LumberLoop:
             self._stash_due = None
         return self.stash()
 
-    def stash(self, graphics=LOGS) -> int:
+    def stash(self, graphics=None) -> int:
         """Drag the wood lying directly in the backpack (a chop's new logs) into the trapped
         pouch (log_pouch; docs/PLAN.md "Keep thieves off the logs"), with the stock lift and
         drop at a player's pace: the drop onto the pouch's icon in the open backpack, as the
@@ -3833,6 +3849,7 @@ class LumberLoop:
         not seen in the pouch within 3 s stays where it is (the next chop tries again).
         Returns the units moved; none without a live pouch (pouch_ready starts no trip
         without one)."""
+        graphics = self.STASH if graphics is None else graphics
         st = self.state()
         loose = self.in_pack(st, graphics, top=True)
         p = self.log_pouch(st) if loose else None
@@ -3887,7 +3904,7 @@ class LumberLoop:
                 "spent_in_pack": len(pp), "graphic": f"0x{pouch.POUCH_GRAPHIC:04X}", "hue": pouch.TRAPPED_HUE,
                 "how": "a provisioner sells Trapped Pouch (25 gp, Errol): ctl act buy <provisioner serial> "
                        f"trapped pouch --amount {pouch.CARRY}"}
-        self.memory.juncture("lumber", "low_supplies", "No trapped pouch (hue 38) in the pack for the logs; "
+        self.memory.juncture(self.JOB, "low_supplies", "No trapped pouch (hue 38) in the pack for the logs; "
                              "buy some at a provisioner", "attention", data)
         raise Abort("no trapped pouch for the logs (low_supplies): buy Trapped Pouches at a provisioner")
 
@@ -4085,7 +4102,7 @@ class LumberLoop:
         if self.mount_warned:
             return
         self.mount_warned = True
-        self.memory.juncture("lumber", "low_supplies", f"Our mount 0x{pet:08X} can't be ridden ({why}); the "
+        self.memory.juncture(self.JOB, "low_supplies", f"Our mount 0x{pet:08X} can't be ridden ({why}); the "
                              "trips go on foot", "attention",
                              {"item": "mount", "pet": f"0x{pet:08X}", "why": why,
                               "how": "find it, or revive its ghost (act room enter / a healer); then act mount"})
@@ -4323,7 +4340,7 @@ class LumberLoop:
                 data["mana_used"] = before["mana"] - after["mana"]
             used = {k: n - after["reagents"].get(k, 0) for k, n in before["reagents"].items()}
             data["reagents_used"] = {k: n for k, n in used.items() if n > 0}
-        self.memory.job_event("lumber", "travel", data, **self._where(st))
+        self.memory.job_event(self.JOB, "travel", data, **self._where(st))
         self.travel.append(leg_summary(data))
 
     def expect_casts(self, res: dict):
@@ -4492,7 +4509,7 @@ class LumberLoop:
 
     # ------------------------------------------------------------ trips
     def episode(self, row):
-        self.memory.episode("lumber", row)
+        self.memory.episode(self.JOB, row)
 
     def trip(self, n) -> bool:
         """One trip from home to home: a leg at the run's spot, and, when a leg ends early (its
@@ -4543,7 +4560,7 @@ class LumberLoop:
         snap = self.snapshot(st)
         self.reagents0 = self.supplies_now(st)["reagents"]
         woods0 = self.ledger.summary(kind="log")          # carried in: an earlier leg's logs are its own
-        carried_in = self.count(st, LOGS)
+        carried_in = self.count(st, self.YIELD)
         outcome, why, hop = "aborted", None, None
 
         def timed(name, fn, retry=True):
@@ -4596,13 +4613,13 @@ class LumberLoop:
             woods = self.stats.get("woods") or (self.ledger.summary(kind="log") if outcome == "hopped" else None)
             if woods is not None:           # this leg's logs by wood: what it carried in isn't its own
                 woods = {w: n - woods0.get(w, 0) for w, n in woods.items() if n - woods0.get(w, 0) > 0}
-            row = {"loop": "lumber", "spot": self.k["spot"]["id"], "trip": n, "outcome": outcome, "why": why,
+            row = {"loop": self.JOB, "spot": self.k["spot"]["id"], "trip": n, "outcome": outcome, "why": why,
                    "t_start": round(t0, 1), "t_end": round(time.time(), 1), "phases_s": phases,
                    **{k: None if v is None else round(v, 1) for k, v in self.timing.items()},
                    "steps": self.mover.steps - s0, "blocked": self.mover.blocked_count - b0,
                    "doors_opened": self.mover.doors_opened,
                    "human_session": dict(self.human.stats), **snap,
-                   "hatchet": row_hatchet(snap["hatchet"], self.hatchet_worn), "carried_end": self.carried(),
+                   **self.leg_row(snap), "carried_end": self.carried(),
                    **self.trip_end(snap), "tracking": self.trk.tally(), "creature": dict(self.creature),
                    **self.stats, "leg": hops + 1, "carried_in": carried_in}
             if woods is not None:
@@ -4611,9 +4628,16 @@ class LumberLoop:
                 row["hop"] = {k: hop.get(k) for k in ("spot", "logs_per_trip", "carried", "gain_logs", "mode")}
             self.episode(row)
             log(f"trip {n} leg {hops + 1} {outcome}: {row}")
-        self.doing("trip_done", f"Trip {n} done: {self.stats.get('logs', 0)} logs, "
-                                f"{self.stats.get('stored', 0)} boards stored")
+        self.doing("trip_done", self.trip_done_text(n))
         return None
+
+    def leg_row(self, snap) -> dict:
+        """The trip row's tool entry (leg): the hatchet at the start and whether it was in hand chopping."""
+        return {"hatchet": row_hatchet(snap["hatchet"], self.hatchet_worn)}
+
+    def trip_done_text(self, n) -> str:
+        """The visualizer's line when a trip ends at home (leg)."""
+        return f"Trip {n} done: {self.stats.get('logs', 0)} logs, {self.stats.get('stored', 0)} boards stored"
 
     def ended_early(self) -> str | None:
         """Why the harvest ended before its quota with no break due (a library hop may follow), or None."""
@@ -4693,7 +4717,7 @@ class LumberLoop:
             self.mode = mode
         data = {"trip": self.trip_n, "from": self.k["spot"]["id"], "reason": reason, "carried": carried,
                 "hop": hop if why_not is None else None, "why_not": why_not}
-        self.memory.job_event("lumber", "hop", data, **self._where(st))
+        self.memory.job_event(self.JOB, "hop", data, **self._where(st))
         if why_not is not None:
             log(f"no library hop ({reason}): {why_not}")
             return None
@@ -4792,7 +4816,7 @@ class LumberLoop:
         try:
             st = self.link.state()
             me = st["world"].get("self") or {}
-            skill = lumber_opt.skill_value(me)
+            skill = lumber_opt.skill_value(me, self.SKILL)
             out["skill_end"] = skill
             if skill is not None and snap.get("skill") is not None:
                 out["skill_gain"] = round(skill - snap["skill"], 1)
@@ -4810,7 +4834,7 @@ class LumberLoop:
         """Logs and boards left in the backpack (what a death now would lose)."""
         try:
             st = self.link.state()
-            return {"logs": self.count(st, LOGS), "boards": self.count(st, BOARDS)}
+            return {k: self.count(st, g) for k, g in self.CARRIED.items()}
         except (OSError, ValueError, KeyError, Abort):
             return None
 
@@ -4889,12 +4913,12 @@ class LumberLoop:
                 raise
             hopped = self.trip(n)
             if self.break_due:
-                log(f"break due: boards stored after trip {n}; stopping for the break (ctl break)")
-                self.doing("break_due", "Break due: boards stored; waiting in the rental room for the break")
+                log(f"break due: {self.HOME_DONE} after trip {n}; stopping for the break (ctl break)")
+                self.doing("break_due", f"Break due: {self.HOME_DONE}; waiting in the rental room for the break")
                 return
             if self.finish_requested:
-                log(f"stop requested: boards stored after trip {n}; the run ends here, in the rental room")
-                self.doing("done", f"Stop requested: boards stored after trip {n}; waiting in the rental room")
+                log(f"stop requested: {self.HOME_DONE} after trip {n}; the run ends here, in the rental room")
+                self.doing("done", f"Stop requested: {self.HOME_DONE} after trip {n}; waiting in the rental room")
                 return
             if hopped and n < self.args.trips:
                 # the trip moved on to other spots: the run's own trips no longer fit; the overseer plans afresh
@@ -4923,34 +4947,22 @@ def stop_intent(loop, text):
         pass
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def common_args(ap):
+    """The arguments every harvest runner built on LumberLoop takes (lumber, loop_mining.py); main()
+    and loop_mining.main add their own (--spots, --loop, quota and tool options)."""
     ap.add_argument("--spot", required=True,
-                    help="lumber spot id (harness/data/lumber_spots.json or the store; `ctl lumber spots`)")
-    ap.add_argument("--spots", default=lumber_opt.SEEDS, help="seed spot file (tests)")
+                    help="spot id (`ctl lumber spots` / `ctl mining spots`)")
     ap.add_argument("--witcher", default=places.WITCHER, help="Witcher rune table (tests: a simulated library)")
     ap.add_argument("--libraries", default=places.LIBRARIES, help="rune library table (tests: a simulated library)")
     ap.add_argument("--homes", default=home_mod.HOMES,
                     help="homes by character name: landing, rental room, chest (tests: a simulated home)")
     ap.add_argument("--trips", type=int, default=1)
     ap.add_argument("--hops", type=int, default=3,
-                    help="library hops per trip at most (docs/LUMBER_LOOP.md §6 'Library hops'): a leg that ends "
-                         "early (dry, every tree guarded, a threat recalled us home) goes on from the home rune "
-                         "library to the spot `ctl lumber plan` would pick, with the logs carried, when the plan "
-                         "says that beats storing them first; 0 = never")
-    ap.add_argument("--logs-per-trip", type=int, default=15)
-    ap.add_argument("--hatchet", default=None,
-                    help="use only a hatchet of this material[+quality], e.g. copper or copper+exceptional "
-                         "(harness/data/hatchets.json); default: the worn one, else the shallowest in the pack")
+                    help="hops per trip to another spot when a leg ends early; 0 = never")
     ap.add_argument("--max-attempts-per-stand", type=int, default=60,
                     help="Smart Harvest attempts at one stand before moving on even though the server still "
                          "chops (a stay normally ends at 'nothing nearby'; Stationary Penalty repositions "
                          "happen in between)")
-    ap.add_argument("--max-trees", type=int, default=0, help="candidate trees per trip (0 = every one in the area)")
-    ap.add_argument("--regrow-min", type=float, default=lumber_opt.REGROW_DEFAULT_MIN,
-                    help="skip a tree for this long after it ran dry or a stand by it said nothing nearby "
-                         "(`ctl lumber plan` passes the "
-                         "estimate from harvest memory)")
     ap.add_argument("--attempt-timeout", type=float, default=10.0)
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal",
                     help="human-texture profile (humanize.py); 'off' for deterministic tests")
@@ -5008,18 +5020,19 @@ def main():
     ap.add_argument("--char", default=None,
                     help="character selector (name or 0xSERIAL); required by the proxy when several "
                          "characters are logged in")
-    ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"),
-                    help="common lumber knowledge (texts, captcha, conversion); the spot adds the venue")
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md): walk memory, harvest nodes, episodes")
-    args = ap.parse_args()
 
+
+def run_loop(args, loop_cls, load_spots, spot_knowledge):
+    """Run `loop_cls` (LumberLoop or a subclass) at args.spot: the common knowledge (--loop), the
+    spot from `load_spots` made into the runner's knowledge by `spot_knowledge`; exits 0 or 1."""
     with open(args.loop, encoding="utf-8") as f:
         base = json.load(f)
     know = base
     memory = Memory(args.memory)
     places.use(args.witcher, args.libraries)
-    spots = lumber_opt.load_spots(memory, args.spots)
+    spots = load_spots(memory, args.spots)
     spot = spots.get(args.spot)
     why = None
     if spot is None:
@@ -5028,7 +5041,7 @@ def main():
         why = f"spot {args.spot} is disabled" + (f": {spot['reason']}" if spot.get("reason") else "")
     else:
         try:
-            know = lumber_opt.spot_knowledge(base, spot)
+            know = spot_knowledge(base, spot)
         except ValueError as e:
             why = str(e)
     if why:
@@ -5036,7 +5049,7 @@ def main():
         memory.close()
         sys.exit(1)
     link = Link(args.control_port, args.state_port, char=args.char)
-    loop = LumberLoop(link, memory, know, args, base)
+    loop = loop_cls(link, memory, know, args, base)
     code = 0
     try:
         loop.run()
@@ -5050,6 +5063,24 @@ def main():
     finally:
         memory.close()
     sys.exit(code)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    common_args(ap)
+    ap.add_argument("--spots", default=lumber_opt.SEEDS, help="seed spot file (tests)")
+    ap.add_argument("--logs-per-trip", type=int, default=15)
+    ap.add_argument("--hatchet", default=None,
+                    help="use only a hatchet of this material[+quality], e.g. copper or copper+exceptional "
+                         "(harness/data/hatchets.json); default: the worn one, else the shallowest in the pack")
+    ap.add_argument("--max-trees", type=int, default=0, help="candidate trees per trip (0 = every one in the area)")
+    ap.add_argument("--regrow-min", type=float, default=lumber_opt.REGROW_DEFAULT_MIN,
+                    help="skip a tree for this long after it ran dry or a stand by it said nothing nearby "
+                         "(`ctl lumber plan` passes the "
+                         "estimate from harvest memory)")
+    ap.add_argument("--loop", default=os.path.join(DATA, "loops", "lumber.json"),
+                    help="common lumber knowledge (texts, captcha, conversion); the spot adds the venue")
+    run_loop(ap.parse_args(), LumberLoop, lumber_opt.load_spots, lumber_opt.spot_knowledge)
 
 
 if __name__ == "__main__":

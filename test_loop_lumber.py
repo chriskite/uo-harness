@@ -681,6 +681,7 @@ class World:
         self.guard_zone = None
         self.guard_entered = None         # (time, our tile) of the 500112
         self.guards_called = []           # (time, our tile) per "guards" said
+        self.login_extra = []             # more login packets after the runebook (test_loop_mining: the pickaxe)
 
     # ---- the pack's wood and trapped pouches ----
     @property
@@ -1764,6 +1765,8 @@ class World:
             if s != HATCHET:
                 self.send(contained(s, 0x0F44, 1, BACKPACK))
         self.send(contained(RUNEBOOK, 0x22C5, 1, BACKPACK))     # the way out and home
+        for pkt in self.login_extra:
+            self.send(pkt)
         if self.library:
             self.send(contained(0x44ADB0FF, 0x0F7A, 10, BACKPACK))   # black pearl: charges spend none
         for pch in self.pouch_hue:                              # the trapped pouches (hue 38)
@@ -2272,12 +2275,15 @@ async def main():
 
 
 async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=None, during=None,
-                       more_spots=(), routes=None, prepare=None, banks=()):
+                       more_spots=(), routes=None, prepare=None, banks=(), script="harness/loop_lumber.py",
+                       spots_doc=None):
     """The real proxy in front of `world` on free private ports (logdir
     LOGDIR/<tag>, an optional pre-written agent gate file), then the runner with
     runner_args; `during(db)`, a coroutine function, runs alongside it (a test
     overseer); `prepare(db)` writes to the store before anything starts; `banks`: the bank markers the runner
-    reads (write_world_files). Returns (runner output, exit code, memory store, capture rows)."""
+    reads (write_world_files); `script`: the runner (test_loop_mining: harness/loop_mining.py); `spots_doc`: the
+    --spots file's whole document instead of the lumber spot 'sim'. Returns (runner output, exit code, memory
+    store, capture rows)."""
     logdir = os.path.join(LOGDIR, tag)
     os.makedirs(logdir, exist_ok=True)
     if budget is not None:
@@ -2285,6 +2291,9 @@ async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=N
             json.dump(budget, f)
     paths = write_world_files(tempfile.mkdtemp(dir=LOGDIR), trees, spot_extra, stockpile=world.stockpile is not None,
                               more_spots=more_spots, routes=routes, banks=banks)
+    if spots_doc is not None:
+        with open(paths["spots"], "w", encoding="utf-8") as f:
+            json.dump(spots_doc, f)
     db = paths["db"]
     if prepare is not None:                             # the store as an earlier run left it
         prepare(db)
@@ -2301,7 +2310,7 @@ async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=N
         drainer = asyncio.create_task(drain_client())
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
-            PY, f"{ROOT}/harness/loop_lumber.py", "--control-port", str(control), "--state-port", str(state),
+            PY, f"{ROOT}/{script}", "--control-port", str(control), "--state-port", str(state),
             *runner_files(paths), "--timeout", "300",
             "--quiet", "--no-map", "--max-blocked", "80",
             "--triage-url", "", *runner_args,
@@ -4153,7 +4162,7 @@ def unit_smart_range():
     anchor = {"x": 11, "y": 10, "z": 0, "graphic": "0x0CE0"}
     two, three = {"x": 12, "y": 12, "z": 0, "graphic": "0x0CE0"}, {"x": 13, "y": 10, "z": 0, "graphic": "0x0CE0"}
     marks, events = [], []
-    fake = SimpleNamespace(
+    fake = loop_fake(
         doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None,
         link=SimpleNamespace(pos=lambda st: (10, 10, 0), state=lambda: {}, last={}),
         mover=SimpleNamespace(walk_to=lambda *a, **kw: None), timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
@@ -4278,7 +4287,7 @@ def unit_boxed_in():
     mem = memory.Memory(os.path.join(tempfile.mkdtemp(), "m.db"))
     stops = []
     wolf = SimpleNamespace(serial=0x111, name="a dire wolf", distance=6)
-    fake = SimpleNamespace(
+    fake = loop_fake(
         link=SimpleNamespace(state=lambda: {}, pos=lambda st: (100, 100, 0, 0)),
         watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False)),
         tree_guards=lambda st, recent=True: [(wolf, (106, 100), 13)], k={"spot": {"id": "witcher_137"}},
@@ -4308,7 +4317,7 @@ def unit_death_cause():
     grey = SimpleNamespace(serial=0x7196E8, hostile=True, player=True)
 
     def fake_loop(attacked, rows, ghost=False, seen=(grey,), events=(), marks=None):
-        fake = SimpleNamespace(attacked=attacked, last_threats=SimpleNamespace(
+        fake = loop_fake(attacked=attacked, last_threats=SimpleNamespace(
             threats=list(seen), under_attack=True, to_dict=lambda: {}), death_recorded=False,
             memory=SimpleNamespace(juncture=lambda *a: None, job_event=lambda job, kind, data, **kw:
                                    (rows if job == "lumber" else marks if marks is not None else []).append(data)),
@@ -4386,7 +4395,7 @@ def unit_run_and_recall():
         if outcome["casts"] == outcome["die_at"]:
             state["dead"] = True
         return "recall failed after 1 cast(s): disturbed"
-    fake = SimpleNamespace(
+    fake = loop_fake(
         gain_distance=gain_distance, recall_out=recall_out, creature={"recalled": False, "recall_fails": 0},
         link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0), events=[]),
         watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=state["dead"])),
@@ -4499,7 +4508,7 @@ def cast_fake(st, answer, **kw):
         timeline.append(("pkt", pkt[0]))
         act(pkt)
     link.act = act_logged
-    fake = SimpleNamespace(
+    fake = loop_fake(
         link=link, aid=healing.SelfCare(), _aid_scan=0, watch=SimpleNamespace(hits=[]),
         player_foes=set(), no_reagents=set(), mode="work", trip_n=1, k={"spot": {"id": "sim"}}, _acting=False,
         _later=[], _checking=0, ledger=SimpleNamespace(expect=lambda *a: expected.extend(a)),
@@ -4597,7 +4606,7 @@ def unit_hop_salvage():
     import loop_lumber
     events, steps = [], []
     st = {"world": {"self": {"hits": 100, "hits_max": 100}}, "movement": {"pos": [4134, 1429, 6, 0]}}
-    fake = SimpleNamespace(mode="work")
+    fake = loop_fake(mode="work")
 
     def clicks(s):
         steps.append(("clicks", fake.mode))
@@ -4679,7 +4688,7 @@ def unit_no_harvest():
     near, far = {"x": 2146, "y": 577, "z": 0, "graphic": "0x0CE0"}, {"x": 2149, "y": 575, "z": 0, "graphic": "0x0CE0"}
     mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
     events = []
-    fake = SimpleNamespace(
+    fake = loop_fake(
         doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None,
         link=SimpleNamespace(pos=lambda st: (2145, 575, 0), state=lambda: {}, last={}),
         mover=SimpleNamespace(walk_to=lambda *a, **kw: None), timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
@@ -4834,7 +4843,7 @@ def unit_thief_out():
     def threat_stop(st, a, worst, swung, exc, why, what=None):
         calls.append(("stop", why))
         raise exc(why)
-    fake = SimpleNamespace(
+    fake = loop_fake(
         afield=True, recall_book=1, trip_n=1, k={"spot": {"id": "sim"}}, stats={}, player_foes=set(),
         memory=SimpleNamespace(job_event=lambda *a, **kw: None), _where=lambda st: {},
         link=SimpleNamespace(state=lambda: {}), watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False)),
@@ -4941,6 +4950,14 @@ import threats  # noqa: E402
 from loop_lumber import LumberLoop, PLAYER_RECALL_GAP, hit_verdict, in_hand, row_hatchet  # noqa: E402
 from uo import cliloc as cliloc_mod  # noqa: E402  (the simulator's cliloc() builds packets)
 from world.runtime import WorldRuntime  # noqa: E402
+
+
+def loop_fake(**kw):
+    """A SimpleNamespace standing in for a LumberLoop in the unit tests, with the class's job hooks (JOB,
+    CARRIED, STASH, ...: loop_mining.MineLoop overrides them) that its methods read from self."""
+    hooks = ("JOB", "SKILL", "YIELD", "STASH", "POUCHED", "CARRIED", "HOME_DONE")
+    return SimpleNamespace(**{k: getattr(LumberLoop, k) for k in hooks}, **kw)
+
 
 CAP_ME = 0x0020F127
 CAP_LARVA, CAP_COUGAR, CAP_RAVEN = 0x0042E6DB, 0x0007031B, 0x00904470

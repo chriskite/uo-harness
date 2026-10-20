@@ -4072,12 +4072,37 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   harness: no flow drops onto a mobile (`ctl _act_drop` refuses non-item containers), labels aren't parsed,
   `threats.passive_names` lacks "a pack ox", the thief guard only watches 2 tiles around us, ledger/pouch watch only
   our pack, `tamer.Team` treats any roster member's death as "pet down".
-- **Store schema gap:** `harvest_nodes` / `harvest_attempts` have no skill column, and `lumber_opt.logs_per_success`,
-  `store_inputs` and `grove_view` read every row, so mining rows would bias the lumber planner. Episodes and
-  job events are keyed by a free-text loop/job name and need nothing.
+- **Store schema gap (closed by v7, 2026-10-19):** `harvest_nodes` / `harvest_attempts` have no skill column, and
+  `lumber_opt.logs_per_success`, `store_inputs` and `grove_view` read every row, so mining rows would bias the lumber
+  planner. The mining runner writes its own tables instead (`mine_attempts`, `mine_blocks`, `mining_spots`).
+  Episodes and job events are keyed by a free-text loop/job name (`mining`) and need nothing.
 - **Runes near rock:** Witcher 206 Granite Quarry (3406,979), 317 Sandshear Quarry (3784,2484), 325 Tarsands Mine
   (3970,2584; Tarsands is dangerous, k246); DTF tomes add Prevalia Quarry (1178,1119), Mt. Petram caves. A "quarry
   miner" NPC emotes "*digs*" near Witcher 254 (k4090).
+- **The mining runner (built offline 2026-10-19; docs/PLAN.md "Mining runner"; not run live yet).**
+  - Run it from the plan: `./ctl.cmd --char "Outland Dan" mining plan` → `ctl run mining --spot forge_1227_1142
+    --trips 1 --field-min 60 --timeout 6300` (the plan's `command`). By hand for a short test:
+    `./ctl.cmd --char "Outland Dan" run mining --spot forge_1227_1142 --trips 1 --hops 0 --field-min 10`.
+  - Seed spots: `python harness/ore_nodes.py spots --active-near 1178 1119` (~4 s) wrote 44 spots to
+    `harness/data/mining_spots.json` (committed). Only `forge_1227_1142` (Prevalia Quarry, 83 node blocks) is
+    active. The capture's forge (1193,1066) is left out: its nearest rune "12 - Urk Fort/Smugglers Den" has a danger
+    word (`places.danger_hint`; `--include-dangerous` keeps it). (1254,1148) lies within 40 of the richer Shrine:Honor
+    site (1279,1149), which is a candidate.
+  - `ctl mining plan` without the proxy needs `--char NAME` for the home (no mining trip row names the character
+    yet). With no mining trips the score is 585 ore/h: the 1300 prior less the pooled hazards' priors
+    (0.5 per field hour each).
+  - Dig loop: `dig_use` 0.2 s after the reply, reply wait `--attempt-timeout` 5 s, at most 120 digs a stand. A stand
+    ends at "You do not see any harvestable resources nearby." (its 8x8 blocks depleted for `--regrow-min` 60), at
+    the forge call (fewer than `--smelt-free` 40 stones free), or at the field time. The server's stationary text
+    without the buff in view walks 6 steps out and back (`Stationary.walk_off`); more than 3 at one stand abort.
+  - Smelting: walk within 2 of the spot's `forge`, a double-click per ore stack 0.65 s apart (`smelt_use`), then the
+    ingots into the trapped pouch (`stash`). A `smelt` job event per visit (`ok`, `ore`, `ingots`, `s`).
+  - At home nothing is converted or stored, and the room shelf's Restock is skipped: it takes live trapped pouches
+    (above, "Storage shelves"), and the live one holds the ingots. Check the ingots with `ctl status`
+    (`backpack.counts` 0x1BF2).
+  - Live checks still open: whether a packed pickaxe's double-click equips it as in the capture (else equip with
+    `combat.equip_packets`), whether Prevalia's map forges smelt for the runner, and the mounted-mining answer
+    (cliloc 501864 aborts the run).
 
 ## Network observations
 

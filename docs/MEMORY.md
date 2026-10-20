@@ -33,7 +33,7 @@ Rejected:
 - A server database (Postgres). It needs a service, which is too much for one local harness.
 - DuckDB. It's analytics-first, not in the stdlib, and has a single-writer file lock.
 
-## Schema (v6, `memory.SCHEMA`)
+## Schema (v7, `memory.SCHEMA`)
 
 | Table | Key | Contents |
 |---|---|---|
@@ -52,6 +52,9 @@ Rejected:
 | `knowledge_vec` | `id` (= `knowledge.id`) | Since 2026-10-03, added without a schema bump. One embedding per entry for hybrid recall: `hash` (sha1 of model name + "topic: content"), `vec` (384 float32, L2-normalised). Filled lazily by `Knowledge.search`; regenerable, so losing it costs one re-embed (~1 s on the GPU for ~1k entries) |
 | `lumber_spots` | `id` | v5. Lumber spots for `lumber_opt.py` (docs/LUMBER_LOOP.md §6): `status` (active/candidate/disabled), `data` (the spot JSON; `{}` = a status override of a seed in `harness/data/lumber_spots.json`), `reason`, `source` (overseer/discover), `created_t`, `updated_t`. Written by `ctl lumber spot add\|set` and `ctl lumber discover` |
 | `prices` | `id` | v5. Observed market prices, append-only (the history is kept): `item` (`hatchet:<material>[:<quality>]`, `board:<wood>`, `reagent:<name>` with spaces as `_`, `recall_charge`), `price_gp`, `t` (when observed; `ctl lumber price --at` backdates), `source`, `note`. Planning uses the newest per item (`Memory.prices`); `harness/jobs.py` values each trip at the `board:<wood>` price as of its end (`Memory.price_history`). Written by `ctl lumber price` |
+| `mine_attempts` | (append) | v7. Every dig outcome of the mining runner (`loop_mining.py`) on its stand tile: `t`, `facet`/`x`/`y`/`z`, `outcome` (success/fail with `amount` = ore; `nothing_near` / `no_harvest`: the stand's marks), `amount`. Index by time. Kept apart from `harvest_attempts`, which the lumber planner reads unfiltered |
+| `mine_blocks` | (`facet`, `bx`, `by`) | v7. Ore state per 8x8 map block (the ore bank): `depleted_at` (a stand reaching it said "You do not see any harvestable resources nearby."; the runner skips it for `--regrow-min`), `no_harvest` (1 for good: "Harvesting is not allowed in this area.") |
+| `mining_spots` | `id` | v7. Mining spots for `mining_opt.py`, as `lumber_spots`: status overrides of the seeds in `harness/data/mining_spots.json` (`ctl mining spot set`) and runner rows (`disabled` when the forge doesn't smelt; `faction_zone` from a waypost) |
 | `meta` | `key` | `schema_version`; `captcha_mode` (`human`/`auto`, missing = `human`; who answers the harvest captcha, set from the viz header, read by the runner at every captcha); overseer bus (docs/OVERSEER.md): `tasks` (running task entries, each with its `char_serial`), `task_stop:<task_id>`, `task_finish:<task_id>`, and per character (`<key>:0x%08X`, or the bare key when no character was given): `overseer_juncture_cursor`, `overseer_chat_cursor`, `overseer_heartbeat` (epoch s), `heal_potion_t`, `room_entered_via`; shared: `gate_break_due_notified`; Telegram bridge (docs/OVERSEER.md §8): `telegram_chat_cursor`, `telegram_juncture_cursor`, `telegram_update_offset`; `lumber_landing_routes` (since 2026-10-04: `lumber_opt` route checks, JSON {"facet:lx,ly>cx,cy,r": walk tiles from landing lx,ly into the area, or null = no route}; regenerable, written by `ctl lumber plan`, docs/LUMBER_LOOP.md §6 "Home and the way out") |
 
 **Characters (v6, 2026-10-08).** `episodes`, `job_events`, `junctures` and `chat` have a
@@ -101,6 +104,10 @@ range as [since, until); `EXPLAIN QUERY PLAN` on the 2026-10-05 store shows all 
   - `loop_hunt.py` writes one episode per visit (loop `hunt`: kills, gold, xp, hits lost, casts, heals,
     why it ended) and job events `kill`, `loot` (gold, xp = the corpse's gold; docs/HUNT_LOOP.md),
     `leave`, `death`, `speech_hold`/`speech_clear`. The viz Jobs page's Hunting dashboard reads them.
+  - `loop_mining.py` writes one episode per leg (loop `mining`: `ore`, `attempts`, `successes`, `doubles`, `smelts`,
+    `ore_smelted`, `ingots_made`, `dry`, `time_up`, `pickaxe`, `carried_end` {ore, ingots}, the lumber row's travel
+    and threat fields), `mine_attempts` and `mine_blocks` rows, and job events `stand`, `smelt`, `hop` and the
+    lumber runner's threat and travel events under job `mining`. `mining_opt.py` (`ctl mining plan`) reads the episodes.
   - Runners never write walk moves; the proxy already has them.
 - **Telegram bridge** (`harness/telegram_bridge.py`): `user` chat rows for messages from the
   phone, and its own `telegram_*` cursors in `meta`. It reads `chat` and `junctures`.

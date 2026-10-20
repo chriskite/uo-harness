@@ -3,6 +3,8 @@ the repo and the store know").
 
     python harness/ore_nodes.py scan [--facet 0] [--out PATH] [--land NAMES] [--statics NAMES]
     python harness/ore_nodes.py near X Y [--radius 40] [--facet 0] [--land NAMES] [--statics NAMES]
+    python harness/ore_nodes.py spots [--facet 0] [--out harness/data/mining_spots.json] [--min-nodes 20]
+                                      [--active-near X Y] [--include-dangerous]
 
 Model (community facts, single sources; RunUO's ore bank is 8x8 too [INFERENCE]): a mining node
 is one 8x8 map block, the blocks the map file is stored in. Smart Harvest (a pickaxe double-click)
@@ -29,6 +31,12 @@ and node state (ore left, colour, respawn), which only digging shows.
 node block [bx, by, area, tiles, family bits] and the stands reaching 3+ nodes [x, y, n]. The map
 is read in bands of BAND block rows, so memory stays near 0.5 GB. Reads the install's map and
 tiledata files and the memory store (read-only); sends nothing anywhere.
+
+`spots` writes the mining runner's seed spots (loop_mining.py, mining_opt.py): one per non-town
+overworld forge site with --min-nodes node blocks within FORGE_NEAR tiles, outside lumber_opt's
+no-go areas and (unless --include-dangerous) away from runes named dangerous, at most one site per
+FORGE_NEAR tiles (the richest). Each spot's area is the square FORGE_NEAR around the forge; it is
+'active' within ACTIVE_NEAR tiles of --active-near, else 'candidate' (`ctl mining spot set`).
 """
 import argparse
 import json
@@ -63,6 +71,8 @@ FORGE_LINK = 6            # forge pieces this close (Chebyshev) are one site
 FORGE_NEAR = 40           # tiles: the node blocks a forge site serves
 OVERWORLD_X = {0: 4600}   # map0: ocean from x 4 500 to 4 700, the dungeon levels east of it
 MIN_AREA = 20             # blocks: the summary's "large area"
+SPOTS = os.path.join(HERE, "data", "mining_spots.json")
+ACTIVE_NEAR = 60          # tiles: `spots --active-near X Y` makes the spots this close 'active'
 
 
 class Tiles:
@@ -195,6 +205,43 @@ def nogo_grid(rects, ox, oy, shape):
         if r0 < r1 and c0 < c1:
             g[r0:r1, c0:c1] = True
     return g
+
+
+def area_stands(m, tiles, rects, center, radius, reach=REACH) -> list[dict]:
+    """The stands within `radius` (Chebyshev) of `center` on map m: [{x, y, n, blocks}], `blocks` the
+    sorted [bx, by] global blocks holding a reachable mineable tile within `reach` of the stand
+    (len(blocks) == n, as stands() counts them). [] for an area without one."""
+    cx, cy = center
+    by0 = max((cy - radius - reach) // BLOCK - PAD, 0)
+    by1 = min((cy + radius + reach) // BLOCK + 1 + PAD, m.blocks_h)
+    if by0 >= by1:
+        return []
+    walk, bits, _fg = grids(m, tiles, by0, by1)
+    oy = by0 * BLOCK
+    nogo = nogo_grid(rects, 0, oy, walk.shape)
+    mask = reachable(bits, walk, nogo, reach)
+    ys, xs, n = stands(mask, walk, nogo, 0, oy, reach)
+    gy = ys + oy
+    sel = np.maximum(np.abs(xs - cx), np.abs(gy - cy)) <= radius
+    ys, xs, gy, n = ys[sel], xs[sel], gy[sel], n[sel]
+    if not len(xs):
+        return []
+    h, w = mask.shape
+    bx0, by0s = (xs - reach) // BLOCK, (gy - reach) // BLOCK     # a stand's reach spans at most 2x2 blocks
+    hit = np.zeros((len(xs), 2, 2), bool)
+    rows = np.arange(len(xs))
+    for dy in range(-reach, reach + 1):
+        for dx in range(-reach, reach + 1):
+            tx, ty = xs + dx, ys + dy
+            ok = (tx >= 0) & (tx < w) & (ty >= 0) & (ty < h)
+            ok &= mask[np.clip(ty, 0, h - 1), np.clip(tx, 0, w - 1)]
+            hit[rows[ok], ((gy + dy) // BLOCK - by0s)[ok], ((xs + dx) // BLOCK - bx0)[ok]] = True
+    out = []
+    for i in range(len(xs)):
+        iy, ix = np.nonzero(hit[i])
+        blocks = sorted([int(bx0[i] + a), int(by0s[i] + b)] for a, b in zip(ix, iy))
+        out.append({"x": int(xs[i]), "y": int(gy[i]), "n": len(blocks), "blocks": blocks})
+    return out
 
 
 def grids(m, tiles, by0, by1):
@@ -499,6 +546,29 @@ def _names(v):
     return tuple(s.strip().lower() for s in v.split(",") if s.strip())
 
 
+def seed_spots(doc, facet, min_nodes, active_near=None, include_dangerous=False) -> list[dict]:
+    """The mining seed spots of a scan document (module doc, `spots`): richest forge sites first."""
+    taken = []
+    sites = [s for s in doc["forges"] if not s["town"] and s["side"] == "overworld" and s["nodes_near"] >= min_nodes
+             and lumber_opt.no_go(facet, (s["x"], s["y"])) is None
+             and (include_dangerous or not places.danger_hint((s.get("rune") or {}).get("name") or ""))]
+    for s in sorted(sites, key=lambda s: (-s["nodes_near"], s["x"], s["y"])):
+        if any(max(abs(s["x"] - t["x"]), abs(s["y"] - t["y"])) <= FORGE_NEAR for t in taken):
+            continue
+        taken.append(s)
+    out = []
+    for s in taken:
+        x, y = s["x"], s["y"]
+        rune = (s.get("rune") or {}).get("name")
+        active = active_near is not None and max(abs(x - active_near[0]), abs(y - active_near[1])) <= ACTIVE_NEAR
+        out.append({"id": f"forge_{x}_{y}", "name": f"{rune or 'unnamed'} forge ({x},{y})", "facet": facet,
+                    "area": {"center": [x, y], "radius": FORGE_NEAR, "note": "ore_nodes.py spots"},
+                    "forge": {"x": x, "y": y, "z": s["z"]}, "nodes": s["nodes_near"],
+                    "pvp": True, "hazard_prior": 0.5, "source": "ore_nodes",
+                    "status": "active" if active else "candidate"})
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="ore nodes from the map files (module doc)")
     common = argparse.ArgumentParser(add_help=False)
@@ -516,6 +586,13 @@ def main(argv=None):
     nr.add_argument("x", type=int)
     nr.add_argument("y", type=int)
     nr.add_argument("--radius", type=int, default=40)
+    sp = sub.add_parser("spots", parents=[common], help="mining seed spots at the forge sites (module doc)")
+    sp.add_argument("--out", default=SPOTS, help="seed spot JSON (mining_opt.SEEDS)")
+    sp.add_argument("--min-nodes", type=int, default=20, help="node blocks within FORGE_NEAR of the forge")
+    sp.add_argument("--active-near", type=int, nargs=2, metavar=("X", "Y"), default=None,
+                    help=f"spots within {ACTIVE_NEAR} tiles of X Y are 'active', the rest 'candidate'")
+    sp.add_argument("--include-dangerous", action="store_true", help="keep sites by runes named dangerous")
+    sp.add_argument("--band", type=int, default=BAND, help="block rows per pass")
     a = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     m = uomap.UoMap(a.facet, a.root)
@@ -527,12 +604,31 @@ def main(argv=None):
         return 0
     t0 = time.time()
     doc = build(scan(m, tiles, rects, a.band), a.facet, tiles, towns, gps, runes)
+    if a.cmd == "spots":
+        spots = seed_spots(doc, a.facet, a.min_nodes, a.active_near, a.include_dangerous)
+        _write_json(a.out, {"_doc": "Mining seed spots: non-town overworld forge sites with ore nodes around them "
+                                    "(python harness/ore_nodes.py spots; mining_opt.load_spots). 'candidate' spots run "
+                                    "only after `ctl mining spot set <id> --status active`.",
+                            "generated": doc["generated"], "spots": spots}, indent=1)
+        for s in spots:
+            print(f"{s['id']:<18} {s['nodes']:4d} nodes  {s['status']:<9} {s['name']}")
+        print(f"wrote {os.path.relpath(a.out)}: {len(spots)} spots, "
+              f"{sum(s['status'] == 'active' for s in spots)} active ({time.time() - t0:.1f} s)")
+        return 0
     if a.out:
-        tmp = a.out + ".part"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(doc, f, separators=(",", ":"))
-        os.replace(tmp, a.out)
+        _write_json(a.out, doc)
     print_scan(doc, time.time() - t0, a.out, a.top)
+    return 0
+
+
+def _write_json(path, doc, indent=None):
+    """`doc` to `path` atomically (.part, then replace)."""
+    tmp = path + ".part"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(doc, f, indent=indent, separators=(",", ":") if indent is None else None)
+        if indent is not None:
+            f.write("\n")
+    os.replace(tmp, path)
     return 0
 
 
