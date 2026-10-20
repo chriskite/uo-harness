@@ -17,7 +17,7 @@ report says whether the font as it was before the run would have solved it
 and its weakest digit margin (the out-of-sample evidence). `--dry-run`
 writes nothing; `--samples/--font` point at other copies of the two files.
 After adding anything, update the hard-coded sample count and measured
-figures in harness/test_captcha.py and rerun it (~45 s).
+figures in harness/test_captcha.py and rerun it (~1 min with 8 worker processes).
 """
 import argparse
 import glob
@@ -183,7 +183,7 @@ def main():
           f"({len(font['references'])} references)")
     print(f"REMINDER: harness/test_captcha.py hard-codes len(samples) == {len(samples) - len(new)} "
           f"and its measured figures; update them to the new dataset and rerun "
-          f"`python harness/test_captcha.py` (~45 s).")
+          f"`python harness/test_captcha.py` (~1 min with 8 worker processes).")
 
 
 if __name__ == "__main__":

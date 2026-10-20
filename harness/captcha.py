@@ -4,10 +4,11 @@ drawn as `tilepic` dot glyphs at layout coordinates, and the dot cluster of
 each digit is a fixed shape with displaced dots, so a layout carries the
 answer explicitly.
 
-Method: tilepics are split into the three digit clusters at the pair of x gaps
-that leaves three plausible digits, the widest such pair (until 2026-10-06 simply
-the two largest x gaps; see digit_clusters), each cluster is normalized (centroid-centered, y-span scaled to 1.0)
-and matched against the captured reference set (data/captcha_font.json) with
+Method: the tilepics are cut into the three digit clusters along the layout's
+own order: the gump lists the digits one after another, each drawn with one
+tile graphic (see digit_clusters; until 2026-10-20 the cuts were x gaps).
+Each cluster is normalized (centroid-centered, y-span scaled to 1.0) and
+matched against the captured reference set (data/captcha_font.json) with
 a translation-aligned trimmed Chamfer distance (the dots are displaced, so
 per-dot lattice assignment is ambiguous; trimmed nearest-neighbor means are
 robust to it). A digit is accepted only when the best reference beats the
@@ -37,9 +38,9 @@ MIN_MARGIN = 0.09          # best digit must beat every other digit by this
 SHIFT = 0.09               # alignment search radius (normalized units)
 STEPS = 9                  # shift search grid per axis
 TRIM = 0.15                # drop the worst 15 % of nearest-neighbor distances
-MIN_DOTS, MAX_DOTS = 6, 25  # per digit cluster (captured: 10-17)
-MIN_YS, MAX_YS = 40, 120   # digit y-span in px (captured: 63-82)
-MAX_XS = 120               # digit x-span in px (captured: 35-80)
+MIN_DOTS, MAX_DOTS = 6, 25  # per digit cluster (364 captured captchas: 9-21)
+MIN_YS, MAX_YS = 40, 120   # digit y-span in px (captured: 50-84)
+MAX_XS = 120               # digit x-span in px (captured: 32-98)
 
 _FONT = None
 
@@ -61,33 +62,49 @@ def _plausible(cl) -> bool:
             and max(xs) - min(xs) <= MAX_XS)
 
 
+def _spread(cl):
+    """Sum of squared x deviations from the cluster's mean x."""
+    m = sum(x for x, _ in cl) / len(cl)
+    return sum((x - m) ** 2 for x, _ in cl)
+
+
 def digit_clusters(layout: str):
     """The captcha's three digit dot clusters, left to right, as raw (x, y)
     lists — or None when the layout doesn't look like a captcha digit field
     (decoys have no tilepics; a partial/garbled gump fails the sanity gates).
-    The two cuts are the x gaps that leave three plausible digits, the widest
-    such pair (by its narrower gap, then their sum): the two widest gaps alone
-    can both fall at one digit's edges, a stray dot 29 px off the 3rd digit of
-    175 (live 2026-10-06 14:01) tying the 29 px gap between digits 1 and 2."""
-    pts = [(int(x), int(y))
-           for x, y, _ in re.findall(r"\{ tilepic (\d+) (\d+) (-?\d+) \}", layout)]
-    if len(pts) < 3 * MIN_DOTS:
+
+    The layout lists each digit's tilepics together, digits left to right, and
+    draws a digit's dots with one tile graphic, random per digit (all 364
+    accepted captchas mined to 2026-10-20). So the clusters are three
+    consecutive runs of the tilepic list, cut wherever the graphic changes;
+    more than three graphic runs is refused. Adjacent digits can share a
+    graphic (25 of the 364): the cut inside such a run is the one leaving the
+    tightest clusters in x (least summed squared x deviation) of those leaving
+    three plausible digits. Until 2026-10-20 the cuts were the widest x gaps,
+    which gave a stray dot lying between two digits to the wrong one (16 dots
+    in 15 of the 364; refused 124 at 2026-10-20 17:14, its 1's two strays
+    going to the 2)."""
+    dots = [(int(x), int(y), int(g))
+            for x, y, g in re.findall(r"\{ tilepic (\d+) (\d+) (-?\d+) \}", layout)]
+    if len(dots) < 3 * MIN_DOTS:
         return None
-    pts.sort()
-    gaps = [(b[0] - a[0], i + 1) for i, (a, b) in enumerate(zip(pts, pts[1:])) if b[0] > a[0]]
+    changes = {i for i in range(1, len(dots)) if dots[i][2] != dots[i - 1][2]}
+    if len(changes) > 2:
+        return None
+    pts = [(x, y) for x, y, _ in dots]
     best = None
-    for n, (g1, c1) in enumerate(gaps):
-        if not _plausible(pts[:c1]):
-            continue
-        for g2, c2 in gaps[n + 1:]:
-            if _plausible(pts[c1:c2]) and _plausible(pts[c2:]):
-                key = (min(g1, g2), g1 + g2)
-                if best is None or key > best[0]:
-                    best = (key, c1, c2)
+    for c1 in range(1, len(pts)):
+        for c2 in range(c1 + 1, len(pts)):
+            if not changes <= {c1, c2}:
+                continue
+            cls = [pts[:c1], pts[c1:c2], pts[c2:]]
+            if all(_plausible(c) for c in cls):
+                spread = sum(_spread(c) for c in cls)
+                if best is None or spread < best[0]:
+                    best = (spread, cls)
     if best is None:
         return None
-    _, c1, c2 = best
-    return [pts[:c1], pts[c1:c2], pts[c2:]]
+    return sorted((sorted(c) for c in best[1]), key=lambda c: sum(x for x, _ in c) / len(c))
 
 
 def submit_button(layout: str, guide_button: int = 1):
@@ -110,6 +127,7 @@ def _normalize(pts):
 
 
 _OFFSETS = [-SHIFT + 2 * SHIFT * s / (STEPS - 1) for s in range(STEPS)]   # shift grid per axis
+_CHUNK = 16                # references scored per numpy pass in _costs
 
 
 def _shift_cost(diffs, dx, dy, ka, kb):
@@ -125,7 +143,11 @@ def _costs(a, refs):
     (len(refs), STEPS, STEPS) numpy array: the same arithmetic vectorized,
     equal to _shift_cost up to float noise (numpy squares and sums can differ
     in the last ulp). References are padded to one length with far-away dots,
-    which are never a row minimum and sort behind every real column minimum."""
+    which are never a row minimum and sort behind every real column minimum.
+    They are scored _CHUNK at a time, so the temporaries stay in the CPU cache
+    (no arithmetic crosses references, so the result is the same bit for bit:
+    136 -> 82 ms per read against 1,093 references, 398 -> 85 ms with 8 reads
+    running at once, 2026-10-20)."""
     import numpy as np
     ka = max(1, int(len(a) * (1 - TRIM)))
     width = max(len(r) for r in refs)
@@ -136,16 +158,18 @@ def _costs(a, refs):
     keep = np.arange(width)[None, None, :] < kb[:, None, None]
     pa = np.array(a, dtype=float)
     off = np.array(_OFFSETS)[None, :, None, None]
-    sx = (pa[None, :, None, 0] - pb[:, None, :, 0])[:, None] - off   # (refs, dx, na, nb)
-    sy = (pa[None, :, None, 1] - pb[:, None, :, 1])[:, None] - off   # (refs, dy, na, nb)
-    sx **= 2
-    sy **= 2
     out = np.empty((len(refs), STEPS, STEPS))
-    for i in range(STEPS):
-        m = sx[:, i, None] + sy                                         # (refs, dy, na, nb)
-        ab = np.sort(np.sqrt(m.min(axis=3)), axis=-1)[..., :ka].sum(axis=-1) / ka
-        ba = np.where(keep, np.sort(np.sqrt(m.min(axis=2)), axis=-1), 0).sum(axis=-1) / kb[:, None]
-        out[:, i] = (ab + ba) / 2
+    for c in range(0, len(refs), _CHUNK):
+        part = slice(c, c + _CHUNK)
+        sx = (pa[None, :, None, 0] - pb[part, None, :, 0])[:, None] - off   # (refs, dx, na, nb)
+        sy = (pa[None, :, None, 1] - pb[part, None, :, 1])[:, None] - off   # (refs, dy, na, nb)
+        sx **= 2
+        sy **= 2
+        for i in range(STEPS):
+            m = sx[:, i, None] + sy                                         # (refs, dy, na, nb)
+            ab = np.sort(np.sqrt(m.min(axis=3)), axis=-1)[..., :ka].sum(axis=-1) / ka
+            ba = np.where(keep[part], np.sort(np.sqrt(m.min(axis=2)), axis=-1), 0).sum(axis=-1) / kb[part, None]
+            out[part, i] = (ab + ba) / 2
     return out
 
 

@@ -1,0 +1,12 @@
+{
+  "_doc": "A real captcha (gump id 1) that captcha.solve refused before the 2026-10-20 split fix: the 1's two stray dots at x 125-126, 32 px right of its stem, lay nearer the 2 (x 145-220) across a 32 px gap, and the old cut at the widest x gaps gave them to the 2, which then read 2 at margin 0.038 (gate 0.09). The layout lists the 1's 13 dots (tile 11694), then the 2's 13 (tile 4113), then the 4's 14 (tile 3873). Live 2026-10-20 17:14:57 (Outland Dan, mining run mining-20261020-171059-5dee, spot forge_2426_413, session 20261020_102748); the human answered 124 (0xB1 button 260) at 17:15:27 and the server said Captcha successful. Used by harness/test_captcha.py.",
+  "answer": "124",
+  "button": 260,
+  "layout": "{ resizepic 27 25 11571 391 278 }{ button 21 19 2094 2095 1 0 1 }{ text 17 7 149 0 18 0 1 0 0 0 }{ gumppic 139 19 2446 }{ text 198 19 149 1 18 0 1 0 0 0 }{ tilepic 93 146 11694 }{ tilepic 82 121 11694 }{ tilepic 65 80 11694 }{ tilepic 83 147 11694 }{ tilepic 83 110 11694 }{ tilepic 82 135 11694 }{ tilepic 55 86 11694 }{ tilepic 83 86 11694 }{ tilepic 73 77 11694 }{ tilepic 81 73 11694 }{ tilepic 82 98 11694 }{ tilepic 126 86 11694 }{ tilepic 125 139 11694 }{ tilepic 219 126 4113 }{ tilepic 213 100 4113 }{ tilepic 208 144 4113 }{ tilepic 210 75 4113 }{ tilepic 198 71 4113 }{ tilepic 197 146 4113 }{ tilepic 186 145 4113 }{ tilepic 145 105 4113 }{ tilepic 175 83 4113 }{ tilepic 180 132 4113 }{ tilepic 174 145 4113 }{ tilepic 220 146 4113 }{ tilepic 202 113 4113 }{ tilepic 324 108 3873 }{ tilepic 291 72 3873 }{ tilepic 325 132 3873 }{ tilepic 306 80 3873 }{ tilepic 290 96 3873 }{ tilepic 323 71 3873 }{ tilepic 302 108 3873 }{ tilepic 357 86 3873 }{ tilepic 271 105 3873 }{ tilepic 290 108 3873 }{ tilepic 323 120 3873 }{ tilepic 324 83 3873 }{ tilepic 324 146 3873 }{ tilepic 290 83 3873 }{ gumppic 37 204 96 hue=2428 }{ gumppic 150 204 96 hue=2428 }{ gumppic 226 204 96 hue=2428 }{ gumppic 153 248 2444 hue=2401 }{ textentrylimited 163 251 40 20 2655 2 2 3 0 -1 }{ text 142 223 63 3 18 0 1 0 0 0 }{ button 222 248 247 249 1 0 260 }\u0000",
+  "lines": [
+    "Guide",
+    "Captcha",
+    "",
+    "Type The Numbers Above"
+  ]
+}
