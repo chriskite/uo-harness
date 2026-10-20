@@ -515,16 +515,21 @@ class HuntLoop:
 
     def pets_busy(self, st) -> str | None:
         """A live pet fighting: a monster on a pet (Team.pet_attackers: in war mode beside a pet hurt lately),
-        or a pet in war mode within PET_BUSY_R of a monster in war mode."""
+        or a pet in war mode within PET_BUSY_R of a monster in war mode. Not one on a ledge or floor the pets can't
+        reach (on_our_floor): live 2026-10-19 19:34-19:35 an insane reanimator at z 30 hit GraveRobber at z 5 below it."""
         if self.team is None:
             return None
-        if self.team.pet_attackers(st):
-            return "the pets are fighting"
         world = st["world"]
+
+        def reach(s) -> bool:
+            m = world["mobiles"].get(f"0x{s:08X}")
+            return m is not None and m.get("x") is not None and self.on_our_floor(st, s, m)
+        if any(reach(s) for s in self.team.pet_attackers(st)):
+            return "the pets are fighting"
         foes = [(m["x"], m["y"]) for k, m in world["mobiles"].items()
                 if m.get("x") is not None and not m.get("pet") and serial_of(k) not in self.team.roster
                 and serial_of(k) not in self.dead and (m.get("flags") or 0) & threats.FLAG_WARMODE
-                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY]
+                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY and reach(serial_of(k))]
         for p in self.team.pets(st):
             if not p["dead"] and p["war"] and any(cheb((p["x"], p["y"]), f) <= PET_BUSY_R for f in foes):
                 return f"{p['name']} is fighting"
@@ -676,7 +681,8 @@ class HuntLoop:
         target dropped as pinned is passed over until its skip ends, unless it attacks us;
         crawling, so is a creature type the crawl avoids (too strong or too slow for us)."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
-        attacking = {serial_of(a["serial"]) for a in self.attackers(st)}
+        on_us = {serial_of(a["serial"]) for a in self.attackers(st)}
+        attacking = set(on_us)
         if self.team is not None:
             attacking |= self.team.pet_attackers(st)
         mono = time.monotonic()
@@ -695,7 +701,10 @@ class HuntLoop:
                 continue
             if self.live_target(st, s)[0] is None:
                 continue
-            if s not in attacking and not self.on_our_floor(st, s, mob):
+            if s not in on_us and not self.on_our_floor(st, s, mob):
+                # a monster on a ledge or floor the pets can't reach isn't a target, even one hitting a pet from there
+                # (live 2026-10-19 19:34:43-35:50: an insane reanimator at z 30 over GraveRobber at z 5 on the walk in,
+                # picked, dropped as pinned and picked again every 15 s while the walk stood its whole 90 s)
                 continue
             cands.append((s, mob))
         if pull and self.engaged is not None and any(s == self.engaged for s, _ in cands) \

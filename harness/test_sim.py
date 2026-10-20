@@ -1493,6 +1493,49 @@ def test_rope():
     check("...and no second jump within the cooldown", again is False)
 
 
+def test_ledge_attacker():
+    print("== on the walk in, a monster on a ledge 25 above hitting a pet: no target, the walk goes on ==")
+    # live 2026-10-19 19:34:43-35:50 (hunt-20261019-192245-e3d7): an insane reanimator at (5507, 660, 30) over
+    # GraveRobber at (5507, 661, 5); "target an insane reanimator ... dropping ... skipping it for 60 s" four times,
+    # the walk-in fight standing its whole 90 s (user: "we're just standing around rather than continuing")
+    import loop_hunt
+    w = world_with([{"key": "insane reanimator", "at": [5507, 660, 30]}], seed=7, start=(5510, 664))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for p in w.pets():
+        p.x, p.y, p.z = 5507, 661, w.stand_z(5507, 661, 5)
+    gr = next(p for p in w.pets() if p.name == "GraveRobber")
+    m.target, m.threat = gr.serial, {gr.serial: 50}                # on GraveRobber, as live
+    w._warm(m, True)
+    world_tick, last = clock.on_advance, [None]
+
+    def casts(now):
+        world_tick(now)
+        if m.alive and (last[0] is None or now - last[0] >= 3.5):    # live: -3 or -4 % on GraveRobber every 3.5-4 s
+            last[0] = now
+            w.hurt(gr, 3, m, kind="spell")
+    clock.on_advance = casts
+    picked = []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            real = loop.pick_target
+            loop.pick_target = lambda st, pull=True: picked.append(real(st, pull)) or picked[-1]
+            loop.walk_hits, loop.walk_hurt_t = None, -1e9                # as walk_in sets them
+            for _ in range(10):                                         # its first hits on GraveRobber seen
+                clock.advance(0.5)
+                loop.state()
+            pet_on = m.serial in loop.team.pet_attackers(loop.state())
+            t0 = loop_hunt.time.monotonic()
+            loop.walk_in_fight("to the teleporter at 5522,637")
+            took = loop_hunt.time.monotonic() - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("on GraveRobber from the ledge (as live), yet never picked; the walk-in fight over in seconds, not 90",
+          pet_on and m.serial not in picked and took < 20,
+          f"z {m.z} vs pets {gr.z}; on a pet {pet_on}; picked {set(picked)}; took {took:.1f} s")
+
+
 def test_rope_sight():
     print("== --rope from (5207, 689) toward the gate: no landing out of our sight as a ground target ==")
     # live 2026-10-19 10:29:20.1-21.3 fleeing the red Malito: "[Rope" at (5208, 698) from (5207, 689), "Target cannot be
@@ -1836,7 +1879,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_rope_sight,
+              test_bard_sight, test_rope_sight, test_ledge_attacker,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,

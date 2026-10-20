@@ -3405,6 +3405,15 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     it; it died 22:14:24 (+920), the second of the pair (0x0019D507) came into the fight and died 22:14:43 (+977).
     No potion on Logan from 22:13:40 to 22:15:20 (the next two against a bound soul), no "You have contracted a foul
     disease!" all shift, the pets above 90 %. One sample; 8 runs that shift, the other 7 met no purger.
+- **Stuck on the walk in under an insane reanimator on a ledge (2026-10-19 19:34:19-35:50, hunt-20261019-192245-e3d7,
+  capture session_20261019_192054; user: "This is the second time I've seen the runner get stuck here. The 'insane
+  reanimator' is on a higher z level and can't come to us").** Attacked by a calamity on the way to the last
+  teleporter, the walk-in fight began; after the kill an insane reanimator stood at (5507, 660, z 30) in war mode,
+  over GraveRobber at (5507, 661, z 5), taking 3-4 % off him every 3.5-4 s. `Team.pet_attackers` (war mode within 1
+  tile of a hurt pet, z not looked at) made it "attacking", which waived both the 60 s skip and the floor rule in
+  `pick_target`: "target ... dropping (pinned) ... target" four times, until `WALK_IN_FIGHT_S` 90 s ran out at
+  19:35:50. Fixed: a monster off our floor (`on_our_floor`) is a target only when it attacks us; and it doesn't make
+  the pets "busy" for the patrol (`pets_busy`). test_sim `test_ledge_attacker` (before: picked).
 - **A clean escape from the red Malito (2026-10-19 10:29:06-30, hunt-20261019-102426-3a9c, capture
   session_20261019_095934; user: "That was an AWESOME escape").** Seen at 17 tiles at 10:29:06.5, "LEAVING ... red
   player in view at 18 tiles", "All Follow Me" 0.5 s later; he closed to 2 tiles in 4 s (Telekinesis, a stuck

@@ -378,9 +378,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    cost the simulator 9 more runs with a death in 48 (NOTES "Targets behind walls").
    A monster at another height (its surface more than `FLOOR_Z_TOL` 10 off our z) that only a long way round on
    foot reaches (no walk to beside it at its height within `FLOOR_DETOUR` 4 steps more than the beeline:
-   a ledge or a floor above or below, `HuntLoop.on_our_floor`) isn't a target at all unless it attacks, and
-   doesn't hold a crawl waypoint either; neither does a passed-over one (user 2026-10-17: "it doesn't
-   understand the z-levels put the creatures out of sight above it").
+   a ledge or a floor above or below, `HuntLoop.on_our_floor`) isn't a target at all unless it attacks us (one
+   hitting a pet from up there doesn't count, nor does it make the pets "busy" for the patrol: live 2026-10-19
+   19:34:43-35:50 an insane reanimator at z 30 over GraveRobber at z 5 was picked, dropped and picked again every
+   15 s while the walk in stood its whole 90 s), and doesn't hold a crawl waypoint either; neither does a passed-over
+   one (user 2026-10-17: "it doesn't understand the z-levels put the creatures out of sight above it").
    **Someone else's fight**: a target in war mode within `ELSEWHERE_R` 2 of another player or a pet not ours,
    not on us or our pets, with neither pet in war mode beside it (within 2; the guarding pets keep war mode between
    fights: live 2026-10-19 10:10:57-10:11:28 two tormented souls on other players were waited for 15 s each while
