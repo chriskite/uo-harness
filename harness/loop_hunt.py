@@ -209,6 +209,8 @@ WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging 
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
+JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
+#                               "no other way on" memory, so the retry stops at the same place again)
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
@@ -297,6 +299,7 @@ class HuntLoop:
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
         self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
+        self.jar_later = {}          # eerie corpse serial -> monotonic time before which its walk isn't tried (pull)
         self.engaged = None          # serial we last sent 0x05 for
         self.engaged_mob = None      # its latest world dict
         self.resent_adjacent = False
@@ -1359,23 +1362,31 @@ class HuntLoop:
     def soul_corpse(self, st, walk: bool = True):
         """(serial, item) of the eerie corpse to fill a soul jar at now, or None (--soul-jars; soul_jar.py): an
         empty soul jar in the pack and an eerie corpse in view on our floor that we haven't tried, the nearest.
-        Without `walk` (a fight is on) only one within soul_jar.FILL_WALK_R, where no step is needed."""
+        Without `walk` (a fight is on), and with the pets fighting or behind (patrol_hold), only one within
+        soul_jar.FILL_WALK_R, where no step is needed; one whose walk stopped on the pull budget waits JAR_DEFER_S."""
         if not self.args.soul_jars:
             return None
         world = st["world"]
-        found = [(s, it) for s, it in soul_jar.eerie_corpses(world) if s not in self.jar_tried]
+        now = time.monotonic()
+        found = [(s, it) for s, it in soul_jar.eerie_corpses(world)
+                 if s not in self.jar_tried and self.jar_later.get(s, 0.0) <= now]
         if not found or not soul_jar.empty_jars(world, self.me(st)):
             return None
         pos = self.pos(st)
+        walk = walk and self.patrol_hold(st) is None
         found = [(s, it) for s, it in found if same_floor(it.get("z") or 0)(pos[2])
                  and (walk or cheb(pos, (it["x"], it["y"])) <= soul_jar.FILL_WALK_R)]
         return min(found, key=lambda f: cheb(pos, (f[1]["x"], f[1]["y"])), default=None)
 
     def fill_soul_jar(self, serial: int, it: dict) -> None:
         """Fill an empty soul jar at the eerie corpse `serial` (user request 2026-10-17): walk within
-        soul_jar.FILL_WALK_R of it (the walk stops when something attacks us, a leave rule fires or the corpse
-        goes: the next tick decides again), open the jar's bags like a player, double-click the jar and wait for a
-        filled jar in the pack. One try per corpse (jar_tried), filled or not. A `soul_jar` job event."""
+        soul_jar.FILL_WALK_R of it, open the jar's bags like a player, double-click the jar and wait for a filled jar
+        in the pack. One try per corpse (jar_tried), filled or not. A `soul_jar` job event. The walk stops when
+        something attacks us, a leave rule fires or the corpse goes, and --pets, like a patrol (patrol_stop), when the
+        pets fight or fall behind or a step would pull more than the budget (Team.pull_check; the corpse then waits
+        JAR_DEFER_S): the next tick decides again. Live 2026-10-20 18:22:07 (hunt-20261020-181726-433a) the walk went
+        16 steps alone, the pets left fighting a shadowguard, into an idle vampire countess, a corpsebride and a
+        vampire bat by the corpse: 100 -> 0 in 20 s."""
         spot = (it["x"], it["y"])
         st = self.state()
         self.doing("soul_jar", f"Filling a soul jar at the eerie corpse at {spot[0]},{spot[1]}", spot, serial)
@@ -1387,7 +1398,16 @@ class HuntLoop:
                     return "the eerie corpse is gone"
                 if self.attackers(s):
                     return "under attack"
-                return "a leave rule" if self.leave_reason(s) else None
+                if self.leave_reason(s):
+                    return "a leave rule"
+                if self.team is None:
+                    return None
+                if why := self.patrol_hold(s):
+                    return why
+                if why := self.team.pull_check(s):
+                    self.jar_later[serial] = time.monotonic() + JAR_DEFER_S
+                    return f"{why}; the corpse waits {JAR_DEFER_S:.0f} s"
+                return None
             try:
                 why = self.mover.walk_to(lambda: spot, soul_jar.FILL_WALK_R, "to the eerie corpse",
                                          z_ok=same_floor(it.get("z") or 0), stop=stop)

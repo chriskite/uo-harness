@@ -317,12 +317,18 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   attacking us, an empty soul jar (`0xA99F`) is in the pack at any bag depth (the runner loots the ones monsters drop:
   `combat.worth_looting` takes them) and an eerie corpse (`soul_jar.eerie_corpses`: "dead" corpse art with its eerie
   whispers a few serials on, docs/NOTES.md "Field of Souls") is in the world model (in view) on
-  our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight) only a
-  corpse within 2 tiles counts, so the runner never walks away from a fight for one. A crawl's patrol walk stops
-  for one (`patrol_stop`).
+  our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight), and with
+  `--pets` while the pets fight or lag (`patrol_hold`: `pets_busy`, `pets_lagging`), only a corpse within 2 tiles
+  counts, so the runner never walks away from a fight or from the pets for one. A crawl's patrol walk stops for one
+  (`patrol_stop`).
 - **How**: the Mover walks within `soul_jar.FILL_WALK_R` = 2 tiles (Logan filled from 2; the event post says 4).
-  The walk stops when something attacks us, a leave rule fires or the corpse goes, and the next tick decides
-  again; a walk that can't get there gives the corpse up. Then the jar's bags are opened like a player
+  The walk stops when something attacks us, a leave rule fires or the corpse goes, and with `--pets` on the
+  patrol's guards: the pets fighting or behind (`patrol_hold`), or a step that would pull more than the budget or
+  a monster in sight to let come (`Team.pull_check`; the corpse then waits `JAR_DEFER_S` = `tamer.AT_ONCE_S`
+  120 s, past the pull check's "no other way on" memory, while the crawl takes those monsters). The next tick
+  decides again; a walk that can't get there gives the corpse up. Live 2026-10-20 18:22 the unguarded walk went
+  16 steps alone into an idle vampire countess, corpsebride and vampire bat by the corpse and Logan died
+  (docs/NOTES.md "Field of Souls"). Then the jar's bags are opened like a player
   (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar (`0xA9A3`) in
   the pack (live it came 44 ms after the click).
 - **One try per corpse** (`jar_tried`), filled or not. Live, nothing was ever seen of a fill that failed, so a miss

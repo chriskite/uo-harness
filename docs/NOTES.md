@@ -3883,6 +3883,23 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   (5615, 691) → (5618, 692), and was saved as a teleporter; the user had moved Logan. The row is deleted from the
   store. `Mover.step` then gave up after 40 gate polls (200 s): "ABORTED: walk gated too long", with Logan in the
   Mausoleum. Now a walk waits out a closed gate like `Link.act` does, logging the close and the reopening once.
+- **Dead after a soul-jar walk (2026-10-20 18:22:07-27, hunt-20261020-181726-433a, capture session_20261020_180909;
+  replay `replay.timed_packets` → `WorldRuntime`).** Logan at (5197, 682, z 25) on Maus 3, the pets beside a
+  shadowguard 3 tiles off as it woke (the patrol was "letting it come"); an eerie corpse at (5179, 680), 18 tiles
+  west, with an idle vampire countess (5177, 682), a corpsebride (5176, 678) and a vampire bat (5175, 682) beside
+  it. "walking over to fill a soul jar": 16 steps alone; the pets stayed on the shadowguard at (5196-5198, 682-684),
+  15-17 tiles behind him for the rest of his life. A spell at (5189, 682) at 18:22:09.8 (-26, the countess casting
+  at ~12 [INFERENCE: the only caster awake in view]), -21 as the jar filled (18:22:13.7, +30 score, Gilles Styles),
+  potion 54 -> 95, then -10, -30, -9 beside the bride and bat; the retreat went 7 tiles west (away from the pets,
+  `Team.retreat_tile` doesn't look at them), -8, -25 at (5172, 685); the hurt leave at 14/100 had a 51-step route
+  to the gate; dead 18:22:27. The walk's `stop` knew only attackers, leave rules and the corpse; none of the
+  patrol's guards. Fixed: with `--pets` the jar walk isn't started while the pets fight or lag, and stops on
+  `patrol_hold` or `Team.pull_check` (the corpse then waits `JAR_DEFER_S` 120 s). test_sim `test_soul_jar_guards`
+  (before: walked; `jar_later` didn't exist). Simulator, the 18:22 geometry (the sim's pets follow on guard, so it
+  shows the group, not the pets left behind), 20 seeds, 20 s each: lowest hits mean 56 -> 67, runs below 30 hits
+  3 -> 1, jars filled within the 20 s 20 -> 0; 250 s each (4 seeds): the crawl pulls the three one at a time and
+  every jar is filled after.
+  Not changed: a retreat with the pets far off goes wherever the fewest idle monsters see, not toward them.
 
 ## Field of Souls: the field map (reaper spawns, 2026-10-17)
 
