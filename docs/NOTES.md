@@ -4292,7 +4292,9 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       `ore_nodes.FORGES`), at (403,923,2) on facet 3. That is the room's arrival tile, so smelting needs no walk.
     - It is homes.json `forge` for Outland Dan and Logan Wolf. The mining runner smelts the carried ore there
       before the store (docs/PLAN.md "With a forge in the rental room").
-    - Whether the server smelts at a house forge in a rental room is to be confirmed by the first live run.
+    - Confirmed live 2026-10-20 14:10:16 (mining-20261020-135409-1160, forge_1173_2397): "smelted 158 ore into 316
+      ingots at the room's forge (home)", the convert phase took 1.7 s, then "added 902 ingots to the resource
+      stockpile". The leg's other 293 ore had been smelted at the spot's forge for the weight.
 
 ## Network observations
 
