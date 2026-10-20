@@ -915,8 +915,9 @@ export function huntKpis(t: HuntTotals): Kpi[] {
 
 // ------------------------------------------------------------------ mining job
 // /api/jobs?job=mining (harness/jobs.py compute_mining). One row per leg of loop_mining; field
-// time is mining_opt.trip_obs's (harvest phase less the walk out and the lockout). Ingots are
-// never stored: they ride in the trapped pouch, so the newest leg's carried_end is what we hold.
+// time is mining_opt.trip_obs's (harvest phase less the walk out and the lockout). At each trip's
+// end the runner drops the ingots into the room's Resource Stockpile (ingots_stored); the newest
+// leg's carried_end is what was still in the pack (after a hop or abort, or what the stockpile left).
 
 export interface MiningAgg {
   legs: number;
@@ -927,6 +928,8 @@ export interface MiningAgg {
   field_hours: number;
   ore: number;
   ingots_made: number;
+  /** ingots that went into the room's Resource Stockpile (the leg row's stockpiled) */
+  ingots_stored: number;
   attempts: number;
   successes: number;
   doubles: number;
@@ -971,6 +974,8 @@ export interface MiningLeg {
   why: string | null;
   ore: number;
   ingots_made: number;
+  /** the leg row's stockpiled: ingots that went into the room's Resource Stockpile; 0 when absent */
+  ingots_stored: number;
   smelts: number;
   attempts: number;
   successes: number;
@@ -1027,6 +1032,7 @@ export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
   return [
     { key: "ore", label: "ore dug", value: fmtInt(t.ore), sub: `${fmtInt(t.successes)} digs landed · ${fmtInt(t.doubles)} doubles`, tone: "info", hint: "Ore dug over the legs in the range (a double gives 2)." },
     { key: "ingots", label: "ingots made", value: fmtInt(t.ingots_made), sub: `${t.smelts} smelt${t.smelts === 1 ? "" : "s"}`, tone: "info", hint: "Ingots the field smelts made at the spots' forges." },
+    { key: "stored", label: "ingots stored", value: fmtInt(t.ingots_stored), sub: "into the stockpile", tone: "info", hint: "Ingots the runner put into the room's Resource Stockpile at the trips' ends (Restock with the backpack)." },
     { key: "oph", label: "ore / field hr", value: fmtNum(t.ore_per_hour, 0), sub: "the planner's rate", tone: "info", hint: "Ore per field hour: the harvest phase less the walk out and the travel lockout (mining_opt.trip_obs)." },
     { key: "field", label: "field hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of the legs' field time." },
     {
@@ -1034,8 +1040,8 @@ export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
       hint: "Successful digs over all counted digs (success + fail; busy and lockout replies don't count).",
     },
     {
-      key: "carried", label: "ingots carried", value: carried ? fmtInt(carried.ingots) : "—", sub: "never stored", tone: carried ? "info" : "dim",
-      hint: "Ingots in the pack (the trapped pouch) when the newest leg ended. They are never stored: a death loses them.",
+      key: "carried", label: "ingots carried", value: carried ? fmtInt(carried.ingots) : "—", sub: "in the pack at the last leg's end", tone: carried ? "info" : "dim",
+      hint: "Ingots still in the pack (the trapped pouch) when the newest leg ended: a trip's ingots go into the room's Resource Stockpile at home; these are what a hop or abort brought home or the stockpile left. A death loses them.",
     },
     {
       key: "legs", label: "legs", value: String(t.legs), sub: `${t.hopped} hopped · ${t.aborted} aborted`, tone: "dim",

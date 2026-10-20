@@ -727,7 +727,8 @@ def cmd_stop(a, mem):
         mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
                       data={"cmd": "stop", "task_id": tid, "after_trip": True})
         how = {"lumber": "the run ends its trip at home (convert, store) and exits 0",
-               "mining": "the run ends its leg at home in the rental room (ingots stay carried) and exits 0"}.get(
+               "mining": "the run ends its leg at home in the rental room (ingots into the resource stockpile) and "
+                         "exits 0"}.get(
             e.get("task"),
             "the hunt finishes the fight on us and its loot, leaves the way it leaves at time up and exits 0 at home")
         return {"ok": True, "task_id": tid, "after_trip": True, "next": f"{how}: wait for its task_done"}
@@ -3446,7 +3447,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grace", type=float, default=20.0, help="seconds to let the wrapper report")
     p.add_argument("--after-trip", action="store_true",
                    help="end gracefully: a lumber run stops harvesting, goes home, converts, stores and exits 0; a "
-                        "mining run ends its leg at home in the rental room with the ingots carried; a hunt finishes "
+                        "mining run ends its leg at home in the rental room, the ingots into the resource stockpile; a hunt finishes "
                         "its fight and leaves (returns at once; task_done follows). Without it the task is killed "
                         "where it stands")
     p.set_defaults(fn=cmd_stop)

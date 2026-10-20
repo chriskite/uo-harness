@@ -1,4 +1,4 @@
-"""Mining loop runner: dig ore at a mining spot, smelt it at the spot's forge, keep the ingots carried.
+"""Mining loop runner: dig ore at a mining spot, smelt it at the spot's forge, drop the ingots off at home.
 
     python harness/loop_mining.py --spot forge_1227_1142 [--trips 1] [--field-min 60] [--hops 3]
     (normally `ctl run mining ...` with the command `ctl mining plan` gives)
@@ -21,9 +21,9 @@ capture 20261019_200350, docs/NOTES.md "Live hand-mining capture"):
   leaving the spot: at the leg's end (dry, field time up, a break or stop request) and before a plain
   abort's way home (user 2026-10-19: "just before we get full on weight or leave the spot"); a threat's
   recall goes home at once, raw ore and all. The ingots go
-  into the trapped pouch and stay carried: nothing is stored at home
-  (user decision 2026-10-19), and at home the run doesn't Restock the storage shelf (it took the
-  three live trapped pouches out of the pack, docs/NOTES.md "Storage shelves").
+  into the trapped pouch and ride along across hops; at the trip's end in the rental room they go into
+  the Resource Stockpile by its context menu's Restock with our backpack, which takes them out of the
+  live pouch (user 2026-10-19), and then the storage shelf's Restock and Resupply run as for lumber.
   A forge that answers "not near a forge" disables the spot (a runner row in mining_spots).
 - **A trip** digs --field-min field minutes in all, across hops: a leg that runs dry goes home and,
   with --hops left, on to the next spot mining_opt plans (greedy, the current spot excluded).
@@ -39,13 +39,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
 from agent_link import Abort, cheb, containers_to_open, log, serial_of  # noqa: E402
+import dropoff as dropoff_mod  # noqa: E402
+import escape as escape_mod  # noqa: E402
 import localmap  # noqa: E402
 import loop_lumber  # noqa: E402
 from loop_lumber import Escape, KeepAway  # noqa: E402
 import lumber_opt  # noqa: E402
 import mining_opt  # noqa: E402
 import ore_nodes  # noqa: E402
+import shelf as shelf_mod  # noqa: E402
 import stationary  # noqa: E402
+import stockpile as stockpile_mod  # noqa: E402
 
 PICKAXES = (0x0E85, 0x0E86)
 ORE = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
@@ -62,6 +66,7 @@ STAND_MARGIN = 40
 BUSY_RETRY_S = 0.4           # after 500119 "You must wait to perform another action."
 EQUIP_WAIT_S = 3.0           # a packed pickaxe's double-click until it is in hand
 SMELT_WAIT_S = 4.0           # an ore stack's double-click until the forge's answer (live: at once)
+STOCKPILE_WAIT_S = 3.0       # the stockpile's answer to the Restock's backpack target (live: 46 ms, deletes first)
 
 
 class MineLoop(loop_lumber.LumberLoop):
@@ -71,7 +76,7 @@ class MineLoop(loop_lumber.LumberLoop):
     STASH = INGOTS
     POUCHED = INGOTS
     CARRIED = {"ore": ORE, "ingots": INGOTS}
-    HOME_DONE = "ingots carried"
+    HOME_DONE = "ingots stored"
 
     def setup_tool(self, args):
         self.hatchets = lumber_opt.load_hatchets()    # lumber_opt.character's table (snapshot)
@@ -137,7 +142,8 @@ class MineLoop(loop_lumber.LumberLoop):
         return {"pickaxe": snap.get("pickaxe")}
 
     def trip_done_text(self, n) -> str:
-        return f"Trip {n} done: {self.stats.get('ore', 0)} ore dug, {self.count(self.link.state(), INGOTS)} ingots carried"
+        return (f"Trip {n} done: {self.stats.get('ore', 0)} ore dug, {self.stats.get('stockpiled', 0)} ingots into the "
+                f"resource stockpile")
 
     def pickaxe_in_hand(self, st) -> int:
         """The pickaxe in hand; a packed one is double-clicked into the hand first (the server
@@ -171,16 +177,69 @@ class MineLoop(loop_lumber.LumberLoop):
         return super().leg(n, hops)
 
     def convert(self):
-        log("mining: no conversion at home (ingots stay carried)")
+        log("mining: no conversion at home (the ingots go into the resource stockpile as they are)")
 
     def store(self) -> int:
-        """Nothing is stored (the ingots stay carried in the trapped pouch). The storage shelf's
-        Restock is left out: it takes live trapped pouches, the one holding the ingots too. Spent
-        pouches (a thief's pop) go into the room's chest. Returns 0."""
-        spent = self.spent_pouches(self.state())
+        """The ingots into the room's Resource Stockpile (ingots_to_stockpile). Then, with none left in the pack, the
+        room shelf's Restock with our backpack and Resupply, as the lumber runner does (the user's routine,
+        2026-10-05). With ingots still in the pack (no stockpile, or it left some) the shelf's Restock is
+        left out: it takes live trapped pouches, the one holding them too (docs/NOTES.md "Storage shelves").
+        Either way the spent pouches we set off go into the chest unless the shelf took them. Returns the
+        ingots stored."""
+        stored = self.ingots_to_stockpile()
+        st = self.state()
+        if not self.count(st, INGOTS) and self.args.resupply != "off" and shelf_mod.find_shelves(st):
+            self.stats["restock"] = self.resupply_here("room", restock=True)
+            return stored
+        spent = self.spent_pouches(st)
         if spent:
             self.to_chest([(s, {"amount": 1}) for s in spent], "spent trapped pouch")
-        return 0
+        return stored
+
+    def ingots_to_stockpile(self) -> int:
+        """Every ingot in the pack into the home's Resource Stockpile (home.stockpile): its context menu's
+        Restock (stockpile.RESTOCK_ENTRY) with the cursor answered by our backpack, which takes them out of
+        the live trapped pouch too and leaves it armed (user 2026-10-19: "we can just 'restock' the resource
+        stockpile and target our own backpack"; live the same day, docs/NOTES.md). The stockpile may take
+        other valid items as well (its Settings), so the whole pack is declared to the ledger first. Returns
+        the ingots that left the pack (`stored` and `stockpiled` of the leg row); a step the server refused
+        aborts the run with the rest still carried. 0 without a stockpile or ingots."""
+        pile = self.home.get("stockpile")
+        st = self.state()
+        before = self.count(st, INGOTS)
+        if pile is None or not before:
+            return 0
+        serial, where = int(pile["serial"], 16), tuple(pile["pos"][:2])
+        if self.wait_for(lambda s: self.item(s, serial) is not None, 3.0) is None:
+            raise Abort(f"the resource stockpile {pile['serial']} isn't in view in the rental room")
+        if cheb(self.link.pos(self.link.state()), where) > dropoff_mod.RANGE:
+            self.doing("store", "Going to the resource stockpile", where)
+            self.mover.walk_to(lambda: where, dropoff_mod.RANGE, "to the resource stockpile")
+        self.doing("store", f"Restocking the resource stockpile with {before} ingots", where)
+        for s in shelf_mod.carried(self.state()):
+            self.ledger.expect(("moved_out", s))     # into our own stockpile: not theft
+        plan = {"steps": [{"serial": pile["serial"], "name": "the resource stockpile",
+                           "entry": stockpile_mod.RESTOCK_ENTRY, "target": "pack"}]}
+        mark = len(self.link.events)
+        try:
+            res = dropoff_mod.run(escape_mod.LinkIO(self.link), self.human, plan)
+        except dropoff_mod.DropoffError as e:
+            raise Abort(f"resource stockpile: {e}")
+
+        def answers():                                # "You add N item(s) ..." / "You do not find any items ..."
+            return [t for e in self.since(mark) if e.get("ev") == "speech_heard"
+                    for t in [(e.get("text") or "").strip()] if t.startswith("You ")]
+        if res["ok"]:                                 # live the ingots' deletes came 46 ms after the target, then the line
+            self.wait_for(lambda s: bool(answers()), STOCKPILE_WAIT_S)
+        left = self.count(self.state(), INGOTS)
+        added = before - left                         # only what the server took left the pack
+        self.stats["stored"] = self.stats.get("stored", 0) + added
+        self.stats["stockpiled"] = self.stats.get("stockpiled", 0) + added
+        log(f"added {added} ingots to the resource stockpile (Restock with the backpack: "
+            f"{'; '.join(answers()) or 'no answer'})" + (f"; {left} still in the pack" if left else ""))
+        if not res["ok"]:
+            raise Abort(f"resource stockpile: {res['error']}; {left} ingot(s) left in the pack")
+        return added
 
     def salvage(self, e: Abort):
         """Before a harvest abort ends the run: loose ingots into the trapped pouch (stash), unless

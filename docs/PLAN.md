@@ -1945,13 +1945,23 @@ User request after the live hand-mining capture 20261019_200350 (docs/NOTES.md "
 job like the lumber one, run by the overseer, with a planner choosing the spot. Built: `harness/loop_mining.py`
 (`ctl run mining`), `harness/mining_opt.py` (`ctl mining plan|spots|spot set`), seed spots from the map
 (`python harness/ore_nodes.py spots`, `harness/data/mining_spots.json`), `harness/data/loops/mining.json`, store
-schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); not run live yet. Decisions:
+schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run live on Outland Dan since 2026-10-19. Decisions:
 
-- *Smelt at the spot's natural forge and keep the ingots carried* (user choice "smelt in field, keep carrying").
-  Ore weighs 2 stones, an ingot 0.025: smelting on the way removes the weight limit on a trip, as converting does
-  for logs. Nothing is stored at home; the ingots ride in the trapped pouch across trips, and a death loses them
-  (the planner charges half a stint of ore per death). Rejected: carrying ore home (a trip ends after ~310 ore for
-  Dan) and a pack animal (none owned, thieves steal from it, docs/NOTES.md "Pack animals").
+- *Smelt at the spot's natural forge; the ingots go home in the trapped pouch.* Ore weighs 2 stones, an ingot 0.025:
+  smelting on the way removes the weight limit on a trip, as converting does for logs. Rejected: carrying ore home
+  (a trip ends after ~310 ore for Dan) and a pack animal (none owned, thieves steal from it, docs/NOTES.md "Pack
+  animals").
+- *Drop the ingots off into the room's Resource Stockpile at each trip's end* (user 2026-10-19: "we can just
+  'restock' the resource stockpile and target our own backpack"; "lumber does have to pop the pouch in order to
+  turn the logs into boards, whereas the ingots go straight into the stockpile").
+  - How: the stockpile's context-menu Restock, its cursor answered with the backpack (`dropoff.run` with one step).
+  - The user did it by hand at 22:44:39 that day: 1090 ingots left the live trapped pouch, which stayed armed.
+  - Then the storage shelf's Restock and Resupply run as for lumber (they used to be skipped because the shelf would
+    take the live pouch holding the ingots).
+  - Before: "keep carrying" (the first plan's choice, 2026-10-19). It assumed storing meant setting the pouch off
+    as lumber's convert does.
+  - A death now loses only the trip's ingots, not every trip's. The planner's death charge (half a stint of ore)
+    is unchanged.
 - *Smelt only near full weight or before leaving the spot* (user 2026-10-19: "just before we get full on weight or
   leave the spot"). Triggers:
   - 40 stones free;

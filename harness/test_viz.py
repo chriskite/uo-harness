@@ -505,11 +505,13 @@ def test_mining_jobs():
     # leg 1 hopped off a dry spot A: harvest 1500 s less a 60 s walk out and a 240 s lockout = 1200 s field
     leg("A", 1, 1, "hopped", "the area ran dry at 120 ore", 1000.0, 2800.0, 1500.0, 60.0, 240.0,
         120, 150, 100, 20, 2, 240, 240, dry=True)
-    leg("B", 1, 2, "stored", "", 3000.0, 6000.0, 2500.0, 100.0, None, 200, 260, 180, 20, 3, 400, 640, time_up=True)
+    leg("B", 1, 2, "stored", "", 3000.0, 6000.0, 2500.0, 100.0, None, 200, 260, 180, 20, 3, 400, 0, time_up=True,
+        stored=640, stockpiled=640)
     # leg 3 at local 23:40 of day 1, aborted by a threat (300 s field); leg 4 at local 00:10 of day 2
     leg("A", 2, 1, "aborted", "threat: PK in view", DAY - tz - 1200, DAY - tz - 700, 400.0, 0.0, 100.0,
         30, 40, 25, 0, 0, 0, 640)
-    leg("B", 3, 1, "stored", "", DAY - tz + 600, DAY - tz + 2400, 1800.0, 0.0, 0.0, 150, 200, 130, 20, 1, 360, 1000)
+    leg("B", 3, 1, "stored", "", DAY - tz + 600, DAY - tz + 2400, 1800.0, 0.0, 0.0, 150, 200, 130, 20, 1, 360, 10,
+        stored=990, stockpiled=990)
     m.episode("lumber", {"trip": 1, "t_start": 1500.0, "t_end": 1600.0, "logs": 9})
     m.job_event("mining", "stand", {"trip": 1, "spot": "A", "ore": 60}, t=1500.0)
     m.job_event("mining", "smelt", {"ore": 120, "ingots": 240, "ok": True}, t=2000.0)
@@ -517,10 +519,11 @@ def test_mining_jobs():
     m.job_event("lumber", "death", {"cause": "pk"}, t=1500.0)
     a = jobs.analytics(m, "mining", 0, utc_offset_s=tz)
     t = a["totals"]
-    check("mining totals: 4 legs (1 hopped, 2 stored, 1 aborted kept), 500 ore, 1000 ingots, digs and smelts summed",
-          (t["legs"], t["hopped"], t["stored"], t["aborted"], t["ore"], t["ingots_made"], t["attempts"],
-           t["successes"], t["doubles"], t["smelts"], t["dry"]) == (4, 1, 2, 1, 500, 1000, 650, 435, 60, 6, 1)
-          and t["success_rate"] == 0.67, str(t))
+    check("mining totals: 4 legs (1 hopped, 2 stored, 1 aborted kept), 500 ore, 1000 ingots, 1630 stored, digs and smelts summed",
+          (t["legs"], t["hopped"], t["stored"], t["aborted"], t["ore"], t["ingots_made"], t["ingots_stored"], t["attempts"],
+           t["successes"], t["doubles"], t["smelts"], t["dry"]) == (4, 1, 2, 1, 500, 1000, 1630, 650, 435, 60, 6, 1)
+          and t["success_rate"] == 0.67
+          and [r["ingots_stored"] for r in a["legs"]] == [0, 640, 0, 990], str(t))
     check("field time = harvest - walk out - lockout (1200 + 2400 + 300 + 1800 s); ore/h over it",
           [r["field_s"] for r in a["legs"]] == [1200.0, 2400.0, 300.0, 1800.0]
           and t["field_s"] == 5700.0 and t["field_hours"] == round(5700 / 3600, 3)
@@ -531,7 +534,8 @@ def test_mining_jobs():
     check("per day at UTC+2: legs 1-3 on 01-01 (leg 3 at 23:40 local), leg 4 on 01-02 (00:10 local)",
           list(days) == ["1970-01-01", "1970-01-02"]
           and (days["1970-01-01"]["legs"], days["1970-01-01"]["ore"], days["1970-01-01"]["field_s"]) == (3, 350, 3900.0)
-          and (days["1970-01-02"]["legs"], days["1970-01-02"]["ore"], days["1970-01-02"]["ore_per_hour"]) == (1, 150, 300.0),
+          and (days["1970-01-02"]["legs"], days["1970-01-02"]["ore"], days["1970-01-02"]["ore_per_hour"]) == (1, 150, 300.0)
+          and (days["1970-01-01"]["ingots_stored"], days["1970-01-02"]["ingots_stored"]) == (640, 990),
           str({d: (x["legs"], x["ore"]) for d, x in days.items()}))
     utc = jobs.analytics(m, "mining", 0, utc_offset_s=0)
     check("per day at UTC: all four legs on 01-01", [(d["day"], d["legs"]) for d in utc["days"]] == [("1970-01-01", 4)])
@@ -540,9 +544,10 @@ def test_mining_jobs():
           [s["spot"] for s in a["spots"]] == ["B", "A"]
           and (sp["B"]["legs"], sp["B"]["ore"], sp["B"]["ore_per_hour"], sp["B"]["last_t"]) == (2, 350, 300.0, DAY - tz + 2400)
           and (sp["A"]["legs"], sp["A"]["ore"], sp["A"]["ore_per_hour"], sp["A"]["dry"], sp["A"]["last_t"])
-          == (2, 150, 360.0, 1, DAY - tz - 700), str(a["spots"]))
-    check("carried now: the newest leg's carried_end.ingots, labelled as never stored",
-          a["carried_now"] == {"ingots": 1000, "t": DAY - tz + 2400, "spot": "B", "label": "ingots carried (never stored)"},
+          == (2, 150, 360.0, 1, DAY - tz - 700)
+          and (sp["B"]["ingots_stored"], sp["A"]["ingots_stored"]) == (1630, 0), str(a["spots"]))
+    check("carried now: the newest leg's carried_end.ingots (what the stockpile left)",
+          a["carried_now"] == {"ingots": 10, "t": DAY - tz + 2400, "spot": "B", "label": "ingots carried"},
           str(a["carried_now"]))
     check("leg rows: outcome, why, dry/time_up, stand/smelt events counted in leg 1; timeline without them",
           [(r["outcome"], r["dry"], r["time_up"]) for r in a["legs"]]

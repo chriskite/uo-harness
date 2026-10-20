@@ -10,8 +10,14 @@ answers "You add 1 item(s) to the Resource Stockpile.", the stack leaves the pac
 comes back with the counts (no cursor). Targeting a pouch adds every stack in it in one go: "You
 add 2 item(s) ..." for two board stacks in a live (unsprung) trapped pouch, which stayed armed and
 in the pack (user's suggestion, live test 2026-10-05). So one press and one target per pouch
-holding boards (`targets`), and per loose stack. Never ourselves or a bag of supplies: that would
-add every valid item in it, reagents and tools too (per the player's Settings).
+holding boards (`targets`), and per loose stack: what the lumber runner does. Not ourselves or a
+bag of supplies from this menu: that adds every valid item in it (per the player's Settings).
+
+The stockpile's context menu has "Restock" too (RESTOCK_ENTRY, cliloc 3006349): its cursor answered
+with the backpack adds every valid item in the pack at any depth. The user's drop-off does that (the
+Razor 'New Drop Off', dropoff.py); live 2026-10-19 22:44:39 (capture session_20261019_214740) it took
+Outland Dan's 1090 ingots out of a live trapped pouch, which stayed armed. It left the raw ore and
+the reagents in their bag. The mining runner drops its ingots off that way (loop_mining.MineLoop.store).
 
 IO-agnostic like shelf.py: `io` has send(pkt) and poll() -> (state, new world events)
 (escape.LinkIO for runners, ctl._CtlIO for ctl)."""
@@ -30,6 +36,7 @@ ADDED = re.compile(r"^You add (\d+) item\(s\) to the Resource Stockpile\.")
 STOCKPILE_RANGE = 2                   # tiles: opened from 2 in the room (live)
 EVENT_WAIT_S = 4.0
 POUCH_GRAPHIC = 0x0E79                # pouch (trapped or spent): the logs' and boards' container on a trip
+RESTOCK_ENTRY = 3006349               # context menu "Restock": a cursor; the backpack answers it (dropoff.run)
 
 
 class StockpileError(Exception):

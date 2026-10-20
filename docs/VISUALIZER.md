@@ -448,14 +448,17 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
 - **Deaths and threats** are `trip_obs`'s too, read off each leg's `why`: died, or sent home by a threat
   (`threat:`, escaped by recall, fled into the guards, a creature recall).
 - **Per leg:** spot, trip and leg number, outcome (`stored` / `hopped` / `aborted`) and why, ore,
-  digs, smelts, ingots made, field time and ore/hr, dry / time_up / creature_blocked, and
-  `carried_end.ingots`; the `stand` and `smelt` events inside it are counted on the row.
-- **Totals:** legs by outcome, field hours, ore, ingots made, ore/hr, digs, success rate, doubles, smelts,
+  digs, smelts, ingots made, `ingots_stored` (the row's `stockpiled`, 0 when absent), field time and
+  ore/hr, dry / time_up / creature_blocked, and `carried_end.ingots`; the `stand` and `smelt` events
+  inside it are counted on the row.
+- **Totals:** legs by outcome, field hours, ore, ingots made, ingots stored, ore/hr, digs, success rate, doubles, smelts,
   dry legs, deaths, threats that sent us home, stands worked (`stand` events).
 - **Per day** (the local day of `t_start`) and **per spot** (legs, ore, ore/hr, dry legs, the newest leg's
   end) carry the same figures.
-- **`carried_now`:** the newest leg in the range's `carried_end.ingots`, labelled `ingots carried (never
-  stored)`: the runner smelts at the spot's forge and keeps the ingots in the trapped pouch.
+- **`carried_now`:** the newest leg in the range's `carried_end.ingots`, labelled `ingots carried`. The
+  runner smelts at the spot's forge and, at each trip's end at home, drops the ingots into the room's
+  Resource Stockpile (its Restock, cursor answered with the backpack); so this is what was still in the
+  pack when that leg ended (after a hop or abort, or what the stockpile didn't take).
 - **Timeline:** every mining event except `stand`/`smelt` (hops, deaths, PK sightings, recalls, flees).
 
 **UI**
@@ -578,14 +581,15 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     1 kill not looted, 5 speech holds): tiles 19 kills (37/hr), 299 gp (538 gp/hr, 16.6/kill),
     299 XP; the Lumber/Hunting switch and a reload kept `#jobs/hunt`; no page errors.
 - **Mining dashboard** (2026-10-19, `components/MiningJobs.tsx`, tiles from `jobs.ts` `miningKpis`):
-  - KPI tiles: ore dug (digs landed, doubles), ingots made (smelts), ore per field hour, field hours, digs
-    land (success rate, digs), ingots carried now (never stored), legs (hopped, aborted), deaths · threats.
-    A line under them says what field time is and that the ingots stay carried.
+  - KPI tiles: ore dug (digs landed, doubles), ingots made (smelts), ingots stored (into the room's Resource
+    Stockpile), ore per field hour, field hours, digs land (success rate, digs), ingots carried now (left in
+    the pack at the newest leg's end), legs (hopped, aborted), deaths · threats. A line under them says what
+    field time is and that each trip's ingots go into the stockpile at home.
   - A spots table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the legs-and-
     events strip with the event list (hops, threats, deaths).
   - The legs table, newest first: start, spot, trip · leg, field time, ore, ore/hr, digs (landed), smelts,
-    ingots made, ingots carried, how it ended (`jobs.ts` `legEnd`: died, threat, else the outcome with dry /
-    time up / creature in reach) and the `why`. Then a per-day table.
+    ingots made, ingots stored, ingots carried, how it ended (`jobs.ts` `legEnd`: died, threat, else the outcome with dry /
+    time up / creature in reach) and the `why`. Then a per-day table (with ingots stored).
   - With no legs in the range the tiles show 0 or `—` and each panel says nothing is recorded yet.
   - Verified 2026-10-19 in headless Chrome (1600×1000) against a private `viz_server.py --live --state-port 1`
     (no proxy) on a temp store with 3 synthetic legs (603 ore, 1,206 ingots, a hop off a dry spot, a threat

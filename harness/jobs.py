@@ -738,12 +738,12 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
 
 # ------------------------------------------------------------------ mining
 MINING_PER_STAND_KINDS = ("stand", "smelt")   # folded into the legs' figures, not the timeline
-CARRIED_LABEL = "ingots carried (never stored)"
+CARRIED_LABEL = "ingots carried"
 
 
 def _mine_blank():
     return {"legs": 0, "stored": 0, "hopped": 0, "aborted": 0, "field_s": 0.0, "timed_ore": 0, "ore": 0,
-            "ingots_made": 0, "attempts": 0, "successes": 0, "doubles": 0, "smelts": 0, "dry": 0,
+            "ingots_made": 0, "ingots_stored": 0, "attempts": 0, "successes": 0, "doubles": 0, "smelts": 0, "dry": 0,
             "deaths": 0, "sent_home": 0}
 
 
@@ -751,7 +751,7 @@ def _mine_add(agg, leg):
     agg["legs"] += 1
     if leg["outcome"] in ("stored", "hopped", "aborted"):
         agg[leg["outcome"]] += 1
-    for k in ("ore", "ingots_made", "attempts", "successes", "doubles", "smelts"):
+    for k in ("ore", "ingots_made", "ingots_stored", "attempts", "successes", "doubles", "smelts"):
         agg[k] += leg[k]
     if leg["field_s"] is not None:
         agg["field_s"] += leg["field_s"]
@@ -781,7 +781,8 @@ def _leg_row(i, row):
     return {"n": i + 1, "trip": row.get("trip"), "leg": row.get("leg"), "t_start": t0, "t_end": t1,
             "duration_s": round(t1 - t0, 1) if _num(t0, None) is not None and _num(t1, None) is not None else None,
             "spot": row.get("spot"), "outcome": row.get("outcome"), "why": row.get("why"),
-            "ore": ore, "ingots_made": int(_num(row.get("ingots_made"))), "smelts": int(_num(row.get("smelts"))),
+            "ore": ore, "ingots_made": int(_num(row.get("ingots_made"))), "ingots_stored": int(_num(row.get("stockpiled"))),
+            "smelts": int(_num(row.get("smelts"))),
             "attempts": int(_num(row.get("attempts"))), "successes": int(_num(row.get("successes"))),
             "doubles": int(_num(row.get("doubles"))),
             "field_s": field_s, "ore_per_hour": _rate(ore, field_s),
@@ -801,8 +802,11 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
     Field time is mining_opt.trip_obs's (the harvest phase less walk_out_s and lockout_s, so
     the planner and the dashboard agree); a leg without t_start/t_end has none and stays out
     of the rates. Deaths and sent-home threats are trip_obs's too, read off each leg's why.
-    Ingots are never stored: they ride in the trapped pouch, so `carried_now` is the newest
-    leg's carried_end.ingots. Stand and smelt events count per leg; the rest are the timeline."""
+    At each trip's end the runner drops the ingots into the room's Resource Stockpile (its Restock
+    with the backpack), recorded as the leg's `stockpiled` (`ingots_stored`; 0 when absent). So
+    `carried_now` is the newest leg's carried_end.ingots: what was still in the pack when it ended
+    (after a hop or abort, or what the stockpile didn't take). Stand and smelt events count per
+    leg; the rest are the timeline."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))

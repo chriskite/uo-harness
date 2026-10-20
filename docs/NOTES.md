@@ -4079,7 +4079,7 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
 - **Runes near rock:** Witcher 206 Granite Quarry (3406,979), 317 Sandshear Quarry (3784,2484), 325 Tarsands Mine
   (3970,2584; Tarsands is dangerous, k246); DTF tomes add Prevalia Quarry (1178,1119), Mt. Petram caves. A "quarry
   miner" NPC emotes "*digs*" near Witcher 254 (k4090).
-- **The mining runner (built offline 2026-10-19; docs/PLAN.md "Mining runner"; not run live yet).**
+- **The mining runner (built offline 2026-10-19; docs/PLAN.md "Mining runner"; first live runs on Outland Dan the same evening).**
   - Run it from the plan: `./ctl.cmd --char "Outland Dan" mining plan` → `ctl run mining --spot forge_1227_1142
     --trips 1 --field-min 60 --timeout 6300` (the plan's `command`). By hand for a short test:
     `./ctl.cmd --char "Outland Dan" run mining --spot forge_1227_1142 --trips 1 --hops 0 --field-min 10`.
@@ -4114,9 +4114,21 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   - A stack the forge refuses or doesn't answer is left for the rest of the leg (`unsmeltable`), not retried in a
     loop. A travel-lockout answer to a smelt is waited out and the stack tried once more [INFERENCE: whether the
     lockout holds smelting is unseen].
-  - At home nothing is converted or stored, and the room shelf's Restock is skipped: it takes live trapped pouches
-    (above, "Storage shelves"), and the live one holds the ingots. Check the ingots with `ctl status`
-    (`backpack.counts` 0x1BF2).
+  - **At home the ingots go into the room's Resource Stockpile** (since 2026-10-19 evening; before, they stayed
+    carried and the room shelf's Restock was skipped because it takes live trapped pouches).
+    - The user's drop-off by hand at 22:44:39 (capture session_20261019_214740):
+      - a single click on the stockpile 0x62645C82, then its context menu entry index 0, "Restock" (cliloc 3006349);
+      - the cursor (type 0) answered with the backpack 0x46F90508 (graphic 0x0E75, x y z 0);
+      - 46 ms later the server deleted the two ingot stacks (1080 + 10 of hue 2419) out of the live trapped pouch
+        0x4D1FF262 and said "You add …" (the capture keeps 64 bytes of a packet).
+    - The pouch stayed armed (Dan's overseer set it off by hand afterwards). The 67 raw ore loose in the pack and the
+      reagents in their bag stayed (the stockpile's Settings).
+    - `MineLoop.store` → `ingots_to_stockpile` does the same with `dropoff.run` and one step (stockpile.RESTOCK_ENTRY,
+      target pack). It declares the whole pack to the ledger, then books `stored`/`stockpiled` (the ingots that left
+      the pack) in the leg row. Then the shelf's Restock and Resupply run as for lumber, only when no ingot is left
+      in the pack. test_loop_mining mine_main / mine_hop check it.
+    - Lumber still sets its pouch off at home: the hatchet's conversion needs the logs out of it (user: "lumber does
+      have to pop the pouch in order to turn the logs into boards, whereas the ingots go straight into the stockpile").
   - Live checks still open: whether a packed pickaxe's double-click equips it as in the capture (else equip with
     `combat.equip_packets`), whether Prevalia's map forges smelt for the runner, and the mounted-mining answer
     (cliloc 501864 aborts the run).

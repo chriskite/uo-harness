@@ -220,7 +220,7 @@ describe("huntKpis", () => {
 
 function miningTotals(p: Partial<MiningTotals> = {}): MiningTotals {
   return {
-    legs: 0, stored: 0, hopped: 0, aborted: 0, field_s: 0, field_hours: 0, ore: 0, ingots_made: 0, attempts: 0,
+    legs: 0, stored: 0, hopped: 0, aborted: 0, field_s: 0, field_hours: 0, ore: 0, ingots_made: 0, ingots_stored: 0, attempts: 0,
     successes: 0, doubles: 0, smelts: 0, dry: 0, deaths: 0, sent_home: 0, ore_per_hour: null, success_rate: null,
     stands: 0, first_t: null, last_t: null, ...p,
   };
@@ -229,12 +229,13 @@ function miningTotals(p: Partial<MiningTotals> = {}): MiningTotals {
 describe("miningKpis / legEnd", () => {
   test("ore, ingots, ore per field hour, field hours, dig success and the carried ingots", () => {
     const by = Object.fromEntries(
-      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1 }), {
-        ingots: 1000, t: 81600, spot: "B", label: "ingots carried (never stored)",
+      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, ingots_stored: 1630, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1 }), {
+        ingots: 1000, t: 81600, spot: "B", label: "ingots carried",
       }).map((x) => [x.key, x]),
     );
     expect([by.ore!.value, by.ore!.sub]).toEqual(["500", "435 digs landed · 60 doubles"]);
     expect([by.ingots!.value, by.ingots!.sub]).toEqual(["1,000", "6 smelts"]);
+    expect(by.stored!.value).toBe("1,630");
     expect(by.oph!.value).toBe("316");
     expect([by.field!.value, by.field!.sub]).toEqual(["1.58 h", "1h 35m"]);
     expect([by.rate!.value, by.rate!.sub]).toEqual(["67%", "650 digs"]);

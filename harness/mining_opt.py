@@ -2,7 +2,7 @@
 
 A spot is a natural forge with ore around it (harness/data/mining_spots.json, written by
 `python harness/ore_nodes.py spots`; status overrides and runner rows in the store's mining_spots
-table). The runner (loop_mining.py) digs there, smelts at the forge and keeps the ingots carried.
+table). The runner (loop_mining.py) digs there, smelts at the forge and drops the ingots off at home.
 
 Model (deliberately small: the lumber planner's machinery without its trip-size and gear terms):
   - field rate λ: ore per field hour per spot, Gamma posterior over recency-weighted trips

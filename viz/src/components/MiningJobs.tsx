@@ -43,7 +43,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
       </div>
       <div className="jobs-sub dim">
         Field time is the dig phase less the walk out and the travel lockout (the planner's measure, mining_opt.trip_obs). Ore is smelted at the
-        spot's forge; the ingots stay carried in the trapped pouch and are never stored.
+        spot's forge; at each trip's end the runner puts the ingots into the room's Resource Stockpile, so carried is what was left in the pack.
         {carried && ` · ${carried.label}: ${fmtInt(carried.ingots)}${carried.t === null ? "" : ` as of ${fmtStamp(carried.t)}`}${carried.spot ? ` (${carried.spot})` : ""}.`}
       </div>
 
@@ -125,6 +125,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <th className="num">digs (land)</th>
                   <th className="num">smelts</th>
                   <th className="num">ingots made</th>
+                  <th className="num">stored</th>
                   <th className="num">carried</th>
                   <th>ended</th>
                   <th>why</th>
@@ -149,6 +150,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                       </td>
                       <td className="mono num">{l.smelts}</td>
                       <td className="mono num">{fmtInt(l.ingots_made)}</td>
+                      <td className="mono num">{fmtInt(l.ingots_stored)}</td>
                       <td className="mono num">{fmtInt(l.ingots_carried)}</td>
                       <td>
                         <Badge kind={end.tone}>{end.text}</Badge>
@@ -176,6 +178,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                 <th className="num">digs land</th>
                 <th className="num">smelts</th>
                 <th className="num">ingots made</th>
+                <th className="num">ingots stored</th>
                 <th className="num">deaths · threats</th>
               </tr>
             </thead>
@@ -190,6 +193,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                   <td className="mono num">{d.success_rate === null ? "—" : `${Math.round(d.success_rate * 100)}%`}</td>
                   <td className="mono num">{d.smelts}</td>
                   <td className="mono num">{fmtInt(d.ingots_made)}</td>
+                  <td className="mono num">{fmtInt(d.ingots_stored)}</td>
                   <td className="mono num">
                     {d.deaths} · {d.sent_home}
                   </td>
