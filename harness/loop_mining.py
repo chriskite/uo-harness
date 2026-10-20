@@ -59,13 +59,19 @@ STAND_DIST_SCALE = 20        # steps (tiles without a map): a stand this far cou
 STATIONARY_MAX = 3           # "A stationary penalty is in effect" this often at one stand: abort
 # Ore stands in a row with no route to them or "Harvesting is not allowed in this area." mark the spot unworkable: it is
 # disabled and the leg moves on (live 2026-10-19, forge_1696_1438: the Paladin forge inside Prevalia, whose map
-# "stands" were the city walls, took ~3 s of route planning each over 434 stands)
+# "stands" were the city walls, took ~3 s of route planning each over 434 stands). On the map only "not allowed"
+# counts: a stand there is walkable (walk_steps), so what cut the way passes (live 2026-10-20 11:47, forge_1279_1149:
+# a zombie in a one-tile cave passage made 8 walks fail and the spot was disabled)
 UNWORKABLE_STANDS = 8
+# A walk to a stand on the map may take at most STAND_ROUTE_MIN + STAND_DETOUR x its walking steps (walk_steps):
+# a longer detour round creatures' zones is given up at once, not after a 30000-expansion search (~3 s)
+STAND_ROUTE_MIN, STAND_DETOUR = 10, 2
 # Tiles beyond the box around the area and us that the walking-distance flood (walk_steps) may cross
 STAND_MARGIN = 40
 BUSY_RETRY_S = 0.4           # after 500119 "You must wait to perform another action."
 EQUIP_WAIT_S = 3.0           # a packed pickaxe's double-click until it is in hand
 SMELT_WAIT_S = 4.0           # an ore stack's double-click until the forge's answer (live: at once)
+INGOT_WAIT_S = 2.0           # after the last smelt answer: until 2 ingots an ore are in the pack (the count)
 STOCKPILE_WAIT_S = 3.0       # the stockpile's answer to the Restock's backpack target (live: 46 ms, deletes first)
 
 
@@ -509,9 +515,11 @@ class MineLoop(loop_lumber.LumberLoop):
                     f"{it.get('amount') or 1} ore (0x{serial:08X}); leaving that stack this leg")
                 break
         st = self.state()
-        made = self.count(st, INGOTS) - ingots0
         tried = {s for s, _ in stacks}
         ore = ore0 - sum(it.get("amount") or 1 for s, it in self.in_pack(st, ORE) if s in tried)
+        if ore:      # live 2026-10-20 11:42:13: "109 ore into 0 ingots", then 218 stashed: they came after the answer
+            st = self.wait_for(lambda s: self.count(s, INGOTS) >= ingots0 + 2 * ore, INGOT_WAIT_S) or self.state()
+        made = self.count(st, INGOTS) - ingots0
         dt = time.monotonic() - t0
         self.stats["smelts"] = self.stats.get("smelts", 0) + 1
         self.stats["ore_smelted"] = self.stats.get("ore_smelted", 0) + ore
@@ -597,13 +605,16 @@ class MineLoop(loop_lumber.LumberLoop):
 
     def next_stand(self, stands: list) -> dict | None:
         """The stand to dig at next: available blocks per walking distance (walk_steps; Chebyshev without a
-        map; STAND_DIST_SCALE), human noise, out of every escaped creature's reach; None when none is
-        (_blocked_only: some had ore but were in reach). On the map a stand the walk from here doesn't reach
-        is skipped (live 2026-10-19, forge_2599_620: the nearest stand by Chebyshev, 51 tiles off the landing,
-        was 137 steps round the cave)."""
+        map; STAND_DIST_SCALE), human noise, out of every escaped creature's reach and of the aggro zone of
+        every creature in view (the Mover's ("seen", serial) zones); None when none is (_blocked_only: some had
+        ore but were in reach). On the map a stand the walk from here doesn't reach is skipped (live
+        2026-10-19, forge_2599_620: the nearest stand by Chebyshev, 51 tiles off the landing, was 137 steps
+        round the cave). Live 2026-10-20 11:47, forge_1279_1149: a zombie stood among the next stands in a
+        cave; each walk there cost a 3 s search that found no route through its zone."""
         st = self.link.state()
         here = tuple(self.link.pos(st)[:2])
         far = self.walk_steps(st)
+        seen = [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
         best, any_avail = None, False
         for s in stands:
             xy = (s["x"], s["y"])
@@ -613,7 +624,7 @@ class MineLoop(loop_lumber.LumberLoop):
             if not free:
                 continue
             any_avail = True
-            if not self.out_of_reach(s["x"], s["y"]):
+            if not self.out_of_reach(s["x"], s["y"]) or any(cheb(xy, c) <= r for c, r in seen):
                 continue
             dist = cheb(here, xy) if far is None else far[xy]
             score = len(free) / (1 + dist / STAND_DIST_SCALE) * self.human.rng.uniform(1.0, 1.15)
@@ -701,13 +712,17 @@ class MineLoop(loop_lumber.LumberLoop):
         the pack calls for the forge, a break is due or --max-attempts-per-stand. A `stand` job event."""
         x, y = stand["x"], stand["y"]
         self.doing("to_stand", f"Heading to the rock at {x},{y} ({tally['ore']} ore)", (x, y))
+        n = (self._steps[1] if self._steps is not None else {}).get((x, y))   # walk_steps from here (next_stand's)
         try:
-            self.mover.walk_to(lambda: (x, y), 0, f"to the ore stand {x},{y}")
+            # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
+            self.mover.walk_to(lambda: (x, y), 0, f"to the ore stand {x},{y}",
+                               max_route=None if n is None else STAND_ROUTE_MIN + STAND_DETOUR * n)
         except Abort as e:
             if "no route" not in str(e):
                 raise
             self.no_route_stands.add((x, y))
-            self.fruitless += 1
+            if n is None:            # on the map the stand is walkable: what cut the way (creatures, a player) passes
+                self.fruitless += 1
             log(f"ore stand {x},{y}: no route; trying the next one")
             return
         z = self.link.pos(self.link.state())[2]

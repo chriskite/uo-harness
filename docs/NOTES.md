@@ -4184,6 +4184,27 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - Also there: a nomadic rifleman (notoriety 3) and a fire elemental.
     - Fix: escape goals come from the z-aware walk flood (docs/LUMBER_LOOP.md "Escape goals are walkable tiles on the
       map"). Replayed: (1487,2598) in 15 steps.
+  - **The first drop-off by the runner** (mining-20261020-105606-baf5, 11:47:42).
+    - The trip had hopped forge_1396_1206 → forge_2599_620 → forge_2497_708 → forge_1279_1149, with 7 smelts on
+      the way (6 at weight, 1 at a leg's end).
+    - Result: "added 2554 ingots to the resource stockpile (Restock with the backpack: You add 3 item(s) to the
+      Resource Stockpile.)". The room shelf's Restock and Resupply then ran.
+  - **A false unworkable disable** (same run, 11:47:26, forge_1279_1149, Shrine of Honor caves).
+    - Dan stood at (1297,1129) in a cave passage that the map walks only east and west. A zombie (0x002CBE7D) stood
+      at (1281,1127), among the next stands.
+    - Every walk west searched its zone for ~3 s (30000 expansions at 30× tile cost) and gave "no route": 8
+      stands in a row, then the forge. The map says 16 steps.
+    - The spot was disabled. I re-activated it the same hour.
+    - Fixes in `loop_mining`:
+      - `next_stand` leaves out stands inside the aggro zone of a creature in view (the Mover's ("seen", serial)
+        zones), as it already did for escaped ones.
+      - A walk to a stand on the map is bounded to `STAND_ROUTE_MIN + STAND_DETOUR` × its walking steps, so a
+        detour round a zone fails at once.
+      - On the map, a stand with no route no longer counts toward `UNWORKABLE_STANDS`. The map says the stand is
+        walkable, so what cut the way is passing. Only "Harvesting is not allowed" still counts there.
+  - **A smelt counted 0 ingots** (same run, 11:42:13): "smelted 109 ore into 0 ingots", then "stashed 218". The
+    ingots came after the forge's answer (cliloc 501988), and the count was taken at once. `smelt` now waits up
+    to `INGOT_WAIT_S` (2 s) for 2 ingots an ore before counting.
 
 ## Network observations
 
