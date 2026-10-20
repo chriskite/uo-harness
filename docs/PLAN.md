@@ -1952,6 +1952,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); not
   for logs. Nothing is stored at home; the ingots ride in the trapped pouch across trips, and a death loses them
   (the planner charges half a stint of ore per death). Rejected: carrying ore home (a trip ends after ~310 ore for
   Dan) and a pack animal (none owned, thieves steal from it, docs/NOTES.md "Pack animals").
+- *Smelt only near full weight or before leaving the spot* (user 2026-10-19: "just before we get full on weight or
+  leave the spot"). Triggers:
+  - 40 stones free;
+  - the leg's end: dry, time up, a break or stop request;
+  - a plain abort at the spot, before its recall home.
+
+  A threat's recall never stops at the forge, so its ore comes home raw and is smelted with the next leg's. Rejected
+  the same day: a smelt after each stand once 40 ore was carried (commit 2a255fe), too often for the risk it covers.
 - *A spot is a forge with ore around it*, one per non-town overworld forge site with at least 20 node blocks within
   40 tiles, the richest of any within 40 tiles of each other. Rune names don't filter anything (user 2026-10-19:
   the "Urk Fort/Smugglers Den" landing at Prevalia Quarry was safe; `places.danger_hint` and its monster-place

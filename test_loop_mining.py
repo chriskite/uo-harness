@@ -210,18 +210,23 @@ def spot_doc(sid, name, stands):
 CARRIED_ORE = 5                       # mine_hop: raw ore an earlier trip brought home (a threat's recall)
 
 
-async def mine_hop():
-    print("\n== mine_hop: carried ore smelted first, a smelt after each stand (--smelt-ore 4), the first spot "
-          "runs dry, home, on to the plan's next spot with the ingots, then home ==")
-    world = MineWorld()
+def carrying_ore(world):
+    """`world` with CARRIED_ORE raw ore in the pack at login (a threat's recall brought it home)."""
     ore_in = world.add_wood(ORE_G, CARRIED_ORE, T.BACKPACK)
     world.login_extra = [T.equip(PICKAXE, 0x0E86, 0x01), world.stack_pkt(ore_in), world.status()]
+    return world
+
+
+async def mine_hop():
+    print("\n== mine_hop: no smelt until the spot is left (the weight never calls for it), carried ore with the "
+          "leg's; the first spot runs dry, home, on to the plan's next spot with the ingots, then home ==")
+    world = carrying_ore(MineWorld())
     doc = {"spots": [spot_doc("sim", "simulated rocks A", [STAND_A]), spot_doc("sim2", "simulated rocks B", [STAND_B])]}
     routes = {T.lumber_opt.route_key({"x": lx, "y": ly}, s): max(1, T.lumber_opt.area_dist(s["area"], (lx, ly)))
               for s in doc["spots"] for (lx, ly) in (T.BOOK_RUNE_POS, T.RUNE_POS)}
     text, code, store, _rows = await T.run_scenario(
-        world, "mine_hop", [], ["--trips", "1", "--hops", "1", "--human", "off", "--smelt-free", "60",
-                                "--smelt-ore", "4", "--field-min", "30"],
+        world, "mine_hop", [], ["--trips", "1", "--hops", "1", "--human", "off", "--smelt-free", "20",
+                                "--field-min", "30"],
         script="harness/loop_mining.py", spots_doc=doc, routes=routes)
     try:
         T.check("runner exited 0 in the rental room", code == 0 and world.facet == T.ROOM_FACET,
@@ -237,10 +242,10 @@ async def mine_hop():
                 str(rows[0].get("hop") if rows else None))
         events = store.job_events("mining")
         order = [(e["kind"], e["data"].get("why"), e["data"].get("ore")) for e in events if e["kind"] in ("stand", "smelt")]
-        T.check("the carried-in ore is smelted before the first stand, then a smelt after each stand, none left for the "
-                "leg's end", order == [("smelt", "batch", CARRIED_ORE), ("stand", None, ORE[ROCK_A]),
-                                       ("smelt", "batch", ORE[ROCK_A]), ("stand", None, ORE[ROCK_B]),
-                                       ("smelt", "batch", ORE[ROCK_B])], str(order))
+        T.check("one smelt per leg, before leaving the spot, the carried-in ore with leg 1's (user 2026-10-19: smelt "
+                "only near full weight or on leaving)",
+                order == [("stand", None, ORE[ROCK_A]), ("smelt", "leg end", CARRIED_ORE + ORE[ROCK_A]),
+                          ("stand", None, ORE[ROCK_B]), ("smelt", "leg end", ORE[ROCK_B])], str(order))
         T.check("both legs ran dry; every rock dug out", all(r.get("dry") for r in rows)
                 and world.ore_left == {ROCK_A: 0, ROCK_B: 0}, str(world.ore_left))
         hops = [e["data"] for e in store.job_events("mining") if e["kind"] == "hop"]
@@ -255,7 +260,35 @@ async def mine_hop():
         store.close()
 
 
-runs = [mine_main, mine_hop]
+async def mine_dry_start():
+    print("\n== mine_dry_start: every block already dug out, the leg aborts at once: the carried ore smelted "
+          "before leaving ==")
+    world = carrying_ore(MineWorld())
+    blocks = [tuple(b) for s in (STAND_A, STAND_B) for b in s["blocks"]]
+
+    def prepare(db):
+        m = T.memory.Memory(db)
+        m.mine_blocks_mark(0, blocks, "depleted")
+        m.close()
+    text, code, store, _rows = await T.run_scenario(
+        world, "mine_dry_start", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
+        script="harness/loop_mining.py", spots_doc=SPOTS_DOC, prepare=prepare)
+    try:
+        T.check("the abort ends the run (exit 1) in the rental room", code == 1 and world.facet == T.ROOM_FACET
+                and "no ore stand with an available node" in text, f"{code}, facet {world.facet}")
+        smelts = [(e["data"].get("why"), e["data"].get("ore"), e["data"].get("ok"))
+                  for e in store.job_events("mining") if e["kind"] == "smelt"]
+        T.check("the carried ore smelted on leaving, no digging", smelts == [("leaving", CARRIED_ORE, True)]
+                and world.dug == 0, str(smelts))
+        ingots = [(n, c) for g, n, c in world.stacks.values() if g == INGOT_G]
+        T.check("its ingots in the trapped pouch, no ore left",
+                sum(n for n, _ in ingots) == 2 * CARRIED_ORE and all(c in T.POUCHES for _, c in ingots)
+                and not any(g in ORE_GS for g, _, _ in world.stacks.values()), str(world.stacks))
+    finally:
+        store.close()
+
+
+runs = [mine_main, mine_hop, mine_dry_start]
 
 
 if __name__ == "__main__":
