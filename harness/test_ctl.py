@@ -1774,6 +1774,16 @@ def test_know(proxy):
     code, out = c("know", "retract", "1", "--reason", "")
     check("errors come back as JSON (retract without a reason), and post nothing",
           code == 1 and "reason" in out["error"] and len(Memory(db).chat()) == n, str(out))
+    code, out = c("know", "add", "--kind", "fact", "--topic", "hub", "--at", "3535", "1954", "12", "NPCs", "idle", "here")
+    e = c("know", "get", str(out["id"]))[1]["entry"] if code == 0 else {}
+    check("know add: the content may follow --at X Y (a number after them is content, not a facet)",
+          code == 0 and e["content"] == "12 NPCs idle here" and (e["facet"], e["x"], e["y"]) == (0, 3535, 1954), str(e))
+    code, out = c("know", "add", "--kind", "fact", "--topic", "hub", "--at", "1", "3535", "1954", "Grere's", "folk")
+    e = c("know", "get", str(out["id"]))[1]["entry"] if code == 0 else {}
+    check("... and --at FACET X Y", code == 0 and e["content"] == "Grere's folk" and (e["facet"], e["x"], e["y"]) == (1, 3535, 1954),
+          str(e))
+    code, out = c("know", "add", "--kind", "fact", "--topic", "hub", "--at", "3535", "1954")
+    check("know add without content is an error", code == 1 and "content" in out.get("error", ""), str(out))
     proxy.pos = [100, 100, 0, 2]
 
 

@@ -2972,6 +2972,23 @@ def _compact(e: dict) -> dict:
     return out
 
 
+def _know_at(a) -> tuple[tuple | None, list]:
+    """(--at as a tuple or None, the content words) for know add/update. argparse gives --at every word after it
+    (overseer 2026-10-20: `--at 3535 1954 Roan is an NPC` failed), so its leading numbers are the place, X Y or
+    FACET X Y (a facet is 0-5), and the words after them start the content."""
+    toks = list(a.at or [])
+    if not toks:
+        return None, list(a.content or [])
+    nums = 0
+    while nums < min(3, len(toks)) and re.fullmatch(r"-?\d+", toks[nums]):
+        nums += 1
+    if nums == 3 and not 0 <= int(toks[0]) <= 5:
+        nums = 2                                  # X Y, then content that starts with a number
+    if nums < 2:
+        raise CtlError(f"--at wants X Y or FACET X Y, got {' '.join(toks[:3])!r}")
+    return tuple(int(t) for t in toks[:nums]), toks[nums:] + list(a.content or [])
+
+
 def cmd_know(a, mem):
     """The overseer's long-term memory (harness/knowledge.py; docs/MEMORY.md).
     Every operation but `stats` posts one chat row of kind `memory` so the viz
@@ -2984,9 +3001,12 @@ def cmd_know(a, mem):
     row = None                                    # (text, data) of the memory chat row
     try:
         if op == "add":
-            content = " ".join(a.content)
+            at, words = _know_at(a)
+            if not words:
+                raise CtlError("know add: the content is missing")
+            content = " ".join(words)
             out = k.add(a.kind, a.topic, content, tags=a.tags or (), entities=a.entity or (),
-                        at=tuple(a.at) if a.at else None, source=a.source, ref=a.ref,
+                        at=at, source=a.source, ref=a.ref,
                         confidence=a.confidence, importance=a.importance, supersedes=a.supersedes)
             verb = {"added": "inscribing", "confirmed": "confirmed", "superseded": "inscribing"}[out["action"]]
             row = (f"{verb} #{out['id']} {a.kind} [{a.topic}]: {content}"
@@ -2994,8 +3014,9 @@ def cmd_know(a, mem):
                    {"id": out["id"], "action": out["action"], "entry": _compact(k.get(out["id"])),
                     "related": [_compact(r) for r in out["related"]], "supersedes": a.supersedes})
         elif op == "update":
-            out = k.update(a.id, content=" ".join(a.content) if a.content else None, topic=a.topic,
-                           tags=a.tags, at=tuple(a.at) if a.at else None, confidence=a.confidence,
+            at, words = _know_at(a)
+            out = k.update(a.id, content=" ".join(words) if words else None, topic=a.topic,
+                           tags=a.tags, at=at, confidence=a.confidence,
                            importance=a.importance, source=a.source, ref=a.ref)
             new = out["id"] != a.id
             row = (f"updated #{a.id}" + (f" -> new version #{out['id']}" if new else ""),
@@ -3684,9 +3705,10 @@ def _know_parser(sub):
             q.add_argument("--topic", required=True)
             q.add_argument("--entity", action="append", help="NPC/player/item/place it's about (repeatable)")
             q.add_argument("--supersedes", type=int)
-        q.add_argument("content", nargs="*" if name == "update" else "+")
+        # content may also follow --at's numbers: argparse gives --at every word after it (_know_at splits them)
+        q.add_argument("content", nargs="*")
         q.add_argument("--tags", help="comma-separated")
-        q.add_argument("--at", type=int, nargs="+", metavar="N", help="X Y or FACET X Y")
+        q.add_argument("--at", nargs="+", metavar="N", help="X Y or FACET X Y (FACET 0-5)")
         q.add_argument("--source", choices=tuple(knowledge.SOURCES), default="observed" if name == "add" else None)
         q.add_argument("--ref", help="evidence: capture tag, chat#id, juncture#id, URL, screenshot path")
         q.add_argument("--confidence", type=float)
