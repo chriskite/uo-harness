@@ -4295,6 +4295,27 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - Confirmed live 2026-10-20 14:10:16 (mining-20261020-135409-1160, forge_1173_2397): "smelted 158 ore into 316
       ingots at the room's forge (home)", the convert phase took 1.7 s, then "added 902 ingots to the resource
       stockpile". The leg's other 293 ore had been smelted at the spot's forge for the weight.
+  - **Yield vs skill** (measured 2026-10-20: capture session_20261020_102748, 4333 dig replies at skill 55.0–68.5; 25 leg
+    rows that day).
+    - Each successful dig names its metal: cliloc 1007072 iron, 1007073 dull copper, 1007074 shadow iron, 1007075
+      copper, 1007076 bronze (1007077–1007080 gold–valorite by RunUO's order, not seen yet). Counts: 3039 iron, 63
+      dull copper, 53 shadow iron, 32 copper, 10 bronze, 1095 fails (503043). The hue names of `METALS` agree.
+    - Success rate (any metal) by 3-point skill bin: 54: 65.7 %, 57: 72.7 %, 60: 72.7 %, 63: 75.8 %, 66: 78.8 %.
+      That's about 1.18 × skill (or skill + 11 points), above the wiki's skill × (1 + tool bonus) for a plain pickaxe
+      (k12628). [INFERENCE] The Harvest aspect suit adds a bonus. The double-yield rate was 28.4 % of successes.
+    - Colours come well below the wiki's skill requirements (k12628/9): shadow iron first at 55.6 (wiki 70), copper
+      at ~61.7 (75), bronze at 67.4 (80). No gold or better in 4333 digs, so a lower threshold exists. [INFERENCE]
+      roughly 12–15 points under the wiki's.
+    - Field time that day: 1.33 s per dig, 0.951 ore per dig, 1326 ore per field hour. Digging was 51.5 % of field
+      time, the 60 s travel lockouts 8.4 %, smelting 2 %. The rest (38 %) was walking between stands and escapes:
+      1.32 s per ore.
+    - The ore was worth 59.8 gp each (2 ingots; 92 % iron; dull copper, shadow iron and copper ingots are worth less
+      than iron). Recall charges were 46 × 200 gp. Field time was 82.6 % of the hours running (death downtime left
+      out). Net: ~54k gp per clock hour, with the death's 35 min downtime included.
+    - Projection at 100 skill (user request, 2026-10-20), from the wiki's base node chances and colour formula, the
+      measured 1.18 multiplier, a colour share of 0.8 calibrated on dull copper to bronze, and doubles and the
+      per-ore walk unchanged: success 98.6 %, 1.27 ore per dig, ~1520 ore per field hour, 66.6 gp per ore (68.1 if
+      avarite unlocks). That is ~101k gp per field hour and ~69k gp net per clock hour (range ~64k–83k).
 
 ## Network observations
 
