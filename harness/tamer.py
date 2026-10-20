@@ -175,7 +175,8 @@ EVADE_MOVES = 40
 REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
-CASTER_R = 10                 # a caster in war mode this close in sight is casting at us (loop_hunt.CASTER_REACH)
+CASTER_R = 12                 # a caster in war mode this close in sight is casting at us (live 2026-10-19 19:54:43-57 a
+#                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 RANGED_R = 13                 # a ranged monster in war mode this close in sight is shooting at us (the purger's barrage: 12)
 BACK_OFF_S = 2.0              # back_off at most this often
@@ -1273,9 +1274,10 @@ class Team:
         if not self.a.reposition or now - self.reposition_t < REPOSITION_S:
             return False
         v = self.view(st)
-        casting = any(m["war"] and (m["caster"] and v.sees(m, v.pos, CASTER_R)
-                                    or m["ranged"] and v.sees(m, v.pos, RANGED_R)) for m in v.mobs)
-        if now < self.vet_busy_until and not casting:
+        casting = self.casting_at(v, v.pos) > 0
+        if now < self.vet_busy_until and not (casting and self.channel_for_us(st)):
+            # mid-channel only when the channel heals us (a step keeps its heal on us but cuts its reach to the pets to 1:
+            # sim, moving whenever a caster saw us mid-channel, pet-death runs 54 -> 76 of 144 on the zone crawl)
             return False
         self.reposition_t = now
         if v.walk is None or not v.engaged():
@@ -1286,15 +1288,23 @@ class Team:
         spaced = [m["pos"][:2] for m in v.mobs if m["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
         steps = self.tiles_within(v, CASTER_STEPS if casting else REPOSITION_STEPS)
         here = v.stand_score(pos)
-        best, best_s = None, here
+        hit_by = self.casting_at(v, pos)
+        best, best_s, best_c = None, here, None
         for t, k in steps.items():
             if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
                     or any(cheb(t, n) < SPACING_R for n in spaced):       # spacing's rule: not onto the tank
                 continue
             s = v.stand_score(t) + 0.3 * k
-            if s < best_s:
+            if casting:
+                # out of a casting caster's sight is worth the steps by itself (live 2026-10-19 19:54:39-57: a
+                # blightmare 12 off cast at Logan for 18 s, 100 -> 4, while he stood vetting; one caster's sight is
+                # stand_score 1.0, never REPOSITION_GAIN over a step's 0.3): fewer of them first, no more idle eyes
+                c = self.casting_at(v, t)
+                if c < hit_by and v.stand_score(t) - c <= here - hit_by and (best is None or (c, s) < best_c):
+                    best, best_s, best_c = t, s, (c, s)
+            elif s < best_s:
                 best, best_s = t, s
-        if best is None or here - best_s < REPOSITION_GAIN:
+        if best is None or (not casting and here - best_s < REPOSITION_GAIN):
             return False
         label = "to a better tile"
         h.doing("reposition", f"Stepping to {best[0]},{best[1]}: fewer eyes on us ({here:.0f} -> {best_s:.0f})", best[:2])
@@ -1307,6 +1317,22 @@ class Team:
                 raise
             log(f"reposition: {e}")
         return True
+
+    @staticmethod
+    def casting_at(v, tile) -> int:
+        """Casters (within CASTER_R) and ranged monsters (RANGED_R) in war mode that see `tile`: what can hit us there."""
+        return sum(1 for m in v.mobs if m["war"] and (m["caster"] and v.sees(m, tile, CASTER_R)
+                                                       or m["ranged"] and v.sees(m, tile, RANGED_R)))
+
+    def channel_for_us(self, st) -> bool:
+        """The running vet channel is most likely healing us: our share of hits no higher than every live pet's
+        within --vet-range (the supplies heal the most hurt of us; live 19:54:44-49 Logan 79 -> 30 and GraveRobber
+        at 94 %: +31 to Logan at its finish)."""
+        me = st["world"]["self"]
+        if me.get("hits") is None:
+            return False
+        ours = self.h.frac(me)
+        return all(ours <= p["frac"] for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range)
 
     def area_zone(self, st) -> dict:
         """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone

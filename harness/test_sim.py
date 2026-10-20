@@ -306,9 +306,9 @@ def test_hunt():
     with contextlib.redirect_stdout(buf):
         r = simrun.run_once(1, [], minutes=8)
     check("the run ends without a crash", r["outcome"] in ("done", "aborted"), f"{r['outcome']} {r['error']}")
-    # survival is the batch numbers' business (docs/SIM.md), not this plumbing check: out by recall or by a death
-    check("it recalled in, killed and looted, and left (a recall out, or died trying)",
-          r["recalls"] >= 1 and r["kills"] >= 1 and r["gold_looted"] > 0 and (r["recalls"] >= 2 or r["deaths"] >= 1),
+    # survival and leaving are the batch numbers' business (docs/SIM.md), not this plumbing check (it once required a
+    # leave or a death within 8 min of seed 1: an incidental outcome of the draws)
+    check("it recalled in, killed and looted", r["recalls"] >= 1 and r["kills"] >= 1 and r["gold_looted"] > 0,
           f"recalls {r['recalls']} deaths {r['deaths']} kills {r['kills']} gold {r['gold_looted']}")
     check("no war mode, attack, spell, menu pick or release", r["violations"] == [], str(r["violations"]))
     check("'All Guard Me' after arriving; vet supplies used", r["guard_commands"] >= 1 and r["vet_uses"] >= 1,
@@ -1536,6 +1536,43 @@ def test_ledge_attacker():
           f"z {m.z} vs pets {gr.z}; on a pet {pet_on}; picked {set(picked)}; took {took:.1f} s")
 
 
+def test_caster_at_12():
+    print("== a caster in war mode 12 tiles off with sight of us, mid-vet-channel, a fight on: out of its sight ==")
+    # live 2026-10-19 19:54:39-57 (hunt-20261019-192245-e3d7): a blightmare at (5243, 684) cast at Logan standing at
+    # (5243, 672) for 18 s (-21..-28, four "spell blights you with a foul disease!"), 100 -> 4, dead at 19:55:01;
+    # CASTER_R was 10, and one caster's sight never paid for a step (REPOSITION_GAIN)
+    import aggro
+    import loop_hunt
+    w = world_with([{"key": "shadowguard", "at": [5243, 684, 0]}, {"key": "tormented soul", "at": [5241, 675, 0]}],
+                   seed=7, start=(5243, 672))
+    caster, soul = (next(m for m in w.mobs.values() if m.key == k) for k in ("shadowguard", "tormented soul"))
+    loop, clock, store, patched = hurt_loop(w, 60)
+    for p, xy in zip(w.pets(), ((5242, 675), (5244, 674))):
+        p.x, p.y = xy
+    caster.target, caster.threat = w.player.serial, {w.player.serial: 50}
+    soul.target, soul.threat = w.pets()[0].serial, {w.pets()[0].serial: 50}
+    w._warm(caster, True)
+    caster.next_step = 1e9                     # it stood and cast, live (19:54:40-57 at (5243, 684)/(5243, 685))
+    w._warm(soul, True)
+
+    def seen(st):
+        v = aggro.View(loop, st)
+        return sum(1 for x in v.mobs if x["war"] and x["caster"] and v.sees(x, v.pos, 12))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.5)
+            st = loop.state()
+            loop.team.vet_busy_until = loop_hunt.time.monotonic() + 5.0    # a channel running, as live
+            before = seen(st)
+            moved = loop.team.reposition(st)
+            after = seen(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("in its sight at 12, then a step out of it (mid-channel)", before == 1 and moved and after == 0,
+          f"before {before} moved {moved} after {after} at {w.player.pos}")
+
+
 def test_rope_sight():
     print("== --rope from (5207, 689) toward the gate: no landing out of our sight as a ground target ==")
     # live 2026-10-19 10:29:20.1-21.3 fleeing the red Malito: "[Rope" at (5208, 698) from (5207, 689), "Target cannot be
@@ -1879,7 +1916,7 @@ def main():
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_rope_sight, test_ledge_attacker,
+              test_bard_sight, test_rope_sight, test_ledge_attacker, test_caster_at_12,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,

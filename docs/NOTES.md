@@ -3405,6 +3405,31 @@ there at 64/100 next to an abomination and died at 12:36:05 after the user's tri
     it; it died 22:14:24 (+920), the second of the pair (0x0019D507) came into the fight and died 22:14:43 (+977).
     No potion on Logan from 22:13:40 to 22:15:20 (the next two against a bound soul), no "You have contracted a foul
     disease!" all shift, the pets above 90 %. One sample; 8 runs that shift, the other 7 met no purger.
+- **Dead in a blightmare's sight (2026-10-19 19:54:39-55:01, hunt-20261019-192245-e3d7, capture session_20261019_192054;
+  user: "Logan really should have gotten out of LoS of that blightmare that was killing us").** Tormented souls on
+  the pets at (5239-5241, 675); Logan stood at (5243, 672) from 19:54:39 to 19:54:57; a blightmare in war mode at
+  (5243, 684), 12 tiles south with sight of him, cast at him: -26 (40.7), -21 (44.1), -21, -28, -28, -24, -21, -21,
+  -24, four "The creature's spell blights you with a foul disease!" (its Spellblight, -21 ticks), 100 -> 4 despite
+  two potions and three vet channels; the hurt leave at 4/100 came after a loot, dead before the gate. The
+  reposition saw nothing to do: `CASTER_R` 10 (it was at 12), a vet channel running (no reposition mid-channel
+  unless a caster in reach), and one caster's sight is 1.0 of stand_score, never `REPOSITION_GAIN` 1.0 over a
+  step's 0.3. Fixed: `CASTER_R` 12; with a caster/ranged monster in reach seeing us, a tile fewer of them see is
+  taken by itself (no more idle eyes, the pets in vet range, up to 4 steps); mid-channel only when the channel
+  heals us (`Team.channel_for_us`). test_sim `test_caster_at_12` (the 19:54 geometry; before: no move). Sim, 144
+  runs each, against fdee022:
+
+  | | Runs with a death | Deaths/h | Pet-death runs | Gold/h |
+  |---|---|---|---|---|
+  | Zone, before | 60 | 1.51 | 54 | 95.9k |
+  | Zone, moving mid-channel whenever a caster saw us (+ CASTER_REACH 12) | 54 | 1.30 | 76 | 97.1k |
+  | Zone, mid-channel only for our own channel, + CASTER_REACH 12 | 54 | 1.29 | 66 | 97.7k |
+  | Zone, shipped (CASTER_REACH stays 10) | 57 | 1.41 | 57 | 98.5k |
+  | Loop, before | 63 | 1.63 | 43 | 98.1k |
+  | Loop, shipped | 58 | 1.51 | 42 | 99.5k |
+
+  `loop_hunt.CASTER_REACH` 12 (a caster in war mode that far counted as on us while we take damage, so a target)
+  cut 3 more deaths but sent the pets at casters farther off: 9 more pet-death runs; it stays 10. `test_hunt` lost
+  its incidental "left within 8 min of seed 1" check (the draws with the fix kept him alive and hunting).
 - **Stuck on the walk in under an insane reanimator on a ledge (2026-10-19 19:34:19-35:50, hunt-20261019-192245-e3d7,
   capture session_20261019_192054; user: "This is the second time I've seen the runner get stuck here. The 'insane
   reanimator' is on a higher z level and can't come to us").** Attacked by a calamity on the way to the last

@@ -170,7 +170,9 @@ ROPE_REFUSED = (501942, 500237, 500446)   # "That location is blocked." (live 13
 ROPE_CALM_S = 3.0             # a flight's rope only when no player has hit or attacked us this long (rope_worth)
 ROPE_LEGS_MAX = 30
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
-CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE)
+CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE; 12, as
+#                              the blightmare cast live 2026-10-19 19:54:43, cost the sim 12 more pet-death runs in 144 by
+#                              sending the pets at casters farther off: the reposition reads casters to 12, tamer.CASTER_R)
 RANGED_REACH = 13            # ...a ranged one (aggro.ranged): the purger's barrage reaches 12, a calamity cast from 13
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
