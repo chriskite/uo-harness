@@ -4150,13 +4150,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       them at walker z -10..19, in 0.4 s. The 647 others lie on the surface, which is a separate walk component.
     - 6 of the run's 7 "no route" stands were among them (land z 65, no static). Each cost a full 30000-expansion
       A*, ~3 s. The seventh, (2625,582), is reachable at z 0; danger zones blocked the replan.
-    - Fix: `MineLoop.candidate_stands` keeps only the stands `localmap.reachable` (now with a `box`) reaches from
-      where we stand, within `STAND_MARGIN` (40) of the box around the area and us. It logs "N of M map stands …
-      can't be walked to from here".
-    - On the Prevalia walls spot (forge_1696_1438, from the Paladin landing at z 60) the same filter drops 299 of 434
-      stands, including every logged "no route" one.
-    - The stand order still uses Chebyshev distance: the first stand from the landing was 51 tiles away and took a
-      137-step route.
+    - Fix: `MineLoop.walk_steps` floods `localmap.steps` (BFS over the walk rules, z-aware, a diagonal one step;
+      `localmap.reachable` shares its `_flood`) from where we stand. The flood stays within `STAND_MARGIN` (40) of
+      the box around the area and us, takes ~0.4 s here, and is cached while we stand on the same tile.
+      - `candidate_stands` keeps only the stands it reaches and logs "N of M map stands … can't be walked to from here".
+      - On the Prevalia walls spot (forge_1696_1438, from the Paladin landing at z 60) the same filter drops 299 of 434
+        stands, including every logged "no route" one.
+    - `next_stand` ranks by walking steps, not Chebyshev tiles (Chebyshev only without a map), and skips stands the
+      walk from here doesn't reach.
+      - Before: the first stand from the landing (2598,531) was 51 tiles away and 137 steps round the cave.
+      - Now: (2582,582), 64 steps.
+      - Mobiles, danger zones and learned denies aren't in the flood; the Mover's A* still goes round them.
 
 ## Network observations
 

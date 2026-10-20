@@ -53,18 +53,17 @@ def standable(walk, x, y) -> list[int]:
     return sorted({o[3] for o in walk.objects(x, y) if o[2] & (pathfind.POF_SURFACE | pathfind.POF_BRIDGE)})
 
 
-def reachable(walk, start, radius: int | None = None, box=None) -> dict:
-    """{(x, y): sorted zs} reachable from start (x, y, z) by the walk rules
-    without leaving the square of `radius` around start, or the inclusive
-    rectangle `box` (x0, y0, x1, y1) instead."""
+def _flood(walk, start, radius, box):
+    """Breadth-first over (x, y, z) from start by the walk rules, inside the square of `radius`
+    around start or the inclusive rectangle `box` (x0, y0, x1, y1): yields (x, y, z, steps) per
+    node reached, fewest steps first (a diagonal is one step, as on the server)."""
     sx, sy, sz = start
     x0, y0, x1, y1 = box if box is not None else (sx - radius, sy - radius, sx + radius, sy + radius)
     seen = {(sx, sy, sz)}
-    out = collections.defaultdict(set)
-    out[(sx, sy)].add(sz)
-    q = collections.deque([(sx, sy, sz)])
+    q = collections.deque([(sx, sy, sz, 0)])
     while q:
-        x, y, z = q.popleft()
+        x, y, z, n = q.popleft()
+        yield x, y, z, n
         for d in range(8):
             nxt = walk.can_walk(x, y, z, d)
             if nxt is None:
@@ -73,9 +72,27 @@ def reachable(walk, start, radius: int | None = None, box=None) -> dict:
             if not (x0 <= nx <= x1 and y0 <= ny <= y1) or (nx, ny, nz) in seen:
                 continue
             seen.add((nx, ny, nz))
-            out[(nx, ny)].add(nz)
-            q.append((nx, ny, nz))
+            q.append((nx, ny, nz, n + 1))
+
+
+def reachable(walk, start, radius: int | None = None, box=None) -> dict:
+    """{(x, y): sorted zs} reachable from start (x, y, z) by the walk rules
+    without leaving the square of `radius` around start, or the inclusive
+    rectangle `box` (x0, y0, x1, y1) instead."""
+    out = collections.defaultdict(set)
+    for x, y, z, _n in _flood(walk, start, radius, box):
+        out[(x, y)].add(z)
     return {k: sorted(v) for k, v in out.items()}
+
+
+def steps(walk, start, radius: int | None = None, box=None) -> dict:
+    """{(x, y): the fewest steps from start (x, y, z) to it at any z} by the walk rules, within the
+    square of `radius` around start or `box` (reachable's bounds). Mobiles and learned denies aren't
+    walls here (the Mover's A* goes round them)."""
+    out = {}
+    for x, y, _z, n in _flood(walk, start, radius, box):
+        out.setdefault((x, y), n)
+    return out
 
 
 def _is_door(graphic, td) -> bool:

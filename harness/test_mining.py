@@ -142,7 +142,7 @@ def test_memory():
 
 
 def test_reachable_stands():
-    print("candidate stands: only the ones the walk reaches from where we stand")
+    print("candidate stands: only the ones the walk reaches from where we stand; the next by walking distance")
     import loop_mining
     import ore_nodes
     # a landing 30 tiles north of the area (center (50, 50), radius 10), a corridor down into its north half;
@@ -160,7 +160,8 @@ def test_reachable_stands():
             nx, ny = x + (0, 1, 1, 1, 0, -1, -1, -1)[d], y + (-1, -1, 0, 1, 1, 1, 0, -1)[d]
             return (nx, ny, 0) if z == 0 and (nx, ny) in open_ else None
     stands = [{"x": 45, "y": 45, "n": 1, "blocks": [[5, 5]]}, {"x": 55, "y": 57, "n": 1, "blocks": [[6, 7]]},
-              {"x": 42, "y": 58, "n": 1, "blocks": [[5, 7]]}, {"x": 47, "y": 32, "n": 1, "blocks": [[5, 4]]}]
+              {"x": 42, "y": 58, "n": 1, "blocks": [[5, 7]]}, {"x": 47, "y": 32, "n": 1, "blocks": [[5, 4]]},
+              {"x": 55, "y": 52, "n": 1, "blocks": [[6, 6]]}]
     saved = ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log
     ore_nodes.area_stands = lambda *a, **k: [dict(s) for s in stands]
     ore_nodes.exclusions = lambda facet, db: ([], [], [])
@@ -169,16 +170,27 @@ def test_reachable_stands():
     try:
         loop = object.__new__(MineLoop)
         loop.k = {"harvest": {"area": {"center": [50, 50], "radius": 10}, "stands": []}, "spot": {"id": "t"}}
-        loop.facet, loop._ore_tiles, loop.dry_blocks = 0, None, set()
+        loop.facet, loop._ore_tiles, loop.dry_blocks, loop._steps = 0, None, set(), None
         loop.args = SimpleNamespace(memory=":memory:", regrow_min=60)
         loop.memory = SimpleNamespace(mine_blocks_state=lambda facet, blocks: {})
         loop.mover = SimpleNamespace(walk_map=lambda st: Walk())
-        loop.link = SimpleNamespace(pos=lambda st: [50, 20, 0, 4])
-        got = sorted((s["x"], s["y"]) for s in loop.candidate_stands({}))
+        loop.link = SimpleNamespace(pos=lambda st: [50, 20, 0, 4], state=lambda: {})
+        cands = loop.candidate_stands({})
+        got = sorted((s["x"], s["y"]) for s in cands)
+        # from (55, 49), just north of the wall: (55, 52) is 3 tiles off but ~48 steps round by x 75; (45, 45) 10
+        loop.link.pos = lambda st: [55, 49, 0, 4]
+        loop.no_route_stands, loop.out_of_reach = set(), lambda x, y: True
+        loop.human = SimpleNamespace(rng=random.Random(7))
+        picks = {(p["x"], p["y"]) for p in (loop.next_stand(cands) for _ in range(20))}
+        loop.mover = SimpleNamespace(walk_map=lambda st: None)
+        loop._steps = None
+        no_map = {(p["x"], p["y"]) for p in (loop.next_stand(cands) for _ in range(20))}
     finally:
         ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log = saved
     check("the north half and the south half by the loop outside the area; not the pocket, not off the walk",
-          got == [(45, 45), (55, 57)], got)
+          got == [(45, 45), (55, 52), (55, 57)], got)
+    check("the next stand is the nearest on foot, not the nearest as the crow flies", picks == {(45, 45)}, picks)
+    check("without a map: Chebyshev", no_map == {(55, 52)}, no_map)
 
 
 def main():
