@@ -21,7 +21,6 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
   if (!data) return <JobsLoading job="mining" onJob={onJob} error={error} />;
   const t = data.totals;
   const legs = data.legs;
-  const carried = data.carried_now;
   const sameDay = oneLocalDay(legs.flatMap((l) => (l.t_start === null ? [] : [l.t_start])));
   const maxOre = Math.max(1, ...data.spots.map((s) => s.ore));
   const metals = t.metals ?? [];
@@ -45,7 +44,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
       />
 
       <div className="kpis">
-        {miningKpis(t, carried).map((k) => (
+        {miningKpis(t).map((k) => (
           <div key={k.key} className={`kpi kpi-${k.tone}`} title={k.hint}>
             <span className="kpi-label">{k.label}</span>
             <span className="kpi-value">{k.value}</span>
@@ -54,9 +53,9 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
         ))}
       </div>
       <div className="jobs-sub dim">
-        Field time is the dig phase less the walk out and the travel lockout (the planner's measure, mining_opt.trip_obs). Ore is smelted at the
-        spot's forge; at each trip's end the runner puts the ingots into the room's Resource Stockpile, so carried is what was left in the pack.
-        {carried && ` · ${carried.label}: ${fmtInt(carried.ingots)}${carried.t === null ? "" : ` as of ${fmtStamp(carried.t)}`}${carried.spot ? ` (${carried.spot})` : ""}.`}
+        Field time is the dig phase less the walk out and the travel lockout (the planner's measure, mining_opt.trip_obs). Active time is the legs
+        plus the gaps of up to 2 min between them. Ore is smelted at the spot's forge when the pack nears full weight and the rest in the rental room;
+        at each trip's end the runner puts the ingots into the room's Resource Stockpile.
       </div>
 
       <div className="jobs-charts">

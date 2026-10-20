@@ -505,7 +505,8 @@ def test_mining_jobs():
     # leg 1 hopped off a dry spot A: harvest 1500 s less a 60 s walk out and a 240 s lockout = 1200 s field
     leg("A", 1, 1, "hopped", "the area ran dry at 120 ore", 1000.0, 2800.0, 1500.0, 60.0, 240.0,
         120, 150, 100, 20, 2, 240, 240, dry=True)
-    leg("B", 1, 2, "stored", "", 3000.0, 6000.0, 2500.0, 100.0, None, 200, 260, 180, 20, 3, 400, 0, time_up=True,
+    # leg 2 starts 100 s after leg 1's end (the overseer's next run: active time); the other gaps are longer
+    leg("B", 1, 2, "stored", "", 2900.0, 6000.0, 2500.0, 100.0, None, 200, 260, 180, 20, 3, 400, 0, time_up=True,
         stored=640, stockpiled=640)
     # leg 3 at local 23:40 of day 1, aborted by a threat (300 s field); leg 4 at local 00:10 of day 2
     leg("A", 2, 1, "aborted", "threat: PK in view", DAY - tz - 1200, DAY - tz - 700, 400.0, 0.0, 100.0,
@@ -557,9 +558,10 @@ def test_mining_jobs():
           and (sp["A"]["legs"], sp["A"]["ore"], sp["A"]["ore_per_hour"], sp["A"]["dry"], sp["A"]["last_t"])
           == (2, 150, 360.0, 1, DAY - tz - 700)
           and (sp["B"]["ingots_stored"], sp["A"]["ingots_stored"]) == (1630, 0), str(a["spots"]))
-    check("carried now: the newest leg's carried_end.ingots (what the stockpile left)",
-          a["carried_now"] == {"ingots": 10, "t": DAY - tz + 2400, "spot": "B", "label": "ingots carried"},
-          str(a["carried_now"]))
+    check("active time: the legs (1800 + 3100 + 500 + 1800 s) and the 100 s gap before leg 2, not the longer ones; "
+          "gold stored per active hour",
+          (t["active_s"], t["gp_per_active_hour"]) == (7300.0, round(39800 * 3600 / 7300, 2)),
+          str((t["active_s"], t["gp_per_active_hour"])))
     check("leg rows: outcome, why, dry/time_up, stand/smelt events counted in leg 1; timeline without them",
           [(r["outcome"], r["dry"], r["time_up"]) for r in a["legs"]]
           == [("hopped", True, False), ("stored", False, True), ("aborted", False, False), ("stored", False, False)]
@@ -595,11 +597,13 @@ def test_mining_jobs():
                           {"name": "valorite", "made": 60, "stored": 90, "made_gp": None, "stored_gp": None,
                            "price_gp": None, "price_t": None, "price_source": None}], str(t["metals"]))
     upto = jobs.analytics(m, "mining", 0, DAY - tz, utc_offset_s=tz)
-    check("until local midnight: legs 1-3, carried now = leg 3's 640",
-          (upto["totals"]["legs"], upto["carried_now"]["ingots"]) == (3, 640), str(upto["totals"]["legs"]))
+    check("until local midnight: legs 1-3, 5500 s active, 12800 gp stored over it",
+          (upto["totals"]["legs"], upto["totals"]["active_s"], upto["totals"]["gp_per_active_hour"])
+          == (3, 5500.0, round(12800 * 3600 / 5500, 2)), str(upto["totals"]))
     empty = jobs.analytics(None, "mining", 0)
-    check("no store: zeros and nulls, no carried ingots, no division errors",
-          empty["legs"] == [] and empty["days"] == [] and empty["spots"] == [] and empty["carried_now"] is None
+    check("no store: zeros and nulls, no active time, no division errors",
+          empty["legs"] == [] and empty["days"] == [] and empty["spots"] == []
+          and empty["totals"]["active_s"] == 0 and empty["totals"]["gp_per_active_hour"] is None
           and empty["totals"]["ore"] == 0 and empty["totals"]["ore_per_hour"] is None
           and empty["totals"]["success_rate"] is None and empty["totals"]["first_t"] is None
           and empty["totals"]["value_gp"] is None and empty["totals"]["gp_per_field_hour"] is None
@@ -824,8 +828,8 @@ def test_overseer_routes(logdir):
               hb["store"] is False and hb["job"] == "hunt" and hb["visits"] == [] and hb["totals"]["kills"] == 0,
               str(hb.get("totals")))
         mb = get(base + "/api/jobs?job=mining")
-        check("no store: /api/jobs?job=mining is the mining shape, empty, nothing carried, store=false",
-              mb["store"] is False and mb["job"] == "mining" and mb["legs"] == [] and mb["carried_now"] is None
+        check("no store: /api/jobs?job=mining is the mining shape, empty, no active time, store=false",
+              mb["store"] is False and mb["job"] == "mining" and mb["legs"] == [] and mb["totals"]["active_s"] == 0
               and mb["totals"]["ore"] == 0, str(mb.get("totals")))
         check("no store: /api/overseer empty, heartbeat null", ov["store"] is False and ov["chat"] == []
               and ov["open"] == 0 and ov["heartbeat"] is None)

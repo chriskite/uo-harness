@@ -916,8 +916,8 @@ export function huntKpis(t: HuntTotals): Kpi[] {
 // ------------------------------------------------------------------ mining job
 // /api/jobs?job=mining (harness/jobs.py compute_mining). One row per leg of loop_mining; field
 // time is mining_opt.trip_obs's (harvest phase less the walk out and the lockout). At each trip's
-// end the runner drops the ingots into the room's Resource Stockpile (ingots_stored); the newest
-// leg's carried_end is what was still in the pack (after a hop or abort, or what the stockpile left).
+// end the runner drops the ingots into the room's Resource Stockpile (ingots_stored). Active time is
+// the legs' own time plus the short gaps between them (the overseer starting the next run).
 // Gold: each leg's ingots per metal at the store's newest ingot:<metal> price at or before the leg's
 // end (the first row before it); a metal with no row is unpriced, never guessed.
 
@@ -974,6 +974,10 @@ export interface MiningTotals extends MiningAgg {
   last_t: number | null;
   /** per metal, most made first; absent from viz servers older than 2026-10-20 */
   metals?: MetalRow[];
+  /** the legs' time plus the gaps between them of at most 2 min (jobs.ACTIVE_GAP_S): breaks, stops and a death's downtime left out */
+  active_s: number;
+  /** value_gp (the ingots stored) per active hour; null when nothing stored could be priced */
+  gp_per_active_hour: number | null;
 }
 
 export interface MiningDay extends MiningAgg {
@@ -1027,13 +1031,6 @@ export interface MiningLeg {
   events: Record<string, number>;
 }
 
-export interface CarriedNow {
-  ingots: number;
-  t: number | null;
-  spot: string | null;
-  label: string;
-}
-
 /** The stand and smelt events after the newest leg's end: the leg in progress while a run is going. */
 export interface OpenLeg {
   /** the newest leg's t_end; null with no leg */
@@ -1055,8 +1052,6 @@ export interface MiningResponse {
   totals: MiningTotals;
   days: MiningDay[];
   spots: MiningSpot[];
-  /** the newest leg's carried_end.ingots in the range; null with no leg that records it */
-  carried_now: CarriedNow | null;
   /** absent from viz servers older than 2026-10-20 */
   open_leg?: OpenLeg;
   /** job events except the per-stand ones (stand, smelt) */
@@ -1080,8 +1075,9 @@ export function fmtIngotPrice(m: Pick<MetalRow, "price_gp" | "price_t" | "price_
 }
 
 /** The mining KPI tile row, in display order. */
-export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
+export function miningKpis(t: MiningTotals): Kpi[] {
   const hours = fmtHours(t.field_s);
+  const active = fmtHours(t.active_s);
   return [
     { key: "ore", label: "ore dug", value: fmtInt(t.ore), sub: `${fmtInt(t.successes)} digs landed · ${fmtInt(t.doubles)} doubles`, tone: "info", hint: "Ore dug over the legs in the range (a double gives 2)." },
     { key: "ingots", label: "ingots made", value: fmtInt(t.ingots_made), sub: `${t.smelts} smelt${t.smelts === 1 ? "" : "s"}`, tone: "info", hint: "Ingots the field smelts made at the spots' forges." },
@@ -1095,14 +1091,14 @@ export function miningKpis(t: MiningTotals, carried: CarriedNow | null): Kpi[] {
       key: "gph", label: "gold / field hr", value: fmtGp(t.gp_per_field_hour), sub: t.made_unpriced_ingots > 0 ? `${fmtInt(t.made_unpriced_ingots)} made unpriced` : `${fmtGp(t.made_value_gp)} made`, tone: "info",
       hint: "The ingots made, at each leg's ingot prices, per field hour (over the legs with field time): the production rate in gold.",
     },
+    {
+      key: "gpa", label: "gold / active hr", value: fmtGp(t.gp_per_active_hour), sub: `over ${active.value} active`, tone: "info",
+      hint: "The ingots stored, at each leg's prices, per active hour: the legs' own time plus the gaps of up to 2 min between them (the overseer starting the next run). Breaks, stops and a death's downtime are left out; a load lost to a death or a thief never reaches the stockpile, so it shows here. Supplies (a few hundred gp a day) aren't subtracted.",
+    },
     { key: "field", label: "field hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of the legs' field time." },
     {
       key: "rate", label: "digs land", value: t.success_rate === null ? "—" : `${Math.round(t.success_rate * 100)}%`, sub: `${fmtInt(t.attempts)} digs`, tone: "dim",
       hint: "Successful digs over all counted digs (success + fail; busy and lockout replies don't count).",
-    },
-    {
-      key: "carried", label: "ingots carried", value: carried ? fmtInt(carried.ingots) : "—", sub: "in the pack at the last leg's end", tone: carried ? "info" : "dim",
-      hint: "Ingots still in the pack (the trapped pouch) when the newest leg ended: a trip's ingots go into the room's Resource Stockpile at home; these are what a hop or abort brought home or the stockpile left. A death loses them.",
     },
     {
       key: "legs", label: "legs", value: String(t.legs), sub: `${t.hopped} hopped · ${t.aborted} aborted`, tone: "dim",

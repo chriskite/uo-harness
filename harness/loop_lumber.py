@@ -2151,8 +2151,13 @@ class LumberLoop:
                 here = tuple(self.link.pos(st)[:2])
                 after = where(st)
                 every = after + [xy for xy in hostiles(st) if xy not in after]
-                # away from them all, else (none such a tile: a crowd on every side) from the ones after us
-                for goal in self.escape_tiles(st, every) or self.escape_tiles(st, after):
+                # away from them all first; then away from the ones after us (a crowd on every side leaves no tile
+                # clear of them all, or none with a route)
+                goals = self.escape_tiles(st, every)
+                if len(every) > len(after):
+                    goals += [g for g in self.escape_tiles(st, after) if g not in goals]
+                failed = []
+                for goal in goals:
                     # bounded like an escape route: an unbounded search stood us still for 8 s while a
                     # snow elemental took 72 hits (live 2026-10-06 witcher_23), then offered 161 steps
                     max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))
@@ -2164,7 +2169,10 @@ class LumberLoop:
                         if "no route" not in str(x) and "detour" not in str(x):
                             log(f"out of reach: {str(x).split(': ', 1)[-1]}; recalling from here")
                             return True
+                        failed.append(f"{goal}: {str(x).split(': ', 1)[-1]}")
                 if self.mover.steps == before:          # nowhere to go from here
+                    log(f"out of reach: no way out from {here} ({len(goals)} goal(s)"
+                        + (f", e.g. {failed[0]}" if failed else "") + ")")
                     break
                 st = self.link.state()
         finally:

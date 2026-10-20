@@ -740,7 +740,9 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
 
 # ------------------------------------------------------------------ mining
 MINING_PER_STAND_KINDS = ("stand", "smelt")   # folded into the legs' figures, not the timeline
-CARRIED_LABEL = "ingots carried"
+# A gap between two legs this short is the overseer starting the next run (11-86 s live on 2026-10-20) and counts as
+# active time; a break, a stop or a death's downtime is longer and doesn't
+ACTIVE_GAP_S = 120.0
 DEFAULT_METAL = "iron"   # what a leg row without ingots_by_metal / stored_by_metal counts as
 
 
@@ -783,6 +785,21 @@ def _mine_finish(agg):
     agg["gp_per_field_hour"] = _rate(timed_gp, agg["field_s"]) if agg["made_value_gp"] is not None else None
     agg["success_rate"] = _ratio(agg["successes"], agg["attempts"])
     return agg
+
+
+def _active_s(legs) -> float:
+    """The job's active time over `legs`: the legs' own time (t_start to t_end) plus each gap between one leg's
+    end and the next one's start of at most ACTIVE_GAP_S. Overlaps count once."""
+    total, prev = 0.0, None
+    for a, b in sorted((leg["t_start"], leg["t_end"]) for leg in legs
+                       if leg["t_start"] is not None and leg["t_end"] is not None):
+        if prev is not None:
+            if 0 < a - prev <= ACTIVE_GAP_S:
+                total += a - prev
+            a = max(a, prev)
+        total += max(0.0, b - a)
+        prev = b if prev is None else max(prev, b)
+    return total
 
 
 def _metals(row, by_key, total_key) -> dict:
@@ -849,10 +866,8 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
     of the rates. Deaths and sent-home threats are trip_obs's too, read off each leg's why and the
     `death` events among `events` (a death within a leg or DEATH_SLACK_S after it).
     At each trip's end the runner drops the ingots into the room's Resource Stockpile (its Restock
-    with the backpack), recorded as the leg's `stockpiled` (`ingots_stored`; 0 when absent). So
-    `carried_now` is the newest leg's carried_end.ingots: what was still in the pack when it ended
-    (after a hop or abort, or what the stockpile didn't take). Stand and smelt events count per
-    leg; the rest are the timeline. `open_leg` sums the stand and smelt events after the newest
+    with the backpack), recorded as the leg's `stockpiled` (`ingots_stored`; 0 when absent). Stand and smelt
+    events count per leg; the rest are the timeline. `open_leg` sums the stand and smelt events after the newest
     leg's end: the leg in progress while a run is going (its row is written when it ends).
 
     Gold: `ingots` is price_series(..., "ingot:") of the store's price history. Each leg values its
@@ -861,9 +876,10 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
     end (t_start when it has none; before the first row the first row): `value_gp` the ingots
     stored, `made_value_gp` the ingots made, null when nothing could be priced. Metals without
     any row are never guessed: counted in `value_unpriced_ingots` (stored) and
-    `made_unpriced_ingots`. `gp_per_field_hour` is the made value over field time. totals.metals:
-    per metal the ingots made and stored, the price now (newest row) and the gp at the legs' own
-    prices."""
+    `made_unpriced_ingots`. `gp_per_field_hour` is the made value over field time. totals.active_s is the
+    job's active time (_active_s: the legs and the short gaps between them) and `gp_per_active_hour` the
+    stored value over it (what reached the stockpile: a lost load never does). totals.metals: per metal the
+    ingots made and stored, the price now (newest row) and the gp at the legs' own prices."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
@@ -892,11 +908,13 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
                 break
     _mine_finish(totals)
     totals["stands"] = stands
+    totals["active_s"] = round(_active_s(legs), 1)
+    totals["gp_per_active_hour"] = (_rate(totals["value_gp"], totals["active_s"])
+                                    if totals["value_gp"] is not None else None)
     stamps = [t for leg in legs for t in (leg["t_start"], leg["t_end"]) if t is not None] + [e["t"] for e in evs]
     totals["first_t"] = min(stamps) if stamps else None
     totals["last_t"] = max(stamps) if stamps else None
     totals["metals"] = _metal_rows(legs, ingots)
-    carried = next((leg for leg in reversed(legs) if leg["ingots_carried"] is not None), None)
     last_end = max((t for leg in legs if (t := _num(leg["t_end"], None)) is not None), default=None)
     tail = [e for e in evs if e["kind"] in MINING_PER_STAND_KINDS and (last_end is None or e["t"] > last_end)]
     smelted = [e["data"] for e in tail if e["kind"] == "smelt" and e["data"].get("ok") is not False]
@@ -907,9 +925,6 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
         "days": [{"day": d, **_mine_finish(a)} for d, a in sorted(days.items())],
         "spots": [{"spot": sid, **_mine_finish(a)}
                   for sid, a in sorted(spots.items(), key=lambda kv: (-kv[1]["ore"], kv[0]))],
-        "carried_now": None if carried is None else {
-            "ingots": carried["ingots_carried"], "t": carried["t_end"] if carried["t_end"] is not None else carried["t_start"],
-            "spot": carried["spot"], "label": CARRIED_LABEL},
         "open_leg": {"since": last_end, "stands": sum(e["kind"] == "stand" for e in tail),
                      "smelts": len(smelted), "ingots_made": int(sum(_num(d.get("ingots")) for d in smelted))},
         "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
@@ -992,7 +1007,7 @@ def main(argv=None):
         out = analytics(m, a.job, a.since, a.until, utc_offset_s=time.localtime().tm_gmtoff)
     finally:
         m.close()
-    keys = {"hunt": ("totals", "days", "monsters"), "mining": ("totals", "days", "spots", "carried_now")}.get(
+    keys = {"hunt": ("totals", "days", "monsters"), "mining": ("totals", "days", "spots")}.get(
         a.job, ("totals", "days", "harvest"))
     print(json.dumps({k: out[k] for k in keys}, indent=1))
     return 0

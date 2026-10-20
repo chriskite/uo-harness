@@ -223,16 +223,14 @@ function miningTotals(p: Partial<MiningTotals> = {}): MiningTotals {
     legs: 0, stored: 0, hopped: 0, aborted: 0, field_s: 0, field_hours: 0, ore: 0, ingots_made: 0, ingots_stored: 0, attempts: 0,
     successes: 0, doubles: 0, smelts: 0, dry: 0, deaths: 0, sent_home: 0, ore_per_hour: null, success_rate: null,
     value_gp: null, made_value_gp: null, value_unpriced_ingots: 0, made_unpriced_ingots: 0, gp_per_field_hour: null,
-    stands: 0, first_t: null, last_t: null, ...p,
+    stands: 0, first_t: null, last_t: null, active_s: 0, gp_per_active_hour: null, ...p,
   };
 }
 
 describe("miningKpis / legEnd", () => {
-  test("ore, ingots, ore per field hour, field hours, dig success and the carried ingots", () => {
+  test("ore, ingots, ore per field hour, gold per field and active hour, field hours, dig success", () => {
     const by = Object.fromEntries(
-      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, ingots_stored: 1630, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1, value_gp: 39800, made_value_gp: 21800, value_unpriced_ingots: 90, made_unpriced_ingots: 60, gp_per_field_hour: 13768.42 }), {
-        ingots: 1000, t: 81600, spot: "B", label: "ingots carried",
-      }).map((x) => [x.key, x]),
+      miningKpis(miningTotals({ legs: 4, stored: 2, hopped: 1, aborted: 1, ore: 500, ingots_made: 1000, ingots_stored: 1630, smelts: 6, field_s: 5700, ore_per_hour: 315.79, attempts: 650, successes: 435, doubles: 60, success_rate: 0.67, sent_home: 1, value_gp: 39800, made_value_gp: 21800, value_unpriced_ingots: 90, made_unpriced_ingots: 60, gp_per_field_hour: 13768.42, active_s: 7300, gp_per_active_hour: 19627.4 })).map((x) => [x.key, x]),
     );
     expect([by.ore!.value, by.ore!.sub]).toEqual(["500", "435 digs landed · 60 doubles"]);
     expect([by.ingots!.value, by.ingots!.sub]).toEqual(["1,000", "6 smelts"]);
@@ -240,15 +238,16 @@ describe("miningKpis / legEnd", () => {
     expect(by.oph!.value).toBe("316");
     expect([by.field!.value, by.field!.sub]).toEqual(["1.58 h", "1h 35m"]);
     expect([by.rate!.value, by.rate!.sub]).toEqual(["67%", "650 digs"]);
-    expect([by.carried!.value, by.carried!.tone]).toEqual(["1,000", "info"]);
+    expect([by.gpa!.value, by.gpa!.sub]).toEqual(["19,627 gp", "over 2.03 h active"]);
+    expect(by.carried).toBeUndefined();
     expect([by.legs!.sub, by.threats!.value, by.threats!.tone]).toEqual(["1 hopped · 1 aborted", "0 · 1", "warn"]);
     expect([by.gold!.value, by.gold!.sub]).toEqual(["39,800 gp", "90 ingots unpriced"]);
     expect([by.gph!.value, by.gph!.sub]).toEqual(["13,768 gp", "60 made unpriced"]);
-    expect(Object.keys(by).slice(0, 6)).toEqual(["ore", "ingots", "stored", "gold", "oph", "gph"]);
+    expect(Object.keys(by).slice(0, 7)).toEqual(["ore", "ingots", "stored", "gold", "oph", "gph", "gpa"]);
   });
-  test("empty range: dashes for rates and the carried ingots, safety tile ok", () => {
-    const by = Object.fromEntries(miningKpis(miningTotals(), null).map((x) => [x.key, x]));
-    expect([by.ore!.value, by.oph!.value, by.rate!.value, by.carried!.value, by.carried!.tone]).toEqual(["0", "—", "—", "—", "dim"]);
+  test("empty range: dashes for rates, safety tile ok", () => {
+    const by = Object.fromEntries(miningKpis(miningTotals()).map((x) => [x.key, x]));
+    expect([by.ore!.value, by.oph!.value, by.rate!.value, by.gpa!.value]).toEqual(["0", "—", "—", "—"]);
     expect([by.ingots!.sub, by.threats!.tone]).toEqual(["0 smelts", "ok"]);
     expect([by.gold!.value, by.gold!.sub, by.gph!.value, by.gph!.sub]).toEqual(["—", "at each leg's prices", "—", "— made"]);
   });
