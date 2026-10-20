@@ -81,6 +81,7 @@ class SimLink:
             self.intents.append((self.clock.time(), kind, text))
 
     # the proxy-independent helpers, as Link has them
+    save_t0 = None               # Link.wait's world-save state (the sim has no world saves)
     wait = agent_link.Link.wait
     pos = agent_link.Link.pos
     open_containers = agent_link.Link.open_containers

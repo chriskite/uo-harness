@@ -38,6 +38,10 @@ RESTART_H = 0.1          # hours a threat that sends us home costs (recall, room
 DEATH_H = 0.5            # hours a death costs besides the carried ingots (recovery, re-equipping)
 DRAWS = 2000             # Thompson draws for P(best)
 STINT_MIN = 60           # field minutes one run should dig (the runner's --field-min)
+# Storing first between two spots costs a stop in the rental room and a new run: the house steward and back out,
+# the stockpile's and the shelf's Restock and Resupply (live 2026-10-20 11:47:34-49: 7 s to the room, 8 s storing;
+# ~10 s out, lumber_opt ROOM_EXIT_S), then the overseer's plan and the next run's start [INFERENCE: ~30 s]
+STORE_FIRST_S = 60.0
 
 
 # ------------------------------------------------------------------ spots
@@ -184,9 +188,10 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
         args = ["--spot", sid, "--trips", "1", "--field-min", f"{stint_min:g}",
                 "--timeout", str(int(stint_min * 60 * 1.5 + 900))]
         landing = next(r["landing"] for r in rows if r["id"] == sid)
+        died = models[sid]["haz"]["died"]
         return {"spot": sid, "p_best": round(wins[sid] / draws, 3), "landing": landing,
-                "expected_ore_h": round(models[sid]["score"]), "field_min": stint_min, "args": args,
-                "command": "ctl run mining " + " ".join(args)}
+                "expected_ore_h": round(models[sid]["score"]), "death_h": round(died[0] / died[1], 4),
+                "field_min": stint_min, "args": args, "command": "ctl run mining " + " ".join(args)}
     if exploit:
         pick, chosen_by = greedy, "greedy (--exploit)"
     else:
@@ -194,6 +199,22 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
     out["pick"] = {**run(pick), "mode": "exploit" if pick == greedy else "explore", "chosen_by": chosen_by}
     out["greedy"] = run(greedy)
     return out
+
+
+def hop_choice(run: dict, carried_ore: float, leg_h: float) -> tuple[bool, dict]:
+    """Home after a leg that ended early with a load: carry it on to `run`'s spot (plan's pick) or store it
+    first in the rental room, as the lumber runner decides for its logs (user 2026-10-20: "the same way we store
+    boards ... when we head home and we have enough ingots that it's too risky to carry them back into the
+    field, we store them"; lumber_opt.hop_choice). Both ways the next leg is the same; they differ by the load
+    at risk and the room's time. A hop risks the load (`carried_ore`: ingots / 2 plus raw ore, in ore) to a
+    death on the way in (LOCKOUT_S) and in the leg (`leg_h`, the trip's field time left) at the spot's death
+    hazard (posterior mean `death_h`); storing first costs STORE_FIRST_S at its rate (`expected_ore_h`).
+    Returns (hop?, the terms)."""
+    p = -math.expm1(-run["death_h"] * (max(0.0, leg_h) + lumber_opt.LOCKOUT_S / 3600.0))
+    risk = carried_ore * p
+    cost = run["expected_ore_h"] * STORE_FIRST_S / 3600.0
+    return risk <= cost, {"carried_ore": round(carried_ore), "p_death": round(p, 4), "risk_ore": round(risk, 1),
+                          "store_cost_ore": round(cost, 1)}
 
 
 def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_min: float = STINT_MIN, seed=None,

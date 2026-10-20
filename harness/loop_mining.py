@@ -302,7 +302,9 @@ class MineLoop(loop_lumber.LumberLoop):
 
     def try_hop(self, reason: str, timed, recall: bool) -> dict | None:
         """The leg ended early (`reason`): home, then on to the spot mining_opt picks (greedy, this one
-        excluded) with the ingots carried; None: the room as before. A `hop` job event either way."""
+        excluded) with the ingots carried, unless storing them first is worth more (mining_opt.hop_choice: the
+        load at risk in the next leg against the room's time; user 2026-10-20, as lumber stores its boards);
+        None: the room as before (the ingots into the stockpile, the trip over). A `hop` job event either way."""
         st = self.link.state()
         here = self.k["spot"]["id"]
         why_not = self.hop_blocked(st)
@@ -330,15 +332,23 @@ class MineLoop(loop_lumber.LumberLoop):
         st = self.link.state()
         pick = out.get("pick")
         why_not = self.hop_blocked(st) or (None if pick else out.get("error"))
+        risk = None
+        if why_not is None:
+            leg_h = max(0.0, self.args.field_min * 60 - self.trip_field_s) / 3600.0
+            go, risk = mining_opt.hop_choice(pick, self.count(st, INGOTS) / 2 + self.count(st, ORE), leg_h)
+            if not go:
+                why_not = (f"storing the {ingots} ingots first is worth more (a hop to {pick['spot']} risks "
+                           f"{risk['risk_ore']} ore, the room costs {risk['store_cost_ore']})")
         if why_not is not None:
             self.memory.job_event(self.JOB, "hop", {"trip": self.trip_n, "from": here, "reason": reason,
-                                                    "why_not": why_not}, **self._where(st))
+                                                    "why_not": why_not, "risk": risk}, **self._where(st))
             log(f"no hop ({reason}): {why_not}")
             return None
         self.settle_at_home()
         self.memory.job_event(self.JOB, "hop", {"trip": self.trip_n, "from": here, "reason": reason, "carried": ingots,
-                                                "hop": pick}, **self._where(st))
-        log(f"hop ({reason}): on to {pick['spot']} with {ingots} ingots")
+                                                "hop": pick, "risk": risk}, **self._where(st))
+        log(f"hop ({reason}): on to {pick['spot']} with {ingots} ingots (risks {risk['risk_ore']} ore; the room "
+            f"would cost {risk['store_cost_ore']})")
         return {"spot": pick["spot"], "why": reason, "carried": ingots, "mode": "exploit",
                 "logs_per_trip": None, "gain_logs": None}
 

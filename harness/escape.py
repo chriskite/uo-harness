@@ -46,7 +46,7 @@ import time
 import actions
 import combat
 import uomap
-from agent_link import cheb, serial_of
+from agent_link import Deadline, cheb, serial_of
 
 RUNEBOOK_GUMP = 0x5C7DB029
 RUNETOME_GUMP = 0x09F5976B
@@ -495,24 +495,32 @@ class LinkIO:
         self.cursor = len(self.link.events)
         return st, new
 
+    @property
+    def save_t0(self):
+        """The world save under way (agent_link.Link.save_t0), for Deadline."""
+        return self.link.save_t0
+
 
 def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) -> dict:
     """Double-click the book; the gump_open event of its gump (layout, lines, serial).
     A double-click right after another action is ignored by the server (seen live:
     the escape's click 0.3 s after the readiness check's), so one more after
-    RECLICK_S without a gump. "This book needs time to recharge." raises BookRecharging."""
+    RECLICK_S without a gump. "This book needs time to recharge." raises BookRecharging.
+    A world save doesn't use up the wait (agent_link.Deadline; the server answers after it)."""
     io.poll()
     io.send(actions.dclick(book))
     t0 = time.monotonic()
+    deadline = Deadline(timeout, getattr(io, "save_t0", None))
     reclicked = False
-    while time.monotonic() - t0 < timeout:
+    while not deadline.over():
         _, evs = io.poll()
+        deadline.see(evs)
         for ev in evs:
             if ev.get("ev") == "gump_open" and serial_of(ev["gump_id"]) == gump_id:
                 return ev
             if failure(ev, me) == "recharging":
                 raise BookRecharging(f"the book 0x{book:08X} needs time to recharge")
-        if not reclicked and time.monotonic() - t0 > RECLICK_S:
+        if not reclicked and not deadline.saving and time.monotonic() - t0 > RECLICK_S:
             io.send(actions.dclick(book))
             reclicked = True
         time.sleep(0.03)

@@ -118,6 +118,52 @@ FLOOR_SPAN = 22
 MOONGATE_GRAPHICS = frozenset([*range(0x0DDA, 0x0DDF), *range(0x0F6C, 0x0F71)])
 GATE_GUMP_WAIT_S = 1.0       # after landing on a gate, how long to look for its gump
 CAPTCHA_GUMP_ID = 0x00000001  # never closed here (ANTICHEAT.md §8.8)
+# A world save (every ~15 min live: "The world is saving, please wait." ... "World save complete. ...") stops the
+# server for 2-4 s; it answers what came in meanwhile only afterwards. A wait's deadline doesn't run during one
+# (Deadline), at most WORLD_SAVE_MAX_S past its start line in case the end line is missed.
+WORLD_SAVE_MAX_S = 15.0
+
+
+def world_save(ev: dict) -> str | None:
+    """'start' / 'done' for the server's world save lines, else None."""
+    if ev.get("ev") != "speech_heard":
+        return None
+    text = (ev.get("text") or "").strip()
+    if text.startswith("The world is saving"):
+        return "start"
+    if text.startswith("World save complete"):
+        return "done"
+    return None
+
+
+class Deadline:
+    """A wait's deadline that a world save doesn't use up: `see` the new events, then `over()`. While a save is
+    under way (its start line seen, not its end; `save_t0`: the monotonic time a save began before the wait, e.g.
+    Link.save_t0) the wait goes on, for at most WORLD_SAVE_MAX_S; its end adds the save's length to the deadline.
+    Live 2026-10-20 11:58:04-07 (mining-20261020-114825-eee6): a rune library tome's double-clicks went out 0.6 s
+    into a save, its gump came 0.1 s after "World save complete", and the 2.5 s wait had already given up ("the
+    book's gump didn't open"): the run aborted."""
+
+    def __init__(self, timeout: float, save_t0: float | None = None):
+        self.end = time.monotonic() + timeout
+        self.save_t0 = save_t0
+
+    def see(self, evs):
+        for ev in evs:
+            kind = world_save(ev)
+            if kind == "start" and self.save_t0 is None:
+                self.save_t0 = time.monotonic()
+            elif kind == "done" and self.save_t0 is not None:
+                self.end += time.monotonic() - self.save_t0
+                self.save_t0 = None
+
+    @property
+    def saving(self) -> bool:
+        return self.save_t0 is not None and time.monotonic() - self.save_t0 < WORLD_SAVE_MAX_S
+
+    def over(self) -> bool:
+        return not self.saving and time.monotonic() > self.end + (WORLD_SAVE_MAX_S if self.save_t0 else 0.0)
+
 
 
 def reach_z(obj_z: int, obj_height: int):
@@ -337,6 +383,7 @@ class Link:
         self.event_t = []            # each event's time (envelope t), parallel to events
         self.last = None
         self.end_on_pause = False    # the agent gate paused (the user took over): raise GatePaused, don't wait
+        self.save_t0 = None          # monotonic start of the world save under way (its end line not seen yet)
 
     def _req(self, req: dict) -> bytes:
         if self.char:
@@ -392,6 +439,12 @@ class Link:
             raise GatePaused("the agent gate was paused (the user took over)")
         world = [env for env in resp["events"] if env["origin"] == "world"]
         self.events.extend(env["data"] for env in world)
+        for env in world:
+            kind = world_save(env["data"])
+            if kind == "start":
+                self.save_t0 = time.monotonic()
+            elif kind == "done":
+                self.save_t0 = None
         self.event_t.extend(env.get("t", 0.0) for env in world)
         self.since = resp["next"]
         return resp
@@ -439,14 +492,16 @@ class Link:
         log("intent not shown: the proxy dropped the state connection")
 
     def wait(self, pred, timeout: float, poll: float = 0.05, full: bool = True):
-        """Poll until pred(state) holds; None on timeout. full=False polls
-        `movement()` (pred may only read `movement` and the events)."""
-        end = time.monotonic() + timeout
+        """Poll until pred(state) holds; None on timeout (a world save doesn't count: Deadline). full=False
+        polls `movement()` (pred may only read `movement` and the events)."""
+        deadline, mark = Deadline(timeout, self.save_t0), len(self.events)
         while True:
             st = self.state() if full else self.movement()
             if pred(st):
                 return st
-            if time.monotonic() > end:
+            deadline.see(self.events[mark:])
+            mark = len(self.events)
+            if deadline.over():
                 return None
             time.sleep(poll)
 

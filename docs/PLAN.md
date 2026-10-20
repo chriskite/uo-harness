@@ -1962,6 +1962,23 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
     as lumber's convert does.
   - A death now loses only the trip's ingots, not every trip's. The planner's death charge (half a stint of ore)
     is unchanged.
+- *Store the ingots the way lumber stores its boards* (user 2026-10-20: "if we hop from spot to spot we don't go
+  back to the inn room to store them, but when a trip ends or we head home and we have enough ingots that it's too
+  risky to carry them back into the field, we store them in the stockpile. And when the overseer ends a run we store
+  them then as well").
+  - A trip's end, an abort's way home and `stop --after-trip` all end in the room, where the ingots are stored.
+  - A leg cut short (dry, a threat's recall, every stand in a creature's reach) is home at the landing. There
+    `mining_opt.hop_choice` weighs the load against the room's time:
+    - hop: the carried load (ingots / 2 + raw ore, in ore) × P(death) on the way in (`LOCKOUT_S`) and over the
+      trip's field time left, at the next spot's posterior death hazard;
+    - store first: `STORE_FIRST_S` (60 s: the room and a new run) at the spot's expected ore/h.
+  - The runner hops when the risk is no more than the room's cost. Otherwise the leg goes into the room, stores,
+    and the trip ends there.
+  - This is lumber's comparison (`lumber_opt.hop_choice`: the load at risk vs the room's time) without its trip-size
+    terms, since a mining trip is sized by field time.
+  - On the store as of 2026-10-20 noon (pooled death hazard ~0.2/h with no mining death yet; ~530 ore/h), a hop
+    takes fewer than ~140 ingots with 40 field minutes left and fewer than ~500 with 10. As deaths stay at zero
+    over more field hours, the hazard falls and hops take more.
 - *Smelt only near full weight or before leaving the spot* (user 2026-10-19: "just before we get full on weight or
   leave the spot"). Triggers:
   - 40 stones free;

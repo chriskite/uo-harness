@@ -573,12 +573,56 @@ def test_no_recall_in_dungeon():
           out["beside a gold gate"][0] == "ok" and out["Cambria"][0] == "ok", out)
 
 
+def test_open_through_world_save():
+    """Live 2026-10-20 11:58:04-07: a world save began 0.6 s before a rune library tome's double-click; the gump
+    came 0.1 s after "World save complete", 2.5 s later, and _open had given up."""
+    import time
+
+    class IO:
+        save_t0 = None
+
+        def __init__(self, started):
+            self.t0, self.sent, self.started = None, [], started
+
+        def send(self, pkt):
+            self.sent.append(pkt)
+            self.t0 = self.t0 or time.monotonic()
+
+        def poll(self):
+            if self.t0 is None:
+                return {}, []
+            dt = time.monotonic() - self.t0
+            if self.started is not None and dt < 0.05 and not getattr(self, "said", False):
+                self.said = True
+                return {}, [{"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": self.started}]
+            if dt > 0.6 and not getattr(self, "done", False):
+                self.done = True
+                return {}, [{"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": "World save complete. The entire "
+                             "process took 2.2 seconds."}, {"ev": "gump_open", "gump_id": "0x1234"}]
+            return {}, []
+    io = IO("The world is saving, please wait.")
+    got = escape._open(io, 0x40000001, 0x1234, ME, timeout=0.3)
+    check("a save under way: the wait outlasts its timeout, the gump that comes after the save is taken, and no "
+          "re-click goes out during the save", got.get("gump_id") == "0x1234" and len(io.sent) == 1, (got, io.sent))
+    io = IO(None)
+    io.save_t0 = time.monotonic() - 0.6               # the save began before the wait (Link.save_t0)
+    got = escape._open(io, 0x40000001, 0x1234, ME, timeout=0.3)
+    check("a save that began before the double-click (Link.save_t0): the same", got.get("gump_id") == "0x1234", got)
+    io = IO(None)
+    try:
+        escape._open(io, 0x40000001, 0x1234, ME, timeout=0.3)
+        check("no save: the 0.3 s timeout holds", False)
+    except escape.RecallError:
+        check("no save: the 0.3 s timeout holds (the gump at 0.6 s is too late)", True)
+
+
 if __name__ == "__main__":
     for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
               test_recharging_book,
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
-              test_escape_stops, test_escape_late_arrival, test_escape_between, test_no_recall_in_dungeon):
+              test_escape_stops, test_escape_late_arrival, test_escape_between, test_no_recall_in_dungeon,
+              test_open_through_world_save):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")

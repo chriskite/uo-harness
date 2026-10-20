@@ -115,6 +115,19 @@ def test_plan():
           and out["retry_in_min"] == 20 and "the first one ready: hot in 20 min" in out["error"], out)
 
 
+def test_hop_choice():
+    print("home after a leg cut short: carry the ingots on or store them first (user 2026-10-20)")
+    run = {"spot": "B", "expected_ore_h": 1200, "death_h": 0.1}    # the room: 20 ore of time
+    light, _ = mining_opt.hop_choice(run, 50, 0.5)          # 100 ingots, half an hour of the trip left
+    heavy, terms = mining_opt.hop_choice(run, 600, 0.5)     # 1200 ingots
+    check("a light load hops on; a heavy one is stored first (risk above the room's cost)",
+          light and not heavy and terms["risk_ore"] > terms["store_cost_ore"], terms)
+    late, _ = mining_opt.hop_choice(run, 600, 0.0)
+    deadly, _ = mining_opt.hop_choice({**run, "death_h": 1.0}, 100, 0.5)
+    check("the same heavy load hops when no field time is left; a deadly spot stores even 200 ingots",
+          late and not deadly)
+
+
 def test_memory():
     print("the store's mining tables")
     m = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
@@ -198,7 +211,7 @@ def test_reachable_stands():
 
 
 def main():
-    for t in (test_outcome, test_plan, test_memory, test_reachable_stands):
+    for t in (test_outcome, test_plan, test_hop_choice, test_memory, test_reachable_stands):
         t()
     print()
     if FAILURES:

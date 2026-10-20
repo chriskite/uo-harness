@@ -4205,6 +4205,25 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   - **A smelt counted 0 ingots** (same run, 11:42:13): "smelted 109 ore into 0 ingots", then "stashed 218". The
     ingots came after the forge's answer (cliloc 501988), and the count was taken at once. `smelt` now waits up
     to `INGOT_WAIT_S` (2 s) for 2 ingots an ore before counting.
+  - **A world save aborted a hop** (mining-20261020-114825-eee6, 11:58:04–07, at the DTF rune library).
+    - "The world is saving, please wait." came at 11:58:04.48. The tome's double-clicks went out at 05.08 and 05.71.
+      The server answered nothing until "World save complete" at 07.53. The tome's gump came at 07.61, with
+      500119 for the second click.
+    - `escape._open` had given up at its 2 s gump wait ("the book's gump 0x09F5976B didn't open"). The run
+      aborted outside the room with 586 ingots carried.
+    - Since then `agent_link.Link` tracks the save (`save_t0`, from the start and end lines), and `Deadline`
+      keeps a wait's time from running during a save (at most `WORLD_SAVE_MAX_S` 15 s). `Link.wait` and the
+      book-gump wait in `escape._open` use it, and no re-click goes out during a save (test_escape
+      `test_open_through_world_save`).
+  - **When ingots are stored** (user 2026-10-20, "the same way we store boards"; docs/PLAN.md "Store the ingots
+    the way lumber stores its boards").
+    - At a trip's end, an abort's way home or `stop --after-trip`: always, in the room.
+    - Between spots (a leg cut short, home at the landing): only when the load is too risky for the next leg.
+      `mining_opt.hop_choice` compares the load × P(death) with `STORE_FIRST_S` at the spot's ore rate. The `hop`
+      job event has `risk` {carried_ore, p_death, risk_ore, store_cost_ore}, and the log says "storing the N
+      ingots first is worth more …" or "hop … (risks X ore; the room would cost Y)".
+    - Before this (2026-10-19 evening to 2026-10-20 noon) every hop carried the ingots on, e.g. 1242 and 2554
+      ingots in mining-20261020-105606-baf5.
 
 ## Network observations
 
