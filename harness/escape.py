@@ -706,7 +706,9 @@ def _recharging(io, book, kind, me, world, start, facet, t0, mana, rune, entry, 
 
 def _arrival(io, me, kind, method, rune, name, start, facet, t0, charges, timeout) -> dict:
     """Wait for the recall just pressed (or cast) to land: a position jump of JUMP_TILES or a facet
-    change; a failure message ends it. Once our power words are heard the wait runs at least
+    change; a failure message ends it, and so does our death (failure "dead": live 2026-10-20 13:14:56 Dan died
+    1 s into a recall at the Prevalia Cemetary Crypt, the ghost's position jump read as "arrived", and the run
+    logged an escape home). Once our power words are heard the wait runs at least
     LATE_ARRIVAL_S past them: live 2026-10-06 (lumber-20261006-101348-70b3) a recall out landed
     after 5.18 s, read as "no arrival", and the retry from the tome no longer in reach left Dan
     on foot at a hot landing; he died there."""
@@ -721,6 +723,9 @@ def _arrival(io, me, kind, method, rune, name, start, facet, t0, charges, timeou
                 words = time.monotonic()          # our power words: the server started the cast
                 end = max(end, words + LATE_ARRIVAL_S)
             why = why or failure(ev, me)
+        if (st["world"].get("self") or {}).get("dead"):
+            why = "dead"
+            break
         pos = st["movement"]["pos"]
         moved = pos is not None and cheb(start, pos[:2]) >= JUMP_TILES
         new_facet = (st["world"].get("self") or {}).get("map")
@@ -754,7 +759,7 @@ def retry_wait(res: dict) -> float | None:
     """How long to wait before recasting after the failed recall() `res`, or None
     when another try can't help (the spell itself can't be cast)."""
     why = res["failure"]
-    if why in ("heat of battle", "unmarked", "blocked", "reagents", "mana", "restricted"):
+    if why in ("heat of battle", "unmarked", "blocked", "reagents", "mana", "restricted", "dead"):
         return None
     if why == "disturbed":
         return disturb_recovery(res["cast_s"] or 0.0) + RECOVERY_MARGIN_S

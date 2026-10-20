@@ -1357,6 +1357,17 @@ class LumberLoop:
                 return t, t1 - t0
         return None
 
+    def crowd_besides(self, a, swung, pacer) -> list:
+        """Names of the other hostile creatures after us besides `pacer`: within RECALL_GAP, or swinging or
+        casting at us (`swung`). With any, a pacer's stand-and-cast (run_and_recall) would stand among them."""
+        out = []
+        for t in a.threats:
+            if t.serial == pacer.serial or t.kind != "monster":
+                continue
+            if (t.hostile and 0 <= t.distance < RECALL_GAP) or t.serial in swung:
+                out.append(self.threat_name(t))
+        return out
+
     def next_shot_gate(self, st, pacer, interval: float):
         """escape.recall's press gate against a pacer: with the book open, wait for its next shot at us to
         land (its moving effect at us; one that landed PACER_SHOT_FRESH_S before the wait counts), at most
@@ -1863,6 +1874,12 @@ class LumberLoop:
         try:
             while not a.dead:
                 pace = None if players else self.pacer(st, a)
+                if pace is not None and (crowd := self.crowd_besides(a, swung, pace[0])):
+                    # live 2026-10-20 13:14:49 (Prevalia Cemetary Crypt): standing to cast between a remnant's shots
+                    # with another 1 tile off, the cast was disturbed and a 5 s wait for the next shot ended in death
+                    log(f"{self.threat_name(pace[0])} keeps its distance, but {', '.join(crowd)} "
+                        f"{'is' if len(crowd) == 1 else 'are'} after us too: running first")
+                    pace = None
                 blocked = None
                 if route is not None:
                     blocked = self.guard_leg(st, worst, swung, route, t0, why or "ran to the guards between recalls",
@@ -2111,6 +2128,17 @@ class LumberLoop:
         if not where(st):
             return False
 
+        def hostiles(s) -> list:
+            """Every hostile creature in view, not only the ones after us: the run steers away from them all
+            (live 2026-10-20 13:14:42, Prevalia Cemetary Crypt: running 14 tiles from the 2 cursed remnants after
+            us led 44 steps south into 2 more, and Dan died there)."""
+            if players:
+                return []
+            now = self.watch.update(s, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+            ms = s["world"]["mobiles"]
+            return [(m["x"], m["y"]) for t in now.threats if t.kind == "monster" and t.hostile and t.distance >= 0
+                    for m in [ms.get(f"0x{t.serial:08X}") or {}] if m.get("x") is not None]
+
         def clear(s):
             pos = self.link.pos(s)[:2]
             return all(cheb(pos, xy) >= gap for xy in where(s)) and "clear"
@@ -2121,7 +2149,10 @@ class LumberLoop:
             while not clear(st) and self.mover.steps - start < RECALL_GAP_MAX_MOVES:
                 left, before = RECALL_GAP_MAX_MOVES - (self.mover.steps - start), self.mover.steps
                 here = tuple(self.link.pos(st)[:2])
-                for goal in self.escape_tiles(st, where(st)):
+                after = where(st)
+                every = after + [xy for xy in hostiles(st) if xy not in after]
+                # away from them all, else (none such a tile: a crowd on every side) from the ones after us
+                for goal in self.escape_tiles(st, every) or self.escape_tiles(st, after):
                     # bounded like an escape route: an unbounded search stood us still for 8 s while a
                     # snow elemental took 72 hits (live 2026-10-06 witcher_23), then offered 161 steps
                     max_route = max(ESCAPE_ROUTE_MIN, ESCAPE_DETOUR * cheb(here, goal))

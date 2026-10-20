@@ -1206,6 +1206,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     min(5 s, 1.5 × its interval), then it casts anyway), every recast too. Scenario `pacer` (an archer
     keeping 10 tiles off, an arrow every 2.26 s, an arrow during the cast disturbs it): the timed cast
     lands at once. With the pacer check off, the same scenario never got home in 300 s.
+    - Not in a crowd (since 2026-10-20, `crowd_besides`): with another hostile creature within RECALL_GAP or
+      swinging or casting at us, the pacer wait is skipped and the runner runs first. Live 2026-10-20 13:14:49 at
+      the Prevalia Cemetary Crypt, standing to cast between one cursed remnant's shots with another 1 tile off
+      ended in a disturbed cast, a 5 s wait for a shot that didn't come, and Dan's death.
+    - The run before a recall (`gain_distance`) steers away from every hostile creature in view, not only the ones
+      after us (the same death: the run from 2 remnants went into 2 more).
   - **Reach** (`threats.creature_reach`): melee 1; ranged 12 for `threats.RANGED_BODIES` (the
     gazer, 22) and for every body that hit us as the only candidate from beyond melee range
     (`travel_guard.learn_hit`, also from the store's `monster_hit` rows at start, so the next run

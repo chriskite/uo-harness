@@ -4844,6 +4844,58 @@ def unit_escape_walkable():
           and goals[0] == (80, 100), str(goals))
 
 
+def unit_escape_crowd():
+    """Live 2026-10-20 13:14 (Prevalia Cemetary Crypt, a death): the run out of reach steered away from the 2 cursed
+    remnants after us only and went into 2 more; then, one remnant keeping its distance, the runner stood to cast
+    between its shots with another 1 tile off. Now the run steers away from every hostile in view, and a pacer's
+    stand-and-cast waits for no shot while other creatures are after us."""
+    print("\n== escape in a crowd: away from every hostile in view; no pacer wait among others ==")
+    import types
+    import loop_lumber
+
+    def mob(serial, distance, hostile=True):
+        return SimpleNamespace(serial=serial, kind="monster", hostile=hostile, distance=distance, name=f"m{serial}")
+    pacer_t, near_t, far_t = mob(1, 12), mob(2, 1), mob(3, 30)
+    # run_and_recall: a pacer alone stands and casts on its shot; with another within RECALL_GAP it runs first
+    log_ = []
+    fake = loop_fake(
+        gain_distance=lambda st, a, swung, players=False: log_.append("run") or True,
+        recall_out=lambda *a, **kw: (_ for _ in ()).throw(loop_lumber.Unsafe("escaped by recall")),
+        creature={"recalled": False, "recall_fails": 0},
+        link=SimpleNamespace(state=lambda: {}, pos=lambda st: (5, 6, 0, 0), events=[]),
+        watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False, threats=[])),
+        memory=SimpleNamespace(juncture=lambda *a: None), trip_n=1, k={"spot": {"id": "sim"}},
+        pacer=lambda st, a: (pacer_t, 4.85), next_shot_gate=lambda st, t, i: None,
+        flight_hit=lambda *a, **kw: None, guard_route=lambda st, w: None, escape_heal=lambda st, a: None,
+        doing=lambda *a: None, _guard_run=False, _flee_mark=0, guard_summary=None)
+    fake.threat_name = loop_lumber.LumberLoop.threat_name
+    for m in ("run_and_recall", "crowd_besides"):
+        setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
+    ran = {}
+    for label, threats in (("alone", [pacer_t, far_t]), ("crowd", [pacer_t, near_t, far_t])):
+        log_.clear()
+        try:
+            fake.run_and_recall({}, SimpleNamespace(dead=False, threats=threats), pacer_t, {}, "it shoots")
+        except loop_lumber.Unsafe:
+            pass
+        ran[label] = list(log_)
+    check("a pacer alone (another creature 30 tiles off): no run before the timed cast; with another 1 tile off: a "
+          "run first", ran == {"alone": [], "crowd": ["run"]}, str(ran))
+    # gain_distance: the goals are asked away from every hostile in view, the ones after us first
+    asked = []
+    st = {"world": {"mobiles": {f"0x{s:08X}": {"x": x, "y": y} for s, x, y in ((1, 100, 112), (2, 100, 101),
+                                                                                (3, 100, 130))}},
+          "movement": {"pos": [100, 100, 0, 0]}}
+    g = loop_fake(link=SimpleNamespace(state=lambda: st, pos=lambda s: s["movement"]["pos"]),
+                  watch=SimpleNamespace(update=lambda s, **kw: SimpleNamespace(threats=[pacer_t, near_t, far_t])),
+                  mover=SimpleNamespace(steps=0), mode="work",
+                  escape_tiles=lambda s, run_from: asked.append(list(run_from)) or [])
+    g.gain_distance = types.MethodType(loop_lumber.LumberLoop.gain_distance, g)
+    g.gain_distance(st, SimpleNamespace(threats=[pacer_t, near_t, far_t]), {})
+    check("the run's goals are asked away from all three (the 2 after us first), then from those 2 alone",
+          asked[:2] == [[(100, 112), (100, 101), (100, 130)], [(100, 112), (100, 101)]], str(asked))
+
+
 def unit_thief_out():
     """thief_out (live 2026-10-10 witcher_105: the blue gorilkaenjoyer closed to 2 tiles again, attacked 0.6 s into the
     recall and disturbed five standing casts; Dan died): one standing cast; one that doesn't land is followed by the
@@ -5331,7 +5383,7 @@ if __name__ == "__main__":
             hop,
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
             unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
-            unit_escape_walkable,
+            unit_escape_walkable, unit_escape_crowd,
             unit_hop_salvage, unit_named_attacker, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_local_trees_spin, unit_zone_stall,

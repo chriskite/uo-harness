@@ -616,13 +616,23 @@ def test_open_through_world_save():
         check("no save: the 0.3 s timeout holds (the gump at 0.6 s is too late)", True)
 
 
+def test_death_is_no_arrival():
+    """Live 2026-10-20 13:14:56: Dan died 1 s into a recall; the ghost's position jump read as 'arrived'."""
+    class IO:
+        def poll(self):
+            return {"movement": {"pos": [1883, 1810, -5, 5]}, "world": {"self": {"map": 0, "dead": True}}}, []
+    r = escape._arrival(IO(), ME, "runebook", "charge", 10, "DTF Loot Chest", (1891, 1807), 0, 0.0, 10, 1.0)
+    check("dead with the position changed: failure 'dead', not an arrival; no retry after it",
+          r["ok"] is False and r["failure"] == "dead" and escape.retry_wait(r) is None, r)
+
+
 if __name__ == "__main__":
     for t in (test_runebook, test_sextant, test_runebook_entries, test_runebook_read_and_recall_by_name,
               test_recharging_book,
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
               test_escape_stops, test_escape_late_arrival, test_escape_between, test_no_recall_in_dungeon,
-              test_open_through_world_save):
+              test_open_through_world_save, test_death_is_no_arrival):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")

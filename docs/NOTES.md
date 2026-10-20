@@ -4277,10 +4277,15 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - `mining_opt.trip_obs` now also counts the job's `death` events within a leg (or `DEATH_SLACK_S` 10 s after it)
       as a death, in the plan and the Jobs page. With that, the spot shows 1 death and the pooled death hazard went
       to ~0.45/h (test_mining `test_death_events`).
-    - Not fixed:
-      - `escape.recall` should not report an arrival when we are dead.
-      - The out-of-reach run looks only at the current attackers, not at other hostiles in view on its route.
-      - The "keeps its distance" wait stands still with another attacker at 1 tile.
+    - Fixed the same day (user: "fix those issues"):
+      - `escape._arrival` ends with failure "dead" when we die. A ghost's position change no longer passes for an
+        arrival, and `retry_wait("dead")` is None (test_escape `test_death_is_no_arrival`).
+      - `gain_distance` asks `escape_tiles` for goals away from every hostile creature in view, the ones after us
+        first. With no such tile (a crowd on every side) it asks away from the ones after us.
+      - `run_and_recall` takes no pacer stand-and-cast while another hostile creature is within `RECALL_GAP` or
+        swinging or casting at us (`crowd_besides`): it runs first ("… keeps its distance, but X is after us too:
+        running first").
+      - Tests: test_loop_lumber `unit_escape_crowd`.
 
 ## Network observations
 
