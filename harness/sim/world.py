@@ -72,6 +72,11 @@ RETARGET_P = 0.05         # a monster on a pet turns to the player nearer it, th
 #                           0.84x and 1.1, 0.1 0.95x and 1.8, 0.15 0.99x and 2.0 (live 0.6, its interval to 1.3): the
 #                           simulator's deaths rise faster with his damage than live [INFERENCE: the mechanism, the
 #                           server's re-acquire of the nearest]
+SHOT_AT_PLAYER_P = 0.2    # a monster shooting at a pet sends a shot at the player in its reach and sight instead: live
+#                           his share of the casters' attributed hits was the purger's 0.23, the shadowguard's 0.18, the
+#                           banshee's 0.17, the minion's 0.12 (41 visits), simulated 0.00-0.05. 288 runs each: 0 gave
+#                           his damage 0.63x and potions 0.64x, 0.1 0.83x and 0.83x, 0.2 0.99x and 1.02x, deaths 0.9-1.1
+#                           an hour throughout (live 0.6, its interval to 1.3) [INFERENCE: the mechanism]
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
 PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
@@ -1152,11 +1157,16 @@ class World:
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
-                self.hurt(tgt, self.roll(ranged["damage"]) * self._taken_x(tgt, "spell"), m, "spell")
-                self._specials(m, tgt, spec)
+                victim, pl = tgt, self.player
+                if SHOT_AT_PLAYER_P and tgt.kind == "pet" and pl.alive and not pl.ghost \
+                        and cheb(m.pos, pl.pos) <= ranged["range"] and self.can_see(m, pl) \
+                        and self.rng.random() < SHOT_AT_PLAYER_P:
+                    victim = pl
+                self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell")
+                self._specials(m, victim, spec)
                 for sp in spec.get("specials", []):
                     if sp["kind"] == "fire_mark":
-                        self._fire_mark(tgt, sp)
+                        self._fire_mark(victim, sp)
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= 1 and abs(m.z - tgt.z) <= 15:

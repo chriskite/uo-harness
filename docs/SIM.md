@@ -829,36 +829,48 @@ What was off, and the changes:
   3.2, the master reanimator 2.6, the vampiric consort 1.5; simulated at every spawn's 120-300 s 5.7, 4.3, 3.9, 3.1.
   The blightmare now 180-480 s, the other three 360-720 s: 4.2, 2.6, 2.5, 1.7 [INFERENCE: fitted to the meetings;
   no respawn of theirs was seen live]. Gold 1.23x -> 1.19x.
+- **Heals as the live server's numbers** (`potions.heal`, `vet.heal_self`): a heal potion's own number (cliloc
+  1008158) on 612 live drinks, those that didn't fill him, 30 / 34 / 41 (q25 / median / q75), under 30 hits a median
+  40: now 28-50 (25-40 before, from the trip's six). A vet channel on him: his hits' rise at its finish 21 / 29 / 36
+  (q10 / median / q90, n=167): now 20-37 (12-25 before, from 11). Live Logan fell below 15 hits 2.9 times an hour and
+  mostly lived (7 -> 71, 15 -> 54 on a potion); the simulated one 1.2 times and nearly always died. Deaths 1.2 -> 0.9
+  an hour.
+- **A caster's shot strays to Logan** (`world.SHOT_AT_PLAYER_P` 0.2): a monster shooting at a pet sends a shot at him
+  instead when he is in its reach and sight. Live his share of the casters' attributed hits was the purger's 0.23,
+  the shadowguard's 0.18, the banshee's 0.17, the minion's 0.12, simulated 0.00-0.05. 288 runs each: 0 gave his damage
+  0.63x and the potions 0.64x, 0.1 0.83x and 0.83x, 0.2 0.99x and 1.02x, deaths 0.9-1.1 an hour throughout (raising
+  `RETARGET_P` to 0.1 or 0.15 instead: 0.69x and 0.75x, deaths 1.2 and 1.3) [INFERENCE: the mechanism].
 
 | per hour on the level | live (95 % interval) | sim at the start | sim with the Tank draw | sim now |
 |---|---|---|---|---|
-| kills | 96.1 (89.5-103.0) | 87.8 | 90.0 | 100.3 |
+| kills | 96.1 (89.5-103.0) | 87.8 | 90.0 | 101.1 |
 | gold | 91,800 (80,200-103,900) | 89,500 | 103,200 | 109,100 |
-| damage on Logan (overhead numbers live, the world's simulated) | 2,362 (2,000-2,764) | - | 1,757 | 1,556 |
-| hits lost (the runner's count) | 2,144 (1,829-2,507) | 2,125 | 1,517 | 1,481 |
-| heal potions | 48.0 (41.8-54.7) | 46.4 | 33.6 | 32.4 |
-| vet supplies | 129 (119-142) | 227 | 208 | 167 |
+| damage on Logan (overhead numbers live, the world's simulated) | 2,362 (2,000-2,764) | - | 1,757 | 2,350 |
+| hits lost (the runner's count) | 2,144 (1,829-2,507) | 2,125 | 1,517 | 2,254 |
+| heal potions | 48.0 (41.8-54.7) | 46.4 | 33.6 | 49.0 |
+| vet supplies | 129 (119-142) | 227 | 208 | 162 |
 | stand-offs | 28.9 (22.6-35.4) | 30.9 | 36.5 | 25.6 |
-| retreats | 1.7 (0.6-3.0) | 3.3 | 1.8 | 1.2 |
-| pull holds | 83.6 (73.4-94.2) | 64.0 | 103.0 | 111.6 |
-| discord fails | 31.5 (26.7-36.8) | 51.4 | 39.2 | 40.5 |
-| peace fails | 15.4 (11.8-19.3) | 23.3 | 20.6 | 20.2 |
-| deaths to monsters | 0.6 (0.1-1.3) | 1.7 | 1.5 | 1.2 |
-| deaths on the walk out | 0.5 (0-1.1) | 0.5 | 0.7 | 0.4 |
-| soul jars filled | 0.9 (0.3-1.7) | 1.2 | 0.9 | 0.8 |
-| eerie corpses seen | 2.7 (1.3-4.4) | 1.6 | 2.7 | 2.0 |
-| damage on the gravebug | 10,937 (9,892-12,110) | 14,255 | 13,451 | 10,655 |
-| damage on the phoenix | 2,150 (1,766-2,556) | 4,779 | 4,578 | 3,137 |
+| retreats | 1.7 (0.6-3.0) | 3.3 | 1.8 | 1.4 |
+| pull holds | 83.6 (73.4-94.2) | 64.0 | 103.0 | 113.8 |
+| discord fails | 31.5 (26.7-36.8) | 51.4 | 39.2 | 39.3 |
+| peace fails | 15.4 (11.8-19.3) | 23.3 | 20.6 | 20.5 |
+| deaths to monsters | 0.6 (0.1-1.3) | 1.7 | 1.5 | 1.1 |
+| deaths on the walk out | 0.5 (0-1.1) | 0.5 | 0.7 | 0.5 |
+| soul jars filled | 0.9 (0.3-1.7) | 1.2 | 0.9 | 0.9 |
+| eerie corpses seen | 2.7 (1.3-4.4) | 1.6 | 2.7 | 2.3 |
+| damage on the gravebug | 10,937 (9,892-12,110) | 14,255 | 13,451 | 10,178 |
+| damage on the phoenix | 2,150 (1,766-2,556) | 4,779 | 4,578 | 2,874 |
 
 "At the start": the scenario and runner of the morning (c334fce) with eerie corpses and players, no `--prior`;
 before the Tank draw (this branch merged with main's 7047a1d, 144 runs) deaths were 2.0 an hour and the damage on
 Logan 2,308; "with the Tank draw": d707203 (144 runs, 48.7 h); "now": with the fixes above (288 runs, seeds
-1001-1288, 103.7 h), live 47 visits (6.64 h). The damage on Logan: live the overhead numbers on him match the
-server's status drops (12,843 to 12,805 on 41 visits); the runner's own hits-lost count reads 0.90x of them live
-(11,496) and 0.95x of the world's simulated. Monsters met an hour (now): within the live interval all but the shade
-wolf 0.81x, corpsebride 0.82x, transfixed copies 0.50x, vampire countess 0.71x, vampire 0.74x and reanimated knight
-0.60x (the west wing) and the bound soul 1.36x. Every run its own career (no learning across runs) changes none of
-it (deaths 0.9 an hour there). The 18:22 replay: 1 death of 24, 11 jars, lowest hits median 61.
+1001-1288), live 47 visits (6.64 h). The damage on Logan: live the overhead numbers on him match the server's
+status drops (12,843 to 12,805 on 41 visits); the runner's own hits-lost count reads 0.90x of them live (11,496) and
+0.96x of the world's simulated. Monsters met an hour (now): within the live interval all but the shade wolf 0.83x,
+corpsebride 0.81x, transfixed copies 0.49x, vampire countess 0.69x, vampire 0.71x and reanimated knight 0.60x (the
+west wing) and the bound soul 1.52x. Every run its own career (no learning across runs) changes none of it. The
+18:22 replay: 4 deaths of 24, 13 jars, lowest hits median 62 (1-2 before the stray shots: the countess room's
+casters reach him there).
 
 **On par** (one-second samples, all 41 visits, 5.2 h, against 12 simulated runs, before the retarget): the pace
 (5,555 walk requests an hour on the level live, 5,836 simulated; quiet and standing 18 % of the time live, 15 %
@@ -870,25 +882,17 @@ runner's reactions to them (the next packet after a bard result median 2.7 s liv
 channel 0.47 and 0.3). Since: the phoenix's distance from Logan in fights, idle monsters' drift.
 
 **Still apart** (open):
-- **Deaths for the damage**: live 0.6 an hour on 2,362 of damage, simulated 1.2 on 1,556 (0.9-1.4 over the
-  configurations of this section, 100+ h each), and the simulator's deaths rise faster with his damage (1.8-2.0 at
-  0.95-0.99x of it; the retarget sweep). Live more of it comes steady: 96 of his 603 numbers were a disease's -21
-  ticks (16 % of the damage; 4.1 infections an hour: a purger's barrage 1.4, a blightmare's spell 1.4, "You have been
-  ensnared and diseased!" 0.9 from an unseen source, a tormented soul's melee 0.4), simulated 5.8 ticks an hour
-  against the live 17.3. The simulator's deaths: blightmares and disease (37 of ~125), purgers (16), apparition bursts
-  (16), several sources at once with the leave too late (a purger 4 tiles off, a shadowguard and two disease ticks:
-  81 -> 0 in 9 s, the leave at 1/100). Live Logan fell below 50 hits 8.1 times an hour, below 30 4.3, below 15 2.9
-  and lived through most of it (a potion: 7 -> 71, 15 -> 54, 28 -> 79; an area peace); simulated 3.4, 1.8 and 1.2,
-  and nearly every fall below 15 ended in a death: two or more monsters on him at once (two tormented souls 161 in
-  15 s, two banshees 144). The heal potion now heals as the server's own numbers say (`potions.heal` 28-50: 612
-  live drinks, under 30 hits a median 40; 25-40 before): deaths 1.2 -> 1.1 an hour.
+- **Deaths** 1.1 an hour against 0.6 (inside the interval's 0.1-1.3, the live four deaths a thin sample). Live more
+  of his damage comes as disease ticks: 96 of his 603 numbers were -21 (4.1 infections an hour: a purger's barrage
+  1.4, a blightmare's spell 1.4, "You have been ensnared and diseased!" 0.9 from an unseen source, a tormented soul's
+  melee 0.4), simulated 5.8 ticks an hour against the live 17.3.
 - **Where the crawl goes**: by 20-tile cell live Logan spent 22 % of his time on the level in the west wing (x
   5160-5199, y 680-719: the countess room, the knights, the shade wolves), simulated 12 %; and 19 % in the east (x
   5240-5259, y 640-699: the tormented souls, the blightmare, the daemon), simulated 29 %. The crawl's patrol
   destinations follow (live the countess room 7 % of them, simulated 5 %; the south and centre 2x). Hence the west
-  wing's types met 0.6-0.8x and the east's deaths.
-- **The phoenix's damage** 1.46x (the gravebug's on par), hence 1.3x the vet supplies; bard uses 1.77 a kill against
-  1.49, pull holds 1.34x; gold 1.19x. Apparitions blink 34 times an hour in our view simulated against 21 live: 12.5
+  wing's types met 0.6-0.8x.
+- **The phoenix's damage** 1.34x (the gravebug's on par), hence 1.26x the vet supplies; bard uses 1.75 a kill against
+  1.49, pull holds 1.36x; gold 1.19x. Apparitions blink 34 times an hour in our view simulated against 21 live: 12.5
   of them an hour go to war near us against 7.0 live (the monsters going to war near us 129 an hour against 130).
 
 ## Limits

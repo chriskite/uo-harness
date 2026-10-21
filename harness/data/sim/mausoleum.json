@@ -248,12 +248,12 @@
    71.5
   ],
   "heal_self": [
-   12,
-   25,
-   17
+   20,
+   37,
+   29
   ],
   "multi_share": 1.0,
-  "note": "range 2 (+ Without Borders: --vet-range); channel 5.0-5.3 s (n=43); heals: pet median 71.5 (n=36), us 17 (n=11), capture"
+  "note": "range 2 (+ Without Borders: --vet-range); channel 5.0-5.3 s (n=43); heals: pet median 71.5 (n=36), capture; us: his hits' rise at 'You finish using veterinary supplies.' on all 41 live visits (2026-10-21), those that didn't fill him, 21 / 29 / 36 (q10 / median / q90, n=167; 12-25, median 17 from the first capture's 11 before)"
  },
  "potions": {
   "heal": [

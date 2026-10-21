@@ -4133,16 +4133,26 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
 - **The dear rare spawns respawn slower**: met an hour live the blightmare 4.4, the reanimated daemon 3.2, the
   master reanimator 2.6, the consort 1.5 against 5.7, 4.3, 3.9, 3.1 at 120-300 s; now 180-480 s (the blightmare) and
   360-720 s [INFERENCE: fitted]. Gold 1.23x -> 1.19x.
-- **On par now** (live 47 visits, 288 simulated runs): kills (100 against 96), the gravebug's damage (0.97x),
-  stand-offs, leaves for hits, walk-out deaths, soul jars, the zone shares, idle and fighting monsters in view, most
-  monsters met (the dear rare ones too); the pace; Logan's distance to the nearest monster in war mode; whom a monster
-  hits first; the phoenix's distance from Logan; idle monsters' drift; the gravebug's fights; server answers and the
-  runner's reaction to them.
-  **Still apart** (docs/SIM.md "Still apart"): deaths 1.2 an hour against 0.6 with the damage on Logan 0.66x (live
-  more of it is disease ticks: 17.3 an hour against 5.8; blightmares, disease, purgers and apparition bursts finish
-  the simulated Logan); where the crawl goes (live 22 % of his time in the west wing, simulated 12 %; the east 19 %
-  against 29 %), hence the west wing's types met 0.6-0.8x; the phoenix's damage 1.46x (vet 1.3x); bard uses a kill
-  1.77 against 1.49; pull holds 1.34x; gold 1.19x.
+- **The server tells a heal's size**: a heal potion's cliloc 1008158 carries the number healed (the affix): 612 live
+  drinks, those that didn't fill Logan 30 / 34 / 41 (q25 / median / q75), under 30 hits a median 40; the trip's six
+  had put it at 25-40. A vet channel on him: his hits' rise at "You finish using veterinary supplies." 21 / 29 / 36
+  (q10 / median / q90, n=167; 12-25 before). Live he fell below 15 hits 2.9 times an hour and mostly lived; with the
+  old heals the simulated one fell 1.2 times and nearly always died. Now `potions.heal` 28-50, `vet.heal_self` 20-37:
+  deaths 1.2 -> 0.9 an hour.
+- **Casters' shots stray to Logan**: live his share of a caster's attributed hits 0.12-0.23 (purger, shadowguard,
+  banshee, minion), simulated 0.00-0.05. `world.SHOT_AT_PLAYER_P` 0.2 (a shot at a pet goes to him when he is in
+  reach and sight): his damage 0.63x -> 0.99x, potions 0.64x -> 1.02x, deaths unchanged; turning whole monsters to
+  him instead (`RETARGET_P` up) raised deaths before the damage.
+- **On par now** (live 47 visits, 288 simulated runs): kills (101 against 96), the damage on Logan (0.99x), the
+  runner's hits lost (1.05x), heal potions (1.02x), the gravebug's damage (0.93x), deaths to monsters (1.1 against 0.6,
+  inside the interval), stand-offs, retreats, leaves for hits, walk-out deaths, soul jars, the zone shares, idle and
+  fighting monsters in view, most monsters met; the pace; Logan's distance to the nearest monster in war mode; whom a
+  monster hits first; the phoenix's distance from Logan; idle monsters' drift; the gravebug's fights; server answers
+  and the runner's reaction to them.
+  **Still apart** (docs/SIM.md "Still apart"): where the crawl goes (live 22 % of his time in the west wing,
+  simulated 12 %; the east 19 % against 29 %), hence the west wing's types met 0.6-0.8x; the phoenix's damage 1.34x
+  (vet 1.26x); bard uses a kill 1.76 against 1.49; pull holds 1.36x; gold 1.19x; disease ticks on Logan 17.3 an hour
+  live against 5.8.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
