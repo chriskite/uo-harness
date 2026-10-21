@@ -1118,7 +1118,8 @@ class World:
         """On-hit specials (scenario `specials`; the timed ones are `_abilities`)."""
         for sp in spec.get("specials", []):
             kind = sp["kind"]
-            if kind not in ON_HIT or self.rng.random() >= sp.get("chance", 0):
+            chance = sp.get("pet_chance", sp.get("chance", 0)) if tgt.kind == "pet" else sp.get("chance", 0)
+            if kind not in ON_HIT or self.rng.random() >= chance:
                 continue
             if kind == "bleed" and not tgt.bleed_until:
                 self._start_bleed(tgt, sp)

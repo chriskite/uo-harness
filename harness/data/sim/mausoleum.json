@@ -297,7 +297,8 @@
  },
  "specials": {
   "blightmare": [
-   {"kind": "disease", "chance": 0.67, "tick": 21, "every_s": 5.0, "ticks": 4,
+   {"kind": "disease", "chance": 0.67, "pet_chance": 0.01, "tick": 21, "every_s": 5.0, "ticks": 4,
+    "pet_note": "as the corpse purger's pet_note",
     "note": "live 2026-10-19 19:54:40-57: 4 of its 5 spell hits on Logan came with 'The creature's spell blights you with a foul disease!' (its Spellblight; knowledge #14647's 15 % is the tamed version's [INFERENCE]), each -21 every ~5 s as the purger's disease; one fight"}
   ],
   "shade wolf": [
@@ -495,6 +496,8 @@
     "tick": 21,
     "every_s": 5.0,
     "ticks": 4,
+    "pet_chance": 0.01,
+    "pet_note": "on the pets almost never (2026-10-20, 41 visits): -21 numbers 5 s apart (an infection's ticks) came 0.32 infections an hour on the gravebug and none on the phoenix, against 2.0 on Logan; the simulator at the chance 0.67 on every hit gave the gravebug ~24 an hour (2,014 of its damage) and the phoenix ~3.7 (309); 0.01 is that ratio [INFERENCE: whether pets are immune or resist]",
     "note": "capture 20261014_221341 22:33:53-22:34:17.6: its barrage from 10 tiles hit Logan 22, 26 and 26; the 2nd and 3rd each with 'You have contracted a foul disease!' (2 of 3 [INFERENCE: the wiki's 7.5 % a hit, knowledge #14902, is the tamed version's]); each infection ticked -21 every ~5 s 4 times (20 s, as the wiki's 'every 5 seconds for 20 seconds'), the two side by side, 168 in all, his hits down to 21; 'You are no longer diseased.' at the last; no poison flag; he cured nothing (potions, vet and a bandage only)"
    }
   ],
