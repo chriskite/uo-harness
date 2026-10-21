@@ -51,7 +51,9 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   1 otherwise (wiki Veterinary): no step during a channel. The Healer's Codex "Without Borders"
   perk adds 1/2/3 tiles (knowledge #11343): `--vet-range`. Used whenever a pet in range is below
   --pet-heal-at or poisoned ("*looks violently ill*" over it), or we are hurt with no heal potion
-  ready; a hurt pet out of range is walked to (1 tile) when nothing is on us.
+  ready; a hurt pet out of range is walked to when nothing is on us: next to it (1 tile) without the perk, with it
+  to a tile within --vet-range - 1 of it, off the tank and out of an area hit's reach as far as that allows (vet_tile;
+  stand_off's step in to heal the tank uses the same tile).
 - **Self care**: heal potions as the hunt runner drinks them (Logan's are in a potion satchel in a
   bag: healing.heal_potions searches every bag), no heal spell without Magery. A retreat when a mob
   next to us has us below --retreat-at: run until RETREAT_R tiles from every attacker and let the
@@ -1472,11 +1474,30 @@ class Team:
         zone = self.area_zone(st)
         if not zone or all(cheb(pos, t) >= r for t, r in zone.items()):
             return False
-        if not landing and self.a.vet_range < max(zone.values()) \
-                and any(p["frac"] < self.heal_at(p, set(zone)) or p["poisoned"] for p in self.pets(st)
-                        if not p["dead"] and (p["x"], p["y"]) in zone) \
+        heal = [p for p in self.pets(st) if not p["dead"] and (p["x"], p["y"]) in zone
+                and (p["frac"] < self.heal_at(p, set(zone)) or p["poisoned"])]
+        if not landing and self.a.vet_range < max(zone.values()) and heal \
                 and healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
-            return False                                  # step in (or stay) to heal the tank
+            # step in (or stay) to heal the tank: with --vet-range SPACING_R + 1 or more, to the vet tile to_pet walks to
+            # (vet_tile), never mid-channel (a step shortens its reach to 1); else stay as before
+            if self.a.vet_range < SPACING_R + 1 or now < self.vet_busy_until:
+                return False
+            to = self.vet_tile(st, [(p["x"], p["y"]) for p in heal], STANDOFF_MOVES)
+            if to is None or to[:2] == tuple(pos[:2]):
+                return False
+            self.standoff_t = now
+            label = "to heal the tank"
+            log(f"{label}: {to[:2]}, {max(cheb(to, (p['x'], p['y'])) for p in heal)} from {heal[0]['name']} "
+                f"(--vet-range {self.a.vet_range}), {self.zone_depth(zone, to)} into an area hit's reach")
+            h.doing("standoff", f"Healing {heal[0]['name']} from {to[0]},{to[1]}", to[:2])
+            try:
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
+                                max_route=2 * STANDOFF_MOVES, mobile_wait=0)
+            except Abort as e:
+                if not str(e).startswith(label):
+                    raise
+                log(f"{label}: {e}")
+            return True
         to, stay = self.standoff_tile(st, zone)
         if stay:
             if stay != self.standoff_stay:
@@ -1539,6 +1560,36 @@ class Team:
         log(f"stand-off to {pick[3][:2]}: {pick[2]} step(s), seen by {pick[0] / 10:g} idle before a pet"
             + ("" if pick is near else ", beyond the vet supplies' reach of the pets"))
         return pick[3], None
+
+    @staticmethod
+    def zone_depth(zone: dict, t) -> int:
+        """Tiles inside the nearest edge of an area_zone at tile `t` (0: clear of it)."""
+        return max([r - cheb(t, c) for c, r in zone.items()] + [0])
+
+    def vet_tile(self, st, reach: list, steps: int):
+        """Where to use the vet supplies from (--vet-range SPACING_R + 1 or more, the Healer's Codex "Without Borders"):
+        a tile within `steps` steps, within --vet-range of every tile in `reach` (the pets to heal), SPACING_R from
+        every live pet and monster in war mode (off the tank, spacing's rule), out of fire; the least deep in an area
+        hit's reach (area_zone), then within --vet-range - 1 of them (a step of the pet's during the 5 s channel keeps
+        it in reach), then the fewest idle monsters seeing it, the fewest steps -> (x, y, z), or None. User 2026-10-21:
+        "we seem to go stand directly on our tank which is getting us wallopped by the demon's AOE, but our Without
+        Borders healing codex perk lets us heal from 5 tiles away" (live 09:53:52-56 to_pet walked to 1 of the gravebug,
+        beside the reanimated daemon at (5241, 675): its bone burst -41 a second later). Shared by to_pet and
+        stand_off's step in to heal the tank."""
+        v = self.view(st)
+        if v.walk is None:
+            return None
+        zone, fire, r = self.area_zone(st), self.fire_tiles(st), self.a.vet_range
+        keep = [m["pos"][:2] for m in v.mobs if m["war"]] + [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        cands = []
+        for t, k in self.tiles_within(v, steps).items():
+            if t[:2] in fire or any(cheb(t, p) > r for p in reach) or any(cheb(t, n) < SPACING_R for n in keep):
+                continue
+            cands.append((self.zone_depth(zone, t), any(cheb(t, p) > r - 1 for p in reach), k, t))
+        if not cands:
+            return None
+        best = min(cands)[:2]
+        return min((c for c in cands if c[:2] == best), key=lambda c: (round(v.stand_score(c[3])), c[2]))[3]
 
     def retreat(self, st) -> bool:
         h, now = self.h, time.monotonic()
@@ -1663,9 +1714,11 @@ class Team:
         return None
 
     def to_pet(self, st) -> bool:
-        """A pet below --pet-heal-at beyond --vet-range: walk next to it (bandaging range is 1 after a
-        step) when nothing is on us, no channel runs and supplies are there. --heal-in-place: a pet
-        below --pet-leave-at is walked to even with something on us (healing it is the leave now)."""
+        """A pet below --pet-heal-at beyond --vet-range: walk into the vet supplies' reach of it when nothing is on us,
+        no channel runs and supplies are there. With --vet-range SPACING_R + 1 or more (the Healer's Codex "Without
+        Borders") to vet_tile (off the tank, out of area hits as far as reach allows, within --vet-range - 1), else (or
+        no such tile) to --vet-range - 1 of it, and without the perk next to it (bandaging range is 1 after a step).
+        --heal-in-place: a pet below --pet-leave-at is walked to even with something on us (healing it is the leave now)."""
         h, now = self.h, time.monotonic()
         if now < self.vet_busy_until or now - self.walk_pet_t < WALK_TO_PET_S \
                 or not healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
@@ -1692,7 +1745,15 @@ class Team:
             def purger_first(s):
                 v = self.view(s)
                 return f"a {first[0]['kind']} would see us" if (first := self.shy_first(v, v.pos)) else None
-            h.mover.walk_to(where, 1, label, max_moves=combat.VIEW_RANGE, stop=None if p["dead"] else purger_first)
+            wb = self.a.vet_range >= SPACING_R + 1
+            to = self.vet_tile(st, [(p["x"], p["y"])], min(combat.VIEW_RANGE, p["dist"] + SPACING_R)) if wb else None
+            stop = None if p["dead"] else purger_first
+            if to is not None:
+                log(f"{label}: {to[:2]}, {cheb(to, (p['x'], p['y']))} from {p['name']} (--vet-range "
+                    f"{self.a.vet_range}), {self.zone_depth(self.area_zone(st), to)} into an area hit's reach")
+                h.mover.walk_to(lambda: to[:2], 0, label, max_moves=combat.VIEW_RANGE, stop=stop)
+            else:
+                h.mover.walk_to(where, self.a.vet_range - 1 if wb else 1, label, max_moves=combat.VIEW_RANGE, stop=stop)
         except Abort as e:
             if not str(e).startswith(label):
                 raise

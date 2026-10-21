@@ -527,6 +527,60 @@ def test_spacing():
           out[2][0] is False and out[5][0] and min(out[5][1:3]) >= tamer.SPACING_R and out[5][3] <= 4, str(out))
 
 
+def test_vet_tile_off_tank():
+    print("== --vet-range 5, the gravebug hurt beside a reanimated daemon: vet it from out of the bone burst, not "
+          "from beside it ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live hunt-20261021-091743-38b6 09:53:52-56: "to a hurt pet" walked 9 steps to (5241, 674), beside the gravebug and
+    # the daemon at (5241, 675); its bone burst took Logan -41 a second later (user: "we seem to go stand directly on
+    # our tank")
+    out = {}
+    for case, start in (("to_pet", (5247, 668)), ("stand_off", (5242, 673))):
+        w = world_with([{"key": "reanimated daemon", "at": [5241, 675, 0]}], seed=7, start=start)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        burst = next(sp for sp in m.spec["specials"] if sp["kind"] == "burst")
+        m.spec = {**m.spec, "specials": [], "melee": [1, 1], "step_s": 999.0}
+        m.hits = m.hits_max = 10 ** 6
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        af = next(p for p in w.pets() if p.name == "AlaFlambe")
+        gb.hits = int(gb.hits_max * 0.5)
+        m.target, m.threat = gb.serial, {gb.serial: 1e9}
+        w._warm(m, True)
+        link, clock = link_for(w)
+        link.send(tamer.command("all guard me"))
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1", "--human", "off", "--vet-range", "5"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())                # the pets beside us, then on the test's tiles
+                for p, xy in ((gb, (5240, 674)), (af, (5243, 676))):
+                    p.x, p.y = xy
+                    p.mode, p.target = "stay", None          # they hold their tiles: the test's geometry
+                gb.target = m.serial
+                clock.advance(0.5)
+                if case == "to_pet":
+                    walked = loop.team.to_pet(loop.state())
+                else:
+                    loop.team.standoff_t = -1e9
+                    walked = loop.team.stand_off(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[case] = (walked, cheb_(w.player, gb), cheb_(w.player, m), w.player.pos[:2],
+                     [l for l in buf.getvalue().splitlines() if "hurt pet:" in l or "heal the tank:" in l])
+    r = burst["radius"]
+    check(f"to a hurt pet / stepping in to heal the tank: within 5 of the gravebug, 3+ off it, out of the bone burst's "
+          f"{r} tiles", all(o[0] and tamer.SPACING_R <= o[1] <= 5 and o[2] > r for o in out.values()), str(out))
+
+
 def test_stairs():
     print("== the Mausoleum stairs beside the arrival: routes keep off them; an accidental trip up steps back ==")
     import tempfile
@@ -2257,7 +2311,8 @@ def main():
         print("SKIP: no map files (install dir)")
         return 0
     for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_stairs, test_backspawn,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_vet_tile_off_tank,
+              test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_ledge_attacker, test_caster_at_12,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,

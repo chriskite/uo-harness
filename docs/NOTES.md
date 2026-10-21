@@ -4242,6 +4242,26 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   simulator): deaths/h 0.96 -> 0.88 (runs with a death 14 -> 13), kills/h 109.6 -> 110.4, gold/h 107,145 -> 106,806,
   damage on Logan/h 2,278 -> 2,258, pet deaths 1 -> 1, a pet left behind 0 -> 1 (seed 40: the gravebug 9 tiles off
   didn't come to "All Follow Me" for 25 s on a time-up walk out; 92da05a's batch had one too), guards/h 186.5 -> 193.7.
+- **Walking onto the tank beside a reanimated daemon** (user: "we seem to go stand directly on our tank which is
+  getting us wallopped by the demon's AOE, but our Without Borders healing codex perk lets us heal from 5 tiles away so
+  we don't need to stand so close"; the run had `--vet-range 5`). True. The daemon 0x003794C4 stood at (5241, 675)
+  (the target answers of 09:53:48-09:54:10). 09:53:44 "stand-off to (5247, 668) ... beyond the vet supplies' reach of
+  the pets" (no tile clear of its 6-tile zone is within 5 of the gravebug beside it); 09:53:52 "to a hurt pet: route 9
+  steps from (5247, 668)", "arrived at (5241, 674)": `Team.to_pet` walked to range 1 of the gravebug whatever
+  `--vet-range`, a tile from the daemon; 09:53:55 vet; 09:53:56.05 its bone burst Logan -41 (the phoenix -109); 09:54:06
+  the stand-off out again, and the 09:54:14.65 burst (gravebug -91, phoenix -118) missed him. The stand-off and to_pet
+  alternate by design (out while the tank is whole, in to heal it); the "in" leg was the fault, and the stand-off's own
+  heal case (`vet_range` < the zone) stayed wherever it stood, beside the tank too. Also seen: 09:54:10 "to the corpse"
+  walked to (5242, 676), beside the daemon, 8 s before its death (the loot walk ignores area zones; not changed here).
+  Fixed: `Team.vet_tile` (within `--vet-range` of the pet, 3+ off pets and monsters in war mode, the least deep in an
+  area hit's reach, then within `--vet-range` - 1), used by `to_pet` and by the stand-off's step in to heal the tank.
+  test_sim `test_vet_tile_off_tank` replays it: before "to a hurt pet: route 9 steps from (5247, 668)", "arrived at
+  (5241, 674)" (the live tile, 1 from the daemon), the stand-off staying 2 from it; after both go to (5240, 669), 5 from
+  the gravebug and 6 from the daemon (its burst radius 5). Sim seed 17, `--vet-range 5`, before / after: 48 x 20 min
+  deaths/h 0.88 / 0.67 (runs with a death 13 / 10), kills/h 110.4 / 108.9, gold/h 106,806 / 106,624, damage on Logan/h
+  2,258 / 2,408, pet deaths 1 / 1; 144 x 20 min deaths/h 1.27 / 1.12 (52 / 48 runs), kills/h 112.6 / 111.0, gold/h
+  109,815 / 109,099, damage on Logan/h 2,410 / 2,421, pet deaths 5 / 4, pets left behind 6 / 4 (daemons are rare in
+  the simulator: 4-5 killed in 41-43 h, the daemon's damage on Logan 4-8 an hour).
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

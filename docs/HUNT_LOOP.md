@@ -464,8 +464,16 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    `--heal-at` whatever the potions and the pets' distance (they heal us with no pet in reach: live
    09:16:36-41 on 2026-10-15, +22; the user: "Logan should have vet supply-bandaged himself when he got
    low even though he wasn't close enough to heal the pets"), ahead of the stand-off and spacing steps;
-   a hurt pet out of range is walked to (1 tile: bandaging
-   reaches 2 only after 5 s stationary) when nothing is on us. No supplies: a `low_supplies`
+   a hurt pet out of range is walked to when nothing is on us: without the Healer's Codex "Without Borders"
+   (`--vet-range` below 4) next to it (1 tile: bandaging reaches 2 only after 5 s stationary); with it to the
+   vet tile (`Team.vet_tile`): within `--vet-range` of the pet, 3+ off every pet and monster in war mode (the
+   spacing rule), out of fire, the least deep in an area hitter's reach, then within `--vet-range` - 1 (a step
+   of the pet's during the channel), the fewest idle monsters seeing it: "to a hurt pet: (x, y), N from <pet>
+   (--vet-range 5), D into an area hit's reach" (user 2026-10-21: "we seem to go stand directly on our tank which
+   is getting us wallopped by the demon's AOE, but our Without Borders healing codex perk lets us heal from 5
+   tiles away"; live 09:53:52-56 the walk went to 1 of the gravebug, beside the reanimated daemon, and its bone
+   burst hit Logan -41; test_sim `test_vet_tile_off_tank`). No such tile: within `--vet-range` - 1 of it. No
+   supplies: a `low_supplies`
    juncture (item `veterinary supplies`). Resting outside waits for every pet to reach
    `--pet-heal-at`, by the supplies or, with none, by natural regeneration; past `--rest-timeout`
    the run stops rather than go back in with a hurt pet (that pet's leave rule would fire on arrival).
@@ -503,7 +511,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    from a second apparition in its sight, and it came onto Logan 5 s later; 20261015_204514 21:02:02 it
    went 3 tiles from an idle reanimated knight, which woke and hit him -46: the user, "Logan went and stood
    right in front of a reanimated knight while the pets were fighting another mob"; test_sim
-   test_standoff_sight: 35e7f83 went from 8 to 6 tiles of it, now 8 to 13).
+   test_standoff_sight: 35e7f83 went from 8 to 6 tiles of it, now 8 to 13). When the tank in the zone needs the
+   vet and the zone reaches farther than `--vet-range` (the daemon's 6 against 5), the stand-off steps in to the
+   same vet tile ("to heal the tank: (x, y), N from <pet> ..."), never mid-channel; before, it stayed wherever it
+   stood (beside the tank too). Healthy again, the tank's stand-off goes out of the zone (beyond the vet's reach
+   when no clear tile is in it) and a hurt tank brings it back to the vet tile: live 09:53:44 out, 09:53:52 in,
+   09:54:06 out.
    **A caster on us**: a caster in war mode within 10 while we take damage, nothing swinging at us, is
    an attacker (`HuntLoop.attackers`; live 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never
    a swing); with no pet within `--vet-range` + 2 the runner goes back to the pets (`Team.rejoin`), and
