@@ -726,8 +726,19 @@ From that capture (`world.RED`): notoriety 6, flags 0x20, a step every 0.19 s (r
 [INFERENCE: it knows where we are]; within 12 tiles in sight "<name> is attacking you!" over us; then to 3 tiles in
 sight, a spell at us every 2.3 s within 10 in sight (27-33, landing 1.4-2.5 s after the words, standing 1.5 s for
 each cast [INFERENCE: ServUO's Spell.BlocksMovement]). Monsters and the pets leave it be [INFERENCE]. The rope's jump
-now lands 0.8 s after our target (live 10:35:06.54 -> 07.33), steps denied meanwhile. Tests: test_sim
-`test_red_flight` (the live ground, both reds), `test_rope_cancel_attacked`.
+now lands 0.8 s after our target (live 10:35:06.54 -> 07.33), steps denied meanwhile. `add_red(..., route=[(x, y,
+seconds), ...])` walks a live red's own tiles first (the capture's 0x77s), then comes at us. Tests: test_sim
+`test_red_flight` (the live ground, both reds), `test_red_out_of_view` (17:37, the reds' live routes),
+`test_rope_cancel_attacked`.
+
+Since 2026-10-21 the simulator also sends the 0x1D the live server sends when a mobile goes out of view range (live
+17:37:10.92 I Make Bodies stepping to 19 tiles, 17:37:13.63 Botan); before, the client model kept such a mobile at
+its last tile out to its own 24-tile prune (the simulator sends no 0xC8), so a red out of view still showed where it
+left the view, and so did monsters. Before / after, the runner of the day, 20 min runs: 144 runs seed 1017 deaths/h
+0.71 / 0.89 (runs with a death 28 / 34), kills/h 111.8 / 115.3, gold/h 111,661 / 114,755, damage on Logan/h 3,110 /
+3,262, runs with a pet death 42 / 45; 48 runs seed 17 deaths/h 0.73 / 0.93 (10 / 12), kills/h 113.5 / 110.2. Both
+blocks put the deaths up a little (38 / 46 runs with a death of 192, about the noise) [INFERENCE: the runner no longer
+sees stale monsters 19-24 tiles off, as live it never did].
 
 ## Parity with the live runs (2026-10-20)
 

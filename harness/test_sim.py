@@ -1960,6 +1960,54 @@ def test_red_flight():
     print(f"  ({'through the gate' if res.get('ok') else res.get('error')} at {w.t:.1f} s, deaths {w.metrics['deaths']})")
 
 
+def test_red_out_of_view():
+    print("== the leave's red out of view before the flight, back along the gate's way: no walk toward him ==")
+    # live 2026-10-21 17:37:09.9-22 (hunt-20261021-172808-cc2f, Maus 3): I Make Bodies came into view at (5219, 661, 25),
+    # 18 tiles from Logan at (5237, 676), and walked down the ramp out of view by 10.9 (0x1D); the flight's first look
+    # came at 11.4 and found no one: the rope to (5242, 674) and "route 82 steps" north up x 5243 to y 654, the gate's
+    # way, where he came back along y 654 at 13.3 with Botan behind him (y 653): beside them at (5243, 658), dead at
+    # (5233, 655) at 21.9. Their tiles and step times are the capture's.
+    from agent_link import Abort
+    w = red_world(start=(5237, 676))
+    loop, clock, store, patched = red_loop(w)
+    imb = [(5220, 660, 0.4), (5221, 659, 0.2), (5222, 658, 0.2)] \
+        + [(5222 + i, 658 - min(i, 4), 0.36) for i in range(1, 8)] + [(x, 654, 0.2) for x in range(5230, 5242)] \
+        + [(5242, 655, 0.3), (5243, 656, 0.2), (5244, 657, 0.2)]
+    bot = [(5220 + i, 660 - i, 0.2) for i in range(7)] + [(x, 653, 0.2) for x in range(5227, 5240)] \
+        + [(5240, 654, 0.3), (5241, 655, 0.2)]
+    reds = [w.add_red(5219, 661, name="I Make Bodies", route=imb)]
+    world_tick, near = clock.on_advance, []
+
+    def watch(now):
+        world_tick(now)
+        if len(reds) == 1 and w.t >= 2.1:                     # Botan 2.1 s after him, on his tile (live)
+            reds.append(w.add_red(5219, 661, name="Botan", route=bot))
+        if w.t <= 9.0:
+            near.append(min(sim_cheb(w.player.pos, r.pos) for r in reds))
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            why = loop.leave_reason(loop.state())             # the leave's check, him in view
+            clock.advance(1.5)                                 # live 1.5 s to the flight's first look; him out of view
+            gone = sim_cheb(w.player.pos, reds[0].pos) > 18
+            try:
+                loop.leave_by_gate("urgent")
+            except Abort:
+                pass
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln for ln in out.getvalue().splitlines() if "rope to" in ln or "moongate" in ln or "away from" in ln]
+    check("the leave from him, then him out of view before the flight", bool(why) and "I Make Bodies" in why[0] and gone,
+          str(why))
+    check("...the flight runs from where he was: away first, the rope farther from him",
+          bool(lines) and "away from them first" in lines[0]
+          and all("from the nearest hostile player" in ln for ln in lines if "rope to" in ln), str(lines[:3]))
+    check("...never within 8 of them in the first 9 s (live: beside them 7 s after the leave)", min(near) >= 8,
+          f"nearest {min(near)}")
+
+
 def test_rope_cancel_attacked():
     print("== a player turns on us between the rope's cursor and our target: the cursor cancelled, no jump ==")
     # live 2026-10-21 10:35:05.99 "[Rope", 06.04 its cursor, 06.07 "Ticket Tongje is attacking you!", 06.54 our target
@@ -2535,7 +2583,8 @@ def main():
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_vet_tile_off_tank,
               test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_rope_sight, test_red_flight, test_rope_cancel_attacked, test_ledge_attacker,
+              test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
+              test_rope_cancel_attacked, test_ledge_attacker,
               test_caster_at_12,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,

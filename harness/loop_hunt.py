@@ -200,7 +200,8 @@ SPELL_BLOCK_S = 10.0          # after "too far away" / "cannot be seen": melee o
 # them: dead 8 s after the leave at (5244, 710))
 RED_RECENT_S = 20.0           # a hostile player out of view still counts where last seen this long (hostile_spots)
 RED_ZONE_R = 6                # ...the Mover's danger zone round each: the flight's routes bend round them
-RED_PASS_R = SPELL_RANGE      # a route to the gate that comes this close to one, nearer than we stand, passes it
+RED_PASS_R = SPELL_RANGE      # a route to the gate that comes this close to one, nearer than we stand, passes it...
+RED_RUN_TPS = 5               # ...and as many more tiles a second it has been out of view (running: a step every 0.2 s)
 FLEE_FAR_R = 22               # a flee tile this far from every hostile player is far enough (past the 18-tile view)
 FLEE_SEARCH_R = 24            # flee tiles: those the walk rules reach within this square (localmap.steps)...
 FLEE_DETOUR = 2               # ...in at most this many times their distance in steps (not round a wall to another room)
@@ -305,7 +306,7 @@ class HuntLoop:
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
         self.rope_next = 0.0                     # --rope: the next rope jump not before
         self.rope_refused = set()                # --rope: (x, y) landings the server refused this run
-        self.hostile_seen = {}                   # serial -> ((x, y), monotonic time) of hostile players (hostile_spots)
+        self.hostile_seen = {}                   # serial -> ((x, y), monotonic time, name) of hostile players (hostile_spots)
         self._drinking = False
         self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
         self._looked_t = -1e9
@@ -507,8 +508,10 @@ class HuntLoop:
         """Why a hostile player makes us leave now, else None: a red player within spell range; recall mode also a
         red anywhere in view (Bastet struck 4.6 s after sight, docs/PLAN.md "Red sighting") and a player named in
         "... is attacking you!" (seen or not: Bastet attacked hidden). Greys and oranges are no leave (user
-        2026-10-15: "I don't think we need to escape from a gray player. Only reds.")."""
+        2026-10-15: "I don't think we need to escape from a gray player. Only reds."). Every hostile player seen is
+        noted where it stands (note_hostiles: the flight runs from it even once it is out of view)."""
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
+        self.note_hostiles(st, a)
         # one first seen unlabeled waits the label grace (threats.Params.label_grace_s, Watch's "awaiting label"):
         # live 20261015_210709 21:28:21 a tormented soul (human body, notoriety 3) came into view 12 tiles off
         # before its name, was taken for a grey player and the run left; its name came the same second
@@ -1749,21 +1752,31 @@ class HuntLoop:
         return out
 
     def hostile_spots(self, st) -> dict:
-        """{serial: (x, y)} of the hostile players a flight runs from: red players in view, and players in view
-        named in '<name> is attacking you!' within RED_RECENT_S; one out of view counts where it was last seen for
-        RED_RECENT_S (hostile_seen)."""
-        a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
-        named = {t[: -len(ATTACKED_BY)].lower() for t in self.lines_over_us(st, RED_RECENT_S) if t.endswith(ATTACKED_BY)}
-        mobs, now = st["world"]["mobiles"], time.monotonic()
-        for t in a.threats:
-            if t.player and t.distance >= 0 and (t.kind == "red" or (t.name or "").lower() in named):
-                m = mobs.get(f"0x{t.serial:08X}") or {}
-                if m.get("x") is not None:
-                    self.hostile_seen[t.serial] = ((m["x"], m["y"]), now)
-        for s, (_, t) in list(self.hostile_seen.items()):
+        """{serial: (x, y)} of the hostile players a flight runs from (note_hostiles): one out of view counts where
+        it was last seen for RED_RECENT_S (hostile_seen)."""
+        self.note_hostiles(st, self.watch.update(st, recall_s=0.0, margin_s=0.0))
+        now = time.monotonic()
+        for s, (_, t, _) in list(self.hostile_seen.items()):
             if now - t > RED_RECENT_S:
                 del self.hostile_seen[s]
-        return {s: xy for s, (xy, _) in self.hostile_seen.items()}
+        return {s: xy for s, (xy, _, _) in self.hostile_seen.items()}
+
+    def note_hostiles(self, st, a):
+        """hostile_seen: where the red players in view stand now, and players in view named in '<name> is attacking
+        you!' within RED_RECENT_S. On every hostile-player check (player_threat), not only on the flight: live
+        2026-10-21 17:37:09.9 the red I Make Bodies came into view 18 tiles off, the leave fired, he stepped out of
+        view at 17:37:10.9 before the flight's first look, and the flight ran up the gate's way into him."""
+        players = [t for t in a.threats if t.player and t.distance >= 0]
+        if not players:
+            return
+        named = {t[: -len(ATTACKED_BY)].lower() for t in self.lines_over_us(st, RED_RECENT_S) if t.endswith(ATTACKED_BY)} \
+            if any(t.kind != "red" for t in players) else set()
+        mobs, now = st["world"]["mobiles"], time.monotonic()
+        for t in players:
+            if t.kind == "red" or (t.name or "").lower() in named:
+                m = mobs.get(f"0x{t.serial:08X}") or {}
+                if m.get("x") is not None:
+                    self.hostile_seen[t.serial] = ((m["x"], m["y"]), now, t.name or f"0x{t.serial:X}")
 
     def hostile_zones(self, spots: dict):
         """The Mover's danger zones (keys 'red:<serial>', RED_ZONE_R) round `spots`: a flight's routes bend round
@@ -1779,9 +1792,12 @@ class HuntLoop:
 
     def passes_hostile(self, path, spots: dict, here):
         """The serial of a hostile player the route `path` passes (comes within RED_PASS_R of, nearer than we
-        stand now), else None."""
+        stand now), else None. One out of view since `age` s may be anywhere it could have run meanwhile: RED_RUN_TPS
+        tiles a second more (live 17:37:10.9-13.3 I Make Bodies walked 9 tiles out of view, onto the gate's way)."""
+        now = time.monotonic()
         for s, xy in spots.items():
-            if path and len(path) > 1 and min(cheb(t, xy) for t in path[1:]) < min(cheb(here, xy), RED_PASS_R):
+            r = RED_PASS_R + int((now - self.hostile_seen.get(s, (xy, now))[1]) * RED_RUN_TPS)
+            if path and len(path) > 1 and min(cheb(t, xy) for t in path[1:]) < min(cheb(here, xy), r):
                 return s
         return None
 
@@ -2022,22 +2038,27 @@ class HuntLoop:
     def flee_out(self, gate, near, through):
         """The flight from hostile players to beside the leave gate (`near`; leave_by_gate, severity urgent): their
         danger zones on the Mover (hostile_zones: the routes bend round them), a look at the way every
-        FLEE_LEG_STEPS while any is known (hostile_spots). When the route passes one (passes_hostile), a leg away
-        from them first (flee_tile), from far enough a look again after FLEE_HOLD_S, and only cornered, or after
-        FLEE_MAX_S of it, the way past them as the zones bend it. A rope jump whenever one is worth it, never
-        landing nearer them (rope_jump). Live 2026-10-21 10:35:05-13 the only way from Maus 3's east wing ran up
-        the corridor two reds came down: the rope landed Logan beside one and the walk went on past them."""
+        FLEE_LEG_STEPS while any is known (hostile_spots), and at once when one we didn't know of comes into view.
+        When the route passes one (passes_hostile), a leg away from them first (flee_tile), from far enough a look
+        again after FLEE_HOLD_S, and only cornered, or after FLEE_MAX_S of it, the way past them as the zones bend
+        it. A rope jump whenever one is worth it, never landing nearer them (rope_jump). Live 2026-10-21 10:35:05-13
+        the only way from Maus 3's east wing ran up the corridor two reds came down: the rope landed Logan beside
+        one and the walk went on past them; 17:37:13-22 the red of the leave was out of view at the flight's start
+        and two came back along the gate's way while the walk ran on toward them with no look."""
         t_end = time.monotonic() + FLEE_MAX_S
-        leg = {"start": 0, "look": False}
+        leg = {"start": 0, "known": set()}
         said, failed = [None], set()
 
         def stop(s):
             if through(s):
                 return "through the gate"
-            self.hostile_zones(self.hostile_spots(s))
+            spots = self.hostile_spots(s)
+            self.hostile_zones(spots)
             if self.rope_worth(s):
                 return "a rope is worth it"
-            return "a look again" if leg["look"] and self.mover.steps - leg["start"] >= FLEE_LEG_STEPS else None
+            if spots.keys() - leg["known"]:
+                return "a hostile player in view"
+            return "a look again" if spots and self.mover.steps - leg["start"] >= FLEE_LEG_STEPS else None
 
         def say(line):
             if line != said[0]:
@@ -2057,7 +2078,7 @@ class HuntLoop:
                     s = self.passes_hostile(path, spots, here)
                     if s is not None:
                         xy, fleeing = spots[s], time.monotonic() < t_end
-                        who = (st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name") or f"0x{s:X}"
+                        who = self.hostile_seen[s][2] if s in self.hostile_seen else f"0x{s:X}"
                         tile = self.flee_tile(st, spots, failed) if fleeing else None
                         if tile is not None:
                             goal, label = tile, "away from them"
@@ -2074,7 +2095,7 @@ class HuntLoop:
                                 f"far as the way allows")
                 if self.rope_worth(st) and self.rope_jump(goal, spots):
                     continue
-                leg["start"], leg["look"] = self.mover.steps, bool(spots)
+                leg["start"], leg["known"] = self.mover.steps, set(spots)
                 try:
                     why = self.mover.walk_to(lambda: goal, 0, label, urgent=True,
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)

@@ -593,12 +593,16 @@ class World:
             self._step_toward(m, owner.pos, 1)
 
     # ------------------------------------------------------------ red players (add_red; module docstring)
-    def add_red(self, x, y, z=None, name="Ticket Tongje", spec=None) -> Mob:
-        """A red player at (x, y) (z: the surface nearest ours), `spec` over RED's numbers."""
+    def add_red(self, x, y, z=None, name="Ticket Tongje", spec=None, route=()) -> Mob:
+        """A red player at (x, y) (z: the surface nearest ours), `spec` over RED's numbers; `route`: (x, y, seconds)
+        tiles it walks first, each that long after the last (a live red's own path), before it comes at us."""
         spec = {**RED, **(spec or {})}
         z = self.stand_z(x, y, self.player.z if z is None else z)
         m = Mob(self._serial(), "red", "red player", name, 0x190, x, y, z, hits=spec["hits"], hits_max=spec["hits"],
                 noto=6, spec=spec)
+        m.cd["route"] = list(route)
+        if route:
+            m.next_step = self.t + route[0][2]
         self.mobs[m.serial] = m
         self._view()
         return m
@@ -623,7 +627,12 @@ class World:
             self.send(P.says(pl.serial, pl.name, m.name + ATTACKED_TEXT, kind=0, hue=34, body=pl.body))
             m.next_swing = t + self.rng.uniform(*sp["first_cast_s"])
             self.count("red_attacks")
-        if t >= m.next_step and (d > sp["keep_r"] or not sees):
+        route = m.cd.get("route")
+        if route and t >= m.next_step:
+            x, y, _ = route.pop(0)
+            self._place(m, (x, y, self.stand_z(x, y, m.z)))
+            m.next_step = t + (route[0][2] if route else 0.0)
+        elif not route and t >= m.next_step and (d > sp["keep_r"] or not sees):
             m.next_step = self._due(m.next_step, sp["step_s"])
             self._step_toward(m, pl.pos, sp["keep_r"] if sees else 1)
         if m.target is not None and t >= m.next_swing and d <= sp["cast_r"] and sees:
@@ -717,7 +726,11 @@ class World:
                 self.viewing.add(s)
                 self._show(m)
             elif not near and s in self.viewing:
-                self.viewing.discard(s)          # the client drops it by range itself
+                self.viewing.discard(s)
+                if not self._in_view(m):
+                    # out of range: the server's 0x1D, as live (2026-10-21 17:37:10.92 the red I Make Bodies stepping
+                    # to 19 tiles, 17:37:13.63 Botan); the client model would keep it at its last tile to 24
+                    self.send(P.delete(s))
         for s, it in self.items.items():
             if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW

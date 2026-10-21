@@ -764,11 +764,14 @@ moongate, and never near a red one).
   - **Never toward them** (`flee_out`, since 2026-10-21; live 10:35:13 Logan died roping and walking up the
     corridor two reds came down, NOTES "Dead leaving from two reds on Maus 3"). The hostile players (`hostile_spots`:
     reds in view, players in view named in "… is attacking you!", each kept where last seen for 20 s out of view)
-    are danger zones on the Mover (`red:<serial>`, 6 tiles: the routes bend round them). Every 6 steps the way
-    to the gate is looked at again; when it comes within 10 of one of them nearer than we stand
-    (`passes_hostile`), the flight runs away from them first (`flee_tile`: of the tiles the walk reaches within 24,
-    the farthest from the nearest of them up to 22, 2+ farther than here; no teleporter tile), waits from 22+ off,
-    and only cornered, or after 60 s of it, goes to the gate past them as far round them as the way allows
+    are noted on every hostile-player check, the leave's own included (`note_hostiles`; live 17:37:22 the leave's
+    red was out of view before the flight's first look, NOTES "Dead from two reds on the gate's way"), and are
+    danger zones on the Mover (`red:<serial>`, 6 tiles: the routes bend round them). Every 6 steps the way
+    to the gate is looked at again, and at once when one not known before comes into view; when it comes within
+    10 of one of them nearer than we stand (`passes_hostile`; one out of view: 5 tiles more for every second since,
+    as far as he could have run), the flight runs away from them first (`flee_tile`: of the tiles the walk reaches
+    within 24, the farthest from the nearest of them up to 22, 2+ farther than here; no teleporter tile), waits from
+    22+ off, and only cornered, or after 60 s of it, goes to the gate past them as far round them as the way allows
     ("to the moongate: no way round …"). A rope lands only farther from every one of them than we stand (off the
     route when the route goes their way: the walkable tile within 9 farthest from them; none: no rope), and its
     cursor is answered with Esc when a player turns on us between the cursor and our target (live 10:35:06.07).

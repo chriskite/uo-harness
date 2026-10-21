@@ -4355,6 +4355,57 @@ Capture session_20261021_085153 (0x77 is serial u32, x u32, y u32, z i32, dir: `
   level by (5700, 627) -> (5266, 627) (Logan walked it on 2026-10-14 in 83 s; `harness/data/sim/mausoleum.json`
   `teleporters`); the Mover doesn't route across levels, so a flight doesn't take it.
 
+## Dead from two reds on the gate's way (live 2026-10-21 17:37:22, hunt-20261021-172808-cc2f)
+
+The runner of ad908ed (loaded at 17:28:08). Capture session_20261021_164924, the store's events, the task log.
+
+- **Before.** Logan fought a tormented soul and a nightstalker with the pets in the room at (5235-5245, 674-677),
+  stand-offs out of the nightstalker's charge, hits 24 -> 42 (potion 37:08.1), -14, the vet +28.
+- **The reds, from the capture (0x20/0x77).** I Make Bodies 0x44E2D ('Legendary Invader', '[Do I have consent?, Syn]',
+  notoriety 6) into view at 37:09.91 at (5219, 661, 25), the top of the ramp west of the corridor, 18 tiles from Logan
+  at (5236/5237, 676): the leave ("LEAVING by the moongate: red player I Make Bodies in view at 18 tiles"). He walked
+  (5220, 660) 10.31, (5221, 659), (5222, 658) 10.72 and was gone at 10.92 (0x1D, 19 tiles). Botan 0x32A620 ('Legendary
+  Serial Killer [Andaria]', '[Soul Reaper, Syn]', red, flags 0x62: war mode) into view at 12.03 on the same tile,
+  in and out of view (0x1D 13.63). Both came back down the ramp and east along the gate's way: I Make Bodies (5229,
+  654, 12) at 13.27, one tile every 0.20 s along y 654 to (5241, 654) at 16.33, (5243, 656) at 16.84, "I Make Bodies
+  is attacking you!" 16.85 (Logan at (5243, 660), 4 tiles); Botan a row north (y 653) to (5239, 653) 16.13, "Botan is
+  attacking you!" 17.31 at (5241, 655). Mason. 0x44BF53 ('[Veteran, Syn]', red, war mode) into view at 20.77 at (5217,
+  663), on the same ramp top.
+- **What the flight did.** "All Follow Me" 11.11; `flee_out`'s first look ~11.4 found no hostile player: I Make
+  Bodies had gone out of view at 10.92 and `hostile_spots` noted players only when the flight itself looked (the
+  leave's `player_threat` saw him and kept nothing). So: no "the way passes …" line, the rope with no players to
+  keep from (the route's farthest tile, "rope to (5242, 674) (5 tiles): landed", the old line's form), and "to the
+  moongate: route 82 steps" north up x 5243 toward y 654, the gate's way, where they came. From 13.27 the reds were
+  in view and became danger zones ("danger ahead changed; replanning" at each step: the routes bent round them
+  tile by tile), but that leg had begun with none known, so it never stopped for a look: 17:37:15-21 north to (5243,
+  658) beside I Make Bodies, then west along y 654 between both. Hits: potion 78 -> 100 at 18.68; -25 19.41 (his
+  "Corp Por" 19.42), -33 19.65, -10 20.32, -12 21.84, -21 21.86: 100 -> 0 in 2.5 s, dead at (5233, 655) at 21.87,
+  Botan a tile off at (5234, 654).
+- **Not ours.** No war mode, no 0x05: Logan's 0x20 flags 0x20 throughout.
+- **Fixed** (`loop_hunt`): `note_hostiles` notes every hostile player on each hostile-player check, the leave's
+  `player_threat` included, so the flight starts from where the leave's red was; a flight leg stops for a look as
+  soon as a hostile player it didn't know of comes into view ("a hostile player in view"); one out of view counts as
+  passed by a route within 10 tiles + 5 a second since he was seen (as far as he could have run): the zones bent the
+  route round where he was, not round where he went. The simulator now sends the live 0x1D when a mobile leaves view
+  range (docs/SIM.md "Red players"), and `add_red` takes a live red's route. test_sim `test_red_out_of_view` replays
+  17:37 with both reds' capture tiles: before, "rope to (5242, 674) (5 tiles): landed", "to the moongate: route 82
+  steps from (5242, 674)", then "danger ahead changed" up x 5243 and beside them (the nearest red 1 tile in the first
+  9 s; the live log almost line for line); after, "to the moongate: the way passes I Make Bodies at (5219, 661) (18
+  tiles off): away from them first, toward (5241, 675)", "rope to (5241, 675) (4 tiles, 18 -> 22 tiles from the
+  nearest hostile player): landed", "… 22+ tiles from them here, looking again", the nearest red 17 tiles in the
+  first 9 s. In the simulator the reds then hunt him down the east wing (they know where he is: [INFERENCE] of the
+  model) and he still dies there, 22 s after the leave instead of 15.
+- **The leave rule itself (the user's call; evidence only).** Both deaths of the day were flights to the crimson gate
+  (5203, 703) along the way the reds came: at 10:35 down the corridor from the north, at 17:37 from the ramp top at
+  (5217-5219, 661-663), which the gate's route crosses ((5242, 654) -> (5224, 657) -> (5216, 665) -> (5208, 673));
+  all three reds of 17:37 came into view on that one tile [INFERENCE: they come in by the crimson gate, the way in
+  from town, so a flight to it runs at the next ones]. At 17:37 neither red came at Logan's room: I Make Bodies walked
+  east along y 654, 20 tiles north of it, and named Logan only at 4 tiles, after the flight had taken him up the x
+  5243 corridor to meet him. His hits at the leave (24-57 with the mob fight) didn't decide it: at 100/100 he died in
+  2.5 s once both were within 5. There is no capture of a red meeting Logan while he stayed with the pets, so whether
+  holding there (the pets on guard) or running elsewhere (the east wing's teleporter to Maus 4 at (5253, 736)) does
+  better is not known.
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0
