@@ -1887,6 +1887,10 @@ The user asked whether we could emulate the Outlands server and train the combat
   61 % where Logan was the nearest a monster saw) override the user's 2026-10-15 rule that such a monster goes for
   Logan; the simulator's monsters had gone for him at 29 %, which made it ~3x as deadly as live. `tank_draw` 0.9 is
   the one fitted parameter, to that measured share; rejected: leaving the rule and a 2.8x death rate.
+  (4) 2026-10-21: the yardstick is **the visits of the runner the simulator runs** (`parity.RUNNER_SINCE`, since the
+  crawl's seek of monsters in view, 10-17 23:08; `--since` for any other cut); rejected: every visit since the live
+  server cut (several runner versions; the crawl gaps were mostly the older crawls). A rare count's interval is the
+  wider of the bootstrap and its exact Poisson interval (the bootstrap can't exceed the visits with an event).
 
 ## Hunt job pane in the viz (decided and built 2026-10-17)
 
