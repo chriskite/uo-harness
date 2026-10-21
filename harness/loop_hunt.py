@@ -116,7 +116,8 @@ ever releases or transfers a pet (tamer.irreversible).
 
 Soul jars (--soul-jars, default on; soul_jar.py; docs/HUNT_LOOP.md "Soul jars"; user request 2026-10-17): with
 an empty soul jar in the pack and an eerie corpse of the Field of Souls event in view, nothing attacking us, walk
-within 2 tiles and double-click the jar (its bags opened first); mid-fight only a corpse that needs no step. One
+within 2 tiles and double-click the jar (its bags opened first); mid-fight only a corpse that needs no step. With
+pets the walk waits and stops as a patrol does (the pets fighting or lagging, the hold and the pull budget). One
 try per corpse; a `soul_jar` job event.
 
 Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --crawl] [--spell lightning]
@@ -1415,6 +1416,7 @@ class HuntLoop:
             def stop(s):
                 if key_of(serial) not in s["world"]["items"]:
                     return "the eerie corpse is gone"
+                self.scan_events(s)
                 if self.attackers(s):
                     return "under attack"
                 if self.leave_reason(s):

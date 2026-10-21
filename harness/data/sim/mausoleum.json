@@ -69,19 +69,20 @@
    "ranged": {
     "range": 10,
     "damage": [
-     154,
-     565,
-     238
+     211,
+     776,
+     327
     ],
     "every_s": 1.8
    },
    "step_s": 0.21,
    "follow": 1,
    "leash": 14,
-   "threat_x": 0.3,
+   "threat_x": 0.1,
+   "threat_note": "0.1 since 2026-10-21 (0.3 before, fitted to the first trip): of the monsters' attributed hits on all 41 live visits the gravebug took 81 %, the phoenix 9.6 %, Logan 9.4 %; at 0.3 the simulator gave 78 / 11.6 / 10.6 %, at 0.1 80 / 9.4 / 11 % (24 runs) and the phoenix's damage 3,154 -> 2,733 an hour",
    "melee_taken_x": 1.7,
    "melee_taken_note": "the phoenix takes 1.7x the gravebug's number from the same monster's melee (World._taken_x): medians AF/GR on today's captures (20261015_171928, _204514, _210709), one attributed attacker each: shadowguard 1.75 (n=9 AF / 36 GR), vampire bat 1.92 (7/26), corpsebride 1.65 (6/45), shadow minion 1.75 (5/32), vampire countess 1.35 (7/28); not on spells (banshee 0.79, 9/17) nor the area hits (wail 16 vs 16, apparition burst 37 vs 37), which carry their own numbers",
-   "note": "hits 660: 6.6 hits per percent point (n=24, capture); spell hits: p10/p90 of the phoenix-attributed numbers (n=30) with the median of the 428 ambiguous ones (237.5) as mode, every 1.80 s (attack animation n=254); range 10 [INFERENCE; Epic Barrage reaches 12, knowledge #6882]; step 0.21 s (one-tile moves out of war mode, n=471, capture); took little aggro on the trip (84 hits per war-minute vs the gravebug's 796): threat_x 0.3 [fitted with the gravebug's 4.0]"
+   "note": "hits 660: 6.6 hits per percent point (n=24, capture); range 10 [INFERENCE; Epic Barrage reaches 12, knowledge #6882]; step 0.21 s (one-tile moves out of war mode, n=471, capture); took little aggro on the trip (84 hits per war-minute vs the gravebug's 796): threat_x 0.3 [fitted with the gravebug's 4.0]. Spell hits every 1.80 s (attack animation n=254 on the first trip; 1.79 s over the 134 kills below). Damage: the first trip's p10/p90 of 30 attributed numbers with the median of the ambiguous ones as mode was (154, 565, 238); recalibrated 2026-10-20 x 1.373 to (211, 776, 327) from Logan's live pets visits (docs/SIM.md 'Parity with the live runs'): 134 kills from full hits (tormented and bound souls, shadowguards, purgers, corpsebrides, minions, forgotten souls, knights) took 905,861 in 2,614 s from our first hit to the death, the gravebug 1,409 attack animations (x 0.95 x its median 99), the phoenix 1,460: 530 a phoenix attack with the songs and the discord on, where the simulator applied 386 (its base 319 x those, 1.21); live the phoenix's attacks carry more numbers than animations (3,162 numbers to 2,869 animations), its numbers bimodal (250-350 and 650-800)"
   }
  ],
  "loadout": {
@@ -206,6 +207,9 @@
   "min_chance_factor": 0.33,
   "range": 12,
   "chance_note": "p = max(S/100 - difficulty/100, 0.33 x S/100) (knowledge #8530 #5239); S = 149 fitted (maximum likelihood, n=47) to the trip's 18/30 discord, 8/14 peace, 2/4 provoke at the difficulties of their targets (scenario.fit_bard)",
+  "observed": {"discord": {"abomination": [10, 13], "apparition": [29, 47], "banshee": [27, 42], "blightmare": [10, 13], "bound soul": [20, 26], "calamity": [36, 45], "corpse purger": [17, 26], "corpsebride": [32, 45], "forgotten soul": [18, 34], "newly reanimated": [13, 13], "nightstalker": [27, 42], "raw flesh": [25, 25], "reanimated knight": [13, 14], "shade wolf": [51, 98], "shadow minion": [32, 35], "shadowguard": [22, 28], "tormented soul": [29, 50], "vampire bat": [27, 30], "vampire countess": [20, 27]},
+               "peace": {"apparition": [13, 17], "banshee": [5, 16], "bound soul": [12, 17], "calamity": [10, 10], "corpse purger": [8, 12], "corpsebride": [6, 13], "nightstalker": [10, 15], "shade wolf": [13, 16], "shadow minion": [10, 12], "shadowguard": [16, 23], "tormented soul": [8, 12]}},
+  "observed_note": "[successes, attempts] of the runner's Discordance and Peacemaking at a target, by its type, from Logan's live pets runs on the live server (task logs hunt-20261015-211040 .. hunt-20261020-183232: 'Discordance on <type>: success|failed'; 458/653 and 111/163), types with 10+ attempts; the simulator uses these rates for those types and the formula above for the rest. The formula with S = 149 put every target past difficulty 100 at its 49 % floor: live the shadowguard (131.8) was discorded 79 %, the shade wolf (86.7) 52 %, overall 70 % against the simulator's 57 % (docs/SIM.md 'Parity with the live runs').",
   "discord_dealt": 0.1667,
   "discord_taken": 0.1667,
   "discord_bonus_calm": 0.25,
@@ -240,32 +244,40 @@
    5.3
   ],
   "heal_pet": [
-   40,
-   120,
-   71.5
+   104,
+   202,
+   135
   ],
   "heal_self": [
-   12,
-   25,
-   17
+   20,
+   37,
+   29
   ],
   "multi_share": 1.0,
-  "note": "range 2 (+ Without Borders: --vet-range); channel 5.0-5.3 s (n=43); heals: pet median 71.5 (n=36), us 17 (n=11), capture"
+  "note": "range 2 (+ Without Borders: --vet-range); channel 5.0-5.3 s (n=43); heals: a pet, the gravebug's hit bar's rise at 'You finish using veterinary supplies.' on all 41 live visits (2026-10-21), those that didn't fill it, 23 / 30 / 45 % (q10 / median / q90, n=145) x 4.5 hits a percent (40-120, median 71.5 from the first capture's 36 before); us: his hits' rise at the finish, those that didn't fill him, 21 / 29 / 36 (q10 / median / q90, n=167; 12-25, median 17 from the first capture's 11 before)"
  },
  "potions": {
   "heal": [
-   25,
-   40
+   28,
+   50
   ],
   "cooldown_s": 10,
   "satchel_save": 0.3,
-  "note": "heal: the trip's six drinks, median 32.5; cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
+  "note": "heal: the server's own number (cliloc 1008158 'You feel better (N)', affix) on 612 live drinks in 41 visits (2026-10-21): those that didn't fill him (194) healed 30 / 34 / 41 (q25 / median / q75), 47-51 at q90-q95; drunk under 30 hits 30 / 40 / 51 (q10 / median / q90, n=40). [25, 40] before (the trip's six drinks, median 32.5) left the simulated Logan low: he dipped below 15 hits 1.2 times an hour and died after nearly every dip, live 2.9 times and 0.6 deaths. cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
  },
  "defaults": {
   "aggro_range": 10,
   "wake_s": [1.5, 3.0],
   "wake_note": "an idle monster takes a target this long after one of us came within its aggro range and sight, the nearest then: the 10-tile crossing to war mode on today's captures (20261015_090607 to _210709), 1.4-2.6 s (p10 1.6, median 2.2, n=188; 20 slower ones were idle monsters left alone longer); before: 20261015_171928 18:57:06 one apparition 1.8 s, 19:49:35 one 2.7 s",
   "aggro_note": "aggro 10 (2026-10-15 audit, docs/SIM.md 'Monster mechanics audit'; per type in aggro_observed, 13 for the shadow minion and the calamity): of 252 idle monsters that woke on today's captures none had kept one of us in sight within 10 tiles for over 5 s (102 had within 13); at the flip the nearest of us stood at a median 7 (p90 10), 2.2 s before it at a median 10. It was 13 from the user's guess (2026-10-15, 'I think its 12 or 13'; runner aggro.AGGRO_R stays 13 as a margin), 10 before that. The pick: the nearest it sees, a pet on a tie (World._think); live the gravebug took the first contact in 61 of the 99 wakes where Logan was the nearest seen: the guard and its Tank threat (threat_x) take it over in the sim too",
+  "tank_draw": 0.9,
+  "tank_draw_note": "at a wake where Logan is the nearest of us seen, a guarding Tank pet (threat_x >= 2: the gravebug) that the monster sees within its aggro range + world.TANK_DRAW_R 3 (the pets trail us 1-3 tiles) takes it with this chance (World._think). Live the gravebug took the first contact in 61 of the 99 such wakes (2026-10-15 audit, docs/SIM.md 'Monster mechanics audit'); the nearest-seen rule alone gave it 29 % (334 wakes, 24 runs, 2026-10-20), 0.9 gives 61 % (373 wakes). Adopted on the user's call 2026-10-20 (docs/SIM.md 'Parity with the live runs') [INFERENCE: the mechanism, a Tank class drawing aggro, knowledge #2074]",
+  "pets_first": ["nightstalker"],
+  "pets_first_note": "types that take the Tank (else a pet) over Logan and the phoenix whenever one is a candidate (World._think: the wake, the threat pick, RETARGET_P). Live its attributed hits went 94 % to the gravebug, 5 % to the phoenix, 1 % to Logan (111); taking any pet, the simulated one put 32 % on the phoenix (575; 1,090 of the phoenix's damage an hour). Live (41 visits, 2026-10-20): the nightstalker's first victim was never Logan (0 of 35), 1 of its 111 attributed hits was on him, and 5 of 86 '*charges*' hit him; the simulated one went for him first 10 % and was the top killer (18 of ~70 deaths a batch, live none since the live server) [INFERENCE: why; a stealth hunter's pick]",
+  "spawn_spread": 4,
+  "spawn_spread_note": "a spawn's monster stands on a random walkable tile within this many of its point, in sight of it (World._spawn_tiles). Live idle first sightings stood a median 3 tiles from their spawn's point (q75 4, q90 6; 1,037 sightings, 41 visits, 2026-10-20) and an idle monster was within 4 of a point at Logan's approach 33 % of the time; on the point, the simulator's 63 % [INFERENCE: a spawner's home range]",
+  "wander_per_s": 0.11,
+  "wander_note": "an idle monster steps to a random open tile within 2 of its home this often a second (World._monster). Live idle monsters in view moved in 11 % of the one-second samples (25,830 monster-seconds, 41 visits, 2026-10-20) and stood 1/2/3/7 tiles (q50/75/90/97) from where first seen; the simulator's stood still. With it and spawn_spread (24 runs): 10 % of seconds, 1/2/2/5; an idle monster within 4 of a spawn's point at Logan's approach 48 % (live 33 %, on the point 63 %), idle monsters in his view 1.76 on average (live 1.52, before 1.9-2.1)",
   "hit_chance": 0.85,
   "swing_s": 3.0,
   "kb_melee_to_pet": 0.5,
@@ -274,6 +286,8 @@
   "ranged_range_note": "spells landed at 11-14 tiles: banshee 5 of 25 attributed hits, shadow minion 6 of 19, the countess 1 of 21 at 12 (today's captures); 10 before [INFERENCE]",
   "ranged_kb_factor": 0.5,
   "damage_to_player_x": 1.6,
+  "melee_to_player_x": 1.2,
+  "melee_to_player_note": "a melee hit's number on Logan / the gravebug's, medians of the hits attributed to one animating monster on all 41 live visits (2026-10-20; the -21 disease ticks left out): the vampire bat 1.30 (14 Logan / 79 GR), shadowguard 1.19 (12/52), shade wolf 1.41 (10/314), tormented soul 0.97 (10/135), vampire countess 1.13 (7/74), bound soul 0.88 (5/122): 1.18 weighted by Logan's hits (the apparition's 2.2 and the corpsebride's 1.5 are their area hits, with their own numbers). damage_to_player_x 1.6 stays for spells (the banshee's 1.74). With 1.6 on melee a simulated tormented soul hit him 32-40 (live 12-19, n=8)",
   "victim_note": "a monster's melee and spell numbers are the gravebug's (they come from the attributed hits, mostly on it); Logan takes damage_to_player_x of them (World._taken_x): medians Logan/gravebug, same monster type and attack, today's captures, song-corrected: banshee spells 1.74 (n=11 Logan / 17 GR), corpsebride 1.70 (9/45), vampire countess 1.95 (7/28), shade wolf 1.40 (3/130); the specials 1.25-1.65 (wail 1.4, charges 1.6, burst 1.25) have their own numbers. 1.0 before. Every observed number is divided by (1 - the Song of Discordance up then: 15.8-18.4 %), as the sim cuts it again",
   "respawn_s": [
    120,
@@ -289,6 +303,11 @@
   "note": "aggro 10: the capture's 32 war-mode switches in view were 1-13 tiles from us (median 7) apart from those first seen at the view's edge (18) already fighting [INFERENCE: the wiki's flat 20-tile Perception Range, knowledge #4329, would put the sim's banshees on us from across the room: 6 of 9 simulated deaths with 20], sight required; guard_draw_r 6: once one of us is in its range, a monster goes for a guarding pet within this of us (the trip: all 11 monsters we hadn't acted on went to a pet first, user 2026-10-13) [INFERENCE: the radius]; swing 3.0 s (follower base, #7606; observed 2.96-3.36 for 5 types); melee for a type without an observed hit: the wiki melee x 0.5 (observed/wiki medians: shadowguard 0.49, shade wolf 0.50, purger 0.49, bat 0.44, nightstalker 0.64); step_s: observed 0.33-0.43 s per chase step (corpsebride VeryFast, bat Fast, bound soul Medium), others [INFERENCE]; respawn: one candidate 123 s [INFERENCE]"
  },
  "specials": {
+  "blightmare": [
+   {"kind": "disease", "chance": 0.67, "pet_chance": 0.01, "tick": 21, "every_s": 5.0, "ticks": 4,
+    "pet_note": "as the corpse purger's pet_note",
+    "note": "live 2026-10-19 19:54:40-57: 4 of its 5 spell hits on Logan came with 'The creature's spell blights you with a foul disease!' (its Spellblight; knowledge #14647's 15 % is the tamed version's [INFERENCE]), each -21 every ~5 s as the purger's disease; one fight"}
+  ],
   "shade wolf": [
    {
     "kind": "vanish",
@@ -484,6 +503,8 @@
     "tick": 21,
     "every_s": 5.0,
     "ticks": 4,
+    "pet_chance": 0.01,
+    "pet_note": "on the pets almost never (2026-10-20, 41 visits): -21 numbers 5 s apart (an infection's ticks) came 0.32 infections an hour on the gravebug and none on the phoenix, against 2.0 on Logan; the simulator at the chance 0.67 on every hit gave the gravebug ~24 an hour (2,014 of its damage) and the phoenix ~3.7 (309); 0.01 is that ratio [INFERENCE: whether pets are immune or resist]",
     "note": "capture 20261014_221341 22:33:53-22:34:17.6: its barrage from 10 tiles hit Logan 22, 26 and 26; the 2nd and 3rd each with 'You have contracted a foul disease!' (2 of 3 [INFERENCE: the wiki's 7.5 % a hit, knowledge #14902, is the tamed version's]); each infection ticked -21 every ~5 s 4 times (20 s, as the wiki's 'every 5 seconds for 20 seconds'), the two side by side, 168 in all, his hits down to 21; 'You are no longer diseased.' at the last; no poison flag; he cured nothing (potions, vet and a bandage only)"
    }
   ],
@@ -501,6 +522,19 @@
   "note": "all of Logan's 23 hits on the trip were bleeds, a Charge or transfixed copies (docs/NOTES.md). Bleeds: 8-10 every 3 s, 5 ticks over 15 s, then 'You are no longer bleeding.' (3 bleeds, capture). Bound soul: 'They begin to draw blood from you!' with an opener of -23/-32 on Logan a tile off while it meleed the gravebug, 2 in its 19 swings at a pet with Logan within 1 tile [INFERENCE: an area bleed on everyone within 1]. Vampire bat: 'The creature strikes ferociously, causing you to bleed!' on its target, 15 % (follower Bleed, knowledge #14664). Nightstalker Charge: teleports up to 12 tiles, hits up to 3 within 1 tile (knowledge #14625); live '*charges*' at 21:21:14/:23/:31 (8.5 s apart), -37 and -42 on the gravebug and Logan (n=2); 20261013_204518: 5 charges 7.6-17 s apart, -10..-19 on the gravebug (3 of 5 hit); no Vanish seen. Shade wolf Vanish: two wolves in their fights left the view at 1 tile (0x1D) 4 times, 4.3-15 s into the fight and 19-22 s apart, for 3.5-5.8 s, and came back on the gravebug each time with a hit (21-28) before any re-guard. Countess transfix (3 fights over 20261012_210013, 20261013_173449 and 20261013_204518): '*attempts to transfix*' every 5.1-5.5 s while fighting; with no copy of hers up 6 of 12 made a hostile copy of a pet ('*transfixed*', the pet's name and body, on its tile), with one up 0 of 5; the pet took -36..-45 at that instant (n=5); the copy lasted 9.9-11.0 s to its 0x1D (n=6), in war mode 0-2.5 s after it appeared, and the pet itself made no step and no attack animation until then; the copies' 10 attributed hits on the first trip: 4 on Logan (28-37), 6 on the pets; the second walked 6 tiles to the phoenix rather than Logan at 8: a copy picks any of us but its original within 3 tiles, else any [INFERENCE: copy hits 2000, one took 1436 in 6 s and lived]. Corpsebride wail: '*wails*' every 7.5-7.8 s while it fights (25 in 4 fights), with a -13..-25 at once on the pets beside it (about 18 of 24 pet-tile-1 chances) and on Logan 2 of 11 times at 2-3 tiles [INFERENCE: an area hit on each of us, near_chance within radius 1, far_chance at 2-3]. Vampire drain and disease as poison 15 % (#2639) [INFERENCE]."
  },
  "ranged_observed": {
+  "blightmare": {
+   "range": 12,
+   "damage": [15, 17.5, 16],
+   "every_s": 3.4,
+   "note": "live 2026-10-19 19:54:40-57 (capture 20261019_192054, docs/NOTES.md 'Dead in a blightmare's sight'): one blightmare in war mode 12 tiles from Logan, its cast animation (7) every 1.5-1.8 s, its spell hits on him -26 -28 -28 -24 -24 at 40.8, 47.5, 50.2, 53.8, 57.2 (3.3-3.6 s apart): Logan's 24-28 / 1.6 gravebug-referenced (defaults victim_note). One fight [INFERENCE: the rate]. Not in the simulator before 2026-10-20: live it was met 2.5 an hour at (5239-5245, 684-691)"
+  },
+  "corpse purger": {
+   "range": 10,
+   "damage": [11, 21, 15.5],
+   "every_s": 2.29,
+   "keep": 4,
+   "note": "gravebug-referenced (defaults victim_note): Logan's numbers with a purger the nearest monster in war mode, its disease ticks (-21) left out, 14 / 20.5 / 27 (q10 / median / q90, n=26, 41 visits 2026-10-20) / 1.6, song-corrected; the earlier [15, 38] put 24-61 on Logan (a simulated purger 3 tiles off took him 65 -> 0 in 7 s, seed 133), 8 of 24 simulated deaths"
+  },
   "banshee": {
    "range": 12,
    "damage": [16, 23, 19],
@@ -558,11 +592,13 @@
   {
    "key": "elder vampire",
    "at": [5214, 640, 15],
+   "spread": 2,
    "note": "first seen idle at (5213-5217, 639-640) in 5 captures (20261013_204518 20:54:45, 20261014_221341 22:16:10 and 22:21:12, 20261015_171928 19:16:24, 20261015_210709 21:28:24)"
   },
   {
    "key": "elder vampire countess",
    "at": [5217, 639, 15],
+   "spread": 1,
    "note": "first seen idle at (5216-5218, 638-640) in 6 captures (20261012_210013 21:20:57, 20261013_204518 20:58:11, 20261014_210020 21:07:41, 20261014_221341 22:17:20 and 22:36:03, 20261015_171928 19:16:45); the runner never pulls her (aggro.NEVER_AGGRO)"
   },
   {
@@ -571,24 +607,14 @@
     5243,
     633,
     0
-   ]
+   ],
+   "respawn_s": [360, 720]
   },
-  {
-   "key": "apparition",
-   "at": [
-    5210,
-    717,
-    0
-   ]
-  },
-  {
-   "key": "banshee",
-   "at": [
-    5216,
-    701,
-    0
-   ]
-  },
+  {"key": "apparition", "at": [5196, 722, 0]},
+  {"key": "apparition", "at": [5218, 724, 0]},
+  {"key": "vampire", "at": [5196, 641, 45]},
+  {"key": "blightmare", "at": [5243, 687, 0],
+   "respawn_s": [120, 300]},
   {
    "key": "banshee",
    "at": [
@@ -662,6 +688,14 @@
    ]
   },
   {
+   "key": "corpse purger",
+   "at": [
+    5229,
+    732,
+    0
+   ]
+  },
+  {
    "key": "corpsebride",
    "at": [
     5187,
@@ -699,7 +733,8 @@
     5229,
     727,
     0
-   ]
+   ],
+   "respawn_s": [240, 480]
   },
   {
    "key": "nightstalker",
@@ -768,25 +803,9 @@
   {
    "key": "shade wolf",
    "at": [
-    5208,
-    672,
-    25
-   ]
-  },
-  {
-   "key": "shade wolf",
-   "at": [
     5210,
     660,
     25
-   ]
-  },
-  {
-   "key": "shadow minion",
-   "at": [
-    5210,
-    696,
-    7
    ]
   },
   {
@@ -816,7 +835,7 @@
   {
    "key": "shadowguard",
    "at": [
-    5227,
+    5230,
     724,
     0
    ]
@@ -830,18 +849,18 @@
    ]
   },
   {
-   "key": "shadowguard",
+   "key": "tormented soul",
    "at": [
-    5194,
-    681,
-    25
+    5235,
+    674,
+    0
    ]
   },
   {
    "key": "tormented soul",
    "at": [
-    5235,
-    674,
+    5236,
+    685,
     0
    ]
   },
@@ -879,7 +898,8 @@
   },
   {
    "key": "reanimated daemon",
-   "at": [5239, 700, 0]
+   "at": [5239, 700, 0],
+   "respawn_s": [240, 480]
   },
   {
    "key": "forgotten soul",
@@ -903,14 +923,6 @@
     5186,
     664,
     24
-   ]
-  },
-  {
-   "key": "vampire bat",
-   "at": [
-    5207,
-    683,
-    15
    ]
   },
   {
@@ -968,7 +980,7 @@
   {"key": "insane reanimator", "at": [5531, 645, -10]},
   {"key": "reanimator zealot", "at": [5530, 680, -10]}
  ],
- "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles)",
+ "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles). Revised 2026-10-20 against Logan's 37 live pets visits (5.1 h on the level, 2026-10-15..20, docs/SIM.md 'Parity with the live runs'): idle first sightings cluster one monster to a spawn (none of 20/17 banshee, 24 shadowguard, 16/15 vampire bat, 13/15 apparition sightings had a second of its type within 5 tiles and 30 s), so the second banshee at (5216, 701) beside (5217, 705) and the second shadowguard at (5194, 681) beside (5193, 681) went, and three spawns with no live sighting within 4 tiles in 37 visits: a shadow minion at (5210, 696), a vampire bat at (5207, 683) (16 idle shadow minions there instead) and a shade wolf at (5208, 672) (one sighting, in war mode). With them the simulator met 2-3x the live banshees, shadowguards, shadow minions and bats an hour. Added: the apparition at (5210, 717) became the two live clusters' (5196, 722) and (5218, 724) (13 and 15 idle sightings, the 19:49 fight's A and B); a second vampire at (5196, 641, 45) (seen with the one at (5186, 664) within 30 s twice); a blightmare at (5243, 687) (8 idle sightings, met 2.5 an hour live, none in the simulator). Added (2026-10-20, all 41 visits after the capture mapping fix, docs/SIM.md 'Parity with the live runs'): a corpse purger at (5229, 732), the centre of 12 idle first sightings at x 5224-5234, y 726-737 (one at a time; met 9.7 an hour live, 3.2 simulated with only the two at (5266, 655) and (5274, 652)). Respawns of the dear rare spawns (2026-10-21, with the unseen hunters on; 288 runs each): met an hour with every spawn at 120-300 s, live 4.4 / 3.2 / 2.6 / 1.5, simulated the blightmare 5.7, the reanimated daemon 4.3, the master reanimator 3.9, the vampiric consort 3.1; at 360-720 s 2.9 / 2.6 / 2.4 / 1.9; the blightmare 180-480 s, the other three 360-720 s [INFERENCE: fitted to the meetings; no respawn of theirs seen live]; refitted to the visits since 2026-10-17 23:08 (the runner the simulator runs: met an hour live 5.3 / 3.5 / 3.2 / 1.6): the blightmare back to 120-300 s, the daemon and the master reanimator 240-480 s, the consort 360-720 s. A second tormented soul at (5236, 685): 54 idle first sightings at x 5235-5239, y 670-687, two at once 7 times (one about (5236, 673), one about (5236, 685)); tormented souls met 17.8 an hour simulated against 25.8 live. The elder vampires keep near their points (`spread`): live their idle first sightings stood 1-2 tiles off (the countess, 15 of 19) and 2-3 (the elder vampire, 19 of 21), where the other types spread a median 3; with the default 4 the simulated countess held the runner ('would see us') 5.1 times an hour against the live 1.5. Moved: the shadowguard at (5227, 724) to (5230, 724), where 3 of its 4 live first sightings stood (x 5226-5230): at 5227 it sat 8 tiles from Logan's spot west of the wall, (5219, 726), in pull reach, and the simulator's runner walked a 155-168-step route toward it 2-3 times a run (live never: no approach route over 100 steps).",
  "teleporters": [
   {"from": [5554, 700], "to": [5547, 696, 10]},
   {"from": [5507, 701], "to": [5507, 698, -5]},
@@ -984,13 +996,25 @@
  "teleporters_note": "the ones Logan stepped onto on the way in (capture): 21:17:19 to the second level, 21:17:37 two short hops on it (a deny at (5506, 701) then a self move to (5507, 698), and (5507, 697) -> (5507, 693); the map has no walk across: A* takes 468 steps round, Logan ~150), 21:17:57 to the fight level. 20261014_210020: a hop on the second level at 21:02:19.6; Maus 4 (the 4th level) in by a step E at (5253, 736) (21:09:31.5) and out at (5700, 627) walking W, back on the fight level at (5266, 627) (21:10:54.9). 'from' is where the deny reported us, as for the others. The door he came into Maus 4 by leads back too (user 2026-10-14), tile not known",
  "area": [
   5170,
-  640,
+  610,
   5285,
   742
  ],
- "area_note": "the fight level's box (calibration levels: x 5174-5278, y 646-738), a little wider: time here is the sim's hunting time",
+ "area_note": "the fight level's box (calibration levels: x 5174-5278, y 646-738), a little wider, and north to y 610 since 2026-10-21: live Logan stood at y 613-639 (the north-east room, the elder vampires' hall) 10 % of his time on the level, and the simulator left that time and the damage there out of its hours (World._on_level): time here is the sim's hunting time and the damage on us and the pets counted per hour",
+ "eerie": {
+  "enabled": false,
+  "note": "The Field of Souls' eerie corpses (Halloween event 2026-10-17 to 10-24; docs/NOTES.md 'Field of Souls'), off unless enabled (sim/run.py --eerie). Live (the store's proxy event eerie_corpse, first sight per proxy run): 14 on the fight level 2026-10-17..20, 12 of them within Logan's live pets visits (4.10 h on the level since the event began): 2.9 an hour in view. They lay at 11 spots, three of them more than once ((5188, 667) three times): the spots are those. Logan's runner filled jars at 5 (the store's soul_jar job events). per_h (level-wide) and lifetime_s are [INFERENCE: not observable; one lay 4+ min, NOTES], per_h set so the simulator's in-view rate is about the live one (docs/SIM.md 'Parity with the live runs'). Spirit names: the live fills.",
+  "per_h": 7.5,
+  "per_h_note": "7.5 since 2026-10-21: on the visits since 2026-10-17 23:08 (the runner the simulator runs) 3.7 an hour came into view (1.7-6.4, 32 visits); 5.0 gave 2.3. 5.0 had been fitted to the 2.5 of the visits from 10-15",
+  "lifetime_s": [240, 900, 480],
+  "jars": 5,
+  "spots": [[5179, 680, 25], [5181, 628, 25], [5188, 667, 25], [5203, 635, 25], [5207, 730, 0], [5216, 705, 0],
+            [5241, 652, 0], [5243, 628, 0], [5260, 658, 0], [5272, 646, 0], [5279, 653, 0]],
+  "spirits": ["Gibbon Bachus", "Odo Kydwelly", "Crein Geste", "Charles Chyrche", "Gilles Styles", "Karin Winckel"]
+ },
  "others": {
   "enabled": false,
+  "unseen": {"life_s": 600, "start_fill": 0.6, "note": "the level's other hunters out of our view (World._unseen_tick): an idle spawned monster out of Logan's view goes at 1/life_s a second, and a spawn is up at a run's start with start_fill. Live (all 41 visits, 2026-10-20, one-second samples): idle monsters in his view 1.52 on average, in war mode 0.87; an idle monster within 4 tiles of a spawn's point at his approach 36 % on a visit's first approach and 23 % 7+ minutes after his last pass (28 % 1-3 minutes after, where his own kills set it). The simulator with only the modelled players (the spawn spread and wander on): 1.72, 0.92, first approach 59 % and 7+ minutes 59 %. 600 s and 0.6 gave 1.50, 0.87, 49 % and 47 % (24 runs) [INFERENCE: that other hunters clear the level unseen; the two respawns seen live, 148 and 205-264 s, don't suggest a slow respawn, and a 480-1,200 s respawn emptied the spots Logan had just passed (8 % at 1-3 minutes against the live 28 %)]"},
   "note": "other (blue) players on the fight level, measured 2026-10-19 over 19 live captures with Logan on Maus 3 (20261013_173449 ... 20261019_095934, 6.69 h, 24,098 one-second samples; docs/NOTES.md 'Other players at the Mausoleum'). Off unless enabled (sim/run.py --others). Calibration targets in our view: >= 1 other player 27.4 % of the time, 0.36 on average (1.3 when any); 82 arrivals in view an hour; in-view stays median 8 s (p25 3.9, p75 25, p90 44, n 525): players mostly run through; 279 monsters seen on another player died in view (42 an hour). arrive_per_h and stay_s are level-wide [INFERENCE: not observable], set so the simulator gives about those in view: at 10/h (28 runs) 25.4 %, 0.32, 57 arrivals/h; at 11/h (4 x 144 runs, docs/SIM.md 'Other players') 31-33 %, 0.39-0.44, 66-80 arrivals/h, stays median 10-11 s (p90 43-54), their kills in view 30-37 an hour. notoriety: 92 % of player sightings blue (1), green 2.7 %, grey 0.9 %, red 2.8 % (reds out of scope): all blue here. pet_share: 266 of 565 in-view appearances had a pet or summon not ours within 4 tiles; pets by sightings (tag as live: bonded or summoned). dps: the group's (player + pet) damage on a monster it fought, from 89 kills seen from engagement to death (hits x share at the start / seconds): p10 178, p50 456, p90 885 hits/s. Kill times there (n 97): median 9.9 s (p25 3.9, p75 16.3). 160 of 164 monsters killed by another player left a blue corpse. every_s, reach, step_s, engage_r, linger_s, roam_r, pet_part, hits: [INFERENCE]",
   "arrive_per_h": 11.0,
   "stay_s": [300, 1800, 600],

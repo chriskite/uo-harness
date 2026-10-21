@@ -1389,6 +1389,8 @@ class RightsLink:
     """The runner's Link over an in-process WorldRuntime (the proxy's state shape): act()
     feeds our C2S packet, then the server's answer, into it."""
 
+    save_t0 = None               # Link.wait's world-save state (no world saves here), as sim.link.SimLink has it
+
     def __init__(self):
         from world.runtime import WorldRuntime
         self.rt = WorldRuntime()

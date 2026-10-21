@@ -36,9 +36,11 @@ def check(name, cond, extra=""):
 def world_with(spawns, seed=1, start=FLOOR, others=False):
     sc = load()
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # the tests place each monster on its tile
     sc["player"]["start"] = [start[0], start[1], 0]
     if others:
-        sc["others"] = {**sc["others"], "enabled": True, "arrive_per_h": 0.0}   # the test places its own (add_other)
+        sc["others"] = {**sc["others"], "enabled": True, "arrive_per_h": 0.0,   # the test places its own (add_other)
+                        "unseen": {}}                                         # and its monsters stay
     return World(sc, seed=seed)
 
 
@@ -115,22 +117,26 @@ def discord(link, m):
 
 
 def test_aggro_rules():
-    print("== a monster goes for whichever of us it sees first; our act pulls it only before the pets hit ==")
+    print("== a monster goes for whichever of us it sees first, a guarding Tank behind us drawing it at "
+          "tank_draw; our act pulls it only before the pets hit ==")
     results = {}
-    for where, ys in (("behind", 646), ("between", 650)):
+    for where, ys, draw in (("behind", 646, 0.0), ("behind, Tank draw", 646, 1.0), ("between", 650, 0.0)):
         w = world_with([{"key": "shade wolf", "at": [5266, 654, 0]}])
         m = next(m for m in w.mobs.values() if m.kind == "monster")
         m.spec = {**m.spec, "aggro_range": 7}                   # we at 6; the pets at 8 (behind) or 4 (between)
         w.sc["defaults"]["wake_s"] = None                       # who it picks, at once: no wake delay here
+        w.sc["defaults"]["tank_draw"] = draw
         for p, x in zip(w.pets(), (5266, 5267)):
             p.x, p.y = x, ys
         link, clock = link_for(w)
         link.send(tamer.command("all guard me"))
         clock.advance(0.6)
         tgt = w.mobs.get(m.target)
-        results[where] = tgt.kind if tgt else None
-    check("pets on guard behind us, out of its range: it goes for us; the pets between: for a pet",
-          results == {"behind": "player", "between": "pet"}, str(results))
+        results[where] = tgt.key if tgt and tgt.kind == "pet" else tgt.kind if tgt else None
+    check("pets behind us, out of its range: us; with the Tank draw: the gravebug (live first contact 61 %); "
+          "the pets between: a pet",
+          results["behind"] == "player" and results["behind, Tank draw"] == "gravebug"
+          and results["between"] in ("gravebug", "phoenix"), str(results))
     pulled = {}
     for hurt_first in (False, True):
         w = world_with([{"key": "shade wolf", "at": [5266, 651, 0]}], seed=3)
@@ -285,7 +291,22 @@ def test_bard_and_vet():
           and gb.hits > gb.hits_max * 0.5, f"{took:.2f} s, {gb.hits}/{gb.hits_max}")
     for p in w.pets():
         p.mode = "stay"
-    gb.hits, gb.x, gb.y = gb.hits_max * 0.5, w.player.x + 4, w.player.y
+    gb.hits, gb.x, gb.y = gb.hits_max * 0.5, w.player.x, w.player.y + 3
+    w.player.hits = w.player.hits_max
+    clock.advance(1.0)
+    mark = len(link.events)
+    link.send(actions.dclick(vet))
+    clock.advance(1.0)
+    link.send(actions.walk(4, seq=1))                 # a turn south, then a step mid-channel: the gravebug 2 off then
+    link.send(actions.walk(4, seq=2))
+    until((tamer.TEXT_VET_FINISH, tamer.TEXT_VET_FAR))
+    check("a step during the channel: the gravebug 2 tiles off at the finish healed (live 126 of 128 channels with "
+          "steps finished)", w.player.pos[:2] == (FLOOR[0], FLOOR[1] + 1) and gb.hits > gb.hits_max * 0.5,
+          f"at {w.player.pos[:2]}, {gb.hits}/{gb.hits_max}")
+    for p in w.pets():
+        p.mode = "stay"
+        p.x, p.y = w.player.x + 4, w.player.y       # live: the pets 3-4 tiles off then (a whole pet in range finishes)
+    gb.hits = gb.hits_max * 0.5
     w.player.hits = w.player.hits_max
     clock.advance(1.0)
     mark = len(link.events)
@@ -822,6 +843,52 @@ def test_idle_pet():
           f"kill commands {said}, phoenix target {af.target}")
 
 
+def test_pet_shot():
+    print("== the phoenix blind to its target (the pillar row, the gravebug in its one gap): it moves to a shot ==")
+    # the simulator 2026-10-20 (seed 20, 285-385 s): AlaFlambe at (5265, 651) on a bound soul at (5265, 649) stood
+    # 100 s without an attack, stepping only straight at it; live the phoenix went 10+ s without one in 1.5 % of the
+    # gravebug's fighting time (35 visits)
+    w = world_with([{"key": "bound soul", "at": [5265, 649, 0]}], seed=7, start=(5265, 655))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    (gb.x, gb.y), (af.x, af.y) = (5266, 650), (5265, 651)
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    for p in (gb, af):
+        p.mode, p.target = "guard", m.serial
+    link, clock = link_for(w)
+    check("blind at the start", not w.can_see(af, m))
+    clock.advance(10.0)
+    check("the phoenix hit it within 10 s", af.serial in m.damage_by, f"phoenix at {af.pos[:2]}")
+
+
+def test_countess_held_pet():
+    print("== a vampire countess transfixes the gravebug: she fights the phoenix or us until it is free again ==")
+    # live (41 visits, 2026-10-20): of the countesses' 47 hits on us while a copy of the gravebug was up, 2 on the
+    # gravebug, 28 on the phoenix, 17 on Logan; with the gravebug free 107 of 134 on it
+    w = world_with([{"key": "vampire countess", "at": [5266, 650, 0]}], seed=5, start=(5266, 653))
+    m = next(m for m in w.mobs.values() if m.key == "vampire countess")
+    m.hits = m.hits_max = 10 ** 6
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for p in w.pets():
+        p.mode = "stay"
+    gb.x, gb.y = 5266, 651
+    m.target, m.threat, m.warmode = gb.serial, {gb.serial: 1e6}, True
+    sp = next(sp for sp in m.spec["specials"] if sp["kind"] == "transfix")
+    w._transfix(gb, {**sp, "pet_damage": None}, m)
+    m.spec = {**m.spec, "specials": [s for s in m.spec["specials"] if s["kind"] != "transfix"] + [
+        {**sp, "every_s": 10 ** 6}]}           # no second transfix in the test
+    m.cd["transfix"] = 10 ** 6
+    copy = next(o for o in w.mobs.values() if o.spec.get("copy_of") == gb.serial)
+    link, clock = link_for(w)
+    clock.advance(2.0)
+    during = m.target
+    clock.advance(max(0.0, copy.expires - w.t) + 2.0)
+    check("the gravebug held: she is on another of us", during not in (None, gb.serial), f"target {during}")
+    check("the copy gone: back on the gravebug (its threat)", m.target == gb.serial, f"target {m.target}")
+
+
 def test_on_another_player():
     print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
     # live 20261019_095934 10:10:57-10:11:28 (hunt-20261019-100618-80b2): a tormented soul in war mode on Lord Phaze at
@@ -1222,9 +1289,10 @@ def test_patrol_pull():
     pets = {p.serial for p in w.pets()}
     hit = w.metrics.get("player_damage_by", {}).get("corpse purger", 0) + w.metrics.get("player_damage_by", {}).get(
         "disease", 0)
-    check("one patrol, the purger killed on the pets alone, nothing of it on Logan, 'All Guard Me' after",
+    check("one patrol, the purger killed on the pets alone (its target never Logan; a shot of its may stray to him in "
+          "reach, world.SHOT_AT_PLAYER_P), 'All Guard Me' after",
           loop.team.counts.get("patrols", 0) == 1 and w.metrics["patrol_commands"] == 1 and not m.alive
-          and targets and targets <= pets and hit == 0 and w.metrics["guard_commands"] >= 2,
+          and targets and targets <= pets and w.metrics["guard_commands"] >= 2,
           f"patrols {loop.team.counts.get('patrols', 0)} cmds {w.metrics['patrol_commands']} purger alive {m.alive} "
           f"targets {targets} pets {pets} on Logan {hit} guards {w.metrics['guard_commands']}")
 
@@ -1699,9 +1767,9 @@ def test_audit_mechanics():
     w = world_with([])
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     af = next(p for p in w.pets() if p.name == "AlaFlambe")
-    check("a monster's hit: the gravebug x1, Logan x1.6 (melee and spells), the phoenix x1.7 on melee only",
+    check("a monster's hit: the gravebug x1, Logan x1.2 on melee and x1.6 on spells, the phoenix x1.7 on melee only",
           (w._taken_x(gb, "melee"), w._taken_x(w.player, "melee"), w._taken_x(w.player, "spell"),
-           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.6, 1.6, 1.7, 1.0))
+           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.2, 1.6, 1.7, 1.0))
     # apparition: a blink every ~8 s though its target stands beside it, onto the target's tile, the area hit
     # only at the landing; the song cuts Logan's share, not the pets'
     w = world_with([{"key": "apparition", "at": [5268, 649, 0]}], seed=12)
@@ -1976,6 +2044,7 @@ def test_soul_jar_guards():
                  {"key": "vampire bat", "at": [5175, 682, 25]}]
         wolf = [{"key": "shade wolf", "at": [5199, 683, 25]}]
         sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in (wolf if case == "pets fighting" else group)]
+        sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
         sc["player"]["start"] = [5197, 682, 0]
         sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 1,
                                        "kind": "soul_jar"})
@@ -2132,7 +2201,7 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet, test_on_another_player, test_others_corpse_not_looted,
+              test_idle_pet, test_pet_shot, test_countess_held_pet, test_on_another_player, test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,

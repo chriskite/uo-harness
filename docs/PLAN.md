@@ -1872,6 +1872,25 @@ The user asked whether we could emulate the Outlands server and train the combat
   answers are starting points for live checks, not defaults: the monsters' damage to the player is
   under-measured. Rejected for now: learning a policy from scratch (it would learn the sim's gaps).
 - Captures that would close the gaps are listed in docs/SIM.md "Captures wanted".
+- *Parity with the live runs* (2026-10-20, after the 18:22 death at an eerie corpse; docs/SIM.md "Parity with the
+  live runs"). Since the first trip, ~40 live pets visits (5.5 h on the level) give the yardstick the trip couldn't.
+  Decisions: (1) compare **the runner's own records** in both worlds (its visits and `fight`/`death`/`leave` job
+  events, the same code writing them), plus the captures for what the runner doesn't record (damage on the pets,
+  the monsters met), per hour on the level against a bootstrap interval over the live visits: `sim/parity.py`;
+  (2) a simulated career **starts from the live memory** (`run.py --prior`), as every live run does, and keeps
+  live-like game time between runs; rejected: longer empty careers (they never reach the live store's hours of zone
+  knowledge); (3) recalibrate only where the live numbers have the sample (spawns from 37 visits' sightings, bard
+  rates from 816 attempts, the phoenix from 134 kills), each with its evidence in the scenario's notes, and leave
+  the rest as named open gaps; rejected: tuning free parameters until the table matches (it would fit noise and
+  hide model errors). The Field of Souls corpses are in the world while the event runs (`--eerie`).
+  The one exception, by the user's call ("Adopt the Tank draw", 2026-10-20): the live first contacts (the gravebug
+  61 % where Logan was the nearest a monster saw) override the user's 2026-10-15 rule that such a monster goes for
+  Logan; the simulator's monsters had gone for him at 29 %, which made it ~3x as deadly as live. `tank_draw` 0.9 is
+  the one fitted parameter, to that measured share; rejected: leaving the rule and a 2.8x death rate.
+  (4) 2026-10-21: the yardstick is **the visits of the runner the simulator runs** (`parity.RUNNER_SINCE`, since the
+  crawl's seek of monsters in view, 10-17 23:08; `--since` for any other cut); rejected: every visit since the live
+  server cut (several runner versions; the crawl gaps were mostly the older crawls). A rare count's interval is the
+  wider of the bootstrap and its exact Poisson interval (the bootstrap can't exceed the visits with an event).
 
 ## Hunt job pane in the viz (decided and built 2026-10-17)
 

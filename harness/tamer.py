@@ -785,7 +785,7 @@ class Team:
         h.doing("leave", "Falling back while the pets come")
         try:
             h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, FALLBACK_R), urgent=True,
-                            max_moves=FALLBACK_MOVES,
+                            max_moves=FALLBACK_MOVES, mobile_wait=0,
                             stop=lambda s: self.together(s) or time.monotonic() > end)
         except Abort as e:
             if not str(e).startswith(label):
@@ -995,7 +995,8 @@ class Team:
         log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
             f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else ""))
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS,
+                            mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1222,10 +1223,10 @@ class Team:
         gate = tuple(self.a.leave_gate) if getattr(self.a, "leave_gate", None) else None
         try:
             if gate is not None and cheb(gate, m["pos"]) > cheb(v.pos, m["pos"]) + 3:
-                h.mover.walk_to(lambda: gate, 1, label, urgent=True, stop=stop, max_moves=EVADE_MOVES)
+                h.mover.walk_to(lambda: gate, 1, label, urgent=True, stop=stop, max_moves=EVADE_MOVES, mobile_wait=0)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=nav.beyond([m["pos"][:2]], EVADE_CLEAR_R), urgent=True,
-                                stop=stop, max_moves=EVADE_MOVES)
+                                stop=stop, max_moves=EVADE_MOVES, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1445,10 +1446,10 @@ class Team:
         try:
             if to is not None:
                 h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
-                                max_route=2 * STANDOFF_MOVES)
+                                max_route=2 * STANDOFF_MOVES, mobile_wait=0)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), urgent=True, max_moves=STANDOFF_MOVES,
-                                max_route=STANDOFF_MOVES)
+                                max_route=STANDOFF_MOVES, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1518,10 +1519,11 @@ class Team:
         self.count("retreats")
         try:
             if to is not None:
-                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R, max_route=3 * RETREAT_R)
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R, max_route=3 * RETREAT_R,
+                                mobile_wait=0)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, RETREAT_R - 1), urgent=True,
-                                max_moves=2 * RETREAT_R)
+                                max_moves=2 * RETREAT_R, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1699,7 +1701,7 @@ class Team:
             m = h.link.last["world"]["mobiles"].get(f"0x{serial:08X}")
             return (m["x"], m["y"]) if m is not None and m.get("x") is not None else at
         try:
-            h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True,
+            h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True, mobile_wait=0,
                             stop=lambda s: (why := h.leave_reason(s)) and why[0])
         except Abort as e:
             if not str(e).startswith(label):
@@ -1810,23 +1812,36 @@ class Team:
 
     def approach(self, serial: int, mob: dict):
         """Walk toward a target the pets haven't engaged until APPROACH_R (its aggro range): the
-        pets on guard engage it when it comes on. Stops as soon as it is hurt or attacks us."""
+        pets on guard engage it when it comes on. Stops as soon as it is hurt or attacks us. Stopped by a monster
+        we mustn't wake first ("would see us": a purger before the pets, a --never-aggro one), the target is passed
+        over for SKIP_S: the next approach takes the same way (simulator 2026-10-21: back off, approach, hold,
+        back off within 1-3 s, 7 repeated purger holds an hour against none live); one that comes on is fought."""
         h, label = self.h, "toward a target"
-        h.doing("approach", f"Approaching {mob.get('name') or hex(serial)}", (mob["x"], mob["y"]), serial)
+        name = mob.get("name") or f"0x{serial:08X}"
+        h.doing("approach", f"Approaching {name}", (mob["x"], mob["y"]), serial)
+        blocked = []
 
         def where():
             m = h.link.last["world"]["mobiles"].get(f"0x{serial:08X}") or mob
             return m["x"], m["y"]
 
         def stop(st):
-            return self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)} \
-                or self.pull_check(st)
+            if self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)}:
+                return True
+            why = self.pull_check(st)
+            if why and why.endswith("would see us"):
+                blocked.append(why)
+            return why
         try:
             h.mover.walk_to(where, APPROACH_R, label, max_moves=APPROACH_MOVES, stop=stop)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
             log(f"approach: {e}")
+        if blocked:
+            log(f"passing over {name} 0x{serial:08X}: {blocked[-1]} on the way to it; skipping it for {SKIP_S:.0f} s")
+            h.skip[serial] = time.monotonic() + SKIP_S
+            h.disengage("dropped")
 
     def walk_to_see(self, st, serial: int, mob: dict, who: str) -> bool:
         """A monster fighting another player (`who`) within BARD_RANGE but out of our sight, no step of bard_step

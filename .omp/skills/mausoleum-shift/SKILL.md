@@ -84,8 +84,10 @@ User reports are ground truth; don't re-verify them in game.
    unobserved.
 3. **Reproduce offline, then fix** in the main checkout: the module's own `harness/test_*.py`, root
    `test_loop_hunt.py` for the hunt runner, and for fight, crawl, leave or pet behaviour the Mausoleum simulator
-   (`python harness/sim/run.py …`, `harness/sim/fight1949.py`, `python harness/test_sim.py`; docs/SIM.md).
-   Before/after numbers from the simulator are the proof the user asks for before trying again in game. Keep a
+   (`python harness/sim/run.py …`, the live-fight replays `harness/sim/fight1949.py` and `fight1822.py` (copy one
+   for a new incident), `python harness/test_sim.py`; docs/SIM.md). Batches as live plays use `--others --eerie
+   --prior <the main store>`; `harness/sim/parity.py` sets them beside the live runs. Before/after numbers from the
+   simulator are the proof the user asks for before trying again in game. Keep a
    failing-before/passing-after test where it catches a plausible regression. Large fixes may go to a `task`
    subagent, not isolated.
 4. **Record and push** (Rule 0): the finding in docs/NOTES.md (the run's section), the runner rule in

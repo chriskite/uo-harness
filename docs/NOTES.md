@@ -4069,6 +4069,153 @@ _151814, _155426, _181210, _183126, _210503, _215839, 20261018_113717, _175134, 
   on a monster on a player before ours hurt it 1,455 vs 1,991, "All Kill" at one 333 vs 280; loop crawl 52 vs 56 (1.27
   vs 1.38), 82.2k vs 82.1k, 1,234 vs 1,352 s.
 
+## The 18:22 death replayed, and fight step-aways blocked by mobiles (2026-10-20)
+
+The death and the soul-jar fix are in "Field of Souls" ("Dead after a soul-jar walk", 4c72c12). Added on the
+improve-maus branch:
+- **The minute in the simulator** (`harness/sim/fight1822.py`, docs/SIM.md "The 18:22 live death"): from 18:22:00,
+  Logan at (5210, 680), the shadowguard, the countess room and its neighbours as the capture has them, the corpse, no
+  respawns, 4 game minutes, 24 seeds. On the final calibration of "The simulator against the live runs" below: the
+  runner of the morning (c334fce) 7 deaths, 24 jars filled, Logan's lowest hits median 43; the merged runner (main's
+  jar guards, transfix wait and failed-walk carry-on, and the fix below) 1 death, 13 jars, 55. The deaths left are
+  the countess room's own fight (corpsebride wails, transfixed copies). With the Tank draw adopted later the same
+  day ("The simulator against the live runs"): 3 deaths, 9 jars, 53.
+- **A step away in a fight that mobiles block no longer stands waiting** (`Mover.walk_to` `mobile_wait=0` for the
+  retreat, stand-off, back-off, evade, fall-back and back-to-the-pets walks; `WalkFailed` at once): `MOBILE_WAIT_S`
+  90 s let a retreat stand "cut by mobiles we couldn't shove; waiting" while hit (live 2026-10-15 22:57:56, dead a
+  second later; the replay's seed 5 in the countess corridor, which now lives). `test_mover` checks it.
+- Not changed: the retreat's direction (it ranks tiles by the idle monsters that see them, not by the pets).
+
+## The simulator against the live runs (2026-10-20, docs/SIM.md "Parity with the live runs")
+
+`harness/sim/parity.py` compares Logan's live pets visits since the live server (the store's episodes and `fight`,
+`death`, `leave` job events; the captures for damage on the pets and the monsters met) with a simulator batch, per
+hour on the level, with a bootstrap 95 % interval over the live visits. What it found, and what changed:
+- **The simulator's clock ran before the live-server cut.** `sim/run.py`'s EPOCH was 2026-10-12, before
+  `hunt_return.LIVE_SINCE` (2026-10-15 21:07), so the return rule never read a career's own visits ("a death every 80
+  min", its prior, in every run), and each career run restarted at the same game time. Now game time starts
+  2026-10-21 00:00 and a career's next run starts 600 s after the last ended (live median 685 s between runs, 43 gaps).
+- **The simulated crawl stayed shallow**: 77 % of its time in zones 1-2 against the live 46 %. Live runs start from
+  a store with hours of zone knowledge and open zones 2-5 at once; the careers started empty. `run.py --prior <store>`
+  seeds every career with the live store's hunt history (episodes and hunt job events): zone shares 15/31/31/21/2 %
+  live, 17/22/36/21/4 % simulated.
+- **Spawns against the live sightings** (idle first sightings over 37 visits put one monster at each spawn): out a
+  second banshee and a second shadowguard beside the first, and a shadow minion at (5210, 696), a vampire bat at
+  (5207, 683) and a shade wolf at (5208, 672) that were never seen; in the two apparition spawns of the live
+  clusters (one before), a second vampire at (5196, 641) and the blightmare at (5243, 687) (met 2.5 an hour live,
+  absent before; its spells and Spellblight from the 10-19 fight). The simulator had met 2-3x the live banshees,
+  shadowguards, minions and bats an hour (a ratio against live rates the capture mapping below had cut; on all 41
+  visits the removals still hold: 1 pair of banshees and none of shadowguards within 5 tiles and 30 s, 1-3 sightings
+  ever by the removed minion, bat and wolf).
+- **Bard success by type**: the formula put every target past difficulty 100 at its 49 % floor; live Discordance
+  succeeded 70 % (458/653; the shadowguard 79 %, the shade wolf 52 %), Peacemaking 68 % (111/163). The scenario now
+  carries the live rates per type with 10+ attempts (`bard.observed`).
+- **The phoenix hit harder than modelled**: 134 live kills from full hits (souls, shadowguards, purgers, brides,
+  minions, knights) took 905,861 in 2,614 s from our first hit, with 1,409 gravebug and 1,460 phoenix attack
+  animations (periods 1.86 s and 1.79 s, as modelled); at the gravebug's median 99 a hit that is 530 a phoenix
+  attack, where the simulator applied 386. Its damage x 1.373; kill times from our first hit came from 1.0-1.6x of
+  live to 0.9-1.3x. Not the creatures' hits: live kills from full took exactly the scenario's hits + 1.
+- **Eerie corpses**: 2.5 an hour came into view live; the simulator now has them (`--eerie`), 2.4.
+- **Visits read from another character's capture** (`parity.capture_char`, `capture_windows(..., me_serial)`): a
+  visit's capture was the first whose rows spanned its start; a second character's day-long sessions (0x000ED575 at
+  (400-449, 900-949): 20261018_113327, 20261019_095918, 20261019_133709) spanned 16 of Logan's visits, so their
+  damage on him and the pets counted 0 and their monsters met none. Live per hour on all 41 visits: the damage on
+  Logan 2,315 (read 1,617), the gravebug 10,417 (7,373), the phoenix 2,111 (1,533); monsters met 1.25-1.6x. Scans
+  keyed to visit windows must check the capture's own serial (its login: `rt.state.self.serial` within ~8 packets).
+- **The first contact** (user's call 2026-10-20, "Adopt the Tank draw"): where Logan was the nearest seen at a wake,
+  live the gravebug took the first contact 61 % (99 wakes, 2026-10-15 audit), the simulator 29 %, so its monsters,
+  the nightstalker above all (Logan nearer at 31 of 44 simulated wakes against 4 of 22 live), went for Logan. A
+  guarding Tank in sight within the monster's range + 3 now takes the wake with `tank_draw` 0.9 (61 % simulated):
+  deaths 2.0 -> 1.5 an hour, the damage on Logan 2,308 -> 1,757. Against the corrected live 2,315 it had been on par
+  and is under since.
+- **A vet channel keeps its range when we step** (live: 126 of 128 channels with our steps in them healed, 44 with
+  the nearest pet 2-8 off); the simulator had cut it to 1 and answered "too far" 30 times an hour (live 0.6).
+- **A blind ranged pet walks to a shot**: the simulated phoenix stood 25 % of its targeting time behind a pillar or
+  the gravebug in a gap without an attack (one fight 100 s on the gravebug alone); live it went 10+ s without an
+  attack in 1.2 % of the gravebug's fighting time. Fights over 60 s beside the gravebug: 5.4 an hour -> 0.8.
+- **Spawns moved and added**: a shadowguard 3 tiles east to its live sightings (in pull reach through a wall, the
+  runner walked 155-168-step routes at it; live never over 100); a corpse purger at (5229, 732), 12 idle first
+  sightings there (purgers met 3.2 an hour -> 7.8, live 9.7).
+- **A countess doesn't fight a pet she holds**: while a copy of the gravebug was up, 2 of the countesses' 47 hits on
+  us went to the held gravebug, 28 to the phoenix, 17 to Logan (with it free 107 of 134 on it; animation within
+  0.15 s, one candidate only). The simulator now has her drop a pet whose copy is up; the 18:22 replay 3 deaths of
+  24 -> 1.
+- **Logan takes 16 % of our side's damage live, the simulator gave him 8 %**: by type his share of the attributed
+  hits was 0.03-0.23 live against 0.00-0.05 (the shadowguard 0.18/0.05, the banshee 0.17/0.02). Not the bard skills
+  (a Discordance on a monster hitting the pets left his share of its hits at 4 %, 360 casts). `world.RETARGET_P` 0.15:
+  a monster on a pet turns to Logan when he is nearer it and in sight [INFERENCE: mechanism]; his damage 0.66x ->
+  0.90x, deaths 0.9 -> 1.3-1.4 an hour. Turning to him anywhere in a caster's reach instead: deaths 4.5x at 0.05.
+- **The gravebug draws whoever is nearest at a wake**: live a monster's first victim was the gravebug 73-79 % whoever
+  of us was nearest (1,173 wakes; the phoenix nearest: gravebug 74 %, phoenix 7 % of 58). The Tank draw now takes
+  the phoenix's wakes too: the phoenix as first victim 20 % -> 14 % (live 10 %), its damage 3,600 -> 3,095 an hour.
+- **A sixth of Logan's damage is disease ticks**: 96 of his 603 numbers on 41 visits were -21 (the purger's and the
+  blightmare's disease tick), 4.1 infections an hour: "You have contracted a foul disease!" (purger barrage) 1.4,
+  "The creature's spell blights you with a foul disease!" (blightmare) 1.4, "You have been ensnared and diseased!" 0.9
+  (source not seen: nothing in war mode within 12 or a shadowguard 6 off), "The creature torments you with a foul
+  disease!" (a tormented soul's melee) 0.4. The simulator: 1.7 an hour. A tormented soul's "5 s hits from 3 tiles"
+  were these ticks on the nearest-monster attribution.
+- **The nightstalker goes for the pets** (live: first victim never Logan, 0 of 35; 1 of its 111 attributed hits on
+  him): scenario `defaults.pets_first`. It had been the simulator's top killer (18 of ~70 deaths a batch).
+- **The phoenix holds where it has a shot**: live in fights it stood 3+ tiles from Logan 57 % of the time; the
+  simulated one stepped back to within 2 between shots (11 %), so a nightstalker's charge at it landed beside him
+  (17 % of landings within a tile of Logan against the live 8 %). Now its distances from him match live by the tile.
+- **Pets hardly catch the diseases**: -21 chains 5 s apart came 0.32 infections an hour on the gravebug and none on
+  the phoenix live, 2.0 on Logan; the scenario's `pet_chance` 0.01 (the simulated gravebug had ~24 an hour).
+- **Spawns spread and idle monsters drift**: live idle first sightings stood a median 3 tiles from their spawn's point
+  (q75 4, q90 6) and idle monsters in view moved in 11 % of seconds. `defaults.spawn_spread` 4 and `wander_per_s`
+  0.11 (`world.wrng`, so the world's other draws stay put). With them the retarget refitted: 0.05 (0 gave Logan's
+  damage 0.75x and deaths 1.2 an hour; 0.15 0.99x and 2.0).
+- **The level is emptier than its spawns**: live idle monsters in Logan's view 1.52 on average, a spawn's point
+  occupied at his first approach 36 % and 7+ minutes after his last pass 23 %; with the spread and wander the
+  simulator still had 1.72, 59 % and 59 %. `others.unseen` (an idle spawn out of his view gone at 1/600 a second, 60 %
+  of the spawns up at the start) gives 1.50, 49 %, 47 % [INFERENCE: other hunters]. A longer respawn instead
+  emptied the spots he had just passed (8 % at 1-3 minutes against the live 28 %).
+- **The purger's barrage was 2x on Logan**: live his numbers with a purger nearest (disease ticks out) 14 / 20.5 / 27
+  (n=26); the scenario put [15, 38] x 1.6 on him. Now `ranged_observed` [11, 21, 15.5].
+- **Melee on Logan is ~1.2x the gravebug's, not 1.6x**: by type 0.88-1.41 (1.18 weighted, 58 of his attributed
+  hits); `defaults.melee_to_player_x` 1.2, spells keep 1.6 (the banshee's 1.74).
+- **The simulator's level box missed the north rooms**: `area` ended at y 640, so the north-east room and the elder
+  vampires' hall (10 % of live Logan's time on the level) fell out of its hours, and the damage on the walk in counted.
+  Now y 610 and the counters gate on `World._on_level`. The "north-east room never visited" finding before it was
+  this: the sampler skipped y < 640.
+- **The dear rare spawns respawn slower**: met an hour live the blightmare 4.4, the reanimated daemon 3.2, the
+  master reanimator 2.6, the consort 1.5 against 5.7, 4.3, 3.9, 3.1 at 120-300 s; now 180-480 s (the blightmare) and
+  360-720 s [INFERENCE: fitted]. Gold 1.23x -> 1.19x.
+- **The server tells a heal's size**: a heal potion's cliloc 1008158 carries the number healed (the affix): 612 live
+  drinks, those that didn't fill Logan 30 / 34 / 41 (q25 / median / q75), under 30 hits a median 40; the trip's six
+  had put it at 25-40. A vet channel on him: his hits' rise at "You finish using veterinary supplies." 21 / 29 / 36
+  (q10 / median / q90, n=167; 12-25 before). Live he fell below 15 hits 2.9 times an hour and mostly lived; with the
+  old heals the simulated one fell 1.2 times and nearly always died. Now `potions.heal` 28-50, `vet.heal_self` 20-37:
+  deaths 1.2 -> 0.9 an hour.
+- **Casters' shots stray to Logan**: live his share of a caster's attributed hits 0.12-0.23 (purger, shadowguard,
+  banshee, minion), simulated 0.00-0.05. `world.SHOT_AT_PLAYER_P` 0.2 (a shot at a pet goes to him when he is in
+  reach and sight): his damage 0.63x -> 0.99x, potions 0.64x -> 1.02x, deaths unchanged; turning whole monsters to
+  him instead (`RETARGET_P` up) raised deaths before the damage.
+- **Compare the simulator with the visits of the runner it runs**: the live pets visits since 10-15 21:10 were run
+  by several runners; the crawl's seek of monsters in view (11c884b) came at 10-17 23:08, and the simulator's crawl
+  sought 74 times an hour against 21 on all live visits. The "where the crawl goes", gold, bard and west-wing gaps
+  were mostly that. `parity.py --since` defaults to `RUNNER_SINCE` (2026-10-17 23:08) now: 32 visits, 3.76 h.
+  On that yardstick (288 runs, after a second tormented soul spawn at (5236, 685), the rare spawns' respawns and the
+  eerie rate refitted to it): kills 0.99x, gold 0.98x, the damage on Logan 0.97x, hits lost 0.99x, potions 1.00x,
+  discord and peace successes and fails, stand-offs, retreats, leaves, walk-out deaths, soul jars, eerie corpses,
+  every monster type met within the live interval.
+  **Then**: the phoenix's `threat_x` 0.3 -> 0.1 (live 81 / 9.6 / 9.4 % of the monsters' attributed hits on the
+  gravebug / phoenix / Logan; 0.1 gives 80 / 9.4 / 11 %), the nightstalker takes the Tank before the phoenix (live 94 %
+  of its hits on the gravebug), and the vet supplies heal a pet 104-202 (the gravebug's bar rose a median 30 % at a
+  live channel's finish, 145 of them; 40-120 before). On the yardstick now: kills 0.98x, gold 0.97x, the damage on
+  Logan 0.95x, the phoenix 1.22x and the gravebug 0.92x (both inside the interval), potions 0.99x, vet 1.11x.
+  **Still apart** (docs/SIM.md "Still apart"): pull holds 1.22x, discord fails 1.19x (at the interval's top), vet
+  1.11x, deaths 1.4 an hour against 0.5 (inside the interval).
+- **A bootstrap over visits under-reads a rare count's interval**: resampled visits can't hold more events than the
+  visits that had one; 2 live deaths in 3.76 h read 0-1.4 an hour, the exact Poisson interval 0.06-1.92.
+  `parity.boot` widens a count of 200 or fewer to its Poisson interval.
+- **Repeated holds point at runner loops**: merging a hold reason's repeats within 20 s, live 89.6 holds an hour
+  were 78.3 episodes, simulated 109.7 were 85.0; the simulated repeats were mostly "a corpse purger would see us" 1-3 s
+  apart (back off, approach the same target the same way, hold). `Team.approach` passes such a target over now.
+- **Blightmare deaths**: per engagement as lethal simulated as live (1 death in 5 live blightmare infection episodes,
+  10 in 45 simulated; "The creature's spell blights you with a foul disease!" 8 times live, 4 in the 10-19 19:54
+  death), but the simulated blightmares reach Logan 2.7 times an hour against 0.9 on all live visits.
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

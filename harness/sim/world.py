@@ -63,6 +63,20 @@ TICK_S = 0.1              # world step
 THINK_S = 0.5             # a monster/pet re-decides its target this often (RunUO AI ~0.5-1 s) [INFERENCE]
 LEASH = 24                # a monster chasing beyond this from home gives up [INFERENCE]
 LOST_S = 8.0              # ...or after its target was out of sight this long [INFERENCE]
+TANK_DRAW_R = 3           # a guarding Tank this much beyond a waking monster's range can still draw it (_think)
+SWITCH_X = 1.1            # a monster changes target when another's threat passes its target's by this factor
+RETARGET_P = 0.05         # a monster on a pet turns to the player nearer it, this chance a think (docs/SIM.md "Parity
+#                           with the live runs": live Logan took 16 % of our side's damage, the simulator 8 %; of the
+#                           attributed hits by type his share was 0.03-0.23 live against 0.00-0.05). With the spawn
+#                           spread and wander, 144 runs each: 0 gave his damage 0.75x and deaths 1.2 an hour, 0.05
+#                           0.84x and 1.1, 0.1 0.95x and 1.8, 0.15 0.99x and 2.0 (live 0.6, its interval to 1.3): the
+#                           simulator's deaths rise faster with his damage than live [INFERENCE: the mechanism, the
+#                           server's re-acquire of the nearest]
+SHOT_AT_PLAYER_P = 0.2    # a monster shooting at a pet sends a shot at the player in its reach and sight instead: live
+#                           his share of the casters' attributed hits was the purger's 0.23, the shadowguard's 0.18, the
+#                           banshee's 0.17, the minion's 0.12 (41 visits), simulated 0.00-0.05. 288 runs each: 0 gave
+#                           his damage 0.63x and potions 0.64x, 0.1 0.83x and 0.83x, 0.2 0.99x and 1.02x, deaths 0.9-1.1
+#                           an hour throughout (live 0.6, its interval to 1.3) [INFERENCE: the mechanism]
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
 PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
@@ -98,6 +112,22 @@ def cheb(a, b) -> int:
 
 def tile_dir(a, b) -> int:
     return nav.direction(tuple(a[:2]), tuple(b[:2]))
+
+
+class _ShotGoal(nav.within):
+    """Goal predicate for `World._step_to_shot`: within `radius` of the target and in its sight from the tile's
+    surface (pathfind.plan passes (x, y); nav.within's heuristic keeps the search small)."""
+
+    __slots__ = ("sight", "at")
+
+    def __init__(self, sight, at, radius: int):
+        super().__init__(at, radius)
+        self.sight, self.at = sight, at
+
+    def __call__(self, t) -> bool:
+        if not super().__call__(t):
+            return False
+        return self.sight.can_see((t[0], t[1], los.surface_z(self.sight.walk, t[0], t[1], self.at[2])), self.at)
 
 
 @dataclass
@@ -183,6 +213,7 @@ class World:
         self.items: dict[int, dict] = {}      # serial -> {graphic, amount, container, x, y, z, kind, ...}
         self.viewing: set[int] = set()
         self.viewing_items: set[int] = set()
+        self.met: set[int] = set()            # monsters shown to us once (metrics "met")
         self.next_serial = 0x00300000
         self.next_item = 0x60000000
         self.cid = 0x00400000
@@ -196,6 +227,7 @@ class World:
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
         self.orng = random.Random(seed * 7919 + 17)  # the other players' own draws: the rest of the world's stay put
+        self.wrng = random.Random(seed * 104729 + 3)  # spawn spread and idle wander: the rest of the world's stay put
         self.next_other_t = None              # the next other player's arrival on the level
         self.engaged_fn = None                # sim.run: the runner's engaged target (metrics only)
         self.others_in_view = {}              # other player serial -> time it came into our view
@@ -203,7 +235,11 @@ class World:
             self.metrics.update({"others_arrived": 0, "others_kills": 0, "others_kills_in_view": 0, "others_view_s": {},
                                  "others_dwell": [],
                                  "kill_on_others": 0, "blue_corpse_opens": 0, "wait_on_others_s": 0.0,
-                                 "wait_on_others_mobs": 0})
+                                 "wait_on_others_mobs": 0, "others_kills_unseen": 0})
+        ee = scenario.get("eerie") or {}
+        self.eerie_on = bool(ee.get("enabled"))     # the Field of Souls' eerie corpses (off by default)
+        self.erng = random.Random(seed * 104729 + 5)  # their own draws: the rest of the world's stay put
+        self.next_eerie_t = self.erng.expovariate(ee["per_h"] / 3600.0) if self.eerie_on else None
         self._waited_on = set()
         self.other_serials = set()            # every other player's and pet's serial (loot rights after they left)
         self.skill_ready = 0.0
@@ -213,8 +249,7 @@ class World:
         self.rope_ready = 0.0
         self.last_use_t = -1e9
         self.potion_ready = 0.0
-        self.vet_end = None                   # (finish time, moved during the channel?)
-        self.vet_moved = False
+        self.vet_end = None                   # the running vet channel's finish time
         self.last_step_t = 0.0
         self.penalty = 0
         self.gump_n = 0x7700
@@ -260,6 +295,9 @@ class World:
         for it in lo["items"]:
             self.items[it["serial"]] = {"graphic": it["graphic"], "amount": it.get("amount", 1),
                                         "container": it.get("container", self.backpack), "kind": it.get("kind")}
+        if self.eerie_on and self.sc["eerie"].get("jars"):
+            self.items[self._item_serial()] = {"graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": self.sc["eerie"]["jars"],
+                                               "container": self.backpack, "kind": "soul_jar"}
         # the instrument last played (the server's): a bard skill without it in the pack asks for one first
         self.played = next((s for s, it in self.items.items() if it.get("kind") == "instrument"), None)
         self.gold_pile = lo.get("gold_serial", self._item_serial())
@@ -285,6 +323,9 @@ class World:
         spec = self.sc["creatures"][sp["key"]]
         x, y = sp["at"][:2]
         z = self.stand_z(x, y, sp["at"][2] if len(sp["at"]) > 2 else 0)
+        tiles = self._spawn_tiles(i, (x, y, z))
+        if tiles:
+            x, y, z = self.wrng.choice(tiles)
         if self._occupied(x, y):
             free = [(x + dx, y + dy) for dx, dy in nav.DIR_DELTA if not self._occupied(x + dx, y + dy)]
             if not free:
@@ -298,6 +339,25 @@ class World:
         m.next_think = self.t + self.rng.uniform(0, THINK_S)
         self.mobs[m.serial] = m
         sp["mob"] = m.serial
+
+    def _spawn_tiles(self, i, at) -> list:
+        """The tiles a spawn puts its monster on: walkable, within `defaults.spawn_spread` of its point and in sight
+        of it (cached). Live idle first sightings stood a median 3 tiles from their spawn's point (q75 4, q90 6;
+        1,037 sightings, 41 visits, 2026-10-20); the simulator's stood on it [INFERENCE: a spawner's home range]."""
+        sp = self.spawns[i]
+        if "_tiles" not in sp:
+            d = self.sc["defaults"].get("spawn_spread", 0)
+            r = min(sp.get("spread", d), d)              # a spawn's own (the elder vampires stand put), never wider
+            out = []
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    tx, ty = at[0] + dx, at[1] + dy
+                    tz = self.stand_z(tx, ty, at[2])
+                    if any(self.walk.can_walk(tx, ty, tz, d) for d in range(8)) \
+                            and self.sight.can_see((tx, ty, tz), at):
+                        out.append((tx, ty, tz))
+            sp["_tiles"] = out
+        return sp["_tiles"]
 
     # ------------------------------------------------------------ other players (scenario `others`)
     def others(self) -> list:
@@ -328,6 +388,34 @@ class World:
         for _ in range(n):
             self._other_arrive(stay=self.orng.random() * self._oroll(st))
         self.next_other_t = self.orng.expovariate(rate) if rate > 0 else None
+        fill = o.get("unseen", {}).get("start_fill", 1.0)
+        for i, sp in enumerate(self.spawns):
+            m = self.mobs.get(sp["mob"])
+            if m is not None and self.orng.random() >= fill:
+                self._unseen_kill(m, due=self.orng.uniform(0, self._respawn_s(i)[1]))
+
+    def _respawn_s(self, i) -> list:
+        return self.spawns[i].get("respawn_s", self.sc.get("respawn_s", [240, 360]))
+
+    def _unseen_tick(self):
+        """Once a second: each idle spawned monster out of our view goes to the level's other hunters at
+        1 / `others.unseen.life_s` a second (scenario note)."""
+        life = self.sc["others"].get("unseen", {}).get("life_s")
+        if not life:
+            return
+        pl = self.player
+        for m in [m for m in self.mobs.values() if m.kind == "monster" and m.alive and m.spawn is not None
+                  and m.target is None and not m.warmode and cheb(m.pos, pl.pos) > VIEW]:
+            if self.orng.random() < 1.0 / life:
+                self._unseen_kill(m)
+
+    def _unseen_kill(self, m: Mob, due: float | None = None):
+        """A spawn's monster gone out of our view (no corpse we'd see), its respawn timer started (or `due` from now)."""
+        lo_s, hi_s = self._respawn_s(m.spawn)
+        self.spawn_due.append((self.t + (self.orng.uniform(lo_s, hi_s) if due is None else due), m.spawn))
+        self.viewing.discard(m.serial)
+        del self.mobs[m.serial]
+        self.count("others_kills_unseen")
 
     def _other_serial(self) -> int:
         self.next_other_serial += 1
@@ -553,6 +641,11 @@ class World:
         elif m.kind == "otherpet":
             # live, other players' pets: "(bonded)" 6308, "(summoned)" 2128, "(tame)" 20 sightings (docs/NOTES.md)
             self.send(P.says(m.serial, m.name, m.spec.get("tag", "(bonded)"), kind=0, hue=946, body=m.body))
+        elif m.kind == "monster" and m.serial not in self.met:
+            # the monsters we meet on the hunting level, by type (sim/parity.py against the captures' first sightings)
+            self.met.add(m.serial)
+            if self._on_level():
+                self.count("met", m.key)
         if m.kind == "pet" and m.ghost:
             self.send(P.pet_dead(m.serial))
 
@@ -571,6 +664,9 @@ class World:
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
+                    if it["kind"] == "eerie" and not it.get("seen"):
+                        it["seen"] = True
+                        self.count("eerie_seen")
                     if it["kind"] in ("gate", "fire", "eerie", "eerie_fx"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
                     else:
@@ -650,12 +746,13 @@ class World:
                 w = by.spec.get("threat_x", 1.0) if by.kind == "pet" else 1.0
                 victim.threat[by.serial] = victim.threat.get(by.serial, 0) + n * w
                 self.metrics["team_damage"] += n if by.kind in ("player", "pet") else 0
-        if victim.kind == "player":
+        if victim.kind == "player" and self._on_level():
             self.metrics["player_damage_taken"] += n
             self.count("player_damage_by", by.key if by is not None else kind, n)
+        if victim.kind == "player":
             self.player_log.append((self.t, by.key if by is not None else kind, n, int(victim.hits)))
             self.player_log = [e for e in self.player_log if self.t - e[0] <= 15.0]
-        elif victim.kind == "pet":
+        elif victim.kind == "pet" and self._on_level():
             self.count("pet_damage_taken", victim.name, n)
             self.count("pet_damage_by", by.key if by is not None else kind, n)
         if victim.kind not in OTHERS and (by is None or by.kind not in OTHERS):
@@ -750,7 +847,7 @@ class World:
             if o.provoke and o.provoke[0] == m.serial:
                 o.provoke = None
         if m.spawn is not None:
-            lo_s, hi_s = self.spawns[m.spawn].get("respawn_s", self.sc.get("respawn_s", [240, 360]))
+            lo_s, hi_s = self._respawn_s(m.spawn)
             self.spawn_due.append((self.t + self.rng.uniform(lo_s, hi_s), m.spawn))
         del self.mobs[m.serial]
 
@@ -858,12 +955,20 @@ class World:
                 self._other_pet(m)
         if self.others_on and int(round(t / TICK_S)) % 10 == 0:
             self._others_sample()
-        area = self.sc.get("area")
-        if area and not pl.ghost and area[0] <= pl.x <= area[2] and area[1] <= pl.y <= area[3]:
+            self._unseen_tick()
+        if self.eerie_on:
+            self._eerie_tick()
+        if not pl.ghost and self._on_level():
             self.metrics["hunt_s"] += TICK_S
         if not pl.ghost and t - pl.last_hurt_t > 10 and pl.hits < pl.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
             pl.hits += 1
             self.send(P.hits(pl.serial, int(pl.hits), int(pl.hits_max)))
+
+    def _on_level(self) -> bool:
+        """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,
+        as the live visits are."""
+        a, pl = self.sc.get("area"), self.player
+        return not a or (a[0] <= pl.x <= a[2] and a[1] <= pl.y <= a[3])
 
     def _effects(self, m: Mob):
         t = self.t
@@ -938,8 +1043,15 @@ class World:
             if cheb(m.pos, m.home) > 2 and t >= m.next_step:
                 m.next_step = self._due(m.next_step, m.spec["step_s"] * 2)
                 self._step_toward(m, m.home, 1)
-            elif m.hits < m.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
+                return
+            if m.hits < m.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
                 m.hits = min(m.hits_max, m.hits + max(1, m.hits_max * 0.01))
+            if m.expires is None and self.wrng.random() < self.sc["defaults"].get("wander_per_s", 0.0) * TICK_S:
+                for d in self.wrng.sample(range(8), 8):         # the first open way within 2 of home
+                    to = self.walk.can_walk(m.x, m.y, m.z, d)
+                    if to is not None and cheb(to, m.home) <= 2 and not self._occupied(to[0], to[1], m.serial):
+                        self._place(m, to, d)
+                        break
             return
         self._warm(m, True)
         self._abilities(m, tgt, m.spec)
@@ -976,17 +1088,39 @@ class World:
             m.target = self.rng.choice(near).serial if near else None
             return
         cur = self.mobs.get(m.target) if m.target is not None else None
+        held = set()
+        if any(sp["kind"] == "transfix" for sp in m.spec.get("specials", [])):
+            # live (41 visits, 2026-10-20): of the countesses' 47 hits on us while a copy of the gravebug was up, 2
+            # went to the held gravebug, 28 to the phoenix, 17 to Logan (the gravebug free: 107 of 134 on it)
+            held = {o.spec["copy_of"] for o in self.mobs.values() if o.spec.get("copy_of") and o.alive}
+            if m.target in held:
+                m.target, cur = None, None
         if cur is not None and (cheb(m.pos, m.home) > LEASH or (t - m.seen_target_t > LOST_S)):
             m.target, m.threat = None, {}
             return
         if cur is not None and self.can_see(m, cur):
             m.seen_target_t = t
-        cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)]
+        cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)
+                 and o.serial not in held]
+        if m.key in self.sc["defaults"].get("pets_first", ()):
+            # scenario defaults pets_first_note: the Tank, else a pet, over Logan
+            ours = [o for o in cands if o.kind == "pet" and not o.ghost]
+            keep = [o for o in ours if o.spec.get("threat_x", 1.0) >= 2.0] or ours
+            if keep:
+                cands = keep + [o for o in cands if o.kind in OTHERS]
+                if cur is not None and cur.serial not in {o.serial for o in cands}:
+                    m.target, cur = None, None
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
+        pl = self.player
+        if RETARGET_P and cur is not None and cur.kind == "pet" and pl.serial in live and not pl.ghost \
+                and cheb(pl.pos, m.pos) < cheb(cur.pos, m.pos) and self.can_see(m, pl) and self.rng.random() < RETARGET_P:
+            m.threat[pl.serial] = max(m.threat.get(pl.serial, 0), threat.get(cur.serial, 0) * SWITCH_X + 1)
+            m.target, m.seen_target_t = pl.serial, t
+            return
         if threat:
             best = max(threat, key=threat.get)
-            if best != m.target and (cur is None or threat[best] > threat.get(m.target, 0) * 1.1):
+            if best != m.target and (cur is None or threat[best] > threat.get(m.target, 0) * SWITCH_X):
                 m.target, m.seen_target_t = best, t
             return
         if cur is not None:
@@ -996,7 +1130,7 @@ class World:
             m.seen_since = None
             return
         wake = self.sc["defaults"].get("wake_s")
-        if wake:
+        if wake and not (held and m.warmode):   # a countess in a fight turns from a held pet at once [INFERENCE]
             # live: war mode 1.8-2.7 s after one of us came into its sight (scenario defaults note)
             if m.seen_since is None:
                 m.seen_since = t + self.rng.uniform(*wake)
@@ -1007,6 +1141,16 @@ class World:
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
         o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other"), -o.spec.get("threat_x", 1.0)))
+        if o.kind == "player" or (o.kind == "pet" and o.spec.get("threat_x", 1.0) < 2.0):
+            # but live the gravebug took the first contact in 61 of the 99 wakes where Logan was the nearest seen; the
+            # rule above alone gave it 29 % (docs/SIM.md "Parity with the live runs"; the user's call 2026-10-20 to
+            # follow the data): a guarding Tank that the monster sees within its range + TANK_DRAW_R (the pets trail
+            # us 1-3 tiles) draws it at the wake with `defaults.tank_draw`, fitted to that 61 %. The phoenix nearest
+            # too: live its first victim was the gravebug 74 % and the phoenix 7 % (58 wakes, 2026-10-20)
+            tanks = [p for p in cands if p.kind == "pet" and p.mode == "guard" and p.spec.get("threat_x", 1.0) >= 2.0
+                     and cheb(p.pos, m.pos) <= m.spec["aggro_range"] + TANK_DRAW_R and self.can_see(m, p)]
+            if tanks and self.rng.random() < self.sc["defaults"].get("tank_draw", 0.0):
+                o = min(tanks, key=lambda p: cheb(p.pos, m.pos))
         m.target, m.seen_target_t = o.serial, t
         m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
 
@@ -1018,11 +1162,16 @@ class World:
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
-                self.hurt(tgt, self.roll(ranged["damage"]) * self._taken_x(tgt, "spell"), m, "spell")
-                self._specials(m, tgt, spec)
+                victim, pl = tgt, self.player
+                if SHOT_AT_PLAYER_P and tgt.kind == "pet" and pl.alive and not pl.ghost \
+                        and cheb(m.pos, pl.pos) <= ranged["range"] and self.can_see(m, pl) \
+                        and self.rng.random() < SHOT_AT_PLAYER_P:
+                    victim = pl
+                self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell")
+                self._specials(m, victim, spec)
                 for sp in spec.get("specials", []):
                     if sp["kind"] == "fire_mark":
-                        self._fire_mark(tgt, sp)
+                        self._fire_mark(victim, sp)
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= 1 and abs(m.z - tgt.z) <= 15:
@@ -1038,9 +1187,11 @@ class World:
 
     def _taken_x(self, tgt: Mob, kind: str) -> float:
         """A monster's melee and spell numbers are the gravebug's (it takes most hits); the others take more:
-        Logan `damage_to_player_x` of them, the phoenix its `melee_taken_x` of a melee hit (scenario notes)."""
+        Logan `damage_to_player_x` of a spell and `melee_to_player_x` of a melee hit, the phoenix its
+        `melee_taken_x` of a melee hit (scenario notes)."""
         if tgt.kind == "player":
-            return self.sc["defaults"]["damage_to_player_x"]
+            d = self.sc["defaults"]
+            return d.get("melee_to_player_x", d["damage_to_player_x"]) if kind == "melee" else d["damage_to_player_x"]
         if tgt.kind == "pet" and kind == "melee":
             return tgt.spec.get("melee_taken_x", 1.0)
         return 1.0
@@ -1049,7 +1200,8 @@ class World:
         """On-hit specials (scenario `specials`; the timed ones are `_abilities`)."""
         for sp in spec.get("specials", []):
             kind = sp["kind"]
-            if kind not in ON_HIT or self.rng.random() >= sp.get("chance", 0):
+            chance = sp.get("pet_chance", sp.get("chance", 0)) if tgt.kind == "pet" else sp.get("chance", 0)
+            if kind not in ON_HIT or self.rng.random() >= chance:
                 continue
             if kind == "bleed" and not tgt.bleed_until:
                 self._start_bleed(tgt, sp)
@@ -1367,9 +1519,14 @@ class World:
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
                 self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
-            if cheb(m.pos, self.player.pos) > spec.get("follow", 2) + 1 and t >= m.next_step:
+            # it holds where it has the shot: live in fights the phoenix stood 3+ tiles from Logan 57 % of the time
+            # (one-second samples, 41 visits, 2026-10-20); kept within follow + 1 of him it was 11 %, and a charge
+            # at it landed beside him (Logan within a tile of a charge's landing 17 % against the live 8 %)
+            return
+        if ranged and not spec.get("melee"):
+            if t >= m.next_step:
                 m.next_step = self._due(m.next_step, spec["step_s"])
-                self._step_toward(m, self.player.pos, spec.get("follow", 2))
+                self._step_to_shot(m, tgt, ranged["range"])
             return
         if d <= 1:
             if spec.get("melee") and t >= m.next_swing:
@@ -1385,6 +1542,24 @@ class World:
         if t >= m.next_step:
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
+
+    def _step_to_shot(self, m: Mob, tgt: Mob, rng: int):
+        """A ranged pet without a shot: a step on the way to the nearest tile within `rng` of its target that sees
+        it. Live the phoenix went 10+ s without an attack in 1.5 % of the gravebug's fighting time (14 of 948 s an
+        hour, 35 visits, 2026-10-20); stepping straight at the target, the simulator's stood 25 % of its targeting
+        time behind a pillar or the gravebug in a gap, 2 tiles off and blind, while the gravebug fought alone."""
+        if m.path:
+            nxt = m.path.pop(0)
+            if not self._occupied(nxt[0], nxt[1], m.serial) and cheb(nxt, m.pos) == 1:
+                self._place(m, nxt)
+                return
+            m.path = []
+        occ = {(o.x, o.y) for o in self.mobs.values() if o.alive and not o.ghost and o.serial != m.serial}
+        path = pathfind.plan(self.walk, m.pos, _ShotGoal(self.sight, tgt.pos, rng), occupied=occ,
+                             max_expand=4000, max_steps=40)
+        if path and len(path) > 1:
+            m.path = [tuple(p) for p in path[2:]]
+            self._place(m, tuple(path[1]))
 
     # ------------------------------------------------------------ client packets
     def c2s(self, p: bytes, seq: int | None = None):
@@ -1445,8 +1620,6 @@ class World:
         self.send(P.confirm_walk(seq))
         self.metrics["steps"] += 1
         self.last_step_t = self.t
-        if self.vet_end:
-            self.vet_moved = True
         if self.penalty:
             self.penalty -= 1
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
@@ -1649,6 +1822,9 @@ class World:
         diff = target.spec.get("difficulty") or 100.0
         s = b["effective_skill"] + (25 if kind == "discord" and (target.calm_until > t or target.provoke) else 0)
         p = min(0.95, max(s / 100.0 - diff / 100.0, b["min_chance_factor"] * s / 100.0))   # knowledge #8530/#5239
+        seen = (b.get("observed") or {}).get(kind, {}).get(target.key)
+        if seen:
+            p = seen[0] / seen[1]          # the live rate at this type (scenario bard.observed_note)
         self.skill_ready = t + tamer.SKILL_GAP_S
         word = {"discord": "discord your opponent", "peace": "pacify your opponent",
                 "provoke": "incite anger amongst your opponents"}[kind]
@@ -1740,18 +1916,51 @@ class World:
             lines = ["A rune tome", "Manage Runes", f"{it.get('charges', 30)}/50"] + [r["name"] for r in rows]
             self.send(P.gump(self.gump_n, escape.RUNETOME_GUMP, layout, lines))
 
-    def eerie_corpse(self, x, y, spirit="Karin Winckel", art=0xB202) -> int:
+    def eerie_corpse(self, x, y, spirit="Karin Winckel", art=0xB202, z=None, until=None) -> int:
         """An eerie corpse on the ground at (x, y) (soul_jar.py: "dead" art, then its eerie whispers a few serials
-        on, beside it); the corpse's serial."""
+        on, beside it), on the surface nearest `z` (else ours), gone at `until` (else never); the corpse's serial."""
         s = self._item_serial()
-        z = self.stand_z(x, y, self.player.z)
-        self.items[s] = {"kind": "eerie", "graphic": art, "x": x, "y": y, "z": z, "spirit": spirit}
+        z = self.stand_z(x, y, self.player.z if z is None else z)
+        self.items[s] = {"kind": "eerie", "graphic": art, "x": x, "y": y, "z": z, "spirit": spirit, "until": until}
         self.next_item += 6                                          # the blood and bones pieces, not simulated
         w = self._item_serial()
         self.items[w] = {"kind": "eerie_fx", "graphic": soul_jar.WHISPERS_GRAPHIC, "x": x + 1, "y": y, "z": z,
                          "corpse": s}
         self._view()
         return s
+
+    def _remove_eerie(self, corpse):
+        """An eerie corpse and its pieces gone (its time up, or another player filled a jar at it)."""
+        for c in [corpse, *(c for c, it in self.items.items() if it.get("corpse") == corpse)]:
+            self.items.pop(c, None)
+            if c in self.viewing_items:
+                self.viewing_items.discard(c)
+                self.send(P.delete(c))
+
+    def _eerie_tick(self):
+        """The Field of Souls' eerie corpses on the level (the scenario's `eerie`): one at a free spot of `spots` at
+        `per_h` an hour, each gone after `lifetime_s`; another player within soul_jar.FILL_WALK_R of one fills his
+        jar there [INFERENCE: players race for them, NOTES "Field of Souls"]."""
+        ee, t = self.sc["eerie"], self.t
+        for s, it in list(self.items.items()):
+            if it.get("kind") != "eerie":
+                continue
+            if it.get("until") is not None and t >= it["until"] or any(
+                    cheb((it["x"], it["y"]), o.pos) <= soul_jar.FILL_WALK_R for o in self.mobs.values()
+                    if o.kind == "other"):
+                self._remove_eerie(s)
+        if t < self.next_eerie_t:
+            return
+        self.next_eerie_t = t + self.erng.expovariate(ee["per_h"] / 3600.0)
+        taken = {(it["x"], it["y"]) for it in self.items.values() if it.get("kind") == "eerie"}
+        free = [p for p in ee["spots"] if tuple(p[:2]) not in taken]
+        if free:
+            x, y, z = self.erng.choice(free)
+            self.eerie_corpse(x, y, spirit=self.erng.choice(ee["spirits"]), z=z, until=t + self._eroll(ee["lifetime_s"]))
+            self.count("eerie_spawned")
+
+    def _eroll(self, r) -> float:
+        return self.erng.triangular(r[0], r[1], r[2]) if len(r) >= 3 else self.erng.uniform(r[0], r[1])
 
     def _fill_jar(self, s):
         """An empty soul jar double-clicked (live 20261017_151814 15:47:16.9, one flush): within
@@ -1806,17 +2015,24 @@ class World:
         self._sys(tamer.TEXT_VET_BEGIN)
         self.metrics["vet_uses"] += 1
         self._consume(s)
-        self.vet_end, self.vet_moved = self.t + self.rng.uniform(*v["channel_s"]), False
+        self.vet_end = self.t + self.rng.uniform(*v["channel_s"])
 
     def _vet_finish(self):
+        """A channel's end: heals every hurt pet within range of us then (and us), or 'too far' with none in range.
+        Moving during the channel doesn't shorten the range: live, of 128 channels with steps of ours in them, 126
+        finished and healed, 44 of those with the nearest pet 2-8 tiles off (2026-10-20, 35 visits); before, a step
+        cut the range to 1 [INFERENCE of the first build] and the simulator's runner got 'too far' 30 times an hour
+        (live 0.6). A pet in range that is whole again by the finish (a devour, its regeneration) gets the finish line
+        and no heal: live 373 channels since 10-17 23:08, none 'too far'; the simulator said 'too far' for those (93
+        of its 111 in 1,417 channels)."""
         pl, v = self.player, self.sc["vet"]
         self.vet_end = None
-        rng = 1 if self.vet_moved else v["range"]
+        rng = v["range"]
         ghosts = [m for m in self.pets() if m.ghost and cheb(m.pos, pl.pos) <= rng]
-        pets = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng
-                and (m.hits < m.hits_max or m.poison_until > self.t)]
+        near = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng]
+        pets = [m for m in near if m.hits < m.hits_max or m.poison_until > self.t]
         hurt_self = pl.hits < pl.hits_max or pl.poison_until > self.t
-        if not pets and not hurt_self and not ghosts:
+        if not near and not hurt_self and not ghosts:
             self._sys(tamer.TEXT_VET_FAR)
             return
         for m in ghosts:

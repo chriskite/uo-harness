@@ -41,6 +41,7 @@ EXTRA = ["--heal-in-place", "--vet-range", "5", "--crawl-learn-s", "180"]
 def one(seed):
     sc = load()
     sc["spawns"] = [{"key": k, "at": [x, y, 0], "respawn_s": [99999, 99999]} for k, (x, y) in SPAWNS]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # each where the capture had it
     sc["player"]["start"] = [5207, 737, 0]
     sc["vet"]["range"] = 5
     clock = simclock.SimClock(epoch=simrun.EPOCH)

@@ -344,7 +344,10 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   minutes after the fill; the log line says so.
 - **The sound**: the proxy plays a ghostly wail the first time any of our characters sees each eerie corpse,
   runner or not (`alerts.eerie`; docs/NOTES.md "Field of Souls").
-- Test: `test_sim.py` `test_soul_jar` (the simulator's eerie corpse and jar: walk, fill, no jar no walk, mid-fight).
+- Test: `test_sim.py` `test_soul_jar` (the simulator's eerie corpse and jar: walk, fill, no jar no walk, mid-fight),
+  `test_soul_jar_guards` (the 18:22 room: no walk while the pets fight, the walk stops short of the idle monsters).
+  The simulator spawns eerie corpses with `run.py --eerie`, and `harness/sim/fight1822.py` replays the minute
+  (docs/SIM.md).
 
 ## Pets (`--pets`; `harness/tamer.py`; user request 2026-10-12)
 
@@ -465,7 +468,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    the tile 7+ from every attacker within 14 steps that the fewest idle monsters would see
    (`Team.retreat_tile`; live 20261015_090607 the straight-away tile was in a second apparition's
    sight and it came for Logan: user 2026-10-15, a monster that sees us while the pets fight aggroes
-   on us directly).
+   on us directly). A step away in a fight (the retreat, the stand-off, the back-off, the evade, the
+   fall-back, back to the pets) whose route only mobiles block gives up at once (`Mover.walk_to`
+   `mobile_wait=0`; after a stamina potion when short): the tick goes on to the potion and the vet.
+   Before 2026-10-20 it waited up to `MOBILE_WAIT_S` 90 s where it stood (live 2026-10-15 22:57:56 dead
+   a second after "cut by mobiles … waiting"; simulator fight1822 seed 5, dead in the countess
+   corridor while "waiting").
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
@@ -570,7 +578,10 @@ pets ("a corpse purger would see us"; the crawl then patrols elsewhere), and the
 its sight first, else farther from it, the pets within vet range; `Team.back_off`). One backed off from is kept off
 for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint near it, routes bend round,
 not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into it four times, then its
-barrage). Never an approach to an idle purger, no bard skill on one the pets haven't hurt and that isn't on us, nor a
+barrage). An approach stopped by such a monster ("would see us": a purger before the pets, a never-aggro one)
+passes its target over for 60 s (`Team.approach`; the simulator's runner backed off, approached the same way and
+held again within 1-3 s, 7 times an hour); one that comes on is fought. Never an approach to an idle purger, no bard
+skill on one the pets haven't hurt and that isn't on us, nor a
 provocation of one (our skill draws its aggro; once the pets fight it the skills go, as the user's Discordance in the
 demo). A walk to a hurt pet stops on a step into an idle purger's sight before the pets. Ranged monsters in war mode
 count as casters for the reposition (out of their sight within 13, even mid-channel).
