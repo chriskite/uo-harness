@@ -1812,23 +1812,36 @@ class Team:
 
     def approach(self, serial: int, mob: dict):
         """Walk toward a target the pets haven't engaged until APPROACH_R (its aggro range): the
-        pets on guard engage it when it comes on. Stops as soon as it is hurt or attacks us."""
+        pets on guard engage it when it comes on. Stops as soon as it is hurt or attacks us. Stopped by a monster
+        we mustn't wake first ("would see us": a purger before the pets, a --never-aggro one), the target is passed
+        over for SKIP_S: the next approach takes the same way (simulator 2026-10-21: back off, approach, hold,
+        back off within 1-3 s, 7 repeated purger holds an hour against none live); one that comes on is fought."""
         h, label = self.h, "toward a target"
-        h.doing("approach", f"Approaching {mob.get('name') or hex(serial)}", (mob["x"], mob["y"]), serial)
+        name = mob.get("name") or f"0x{serial:08X}"
+        h.doing("approach", f"Approaching {name}", (mob["x"], mob["y"]), serial)
+        blocked = []
 
         def where():
             m = h.link.last["world"]["mobiles"].get(f"0x{serial:08X}") or mob
             return m["x"], m["y"]
 
         def stop(st):
-            return self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)} \
-                or self.pull_check(st)
+            if self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)}:
+                return True
+            why = self.pull_check(st)
+            if why and why.endswith("would see us"):
+                blocked.append(why)
+            return why
         try:
             h.mover.walk_to(where, APPROACH_R, label, max_moves=APPROACH_MOVES, stop=stop)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
             log(f"approach: {e}")
+        if blocked:
+            log(f"passing over {name} 0x{serial:08X}: {blocked[-1]} on the way to it; skipping it for {SKIP_S:.0f} s")
+            h.skip[serial] = time.monotonic() + SKIP_S
+            h.disengage("dropped")
 
     def walk_to_see(self, st, serial: int, mob: dict, who: str) -> bool:
         """A monster fighting another player (`who`) within BARD_RANGE but out of our sight, no step of bard_step

@@ -12,7 +12,8 @@ captures (every overhead "-N" on the pets in the visits' windows, Logan's put on
 within 12 tiles, each monster's first sighting on the level; cached in <logs>/parity_live_scan.json) and simulated
 from the world's own accounting (`pet_damage_taken`, `player_damage_by`, `met`); the eerie corpses live from the
 proxy's `eerie_corpse` events. The interval is a bootstrap over the live visits (each visit's counts and hours
-resampled together); a simulated rate outside it is marked `<<` or `>>`. Deaths in a visit left for a red or a
+resampled together), widened for a rare count (200 events or fewer) to its exact Poisson interval; a simulated rate
+outside it is marked `<<` or `>>`. Deaths in a visit left for a red or a
 hostile player don't count on either side (the simulator has no such players).
 """
 from __future__ import annotations
@@ -20,6 +21,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import math
 import os
 import random
 import re
@@ -246,11 +248,38 @@ def rate(rows: list[dict], key: str) -> float:
 
 
 def boot(rows: list[dict], key: str, rng: random.Random) -> tuple[float, float]:
-    """The 2.5 and 97.5 percentiles of the rate over resampled visits."""
+    """The 2.5 and 97.5 percentiles of the rate over resampled visits, widened to the exact Poisson interval of the
+    count over the hours: with a handful of events (deaths, retreats) the resampled visits can't hold more than the
+    few that had one, and the bootstrap alone reads 2 deaths in 3.76 h as 0-1.4 an hour (Poisson 0.06-1.92)."""
     if not rows:
         return (0.0, 0.0)
     rs = sorted(rate([rng.choice(rows) for _ in rows], key) for _ in range(BOOT))
-    return rs[int(0.025 * BOOT)], rs[int(0.975 * BOOT) - 1]
+    lo, hi = rs[int(0.025 * BOOT)], rs[int(0.975 * BOOT) - 1]
+    n, h = sum(r[key] for r in rows), sum(r["h"] for r in rows)
+    if h and n == int(n) and n <= 200:
+        plo, phi = poisson_interval(int(n))
+        lo, hi = min(lo, plo / h), max(hi, phi / h)
+    return lo, hi
+
+
+def poisson_interval(n: int, alpha: float = 0.05) -> tuple[float, float]:
+    """The exact (Garwood) interval of a Poisson mean with `n` events seen, by bisection on the cdf."""
+    def cdf(k: int, lam: float) -> float:            # P(X <= k)
+        term = total = math.exp(-lam)
+        for i in range(1, k + 1):
+            term *= lam / i
+            total += term
+        return total
+
+    def solve(f, lo: float, hi: float) -> float:     # f increasing in lam, root in [lo, hi]
+        for _ in range(100):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if f(mid) < 0 else (lo, mid)
+        return (lo + hi) / 2
+    top = n + 10 * math.sqrt(n + 1) + 10
+    lower = 0.0 if n == 0 else solve(lambda lam: (1 - cdf(n - 1, lam)) - alpha / 2, 0.0, top)
+    upper = solve(lambda lam: alpha / 2 - cdf(n, lam), 0.0, top)
+    return lower, upper
 
 
 def sim_visits(results: list[dict]) -> tuple[list[dict], list[dict], dict]:

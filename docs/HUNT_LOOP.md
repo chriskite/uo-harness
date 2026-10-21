@@ -573,7 +573,10 @@ pets ("a corpse purger would see us"; the crawl then patrols elsewhere), and the
 its sight first, else farther from it, the pets within vet range; `Team.back_off`). One backed off from is kept off
 for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint near it, routes bend round,
 not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into it four times, then its
-barrage). Never an approach to an idle purger, no bard skill on one the pets haven't hurt and that isn't on us, nor a
+barrage). An approach stopped by such a monster ("would see us": a purger before the pets, a never-aggro one)
+passes its target over for 60 s (`Team.approach`; the simulator's runner backed off, approached the same way and
+held again within 1-3 s, 7 times an hour); one that comes on is fought. Never an approach to an idle purger, no bard
+skill on one the pets haven't hurt and that isn't on us, nor a
 provocation of one (our skill draws its aggro; once the pets fight it the skills go, as the user's Discordance in the
 demo). A walk to a hurt pet stops on a step into an idle purger's sight before the pets. Ranged monsters in war mode
 count as casters for the reposition (out of their sight within 13, even mid-channel).

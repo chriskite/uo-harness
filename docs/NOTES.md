@@ -4158,6 +4158,15 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   Logan 0.95x, the phoenix 1.22x and the gravebug 0.92x (both inside the interval), potions 0.99x, vet 1.11x.
   **Still apart** (docs/SIM.md "Still apart"): pull holds 1.22x, discord fails 1.19x (at the interval's top), vet
   1.11x, deaths 1.4 an hour against 0.5 (inside the interval).
+- **A bootstrap over visits under-reads a rare count's interval**: resampled visits can't hold more events than the
+  visits that had one; 2 live deaths in 3.76 h read 0-1.4 an hour, the exact Poisson interval 0.06-1.92.
+  `parity.boot` widens a count of 200 or fewer to its Poisson interval.
+- **Repeated holds point at runner loops**: merging a hold reason's repeats within 20 s, live 89.6 holds an hour
+  were 78.3 episodes, simulated 109.7 were 85.0; the simulated repeats were mostly "a corpse purger would see us" 1-3 s
+  apart (back off, approach the same target the same way, hold). `Team.approach` passes such a target over now.
+- **Blightmare deaths**: per engagement as lethal simulated as live (1 death in 5 live blightmare infection episodes,
+  10 in 45 simulated; "The creature's spell blights you with a foul disease!" 8 times live, 4 in the 10-19 19:54
+  death), but the simulated blightmares reach Logan 2.7 times an hour against 0.9 on all live visits.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
