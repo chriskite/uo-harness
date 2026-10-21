@@ -1031,6 +1031,10 @@ class World:
             m.seen_target_t = t
         cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)
                  and o.serial not in held]
+        if m.key in self.sc["defaults"].get("pets_first", ()) and any(o.kind == "pet" and not o.ghost for o in cands):
+            cands = [o for o in cands if o.kind != "player"]     # scenario defaults pets_first_note
+            if cur is not None and cur.kind == "player":
+                m.target, cur = None, None
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
         pl = self.player
@@ -1432,9 +1436,9 @@ class World:
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
                 self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
-            if cheb(m.pos, self.player.pos) > spec.get("follow", 2) + 1 and t >= m.next_step:
-                m.next_step = self._due(m.next_step, spec["step_s"])
-                self._step_toward(m, self.player.pos, spec.get("follow", 2))
+            # it holds where it has the shot: live in fights the phoenix stood 3+ tiles from Logan 57 % of the time
+            # (one-second samples, 41 visits, 2026-10-20); kept within follow + 1 of him it was 11 %, and a charge
+            # at it landed beside him (Logan within a tile of a charge's landing 17 % against the live 8 %)
             return
         if ranged and not spec.get("melee"):
             if t >= m.next_step:

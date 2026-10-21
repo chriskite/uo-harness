@@ -4106,16 +4106,21 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   (source not seen: nothing in war mode within 12 or a shadowguard 6 off), "The creature torments you with a foul
   disease!" (a tormented soul's melee) 0.4. The simulator: 1.7 an hour. A tormented soul's "5 s hits from 3 tiles"
   were these ticks on the nearest-monster attribution.
-- **On par now** (live 45 visits): kills (102 against 95), the damage on Logan (2,056 against 2,295), retreats,
-  leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk
-  requests 5,836 an hour against 5,555; quiet and standing 15 % against 18 %); Logan's distance to the nearest
-  monster in war mode; whom a monster hits first; the gravebug's fights (a monster in war mode beside it 0.53 against
-  0.55 on average); server answers (a skill's target cursor 46 ms, a corpse opened 47 ms) and the runner's reaction
-  to them. The runner's hits-lost count reads 0.90x the status drops live, 0.84x the world's simulated.
-  **Still apart** (docs/SIM.md "Still apart"): deaths 1.4 an hour against 0.6 (interval to 1.3) for less damage:
-  live more of it is steady disease and hits from 3-5 tiles, simulated the nightstalker's charges kill; the phoenix's
-  damage 1.5x and the gravebug's 1.3x (vet 1.5x); bard uses a kill 1.87 against 1.50; gold 1.29x; the level's idle
-  population at a spawn on Logan's approach 63 % against 33 % live.
+- **The nightstalker goes for the pets** (live: first victim never Logan, 0 of 35; 1 of its 111 attributed hits on
+  him): scenario `defaults.pets_first`. It had been the simulator's top killer (18 of ~70 deaths a batch).
+- **The phoenix holds where it has a shot**: live in fights it stood 3+ tiles from Logan 57 % of the time; the
+  simulated one stepped back to within 2 between shots (11 %), so a nightstalker's charge at it landed beside him
+  (17 % of landings within a tile of Logan against the live 8 %). Now its distances from him match live by the tile.
+- **On par now** (live 47 visits): kills (100 against 96), retreats, stand-offs (28.9 in both), leaves for hits,
+  walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk requests 5,836 an hour
+  against 5,555; quiet and standing 15 % against 18 %); Logan's distance to the nearest monster in war mode; whom a
+  monster hits first; the phoenix's distance from Logan in fights; the gravebug's fights; server answers (a skill's
+  target cursor 46 ms, a corpse opened 47 ms) and the runner's reaction to them. The runner's hits-lost count reads
+  0.90x the status drops live, 0.85x the world's simulated.
+  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.82x with deaths 1.3 an hour against 0.6 (the
+  interval's top; the simulator's now die to diseases with the blightmares and purgers, 38 of 67); the phoenix's
+  damage 1.7x and the gravebug's 1.2x (vet 1.4x); bard uses a kill 1.89 against 1.49; pull holds 1.5x; gold 1.23x;
+  the level's idle population at a spawn on Logan's approach 63 % against 33 % live.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
