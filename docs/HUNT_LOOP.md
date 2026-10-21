@@ -1072,6 +1072,20 @@ vanished item as taken ("looted 1 item(s) from a mongbat: +0 gold, ~21 xp", 1255
 counted the corpse's gold as xp. Now (`loop_hunt.loot`):
 - A **blue corpse** (notoriety 1) is skipped before any walk or open: no packet, logged "corpse of X
   is someone else's kill (blue): not looted".
+- **No loot walk into an area hitter's reach** (`--pets`, `Team.loot_tile`, since 2026-10-21). With an area hitter
+  (`tamer.AREA_R`, a charger) in war mode in view, the corpse is looted from a tile clear of every area hit's reach
+  (`area_zone`, the stand-off's model) within `combat.LOOT_RANGE` 2 of it, out of fire, the fewest monsters in war
+  mode within 3, the fewest idle eyes, the fewest steps (the vet tile's chooser): "to the corpse: looting from (x,
+  y), N from it, out of the area hits' reach". The walk's route goes round the reach when that is a short detour (the
+  reach among the Mover's danger zones for that walk, `Team.around_areas`, the route bounded to twice the distance + 8
+  steps, `LOOT_DETOUR_STEPS`: unbounded it planned 117-123-step detours to corpses 7 tiles off in the simulator and
+  doubled its deaths); no route that short: the plain walk as before. When every tile within 2 of the corpse is in reach it
+  stays queued (other players race us to loot): "not looting <name> yet: the corpse at (x, y) lies D into an area
+  hit's reach, every tile within 2 of it too; waiting for the area hitter to die or go", looked at again every
+  `LOOT_DEFER_S` 1 s (`HuntLoop.loot_next` passes it over meanwhile, so the fight goes on) and looted as soon as the
+  hitter is dead, gone or out of war mode. Here clear and within reach: looted from here. User 2026-10-21; live
+  hunt-20261021-091743-38b6 09:54:10 "to the corpse" walked to (5242, 676), a tile from the reanimated daemon
+  fighting the pets, 8 s before its death. `ctl act loot` doesn't walk. test_sim `test_loot_off_area_hitter`.
 - Our open answered by "Players cannot commit aggressive actions in that location." or "You may not
   loot this corpse." (the server's 0xAE system text; the client's Auto Open Corpses got the latter,
   ANTICHEAT.md A14) **stops at once**: no lift. The runner waits for the corpse's `0x24` or such a

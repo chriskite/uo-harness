@@ -1045,6 +1045,71 @@ def test_loot_lift_gap():
           and any("trying again in" in l for l in slow[3]), str(out))
 
 
+def test_loot_off_area_hitter():
+    print("== a corpse beside a reanimated daemon still fighting the pets: no loot walk into its bone burst; looted "
+          "from a clear tile, or once it is dead ==")
+    import combat
+    # live hunt-20261021-091743-38b6 09:54:10: "to the corpse: route 5 steps from (5247, 675)", "arrived at (5242, 676)",
+    # a tile from the daemon at (5241, 675) fighting the pets, 8 s before its death (user 2026-10-21)
+    out = {}
+    for case, corpse_at, start in (("every tile near it in reach", (5242, 677), (5247, 675)),
+                                   ("a clear tile within reach", (5245, 676), (5250, 672))):
+        w = world_with([{"key": "reanimated daemon", "at": [5241, 675, 0]},
+                        {"key": "shade wolf", "at": [corpse_at[0], corpse_at[1], 0]}], seed=7, start=start)
+        d = next(m for m in w.mobs.values() if m.key == "reanimated daemon")
+        wolf = next(m for m in w.mobs.values() if m.key == "shade wolf")
+        d.spec = {**d.spec, "specials": [], "melee": [1, 1], "step_s": 999.0}
+        d.hits = d.hits_max = 10 ** 6
+        loop, clock, store, patched = hurt_loop(w, 100)
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        af = next(p for p in w.pets() if p.name == "AlaFlambe")
+        world_tick, near = clock.on_advance, [99]
+
+        def watch(now):
+            world_tick(now)
+            if d.alive:
+                near[0] = min(near[0], sim_cheb(w.player.pos, d.pos))
+        clock.on_advance = watch
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                for p, xy in ((gb, (5240, 674)), (af, (5236, 675))):
+                    p.x, p.y = xy
+                    p.mode, p.target = "stay", None
+                d.target, d.threat = gb.serial, {gb.serial: 1e9}
+                w._warm(d, True)
+                w.die(wolf, None)
+                corpse = next(s for s, it in w.items.items() if it.get("kind") == "corpse" and it["owner"] == wolf.serial)
+                w.items[w._item_serial()] = {"graphic": combat.GOLD_GRAPHIC, "amount": 500, "container": corpse,
+                                             "kind": "gold"}
+                clock.advance(1.0)
+                c = {"mob": wolf.serial, "name": "a shade wolf", "x": corpse_at[0], "y": corpse_at[1],
+                     "t": tamer.time.monotonic(), "corpse": corpse}
+                loop.corpses.append(c)
+                loop.loot(c)
+                first = (c in loop.corpses, sum(1 for it in w.items.values() if it.get("container") == corpse),
+                         w.player.pos[:2])
+                if c in loop.corpses:                    # waiting: the daemon dies, then the corpse is looted
+                    w.die(d, gb)
+                    clock.advance(1.5)                   # past LOOT_DEFER_S
+                    nxt = loop.loot_next()
+                    if nxt is not None:
+                        loop.loot(nxt)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[case] = {"first": first, "nearest to the live daemon": near[0], "left": sum(
+            1 for it in w.items.values() if it.get("container") == corpse), "queued": c in loop.corpses,
+            "log": [l for l in buf.getvalue().splitlines() if "corpse" in l or "looting" in l or "looted" in l]}
+    a, b = out["every tile near it in reach"], out["a clear tile within reach"]
+    r = tamer.AREA_R["reanimated daemon"]
+    check(f"never within {r - 1} of the live daemon; every tile near the corpse in reach: kept queued, then looted after "
+          f"its death; a clear tile in reach: looted from there at once",
+          a["nearest to the live daemon"] >= r and a["first"][0] and a["left"] == 0 and not a["queued"]
+          and b["nearest to the live daemon"] >= r and not b["first"][0] and b["first"][1] == 0, str(out))
+
+
+
 def test_on_another_player():
     print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
     # live 20261019_095934 10:10:57-10:11:28 (hunt-20261019-100618-80b2): a tormented soul in war mode on Lord Phaze at
@@ -2360,7 +2425,7 @@ def main():
               test_instrument,
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_on_another_player,
+              test_loot_off_area_hitter, test_on_another_player,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,

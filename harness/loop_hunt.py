@@ -125,6 +125,7 @@ Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --cr
       python harness/loop_hunt.py --pets --leave-recall BOOK --crawl      # standing in the hunting area
 """
 import argparse
+import contextlib
 import os
 import re
 import signal
@@ -194,7 +195,9 @@ SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
 SPELL_BLOCK_S = 10.0          # after "too far away" / "cannot be seen": melee only for this long
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
+LOOT_DEFER_S = 1.0            # a corpse in an area hitter's reach (tamer.Team.loot_tile): looked at again this soon
 CONTAINER_WAIT_S = 3.0
+LOOT_DETOUR_STEPS = 8         # a loot walk round an area hit's reach: at most twice the distance plus this many steps
 # Loot rights go to whoever did the most damage; opening another player's kill is refused
 # (captures 20261003_113952/_123614/_125556: all 35 refused opens were blue corpses, all 90
 # opened ones grey). The 0xFF sub 0xDEAD notoriety is on the corpse item (world model).
@@ -1203,9 +1206,17 @@ class HuntLoop:
         if todo:
             self.link.open_containers(todo, self.human)
 
+    def loot_next(self):
+        """The first queued kill to loot now: one waiting for an area hitter (Team.loot_tile) is passed over until its
+        LOOT_DEFER_S is up, so the fight goes on meanwhile; None when there is none."""
+        now = time.monotonic()
+        return next((c for c in self.corpses if c.get("defer_until", 0.0) <= now), None)
+
     def loot(self, c) -> None:
         """Loot one corpse like `ctl act loot`: refuse human corpses and blue ones (another
-        player's kill: loot rights go to the most damage), walk within LOOT_RANGE, open the
+        player's kill: loot rights go to the most damage), walk within LOOT_RANGE (--pets, an area hitter in war mode
+        in view: to a tile clear of its reach, routed round it, or the corpse kept queued while every tile within
+        LOOT_RANGE of it is in reach: Team.loot_tile, loot_next), open the
         backpack and the corpse (a refusal stops it: open_answer), then lift + drop each item
         into the backpack, gold first, stopping at the weight limit. An item counts as taken
         once it lies in the backpack (or merged into a pile there), never on a lift reject.
@@ -1239,6 +1250,17 @@ class HuntLoop:
             else:
                 time.sleep(POLL_S)
             return
+        loot_at = None
+        if self.team is not None and corpse.get("container") is None and corpse.get("x") is not None:
+            loot_at, why = self.team.loot_tile(st, (corpse["x"], corpse["y"]))
+            if why:
+                # kept queued (others race us to loot): tried again after LOOT_DEFER_S, at once safe (loot_next)
+                if c.get("deferred") != why:
+                    log(f"not looting {corpse.get('name') or c['name']} yet: {why}; waiting for the area hitter "
+                        f"to die or go")
+                c["deferred"], c["defer_until"] = why, time.monotonic() + LOOT_DEFER_S
+                return
+        c.pop("deferred", None)
         self.corpses.remove(c)
         self.looted.add(c["corpse"])
         if corpse.get("graphic") != combat.CORPSE_GRAPHIC or corpse.get("container") is not None:
@@ -1263,9 +1285,21 @@ class HuntLoop:
             log(f"corpse at {spot} is too far ({cheb(self.anchor(st), spot)} tiles) to loot; leaving it")
             return
         self.doing("loot", f"Looting {name}", spot, c["corpse"])
-        if cheb(self.pos(st), spot) > combat.LOOT_RANGE:
+        if loot_at is not None or cheb(self.pos(st), spot) > combat.LOOT_RANGE:
+            goal, r = (loot_at[:2], 0) if loot_at is not None else (spot, 1)
+            if loot_at is not None:
+                log(f"to the corpse: looting from {loot_at[:2]}, {cheb(loot_at, spot)} from it, out of the area hits' reach")
             try:
-                self.mover.walk_to(lambda: spot, 1, "to the corpse")
+                try:
+                    # round an area hit's reach when that is a short detour (the reach among the Mover's danger zones);
+                    # unbounded it planned 117-123-step detours to corpses 7 tiles off (sim seeds 18-22)
+                    with self.team.around_areas(st) if self.team is not None else contextlib.nullcontext() as round_:
+                        self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=(
+                            2 * cheb(self.pos(st), goal) + LOOT_DETOUR_STEPS) if round_ else None)
+                except WalkFailed as e:
+                    if not str(e).startswith("to the corpse: no route within"):
+                        raise
+                    self.mover.walk_to(lambda: goal, r, "to the corpse")      # only a longer way: as before
             except Abort as e:
                 if not str(e).startswith("to the corpse"):
                     raise
@@ -2280,8 +2314,8 @@ class HuntLoop:
                 self.fight(target)
                 continue
             if not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S:
-                if self.corpses:
-                    self.loot(self.corpses[0])
+                if (c := self.loot_next()) is not None:
+                    self.loot(c)
                     continue
                 break
             time.sleep(0.3)
@@ -2664,8 +2698,8 @@ class HuntLoop:
         if not attackers and (eerie := self.soul_corpse(st, walk=self.engaged is None)) is not None:
             self.fill_soul_jar(*eerie)     # before looting: other players race us to an eerie corpse
             return False
-        if self.corpses and not attackers:
-            self.loot(self.corpses[0])
+        if not attackers and (c := self.loot_next()) is not None:
+            self.loot(c)
             return False
         if self.team is not None and self.team.patrol_watch(st):
             return False                  # the pets on "All Patrol" at a purger: we stand, then 'All Guard Me'

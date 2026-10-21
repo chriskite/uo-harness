@@ -4252,7 +4252,8 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   the stand-off out again, and the 09:54:14.65 burst (gravebug -91, phoenix -118) missed him. The stand-off and to_pet
   alternate by design (out while the tank is whole, in to heal it); the "in" leg was the fault, and the stand-off's own
   heal case (`vet_range` < the zone) stayed wherever it stood, beside the tank too. Also seen: 09:54:10 "to the corpse"
-  walked to (5242, 676), beside the daemon, 8 s before its death (the loot walk ignores area zones; not changed here).
+  walked to (5242, 676), beside the daemon, 8 s before its death (the loot walk ignored area zones; fixed after, see
+  "Loot walks into an area hitter's reach" below).
   Fixed: `Team.vet_tile` (within `--vet-range` of the pet, 3+ off pets and monsters in war mode, the least deep in an
   area hit's reach, then within `--vet-range` - 1), used by `to_pet` and by the stand-off's step in to heal the tank.
   test_sim `test_vet_tile_off_tank` replays it: before "to a hurt pet: route 9 steps from (5247, 668)", "arrived at
@@ -4277,6 +4278,22 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   seed 17 `--vet-range 5` on the runner before the fix gave the same numbers with the model as without; before / after
   the fix deaths/h 0.67 / 0.75, kills/h 108.9 / 112.4, gold/h 106,624 / 108,731, pet deaths 1 / 2 (the pacing's waits
   shift the runs' timing; noise).
+- **Loot walks into an area hitter's reach** (user: yes to fixing the 09:54:10 walk noted above). 09:54:10 "to the
+  corpse: route 5 steps from (5247, 675)", "arrived at (5242, 676)": a tormented soul's corpse a tile from the
+  reanimated daemon at (5241, 675), in war mode on the pets, inside its bone burst's 6; it died at 09:54:18 and the
+  burst at 09:54:14.65 hit both pets (-91, -118). `HuntLoop.loot` walked to within 1 of any corpse whatever was near.
+  Fixed: `Team.loot_tile` (the vet tile's chooser, `_reach_tile`: clear of every area hit's reach, within LOOT_RANGE 2,
+  out of fire), the route round the reach when that is a short detour (`Team.around_areas`, bounded to twice the
+  distance + 8 steps), and a corpse with every tile within 2 of it in reach kept queued and looked at every second
+  (`HuntLoop.loot_next`), looted once the hitter is dead or gone. A first, unbounded version planned 117-123-step
+  detours to corpses 7 tiles off and doubled the simulator's deaths (2.28/h against 1.03, 82 runs with a death against
+  43; shadow minion deaths 3 -> 25 on those walks). test_sim `test_loot_off_area_hitter`: before, Logan 2 and 5 tiles
+  from the live daemon; after, 6 (the corpse kept queued, then looted after the death; or looted from (5247, 677), 2
+  from it). Also seen, not changed: an unbounded plain loot walk after a refused shove planned 117 steps (sim seed 18,
+  no area hitter about; the pre-fix runner too).
+  Sim 144 x 20 min seed 17 `--vet-range 5`, before (145b080) / after: deaths/h 1.03 / 1.10 (runs with a death 43 / 47),
+  kills/h 114.1 / 115.0, gold/h 110,798 / 112,122, damage on Logan/h 2,386 / 2,401, the area hitters' (apparition,
+  daemon, nightstalker, knight) on Logan/h 519 / 461, pet deaths 5 / 4, pets left behind 0 / 4.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

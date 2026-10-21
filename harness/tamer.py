@@ -63,6 +63,7 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -1576,20 +1577,73 @@ class Team:
         Borders healing codex perk lets us heal from 5 tiles away" (live 09:53:52-56 to_pet walked to 1 of the gravebug,
         beside the reanimated daemon at (5241, 675): its bone burst -41 a second later). Shared by to_pet and
         stand_off's step in to heal the tank."""
+        return self._reach_tile(st, reach, self.a.vet_range, steps, margin=1, spaced=True, clear=False)
+
+    def loot_tile(self, st, spot) -> tuple:
+        """Where to loot the corpse at `spot` from while an area hitter is in war mode in view (area_zone) -> (tile,
+        None): walk there; (None, None): as before (no hitter, or here is in reach of the corpse and clear of every
+        area hit); (None, why): wait, no tile within combat.LOOT_RANGE of the corpse is clear of the area hits. The
+        tile: clear of every area hit and fire, within LOOT_RANGE, the fewest monsters in war mode within SPACING_R,
+        the fewest idle eyes, the fewest steps (vet_tile's chooser). User 2026-10-21, live 09:54:10: "to the corpse"
+        walked to (5242, 676), a tile from the reanimated daemon at (5241, 675) still fighting the pets, in its bone
+        burst's reach (6), 8 s before its death."""
+        zone = self.area_zone(st)
+        if not zone:
+            return None, None
+        pos = tuple(self.h.pos(st)[:2])
+        if cheb(pos, spot) <= combat.LOOT_RANGE and not self.zone_depth(zone, pos):
+            return None, None
+        lr = combat.LOOT_RANGE
+        if all(self.zone_depth(zone, (spot[0] + dx, spot[1] + dy))
+               for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1)):
+            return None, (f"the corpse at {spot} lies {self.zone_depth(zone, spot)} into an area hit's reach, every tile "
+                          f"within {lr} of it too")
+        t = self._reach_tile(st, [spot], lr, min(combat.VIEW_RANGE, cheb(pos, spot) + lr + 1), margin=0, spaced=False,
+                             clear=True)
+        return t, None                    # no walkable clear tile found near: the walk as before, round the reach
+
+    @contextlib.contextmanager
+    def around_areas(self, st):
+        """For a walk: every area hit's reach (area_zone) among the Mover's danger zones, so a route round it is taken
+        when there is one (Mover.danger_cost); taken out again after. Yields whether any went in (the caller bounds the
+        walk's route then: a bounded search keeps a detour short, else it goes through)."""
+        mv, keys = self.h.mover, []
+        for c, r in self.area_zone(st).items():
+            if r > 1:
+                k = f"area:{c[0]},{c[1]}"
+                mv.danger[k] = (c, r - 1)          # inside: nearer than r (ClearOf)
+                keys.append(k)
+        try:
+            yield bool(keys)
+        finally:
+            for k in keys:
+                mv.danger.pop(k, None)
+
+    def _reach_tile(self, st, reach: list, r: int, steps: int, margin: int, spaced: bool, clear: bool):
+        """vet_tile's and loot_tile's chooser: a tile within `steps` steps and `r` of every tile in `reach`, out of fire;
+        `spaced`: SPACING_R from every live pet and monster in war mode; `clear`: clear of every area hit. Ranked by the
+        depth in an area hit's reach, the monsters in war mode within SPACING_R, beyond r - `margin` of `reach`, the idle
+        eyes (aggro.View.stand_score), the steps -> (x, y, z), or None."""
         v = self.view(st)
         if v.walk is None:
             return None
-        zone, fire, r = self.area_zone(st), self.fire_tiles(st), self.a.vet_range
-        keep = [m["pos"][:2] for m in v.mobs if m["war"]] + [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        zone, fire = self.area_zone(st), self.fire_tiles(st)
+        war = [m["pos"][:2] for m in v.mobs if m["war"]]
+        keep = war + [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
         cands = []
         for t, k in self.tiles_within(v, steps).items():
-            if t[:2] in fire or any(cheb(t, p) > r for p in reach) or any(cheb(t, n) < SPACING_R for n in keep):
+            if t[:2] in fire or any(cheb(t, p) > r for p in reach) \
+                    or (spaced and any(cheb(t, n) < SPACING_R for n in keep)):
                 continue
-            cands.append((self.zone_depth(zone, t), any(cheb(t, p) > r - 1 for p in reach), k, t))
+            depth = self.zone_depth(zone, t)
+            if clear and depth:
+                continue
+            cands.append((depth, sum(cheb(t, n) < SPACING_R for n in war), any(cheb(t, p) > r - margin for p in reach),
+                          k, t))
         if not cands:
             return None
-        best = min(cands)[:2]
-        return min((c for c in cands if c[:2] == best), key=lambda c: (round(v.stand_score(c[3])), c[2]))[3]
+        best = min(cands)[:3]
+        return min((c for c in cands if c[:3] == best), key=lambda c: (round(v.stand_score(c[4])), c[3]))[4]
 
     def retreat(self, st) -> bool:
         h, now = self.h, time.monotonic()
