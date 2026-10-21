@@ -773,10 +773,13 @@ transfixed copies 0.34x.
   fights (37 of 63 hits in 24 runs) or on him (26). Live, 5 of 86 nightstalker charges in the visits hit Logan and he
   stood 3+ tiles from the landing in 79; the first charge comes 0.4-4.1 s after the war flag in both worlds. The
   difference is whom it wakes on: at a nightstalker's war flag live a pet was nearer than Logan in 13 of 22 wakes and
-  he in 4 (the rest ties, the pets beside him), simulated he in 31 of 44 and a pet in 9, the pets a tile behind him
+  he in 4 (the rest ties), simulated he in 31 of 44 and a pet in 9, the pets a tile behind him
   on the line, so the sim's nightstalker takes Logan and charges onto him. Over every type the gap is smaller (Logan
-  nearer at the wake 37 % live, 45 % simulated; a pet 42 % and 37 %). Open: how live guarding pets stand round a
-  halted master (abreast rather than behind) [INFERENCE from the ties; not measured directly].
+  nearer at the wake 37 % live, 45 % simulated; a pet 42 % and 37 %). Not the pets' place round a halted Logan:
+  live, idle pets within 3 of him 2-4 s after his last step stood behind him 290 times, abreast 15, ahead 15, as
+  the simulator's do. Live nightstalker wakes came with Logan a median 10 tiles off and a pet nearer (the pets
+  fighting by its spawn, or the nightstalker room below a floor away); why the simulated runner meets them first
+  is open.
 - **The pets' damage** 1.7x (gravebug) and 2.7x (phoenix), hence 1.6x the vet supplies: monsters stand in war mode
   within 12 tiles of a pet 2.5x as long an hour as live (none 66 % of the hunting time live, 28 % simulated; measured
   before the phoenix's recalibration).
