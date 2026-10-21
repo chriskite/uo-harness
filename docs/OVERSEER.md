@@ -597,11 +597,12 @@ Paste this (or point the session at this section) to start an overseer.
 >    the pack). The drop-off only takes what its tomes, the deposit safe, the stockpile, the recycler and the
 >    chest's list (research materials, resource maps) accept. Read `status.backpack.items` and move each item a
 >    monster dropped with `act drop <item serial> 0x4AE0DD2C` (the room's chest, `homes.json` `dropoff.chest`),
->    one act per item, then `status` again to see it gone. Examples: dyes (the mastery chain dye), jewellery, gems,
->    instruments ("supremely melodious") and hued valuables. **Leave Logan's kit**: gold (the next drop-off
->    takes it), the supplies (potions, vet supplies, bandages, rope, empty bottles), the rune tome and
->    runebook, his lute and crook, the codexes, books and tomes, bags, pouches, the satchel, the wooden box and
->    its key, the wraith mask and hood, the Kasa, the spyglass, the soul jars (a filled one is the user's: step
+>    one act per item, then `status` again to see it gone. Examples: dyes (the mastery chain dye; the user used that
+>    one on his chain), jewellery, gems, instruments ("supremely melodious") and hued valuables. **Leave Logan's
+>    kit**: gold (the next drop-off takes it), the supplies (potions, vet supplies, bandages, rope, empty bottles),
+>    the rune tome and runebook, his lute and crook, the codexes, books and tomes, bags, pouches, the satchel, the
+>    wooden box and its key, the wraith mask and hood, the Kasa, the spyglass, **mastery chains** (player-crafted
+>    only, never loot: user 2026-10-20), the soul jars (a filled one is the user's: step
 >    5). To tell new loot from kit, save `status` before each `ctl run` and compare serials after the drop-off.
 >    Ask the user (`ctl say "@user …"`) before moving anything you aren't sure about, and keep the answer
 >    (`ctl know add …`).
