@@ -752,6 +752,14 @@ def test_wait(proxy):
     check("ack all with nothing open: ok, none acked", code == 0 and out["acked"] == [] and out["count"] == 0)
     code, out = c("ack", "every")
     check("ack with neither a number nor 'all' -> an error", code == 1 and "bad juncture id" in out.get("error", ""))
+    ja, jb = m.juncture("hunt", "death", "a", "urgent"), m.juncture("hunt", "pet_down", "b", "urgent")
+    code, out = c("ack", str(ja), str(jb))
+    check("ack with several ids closes each", code == 0 and out["ok"] and sorted(out["acked"]) == sorted([ja, jb])
+          and not m.junctures(open_only=True, limit=1000, char_serial=None), str(out))
+    jc = m.juncture("hunt", "death", "c", "urgent")
+    code, out = c("ack", str(jc), str(ja))
+    check("several ids, one already closed: the open one closed, ok false, the other named",
+          code == 1 and out["acked"] == [jc] and out["missing"] == [ja], str(out))
     code, out = c("frobnicate")
     check("usage error is one JSON object too", code == 1 and out.get("ok") is False
           and "usage" in out.get("error", ""), str(out))

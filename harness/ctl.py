@@ -888,16 +888,22 @@ def cmd_alert(a, mem):
 
 def cmd_ack(a, mem):
     heartbeat(mem)
-    if a.juncture_id == "all":
+    if len(a.juncture_id) == 1 and a.juncture_id[0] == "all":
         ids = [j["id"] for j in mem.junctures(open_only=True, limit=1_000_000)]
         acked = [j for j in ids if mem.juncture_ack(j)]
         return {"ok": True, "acked": acked, "count": len(acked)}
     try:
-        jid = int(a.juncture_id)
+        jids = [int(x) for x in a.juncture_id]
     except ValueError:
-        raise CtlError(f"bad juncture id {a.juncture_id!r} (a number, or 'all')")
-    ok = mem.juncture_ack(jid)
-    return {"ok": ok, "id": jid, **({} if ok else {"error": "no such open juncture"})}
+        raise CtlError(f"bad juncture id in {' '.join(a.juncture_id)!r} (numbers, or 'all' alone)")
+    if len(jids) == 1:
+        ok = mem.juncture_ack(jids[0])
+        return {"ok": ok, "id": jids[0], **({} if ok else {"error": "no such open juncture"})}
+    # several ids (the Seer's `ack 1575 1576 1577`, 2026-10-21): each closed on its own; ok when all were open
+    acked = [j for j in jids if mem.juncture_ack(j)]
+    missing = [j for j in jids if j not in acked]
+    return {"ok": not missing, "acked": acked, "count": len(acked),
+            **({"error": f"no such open juncture: {', '.join(map(str, missing))}", "missing": missing} if missing else {})}
 
 
 def cmd_junctures(a, mem):
@@ -3505,7 +3511,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--poll", type=float, default=1.0, help=argparse.SUPPRESS)
     p.set_defaults(fn=cmd_wait)
     p = sub.add_parser("ack")
-    p.add_argument("juncture_id", help="a juncture id, or 'all': every open one (scoped by --char)")
+    p.add_argument("juncture_id", nargs="+", help="juncture ids (one or several), or 'all': every open one "
+                   "(scoped by --char)")
     p.set_defaults(fn=cmd_ack)
     p = sub.add_parser("junctures")
     p.add_argument("--open", action="store_true")
