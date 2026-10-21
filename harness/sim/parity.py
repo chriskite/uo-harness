@@ -3,7 +3,7 @@ the hunting level, with the live 95 % interval (docs/SIM.md "Parity with the liv
 
     python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
         --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
-    python harness/sim/parity.py sim.jsonl [--db harness/data/harness.db] [--logs logs] [--since 2026-10-15T21:10]
+    python harness/sim/parity.py sim.jsonl [--db harness/data/harness.db] [--logs logs] [--since 2026-10-17T23:08]
 
 Both sides are the runner's own records: the visits (`episodes`, loop hunt, style pets), its `fight`, `death` and
 `leave` job events. Live they come from the memory store (the main checkout's), simulated from run.py's `--json`
@@ -34,6 +34,9 @@ sys.path.insert(0, HARNESS)
 
 # the first pets run on the live server (docs/NOTES.md "The first run on the live server"); before it the test shard
 LIVE_SINCE = "2026-10-15T21:10"
+# the crawl that seeks monsters in view (11c884b, 2026-10-17 23:08): before it the live crawl had no such seek and went
+# elsewhere, so the visits by the runner the simulator runs start here (docs/SIM.md "Parity with the live runs")
+RUNNER_SINCE = "2026-10-17T23:08"
 EERIE_SINCE = datetime.datetime(2026, 10, 17).timestamp()   # the Field of Souls event began (docs/NOTES.md)
 BOOT = 2000
 VIEW = 18          # the client's view range (combat.VIEW_RANGE): a corpse this far off a spot's box was seen from it
@@ -372,7 +375,9 @@ def main(argv=None) -> int:
     ap.add_argument("sim", help="run.py --json output (one summary a line)")
     ap.add_argument("--db", default=memory.DEFAULT_DB, help="the live memory store (the main checkout's)")
     ap.add_argument("--logs", default=os.path.join(ROOT, "logs"), help="the live captures (session_*.jsonl/.raw)")
-    ap.add_argument("--since", default=LIVE_SINCE, help="live visits from this local time on")
+    ap.add_argument("--since", default=RUNNER_SINCE,
+                    help="live visits from this local time on (default: the runner the simulator runs; "
+                         f"{LIVE_SINCE} for every visit on the live server)")
     ap.add_argument("--no-scan", action="store_true",
                     help="skip the capture scan (damage on the pets and on us by source, monsters met)")
     a = ap.parse_args(argv)

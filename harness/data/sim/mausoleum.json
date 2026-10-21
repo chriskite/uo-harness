@@ -611,7 +611,7 @@
   {"key": "apparition", "at": [5218, 724, 0]},
   {"key": "vampire", "at": [5196, 641, 45]},
   {"key": "blightmare", "at": [5243, 687, 0],
-   "respawn_s": [180, 480]},
+   "respawn_s": [120, 300]},
   {
    "key": "banshee",
    "at": [
@@ -731,7 +731,7 @@
     727,
     0
    ],
-   "respawn_s": [360, 720]
+   "respawn_s": [240, 480]
   },
   {
    "key": "nightstalker",
@@ -856,6 +856,14 @@
   {
    "key": "tormented soul",
    "at": [
+    5236,
+    685,
+    0
+   ]
+  },
+  {
+   "key": "tormented soul",
+   "at": [
     5250,
     675,
     0
@@ -888,7 +896,7 @@
   {
    "key": "reanimated daemon",
    "at": [5239, 700, 0],
-   "respawn_s": [360, 720]
+   "respawn_s": [240, 480]
   },
   {
    "key": "forgotten soul",
@@ -969,7 +977,7 @@
   {"key": "insane reanimator", "at": [5531, 645, -10]},
   {"key": "reanimator zealot", "at": [5530, 680, -10]}
  ],
- "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles). Revised 2026-10-20 against Logan's 37 live pets visits (5.1 h on the level, 2026-10-15..20, docs/SIM.md 'Parity with the live runs'): idle first sightings cluster one monster to a spawn (none of 20/17 banshee, 24 shadowguard, 16/15 vampire bat, 13/15 apparition sightings had a second of its type within 5 tiles and 30 s), so the second banshee at (5216, 701) beside (5217, 705) and the second shadowguard at (5194, 681) beside (5193, 681) went, and three spawns with no live sighting within 4 tiles in 37 visits: a shadow minion at (5210, 696), a vampire bat at (5207, 683) (16 idle shadow minions there instead) and a shade wolf at (5208, 672) (one sighting, in war mode). With them the simulator met 2-3x the live banshees, shadowguards, shadow minions and bats an hour. Added: the apparition at (5210, 717) became the two live clusters' (5196, 722) and (5218, 724) (13 and 15 idle sightings, the 19:49 fight's A and B); a second vampire at (5196, 641, 45) (seen with the one at (5186, 664) within 30 s twice); a blightmare at (5243, 687) (8 idle sightings, met 2.5 an hour live, none in the simulator). Added (2026-10-20, all 41 visits after the capture mapping fix, docs/SIM.md 'Parity with the live runs'): a corpse purger at (5229, 732), the centre of 12 idle first sightings at x 5224-5234, y 726-737 (one at a time; met 9.7 an hour live, 3.2 simulated with only the two at (5266, 655) and (5274, 652)). Respawns of the dear rare spawns (2026-10-21, with the unseen hunters on; 288 runs each): met an hour with every spawn at 120-300 s, live 4.4 / 3.2 / 2.6 / 1.5, simulated the blightmare 5.7, the reanimated daemon 4.3, the master reanimator 3.9, the vampiric consort 3.1; at 360-720 s 2.9 / 2.6 / 2.4 / 1.9; the blightmare 180-480 s, the other three 360-720 s [INFERENCE: fitted to the meetings; no respawn of theirs seen live]. Moved: the shadowguard at (5227, 724) to (5230, 724), where 3 of its 4 live first sightings stood (x 5226-5230): at 5227 it sat 8 tiles from Logan's spot west of the wall, (5219, 726), in pull reach, and the simulator's runner walked a 155-168-step route toward it 2-3 times a run (live never: no approach route over 100 steps).",
+ "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles). Revised 2026-10-20 against Logan's 37 live pets visits (5.1 h on the level, 2026-10-15..20, docs/SIM.md 'Parity with the live runs'): idle first sightings cluster one monster to a spawn (none of 20/17 banshee, 24 shadowguard, 16/15 vampire bat, 13/15 apparition sightings had a second of its type within 5 tiles and 30 s), so the second banshee at (5216, 701) beside (5217, 705) and the second shadowguard at (5194, 681) beside (5193, 681) went, and three spawns with no live sighting within 4 tiles in 37 visits: a shadow minion at (5210, 696), a vampire bat at (5207, 683) (16 idle shadow minions there instead) and a shade wolf at (5208, 672) (one sighting, in war mode). With them the simulator met 2-3x the live banshees, shadowguards, shadow minions and bats an hour. Added: the apparition at (5210, 717) became the two live clusters' (5196, 722) and (5218, 724) (13 and 15 idle sightings, the 19:49 fight's A and B); a second vampire at (5196, 641, 45) (seen with the one at (5186, 664) within 30 s twice); a blightmare at (5243, 687) (8 idle sightings, met 2.5 an hour live, none in the simulator). Added (2026-10-20, all 41 visits after the capture mapping fix, docs/SIM.md 'Parity with the live runs'): a corpse purger at (5229, 732), the centre of 12 idle first sightings at x 5224-5234, y 726-737 (one at a time; met 9.7 an hour live, 3.2 simulated with only the two at (5266, 655) and (5274, 652)). Respawns of the dear rare spawns (2026-10-21, with the unseen hunters on; 288 runs each): met an hour with every spawn at 120-300 s, live 4.4 / 3.2 / 2.6 / 1.5, simulated the blightmare 5.7, the reanimated daemon 4.3, the master reanimator 3.9, the vampiric consort 3.1; at 360-720 s 2.9 / 2.6 / 2.4 / 1.9; the blightmare 180-480 s, the other three 360-720 s [INFERENCE: fitted to the meetings; no respawn of theirs seen live]; refitted to the visits since 2026-10-17 23:08 (the runner the simulator runs: met an hour live 5.3 / 3.5 / 3.2 / 1.6): the blightmare back to 120-300 s, the daemon and the master reanimator 240-480 s, the consort 360-720 s. A second tormented soul at (5236, 685): 54 idle first sightings at x 5235-5239, y 670-687, two at once 7 times (one about (5236, 673), one about (5236, 685)); tormented souls met 17.8 an hour simulated against 25.8 live. Moved: the shadowguard at (5227, 724) to (5230, 724), where 3 of its 4 live first sightings stood (x 5226-5230): at 5227 it sat 8 tiles from Logan's spot west of the wall, (5219, 726), in pull reach, and the simulator's runner walked a 155-168-step route toward it 2-3 times a run (live never: no approach route over 100 steps).",
  "teleporters": [
   {"from": [5554, 700], "to": [5547, 696, 10]},
   {"from": [5507, 701], "to": [5507, 698, -5]},
@@ -993,7 +1001,8 @@
  "eerie": {
   "enabled": false,
   "note": "The Field of Souls' eerie corpses (Halloween event 2026-10-17 to 10-24; docs/NOTES.md 'Field of Souls'), off unless enabled (sim/run.py --eerie). Live (the store's proxy event eerie_corpse, first sight per proxy run): 14 on the fight level 2026-10-17..20, 12 of them within Logan's live pets visits (4.10 h on the level since the event began): 2.9 an hour in view. They lay at 11 spots, three of them more than once ((5188, 667) three times): the spots are those. Logan's runner filled jars at 5 (the store's soul_jar job events). per_h (level-wide) and lifetime_s are [INFERENCE: not observable; one lay 4+ min, NOTES], per_h set so the simulator's in-view rate is about the live one (docs/SIM.md 'Parity with the live runs'). Spirit names: the live fills.",
-  "per_h": 5.0,
+  "per_h": 7.5,
+  "per_h_note": "7.5 since 2026-10-21: on the visits since 2026-10-17 23:08 (the runner the simulator runs) 3.7 an hour came into view (1.7-6.4, 32 visits); 5.0 gave 2.3. 5.0 had been fitted to the 2.5 of the visits from 10-15",
   "lifetime_s": [240, 900, 480],
   "jars": 5,
   "spots": [[5179, 680, 25], [5181, 628, 25], [5188, 667, 25], [5203, 635, 25], [5207, 730, 0], [5216, 705, 0],
