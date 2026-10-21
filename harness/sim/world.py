@@ -346,7 +346,8 @@ class World:
         1,037 sightings, 41 visits, 2026-10-20); the simulator's stood on it [INFERENCE: a spawner's home range]."""
         sp = self.spawns[i]
         if "_tiles" not in sp:
-            r = self.sc["defaults"].get("spawn_spread", 0)
+            d = self.sc["defaults"].get("spawn_spread", 0)
+            r = min(sp.get("spread", d), d)              # a spawn's own (the elder vampires stand put), never wider
             out = []
             for dx in range(-r, r + 1):
                 for dy in range(-r, r + 1):
