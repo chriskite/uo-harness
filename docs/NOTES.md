@@ -3950,6 +3950,15 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
     the earlier [INFERENCE] of RunUO TeleportPets' 3 tiles). The normal walk-in still waits for them within 3 tiles
     of the teleporter before its step (a caution now, not a need); the dash doesn't wait. The simulator's
     teleporters bring pets on Follow within its view (18) too.
+- **An eerie corpse passed up, safe to fill (2026-10-20 23:02:02-23:04:10, hunt-20261020-225836-002b).** User: "The
+  runner passed up an eerie corpse that was safe to capture." The walk to the corpse at (5223, 656), 18 tiles off,
+  stopped at 23:02:03: "vampire bat in sight at 10 tiles: letting it come; the corpse waits 120 s". The bat died at
+  23:02:15, but `jar_later` kept the corpse out of `soul_corpse` until ~23:04:03; at 23:03:21 Logan looted a
+  corpsebride at (5222, 655), one tile from it, and still didn't try (the defer was filtered before the within-reach
+  rule). At 23:04:10 the user paused the gate to fill it by hand. Fixed: a hold's defer ends at our next kill, and
+  a deferred corpse within `soul_jar.FILL_WALK_R` is tried at once (docs/HUNT_LOOP.md "Soul jars"). test_sim
+  `test_soul_jar_defer` (before: not tried after the kill nor from one tile; after: both). Eerie corpses aren't in
+  the simulator's batches (tests place them), so no batch.
 
 ## Field of Souls: the field map (reaper spawns, 2026-10-17)
 

@@ -2013,6 +2013,55 @@ def test_soul_jar_guards():
           f"picked {picked} dist {dist} filled {filled} deferred {later} picked again {again}")
 
 
+def test_soul_jar_defer():
+    print("== an eerie corpse whose walk waited for a monster to come: tried after a kill, and at once within reach ==")
+    # live 2026-10-20 23:02:03-23:04:10 (hunt-20261020-225836-002b): the walk stopped "vampire bat in sight at 10 tiles:
+    # letting it come; the corpse waits 120 s"; the bat died at 23:02:15, and at 23:03:21 Logan looted a corpsebride one
+    # tile from the eerie corpse, still not tried; the user filled the jar by hand
+    import soul_jar
+    from sim.scenario import load as load_sc
+    corpse_at = (5266, 654)                                   # 6 route steps south of FLOOR
+    sc = load_sc()
+    sc["spawns"] = []
+    sc["player"]["start"] = [FLOOR[0], FLOOR[1], 0]
+    sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 1,
+                                   "kind": "soul_jar"})
+    w = World(sc, seed=1)
+    corpse = w.eerie_corpse(*corpse_at)
+    loop, clock, store, patched = hurt_loop(w, w.player.hits_max)
+    pull_check = loop.team.pull_check
+    out = {}
+
+    def defer():
+        loop.team.pull_check = lambda s: "vampire bat in sight at 10 tiles: letting it come"
+        try:
+            if (pick := loop.soul_corpse(loop.state())) is not None:      # still deferred: nothing to walk to
+                loop.fill_soul_jar(*pick)
+        finally:
+            loop.team.pull_check = pull_check
+        return loop.soul_corpse(loop.state())
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            out["deferred"] = defer()
+            loop.on_kill(loop.state(), 0x003331F4, {"name": "a vampire bat"})
+            pick = loop.soul_corpse(loop.state())
+            out["after a kill"] = pick[0] if pick else None
+            out["deferred again"] = defer()
+            w._teleport(w.player, (corpse_at[0] + 1, corpse_at[1], w.player.z))
+            clock.advance(0.3)
+            pick = loop.soul_corpse(loop.state(), walk=False)
+            out["within reach"] = pick[0] if pick else None
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the walk's hold defers the corpse", out["deferred"] is None and out["deferred again"] is None, str(out))
+    check("...a kill since: the corpse is tried again", out["after a kill"] == corpse
+          and "a kill since: trying it again" in buf.getvalue(), str(out))
+    check("...deferred but within FILL_WALK_R (a fight on): tried at once", out["within reach"] == corpse, str(out))
+
+
+
 def test_transfixed_walk():
     print("== transfixed on a retreat: the walk waits the hold out, then goes; no 'too many blocked moves' ==")
     # live 2026-10-20 19:23:23.04-34.15 (hunt-20261020-183232-1def): "The creature overpowers your will and transfixes
@@ -2089,8 +2138,8 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_tele_dash, test_soul_jar, test_soul_jar_guards, test_transfixed_walk,
-              test_walk_failed_carries_on):
+              test_rest_hurt_pet, test_walk_in, test_tele_dash, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
+              test_transfixed_walk, test_walk_failed_carries_on):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

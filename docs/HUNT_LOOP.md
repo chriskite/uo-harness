@@ -325,7 +325,12 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   The walk stops when something attacks us, a leave rule fires or the corpse goes, and with `--pets` on the
   patrol's guards: the pets fighting or behind (`patrol_hold`), or a step that would pull more than the budget or
   a monster in sight to let come (`Team.pull_check`; the corpse then waits `JAR_DEFER_S` = `tamer.AT_ONCE_S`
-  120 s, past the pull check's "no other way on" memory, while the crawl takes those monsters). The next tick
+  120 s, past the pull check's "no other way on" memory, while the crawl takes those monsters). Since 2026-10-20 a
+  wait for a monster to come (the hold, "...: letting it come") ends at our next kill: "an eerie corpse's walk
+  waited for: <why>; a kill since: trying it again" (the pull check names no monster; a retry that still finds
+  one to hold for stops and waits again). A deferred corpse within 2 tiles is tried at once: no step, nothing to
+  pull. Live 2026-10-20 23:02:03-23:04:10 the bat held for died 12 s after the stop, Logan later looted one tile
+  from the corpse, and the user filled the jar by hand. The next tick
   decides again; a walk that can't get there gives the corpse up. Live 2026-10-20 18:22 the unguarded walk went
   16 steps alone into an idle vampire countess, corpsebride and vampire bat by the corpse and Logan died
   (docs/NOTES.md "Field of Souls"). Then the jar's bags are opened like a player

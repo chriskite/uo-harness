@@ -215,7 +215,8 @@ TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fe
 #                               to WALK_IN_FIGHT_S; GATE_DASH_R's rule for the leave gate)
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
 JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
-#                               "no other way on" memory, so the retry stops at the same place again)
+#                               "no other way on" memory, so the retry stops at the same place again); a hold ("letting
+#                               it come") only until our next kill, and one within soul_jar.FILL_WALK_R not at all
 WALK_FAIL_MAX = 3             # failed walks inside the hunt carried on from (walk_failed) before the leave home...
 WALK_FAIL_WINDOW_S = 300.0    # ...within this long
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
@@ -306,7 +307,7 @@ class HuntLoop:
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
         self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
-        self.jar_later = {}          # eerie corpse serial -> monotonic time before which its walk isn't tried (pull)
+        self.jar_later = {}          # eerie corpse serial -> (monotonic time before which its walk isn't tried, why)
         self.walk_fails = []         # monotonic times of the failed walks the hunt carried on from (walk_failed)
         self.walk_trouble = None     # why the hunt goes home: walks kept failing (walk_failed)
         self.engaged = None          # serial we last sent 0x05 for
@@ -904,6 +905,14 @@ class HuntLoop:
             self.crawl.on_kill((mob["x"], mob["y"]))
         if self.team is not None:
             self.team.on_kill(serial)
+        held = [s for s, (_, why) in self.jar_later.items() if why.endswith("letting it come")]
+        for s in held:
+            # what the walk let come came (the pets fight what comes on) and died: try the corpse again. Not the kill of
+            # the very monster the hold named (pull_check names no serial), but a retry whose stop still finds one
+            # holding stops and defers again, one stop per kill at most. Live 2026-10-20 23:02:03-23:04:10
+            # (hunt-20261020-225836-002b): the vampire bat held for died at 23:02:15, the corpse waited out its 120 s,
+            # and the user filled the jar by hand
+            log(f"an eerie corpse's walk waited for: {self.jar_later.pop(s)[1]}; a kill since: trying it again")
         if engaged:
             self.disengage("kill")
 
@@ -1372,19 +1381,20 @@ class HuntLoop:
         """(serial, item) of the eerie corpse to fill a soul jar at now, or None (--soul-jars; soul_jar.py): an
         empty soul jar in the pack and an eerie corpse in view on our floor that we haven't tried, the nearest.
         Without `walk` (a fight is on), and with the pets fighting or behind (patrol_hold), only one within
-        soul_jar.FILL_WALK_R, where no step is needed; one whose walk stopped on the pull budget waits JAR_DEFER_S."""
+        soul_jar.FILL_WALK_R, where no step is needed; one whose walk stopped on the pull budget waits JAR_DEFER_S
+        unless within soul_jar.FILL_WALK_R (live 2026-10-20 23:03:21: deferred, Logan looted one tile from it)."""
         if not self.args.soul_jars:
             return None
         world = st["world"]
         now = time.monotonic()
-        found = [(s, it) for s, it in soul_jar.eerie_corpses(world)
-                 if s not in self.jar_tried and self.jar_later.get(s, 0.0) <= now]
+        found = [(s, it) for s, it in soul_jar.eerie_corpses(world) if s not in self.jar_tried]
         if not found or not soul_jar.empty_jars(world, self.me(st)):
             return None
         pos = self.pos(st)
         walk = walk and self.patrol_hold(st) is None
         found = [(s, it) for s, it in found if same_floor(it.get("z") or 0)(pos[2])
-                 and (walk or cheb(pos, (it["x"], it["y"])) <= soul_jar.FILL_WALK_R)]
+                 and ((walk and self.jar_later.get(s, (0.0, ""))[0] <= now)
+                      or cheb(pos, (it["x"], it["y"])) <= soul_jar.FILL_WALK_R)]
         return min(found, key=lambda f: cheb(pos, (f[1]["x"], f[1]["y"])), default=None)
 
     def fill_soul_jar(self, serial: int, it: dict) -> None:
@@ -1414,7 +1424,7 @@ class HuntLoop:
                 if why := self.patrol_hold(s):
                     return why
                 if why := self.team.pull_check(s):
-                    self.jar_later[serial] = time.monotonic() + JAR_DEFER_S
+                    self.jar_later[serial] = (time.monotonic() + JAR_DEFER_S, why)
                     return f"{why}; the corpse waits {JAR_DEFER_S:.0f} s"
                 return None
             try:
