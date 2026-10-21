@@ -39,7 +39,8 @@ def world_with(spawns, seed=1, start=FLOOR, others=False):
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # the tests place each monster on its tile
     sc["player"]["start"] = [start[0], start[1], 0]
     if others:
-        sc["others"] = {**sc["others"], "enabled": True, "arrive_per_h": 0.0}   # the test places its own (add_other)
+        sc["others"] = {**sc["others"], "enabled": True, "arrive_per_h": 0.0,   # the test places its own (add_other)
+                        "unseen": {}}                                         # and its monsters stay
     return World(sc, seed=seed)
 
 
@@ -1764,9 +1765,9 @@ def test_audit_mechanics():
     w = world_with([])
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     af = next(p for p in w.pets() if p.name == "AlaFlambe")
-    check("a monster's hit: the gravebug x1, Logan x1.6 (melee and spells), the phoenix x1.7 on melee only",
+    check("a monster's hit: the gravebug x1, Logan x1.2 on melee and x1.6 on spells, the phoenix x1.7 on melee only",
           (w._taken_x(gb, "melee"), w._taken_x(w.player, "melee"), w._taken_x(w.player, "spell"),
-           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.6, 1.6, 1.7, 1.0))
+           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.2, 1.6, 1.7, 1.0))
     # apparition: a blink every ~8 s though its target stands beside it, onto the target's tile, the area hit
     # only at the landing; the song cuts Logan's share, not the pets'
     w = world_with([{"key": "apparition", "at": [5268, 649, 0]}], seed=12)
