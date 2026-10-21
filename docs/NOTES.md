@@ -3772,6 +3772,9 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     things to drop off"). "very common seed" 0x51F5EDA4, graphic 0x5736, at the pack's top level. `to_chest` now has
     graphic 0x5736 and the name "seed" (the other rarities by name; their graphic not seen yet); `dropoff.chest_items`
     on the live state picked only the seed.
+    Graphic 0x5736's tiledata name is "seed of renewal" (`combat.item_name({'graphic': 0x5736})`), so a seed without its
+    tooltip name shows that way in the drop-off events' `unpriced` lists (user 2026-10-21: the client calls them "common
+    seed" and the like). The 00:06 drop-off (job event 24127) moved 0x51F5EDA4 and a nameless 0x522C4324 by graphic.
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 
