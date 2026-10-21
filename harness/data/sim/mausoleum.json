@@ -665,6 +665,14 @@
    ]
   },
   {
+   "key": "corpse purger",
+   "at": [
+    5229,
+    732,
+    0
+   ]
+  },
+  {
    "key": "corpsebride",
    "at": [
     5187,
@@ -939,7 +947,7 @@
   {"key": "insane reanimator", "at": [5531, 645, -10]},
   {"key": "reanimator zealot", "at": [5530, 680, -10]}
  ],
- "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles). Revised 2026-10-20 against Logan's 37 live pets visits (5.1 h on the level, 2026-10-15..20, docs/SIM.md 'Parity with the live runs'): idle first sightings cluster one monster to a spawn (none of 20/17 banshee, 24 shadowguard, 16/15 vampire bat, 13/15 apparition sightings had a second of its type within 5 tiles and 30 s), so the second banshee at (5216, 701) beside (5217, 705) and the second shadowguard at (5194, 681) beside (5193, 681) went, and three spawns with no live sighting within 4 tiles in 37 visits: a shadow minion at (5210, 696), a vampire bat at (5207, 683) (16 idle shadow minions there instead) and a shade wolf at (5208, 672) (one sighting, in war mode). With them the simulator met 2-3x the live banshees, shadowguards, shadow minions and bats an hour. Added: the apparition at (5210, 717) became the two live clusters' (5196, 722) and (5218, 724) (13 and 15 idle sightings, the 19:49 fight's A and B); a second vampire at (5196, 641, 45) (seen with the one at (5186, 664) within 30 s twice); a blightmare at (5243, 687) (8 idle sightings, met 2.5 an hour live, none in the simulator). Moved: the shadowguard at (5227, 724) to (5230, 724), where 3 of its 4 live first sightings stood (x 5226-5230): at 5227 it sat 8 tiles from Logan's spot west of the wall, (5219, 726), in pull reach, and the simulator's runner walked a 155-168-step route toward it 2-3 times a run (live never: no approach route over 100 steps).",
+ "spawn_note": "every first-seen position of a monster type (calibration creatures.*.first_seen), one spawn each: the fight level's, then the first two levels' on the way in (x 5500-5650); the vampiric consort where Logan first saw one (20261013_204518, 20:57:51; it woke at 12 tiles, reached the gravebug and chased him ~25 tiles). Revised 2026-10-20 against Logan's 37 live pets visits (5.1 h on the level, 2026-10-15..20, docs/SIM.md 'Parity with the live runs'): idle first sightings cluster one monster to a spawn (none of 20/17 banshee, 24 shadowguard, 16/15 vampire bat, 13/15 apparition sightings had a second of its type within 5 tiles and 30 s), so the second banshee at (5216, 701) beside (5217, 705) and the second shadowguard at (5194, 681) beside (5193, 681) went, and three spawns with no live sighting within 4 tiles in 37 visits: a shadow minion at (5210, 696), a vampire bat at (5207, 683) (16 idle shadow minions there instead) and a shade wolf at (5208, 672) (one sighting, in war mode). With them the simulator met 2-3x the live banshees, shadowguards, shadow minions and bats an hour. Added: the apparition at (5210, 717) became the two live clusters' (5196, 722) and (5218, 724) (13 and 15 idle sightings, the 19:49 fight's A and B); a second vampire at (5196, 641, 45) (seen with the one at (5186, 664) within 30 s twice); a blightmare at (5243, 687) (8 idle sightings, met 2.5 an hour live, none in the simulator). Added (2026-10-20, all 41 visits after the capture mapping fix, docs/SIM.md 'Parity with the live runs'): a corpse purger at (5229, 732), the centre of 12 idle first sightings at x 5224-5234, y 726-737 (one at a time; met 9.7 an hour live, 3.2 simulated with only the two at (5266, 655) and (5274, 652)). Moved: the shadowguard at (5227, 724) to (5230, 724), where 3 of its 4 live first sightings stood (x 5226-5230): at 5227 it sat 8 tiles from Logan's spot west of the wall, (5219, 726), in pull reach, and the simulator's runner walked a 155-168-step route toward it 2-3 times a run (live never: no approach route over 100 steps).",
  "teleporters": [
   {"from": [5554, 700], "to": [5547, 696, 10]},
   {"from": [5507, 701], "to": [5507, 698, -5]},

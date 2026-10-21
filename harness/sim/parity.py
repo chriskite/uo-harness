@@ -87,8 +87,24 @@ def live_visits(db: str, since: float, serial: int, box: list) -> tuple[list[dic
     return visits, fights
 
 
-def capture_windows(logs: str, visits: list[dict]) -> dict[str, list[list[float]]]:
-    """{capture base: [[t_start, t_end], ...]} for the visits (the capture whose rows span each visit's start)."""
+def capture_char(cap: str) -> int | None:
+    """The serial of the character a capture is of (its first login packets), or None."""
+    import replay
+    from world.runtime import WorldRuntime
+    now = [None]
+    rt = WorldRuntime(clock=lambda: now[0])
+    for t, d, _src, p in replay.timed_packets(cap):
+        now[0] = t
+        rt.feed_packet(d, p)
+        if rt.state.self.serial:
+            return rt.state.self.serial
+    return None
+
+
+def capture_windows(logs: str, visits: list[dict], me_serial: int) -> dict[str, list[list[float]]]:
+    """{capture base: [[t_start, t_end], ...]} for the visits: the capture of `me_serial` whose rows span each visit's
+    start. Another client's capture can span it too (live 2026-10-18 and 10-19: a second character's day-long
+    sessions, 20261018_113327 and two more, overlapped 16 of Logan's visits and were taken for his)."""
     import glob
     spans = {}
     for f in sorted(glob.glob(os.path.join(logs, "session_*.jsonl"))):
@@ -109,14 +125,22 @@ def capture_windows(logs: str, visits: list[dict]) -> dict[str, list[list[float]
         if first and last:
             spans[f[:-len(".jsonl")]] = (first, last)
     out = {}
+    chars = {}
     for v in visits:
-        cap = next((c for c, (a, b) in spans.items() if a <= v["t_start"] <= b), None)
+        cap = None
+        for c, (a, b) in spans.items():
+            if a <= v["t_start"] <= b:
+                if c not in chars:
+                    chars[c] = capture_char(c)
+                if chars[c] == me_serial:
+                    cap = c
+                    break
         if cap:
             out.setdefault(cap, []).append([v["t_start"], v["t_end"]])
     return out
 
 
-SCAN_V = 3         # the capture scan's version: a cached window of another is scanned again
+SCAN_V = 4         # the capture scan's version: a cached window of another is scanned again
 HUMAN_BODIES = (400, 401, 605, 606)
 
 
@@ -179,7 +203,7 @@ def live_scan(logs: str, visits: list[dict], me_serial: int, pets: dict[int, str
     cache_path = os.path.join(logs, "parity_live_scan.json")
     cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
     cache = {k: r for k, r in cache.items() if r.get("v") == SCAN_V}
-    jobs = capture_windows(logs, visits)
+    jobs = capture_windows(logs, visits, me_serial)
     todo = {c: [w for w in ws if f"{w[0]:.1f}" not in cache] for c, ws in jobs.items()}
     todo = {c: ws for c, ws in todo.items() if ws}
     if todo:
@@ -313,8 +337,8 @@ def report(live: list[dict], live_fights: list[dict], scan: list[dict], sim: lis
         for r in rows:
             for k in keys:
                 r.setdefault(k, 0)
-        out.append("damage on us and the pets (overhead numbers live, which match the status drops: 7,242 numbers to "
-                   "7,222 hits lost on 35 visits; the world's accounting simulated), per hour on the level:")
+        out.append("damage on us and the pets (overhead numbers live, which match the status drops: 12,843 numbers to "
+                   "12,805 hits lost on 41 visits; the world's accounting simulated), per hour on the level:")
         line("us", rows, world["us"] / wh)
         for k in sorted(k for k in keys if k.startswith("pet:")):
             line(k, rows, world["pets"].get(k[4:], 0) / wh)
