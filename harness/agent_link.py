@@ -998,7 +998,8 @@ class Mover:
         return nav.straighten(path, mem_step, diagonal_first, hard | occ), None
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int | None = None, z_ok=None, gate=None,
-                goal_fn=None, urgent: bool = False, stop=None, max_route: int | None = None):
+                goal_fn=None, urgent: bool = False, stop=None, max_route: int | None = None,
+                mobile_wait: float | None = None):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
@@ -1020,11 +1021,16 @@ class Mover:
         that keeps replanning round creatures without getting nearer is boxed in (Abort). A door
         the server refuses (DOOR_REFUSED_CLILOC, or still denied after a second open request) is a
         wall until the walk ends (walled); spell fields are walls, dispelled when they cut the
-        route and there's no way round (Mover `dispel`)."""
+        route and there's no way round (Mover `dispel`). `mobile_wait`: how long a route cut only by
+        mobiles we can't shove waits for them to move (after a stamina potion when short; None:
+        MOBILE_WAIT_S), then Abort; 0 aborts at once (a fight's step away: standing there waiting is
+        the worst of it, live 2026-10-15 22:57:56 and simulator fight1822 seed 5, a retreat 'waiting'
+        until dead)."""
         self.sticky = set()
         self.walled = set()
         try:
-            return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route)
+            return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route,
+                                 MOBILE_WAIT_S if mobile_wait is None else mobile_wait)
         finally:
             self.sticky = set()
             self.walled = set()
@@ -1058,7 +1064,7 @@ class Mover:
             f"replanning")
         return True
 
-    def _walk_to(self, center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route):
+    def _walk_to(self, center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route, mobile_wait):
         gate = tuple(gate) if gate is not None else None
         replans = 0
         best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
@@ -1092,10 +1098,12 @@ class Mover:
                 if self._refreshed(label):
                     continue                 # full stamina: the denied tiles are tried again
                 if mobile_wait_until is None:
-                    mobile_wait_until = now + MOBILE_WAIT_S
+                    if mobile_wait <= 0:
+                        raise Abort(f"{label}: route from {cur} cut by mobiles we couldn't shove")
+                    mobile_wait_until = now + mobile_wait
                     log(f"{label}: route from {cur} cut by mobiles we couldn't shove; waiting")
                 elif now > mobile_wait_until:
-                    raise Abort(f"{label}: route from {cur} cut by mobiles for {MOBILE_WAIT_S:.0f} s")
+                    raise Abort(f"{label}: route from {cur} cut by mobiles for {mobile_wait:.0f} s")
                 if urgent:
                     time.sleep(0.05)         # a poll interval, not a player's pause
                 else:

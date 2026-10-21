@@ -181,6 +181,7 @@ class World:
         self.items: dict[int, dict] = {}      # serial -> {graphic, amount, container, x, y, z, kind, ...}
         self.viewing: set[int] = set()
         self.viewing_items: set[int] = set()
+        self.met: set[int] = set()            # monsters shown to us once (metrics "met")
         self.next_serial = 0x00300000
         self.next_item = 0x60000000
         self.cid = 0x00400000
@@ -202,6 +203,10 @@ class World:
                                  "others_dwell": [],
                                  "kill_on_others": 0, "blue_corpse_opens": 0, "wait_on_others_s": 0.0,
                                  "wait_on_others_mobs": 0})
+        ee = scenario.get("eerie") or {}
+        self.eerie_on = bool(ee.get("enabled"))     # the Field of Souls' eerie corpses (off by default)
+        self.erng = random.Random(seed * 104729 + 5)  # their own draws: the rest of the world's stay put
+        self.next_eerie_t = self.erng.expovariate(ee["per_h"] / 3600.0) if self.eerie_on else None
         self._waited_on = set()
         self.other_serials = set()            # every other player's and pet's serial (loot rights after they left)
         self.skill_ready = 0.0
@@ -258,6 +263,9 @@ class World:
         for it in lo["items"]:
             self.items[it["serial"]] = {"graphic": it["graphic"], "amount": it.get("amount", 1),
                                         "container": it.get("container", self.backpack), "kind": it.get("kind")}
+        if self.eerie_on and self.sc["eerie"].get("jars"):
+            self.items[self._item_serial()] = {"graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": self.sc["eerie"]["jars"],
+                                               "container": self.backpack, "kind": "soul_jar"}
         # the instrument last played (the server's): a bard skill without it in the pack asks for one first
         self.played = next((s for s, it in self.items.items() if it.get("kind") == "instrument"), None)
         self.gold_pile = lo.get("gold_serial", self._item_serial())
@@ -551,6 +559,12 @@ class World:
         elif m.kind == "otherpet":
             # live, other players' pets: "(bonded)" 6308, "(summoned)" 2128, "(tame)" 20 sightings (docs/NOTES.md)
             self.send(P.says(m.serial, m.name, m.spec.get("tag", "(bonded)"), kind=0, hue=946, body=m.body))
+        elif m.kind == "monster" and m.serial not in self.met:
+            # the monsters we meet on the hunting level, by type (sim/parity.py against the captures' first sightings)
+            self.met.add(m.serial)
+            area, pl = self.sc.get("area"), self.player
+            if area and area[0] <= pl.x <= area[2] and area[1] <= pl.y <= area[3]:
+                self.count("met", m.key)
         if m.kind == "pet" and m.ghost:
             self.send(P.pet_dead(m.serial))
 
@@ -569,6 +583,9 @@ class World:
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
+                    if it["kind"] == "eerie" and not it.get("seen"):
+                        it["seen"] = True
+                        self.count("eerie_seen")
                     if it["kind"] in ("gate", "fire", "eerie", "eerie_fx"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
                     else:
@@ -853,6 +870,8 @@ class World:
                 self._other_pet(m)
         if self.others_on and int(round(t / TICK_S)) % 10 == 0:
             self._others_sample()
+        if self.eerie_on:
+            self._eerie_tick()
         area = self.sc.get("area")
         if area and not pl.ghost and area[0] <= pl.x <= area[2] and area[1] <= pl.y <= area[3]:
             self.metrics["hunt_s"] += TICK_S
@@ -1632,6 +1651,9 @@ class World:
         diff = target.spec.get("difficulty") or 100.0
         s = b["effective_skill"] + (25 if kind == "discord" and (target.calm_until > t or target.provoke) else 0)
         p = min(0.95, max(s / 100.0 - diff / 100.0, b["min_chance_factor"] * s / 100.0))   # knowledge #8530/#5239
+        seen = (b.get("observed") or {}).get(kind, {}).get(target.key)
+        if seen:
+            p = seen[0] / seen[1]          # the live rate at this type (scenario bard.observed_note)
         self.skill_ready = t + tamer.SKILL_GAP_S
         word = {"discord": "discord your opponent", "peace": "pacify your opponent",
                 "provoke": "incite anger amongst your opponents"}[kind]
@@ -1720,18 +1742,51 @@ class World:
             lines = ["A rune tome", "Manage Runes", f"{it.get('charges', 30)}/50"] + [r["name"] for r in rows]
             self.send(P.gump(self.gump_n, escape.RUNETOME_GUMP, layout, lines))
 
-    def eerie_corpse(self, x, y, spirit="Karin Winckel", art=0xB202) -> int:
+    def eerie_corpse(self, x, y, spirit="Karin Winckel", art=0xB202, z=None, until=None) -> int:
         """An eerie corpse on the ground at (x, y) (soul_jar.py: "dead" art, then its eerie whispers a few serials
-        on, beside it); the corpse's serial."""
+        on, beside it), on the surface nearest `z` (else ours), gone at `until` (else never); the corpse's serial."""
         s = self._item_serial()
-        z = self.stand_z(x, y, self.player.z)
-        self.items[s] = {"kind": "eerie", "graphic": art, "x": x, "y": y, "z": z, "spirit": spirit}
+        z = self.stand_z(x, y, self.player.z if z is None else z)
+        self.items[s] = {"kind": "eerie", "graphic": art, "x": x, "y": y, "z": z, "spirit": spirit, "until": until}
         self.next_item += 6                                          # the blood and bones pieces, not simulated
         w = self._item_serial()
         self.items[w] = {"kind": "eerie_fx", "graphic": soul_jar.WHISPERS_GRAPHIC, "x": x + 1, "y": y, "z": z,
                          "corpse": s}
         self._view()
         return s
+
+    def _remove_eerie(self, corpse):
+        """An eerie corpse and its pieces gone (its time up, or another player filled a jar at it)."""
+        for c in [corpse, *(c for c, it in self.items.items() if it.get("corpse") == corpse)]:
+            self.items.pop(c, None)
+            if c in self.viewing_items:
+                self.viewing_items.discard(c)
+                self.send(P.delete(c))
+
+    def _eerie_tick(self):
+        """The Field of Souls' eerie corpses on the level (the scenario's `eerie`): one at a free spot of `spots` at
+        `per_h` an hour, each gone after `lifetime_s`; another player within soul_jar.FILL_WALK_R of one fills his
+        jar there [INFERENCE: players race for them, NOTES "Field of Souls"]."""
+        ee, t = self.sc["eerie"], self.t
+        for s, it in list(self.items.items()):
+            if it.get("kind") != "eerie":
+                continue
+            if it.get("until") is not None and t >= it["until"] or any(
+                    cheb((it["x"], it["y"]), o.pos) <= soul_jar.FILL_WALK_R for o in self.mobs.values()
+                    if o.kind == "other"):
+                self._remove_eerie(s)
+        if t < self.next_eerie_t:
+            return
+        self.next_eerie_t = t + self.erng.expovariate(ee["per_h"] / 3600.0)
+        taken = {(it["x"], it["y"]) for it in self.items.values() if it.get("kind") == "eerie"}
+        free = [p for p in ee["spots"] if tuple(p[:2]) not in taken]
+        if free:
+            x, y, z = self.erng.choice(free)
+            self.eerie_corpse(x, y, spirit=self.erng.choice(ee["spirits"]), z=z, until=t + self._eroll(ee["lifetime_s"]))
+            self.count("eerie_spawned")
+
+    def _eroll(self, r) -> float:
+        return self.erng.triangular(r[0], r[1], r[2]) if len(r) >= 3 else self.erng.uniform(r[0], r[1])
 
     def _fill_jar(self, s):
         """An empty soul jar double-clicked (live 20261017_151814 15:47:16.9, one flush): within

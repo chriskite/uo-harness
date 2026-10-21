@@ -1909,6 +1909,56 @@ def test_soul_jar():
           str(f))
 
 
+def test_soul_jar_waits_for_the_room():
+    print("== an eerie corpse in an idle room: the walk stops where the first monster would see us; none while the "
+          "pets fight ==")
+    # live 2026-10-20 18:22:07-27 (20261020_180909, hunt-20261020-181726-433a): from (5198, 682) the walk went 18 tiles
+    # to the eerie corpse at (5179, 680) while the pets took a shadowguard; the vampire countess, a corpsebride and a
+    # vampire bat beside it woke on Logan, and he died on the walk out (docs/NOTES.md "Dead at an eerie corpse")
+    import soul_jar
+    from sim.scenario import load as load_sc
+    corpse_at, countess_at = (5179, 680), (5177, 682)
+    out = {}
+    for case in ("room", "pets fighting"):
+        sc = load_sc()
+        sc["spawns"] = [{"key": "vampire countess", "at": [*countess_at, 25], "respawn_s": [9999, 9999]},
+                        {"key": "corpsebride", "at": [5176, 678, 25], "respawn_s": [9999, 9999]}]
+        if case == "pets fighting":
+            sc["spawns"].append({"key": "shade wolf", "at": [5198, 684, 25], "respawn_s": [9999, 9999]})
+        sc["player"]["start"] = [5197, 682, 25]
+        sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 2,
+                                       "kind": "soul_jar"})
+        w = World(sc, seed=1)
+        for m in w.mobs.values():
+            if m.kind == "monster" and m.key != "shade wolf":
+                m.calm_until = 1e9                              # they stay idle: where we walk is what's tested
+        w.eerie_corpse(*corpse_at, z=25)
+        loop, clock, store, patched = hurt_loop(w, w.player.hits_max)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                if case == "pets fighting":
+                    wolf = next(m for m in w.mobs.values() if m.key == "shade wolf")
+                    gb = next(p for p in w.pets() if p.key == "gravebug")
+                    wolf.target = gb.serial
+                    clock.advance(1.0)
+                    out[case] = (loop.pets_busy(loop.state()), loop.soul_corpse(loop.state()))
+                    continue
+                nearest = 99
+                for _ in range(16):
+                    loop.tick()
+                    clock.advance(0.5)
+                    nearest = min(nearest, sim_cheb(w.player.pos, countess_at))
+                out[case] = (nearest, w.metrics.get("soul_jars", 0), sim_cheb(w.player.pos, corpse_at))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    near, jars, dist = out["room"]
+    check("an idle countess beside the corpse: the walk stops before she would see us (10 tiles), no jar filled",
+          near >= 9 and jars == 0 and dist > soul_jar.FILL_WALK_R, f"nearest {near}, jars {jars}, {dist} from the corpse")
+    busy, pick = out["pets fighting"]
+    check("the pets fighting: no walk to the corpse", bool(busy) and pick is None, f"{busy} {pick}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -1927,7 +1977,7 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_soul_jar):
+              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_waits_for_the_room):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

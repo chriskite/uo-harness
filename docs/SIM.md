@@ -34,8 +34,13 @@ flowchart LR
 python harness/sim/run.py --runs 24 --minutes 30 --compare -- [loop_hunt arguments]
 python harness/sim/run.py --runs 24 --set tamer.FALLBACK_S=0          # an experiment on a constant
 python harness/sim/run.py --log run.log --seed 7                       # one run, with the runner's log
-python harness/test_sim.py                                             # the tests (~1.5 s)
+python harness/test_sim.py                                             # the tests (~20 s)
 python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   # refresh the observations
+# live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
+python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
+    --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
+python harness/sim/parity.py sim.jsonl --db <main checkout>/harness/data/harness.db --logs <main checkout>/logs
+python harness/sim/fight1822.py 1,2,...,24 [--log] [--harness DIR]   # the 18:22 live death replayed
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>
@@ -48,7 +53,15 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
 - **Memory persists across runs** (user 2026-10-13). The runs are split into `--careers` (default
   CPU threads - 1, `DEFAULT_CAREERS`) careers. Each career runs one after another on one memory store, as the
   live runner keeps its store between runs: crawl priors, fights, avoided types, learnt teleporters. `--fresh`
-  gives every run a new store. Summaries carry `career` and `career_run`.
+  gives every run a new store. Summaries carry `career` and `career_run`. A career's next run starts `RUN_GAP_S`
+  600 s of game time after the last one ended (live: median 685 s between Logan's runs), so the store's times read
+  as live: the return rule's visits since `hunt_return.LIVE_SINCE` (game time starts 2026-10-21 00:00, `EPOCH`) and
+  the crawl's recent kills. Before 2026-10-20 every run started at 2026-10-12 21:16, before that cut: the return
+  rule never saw a career's visits.
+- `--prior DB`: every career's store starts with DB's hunt history for the scenario's character (episodes and hunt
+  job events older than `EPOCH`): the live store, so the crawl starts from the live zone knowledge and the return
+  rule from the live visits, as a live run does. Without it a career starts empty and the crawl stays shallow
+  (77 % of its time in zones 1-2 against the live 46 %).
 - **Parallel runs**: one process per career (`--jobs` workers, default CPU threads - 3), so the
   careers bound the parallelism. A batch keeps off two logical CPUs for the game (`cpu_budget.limit`, user
   2026-10-17). The desktop has 16 cores / 32 threads (user 2026-10-13): batches
@@ -64,6 +77,13 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
   default, so batches stay comparable with the earlier ones; `all:` then adds an `others` block (in-view numbers
   against the captures', their kills, the runner's "All Kill" at a monster on one, opens of their corpses, seconds
   engaged on a monster fighting one before ours hurt it, kills lost to their loot rights).
+- `--eerie`: the Field of Souls' eerie corpses (the scenario's `eerie`, Halloween 2026-10-17 to 10-24): one appears at
+  one of the 11 live spots at `per_h` an hour, lies `lifetime_s`, and goes when another player stands within 2 of it;
+  the pack holds `jars` empty soul jars. Off by default. The runner's `--soul-jars` walks to them (docs/HUNT_LOOP.md
+  "Soul jars").
+- `--json` summaries also carry the runner's own records as the live store keeps them (`visits`, `fights`,
+  `death_events`, `leave_events`), the monsters met by type (`met`) and the eerie corpses (`eerie`): sim/parity.py
+  reads them.
 
 ## Pieces
 
@@ -75,9 +95,11 @@ python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   #
 | `sim/packets.py` | The S2C packets in the Outlands V10/V12 shapes the world model reads. |
 | `sim/scenario.py` | Loads `harness/data/sim/mausoleum.json` and builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence); `fit_bard` re-derives the barding skill. |
 | `sim/calibrate.py` | The capture extractor that wrote `mausoleum_observed.json` (its rules are in the file's `rules`). |
-| `sim/run.py` | Runs, pool, aggregate, comparison. |
+| `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
+| `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
+| `sim/fight1949.py`, `sim/fight1822.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
-| `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 42 spawns, the trip reference. Every number has its evidence in a `note`. |
+| `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
 
@@ -90,12 +112,14 @@ What the capture and the wiki fixed:
   corpse is the wiki Gold Value (lifted medians within -5..+17 %).
 - **Our pets' real hits** come from the "-N" numbers vs the 0xA1 share: the gravebug ~4.5 hits per point
   (450), the phoenix ~6.6 (660). Their attack periods from the attack animations: 1.91 s and 1.80 s;
-  their hits from the attributed numbers (gravebug median 76, phoenix 198-238).
+  their hits from the attributed numbers (gravebug median 76, phoenix 198-238). The phoenix's damage x 1.373 since
+  2026-10-20 from 134 live kills ("Parity with the live runs").
 - **Monster melee on pets** from the attributed hits (shadowguard 20-44, shade wolf 18-37, nightstalker
   21-79, ...), swing ~3 s; types never fought take the wiki melee x 0.5 (the observed/wiki ratio).
   Casters' spells are [INFERENCE] (the wiki's spell damage x 0.5 every 6 s): none was attributable.
 - **Barding**: the wiki formula `max(S/100 - difficulty/100, 0.33 x S/100)` with S = 149 fitted by
-  maximum likelihood to the trip's 47 answered attempts; durations and refusal texts as the trip's.
+  maximum likelihood to the trip's 47 answered attempts; durations and refusal texts as the trip's. Since
+  2026-10-20 the live success rate by type where it has 10+ attempts (`bard.observed`).
 - **Aggro range 10** with sight (2026-10-15 audit below: 210 of 211 war-mode flips with the nearest of us
   seen at 1-10 tiles). It was 13 for a day on the user's guess ("I think its 12 or 13"), 10 before that,
   from the capture's war-mode switches 1-13 tiles from us, median 7. The wiki's flat 20-tile Perception
@@ -504,6 +528,16 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   the other players, "Other players" below): the live 10:10:57 case of 2026-10-19 put in the simulator, Lord
   Phaze's tormented soul stood out of Logan's sight from his tile (5242, 683), no tile within bard_step's 2 steps
   saw it, and 4b06515's "All Kill" rule waited 15 s for it to come on. Now the runner walks round until it sees it.
+- **The 18:22 live death at an eerie corpse** (2026-10-20, capture 20261020_180909; docs/NOTES.md "Dead at an
+  eerie corpse"): the jar walk went 18 tiles alone into the countess room while the pets fought a shadowguard.
+  `harness/sim/fight1822.py` replays the minute from 18:22:00 (Logan at (5210, 680), the shadowguard, the countess
+  room and its neighbours as live, the corpse, no respawns; 4 game minutes, 24 seeds). On the calibration of the
+  day: deaths 4 of 24 with the deployed runner, 1 after the jar walk waits and stops as a patrol does
+  (`HuntLoop.soul_corpse`); on the final calibration below (the countess room's fight itself is harsher there):
+  7 before, 5 after, jars filled 24 -> 15, damage on Logan 219 -> 219 mean, lowest hits median 43 -> 54. The rest
+  of the deaths are the room fight (corpsebride wails, the countess' transfixed copies), not the walk: seed 5
+  died "retreat: … cut by mobiles we couldn't shove; waiting" in the corridor, which now gives up at once
+  (`mobile_wait=0`, docs/HUNT_LOOP.md "Self care") and lives.
 
 ## Monster mechanics audit (2026-10-15)
 
@@ -677,10 +711,81 @@ with Logan on Maus 3 (6.69 h, docs/NOTES.md "Other players at the Mausoleum"); e
   would compare with the tables above this section. Use `--others` for anything players touch (targets on others,
   loot rights, crowding), and for a final check of a change.
 
+## Parity with the live runs (2026-10-20)
+
+After the 18:22 death the question was how close the simulator is to the game as the runner meets it now. The
+yardstick: Logan's live pets visits on the live server since 2026-10-15 21:10 (41 visits, 5.55 h on the level when
+the last table was made; the store grows with every run), against a batch played as live plays: `run.py --runs 144
+--seed 17 --others --eerie --prior <the main store> -- --vet-range 5 --crawl-learn-s 180`, compared by
+`sim/parity.py` (both sides the runner's own records; the captures for the pets' damage and the monsters met; the
+live 95 % interval a bootstrap over the visits; deaths in a visit left for a red or a hostile player don't count,
+the simulator has none).
+
+What was off, and the changes:
+
+- **Game time** (`run.py`): the simulator's clock started 2026-10-12, before `hunt_return.LIVE_SINCE`, so the return
+  rule never read a career's own visits; each career run restarted at the same time. Now `EPOCH` 2026-10-21 and a
+  career's runs 600 s apart (`RUN_GAP_S`, live median 685 s).
+- **The runner's memory** (`run.py --prior`): careers started empty and the crawl stayed shallow (77 % of its time in
+  zones 1-2 against the live 46 %). Seeded from the live store, zone shares 17/22/36/21/4 % against 15/31/31/21/2 %.
+- **Spawns** (`spawn_note`): idle first sightings over 37 live visits put one monster at each spawn. Out: a second
+  banshee and a second shadowguard at one spawn, a shadow minion, a vampire bat and a shade wolf where none was ever
+  seen. In: the apparition as the two live spawns (A and B of the 19:49 fight), a second vampire, the blightmare
+  (met 2.5 an hour live, absent before) with its spells and Spellblight from the 10-19 fight.
+- **Bard success by type** (`bard.observed`, 458/653 discords, 111/163 peaces live): the formula's 49 % floor for
+  every target past difficulty 100 gave 1.6x the live failures.
+- **The phoenix's damage** x 1.373 (134 live kills from full hits: 530 a phoenix attack against the simulator's 386;
+  the cadences 1.86 s and 1.79 s and the gravebug's numbers matched). Kill times from our first hit came within
+  0.9-1.3x of live (tormented soul 20.2 s against 15.6, shadowguard 20.5 against 18.0; 1.6x and 1.5x before).
+- **Eerie corpses** (`--eerie`): 2.8 an hour in view against the live 2.5.
+
+| per hour on the level | live (95 % interval) | sim at the start | sim now |
+|---|---|---|---|
+| kills | 94.8 (87.5-102.4) | 87.8 | 88.3 |
+| gold | 86,600 (73,400-99,500) | 89,500 | 101,600 |
+| hits lost (ours) | 2,072 (1,744-2,483) | 2,125 | 2,026 |
+| heal potions | 47.8 (40.9-55.3) | 46.4 | 46.7 |
+| vet supplies | 124 (114-135) | 227 | 202 |
+| stand-offs | 27.6 (20.6-35.1) | 30.9 | 39.2 |
+| retreats | 1.6 (0.5-3.1) | 3.3 | 1.9 |
+| pull holds | 85.4 (74.0-98.6) | 64.0 | 110.5 |
+| discord fails | 32.4 (27.1-38.4) | 51.4 | 37.6 |
+| peace fails | 16.0 (11.7-20.7) | 23.3 | 21.0 |
+| deaths to monsters | 0.7 (0.2-1.5) | 1.7 | 1.9 |
+| deaths on the walk out | 0.5 (0-1.3) | 0.5 | 0.9 |
+| soul jars filled | 1.1 (0.4-2.0) | 1.2 | 1.5 |
+| eerie corpses seen | 2.5 (1.0-4.7) | 1.6 | 2.8 |
+| damage on the gravebug | 7,373 (5,366-9,031) | 14,255 | 12,600 |
+| damage on the phoenix | 1,533 (1,060-2,039) | 4,779 | 4,207 |
+
+"At the start": the scenario and runner of the morning (c334fce) with eerie corpses and players, no `--prior`;
+"now": this commit. Monsters met an hour, now: within the live interval the shade wolf, corpsebride, vampire bat,
+countess, forgotten soul, apparition and nightstalker; above it the tormented soul 1.55x, shadowguard 1.49x, bound
+soul 2.0x, banshee 1.29x, shadow minion 1.35x, blightmare 2.5x and the rare reanimators, daemon and consort 2-4x;
+below it the vampire 0.6x, the reanimated knight 0.34x and the transfixed copies 0.36x.
+
+**Still apart** (open):
+- **Deaths**: the simulator kills Logan 2.6x as often (1.9 against 0.7 an hour; 4 live deaths in 5.55 h, a thin
+  sample). Its top killer is the nightstalker (25-33 of ~90 deaths a batch; live none since the live server): its
+  share of the damage on Logan is 0.15 simulated against 0.02 live. Its charges land on Logan beside the pet it
+  fights (37 of 63 hits in 24 runs) or on him (26): Logan within 2 of the pets at the east spawn (5244, 666); in the
+  logged run (seed 36) the stand-off there was cut short by mobiles. Whether live nightstalkers charge less, or Logan
+  keeps further off there, is open.
+- **The pets' damage** 1.7x (gravebug) and 2.7x (phoenix), hence 1.6x the vet supplies: monsters stand in war mode
+  within 12 tiles of a pet 2.5x as long an hour as live (none 66 % of the hunting time live, 28 % simulated; measured
+  before the phoenix's recalibration).
+- **Pace**: the simulator meets ~1.3x the monsters an hour and holds 1.3x as often; per step it walks as live
+  (median 0.212 s against 0.214 s between walk requests) but walks more (4,578 steps a game hour against 3,690
+  walk requests an hour on the level live): live loses time between decisions the simulator doesn't charge for
+  [INFERENCE: state reads and confirms cost more than SimLink's 20 ms and 2 ms].
+- Gold 1.17x (within the interval at the start) [INFERENCE: the faster phoenix kills more of the dearer monsters].
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
   teleporters and the monsters first seen near it.
+- Eerie corpses (`--eerie`) lie at the 11 live spots only; their level-wide rate and how long one lies are
+  [INFERENCE], set to the live in-view rate. Other players fill jars at them only by standing within 2.
 - Other players since 2026-10-19 ("Other players" below), blue only: no reds (PKs), no chat, trades or
   guild/party play, no greens or greys (3.6 % of the sightings), and they never die. Their routes (spawn area to
   spawn area, standing about each), damage cadence and reach, the monsters they pick (not one on our party) and
@@ -733,6 +838,7 @@ Each is a normal play session with the proxy capturing as always; tell the codin
    reached the phoenix while the bat and the bride hit it too) and her own melee and spells. The
    timing (attempts, one copy at a time, ~11 s, the pet frozen meanwhile) is now from 2 fights.
 7. **The rest of the level** (and the way back out): walk every room of the fight level once, and the
-   teleporters from it. The sim has 42 spawns from where Logan happened to see monsters.
+   teleporters from it. The sim had 42 spawns from where Logan happened to see monsters (74 across the three
+   levels since; the fight level's checked against 37 live visits' sightings on 2026-10-20).
 8. If it happens anyway (don't force it): a full stable/claim at home (the pet death and its vet
    resurrection came in 20261014_221341, one try).

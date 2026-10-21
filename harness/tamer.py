@@ -785,7 +785,7 @@ class Team:
         h.doing("leave", "Falling back while the pets come")
         try:
             h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, FALLBACK_R), urgent=True,
-                            max_moves=FALLBACK_MOVES,
+                            max_moves=FALLBACK_MOVES, mobile_wait=0,
                             stop=lambda s: self.together(s) or time.monotonic() > end)
         except Abort as e:
             if not str(e).startswith(label):
@@ -995,7 +995,8 @@ class Team:
         log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
             f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else ""))
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS,
+                            mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1222,10 +1223,10 @@ class Team:
         gate = tuple(self.a.leave_gate) if getattr(self.a, "leave_gate", None) else None
         try:
             if gate is not None and cheb(gate, m["pos"]) > cheb(v.pos, m["pos"]) + 3:
-                h.mover.walk_to(lambda: gate, 1, label, urgent=True, stop=stop, max_moves=EVADE_MOVES)
+                h.mover.walk_to(lambda: gate, 1, label, urgent=True, stop=stop, max_moves=EVADE_MOVES, mobile_wait=0)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=nav.beyond([m["pos"][:2]], EVADE_CLEAR_R), urgent=True,
-                                stop=stop, max_moves=EVADE_MOVES)
+                                stop=stop, max_moves=EVADE_MOVES, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1445,10 +1446,10 @@ class Team:
         try:
             if to is not None:
                 h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
-                                max_route=2 * STANDOFF_MOVES)
+                                max_route=2 * STANDOFF_MOVES, mobile_wait=0)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), urgent=True, max_moves=STANDOFF_MOVES,
-                                max_route=STANDOFF_MOVES)
+                                max_route=STANDOFF_MOVES, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1518,10 +1519,11 @@ class Team:
         self.count("retreats")
         try:
             if to is not None:
-                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R, max_route=3 * RETREAT_R)
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=3 * RETREAT_R, max_route=3 * RETREAT_R,
+                                mobile_wait=0)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=nav.beyond(tiles, RETREAT_R - 1), urgent=True,
-                                max_moves=2 * RETREAT_R)
+                                max_moves=2 * RETREAT_R, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1699,7 +1701,7 @@ class Team:
             m = h.link.last["world"]["mobiles"].get(f"0x{serial:08X}")
             return (m["x"], m["y"]) if m is not None and m.get("x") is not None else at
         try:
-            h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True,
+            h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True, mobile_wait=0,
                             stop=lambda s: (why := h.leave_reason(s)) and why[0])
         except Abort as e:
             if not str(e).startswith(label):

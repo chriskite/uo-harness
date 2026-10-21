@@ -3985,6 +3985,72 @@ _151814, _155426, _181210, _183126, _210503, _215839, 20261018_113717, _175134, 
   on a monster on a player before ours hurt it 1,455 vs 1,991, "All Kill" at one 333 vs 280; loop crawl 52 vs 56 (1.27
   vs 1.38), 82.2k vs 82.1k, 1,234 vs 1,352 s.
 
+## Dead at an eerie corpse (2026-10-20 18:22, capture 20261020_180909, task hunt-20261020-181726-433a)
+
+Logan's first run of the evening: 10 kills, dead 2.5 min into the fight level. Replayed through `WorldRuntime`; the
+hits on him by the nearest monster in war mode at each "-N".
+- 18:22:03 the crawl passed over a shadowguard 6 tiles off ("can't see us"), 18:22:04 "holding here: shadowguard in
+  sight at 4 tiles: letting it come". 18:22:07.2 an eerie corpse came into view 19 tiles west at (5179, 680, 25), in the
+  countess room, and the jar walk went at once ("walking over to fill a soul jar"): the soul jar decision came before
+  the hold in `HuntLoop.tick`, and its walk stopped only for an attacker, a leave rule or the corpse going.
+- 18:22:08-09 the shadowguard woke on the pets at (5195, 685); they fought it there, 15 tiles behind him. The room's
+  vampire countess (5177, 682), corpsebride (5176, 678) and vampire bat (5175, 682) came into view as he walked in and
+  woke on him (-26 18:22:10, he at 8-10 tiles from them). He filled the jar at 18:22:13.7 from (5181, 682).
+- 18:22:13-17: the bat at 1, the bride and the countess at 3-4: -21 -10 -30 -9 with a potion (+41) between. 18:22:17
+  the retreat went 7 tiles **west**, to (5172, 685), away from the pets (`retreat_tile` ranks by what sees the tile,
+  then steps; "the pets hold it" while they were 15 tiles east); the bride followed at 1 (-8 -25 at 18:22:20). 18:22:20
+  the leave at 14/100; the gate route went back east through the three; dead at 18:22:25.1 at (5181, 681).
+- **Fixed** (`HuntLoop.soul_corpse`, `fill_soul_jar`; docs/HUNT_LOOP.md "Soul jars"): a walk to an eerie corpse waits
+  as a patrol does, while the pets fight or lag (`patrol_hold`) and while an idle monster we hold for is coming
+  (`Team.hold_reason`), and stops on a step a patrol would stop on (`Team.pull_check`: the pull budget, the hold at
+  first sight); a corpse whose walk stopped short waits `JAR_RETRY_S` 20 s. The simulator replays the minute
+  (`harness/sim/fight1822.py`, docs/SIM.md "The 18:22 live death"), 24 seeds: on the morning's calibration deaths 4
+  before, 1 after (a vampire's feed 2.5 min later, not the room), jars filled 24 -> 18 (the walk now waits for the
+  room); on the day's final calibration (below) 7 -> 5, jars 24 -> 15, Logan's lowest hits median 43 -> 54; the five
+  are the countess room's own fight. `test_sim` `test_soul_jar_waits_for_the_room` fails on the old runner (the walk
+  reached 4 tiles of the countess; it walked while the pets fought).
+- Not changed: the retreat's direction. With the jar walk gated it no longer starts 15 tiles from the pets.
+- **Also fixed: a step away in a fight that mobiles block no longer stands waiting** (`Mover.walk_to` `mobile_wait=0`
+  for the retreat, stand-off, back-off, evade, fall-back and back-to-the-pets walks): `MOBILE_WAIT_S` 90 s let a
+  retreat stand "cut by mobiles we couldn't shove; waiting" while hit (live 2026-10-15 22:57:56, dead a second
+  later; the replay's seed 5 in the countess corridor, which now lives). `test_mover` checks it.
+
+## The simulator against the live runs (2026-10-20, docs/SIM.md "Parity with the live runs")
+
+`harness/sim/parity.py` compares Logan's live pets visits since the live server (the store's episodes and `fight`,
+`death`, `leave` job events; the captures for damage on the pets and the monsters met) with a simulator batch, per
+hour on the level, with a bootstrap 95 % interval over the live visits. What it found, and what changed:
+- **The simulator's clock ran before the live-server cut.** `sim/run.py`'s EPOCH was 2026-10-12, before
+  `hunt_return.LIVE_SINCE` (2026-10-15 21:07), so the return rule never read a career's own visits ("a death every 80
+  min", its prior, in every run), and each career run restarted at the same game time. Now game time starts
+  2026-10-21 00:00 and a career's next run starts 600 s after the last ended (live median 685 s between runs, 43 gaps).
+- **The simulated crawl stayed shallow**: 77 % of its time in zones 1-2 against the live 46 %. Live runs start from
+  a store with hours of zone knowledge and open zones 2-5 at once; the careers started empty. `run.py --prior <store>`
+  seeds every career with the live store's hunt history (episodes and hunt job events): zone shares 15/31/31/21/2 %
+  live, 17/22/36/21/4 % simulated.
+- **Spawns against the live sightings** (idle first sightings over 37 visits put one monster at each spawn): out a
+  second banshee and a second shadowguard beside the first, and a shadow minion at (5210, 696), a vampire bat at
+  (5207, 683) and a shade wolf at (5208, 672) that were never seen; in the two apparition spawns of the live
+  clusters (one before), a second vampire at (5196, 641) and the blightmare at (5243, 687) (met 2.5 an hour live,
+  absent before; its spells and Spellblight from the 10-19 fight). The simulator had met 2-3x the live banshees,
+  shadowguards, minions and bats an hour.
+- **Bard success by type**: the formula put every target past difficulty 100 at its 49 % floor; live Discordance
+  succeeded 70 % (458/653; the shadowguard 79 %, the shade wolf 52 %), Peacemaking 68 % (111/163). The scenario now
+  carries the live rates per type with 10+ attempts (`bard.observed`).
+- **The phoenix hit harder than modelled**: 134 live kills from full hits (souls, shadowguards, purgers, brides,
+  minions, knights) took 905,861 in 2,614 s from our first hit, with 1,409 gravebug and 1,460 phoenix attack
+  animations (periods 1.86 s and 1.79 s, as modelled); at the gravebug's median 99 a hit that is 530 a phoenix
+  attack, where the simulator applied 386. Its damage x 1.373; kill times from our first hit came from 1.0-1.6x of
+  live to 0.9-1.3x. Not the creatures' hits: live kills from full took exactly the scenario's hits + 1.
+- **Eerie corpses**: 2.5 an hour came into view live; the simulator now has them (`--eerie`), 2.8.
+- **Now within the live interval**: kills, hits lost, heal potions, retreats, discord failures, leaves for hits, walk-out
+  deaths, soul jars, eerie corpses, the zone shares. **Still apart** (docs/SIM.md "Still apart"): deaths to monsters
+  2.6x (1.9 against 0.7 an hour; the nightstalker's charges on Logan, its share of his damage 0.14 against 0.02 live),
+  the pets' damage 1.7x and 2.7x (vet 1.6x; the live number two ways, overhead "-N" and their hits share drops x their
+  real hits, agree within 7 %), stand-offs and pull holds 1.3-1.4x, gold 1.17x, and the monsters met an hour
+  ~1.3x for several types: the simulator walks more an hour at the same step pace [INFERENCE: live time between
+  decisions].
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

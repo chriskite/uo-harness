@@ -435,6 +435,16 @@ def test_shove_denied():
         agent_link.MOBILE_WAIT_S = saved
     check("NPC never moves: aborts as 'cut by mobiles', not 'no route'",
           "cut by mobiles" in msg and "no route" not in msg, msg)
+    link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 10 ** 9)], can_shove=False)
+    mv = map_mover(link, HALLWAY)
+    try:
+        mv.walk_to(lambda: (6, 0), 0, "retreat", urgent=True, mobile_wait=0)
+        msg = "arrived"
+    except agent_link.Abort as e:
+        msg = str(e)
+    check("mobile_wait=0 (a fight's step away): aborts at once, no wait for the NPC (MOBILE_WAIT_S untouched)",
+          msg.startswith("retreat: route from") and msg.endswith("cut by mobiles we couldn't shove")
+          and tuple(link.here)[0] < 3, f"{msg} at {link.here}")
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 10 ** 9)])
     msg = walk_msg(map_mover(link, HALLWAY), (8, 0))
     check("a goal walls cut off is still 'no route' (mobiles or not)", "no route" in msg, msg)

@@ -26,7 +26,13 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 import cpu_budget  # noqa: E402
 
-EPOCH = 1791857790.0          # 2026-10-12 21:16:30 local: the trip's start (log lines read as game time)
+# game time: after the live-server cut (hunt_return.LIVE_SINCE), so the return rule reads a career's own visits as it
+# reads the live store's (from 2026-10-12 21:16:30, the trip's start, it read none: "a death every 80 min", its prior,
+# whatever the career had seen), and after every live row a --prior store brings (none later than 2026-10-20)
+EPOCH = 1792558800.0          # 2026-10-21 00:00 local
+RUN_GAP_S = 600.0             # a career's next run starts this long after the last ended (live: median 685 s between
+                              # Logan's pets runs, 43 gaps under 3 h, 2026-10-15..20); not under crawl.RESPAWN_S: the
+                              # world starts fresh each run, so the runner mustn't think its last kills' areas still rest
 # careers when --careers isn't given: the old --jobs default (CPU count - 1), so a batch's draws (each career one
 # memory store) stay those of the batches in docs/NOTES.md, whatever --jobs is now
 DEFAULT_CAREERS = max(1, (os.cpu_count() or 2) - 1)
@@ -61,14 +67,37 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     return [a for a in out if a != "--no-crawl"]
 
 
+def seed_prior(db: str, prior: str, serial: int) -> int:
+    """Copy the hunt history of character `serial` from the store `prior` (the live one) into `db`: the hunt episodes
+    and job events the runner learns from (crawl.load_prior's fights, loot and zone stats, hunt_return.model's visits,
+    deaths and leaves, the kills of tamer's spawn spots), rows older than EPOCH only. The rows read; 0 when none."""
+    import memory
+    import sqlite3
+    src = sqlite3.connect(f"file:{prior}?mode=ro", uri=True)
+    eps = src.execute("SELECT loop, t_start, t_end, data, char_serial FROM episodes WHERE loop='hunt' "
+                      "AND (char_serial=? OR char_serial IS NULL) AND t_start<?", (serial, EPOCH)).fetchall()
+    evs = src.execute("SELECT t, job, kind, facet, x, y, data, char_serial FROM job_events WHERE job='hunt' "
+                      "AND (char_serial=? OR char_serial IS NULL) AND t<?", (serial, EPOCH)).fetchall()
+    src.close()
+    store = memory.Memory(db)
+    with store.con:
+        store.con.executemany("INSERT INTO episodes(loop, t_start, t_end, data, char_serial) VALUES(?,?,?,?,?)", eps)
+        store.con.executemany("INSERT INTO job_events(t, job, kind, facet, x, y, data, char_serial) "
+                              "VALUES(?,?,?,?,?,?,?,?)", evs)
+    store.close()
+    return len(eps) + len(evs)
+
+
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
-             at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False) -> dict:
+             at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
+             eerie: bool = False, epoch: float = EPOCH, prior: str | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
     memory store (a career's, kept across its runs: crawl priors, fights, avoided types, learnt
-    teleporters), else a fresh one. `others`: other players on the level (the scenario's `others`, off by
-    default so earlier batches stay comparable)."""
+    teleporters), else a fresh one (with `prior`'s hunt history: seed_prior). `others`: other players on the
+    level (the scenario's `others`, off by default so earlier batches stay comparable); `eerie`: the Field of
+    Souls' eerie corpses (the scenario's `eerie`, off by default too). `epoch`: the game time it starts at."""
     import ast
     import importlib
     import loop_hunt
@@ -94,19 +123,26 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
         sc["player"]["start"] = sc["recall"]["rows"][0]["at"]
     if others:
         sc["others"]["enabled"] = True
+    if eerie:
+        sc["eerie"]["enabled"] = True
     if "--vet-range" in extra:
         # the runner's --vet-range is the character's (the Healer's Codex "Without Borders" adds 1/2/3 tiles,
         # knowledge #11343): the simulated supplies reach as far, else the runner stands where they don't
         sc["vet"]["range"] = int(extra[extra.index("--vet-range") + 1])
-    clock = simclock.SimClock(epoch=EPOCH)
+    clock = simclock.SimClock(epoch=epoch)
     world = World(sc, seed=seed)
     link = SimLink(world, clock)
     if db is None:
         db = os.path.join(tempfile.mkdtemp(prefix="sim_"), "harness.db")
+        if prior:
+            seed_prior(db, prior, sc["player"]["serial"])
     args = loop_hunt.arg_parser().parse_args(runner_args(sc, extra, minutes, at_hunt)
                                              + ["--memory", db, "--seed", str(seed)])
     patched = simclock.install(clock)
     store = memory.Memory(db)
+    # a career's store holds its earlier runs: this run's rows are those past these ids
+    first_ep, first_ev = (store.con.execute(f"SELECT COALESCE(MAX(id), 0) FROM {t}").fetchone()[0]
+                          for t in ("episodes", "job_events"))
     wall0 = _wall.perf_counter()
     outcome, error = "done", None
     loop = None
@@ -130,6 +166,11 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     juncs = [{"kind": j["kind"], "severity": j["severity"], "summary": j["summary"][:160]}
              for j in store.junctures(limit=200)]
     episodes = store.episodes("hunt")
+    visits = [json.loads(d) for (d,) in store.con.execute(
+        "SELECT data FROM episodes WHERE loop='hunt' AND id>? ORDER BY id", (first_ep,))]
+    records = [{"kind": k, "x": x, "y": y, **json.loads(d)} for k, x, y, d in store.con.execute(
+        "SELECT kind, x, y, data FROM job_events WHERE job='hunt' AND kind IN ('fight', 'death', 'leave') AND id>? "
+        "ORDER BY id", (first_ev,))]
     store.close()
     m = world.metrics
     pl = world.player
@@ -153,27 +194,43 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
                                          "others_dwell",
                                          "kill_on_others", "blue_corpse_opens", "wait_on_others_s",
                                          "wait_on_others_mobs") if k in m} if world.others_on else None,
+            "eerie": {k: m.get(k, 0) for k in ("eerie_spawned", "eerie_seen", "soul_jars")} if world.eerie_on else None,
+            "met": m.get("met", {}),
             "violations": m["violations"], "junctures": juncs,
             "runner_totals": dict(loop.totals) if loop is not None else None,
-            "episodes": len(episodes)}
+            "episodes": len(episodes),
+            # the runner's own records, as the live store keeps them (sim/parity.py compares the two)
+            "visits": visits, "fights": [{k: r.get(k) for k in ("name", "fight_s", "hits_lost", "outcome")}
+                                         for r in records if r["kind"] == "fight"],
+            "death_events": [{k: r.get(k) for k in ("x", "y", "cause")} for r in records if r["kind"] == "death"],
+            "leave_events": [{k: r.get(k) for k in ("x", "y", "why", "hits")} | {"died": "died" in str(r.get("gate"))}
+                             for r in records if r["kind"] == "leave"]}
 
 
 def _pool_run(job):
     """One career in a pool worker: its runs one after another on one memory store (each run's
-    log to its `log`, or nowhere); their summaries, with `career` and `career_run`."""
+    log to its `log`, or nowhere), each starting RUN_GAP_S of game time after the last ended, as live (the
+    store's times read like the live one's: recent kills, the return rule's visits); their summaries, with
+    `career` and `career_run`. With a `prior` store the career's store starts with its hunt history."""
     career, runs = job
     db = os.path.join(tempfile.mkdtemp(prefix="sim_career_"), "harness.db")
     out_all = []
-    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others) in enumerate(runs):
+    epoch = EPOCH
+    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior) in enumerate(runs):
+        if career is not None and k == 0 and prior:
+            from sim.scenario import load
+            seed_prior(db, prior, load(scenario)["player"]["serial"])
         out = open(log, "w", encoding="utf-8") if log else open(os.devnull, "w")
         old = sys.stdout
         sys.stdout = out
         try:
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
-                         others=others)
+                         others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
+                         prior=prior if career is None else None)
         finally:
             sys.stdout = old
             out.close()
+        epoch += r.get("sim_s", 0.0) + RUN_GAP_S
         out_all.append({**r, "career": career, "career_run": k})
     return out_all
 
@@ -204,6 +261,12 @@ def main(argv=None):
     ap.add_argument("--fresh", action="store_true", help="every run on a fresh memory store (no careers)")
     ap.add_argument("--others", action="store_true",
                     help="other players on the level (the scenario's `others`; off by default, docs/SIM.md)")
+    ap.add_argument("--eerie", action="store_true",
+                    help="the Field of Souls' eerie corpses on the level, empty soul jars in the pack (the scenario's "
+                         "`eerie`; off by default)")
+    ap.add_argument("--prior", default=None, metavar="DB",
+                    help="start every career's memory with this store's hunt history for the scenario's character (the "
+                         "live store: the crawl's zone knowledge, the return rule's visits; docs/SIM.md 'Parity')")
     a = ap.parse_args(argv)
     if a.runs > 1:
         cpu_budget.limit()
@@ -212,7 +275,7 @@ def main(argv=None):
     if logdir:
         os.makedirs(logdir, exist_ok=True)
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
-             tuple(a.set), a.others) for s in seeds]
+             tuple(a.set), a.others, a.eerie, a.prior) for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
     if len(careers) == 1 or a.jobs <= 1:

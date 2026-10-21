@@ -318,13 +318,18 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   `combat.worth_looting` takes them) and an eerie corpse (`soul_jar.eerie_corpses`: "dead" corpse art with its eerie
   whispers a few serials on, docs/NOTES.md "Field of Souls") is in the world model (in view) on
   our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight) only a
-  corpse within 2 tiles counts, so the runner never walks away from a fight for one. A crawl's patrol walk stops
-  for one (`patrol_stop`).
+  corpse within 2 tiles counts, so the runner never walks away from a fight for one. A walk to one also waits, as a
+  patrol does, while the pets fight or lag (`patrol_hold`) or an idle monster we hold for is coming (`--pets`,
+  `Team.hold_reason`), and for `JAR_RETRY_S` 20 s after a walk to it stopped short. A crawl's patrol walk stops for
+  one (`patrol_stop`).
 - **How**: the Mover walks within `soul_jar.FILL_WALK_R` = 2 tiles (Logan filled from 2; the event post says 4).
-  The walk stops when something attacks us, a leave rule fires or the corpse goes, and the next tick decides
-  again; a walk that can't get there gives the corpse up. Then the jar's bags are opened like a player
-  (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar (`0xA9A3`) in
-  the pack (live it came 44 ms after the click).
+  The walk stops when something attacks us, a leave rule fires or the corpse goes, and (`--pets`) on a step a patrol
+  stops on: more than the pets should take would wake, the hold at an idle monster's first sight (`Team.pull_check`),
+  the pets fighting or lagging; the next tick decides again. Live 2026-10-20 18:22 the walk went 18 tiles alone into
+  the countess room while the pets fought a shadowguard; the room woke on Logan and he died on the way out
+  (docs/NOTES.md "Dead at an eerie corpse"). A walk that can't get there gives the corpse up. Then the jar's bags are
+  opened like a player (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar
+  (`0xA9A3`) in the pack (live it came 44 ms after the click).
 - **One try per corpse** (`jar_tried`), filled or not. Live, nothing was ever seen of a fill that failed, so a miss
   logs whatever the server said and moves on.
 - **Memory**: a `soul_jar` job event: `corpse`, `at` (x, y, z), `jar`, `spirit` (from "spirit energy"'s "'My name
@@ -333,7 +338,9 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   minutes after the fill; the log line says so.
 - **The sound**: the proxy plays a ghostly wail the first time any of our characters sees each eerie corpse,
   runner or not (`alerts.eerie`; docs/NOTES.md "Field of Souls").
-- Test: `test_sim.py` `test_soul_jar` (the simulator's eerie corpse and jar: walk, fill, no jar no walk, mid-fight).
+- Test: `test_sim.py` `test_soul_jar` (the simulator's eerie corpse and jar: walk, fill, no jar no walk, mid-fight),
+  `test_soul_jar_waits_for_the_room` (the 18:22 room: the walk stops at the countess' first sight; no walk while the
+  pets fight). The simulator spawns eerie corpses with `run.py --eerie` (docs/SIM.md).
 
 ## Pets (`--pets`; `harness/tamer.py`; user request 2026-10-12)
 
@@ -454,7 +461,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    the tile 7+ from every attacker within 14 steps that the fewest idle monsters would see
    (`Team.retreat_tile`; live 20261015_090607 the straight-away tile was in a second apparition's
    sight and it came for Logan: user 2026-10-15, a monster that sees us while the pets fight aggroes
-   on us directly).
+   on us directly). A step away in a fight (the retreat, the stand-off, the back-off, the evade, the
+   fall-back, back to the pets) whose route only mobiles block gives up at once (`Mover.walk_to`
+   `mobile_wait=0`; after a stamina potion when short): the tick goes on to the potion and the vet.
+   Before 2026-10-20 it waited up to `MOBILE_WAIT_S` 90 s where it stood (live 2026-10-15 22:57:56 dead
+   a second after "cut by mobiles … waiting"; simulator fight1822 seed 5, dead in the countess
+   corridor while "waiting").
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
