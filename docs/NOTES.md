@@ -3883,6 +3883,42 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   (5615, 691) → (5618, 692), and was saved as a teleporter; the user had moved Logan. The row is deleted from the
   store. `Mover.step` then gave up after 40 gate polls (200 s): "ABORTED: walk gated too long", with Logan in the
   Mausoleum. Now a walk waits out a closed gate like `Link.act` does, logging the close and the reopening once.
+- **Dead after a soul-jar walk (2026-10-20 18:22:07-27, hunt-20261020-181726-433a, capture session_20261020_180909;
+  replay `replay.timed_packets` → `WorldRuntime`).** Logan at (5197, 682, z 25) on Maus 3, the pets beside a
+  shadowguard 3 tiles off as it woke (the patrol was "letting it come"); an eerie corpse at (5179, 680), 18 tiles
+  west, with an idle vampire countess (5177, 682), a corpsebride (5176, 678) and a vampire bat (5175, 682) beside
+  it. "walking over to fill a soul jar": 16 steps alone; the pets stayed on the shadowguard at (5196-5198, 682-684),
+  15-17 tiles behind him for the rest of his life. A spell at (5189, 682) at 18:22:09.8 (-26, the countess casting
+  at ~12 [INFERENCE: the only caster awake in view]), -21 as the jar filled (18:22:13.7, +30 score, Gilles Styles),
+  potion 54 -> 95, then -10, -30, -9 beside the bride and bat; the retreat went 7 tiles west (away from the pets,
+  `Team.retreat_tile` doesn't look at them), -8, -25 at (5172, 685); the hurt leave at 14/100 had a 51-step route
+  to the gate; dead 18:22:27. The walk's `stop` knew only attackers, leave rules and the corpse; none of the
+  patrol's guards. Fixed: with `--pets` the jar walk isn't started while the pets fight or lag, and stops on
+  `patrol_hold` or `Team.pull_check` (the corpse then waits `JAR_DEFER_S` 120 s). test_sim `test_soul_jar_guards`
+  (before: walked; `jar_later` didn't exist). Simulator, the 18:22 geometry (the sim's pets follow on guard, so it
+  shows the group, not the pets left behind), 20 seeds, 20 s each: lowest hits mean 56 -> 67, runs below 30 hits
+  3 -> 1, jars filled within the 20 s 20 -> 0; 250 s each (4 seeds): the crawl pulls the three one at a time and
+  every jar is filled after.
+  Not changed: a retreat with the pets far off goes wherever the fewest idle monsters see, not toward them.
+- **Transfixed on a retreat: "too many blocked moves" (2026-10-20 19:23:23-30, hunt-20261020-183232-1def, capture
+  session_20261020_180909).** Logan at (5180, 680) with a vampire countess, a corpsebride and both transfixed pet
+  copies on him; 54 -> potion 100 -> 30 by 19:23:23.04 (-21, -13, -36). At that instant: "The creature overpowers your
+  will and transfixes you!" (system text), self flags 0x20 -> 0xA0 until 19:23:33.65, buff icons 57/58/59/19/140.
+  The retreat (logged 19:23:23) sent 21 steps in 7 s, every one denied, and the Mover aborted the run ("too many
+  blocked moves (21)"). He stood alive (vet +35, regen to 86) and the run was over, Logan left on Maus 3. Item use
+  was refused too: "You cannot use items while in this state." x3 at 19:23:27.13. "You are no longer hindered." at
+  19:23:34.15, 11.1 s after the transfix, the same as the only other one on Logan in the store (2026-10-17
+  15:27:03, 11.1 s). Against that, the store has 110 "*transfixed*" pet copies. Fixed: `Mover.held` /
+  `wait_held` (docs/HUNT_LOOP.md "Guards"). The simulator now transfixes Logan in `player_share` 0.018 of a
+  countess' transfixes (docs/SIM.md). test_sim `test_transfixed_walk` (before: "too many blocked moves (21)", as
+  live; after: free after 11.0 s, arrived). Run A/B, 48 x 20 min, seed 17: identical, so no run in the batch had a
+  transfix on Logan change its course (2 % of transfixes is rare).
+  - **Then dead with no runner (19:30).** Logan stood at (5180, 680) with no task: the Seer may not fight or walk
+    in a dungeon, and the user hadn't answered yet. AlaFlambe's "(bonded)" death ~19:30:05, GraveRobber's ~19:30:25,
+    then Logan. Two further fixes: (1) `--max-blocked` counted the run's denials (7 in the run's 50 minutes before
+    the transfix); now it counts one walk's, and the abort names its walk, so the retreat's own catch sees it.
+    (2) A failed walk inside the hunt no longer ends the run: `WalkFailed`, `HuntLoop.walk_failed` (docs/HUNT_LOOP.md
+    "Guards"). test_sim `test_walk_failed_carries_on` (before: `WalkFailed` out of `hunt()`).
 
 ## Field of Souls: the field map (reaper spawns, 2026-10-17)
 
@@ -3985,35 +4021,21 @@ _151814, _155426, _181210, _183126, _210503, _215839, 20261018_113717, _175134, 
   on a monster on a player before ours hurt it 1,455 vs 1,991, "All Kill" at one 333 vs 280; loop crawl 52 vs 56 (1.27
   vs 1.38), 82.2k vs 82.1k, 1,234 vs 1,352 s.
 
-## Dead at an eerie corpse (2026-10-20 18:22, capture 20261020_180909, task hunt-20261020-181726-433a)
+## The 18:22 death replayed, and fight step-aways blocked by mobiles (2026-10-20)
 
-Logan's first run of the evening: 10 kills, dead 2.5 min into the fight level. Replayed through `WorldRuntime`; the
-hits on him by the nearest monster in war mode at each "-N".
-- 18:22:03 the crawl passed over a shadowguard 6 tiles off ("can't see us"), 18:22:04 "holding here: shadowguard in
-  sight at 4 tiles: letting it come". 18:22:07.2 an eerie corpse came into view 19 tiles west at (5179, 680, 25), in the
-  countess room, and the jar walk went at once ("walking over to fill a soul jar"): the soul jar decision came before
-  the hold in `HuntLoop.tick`, and its walk stopped only for an attacker, a leave rule or the corpse going.
-- 18:22:08-09 the shadowguard woke on the pets at (5195, 685); they fought it there, 15 tiles behind him. The room's
-  vampire countess (5177, 682), corpsebride (5176, 678) and vampire bat (5175, 682) came into view as he walked in and
-  woke on him (-26 18:22:10, he at 8-10 tiles from them). He filled the jar at 18:22:13.7 from (5181, 682).
-- 18:22:13-17: the bat at 1, the bride and the countess at 3-4: -21 -10 -30 -9 with a potion (+41) between. 18:22:17
-  the retreat went 7 tiles **west**, to (5172, 685), away from the pets (`retreat_tile` ranks by what sees the tile,
-  then steps; "the pets hold it" while they were 15 tiles east); the bride followed at 1 (-8 -25 at 18:22:20). 18:22:20
-  the leave at 14/100; the gate route went back east through the three; dead at 18:22:25.1 at (5181, 681).
-- **Fixed** (`HuntLoop.soul_corpse`, `fill_soul_jar`; docs/HUNT_LOOP.md "Soul jars"): a walk to an eerie corpse waits
-  as a patrol does, while the pets fight or lag (`patrol_hold`) and while an idle monster we hold for is coming
-  (`Team.hold_reason`), and stops on a step a patrol would stop on (`Team.pull_check`: the pull budget, the hold at
-  first sight); a corpse whose walk stopped short waits `JAR_RETRY_S` 20 s. The simulator replays the minute
-  (`harness/sim/fight1822.py`, docs/SIM.md "The 18:22 live death"), 24 seeds: on the morning's calibration deaths 4
-  before, 1 after (a vampire's feed 2.5 min later, not the room), jars filled 24 -> 18 (the walk now waits for the
-  room); on the day's final calibration (below) 7 -> 5, jars 24 -> 15, Logan's lowest hits median 43 -> 54; the five
-  are the countess room's own fight. `test_sim` `test_soul_jar_waits_for_the_room` fails on the old runner (the walk
-  reached 4 tiles of the countess; it walked while the pets fought).
-- Not changed: the retreat's direction. With the jar walk gated it no longer starts 15 tiles from the pets.
-- **Also fixed: a step away in a fight that mobiles block no longer stands waiting** (`Mover.walk_to` `mobile_wait=0`
-  for the retreat, stand-off, back-off, evade, fall-back and back-to-the-pets walks): `MOBILE_WAIT_S` 90 s let a
-  retreat stand "cut by mobiles we couldn't shove; waiting" while hit (live 2026-10-15 22:57:56, dead a second
-  later; the replay's seed 5 in the countess corridor, which now lives). `test_mover` checks it.
+The death and the soul-jar fix are in "Field of Souls" ("Dead after a soul-jar walk", 4c72c12). Added on the
+improve-maus branch:
+- **The minute in the simulator** (`harness/sim/fight1822.py`, docs/SIM.md "The 18:22 live death"): from 18:22:00,
+  Logan at (5210, 680), the shadowguard, the countess room and its neighbours as the capture has them, the corpse, no
+  respawns, 4 game minutes, 24 seeds. On the final calibration of "The simulator against the live runs" below: the
+  runner of the morning (c334fce) 7 deaths, 24 jars filled, Logan's lowest hits median 43; the merged runner (main's
+  jar guards, transfix wait and failed-walk carry-on, and the fix below) 1 death, 13 jars, 55. The deaths left are
+  the countess room's own fight (corpsebride wails, transfixed copies).
+- **A step away in a fight that mobiles block no longer stands waiting** (`Mover.walk_to` `mobile_wait=0` for the
+  retreat, stand-off, back-off, evade, fall-back and back-to-the-pets walks; `WalkFailed` at once): `MOBILE_WAIT_S`
+  90 s let a retreat stand "cut by mobiles we couldn't shove; waiting" while hit (live 2026-10-15 22:57:56, dead a
+  second later; the replay's seed 5 in the countess corridor, which now lives). `test_mover` checks it.
+- Not changed: the retreat's direction (it ranks tiles by the idle monsters that see them, not by the pets).
 
 ## The simulator against the live runs (2026-10-20, docs/SIM.md "Parity with the live runs")
 
@@ -4042,14 +4064,14 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   animations (periods 1.86 s and 1.79 s, as modelled); at the gravebug's median 99 a hit that is 530 a phoenix
   attack, where the simulator applied 386. Its damage x 1.373; kill times from our first hit came from 1.0-1.6x of
   live to 0.9-1.3x. Not the creatures' hits: live kills from full took exactly the scenario's hits + 1.
-- **Eerie corpses**: 2.5 an hour came into view live; the simulator now has them (`--eerie`), 2.8.
-- **Now within the live interval**: kills, hits lost, heal potions, retreats, discord failures, leaves for hits, walk-out
-  deaths, soul jars, eerie corpses, the zone shares. **Still apart** (docs/SIM.md "Still apart"): deaths to monsters
-  2.6x (1.9 against 0.7 an hour; the nightstalker's charges on Logan, its share of his damage 0.14 against 0.02 live),
-  the pets' damage 1.7x and 2.7x (vet 1.6x; the live number two ways, overhead "-N" and their hits share drops x their
-  real hits, agree within 7 %), stand-offs and pull holds 1.3-1.4x, gold 1.17x, and the monsters met an hour
-  ~1.3x for several types: the simulator walks more an hour at the same step pace [INFERENCE: live time between
-  decisions].
+- **Eerie corpses**: 2.5 an hour came into view live; the simulator now has them (`--eerie`), 2.4.
+- **Now within the live interval** (merged with main's 7047a1d): hits lost, heal potions, retreats, discord and peace
+  failures, leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares; kills 0.92x, just under it.
+  **Still apart** (docs/SIM.md "Still apart"): deaths to monsters 2.8x (2.0 against 0.7 an hour; the nightstalker's
+  charges on Logan, its share of his damage 0.14 against 0.02 live), the pets' damage 1.7x and 2.7x (vet 1.6x; the
+  live number two ways, overhead "-N" and their hits share drops x their real hits, agree within 7 %), stand-offs and
+  pull holds 1.3-1.4x, gold 1.16x, and the monsters met an hour ~1.3x for several types: the simulator walks more an
+  hour at the same step pace [INFERENCE: live time between decisions].
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

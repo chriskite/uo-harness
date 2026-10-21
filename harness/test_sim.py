@@ -1909,54 +1909,114 @@ def test_soul_jar():
           str(f))
 
 
-def test_soul_jar_waits_for_the_room():
-    print("== an eerie corpse in an idle room: the walk stops where the first monster would see us; none while the "
-          "pets fight ==")
-    # live 2026-10-20 18:22:07-27 (20261020_180909, hunt-20261020-181726-433a): from (5198, 682) the walk went 18 tiles
-    # to the eerie corpse at (5179, 680) while the pets took a shadowguard; the vampire countess, a corpsebride and a
-    # vampire bat beside it woke on Logan, and he died on the walk out (docs/NOTES.md "Dead at an eerie corpse")
+def test_soul_jar_guards():
+    print("== an eerie corpse: no walk while the pets fight; the walk stops short of the idle monsters around it ==")
+    # live 2026-10-20 18:22:07-27 (hunt-20261020-181726-433a): the pets fighting a shadowguard beside him, Logan walked
+    # 16 steps alone to an eerie corpse at (5179, 680) with an idle vampire countess, a corpsebride and a vampire bat
+    # by it: the jar filled at 74/100, then 100 -> 0 in 13 s with the pets 15 tiles behind
     import soul_jar
     from sim.scenario import load as load_sc
-    corpse_at, countess_at = (5179, 680), (5177, 682)
+    corpse_at = (5179, 680)
     out = {}
-    for case in ("room", "pets fighting"):
+    for case in ("pets fighting", "monsters by the corpse"):
         sc = load_sc()
-        sc["spawns"] = [{"key": "vampire countess", "at": [*countess_at, 25], "respawn_s": [9999, 9999]},
-                        {"key": "corpsebride", "at": [5176, 678, 25], "respawn_s": [9999, 9999]}]
-        if case == "pets fighting":
-            sc["spawns"].append({"key": "shade wolf", "at": [5198, 684, 25], "respawn_s": [9999, 9999]})
-        sc["player"]["start"] = [5197, 682, 25]
-        sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 2,
+        group = [{"key": "vampire countess", "at": [5177, 682, 25]}, {"key": "corpsebride", "at": [5176, 678, 25]},
+                 {"key": "vampire bat", "at": [5175, 682, 25]}]
+        wolf = [{"key": "shade wolf", "at": [5199, 683, 25]}]
+        sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in (wolf if case == "pets fighting" else group)]
+        sc["player"]["start"] = [5197, 682, 0]
+        sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 1,
                                        "kind": "soul_jar"})
-        w = World(sc, seed=1)
-        for m in w.mobs.values():
-            if m.kind == "monster" and m.key != "shade wolf":
-                m.calm_until = 1e9                              # they stay idle: where we walk is what's tested
-        w.eerie_corpse(*corpse_at, z=25)
+        w = World(sc, seed=7)
+        corpse = w.eerie_corpse(*corpse_at)
         loop, clock, store, patched = hurt_loop(w, w.player.hits_max)
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 if case == "pets fighting":
-                    wolf = next(m for m in w.mobs.values() if m.key == "shade wolf")
-                    gb = next(p for p in w.pets() if p.key == "gravebug")
-                    wolf.target = gb.serial
-                    clock.advance(1.0)
-                    out[case] = (loop.pets_busy(loop.state()), loop.soul_corpse(loop.state()))
-                    continue
-                nearest = 99
-                for _ in range(16):
-                    loop.tick()
+                    m = next(m for m in w.mobs.values() if m.kind == "monster")
+                    gr = next(p for p in w.pets() if p.name == "GraveRobber")
+                    m.x, m.y = gr.x + 1, gr.y
+                    m.target, m.threat = gr.serial, {gr.serial: 50}
+                    w._warm(m, True)
+                    w.hurt(gr, 5, m)
                     clock.advance(0.5)
-                    nearest = min(nearest, sim_cheb(w.player.pos, countess_at))
-                out[case] = (nearest, w.metrics.get("soul_jars", 0), sim_cheb(w.player.pos, corpse_at))
+                    st = loop.state()
+                    out[case] = (loop.patrol_hold(st), loop.soul_corpse(st))
+                else:
+                    st = loop.state()
+                    pick = loop.soul_corpse(st)
+                    loop.fill_soul_jar(*pick)
+                    st = loop.state()
+                    out[case] = (pick[0] == corpse, sim_cheb(w.player.pos, corpse_at), w.metrics.get("soul_jars", 0),
+                                 corpse in loop.jar_later, loop.soul_corpse(st))
         finally:
             store.close()
             simclock.uninstall(patched)
-    near, jars, dist = out["room"]
-    check("an idle countess beside the corpse: the walk stops before she would see us (10 tiles), no jar filled",
-          near >= 9 and jars == 0 and dist > soul_jar.FILL_WALK_R, f"nearest {near}, jars {jars}, {dist} from the corpse")
-    busy, pick = out["pets fighting"]
-    check("the pets fighting: no walk to the corpse", bool(busy) and pick is None, f"{busy} {pick}")
+    hold, pick = out["pets fighting"]
+    check("the pets fighting beside us: no walk to a corpse 18 tiles off", hold is not None and pick is None,
+          f"hold {hold!r} pick {pick}")
+    picked, dist, filled, later, again = out["monsters by the corpse"]
+    check("monsters by the corpse: the walk stops short, no jar filled there, the corpse waits",
+          picked and dist > soul_jar.FILL_RANGE + 2 and not filled and later and again is None,
+          f"picked {picked} dist {dist} filled {filled} deferred {later} picked again {again}")
+
+
+def test_transfixed_walk():
+    print("== transfixed on a retreat: the walk waits the hold out, then goes; no 'too many blocked moves' ==")
+    # live 2026-10-20 19:23:23.04-34.15 (hunt-20261020-183232-1def): "The creature overpowers your will and transfixes
+    # you!" as a retreat began at (5180, 680); 21 denied steps in 7 s, "ABORTED: too many blocked moves (21)", Logan
+    # left on Maus 3 (alive). The hold ended 11.1 s after it began ("You are no longer hindered.")
+    import loop_hunt
+    from agent_link import Abort
+    w = world_with([], seed=7, start=(5197, 682))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    err, took, blocked = None, None, None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            w.transfix_player(11.1)
+            clock.advance(0.2)
+            loop.state()
+            t0 = loop_hunt.time.monotonic()
+            b0 = loop.mover.blocked_count
+            try:
+                loop.mover.walk_to(lambda: (5190, 682), 0, "retreat", urgent=True, max_moves=21, max_route=21)
+            except Abort as e:
+                err = str(e)
+            took = loop_hunt.time.monotonic() - t0
+            blocked = loop.mover.blocked_count - b0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("arrived after the hold (>= 10 s), no Abort, no blocked move counted",
+          err is None and took >= 10 and blocked == 0 and sim_cheb(w.player.pos, (5190, 682)) == 0,
+          f"err {err!r} took {took:.1f} s blocked {blocked} at {w.player.pos} denied {w.metrics['denied_steps']}")
+
+
+def test_walk_failed_carries_on():
+    print("== a walk in the hunt fails: carry on from there; after WALK_FAIL_MAX more, the leave home ==")
+    # live 2026-10-20 19:23:30 (hunt-20261020-183232-1def): a retreat's "too many blocked moves" ended the run on
+    # Maus 3; Logan and both pets died standing there by 19:30 with no runner
+    import loop_hunt
+    w = world_with([], seed=7, start=(5197, 682))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    res, buf = None, io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop.args.crawl, loop.crawl = False, None
+            loop.to_spot = lambda: None
+            loop.fight_spot = (5197, 600)              # no route there: every "back to the spot" fails
+            try:
+                loop.hunt()
+                res = "returned"
+            except Exception as e:
+                res = f"raised {type(e).__name__}: {e}"
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    fails = buf.getvalue().count("a walk failed:")
+    check("each failed walk carried on, then the planned leave home: the run ends there, not in the dungeon",
+          res == "returned" and fails == loop_hunt.WALK_FAIL_MAX + 1 and "LEAVING by the moongate" in buf.getvalue()
+          and sim_cheb(w.player.pos, (5197, 682)) > 100, f"{res}; {fails} failed walks; at {w.player.pos}")
 
 
 def main():
@@ -1977,7 +2037,8 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_waits_for_the_room):
+              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_guards, test_transfixed_walk,
+              test_walk_failed_carries_on):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

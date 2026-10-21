@@ -143,6 +143,9 @@ What the capture and the wiki fixed:
     wakes 0-2.5 s later, goes for any of us but its original within 3 tiles (live, 4 of its 10 hits
     were on Logan, 28-37 each) and vanishes after 9.9-11 s (n=6). Until then the pet itself stands
     transfixed: no step, no attack.
+    About 2 % of her transfixes take Logan instead (`player_share` 0.018: 2 on him live against 110 pet copies):
+    "The creature overpowers your will and transfixes you!", no copy, his steps denied and his item uses
+    refused for 11.1 s, then "You are no longer hindered." (`World.transfix_player`).
   - The corpsebride's wail, every 7.6 s: 13-25 on each of us within a tile 75 % of the time (the pets
     beside it live: about 18 of 24), 20 % at 2-3 tiles (Logan: 2 of 11) [INFERENCE: an area hit].
   - The shade wolf's Vanish: 4.3-15 s into a fight, then every 19-22 s, it is unseen and can't be hit
@@ -528,16 +531,14 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   the other players, "Other players" below): the live 10:10:57 case of 2026-10-19 put in the simulator, Lord
   Phaze's tormented soul stood out of Logan's sight from his tile (5242, 683), no tile within bard_step's 2 steps
   saw it, and 4b06515's "All Kill" rule waited 15 s for it to come on. Now the runner walks round until it sees it.
-- **The 18:22 live death at an eerie corpse** (2026-10-20, capture 20261020_180909; docs/NOTES.md "Dead at an
-  eerie corpse"): the jar walk went 18 tiles alone into the countess room while the pets fought a shadowguard.
-  `harness/sim/fight1822.py` replays the minute from 18:22:00 (Logan at (5210, 680), the shadowguard, the countess
-  room and its neighbours as live, the corpse, no respawns; 4 game minutes, 24 seeds). On the calibration of the
-  day: deaths 4 of 24 with the deployed runner, 1 after the jar walk waits and stops as a patrol does
-  (`HuntLoop.soul_corpse`); on the final calibration below (the countess room's fight itself is harsher there):
-  7 before, 5 after, jars filled 24 -> 15, damage on Logan 219 -> 219 mean, lowest hits median 43 -> 54. The rest
-  of the deaths are the room fight (corpsebride wails, the countess' transfixed copies), not the walk: seed 5
-  died "retreat: … cut by mobiles we couldn't shove; waiting" in the corridor, which now gives up at once
-  (`mobile_wait=0`, docs/HUNT_LOOP.md "Self care") and lives.
+- **The 18:22 live death at an eerie corpse** (2026-10-20, capture 20261020_180909; docs/NOTES.md "Dead after a
+  soul-jar walk" and "The 18:22 death replayed"): the jar walk went 18 tiles alone into the countess room while the
+  pets fought a shadowguard. `harness/sim/fight1822.py` replays the minute from 18:22:00 (Logan at (5210, 680), the
+  shadowguard, the countess room and its neighbours as live, the corpse, no respawns; 4 game minutes, 24 seeds). On
+  the final calibration below: the morning's runner (c334fce) 7 deaths, jars filled 24, Logan's lowest hits median
+  43; the runner with the jar guards (4c72c12), the transfix wait and failed-walk carry-on (d445cbd, 7047a1d) and
+  fight step-aways that don't wait for mobiles (`mobile_wait=0`, docs/HUNT_LOOP.md "Self care") 1 death, 13 jars,
+  55. Seed 5 had died "retreat: … cut by mobiles we couldn't shove; waiting" in the corridor.
 
 ## Monster mechanics audit (2026-10-15)
 
@@ -737,35 +738,36 @@ What was off, and the changes:
 - **The phoenix's damage** x 1.373 (134 live kills from full hits: 530 a phoenix attack against the simulator's 386;
   the cadences 1.86 s and 1.79 s and the gravebug's numbers matched). Kill times from our first hit came within
   0.9-1.3x of live (tormented soul 20.2 s against 15.6, shadowguard 20.5 against 18.0; 1.6x and 1.5x before).
-- **Eerie corpses** (`--eerie`): 2.8 an hour in view against the live 2.5.
+- **Eerie corpses** (`--eerie`): 2.4 an hour in view against the live 2.5.
 
 | per hour on the level | live (95 % interval) | sim at the start | sim now |
 |---|---|---|---|
-| kills | 94.8 (87.5-102.4) | 87.8 | 88.3 |
-| gold | 86,600 (73,400-99,500) | 89,500 | 101,600 |
-| hits lost (ours) | 2,072 (1,744-2,483) | 2,125 | 2,026 |
-| heal potions | 47.8 (40.9-55.3) | 46.4 | 46.7 |
-| vet supplies | 124 (114-135) | 227 | 202 |
-| stand-offs | 27.6 (20.6-35.1) | 30.9 | 39.2 |
-| retreats | 1.6 (0.5-3.1) | 3.3 | 1.9 |
-| pull holds | 85.4 (74.0-98.6) | 64.0 | 110.5 |
-| discord fails | 32.4 (27.1-38.4) | 51.4 | 37.6 |
-| peace fails | 16.0 (11.7-20.7) | 23.3 | 21.0 |
-| deaths to monsters | 0.7 (0.2-1.5) | 1.7 | 1.9 |
+| kills | 94.8 (87.5-102.4) | 87.8 | 86.9 |
+| gold | 86,600 (73,400-99,500) | 89,500 | 100,300 |
+| hits lost (ours) | 2,072 (1,744-2,483) | 2,125 | 2,043 |
+| heal potions | 47.8 (40.9-55.3) | 46.4 | 45.6 |
+| vet supplies | 124 (114-135) | 227 | 201 |
+| stand-offs | 27.6 (20.6-35.1) | 30.9 | 38.6 |
+| retreats | 1.6 (0.5-3.1) | 3.3 | 2.0 |
+| pull holds | 85.4 (74.0-98.6) | 64.0 | 114.1 |
+| discord fails | 32.4 (27.1-38.4) | 51.4 | 36.7 |
+| peace fails | 16.0 (11.7-20.7) | 23.3 | 20.4 |
+| deaths to monsters | 0.7 (0.2-1.5) | 1.7 | 2.0 |
 | deaths on the walk out | 0.5 (0-1.3) | 0.5 | 0.9 |
-| soul jars filled | 1.1 (0.4-2.0) | 1.2 | 1.5 |
-| eerie corpses seen | 2.5 (1.0-4.7) | 1.6 | 2.8 |
-| damage on the gravebug | 7,373 (5,366-9,031) | 14,255 | 12,600 |
-| damage on the phoenix | 1,533 (1,060-2,039) | 4,779 | 4,207 |
+| soul jars filled | 1.1 (0.4-2.0) | 1.2 | 0.9 |
+| eerie corpses seen | 2.5 (1.0-4.7) | 1.6 | 2.4 |
+| damage on the gravebug | 7,373 (5,366-9,031) | 14,255 | 12,581 |
+| damage on the phoenix | 1,533 (1,060-2,039) | 4,779 | 4,206 |
 
 "At the start": the scenario and runner of the morning (c334fce) with eerie corpses and players, no `--prior`;
-"now": this commit. Monsters met an hour, now: within the live interval the shade wolf, corpsebride, vampire bat,
-countess, forgotten soul, apparition and nightstalker; above it the tormented soul 1.55x, shadowguard 1.49x, bound
-soul 2.0x, banshee 1.29x, shadow minion 1.35x, blightmare 2.5x and the rare reanimators, daemon and consort 2-4x;
-below it the vampire 0.6x, the reanimated knight 0.34x and the transfixed copies 0.36x.
+"now": this branch merged with main's 7047a1d (144 runs, 43.5 h on the level). Monsters met an hour, now: within the
+live interval the shade wolf, corpsebride, vampire bat, countess, forgotten soul, apparition and nightstalker; above
+it the tormented soul 1.58x, shadowguard 1.50x, bound soul 2.0x, banshee 1.27x, shadow minion 1.31x, blightmare 2.6x
+and the rare reanimators, daemon and consort 2-4x; below it the vampire 0.6x, the reanimated knight 0.36x and the
+transfixed copies 0.34x.
 
 **Still apart** (open):
-- **Deaths**: the simulator kills Logan 2.6x as often (1.9 against 0.7 an hour; 4 live deaths in 5.55 h, a thin
+- **Deaths**: the simulator kills Logan 2.8x as often (2.0 against 0.7 an hour; 4 live deaths in 5.55 h, a thin
   sample). Its top killer is the nightstalker (25-33 of ~90 deaths a batch; live none since the live server): its
   share of the damage on Logan is 0.15 simulated against 0.02 live. Its charges land on Logan beside the pet it
   fights (37 of 63 hits in 24 runs) or on him (26): Logan within 2 of the pets at the east spawn (5244, 666); in the

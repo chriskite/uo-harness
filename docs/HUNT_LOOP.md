@@ -317,19 +317,20 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   attacking us, an empty soul jar (`0xA99F`) is in the pack at any bag depth (the runner loots the ones monsters drop:
   `combat.worth_looting` takes them) and an eerie corpse (`soul_jar.eerie_corpses`: "dead" corpse art with its eerie
   whispers a few serials on, docs/NOTES.md "Field of Souls") is in the world model (in view) on
-  our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight) only a
-  corpse within 2 tiles counts, so the runner never walks away from a fight for one. A walk to one also waits, as a
-  patrol does, while the pets fight or lag (`patrol_hold`) or an idle monster we hold for is coming (`--pets`,
-  `Team.hold_reason`), and for `JAR_RETRY_S` 20 s after a walk to it stopped short. A crawl's patrol walk stops for
-  one (`patrol_stop`).
+  our floor (`same_floor`) and not tried yet: the nearest. While a target is engaged (the pets mid-fight), and with
+  `--pets` while the pets fight or lag (`patrol_hold`: `pets_busy`, `pets_lagging`), only a corpse within 2 tiles
+  counts, so the runner never walks away from a fight or from the pets for one. A crawl's patrol walk stops for one
+  (`patrol_stop`).
 - **How**: the Mover walks within `soul_jar.FILL_WALK_R` = 2 tiles (Logan filled from 2; the event post says 4).
-  The walk stops when something attacks us, a leave rule fires or the corpse goes, and (`--pets`) on a step a patrol
-  stops on: more than the pets should take would wake, the hold at an idle monster's first sight (`Team.pull_check`),
-  the pets fighting or lagging; the next tick decides again. Live 2026-10-20 18:22 the walk went 18 tiles alone into
-  the countess room while the pets fought a shadowguard; the room woke on Logan and he died on the way out
-  (docs/NOTES.md "Dead at an eerie corpse"). A walk that can't get there gives the corpse up. Then the jar's bags are
-  opened like a player (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar
-  (`0xA9A3`) in the pack (live it came 44 ms after the click).
+  The walk stops when something attacks us, a leave rule fires or the corpse goes, and with `--pets` on the
+  patrol's guards: the pets fighting or behind (`patrol_hold`), or a step that would pull more than the budget or
+  a monster in sight to let come (`Team.pull_check`; the corpse then waits `JAR_DEFER_S` = `tamer.AT_ONCE_S`
+  120 s, past the pull check's "no other way on" memory, while the crawl takes those monsters). The next tick
+  decides again; a walk that can't get there gives the corpse up. Live 2026-10-20 18:22 the unguarded walk went
+  16 steps alone into an idle vampire countess, corpsebride and vampire bat by the corpse and Logan died
+  (docs/NOTES.md "Field of Souls"). Then the jar's bags are opened like a player
+  (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar (`0xA9A3`) in
+  the pack (live it came 44 ms after the click).
 - **One try per corpse** (`jar_tried`), filled or not. Live, nothing was ever seen of a fill that failed, so a miss
   logs whatever the server said and moves on.
 - **Memory**: a `soul_jar` job event: `corpse`, `at` (x, y, z), `jar`, `spirit` (from "spirit energy"'s "'My name
@@ -339,8 +340,9 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
 - **The sound**: the proxy plays a ghostly wail the first time any of our characters sees each eerie corpse,
   runner or not (`alerts.eerie`; docs/NOTES.md "Field of Souls").
 - Test: `test_sim.py` `test_soul_jar` (the simulator's eerie corpse and jar: walk, fill, no jar no walk, mid-fight),
-  `test_soul_jar_waits_for_the_room` (the 18:22 room: the walk stops at the countess' first sight; no walk while the
-  pets fight). The simulator spawns eerie corpses with `run.py --eerie` (docs/SIM.md).
+  `test_soul_jar_guards` (the 18:22 room: no walk while the pets fight, the walk stops short of the idle monsters).
+  The simulator spawns eerie corpses with `run.py --eerie`, and `harness/sim/fight1822.py` replays the minute
+  (docs/SIM.md).
 
 ## Pets (`--pets`; `harness/tamer.py`; user request 2026-10-12)
 
@@ -958,6 +960,28 @@ of the Mausoleum while he played Logan): the first state read or refused action 
 `agent_link.GatePaused` (`Link.end_on_pause`, set in `main`), the visit row is written, "stopped: the agent
 gate was paused (the user took over)", exit 1, and nothing more is sent. A scheduled break is still waited
 out. test_loop_hunt `pause`.
+
+**Transfixed: walks wait it out** (`agent_link.Mover.held`, since 2026-10-20). A vampire countess sometimes
+transfixes Logan himself, not a pet: "The creature overpowers your will and transfixes you!", every step denied
+and items refused ("You cannot use items while in this state.") until "You are no longer hindered." 11.1 s later
+(live twice). Every walk (retreat, gate, patrol, back to the pets) stops stepping while that holds, still
+runs its guard and `stop`, logs "<label>: held in place (transfixed); waiting it out" and "free to move again
+after N s", and plans again. The denied steps don't count toward `--max-blocked` and aren't remembered as
+blocked tiles. At most `HELD_MAX_S` 13 s if the end line is missed. Before, a retreat at 19:23:23 counted 21
+denials in 7 s and the run aborted ("too many blocked moves"), leaving Logan on Maus 3. test_sim
+`test_transfixed_walk`.
+
+**A failed walk doesn't end the run** (`agent_link.WalkFailed`, `HuntLoop.walk_failed`, since 2026-10-20). A
+walk the Mover gives up on (no route, too many blocked moves, too many replans, boxed in, cut by mobiles, over
+its move bound) leaves Logan where he stood. Inside the hunt the ticks carry on from there (fight, heal, vet):
+"a walk failed: <why>; carrying on from here (N in 300 s)". More than `WALK_FAIL_MAX` 3 within
+`WALK_FAIL_WINDOW_S` 300 s and he goes home by the planned leave ("LEAVING by the moongate: 4 failed walks in
+300 s (last: …)"); the run then ends at home (exit 0). `--max-blocked` (20) now counts one walk's denials, not
+the run's: the run's total grows for hours (the 19:23 retreat's first denial was already the run's 8th), and
+the abort names the walk ("retreat: too many blocked moves (21 in this walk)"), so the walks that catch their
+own failures (the retreat: "retreat cut short") see it. Before, any of these ended the run in the dungeon:
+live 2026-10-20 19:23:30 Logan was left on Maus 3, and he and both pets died standing by 19:30. test_sim
+`test_walk_failed_carries_on`.
 
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
 stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech

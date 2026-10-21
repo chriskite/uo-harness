@@ -362,6 +362,9 @@
     "melee": [15, 21, 18],
     "swing_s": 3.38,
     "copy_step_s": 0.4,
+    "player_share": 0.018,
+    "player_s": [11.1, 11.1],
+    "player_note": "on Logan himself 2 times (2026-10-17 15:27:03, 2026-10-20 19:23:23.04: 'The creature overpowers your will and transfixes you!', no copy, every step denied and items refused, 'You are no longer hindered.' 11.1 s later both) against 110 '*transfixed*' pet copies in the store: player_share 2/112 of the transfixes [INFERENCE: the copies' overhead lines count the pet transfixes]",
     "note": "all 10 captures (2026-10-12 to 10-15): '*attempts to transfix*' 5.0-13.7 s apart (median 5.5, n=83); a copy at the instant in 27 of 100 attempts: 20 of 76 with no copy up, 7 of 24 with one up (on the other pet; 0.5 and 'never with her copy up' before, from n=12 and n=4); copies last 9.9-11.1 s (n=31); the hit on the pet at once 40-55 song-corrected (act 15: the gravebug median 44, the phoenix 49-55); a copy steps every 0.36-0.41 s (n=101 steps; the pet's 0.21 before) and swings every 3.38 s (n=24; the pet's 1.91 before); its hits on Logan 24-34 (n=11) and on the phoenix 31-36 (n=7) song-corrected, i.e. 15-21 gravebug-referenced (damage_to_player_x 1.6, melee_taken_x 1.7). After the copy goes the pet fights again within 0.3-2.7 s (25 of 27 releases, attack animations); once (20261015_210709 21:20:02.8) the phoenix stood idle 46.7 s until 'All Guard Me' after an 'All Kill' said while it was transfixed: n=1, not modelled"
    }
   ],

@@ -4,8 +4,8 @@ pets beside him, a shadowguard idle at (5192, 682) that the crawl was patrolling
 of the Field of Souls at (5179, 680) (it comes into view at 18 tiles, as live at 18:22:07), empty soul jars in the
 pack; the room's neighbours as live (shade wolves and a reanimated knight in the room below, a vampire, a corpsebride
 and a shade wolf to the north); no respawns; the live command's runner arguments. Live the runner walked alone to the
-corpse while the pets took the shadowguard, the room woke on Logan, and he died on the walk out (docs/NOTES.md "Dead at
-an eerie corpse"). Per seed: death, Logan's lowest hits, his damage by source, the jar filled or not, the seconds a
+corpse while the pets took the shadowguard, the room woke on Logan, and he died on the walk out (docs/NOTES.md "Dead
+after a soul-jar walk"). Per seed: death, Logan's lowest hits, his damage by source, the jar filled or not, the seconds a
 monster was on him with no pet within 5 tiles, leaves; then the totals.
 
     python harness/sim/fight1822.py <seeds> [--log] [--harness DIR]

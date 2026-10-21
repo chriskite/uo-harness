@@ -1396,6 +1396,7 @@ class RightsLink:
         self.rt = WorldRuntime()
         self.events, self.event_t, self.last, self.sent = [], [], None, []
         self.gold, self.lifted = 100, None
+        self.save_t0 = None              # Link.wait's world-save state (none here)
 
     def feed(self, *pkts):
         for p in pkts:

@@ -153,8 +153,8 @@ import soul_jar  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
 import task_wrap  # noqa: E402
-from agent_link import (Abort, GatePaused, Link, Mover, bank_opened, cheb, containers_to_open,  # noqa: E402
-                        find_banker, log, same_floor, serial_of)
+from agent_link import (Abort, GatePaused, Link, Mover, WalkFailed, bank_opened, cheb,  # noqa: E402
+                        containers_to_open, find_banker, log, same_floor, serial_of)
 from errand_bank import GATING_WORDS  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -210,7 +210,10 @@ WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging 
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
-JAR_RETRY_S = 20.0            # a walk to an eerie corpse stopped short (a pull, the pets, a fight): not again for this long
+JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
+#                               "no other way on" memory, so the retry stops at the same place again)
+WALK_FAIL_MAX = 3             # failed walks inside the hunt carried on from (walk_failed) before the leave home...
+WALK_FAIL_WINDOW_S = 300.0    # ...within this long
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
@@ -299,7 +302,9 @@ class HuntLoop:
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
         self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
-        self.jar_wait = {}           # eerie corpse serial -> monotonic time before which no walk to it (JAR_RETRY_S)
+        self.jar_later = {}          # eerie corpse serial -> monotonic time before which its walk isn't tried (pull)
+        self.walk_fails = []         # monotonic times of the failed walks the hunt carried on from (walk_failed)
+        self.walk_trouble = None     # why the hunt goes home: walks kept failing (walk_failed)
         self.engaged = None          # serial we last sent 0x05 for
         self.engaged_mob = None      # its latest world dict
         self.resent_adjacent = False
@@ -1362,34 +1367,31 @@ class HuntLoop:
     def soul_corpse(self, st, walk: bool = True):
         """(serial, item) of the eerie corpse to fill a soul jar at now, or None (--soul-jars; soul_jar.py): an
         empty soul jar in the pack and an eerie corpse in view on our floor that we haven't tried, the nearest.
-        Without `walk` (a fight is on) only one within soul_jar.FILL_WALK_R, where no step is needed. A walk also
-        waits, as a patrol does, while the pets fight or lag (patrol_hold) or an idle monster we hold for is coming
-        (tamer.Team.hold_reason), and for JAR_RETRY_S after one stopped short (fill_soul_jar)."""
+        Without `walk` (a fight is on), and with the pets fighting or behind (patrol_hold), only one within
+        soul_jar.FILL_WALK_R, where no step is needed; one whose walk stopped on the pull budget waits JAR_DEFER_S."""
         if not self.args.soul_jars:
             return None
         world = st["world"]
         now = time.monotonic()
-        found = [(s, it) for s, it in soul_jar.eerie_corpses(world) if s not in self.jar_tried]
+        found = [(s, it) for s, it in soul_jar.eerie_corpses(world)
+                 if s not in self.jar_tried and self.jar_later.get(s, 0.0) <= now]
         if not found or not soul_jar.empty_jars(world, self.me(st)):
             return None
         pos = self.pos(st)
-        found = [(s, it) for s, it in found if same_floor(it.get("z") or 0)(pos[2])]
-        near = [f for f in found if cheb(pos, (f[1]["x"], f[1]["y"])) <= soul_jar.FILL_WALK_R]
-        if not near and walk and self.team is not None and (self.patrol_hold(st) or self.team.hold_reason(st)):
-            walk = False
-        found = near or [f for f in found if walk and self.jar_wait.get(f[0], 0.0) <= now]
+        walk = walk and self.patrol_hold(st) is None
+        found = [(s, it) for s, it in found if same_floor(it.get("z") or 0)(pos[2])
+                 and (walk or cheb(pos, (it["x"], it["y"])) <= soul_jar.FILL_WALK_R)]
         return min(found, key=lambda f: cheb(pos, (f[1]["x"], f[1]["y"])), default=None)
 
     def fill_soul_jar(self, serial: int, it: dict) -> None:
         """Fill an empty soul jar at the eerie corpse `serial` (user request 2026-10-17): walk within
         soul_jar.FILL_WALK_R of it, open the jar's bags like a player, double-click the jar and wait for a filled jar
-        in the pack. The walk stops when something attacks us, a leave rule fires or the corpse goes, and, as a
-        patrol's does, on a step that would wake more than the pets should take (tamer.Team.pull_check, the hold at
-        first sight included) or while the pets fight or lag (patrol_hold); the next tick decides again and the corpse
-        waits JAR_RETRY_S. Live 2026-10-20 18:22:07 the walk went 18 tiles alone into the countess room while the
-        pets fought a shadowguard; the countess, a corpsebride and a bat woke on Logan and he died on the way out
-        (docs/NOTES.md "Dead at an eerie corpse"). One try per corpse (jar_tried), filled or not. A `soul_jar` job
-        event."""
+        in the pack. One try per corpse (jar_tried), filled or not. A `soul_jar` job event. The walk stops when
+        something attacks us, a leave rule fires or the corpse goes, and --pets, like a patrol (patrol_stop), when the
+        pets fight or fall behind or a step would pull more than the budget (Team.pull_check; the corpse then waits
+        JAR_DEFER_S): the next tick decides again. Live 2026-10-20 18:22:07 (hunt-20261020-181726-433a) the walk went
+        16 steps alone, the pets left fighting a shadowguard, into an idle vampire countess, a corpsebride and a
+        vampire bat by the corpse: 100 -> 0 in 20 s."""
         spot = (it["x"], it["y"])
         st = self.state()
         self.doing("soul_jar", f"Filling a soul jar at the eerie corpse at {spot[0]},{spot[1]}", spot, serial)
@@ -1404,7 +1406,14 @@ class HuntLoop:
                     return "under attack"
                 if self.leave_reason(s):
                     return "a leave rule"
-                return self.team.pull_check(s) or self.patrol_hold(s) if self.team is not None else None
+                if self.team is None:
+                    return None
+                if why := self.patrol_hold(s):
+                    return why
+                if why := self.team.pull_check(s):
+                    self.jar_later[serial] = time.monotonic() + JAR_DEFER_S
+                    return f"{why}; the corpse waits {JAR_DEFER_S:.0f} s"
+                return None
             try:
                 why = self.mover.walk_to(lambda: spot, soul_jar.FILL_WALK_R, "to the eerie corpse",
                                          z_ok=same_floor(it.get("z") or 0), stop=stop)
@@ -1416,7 +1425,6 @@ class HuntLoop:
                 return
             if why:
                 log(f"walk to the eerie corpse stopped: {why}")
-                self.jar_wait[serial] = time.monotonic() + JAR_RETRY_S
                 return
             st = self.state()
         me = self.me(st)
@@ -2527,6 +2535,22 @@ class HuntLoop:
                     return
             except PlayerThreat as e:
                 self.leave(self.link.last or self.link.state(), e.why, "urgent")
+            except WalkFailed as e:
+                self.walk_failed(e)
+
+    def walk_failed(self, e: WalkFailed) -> None:
+        """A walk inside the hunt failed (Mover: no route, blocked, boxed in, ...): Logan stands where he was, so the
+        ticks go on from there (fight, heal, vet) rather than ending the run in the dungeon. Live 2026-10-20 19:23:30 a
+        retreat's "too many blocked moves" ended the run on Maus 3 and Logan and both pets died standing by 19:30.
+        More than WALK_FAIL_MAX within WALK_FAIL_WINDOW_S: something keeps him from moving here; the planned leave
+        home (`walk_trouble`, an info leave: the run ends at home)."""
+        if self.visit is None:
+            raise e
+        now = time.monotonic()
+        self.walk_fails = [t for t in self.walk_fails if now - t < WALK_FAIL_WINDOW_S] + [now]
+        log(f"a walk failed: {e}; carrying on from here ({len(self.walk_fails)} in {WALK_FAIL_WINDOW_S:.0f} s)")
+        if len(self.walk_fails) > WALK_FAIL_MAX and self.walk_trouble is None:
+            self.walk_trouble = f"{len(self.walk_fails)} failed walks in {WALK_FAIL_WINDOW_S:.0f} s (last: {e})"
 
     def tick(self) -> bool:
         """One decision (docs/HUNT_LOOP.md "What it does"); True when the run is over."""
@@ -2538,6 +2562,8 @@ class HuntLoop:
         attackers = self.attackers(st)
         winding = self.finished() or self.timed_out()
         reason = self.leave_reason(st)
+        if reason is None and self.walk_trouble is not None:
+            reason = (self.walk_trouble, "info")
         if reason is None and winding and ((not attackers and not self.corpses) or self.timed_out(60.0)):
             reason = ("done" if self.finished() else "time is up", "info")
         if reason is None and not winding and not attackers and self.engaged is None and not self.corpses:
