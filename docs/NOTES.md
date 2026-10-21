@@ -4293,7 +4293,19 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   no area hitter about; the pre-fix runner too).
   Sim 144 x 20 min seed 17 `--vet-range 5`, before (145b080) / after: deaths/h 1.03 / 1.10 (runs with a death 43 / 47),
   kills/h 114.1 / 115.0, gold/h 110,798 / 112,122, damage on Logan/h 2,386 / 2,401, the area hitters' (apparition,
-  daemon, nightstalker, knight) on Logan/h 519 / 461, pet deaths 5 / 4, pets left behind 0 / 4.
+  daemon, nightstalker, knight) on Logan/h 519 / 461, pet deaths 5 / 4, pets left behind 0 / 4 (2 events: see below).
+- **"Pets left behind" counted again in each later run of a career** (`sim/run.py`: a run's `junctures` were the
+  career store's whole list, so `runs_with_pet_left_behind` counted a pet left behind in run k again in runs k+1...).
+  The 252bed2 batch's 4 were 2 events: seed 70 (career 22, run 1; counted again in seeds 101 and 132) and seed 146.
+  Neither came from the loot or re-guard changes: seed 70, a time-up walk out on "All Follow Me", the gravebug (not
+  held, no target, mode follow) stood at (5197, 683) from t 1202 s to 1232 s while Logan waited 9 tiles off at (5206,
+  686) and then went (the simulator's pet step, greedy then a 40-step A*, found no way: [INFERENCE] a simulator pathing
+  gap; live pets path server-side); seed 146, the phoenix transfixed by a countess during a hurt leave that doesn't wait
+  for the pets (as designed). Another seed block (1017, 144 x 20 min, the counting fixed): before / after 252bed2 pets
+  left behind 1 / 0, deaths/h 0.90 / 1.01 (runs with a death 39 / 43), kills/h 113.2 / 113.6, gold/h 111,394 /
+  111,372, pet-death runs 3 / 1. Over both blocks runs with a death 82 / 90 of 288 (within noise: ~8 either way).
+  Earlier batches' "pets left behind" here (eb4aba4's 0 -> 1, 2445d12's 6 / 4) were counted the same way. Fixed: a
+  run's junctures are those posted in it (test_sim `test_career_junctures`).
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

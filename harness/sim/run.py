@@ -140,9 +140,10 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
                                              + ["--memory", db, "--seed", str(seed)])
     patched = simclock.install(clock)
     store = memory.Memory(db)
-    # a career's store holds its earlier runs: this run's rows are those past these ids
-    first_ep, first_ev = (store.con.execute(f"SELECT COALESCE(MAX(id), 0) FROM {t}").fetchone()[0]
-                          for t in ("episodes", "job_events"))
+    # a career's store holds its earlier runs: this run's rows are those past these ids (junctures too: before, a
+    # pet left behind in a career's run counted again in each later run of it, the batch's `runs_with_pet_left_behind`)
+    first_ep, first_ev, first_j = (store.con.execute(f"SELECT COALESCE(MAX(id), 0) FROM {t}").fetchone()[0]
+                                   for t in ("episodes", "job_events", "junctures"))
     wall0 = _wall.perf_counter()
     outcome, error = "done", None
     loop = None
@@ -164,7 +165,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
         simclock.uninstall(patched)
     wall = _wall.perf_counter() - wall0
     juncs = [{"kind": j["kind"], "severity": j["severity"], "summary": j["summary"][:160]}
-             for j in store.junctures(limit=200)]
+             for j in store.junctures(after_id=first_j, limit=200)]
     episodes = store.episodes("hunt")
     visits = [json.loads(d) for (d,) in store.con.execute(
         "SELECT data FROM episodes WHERE loop='hunt' AND id>? ORDER BY id", (first_ep,))]

@@ -2384,6 +2384,24 @@ def test_transfixed_walk():
           f"err {err!r} took {took:.1f} s blocked {blocked} at {w.player.pos} denied {w.metrics['denied_steps']}")
 
 
+def test_career_junctures():
+    print("== a career's run reports its own junctures, not its earlier runs' (pets left behind counted once) ==")
+    import tempfile
+    import memory
+    from sim import run as simrun
+    # batch 252bed2 (144 x 20 min, seed 17): "runs with a pet left behind" 4 = 2 events; seed 70's (career 22, run 1)
+    # counted again in seeds 101 and 132 (runs 2 and 3), whose own runs left none
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    m = memory.Memory(db)
+    m.juncture("hunt", "pet_left_behind", "Pets not with us after the recall (gate): GraveRobber", "urgent", {})
+    m.close()
+    with contextlib.redirect_stdout(io.StringIO()):
+        r = simrun.run_once(1, ["--vet-range", "5"], minutes=0.2, at_hunt=True, db=db)
+    left = [j for j in r["junctures"] if j["kind"] == "pet_left_behind"]
+    check("the earlier run's pet_left_behind not in this run's junctures", not left and r["outcome"] != "crashed",
+          f"{left} {r['outcome']} {r.get('error')}")
+
+
 def test_walk_failed_carries_on():
     print("== a walk in the hunt fails: carry on from there; after WALK_FAIL_MAX more, the leave home ==")
     # live 2026-10-20 19:23:30 (hunt-20261020-183232-1def): a retreat's "too many blocked moves" ended the run on
@@ -2433,7 +2451,7 @@ def main():
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_tele_dash, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
-              test_transfixed_walk, test_walk_failed_carries_on):
+              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
