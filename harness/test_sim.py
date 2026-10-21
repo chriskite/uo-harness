@@ -1992,6 +1992,33 @@ def test_transfixed_walk():
           f"err {err!r} took {took:.1f} s blocked {blocked} at {w.player.pos} denied {w.metrics['denied_steps']}")
 
 
+def test_walk_failed_carries_on():
+    print("== a walk in the hunt fails: carry on from there; after WALK_FAIL_MAX more, the leave home ==")
+    # live 2026-10-20 19:23:30 (hunt-20261020-183232-1def): a retreat's "too many blocked moves" ended the run on
+    # Maus 3; Logan and both pets died standing there by 19:30 with no runner
+    import loop_hunt
+    w = world_with([], seed=7, start=(5197, 682))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    res, buf = None, io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop.args.crawl, loop.crawl = False, None
+            loop.to_spot = lambda: None
+            loop.fight_spot = (5197, 600)              # no route there: every "back to the spot" fails
+            try:
+                loop.hunt()
+                res = "returned"
+            except Exception as e:
+                res = f"raised {type(e).__name__}: {e}"
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    fails = buf.getvalue().count("a walk failed:")
+    check("each failed walk carried on, then the planned leave home: the run ends there, not in the dungeon",
+          res == "returned" and fails == loop_hunt.WALK_FAIL_MAX + 1 and "LEAVING by the moongate" in buf.getvalue()
+          and sim_cheb(w.player.pos, (5197, 682)) > 100, f"{res}; {fails} failed walks; at {w.player.pos}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -2010,7 +2037,8 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_guards, test_transfixed_walk):
+              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_guards, test_transfixed_walk,
+              test_walk_failed_carries_on):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

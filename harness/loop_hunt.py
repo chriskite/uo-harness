@@ -152,8 +152,8 @@ import soul_jar  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
 import task_wrap  # noqa: E402
-from agent_link import (Abort, GatePaused, Link, Mover, bank_opened, cheb, containers_to_open,  # noqa: E402
-                        find_banker, log, same_floor, serial_of)
+from agent_link import (Abort, GatePaused, Link, Mover, WalkFailed, bank_opened, cheb,  # noqa: E402
+                        containers_to_open, find_banker, log, same_floor, serial_of)
 from errand_bank import GATING_WORDS  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -211,6 +211,8 @@ WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come 
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
 JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
 #                               "no other way on" memory, so the retry stops at the same place again)
+WALK_FAIL_MAX = 3             # failed walks inside the hunt carried on from (walk_failed) before the leave home...
+WALK_FAIL_WINDOW_S = 300.0    # ...within this long
 HARD_TIMEOUT_GRACE_S = 180.0  # past --timeout the runner leaves; past this too it aborts
 GOTO_Z_TOL = 10               # ctl.GOTO_Z_TOL
 # Arcane staves (wiki Arcane: "Players with at least 80 skill in Arcane, Wrestling, and
@@ -300,6 +302,8 @@ class HuntLoop:
         self.looted = set()          # corpse serials handled (looted or refused)
         self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
         self.jar_later = {}          # eerie corpse serial -> monotonic time before which its walk isn't tried (pull)
+        self.walk_fails = []         # monotonic times of the failed walks the hunt carried on from (walk_failed)
+        self.walk_trouble = None     # why the hunt goes home: walks kept failing (walk_failed)
         self.engaged = None          # serial we last sent 0x05 for
         self.engaged_mob = None      # its latest world dict
         self.resent_adjacent = False
@@ -2529,6 +2533,22 @@ class HuntLoop:
                     return
             except PlayerThreat as e:
                 self.leave(self.link.last or self.link.state(), e.why, "urgent")
+            except WalkFailed as e:
+                self.walk_failed(e)
+
+    def walk_failed(self, e: WalkFailed) -> None:
+        """A walk inside the hunt failed (Mover: no route, blocked, boxed in, ...): Logan stands where he was, so the
+        ticks go on from there (fight, heal, vet) rather than ending the run in the dungeon. Live 2026-10-20 19:23:30 a
+        retreat's "too many blocked moves" ended the run on Maus 3 and Logan and both pets died standing by 19:30.
+        More than WALK_FAIL_MAX within WALK_FAIL_WINDOW_S: something keeps him from moving here; the planned leave
+        home (`walk_trouble`, an info leave: the run ends at home)."""
+        if self.visit is None:
+            raise e
+        now = time.monotonic()
+        self.walk_fails = [t for t in self.walk_fails if now - t < WALK_FAIL_WINDOW_S] + [now]
+        log(f"a walk failed: {e}; carrying on from here ({len(self.walk_fails)} in {WALK_FAIL_WINDOW_S:.0f} s)")
+        if len(self.walk_fails) > WALK_FAIL_MAX and self.walk_trouble is None:
+            self.walk_trouble = f"{len(self.walk_fails)} failed walks in {WALK_FAIL_WINDOW_S:.0f} s (last: {e})"
 
     def tick(self) -> bool:
         """One decision (docs/HUNT_LOOP.md "What it does"); True when the run is over."""
@@ -2540,6 +2560,8 @@ class HuntLoop:
         attackers = self.attackers(st)
         winding = self.finished() or self.timed_out()
         reason = self.leave_reason(st)
+        if reason is None and self.walk_trouble is not None:
+            reason = (self.walk_trouble, "info")
         if reason is None and winding and ((not attackers and not self.corpses) or self.timed_out(60.0)):
             reason = ("done" if self.finished() else "time is up", "info")
         if reason is None and not winding and not attackers and self.engaged is None and not self.corpses:

@@ -963,6 +963,18 @@ blocked tiles. At most `HELD_MAX_S` 13 s if the end line is missed. Before, a re
 denials in 7 s and the run aborted ("too many blocked moves"), leaving Logan on Maus 3. test_sim
 `test_transfixed_walk`.
 
+**A failed walk doesn't end the run** (`agent_link.WalkFailed`, `HuntLoop.walk_failed`, since 2026-10-20). A
+walk the Mover gives up on (no route, too many blocked moves, too many replans, boxed in, cut by mobiles, over
+its move bound) leaves Logan where he stood. Inside the hunt the ticks carry on from there (fight, heal, vet):
+"a walk failed: <why>; carrying on from here (N in 300 s)". More than `WALK_FAIL_MAX` 3 within
+`WALK_FAIL_WINDOW_S` 300 s and he goes home by the planned leave ("LEAVING by the moongate: 4 failed walks in
+300 s (last: …)"); the run then ends at home (exit 0). `--max-blocked` (20) now counts one walk's denials, not
+the run's: the run's total grows for hours (the 19:23 retreat's first denial was already the run's 8th), and
+the abort names the walk ("retreat: too many blocked moves (21 in this walk)"), so the walks that catch their
+own failures (the retreat: "retreat cut short") see it. Before, any of these ended the run in the dungeon:
+live 2026-10-20 19:23:30 Logan was left on Maus 3, and he and both pets died standing by 19:30. test_sim
+`test_walk_failed_carries_on`.
+
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
 stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech
 or invulnerable players in view: no `speech_nearby`, no `gm_suspected` from the runner, no Laya

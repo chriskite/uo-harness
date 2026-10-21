@@ -3913,6 +3913,12 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   countess' transfixes (docs/SIM.md). test_sim `test_transfixed_walk` (before: "too many blocked moves (21)", as
   live; after: free after 11.0 s, arrived). Run A/B, 48 x 20 min, seed 17: identical, so no run in the batch had a
   transfix on Logan change its course (2 % of transfixes is rare).
+  - **Then dead with no runner (19:30).** Logan stood at (5180, 680) with no task: the Seer may not fight or walk
+    in a dungeon, and the user hadn't answered yet. AlaFlambe's "(bonded)" death ~19:30:05, GraveRobber's ~19:30:25,
+    then Logan. Two further fixes: (1) `--max-blocked` counted the run's denials (7 in the run's 50 minutes before
+    the transfix); now it counts one walk's, and the abort names its walk, so the retreat's own catch sees it.
+    (2) A failed walk inside the hunt no longer ends the run: `WalkFailed`, `HuntLoop.walk_failed` (docs/HUNT_LOOP.md
+    "Guards"). test_sim `test_walk_failed_carries_on` (before: `WalkFailed` out of `hunt()`).
 
 ## Field of Souls: the field map (reaper spawns, 2026-10-17)
 

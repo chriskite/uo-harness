@@ -200,6 +200,12 @@ class Abort(Exception):
     pass
 
 
+class WalkFailed(Abort):
+    """A walk_to that couldn't get there (no route, too many blocked moves or replans, boxed in, cut by mobiles, over
+    its move bound): the character stands where it was, so a host may carry on from there (the hunt runner: live
+    2026-10-20 19:23:30 "too many blocked moves" ended the run on Maus 3 and Logan died standing 7 min later)."""
+
+
 class GatePaused(BaseException):
     """The agent gate was paused while Link.end_on_pause (the hunt runner: user 2026-10-18, after the run walked on
     out of the Mausoleum while he played Logan, "have the run end once I pause the agent gate"). A BaseException,
@@ -1102,6 +1108,7 @@ class Mover:
         best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
         committed_until = 0            # self.steps up to which a danger replan's route is kept (DANGER_COMMIT_STEPS)
         start_steps = self.steps
+        start_blocked = self.blocked_count   # --max-blocked is per walk: a run's total grows for hours
         opened = {}                  # door tile -> event mark of its open request in this walk (_open_ahead)
         dispelled = set()            # field serials a dispel was tried on in this walk (_clear_fields)
         run = True                   # the client's Always Run is on: a player never walks a route
@@ -1123,9 +1130,9 @@ class Mover:
                     if self._clear_fields(st, goal, max_route, cur, label, dispelled):
                         continue
                     if max_route is not None and walk is not None:
-                        raise Abort(f"{label}: no route within {max_route} steps from {cur} (a longer detour, "
-                                    f"if any)")
-                    raise Abort(f"{label}: no route from {cur}")
+                        raise WalkFailed(f"{label}: no route within {max_route} steps from {cur} (a longer detour, "
+                                         f"if any)")
+                    raise WalkFailed(f"{label}: no route from {cur}")
                 now = time.monotonic()
                 if self._refreshed(label):
                     continue                 # full stamina: the denied tiles are tried again
@@ -1133,7 +1140,7 @@ class Mover:
                     mobile_wait_until = now + MOBILE_WAIT_S
                     log(f"{label}: route from {cur} cut by mobiles we couldn't shove; waiting")
                 elif now > mobile_wait_until:
-                    raise Abort(f"{label}: route from {cur} cut by mobiles for {MOBILE_WAIT_S:.0f} s")
+                    raise WalkFailed(f"{label}: route from {cur} cut by mobiles for {MOBILE_WAIT_S:.0f} s")
                 if urgent:
                     time.sleep(0.05)         # a poll interval, not a player's pause
                 else:
@@ -1141,7 +1148,7 @@ class Mover:
                 continue
             mobile_wait_until = None
             if max_route is not None and walk is not None and len(path) - 1 > max_route:
-                raise Abort(f"{label}: only a {len(path) - 1}-step detour from {cur} (more than {max_route})")
+                raise WalkFailed(f"{label}: only a {len(path) - 1}-step detour from {cur} (more than {max_route})")
             if best_route is None or len(path) < best_route:
                 best_route, stalled = len(path), 0
             log(f"{label}: route {len(path) - 1} steps from {cur}{'' if run else ' (walking)'}"
@@ -1242,7 +1249,7 @@ class Mover:
                         replan = True
                         break
                     if max_moves is not None and self.steps - start_steps > max_moves:
-                        raise Abort(f"{label}: exceeded {max_moves} moves")
+                        raise WalkFailed(f"{label}: exceeded {max_moves} moves")
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
                         self._open_ahead(path[i + 1], here[2], opened, label, after)
@@ -1280,8 +1287,9 @@ class Mover:
                     else:
                         self.mem.add_blocked(cur, d)
                     log(f"{label}: move {d} from {cur} blocked ({self.blocked_count} total); replanning")
-                if self.blocked_count > self.max_blocked:
-                    raise Abort(f"too many blocked moves ({self.blocked_count})")
+                if self.blocked_count - start_blocked > self.max_blocked:
+                    raise WalkFailed(f"{label}: too many blocked moves ({self.blocked_count - start_blocked} in this "
+                                     "walk)")
                 if not urgent:
                     self.human.wait("read")
                 replan = True
@@ -1291,10 +1299,10 @@ class Mover:
             if danger_replan:
                 stalled += 1
                 if stalled > DANGER_STALL_REPLANS:
-                    raise Abort(f"{label}: boxed in by creatures ({stalled} replans round them without getting "
-                                f"nearer than {best_route - 1} steps)")
+                    raise WalkFailed(f"{label}: boxed in by creatures ({stalled} replans round them without getting "
+                                     f"nearer than {best_route - 1} steps)")
             if replans > 30:
-                raise Abort(f"{label}: too many replans")
+                raise WalkFailed(f"{label}: too many replans")
 
     def _refreshed(self, label) -> bool:
         """Short of stamina to shove (live 22:57:56: a retreat denied at 15/25, 'cut by mobiles … waiting',
