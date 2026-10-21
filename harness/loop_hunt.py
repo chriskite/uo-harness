@@ -307,6 +307,7 @@ class HuntLoop:
         self.loot_keep = tuple(w.lower() for w in (args.loot_keep or ()))
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
+        self.lift_ok_t = -1e9        # monotonic time of our last lift the server took (loot: combat.LIFT_GAP_S)
         self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
         self.jar_later = {}          # eerie corpse serial -> (monotonic time before which its walk isn't tried, why)
         self.walk_fails = []         # monotonic times of the failed walks the hunt carried on from (walk_failed)
@@ -1208,8 +1209,10 @@ class HuntLoop:
         backpack and the corpse (a refusal stops it: open_answer), then lift + drop each item
         into the backpack, gold first, stopping at the weight limit. An item counts as taken
         once it lies in the backpack (or merged into a pile there), never on a lift reject.
-        Before each item: a heal below --heal-at, and stop when a leave rule fires (live
-        2026-10-03 hits fell 64 -> 49 of 84 during one loot and the runner left without
+        Lifts go combat.LIFT_GAP_S apart at least (after the human drag pause); one the server refuses
+        with "You must wait another moment ..." is tried again once the gap is over (combat.LIFT_TRIES
+        in all). Before each item and each retry: a heal below --heal-at, and stop when a leave rule
+        fires (live 2026-10-03 hits fell 64 -> 49 of 84 during one loot and the runner left without
         drinking)."""
         st = self.state()
         if c.get("corpse") is None:  # 0xDEAD names it; else the corpse that appeared on its tile
@@ -1297,7 +1300,10 @@ class HuntLoop:
             items = [(k, it) for k, it in items if combat.worth_looting(it, self.loot_keep)]
             if skipped:
                 log(f"leaving {len(skipped)} item(s) of no value to us: {', '.join(sorted(set(skipped))[:6])}")
+        stop = False
         for k, it in items[: self.args.loot_max]:
+            if stop:
+                break
             st = self.state()
             me = st["world"]["self"]
             if self.leave_reason(st):
@@ -1313,26 +1319,45 @@ class HuntLoop:
                     self.overweight = True
                     break
                 continue
-            self.human.wait("drag")
             s, graphic = serial_of(k), it.get("graphic")
-            before, lift_mark = self.pack_amount(st, graphic), len(self.link.events)
+            for attempt in range(1, combat.LIFT_TRIES + 1):
+                self.human.wait("drag")
+                if (gap := self.lift_ok_t + combat.LIFT_GAP_S - time.monotonic()) > 0:
+                    time.sleep(gap)                  # the server's gap between lifts (combat.LIFT_GAP_S)
+                st = self.state()
+                before, lift_mark = self.pack_amount(st, graphic), len(self.link.events)
 
-            def landed(st2):
-                now = st2["world"]["items"].get(k)
-                if now is not None:
-                    return now.get("container") is not None and serial_of(now["container"]) == pack
-                return self.pack_amount(st2, graphic) > before    # merged into a pile in the pack
+                def landed(st2):
+                    now = st2["world"]["items"].get(k)
+                    if now is not None:
+                        return now.get("container") is not None and serial_of(now["container"]) == pack
+                    return self.pack_amount(st2, graphic) > before    # merged into a pile in the pack
 
-            def rejected():
-                return any(e.get("ev") == "lift_reject" for e in self.link.events[lift_mark:])
-            for pkt in combat.grab_packets(s, it.get("amount") or 1, pack):
-                self.link.act(pkt)
-            st2 = self.wait_for(lambda st2: rejected() or landed(st2), CONTAINER_WAIT_S)
-            if rejected():
-                rejects += 1
-                log(f"lift of 0x{s:08X} rejected: not taken")
-            elif st2 is not None:
-                taken.append({"serial": k, "graphic": f"0x{graphic or 0:04X}", "amount": it.get("amount")})
+                def rejected():
+                    return any(e.get("ev") == "lift_reject" for e in self.link.events[lift_mark:])
+                sent = time.monotonic()
+                for pkt in combat.grab_packets(s, it.get("amount") or 1, pack):
+                    self.link.act(pkt)
+                st2 = self.wait_for(lambda st2: rejected() or landed(st2), CONTAINER_WAIT_S)
+                if not rejected():
+                    self.lift_ok_t = sent
+                    if st2 is not None:
+                        taken.append({"serial": k, "graphic": f"0x{graphic or 0:04X}", "amount": it.get("amount")})
+                    break
+                if not combat.lift_wait_refused(self.link.events[lift_mark:]) or attempt == combat.LIFT_TRIES:
+                    rejects += 1
+                    log(f"lift of 0x{s:08X} rejected: not taken")
+                    break
+                log(f"lift of 0x{s:08X}: 'You must wait another moment'; trying again in "
+                    f"{max(0.0, self.lift_ok_t + combat.LIFT_GAP_S - time.monotonic()):.1f} s")
+                st = self.state()
+                if self.leave_reason(st):
+                    log("a leave rule fired while looting: leaving the rest")
+                    stop = True
+                    break
+                me = st["world"]["self"]
+                if me.get("hits") is not None and self.frac(me) < self.args.heal_at:
+                    self.heal(st)
         st = self.state()
         gained = max(self.pack_gold(st) - gold0,
                      (st["world"]["self"].get("gold") or 0) - (sgold0 or 0) if sgold0 is not None else 0)

@@ -388,3 +388,21 @@ def grab_packets(serial: int, amount: int, pack: int) -> list[bytes]:
     """The stock GrabItem (GameActions.cs:819-852): lift, then drop into the open
     backpack at the auto position, sent back to back."""
     return [actions.lift(serial, amount), actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, pack)]
+
+
+# The server refuses a lift sooner than ~0.5 s after the last lift it accepted: "You must wait another
+# moment before you may pick up an item from here." and 0x27 reason 5, 0.04-0.05 s after the lift, the item left where
+# it was. The store (2026-10-02 to 10-21, 23 sessions): 144 such refusals at 0.06-0.50 s after the last accepted lift
+# (two at 0.511 and 0.571, proxy-timed), 52,350 accepted lifts from 0.387 (one), 0.467 up (5 under 0.5 s); a refused
+# lift doesn't restart the server's clock (0.323 s after one, 0.776 s after the last taken: accepted). So lifts go
+# LIFT_GAP_S apart at least (the human drag pause on top when longer), and one refused so is tried again LIFT_TRIES
+# times in all (user 2026-10-21: "the runner loots items faster than the allowed delay, so we're leaving valuable loot
+# behind"; hunt-20261021-091743-38b6 lost 5 items so, gaps 0.41-0.49 s).
+LIFT_GAP_S = 0.6
+LIFT_TRIES = 3
+TEXT_LIFT_WAIT = "You must wait another moment before you may pick up an item from here."
+
+
+def lift_wait_refused(events) -> bool:
+    """The server's "must wait" refusal of a lift (TEXT_LIFT_WAIT) among these events."""
+    return any(e.get("ev") == "speech_heard" and (e.get("text") or "").strip() == TEXT_LIFT_WAIT for e in events)

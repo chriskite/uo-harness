@@ -4262,6 +4262,21 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   2,258 / 2,408, pet deaths 1 / 1; 144 x 20 min deaths/h 1.27 / 1.12 (52 / 48 runs), kills/h 112.6 / 111.0, gold/h
   109,815 / 109,099, damage on Logan/h 2,410 / 2,421, pet deaths 5 / 4, pets left behind 6 / 4 (daemons are rare in
   the simulator: 4-5 killed in 41-43 h, the daemon's damage on Logan 4-8 an hour).
+- **Loot left in corpses: lifts too fast** (user: "the runner loots items faster than the allowed delay, so we're
+  leaving valuable loot behind (message like 'you must wait' and it just moves on instead of waiting and grabbing the
+  loot)"). True: six lifts refused this session, at 09:47:46.62, 09:53:01.32, 10:00:37.33, 10:05:45.81, 10:06:54.76 and
+  10:07:53.80, each 0.38-0.50 s after the last lift the server took, each answered 0.04 s later by "You must wait
+  another moment before you may pick up an item from here." and `27 05`, logged "lift of 0x… rejected: not taken" and
+  the item left. The whole store (2026-10-02 to 10-21, 23 sessions, 52,708 lifts): 144 such refusals, 0.06-0.50 s after
+  the last accepted lift (two at 0.511 and 0.571 s, proxy-timed); accepted lifts from 0.387 s (one), then 0.467 s up
+  (5 below 0.5 s, 174 at 0.5-0.6 s); a refused lift doesn't restart the server's clock (one 0.323 s after a refusal and
+  0.776 s after the last taken lift was accepted). So the server's gap is ~0.5 s from the last lift it took. The
+  runner's only pause was the human drag (median 0.55 s, lognormal). Fixed: `combat.LIFT_GAP_S` 0.6 s between lifts
+  (`loop_hunt.loot`, `ctl act loot`), a "must wait" refusal tried again (`combat.LIFT_TRIES` 3). The simulator refuses
+  lifts within 0.5 s (`world.LIFT_GAP_S`); its corpses hold one gold pile, so its batches hardly meet it: 48 x 20 min
+  seed 17 `--vet-range 5` on the runner before the fix gave the same numbers with the model as without; before / after
+  the fix deaths/h 0.67 / 0.75, kills/h 108.9 / 112.4, gold/h 106,624 / 108,731, pet deaths 1 / 2 (the pacing's waits
+  shift the runs' timing; noise).
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

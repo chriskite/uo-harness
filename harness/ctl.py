@@ -1460,7 +1460,8 @@ def _act_loot(a) -> dict:
     (0x06 double click) and move what's in it into your backpack, one item
     at a time (a human pause, then 0x07 lift and 0x08 drop back to back, the
     stock GrabItem shape, GameActions.cs:819-852), gold first, at most
-    --max-items, stopping at your weight limit. Refuses corpses with a human
+    --max-items, stopping at your weight limit. Lifts go combat.LIFT_GAP_S apart; one refused with "You must
+    wait another moment ..." is tried again (combat.LIFT_TRIES in all). Refuses corpses with a human
     body (players, human NPCs, your own: policy, no corpse runs)."""
     if len(a.args) != 1:
         raise CtlError("loot <corpse serial>")
@@ -1506,24 +1507,35 @@ def _act_loot(a) -> dict:
             inside = contents()
         order = combat.loot_order(inside)
         taken, failed, stopped = [], [], None
+        last_ok = -1e9                                   # our last lift the server took (combat.LIFT_GAP_S)
         for k, it in order[:a.max_items]:
             me = stc.state()["world"]["self"]
             if me.get("weight") is not None and me.get("weight_max") and me["weight"] >= me["weight_max"]:
                 stopped = f"weight {me['weight']}/{me['weight_max']}"
                 break
-            human.wait("drag")
-            s = _serial(k)
-            if any(ctl.send(p) != "OK" for p in combat.grab_packets(s, it.get("amount") or 1, pack)):
-                failed.append(k)
-                continue
-            end = time.monotonic() + EVENT_WAIT_S
-            moved = False
-            while time.monotonic() < end and not moved:
-                v = stc.state()["world"]["items"].get(k)
-                # a stack dropped onto a pile of the same kind (gold) merges: the lifted serial is deleted
-                moved = v is None or (v.get("container") is not None and _serial(v["container"]) == pack)
-                if not moved:
-                    time.sleep(0.1)
+            s, moved = _serial(k), False
+            for _ in range(combat.LIFT_TRIES):
+                human.wait("drag")
+                if (gap := last_ok + combat.LIFT_GAP_S - time.monotonic()) > 0:
+                    time.sleep(gap)
+                m2, sent = stc.mark(), time.monotonic()
+                if any(ctl.send(p) != "OK" for p in combat.grab_packets(s, it.get("amount") or 1, pack)):
+                    break
+                end, evs = time.monotonic() + EVENT_WAIT_S, []
+                while time.monotonic() < end and not moved:
+                    v = stc.state()["world"]["items"].get(k)
+                    # a stack dropped onto a pile of the same kind (gold) merges: the lifted serial is deleted
+                    moved = v is None or (v.get("container") is not None and _serial(v["container"]) == pack)
+                    if not moved:
+                        evs = stc.wait_events(m2, lambda e: True, timeout=0.0)   # everything since the lift
+                        if any(e.get("ev") == "lift_reject" for e in evs):
+                            break
+                        time.sleep(0.1)
+                if moved:
+                    last_ok = sent
+                    break
+                if not combat.lift_wait_refused(evs):
+                    break                                # another refusal (or none heard): as before, not taken
             row = {"serial": k, "graphic": None if it.get("graphic") is None else f"0x{it['graphic']:04X}",
                    "name": it.get("name") or _tile_name(it.get("graphic"), it.get("amount")), "amount": it.get("amount")}
             (taken if moved else failed).append(row if moved else k)

@@ -109,7 +109,9 @@ What the capture and the wiki fixed:
 
 - **Creature hits are the wiki's**: every creature that died in view took exactly its wiki Hits + 1 in
   "-N" numbers (shadowguard 8001, shade wolf 5001, bound soul 8001, corpse purger 7001, ...). Gold on the
-  corpse is the wiki Gold Value (lifted medians within -5..+17 %).
+  corpse is the wiki Gold Value (lifted medians within -5..+17 %). A lift within `world.LIFT_GAP_S` 0.5 s of the last
+  one taken is refused as live: "You must wait another moment before you may pick up an item from here." and `27 05`
+  (metric `lift_waits`; the store's 144 refusals, docs/NOTES.md "Loot left in corpses").
 - **Our pets' real hits** come from the "-N" numbers vs the 0xA1 share: the gravebug ~4.5 hits per point
   (450), the phoenix ~6.6 (660). Their attack periods from the attack animations: 1.91 s and 1.80 s;
   their hits from the attributed numbers (gravebug median 76, phoenix 198-238). The phoenix's damage x 1.373 since

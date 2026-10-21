@@ -104,6 +104,7 @@ OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (ne
 FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
 TEXT_NOT_YOURS = "You may not loot this corpse."   # live answer to opening another's kill (docs/HUNT_LOOP.md)
 HELD_NO_USE_TEXT = "You cannot use items while in this state."   # live 2026-10-20 19:23:27.13, transfixed
+LIFT_GAP_S = 0.5         # the server's gap between lifts it takes (combat.LIFT_GAP_S's evidence: refused up to ~0.5 s)
 
 
 def cheb(a, b) -> int:
@@ -218,11 +219,12 @@ class World:
         self.next_item = 0x60000000
         self.cid = 0x00400000
         self.pending = None                   # the target cursor up: {"kind", "cid", ...}
+        self.lift_ok_t = -1e9                 # the last lift taken (LIFT_GAP_S)
         self.metrics = {"kills": 0, "kills_by": {}, "player_damage_taken": 0.0, "pet_damage_taken": {},
                         "team_damage": 0.0, "vet_uses": 0, "potions": 0, "bard": {}, "steps": 0, "denied_steps": 0,
                         "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "violations": [],
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
-                        "patrol_commands": 0, "silenced": 0,
+                        "patrol_commands": 0, "silenced": 0, "lift_waits": 0,
                         "fights": [], "hunt_s": 0.0}
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
@@ -2086,6 +2088,13 @@ class World:
                 or cheb((corpse["x"], corpse["y"]), self.player.pos) > 2 or corpse.get("others"):
             self.send(b"\x27\x05")
             return
+        if self.t - self.lift_ok_t < LIFT_GAP_S:
+            # live (the store, 144 times): the text, then 0x27 05, 0.04-0.05 s after a lift within ~0.5 s of the last taken
+            self.metrics["lift_waits"] += 1
+            self._sys(combat.TEXT_LIFT_WAIT)
+            self.send(b"\x27\x05")
+            return
+        self.lift_ok_t = self.t
         self.lifted = s
 
     def _drop(self, p):

@@ -1081,6 +1081,16 @@ counted the corpse's gold as xp. Now (`loop_hunt.loot`):
 - An item counts as **taken only when it lands in the backpack** (its `0x25` into the pack, or gone
   with the pack's pile of that graphic grown: RunUO merges gold); a `0x27` lift reject (`lift_reject`
   event) means not taken (`lift_rejects` in the loot event).
+- **Lifts 0.6 s apart at least** (`combat.LIFT_GAP_S`, after the human drag pause; since 2026-10-21). The server
+  refuses a lift within ~0.5 s of the last one it took: "You must wait another moment before you may pick up an
+  item from here." and `27 05` (the store: 144 refusals 0.06-0.50 s after the last taken lift, two at 0.511 and
+  0.571; accepted from 0.387 s once, 0.467 s up; a refusal doesn't restart its clock). Such a refusal is tried
+  again once the gap is over, `combat.LIFT_TRIES` 3 lifts in all, the leave rules and a heal below `--heal-at`
+  checked before each retry: "lift of 0x…: 'You must wait another moment'; trying again in N s". Other refusals
+  stay "not taken" at once. User 2026-10-21: "the runner loots items faster than the allowed delay, so we're
+  leaving valuable loot behind"; live hunt-20261021-091743-38b6 left 5 items so (lifts 0.41-0.49 s apart).
+  `ctl act loot` paces and retries the same way. test_sim `test_loot_lift_gap` (the simulator refuses lifts
+  within `world.LIFT_GAP_S` 0.5 s).
 - A blue or refused corpse is **someone else's kill**: its kill credit is taken back (`kills` - 1,
   `lost_kills` + 1; `--kills` counts only ours), it adds no xp, no gold and no gold-model sample
   (`kill_gold` isn't called). Its `loot` event has `refused` (`blue` or the text) with gold 0, and

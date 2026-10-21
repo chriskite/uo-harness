@@ -1005,6 +1005,46 @@ def test_countess_reguard():
           f"silenced {w.metrics['silenced']}, guards {w.metrics['guard_commands'] - g0}, waited {waited:.1f} s")
 
 
+def test_loot_lift_gap():
+    print("== a corpse of several items: lifts 0.5 s+ apart, a 'must wait' refusal tried again; every item taken ==")
+    import combat
+    # live hunt-20261021-091743-38b6: 5 items left in corpses, each "You must wait another moment before you may pick
+    # up an item from here." 0.04 s after a lift 0.41-0.49 s after the last taken (user: "it just moves on")
+    from sim import world as simworld
+    out = {}
+    for server_gap in (simworld.LIFT_GAP_S, 0.75):      # as live; slower than combat.LIFT_GAP_S: a refusal, a retry
+        w = world_with([{"key": "shade wolf", "at": [5266, 649, 0]}], seed=7)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        loop, clock, store, patched = hurt_loop(w, 100)
+        buf, gap0 = io.StringIO(), simworld.LIFT_GAP_S
+        simworld.LIFT_GAP_S = server_gap
+        try:
+            with contextlib.redirect_stdout(buf):
+                w.die(m, None)
+                corpse = next(s for s, it in w.items.items() if it.get("kind") == "corpse" and it["owner"] == m.serial)
+                for amount in (111, 222, 333):
+                    w.items[w._item_serial()] = {"graphic": combat.GOLD_GRAPHIC, "amount": amount,
+                                                 "container": corpse, "kind": "gold"}
+                total = sum(it["amount"] for it in w.items.values() if it.get("container") == corpse)
+                g0 = w.metrics["gold_looted"]
+                clock.advance(0.5)
+                c = {"mob": m.serial, "name": "a shade wolf", "x": m.x, "y": m.y, "t": tamer.time.monotonic(),
+                     "corpse": corpse}
+                loop.corpses.append(c)
+                loop.loot(c)
+        finally:
+            simworld.LIFT_GAP_S = gap0
+            store.close()
+            simclock.uninstall(patched)
+        out[server_gap] = (sum(1 for it in w.items.values() if it.get("container") == corpse),
+                           f"{w.metrics['gold_looted'] - g0}/{total}", w.metrics["lift_waits"],
+                           [l for l in buf.getvalue().splitlines() if "lift" in l or "looted" in l])
+    live, slow = out[simworld.LIFT_GAP_S], out[0.75]
+    check("the server's 0.5 s: all 4 items taken, none refused; a slower server: refused, tried again, all taken",
+          live[0] == 0 and live[2] == 0 and slow[0] == 0 and slow[2] > 0
+          and any("trying again in" in l for l in slow[3]), str(out))
+
+
 def test_on_another_player():
     print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
     # live 20261019_095934 10:10:57-10:11:28 (hunt-20261019-100618-80b2): a tormented soul in war mode on Lord Phaze at
@@ -2319,7 +2359,8 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_on_another_player,
+              test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
+              test_on_another_player,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
