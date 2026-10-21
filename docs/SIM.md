@@ -877,7 +877,11 @@ channel 0.47 and 0.3). Since: the phoenix's distance from Logan in fights, idle 
   ensnared and diseased!" 0.9 from an unseen source, a tormented soul's melee 0.4), simulated 5.8 ticks an hour
   against the live 17.3. The simulator's deaths: blightmares and disease (37 of ~125), purgers (16), apparition bursts
   (16), several sources at once with the leave too late (a purger 4 tiles off, a shadowguard and two disease ticks:
-  81 -> 0 in 9 s, the leave at 1/100).
+  81 -> 0 in 9 s, the leave at 1/100). Live Logan fell below 50 hits 8.1 times an hour, below 30 4.3, below 15 2.9
+  and lived through most of it (a potion: 7 -> 71, 15 -> 54, 28 -> 79; an area peace); simulated 3.4, 1.8 and 1.2,
+  and nearly every fall below 15 ended in a death: two or more monsters on him at once (two tormented souls 161 in
+  15 s, two banshees 144). The heal potion now heals as the server's own numbers say (`potions.heal` 28-50: 612
+  live drinks, under 30 hits a median 40; 25-40 before): deaths 1.2 -> 1.1 an hour.
 - **Where the crawl goes**: by 20-tile cell live Logan spent 22 % of his time on the level in the west wing (x
   5160-5199, y 680-719: the countess room, the knights, the shade wolves), simulated 12 %; and 19 % in the east (x
   5240-5259, y 640-699: the tormented souls, the blightmare, the daemon), simulated 29 %. The crawl's patrol
