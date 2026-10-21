@@ -770,9 +770,13 @@ transfixed copies 0.34x.
 - **Deaths**: the simulator kills Logan 2.8x as often (2.0 against 0.7 an hour; 4 live deaths in 5.55 h, a thin
   sample). Its top killer is the nightstalker (25-33 of ~90 deaths a batch; live none since the live server): its
   share of the damage on Logan is 0.15 simulated against 0.02 live. Its charges land on Logan beside the pet it
-  fights (37 of 63 hits in 24 runs) or on him (26): Logan within 2 of the pets at the east spawn (5244, 666); in the
-  logged run (seed 36) the stand-off there was cut short by mobiles. Whether live nightstalkers charge less, or Logan
-  keeps further off there, is open.
+  fights (37 of 63 hits in 24 runs) or on him (26). Live, 5 of 86 nightstalker charges in the visits hit Logan and he
+  stood 3+ tiles from the landing in 79; the first charge comes 0.4-4.1 s after the war flag in both worlds. The
+  difference is whom it wakes on: at a nightstalker's war flag live a pet was nearer than Logan in 13 of 22 wakes and
+  he in 4 (the rest ties, the pets beside him), simulated he in 31 of 44 and a pet in 9, the pets a tile behind him
+  on the line, so the sim's nightstalker takes Logan and charges onto him. Over every type the gap is smaller (Logan
+  nearer at the wake 37 % live, 45 % simulated; a pet 42 % and 37 %). Open: how live guarding pets stand round a
+  halted master (abreast rather than behind) [INFERENCE from the ties; not measured directly].
 - **The pets' damage** 1.7x (gravebug) and 2.7x (phoenix), hence 1.6x the vet supplies: monsters stand in war mode
   within 12 tiles of a pet 2.5x as long an hour as live (none 66 % of the hunting time live, 28 % simulated; measured
   before the phoenix's recalibration).
