@@ -2018,18 +2018,21 @@ class World:
         self.vet_end = self.t + self.rng.uniform(*v["channel_s"])
 
     def _vet_finish(self):
-        """A channel's end: heals every hurt pet within range of us then (and us), or 'too far' with none. Moving
-        during the channel doesn't shorten the range: live, of 128 channels with steps of ours in them, 126 finished
-        and healed, 44 of those with the nearest pet 2-8 tiles off (2026-10-20, 35 visits); before, a step cut the
-        range to 1 [INFERENCE of the first build] and the simulator's runner got 'too far' 30 times an hour (live 0.6)."""
+        """A channel's end: heals every hurt pet within range of us then (and us), or 'too far' with none in range.
+        Moving during the channel doesn't shorten the range: live, of 128 channels with steps of ours in them, 126
+        finished and healed, 44 of those with the nearest pet 2-8 tiles off (2026-10-20, 35 visits); before, a step
+        cut the range to 1 [INFERENCE of the first build] and the simulator's runner got 'too far' 30 times an hour
+        (live 0.6). A pet in range that is whole again by the finish (a devour, its regeneration) gets the finish line
+        and no heal: live 373 channels since 10-17 23:08, none 'too far'; the simulator said 'too far' for those (93
+        of its 111 in 1,417 channels)."""
         pl, v = self.player, self.sc["vet"]
         self.vet_end = None
         rng = v["range"]
         ghosts = [m for m in self.pets() if m.ghost and cheb(m.pos, pl.pos) <= rng]
-        pets = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng
-                and (m.hits < m.hits_max or m.poison_until > self.t)]
+        near = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng]
+        pets = [m for m in near if m.hits < m.hits_max or m.poison_until > self.t]
         hurt_self = pl.hits < pl.hits_max or pl.poison_until > self.t
-        if not pets and not hurt_self and not ghosts:
+        if not near and not hurt_self and not ghosts:
             self._sys(tamer.TEXT_VET_FAR)
             return
         for m in ghosts:

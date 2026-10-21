@@ -869,6 +869,11 @@ What was off, and the changes:
 - **Deaths**: per blightmare engagement the simulator kills Logan as live (1 death in 5 live infection episodes, 10
   in 45 simulated), but its blightmares reach him 2.7 times an hour against 0.9 on all live visits (1.5 on the
   yardstick's 2.67 captured hours); 9 of 23 simulated deaths had a blightmare and its diseases in their last 15 s.
+- **A vet channel's finish with a whole pet in range** says "You finish using veterinary supplies." (live 373
+  channels on the yardstick's captures, none "too far"; the simulator said "too far" in 111 of 1,417, 93 of them with
+  the gravebug in range but whole again by then). The runner treats both alike: the batch's numbers didn't move.
+  The vet's heal per channel matches (the gravebug's bar rose a median 34 % from below half, n=79, 1 % of those
+  filled it); the devours too (104 an hour live, 109 simulated); 1.12x the channels is open.
 
 | per hour on the level | live since 10-17 23:08 (95 % interval) | live since 10-15 21:10 | sim at the start | sim now |
 |---|---|---|---|---|
@@ -915,7 +920,10 @@ monsters' hits on each of us.
   (6.0 / 4.1, 4.1 / 1.5); the bound souls fewer (2.7 / 7.6). Vet supplies 1.12x (just above the interval's 157).
 - **Deaths** 1.4 an hour against 0.5 (inside the Poisson interval of the 2 live deaths): the blightmare engagements
   above.
-- The void slime (1.9 met an hour live) isn't in the scenario.
+- The void slime (1.9 met an hour live) isn't in the scenario: 5 first sightings in 41 visits, idle at (5244-5248,
+  733-737), 16-18 tiles from Logan, never a runner line about one (no fight, no hold).
+- Of the ~45 rates compared, 2 outside their 95 % interval is what parity itself would give by chance (2.25
+  expected); both are 1.1-1.2x.
 
 ## Limits
 

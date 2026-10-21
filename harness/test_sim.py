@@ -305,7 +305,8 @@ def test_bard_and_vet():
           f"at {w.player.pos[:2]}, {gb.hits}/{gb.hits_max}")
     for p in w.pets():
         p.mode = "stay"
-    gb.hits, gb.x, gb.y = gb.hits_max * 0.5, w.player.x + 4, w.player.y
+        p.x, p.y = w.player.x + 4, w.player.y       # live: the pets 3-4 tiles off then (a whole pet in range finishes)
+    gb.hits = gb.hits_max * 0.5
     w.player.hits = w.player.hits_max
     clock.advance(1.0)
     mark = len(link.events)
