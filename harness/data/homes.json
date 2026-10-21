@@ -8,7 +8,7 @@
       "room": {"owner": "logan", "facet": 3, "arrival": [403, 923, 1], "exit": "steward"},
       "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]},
       "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]},
-      "forge": {"serial": "0x4FD0EBA1", "name": "forge", "pos": [403, 923, 2]}
+      "forge": {"serial": "0x51CF24B3", "name": "forge", "pos": [400, 923, 2]}
     },
     "Logan Wolf": {
       "library": "dtf",
@@ -17,7 +17,7 @@
       "room": {"owner": "", "facet": 3, "arrival": [403, 923, 1], "exit": "steward"},
       "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]},
       "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]},
-      "forge": {"serial": "0x4FD0EBA1", "name": "forge", "pos": [403, 923, 2]},
+      "forge": {"serial": "0x51CF24B3", "name": "forge", "pos": [400, 923, 2]},
       "dropoff": {
         "_doc": "harness/dropoff.py, `ctl act dropoff`: the user's Razor script 'New Drop Off' (Scripts/New Drop Off.razor, F5), step for step; entries are clilocs (1095566 Add All In Backpack, 1095568 Add All Unidentified Items From Backpack, 3006349 Restock, 3006348 Resupply). Names: the items' labels (ctl status ground_items, 2026-10-16). Then `to_chest` from the pack's top level into `chest` (user 2026-10-15: research materials and resource maps, 'chest for now, we'll buy tomes later'; resource maps by name, their graphic not seen yet).",
         "steps": [

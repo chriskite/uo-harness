@@ -4348,12 +4348,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
 
   - **The room's small forge** (2026-10-20, bought and placed by the user in Logan Wolf's DTF rental room).
     - `ctl status` ground_items with Dan in the room: "forge", serial 0x4FD0EBA1, graphic 0x0FB1 (in
-      `ore_nodes.FORGES`), at (403,923,2) on facet 3. That is the room's arrival tile, so smelting needs no walk.
+      `ore_nodes.FORGES`), at (403,923,2) on facet 3: the room's arrival tile (until it was moved, below).
     - It is homes.json `forge` for Outland Dan and Logan Wolf. The mining runner smelts the carried ore there
       before the store (docs/PLAN.md "With a forge in the rental room").
     - Confirmed live 2026-10-20 14:10:16 (mining-20261020-135409-1160, forge_1173_2397): "smelted 158 ore into 316
       ingots at the room's forge (home)", the convert phase took 1.7 s, then "added 902 ingots to the resource
       stockpile". The leg's other 293 ore had been smelted at the spot's forge for the weight.
+    - **Moved 2026-10-20 ~22:05** (user): on the arrival tile it blocked walks onto (403,923). At 21:58:37 the user
+      stepped Logan off the tile; `act dropoff`'s walk back then failed twice ("walking to the arrival tile (403, 923):
+      too many blocked moves (21 in this walk)"; `act goto 403 923 --z 1`: "no route"). Only a room entry lands there.
+      Re-placed as serial 0x51CF24B3 at (400,923,2) (homes.json updated); the room smelt walks to `forge_range` of it.
+      Keep the arrival tile clear of furniture: the drop-off's items are reached from it.
   - **Yield vs skill** (measured 2026-10-20: capture session_20261020_102748, 4333 dig replies at skill 55.0–68.5; 25 leg
     rows that day).
     - Each successful dig names its metal: cliloc 1007072 iron, 1007073 dull copper, 1007074 shadow iron, 1007075
