@@ -953,6 +953,16 @@ of the Mausoleum while he played Logan): the first state read or refused action 
 gate was paused (the user took over)", exit 1, and nothing more is sent. A scheduled break is still waited
 out. test_loop_hunt `pause`.
 
+**Transfixed: walks wait it out** (`agent_link.Mover.held`, since 2026-10-20). A vampire countess sometimes
+transfixes Logan himself, not a pet: "The creature overpowers your will and transfixes you!", every step denied
+and items refused ("You cannot use items while in this state.") until "You are no longer hindered." 11.1 s later
+(live twice). Every walk (retreat, gate, patrol, back to the pets) stops stepping while that holds, still
+runs its guard and `stop`, logs "<label>: held in place (transfixed); waiting it out" and "free to move again
+after N s", and plans again. The denied steps don't count toward `--max-blocked` and aren't remembered as
+blocked tiles. At most `HELD_MAX_S` 13 s if the end line is missed. Before, a retreat at 19:23:23 counted 21
+denials in 7 s and the run aborted ("too many blocked moves"), leaving Logan on Maus 3. test_sim
+`test_transfixed_walk`.
+
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
 stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech
 or invulnerable players in view: no `speech_nearby`, no `gm_suspected` from the runner, no Laya

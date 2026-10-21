@@ -3900,6 +3900,19 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
   3 -> 1, jars filled within the 20 s 20 -> 0; 250 s each (4 seeds): the crawl pulls the three one at a time and
   every jar is filled after.
   Not changed: a retreat with the pets far off goes wherever the fewest idle monsters see, not toward them.
+- **Transfixed on a retreat: "too many blocked moves" (2026-10-20 19:23:23-30, hunt-20261020-183232-1def, capture
+  session_20261020_180909).** Logan at (5180, 680) with a vampire countess, a corpsebride and both transfixed pet
+  copies on him; 54 -> potion 100 -> 30 by 19:23:23.04 (-21, -13, -36). At that instant: "The creature overpowers your
+  will and transfixes you!" (system text), self flags 0x20 -> 0xA0 until 19:23:33.65, buff icons 57/58/59/19/140.
+  The retreat (logged 19:23:23) sent 21 steps in 7 s, every one denied, and the Mover aborted the run ("too many
+  blocked moves (21)"). He stood alive (vet +35, regen to 86) and the run was over, Logan left on Maus 3. Item use
+  was refused too: "You cannot use items while in this state." x3 at 19:23:27.13. "You are no longer hindered." at
+  19:23:34.15, 11.1 s after the transfix, the same as the only other one on Logan in the store (2026-10-17
+  15:27:03, 11.1 s). Against that, the store has 110 "*transfixed*" pet copies. Fixed: `Mover.held` /
+  `wait_held` (docs/HUNT_LOOP.md "Guards"). The simulator now transfixes Logan in `player_share` 0.018 of a
+  countess' transfixes (docs/SIM.md). test_sim `test_transfixed_walk` (before: "too many blocked moves (21)", as
+  live; after: free after 11.0 s, arrived). Run A/B, 48 x 20 min, seed 17: identical, so no run in the batch had a
+  transfix on Logan change its course (2 % of transfixes is rare).
 
 ## Field of Souls: the field map (reaper spawns, 2026-10-17)
 

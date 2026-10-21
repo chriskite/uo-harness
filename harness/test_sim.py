@@ -1961,6 +1961,37 @@ def test_soul_jar_guards():
           f"picked {picked} dist {dist} filled {filled} deferred {later} picked again {again}")
 
 
+def test_transfixed_walk():
+    print("== transfixed on a retreat: the walk waits the hold out, then goes; no 'too many blocked moves' ==")
+    # live 2026-10-20 19:23:23.04-34.15 (hunt-20261020-183232-1def): "The creature overpowers your will and transfixes
+    # you!" as a retreat began at (5180, 680); 21 denied steps in 7 s, "ABORTED: too many blocked moves (21)", Logan
+    # left on Maus 3 (alive). The hold ended 11.1 s after it began ("You are no longer hindered.")
+    import loop_hunt
+    from agent_link import Abort
+    w = world_with([], seed=7, start=(5197, 682))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    err, took, blocked = None, None, None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            w.transfix_player(11.1)
+            clock.advance(0.2)
+            loop.state()
+            t0 = loop_hunt.time.monotonic()
+            b0 = loop.mover.blocked_count
+            try:
+                loop.mover.walk_to(lambda: (5190, 682), 0, "retreat", urgent=True, max_moves=21, max_route=21)
+            except Abort as e:
+                err = str(e)
+            took = loop_hunt.time.monotonic() - t0
+            blocked = loop.mover.blocked_count - b0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("arrived after the hold (>= 10 s), no Abort, no blocked move counted",
+          err is None and took >= 10 and blocked == 0 and sim_cheb(w.player.pos, (5190, 682)) == 0,
+          f"err {err!r} took {took:.1f} s blocked {blocked} at {w.player.pos} denied {w.metrics['denied_steps']}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -1979,7 +2010,7 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_guards):
+              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_guards, test_transfixed_walk):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

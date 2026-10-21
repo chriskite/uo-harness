@@ -55,6 +55,7 @@ import nav
 import pathfind
 import soul_jar
 import tamer
+from agent_link import HELD_END_TEXT, HELD_TEXT
 from sim import packets as P
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
@@ -88,6 +89,7 @@ ROPE_COOLDOWN_S = 5.0
 OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (never ours: not in `team()`)
 FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
 TEXT_NOT_YOURS = "You may not loot this corpse."   # live answer to opening another's kill (docs/HUNT_LOOP.md)
+HELD_NO_USE_TEXT = "You cannot use items while in this state."   # live 2026-10-20 19:23:27.13, transfixed
 
 
 def cheb(a, b) -> int:
@@ -830,6 +832,9 @@ class World:
                     self.send(P.delete(s))
         if not self.penalty and t - self.last_step_t >= PENALTY_STILL_S:
             self._apply_penalty()
+        if self.player.held_until and t >= self.player.held_until:
+            self.player.held_until = 0.0
+            self._sys(HELD_END_TEXT)
         pl = self.player
         near_others = []
         if self.others_on:
@@ -1114,8 +1119,13 @@ class World:
                 self._overhead(m, "*attempts to transfix*")
                 pets = [p for p in self.pets() if p.alive and not p.ghost and p.held_until <= t
                         and cheb(p.pos, m.pos) <= sp.get("range", 12)]
-                if pets and self.rng.random() < sp["chance"]:
-                    self._transfix(self.rng.choice(pets), sp, m)
+                pl, share = self.player, sp.get("player_share", 0.0)
+                me_ok = share > 0 and not pl.ghost and pl.held_until <= t and cheb(pl.pos, m.pos) <= sp.get("range", 12)
+                if (pets or me_ok) and self.rng.random() < sp["chance"]:
+                    if me_ok and (not pets or self.rng.random() < share):
+                        self.transfix_player(self.rng.uniform(*sp["player_s"]))
+                    else:
+                        self._transfix(self.rng.choice(pets), sp, m)
             elif kind == "wail":
                 # corpsebride: an area hit 0.4 s after the emote (scenario note)
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.99, 1.01)
@@ -1239,6 +1249,13 @@ class World:
             if cheb(o.pos, m.pos) <= 1:
                 dmg = sp.get("damage_player", sp["damage"]) if o.kind == "player" else sp["damage"]
                 self.hurt(o, self.roll(dmg), m, "charge")
+
+    def transfix_player(self, seconds: float):
+        """The vampire countess' transfix on us (live 2026-10-17 15:27:03 and 2026-10-20 19:23:23.04, Logan): the
+        system line HELD_TEXT, every step denied and no item use for 11.1 s (both), then HELD_END_TEXT."""
+        self.player.held_until = self.t + seconds
+        self._sys(HELD_TEXT)
+        self.count("transfixed", self.player.name)
 
     def _transfix(self, pet: Mob, sp: dict, by: Mob):
         """The vampire countess' transfix: a hostile copy of one of our pets, named as the pet, on its
@@ -1410,7 +1427,7 @@ class World:
     def _walk(self, p):
         pl = self.player
         seq, d = p[2], p[1] & 7
-        if pl.ghost:
+        if pl.ghost or pl.held_until > self.t:
             self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
             return
         if d != pl.d:
@@ -1684,6 +1701,9 @@ class World:
             return
         if kind == "bag":
             self._open(s, BAG_GUMP)
+            return
+        if pl.held_until > self.t:
+            self._sys(HELD_NO_USE_TEXT)           # transfixed: potions and vet refused (live, 3 tries)
             return
         if kind == "gate":
             # live 20:58:44 (20261013_204518): double-clicked from a tile away, the menu at once

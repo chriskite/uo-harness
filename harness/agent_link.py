@@ -122,6 +122,14 @@ CAPTCHA_GUMP_ID = 0x00000001  # never closed here (ANTICHEAT.md §8.8)
 # server for 2-4 s; it answers what came in meanwhile only afterwards. A wait's deadline doesn't run during one
 # (Deadline), at most WORLD_SAVE_MAX_S past its start line in case the end line is missed.
 WORLD_SAVE_MAX_S = 15.0
+# Held in place by a monster: a vampire countess' transfix on us, live 2026-10-20 19:23:23.04 (hunt-20261020-183232-1def)
+# and 2026-10-17 15:27:03, both 11.1 s to the end line, every step denied and item use refused meanwhile. A walk waits
+# it out (Mover.held) instead of counting the denied steps (19:23:23-30: 21 in 7 s, "too many blocked moves", the run
+# aborted with Logan left on Maus 3); at most HELD_MAX_S when the end line is missed.
+HELD_TEXT = "The creature overpowers your will and transfixes you!"
+HELD_END_TEXT = "You are no longer hindered."
+HELD_MAX_S = 13.0
+SYSTEM_SERIALS = (None, 0, 0xFFFFFFFF, "0xFFFFFFFF")
 
 
 def world_save(ev: dict) -> str | None:
@@ -573,9 +581,39 @@ class Mover:
         self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
         self.replan_requested = False   # set by a guard (new danger): replan after this step
         self.walled = set()          # (x, y) walls for this walk_to only: doors that refused us (walk_to)
+        self.held_until = 0.0        # monotonic end of a hold on us (held): HELD_TEXT seen, HELD_END_TEXT not yet
+        self._held_upto = len(link.events)   # link.events scanned for them (earlier ones are history)
 
     def in_danger(self, tile) -> bool:
         return tile in self.danger_tiles or any(cheb(tile, c) <= r for c, r in self.danger.values())
+
+    def held(self) -> bool:
+        """A monster holds us in place now (HELD_TEXT seen and neither HELD_END_TEXT nor HELD_MAX_S since)."""
+        evs = self.link.events
+        for ev in evs[self._held_upto:]:
+            if ev.get("ev") != "speech_heard" or ev.get("serial") not in SYSTEM_SERIALS:
+                continue
+            text = (ev.get("text") or "").strip()
+            if text == HELD_TEXT:
+                self.held_until = time.monotonic() + HELD_MAX_S
+            elif text == HELD_END_TEXT:
+                self.held_until = 0.0
+        self._held_upto = len(evs)
+        return time.monotonic() < self.held_until
+
+    def wait_held(self, label: str, stop=None) -> str | None:
+        """While held: no steps (each would be denied), the guard and `stop` still checked; `stop`'s reason if it
+        fires."""
+        log(f"{label}: held in place (transfixed); waiting it out")
+        t0 = time.monotonic()
+        while self.held():
+            st = self.link.state()
+            self.guard(st)
+            if stop is not None and (why := stop(st)):
+                return why
+            time.sleep(0.1)
+        log(f"{label}: free to move again after {time.monotonic() - t0:.1f} s")
+        return None
 
     def danger_cost(self, tile) -> float:
         """A tile's cost factor from the danger zones: inside a zone half of DANGER_COST_X flat
@@ -1146,6 +1184,11 @@ class Mover:
                     break
                 if pos[3] == d:              # already facing it (e.g. at the start of a route)
                     self._open_ahead(nxt, z, opened, label, st)
+                if self.held():              # transfixed: the step would be denied; wait, then plan again
+                    if why := self.wait_held(label, stop):
+                        return why
+                    replan = True
+                    break
                 if urgent:
                     run = stamina_ok(st)
                 self.pace(run, st)
@@ -1216,6 +1259,12 @@ class Mover:
                             log(f"{label}: sidestepped at {new}; replanning")
                             break
                     continue
+                if outcome == "blocked" and self.held():
+                    # the hold came with this step's denial: not a blocked tile (no deny memory, no count)
+                    if why := self.wait_held(label, stop):
+                        return why
+                    replan = True
+                    break
                 self.blocked_count += 1
                 if nxt in occupied_at_step:
                     self.shove_denied[nxt] = time.monotonic()
