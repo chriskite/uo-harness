@@ -1011,12 +1011,20 @@ class World:
             m.target = self.rng.choice(near).serial if near else None
             return
         cur = self.mobs.get(m.target) if m.target is not None else None
+        held = set()
+        if any(sp["kind"] == "transfix" for sp in m.spec.get("specials", [])):
+            # live (41 visits, 2026-10-20): of the countesses' 47 hits on us while a copy of the gravebug was up, 2
+            # went to the held gravebug, 28 to the phoenix, 17 to Logan (the gravebug free: 107 of 134 on it)
+            held = {o.spec["copy_of"] for o in self.mobs.values() if o.spec.get("copy_of") and o.alive}
+            if m.target in held:
+                m.target, cur = None, None
         if cur is not None and (cheb(m.pos, m.home) > LEASH or (t - m.seen_target_t > LOST_S)):
             m.target, m.threat = None, {}
             return
         if cur is not None and self.can_see(m, cur):
             m.seen_target_t = t
-        cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)]
+        cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)
+                 and o.serial not in held]
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
         if threat:
@@ -1031,7 +1039,7 @@ class World:
             m.seen_since = None
             return
         wake = self.sc["defaults"].get("wake_s")
-        if wake:
+        if wake and not (held and m.warmode):   # a countess in a fight turns from a held pet at once [INFERENCE]
             # live: war mode 1.8-2.7 s after one of us came into its sight (scenario defaults note)
             if m.seen_since is None:
                 m.seen_since = t + self.rng.uniform(*wake)

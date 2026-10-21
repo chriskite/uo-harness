@@ -860,6 +860,32 @@ def test_pet_shot():
     check("the phoenix hit it within 10 s", af.serial in m.damage_by, f"phoenix at {af.pos[:2]}")
 
 
+def test_countess_held_pet():
+    print("== a vampire countess transfixes the gravebug: she fights the phoenix or us until it is free again ==")
+    # live (41 visits, 2026-10-20): of the countesses' 47 hits on us while a copy of the gravebug was up, 2 on the
+    # gravebug, 28 on the phoenix, 17 on Logan; with the gravebug free 107 of 134 on it
+    w = world_with([{"key": "vampire countess", "at": [5266, 650, 0]}], seed=5, start=(5266, 653))
+    m = next(m for m in w.mobs.values() if m.key == "vampire countess")
+    m.hits = m.hits_max = 10 ** 6
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for p in w.pets():
+        p.mode = "stay"
+    gb.x, gb.y = 5266, 651
+    m.target, m.threat, m.warmode = gb.serial, {gb.serial: 1e6}, True
+    sp = next(sp for sp in m.spec["specials"] if sp["kind"] == "transfix")
+    w._transfix(gb, {**sp, "pet_damage": None}, m)
+    m.spec = {**m.spec, "specials": [s for s in m.spec["specials"] if s["kind"] != "transfix"] + [
+        {**sp, "every_s": 10 ** 6}]}           # no second transfix in the test
+    m.cd["transfix"] = 10 ** 6
+    copy = next(o for o in w.mobs.values() if o.spec.get("copy_of") == gb.serial)
+    link, clock = link_for(w)
+    clock.advance(2.0)
+    during = m.target
+    clock.advance(max(0.0, copy.expires - w.t) + 2.0)
+    check("the gravebug held: she is on another of us", during not in (None, gb.serial), f"target {during}")
+    check("the copy gone: back on the gravebug (its threat)", m.target == gb.serial, f"target {m.target}")
+
+
 def test_on_another_player():
     print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
     # live 20261019_095934 10:10:57-10:11:28 (hunt-20261019-100618-80b2): a tormented soul in war mode on Lord Phaze at
@@ -2069,7 +2095,7 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet, test_pet_shot, test_on_another_player, test_others_corpse_not_looted,
+              test_idle_pet, test_pet_shot, test_countess_held_pet, test_on_another_player, test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,

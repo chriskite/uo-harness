@@ -4088,16 +4088,20 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
 - **Spawns moved and added**: a shadowguard 3 tiles east to its live sightings (in pull reach through a wall, the
   runner walked 155-168-step routes at it; live never over 100); a corpse purger at (5229, 732), 12 idle first
   sightings there (purgers met 3.2 an hour -> 7.8, live 9.7).
-- **On par now**: kills (101 against 95), deaths to monsters (1.2 against 0.7, inside the interval), retreats,
-  leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk
-  requests 5,836 an hour against 5,555; quiet and standing 15 % against 18 %); the gravebug's fights (a monster in
-  war mode beside it 0.53 against 0.55 on average); server answers (a skill's target cursor 46 ms, a corpse opened
-  47 ms) and the runner's reaction to them. The runner's hits-lost count reads 0.90x the status drops live, 0.83x
-  the world's simulated: comparable.
-  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.69x (heal potions 0.64x; the countess's share
-  0.01 against 0.10 live, her transfixed copies met 0.36x); the phoenix's damage 1.75x and the gravebug's 1.29x (vet
-  1.5x); bard uses a kill 1.86 against 1.51; gold 1.32x; the level's idle population at a spawn on Logan's approach
-  63 % against 33 % live.
+- **A countess doesn't fight a pet she holds**: while a copy of the gravebug was up, 2 of the countesses' 47 hits on
+  us went to the held gravebug, 28 to the phoenix, 17 to Logan (with it free 107 of 134 on it; animation within
+  0.15 s, one candidate only). The simulator now has her drop a pet whose copy is up; the 18:22 replay 3 deaths of
+  24 -> 1.
+- **On par now** (live 43 visits): kills (101 against 94), deaths to monsters (0.9 against 0.7), retreats, leaves for
+  hits, walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk requests 5,836
+  an hour against 5,555; quiet and standing 15 % against 18 %); Logan's distance to the nearest monster in war mode;
+  whom a monster hits first (Logan 15 % in both); the gravebug's fights (a monster in war mode beside it 0.53
+  against 0.55 on average); server answers (a skill's target cursor 46 ms, a corpse opened 47 ms) and the runner's
+  reaction to them. The runner's hits-lost count reads 0.90x the status drops live, 0.84x the world's simulated.
+  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.66x (heal potions 0.64x; the countess's share
+  0.03 against 0.10 live, her transfixed copies met 0.35x; tormented souls start on him 17 % live, 3 % simulated);
+  the phoenix's damage 1.8x and the gravebug's 1.3x (vet 1.5x); bard uses a kill 1.83 against 1.51; gold 1.31x; the
+  level's idle population at a spawn on Logan's approach 63 % against 33 % live.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
