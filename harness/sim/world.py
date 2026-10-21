@@ -65,11 +65,13 @@ LEASH = 24                # a monster chasing beyond this from home gives up [IN
 LOST_S = 8.0              # ...or after its target was out of sight this long [INFERENCE]
 TANK_DRAW_R = 3           # a guarding Tank this much beyond a waking monster's range can still draw it (_think)
 SWITCH_X = 1.1            # a monster changes target when another's threat passes its target's by this factor
-RETARGET_P = 0.15         # a monster on a pet turns to the player nearer it, this chance a think (docs/SIM.md "Parity
+RETARGET_P = 0.05         # a monster on a pet turns to the player nearer it, this chance a think (docs/SIM.md "Parity
 #                           with the live runs": live Logan took 16 % of our side's damage, the simulator 8 %; of the
-#                           attributed hits by type his share was 0.03-0.23 live against 0.00-0.05; 0.15 gave his
-#                           damage 0.88-0.90x with deaths 1.3-1.4 an hour (live 0.6, its interval to 1.3-1.4), 0.3
-#                           1.00x and deaths 2.6x) [INFERENCE: the mechanism; the server's re-acquire of the nearest]
+#                           attributed hits by type his share was 0.03-0.23 live against 0.00-0.05). With the spawn
+#                           spread and wander, 144 runs each: 0 gave his damage 0.75x and deaths 1.2 an hour, 0.05
+#                           0.84x and 1.1, 0.1 0.95x and 1.8, 0.15 0.99x and 2.0 (live 0.6, its interval to 1.3): the
+#                           simulator's deaths rise faster with his damage than live [INFERENCE: the mechanism, the
+#                           server's re-acquire of the nearest]
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
 PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
@@ -220,6 +222,7 @@ class World:
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
         self.orng = random.Random(seed * 7919 + 17)  # the other players' own draws: the rest of the world's stay put
+        self.wrng = random.Random(seed * 104729 + 3)  # spawn spread and idle wander: the rest of the world's stay put
         self.next_other_t = None              # the next other player's arrival on the level
         self.engaged_fn = None                # sim.run: the runner's engaged target (metrics only)
         self.others_in_view = {}              # other player serial -> time it came into our view
@@ -315,6 +318,9 @@ class World:
         spec = self.sc["creatures"][sp["key"]]
         x, y = sp["at"][:2]
         z = self.stand_z(x, y, sp["at"][2] if len(sp["at"]) > 2 else 0)
+        tiles = self._spawn_tiles(i, (x, y, z))
+        if tiles:
+            x, y, z = self.wrng.choice(tiles)
         if self._occupied(x, y):
             free = [(x + dx, y + dy) for dx, dy in nav.DIR_DELTA if not self._occupied(x + dx, y + dy)]
             if not free:
@@ -328,6 +334,24 @@ class World:
         m.next_think = self.t + self.rng.uniform(0, THINK_S)
         self.mobs[m.serial] = m
         sp["mob"] = m.serial
+
+    def _spawn_tiles(self, i, at) -> list:
+        """The tiles a spawn puts its monster on: walkable, within `defaults.spawn_spread` of its point and in sight
+        of it (cached). Live idle first sightings stood a median 3 tiles from their spawn's point (q75 4, q90 6;
+        1,037 sightings, 41 visits, 2026-10-20); the simulator's stood on it [INFERENCE: a spawner's home range]."""
+        sp = self.spawns[i]
+        if "_tiles" not in sp:
+            r = self.sc["defaults"].get("spawn_spread", 0)
+            out = []
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    tx, ty = at[0] + dx, at[1] + dy
+                    tz = self.stand_z(tx, ty, at[2])
+                    if any(self.walk.can_walk(tx, ty, tz, d) for d in range(8)) \
+                            and self.sight.can_see((tx, ty, tz), at):
+                        out.append((tx, ty, tz))
+            sp["_tiles"] = out
+        return sp["_tiles"]
 
     # ------------------------------------------------------------ other players (scenario `others`)
     def others(self) -> list:
@@ -979,8 +1003,15 @@ class World:
             if cheb(m.pos, m.home) > 2 and t >= m.next_step:
                 m.next_step = self._due(m.next_step, m.spec["step_s"] * 2)
                 self._step_toward(m, m.home, 1)
-            elif m.hits < m.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
+                return
+            if m.hits < m.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
                 m.hits = min(m.hits_max, m.hits + max(1, m.hits_max * 0.01))
+            if m.expires is None and self.wrng.random() < self.sc["defaults"].get("wander_per_s", 0.0) * TICK_S:
+                for d in self.wrng.sample(range(8), 8):         # the first open way within 2 of home
+                    to = self.walk.can_walk(m.x, m.y, m.z, d)
+                    if to is not None and cheb(to, m.home) <= 2 and not self._occupied(to[0], to[1], m.serial):
+                        self._place(m, to, d)
+                        break
             return
         self._warm(m, True)
         self._abilities(m, tgt, m.spec)

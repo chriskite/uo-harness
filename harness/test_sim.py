@@ -36,6 +36,7 @@ def check(name, cond, extra=""):
 def world_with(spawns, seed=1, start=FLOOR, others=False):
     sc = load()
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # the tests place each monster on its tile
     sc["player"]["start"] = [start[0], start[1], 0]
     if others:
         sc["others"] = {**sc["others"], "enabled": True, "arrive_per_h": 0.0}   # the test places its own (add_other)
@@ -1988,6 +1989,7 @@ def test_soul_jar_guards():
                  {"key": "vampire bat", "at": [5175, 682, 25]}]
         wolf = [{"key": "shade wolf", "at": [5199, 683, 25]}]
         sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in (wolf if case == "pets fighting" else group)]
+        sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
         sc["player"]["start"] = [5197, 682, 0]
         sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 1,
                                        "kind": "soul_jar"})

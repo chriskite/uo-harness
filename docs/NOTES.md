@@ -4111,16 +4111,21 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
 - **The phoenix holds where it has a shot**: live in fights it stood 3+ tiles from Logan 57 % of the time; the
   simulated one stepped back to within 2 between shots (11 %), so a nightstalker's charge at it landed beside him
   (17 % of landings within a tile of Logan against the live 8 %). Now its distances from him match live by the tile.
-- **On par now** (live 47 visits): kills (100 against 96), retreats, stand-offs (28.9 in both), leaves for hits,
-  walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk requests 5,836 an hour
-  against 5,555; quiet and standing 15 % against 18 %); Logan's distance to the nearest monster in war mode; whom a
-  monster hits first; the phoenix's distance from Logan in fights; the gravebug's fights; server answers (a skill's
-  target cursor 46 ms, a corpse opened 47 ms) and the runner's reaction to them. The runner's hits-lost count reads
-  0.90x the status drops live, 0.85x the world's simulated.
-  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.82x with deaths 1.3 an hour against 0.6 (the
-  interval's top; the simulator's now die to diseases with the blightmares and purgers, 38 of 67); the phoenix's
-  damage 1.7x and the gravebug's 1.2x (vet 1.4x); bard uses a kill 1.89 against 1.49; pull holds 1.5x; gold 1.23x;
-  the level's idle population at a spawn on Logan's approach 63 % against 33 % live.
+- **Pets hardly catch the diseases**: -21 chains 5 s apart came 0.32 infections an hour on the gravebug and none on
+  the phoenix live, 2.0 on Logan; the scenario's `pet_chance` 0.01 (the simulated gravebug had ~24 an hour).
+- **Spawns spread and idle monsters drift**: live idle first sightings stood a median 3 tiles from their spawn's point
+  (q75 4, q90 6) and idle monsters in view moved in 11 % of seconds. `defaults.spawn_spread` 4 and `wander_per_s`
+  0.11 (`world.wrng`, so the world's other draws stay put). With them the retarget refitted: 0.05 (0 gave Logan's
+  damage 0.75x and deaths 1.2 an hour; 0.15 0.99x and 2.0).
+- **On par now** (live 47 visits): kills (104 against 96), deaths to monsters (1.1 against 0.6, inside the
+  interval), retreats, stand-offs, leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, the
+  monsters met but the corpsebride (0.80x) and four rare dear types (1.4-2.8x); the pace; Logan's distance to the
+  nearest monster in war mode; whom a monster hits first; the phoenix's distance from Logan; idle monsters' drift;
+  the gravebug's fights; server answers and the runner's reaction to them.
+  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.84x (more of it live is steady disease and hits
+  from 3-5 tiles; the simulator's deaths rise faster with it); the phoenix's damage 1.8x and the gravebug's 1.26x
+  (vet 1.46x); bard uses a kill 1.79 against 1.49; pull holds 1.37x; gold 1.28x; a spawn occupied at Logan's approach
+  48 % against 33 %.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
