@@ -4092,16 +4092,30 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   us went to the held gravebug, 28 to the phoenix, 17 to Logan (with it free 107 of 134 on it; animation within
   0.15 s, one candidate only). The simulator now has her drop a pet whose copy is up; the 18:22 replay 3 deaths of
   24 -> 1.
-- **On par now** (live 43 visits): kills (101 against 94), deaths to monsters (0.9 against 0.7), retreats, leaves for
-  hits, walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk requests 5,836
-  an hour against 5,555; quiet and standing 15 % against 18 %); Logan's distance to the nearest monster in war mode;
-  whom a monster hits first (Logan 15 % in both); the gravebug's fights (a monster in war mode beside it 0.53
-  against 0.55 on average); server answers (a skill's target cursor 46 ms, a corpse opened 47 ms) and the runner's
-  reaction to them. The runner's hits-lost count reads 0.90x the status drops live, 0.84x the world's simulated.
-  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.66x (heal potions 0.64x; the countess's share
-  0.03 against 0.10 live, her transfixed copies met 0.35x; tormented souls start on him 17 % live, 3 % simulated);
-  the phoenix's damage 1.8x and the gravebug's 1.3x (vet 1.5x); bard uses a kill 1.83 against 1.51; gold 1.31x; the
-  level's idle population at a spawn on Logan's approach 63 % against 33 % live.
+- **Logan takes 16 % of our side's damage live, the simulator gave him 8 %**: by type his share of the attributed
+  hits was 0.03-0.23 live against 0.00-0.05 (the shadowguard 0.18/0.05, the banshee 0.17/0.02). Not the bard skills
+  (a Discordance on a monster hitting the pets left his share of its hits at 4 %, 360 casts). `world.RETARGET_P` 0.15:
+  a monster on a pet turns to Logan when he is nearer it and in sight [INFERENCE: mechanism]; his damage 0.66x ->
+  0.90x, deaths 0.9 -> 1.3-1.4 an hour. Turning to him anywhere in a caster's reach instead: deaths 4.5x at 0.05.
+- **The gravebug draws whoever is nearest at a wake**: live a monster's first victim was the gravebug 73-79 % whoever
+  of us was nearest (1,173 wakes; the phoenix nearest: gravebug 74 %, phoenix 7 % of 58). The Tank draw now takes
+  the phoenix's wakes too: the phoenix as first victim 20 % -> 14 % (live 10 %), its damage 3,600 -> 3,095 an hour.
+- **A sixth of Logan's damage is disease ticks**: 96 of his 603 numbers on 41 visits were -21 (the purger's and the
+  blightmare's disease tick), 4.1 infections an hour: "You have contracted a foul disease!" (purger barrage) 1.4,
+  "The creature's spell blights you with a foul disease!" (blightmare) 1.4, "You have been ensnared and diseased!" 0.9
+  (source not seen: nothing in war mode within 12 or a shadowguard 6 off), "The creature torments you with a foul
+  disease!" (a tormented soul's melee) 0.4. The simulator: 1.7 an hour. A tormented soul's "5 s hits from 3 tiles"
+  were these ticks on the nearest-monster attribution.
+- **On par now** (live 45 visits): kills (102 against 95), the damage on Logan (2,056 against 2,295), retreats,
+  leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, most monsters met; the pace (walk
+  requests 5,836 an hour against 5,555; quiet and standing 15 % against 18 %); Logan's distance to the nearest
+  monster in war mode; whom a monster hits first; the gravebug's fights (a monster in war mode beside it 0.53 against
+  0.55 on average); server answers (a skill's target cursor 46 ms, a corpse opened 47 ms) and the runner's reaction
+  to them. The runner's hits-lost count reads 0.90x the status drops live, 0.84x the world's simulated.
+  **Still apart** (docs/SIM.md "Still apart"): deaths 1.4 an hour against 0.6 (interval to 1.3) for less damage:
+  live more of it is steady disease and hits from 3-5 tiles, simulated the nightstalker's charges kill; the phoenix's
+  damage 1.5x and the gravebug's 1.3x (vet 1.5x); bard uses a kill 1.87 against 1.50; gold 1.29x; the level's idle
+  population at a spawn on Logan's approach 63 % against 33 % live.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

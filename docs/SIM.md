@@ -776,57 +776,69 @@ What was off, and the changes:
   countess kept hitting the held gravebug, her highest threat. Now a countess drops a pet whose copy is up and takes
   the next of us at once, and comes back by threat when it ends (`test_countess_held_pet`). The countess's share of
   the damage on Logan 0.01 -> 0.03 (live 0.10); the 18:22 replay 3 deaths of 24 -> 1.
+- **Logan's share of the damage** (`world.RETARGET_P` 0.15): live he took 16 % of our side's damage (2,295 of
+  14,830 an hour), the simulator's 8 %, and of each type's attributed hits his share was 0.03-0.23 live against
+  0.00-0.05 (the shadowguard 0.18 against 0.05, the banshee 0.17 against 0.02, the apparition and the vampire bat
+  0.13 against 0.01-0.02). Not the bard skills: a Discordance on a monster already hitting the pets left his share of
+  its hits at 4 % (360 casts). Now a monster on a pet turns to Logan when he is nearer it and in its sight, 0.15 a
+  think (fitted: 0.05 gave his damage 0.78x, 0.3 1.00x with deaths 2.6x) [INFERENCE: the mechanism, the server
+  re-acquiring the nearest]. Tried and not kept: turning to him anywhere in its reach (a caster's range): 0.05
+  already gave deaths 4.5x.
+- **The Tank draw on the phoenix's wakes too**: live a monster's first victim was the gravebug 74 % and the phoenix
+  7 % in the 58 wakes where the phoenix was the nearest of us (the gravebug 73-79 % whoever was nearest, 1,173
+  wakes); the simulated draw only took Logan's, and the phoenix was the first victim of 20 % of the monsters (live
+  10 %). With it 14 %, and the damage on the phoenix 3,600 -> 3,095 an hour.
 
 | per hour on the level | live (95 % interval) | sim at the start | sim with the Tank draw | sim now |
 |---|---|---|---|---|
-| kills | 94.3 (87.3-102.0) | 87.8 | 90.0 | 100.8 |
-| gold | 87,300 (75,100-100,000) | 89,500 | 103,200 | 114,200 |
-| damage on Logan (overhead numbers live, the world's simulated) | 2,298 (1,909-2,741) | - | 1,757 | 1,522 |
-| hits lost (the runner's count) | 2,060 (1,743-2,453) | 2,125 | 1,517 | 1,284 |
-| heal potions | 47.7 (41.2-55.2) | 46.4 | 33.6 | 30.5 |
-| vet supplies | 123 (114-133) | 227 | 208 | 182 |
-| stand-offs | 27.6 (20.7-34.5) | 30.9 | 36.5 | 35.6 |
-| retreats | 1.5 (0.5-3.0) | 3.3 | 1.8 | 1.2 |
-| pull holds | 86.1 (74.7-97.2) | 64.0 | 103.0 | 124.7 |
-| discord fails | 31.7 (26.6-37.7) | 51.4 | 39.2 | 42.6 |
-| peace fails | 15.9 (11.8-20.3) | 23.3 | 20.6 | 23.6 |
-| deaths to monsters | 0.7 (0.2-1.4) | 1.7 | 1.5 | 0.9 |
-| deaths on the walk out | 0.5 (0-1.2) | 0.5 | 0.7 | 0.4 |
-| soul jars filled | 1.0 (0.3-1.9) | 1.2 | 0.9 | 1.0 |
-| eerie corpses seen | 2.5 (1.1-4.5) | 1.6 | 2.7 | 2.7 |
-| damage on the gravebug | 10,340 (9,345-11,350) | 14,255 | 13,451 | 13,569 |
-| damage on the phoenix | 2,038 (1,634-2,467) | 4,779 | 4,578 | 3,714 |
+| kills | 94.9 (88.2-101.9) | 87.8 | 90.0 | 101.5 |
+| gold | 89,500 (77,100-102,300) | 89,500 | 103,200 | 115,300 |
+| damage on Logan (overhead numbers live, the world's simulated) | 2,295 (1,917-2,706) | - | 1,757 | 2,056 |
+| hits lost (the runner's count) | 2,069 (1,757-2,446) | 2,125 | 1,517 | 1,730 |
+| heal potions | 47.8 (41.8-54.7) | 46.4 | 33.6 | 38.5 |
+| vet supplies | 125 (115-137) | 227 | 208 | 184 |
+| stand-offs | 28.2 (21.7-35.2) | 30.9 | 36.5 | 34.9 |
+| retreats | 1.5 (0.4-2.8) | 3.3 | 1.8 | 2.2 |
+| pull holds | 85.2 (74.4-96.4) | 64.0 | 103.0 | 127.0 |
+| discord fails | 31.8 (26.8-37.5) | 51.4 | 39.2 | 45.3 |
+| peace fails | 15.5 (11.6-19.7) | 23.3 | 20.6 | 23.6 |
+| deaths to monsters | 0.6 (0.1-1.3) | 1.7 | 1.5 | 1.4 |
+| deaths on the walk out | 0.5 (0-1.2) | 0.5 | 0.7 | 0.7 |
+| soul jars filled | 1.0 (0.3-1.8) | 1.2 | 0.9 | 1.2 |
+| eerie corpses seen | 2.6 (1.2-4.4) | 1.6 | 2.7 | 2.6 |
+| damage on the gravebug | 10,627 (9,602-11,742) | 14,255 | 13,451 | 13,904 |
+| damage on the phoenix | 2,089 (1,700-2,525) | 4,779 | 4,578 | 3,095 |
 
 "At the start": the scenario and runner of the morning (c334fce) with eerie corpses and players, no `--prior`;
 before the Tank draw (this branch merged with main's 7047a1d, 144 runs) deaths were 2.0 an hour and the damage on
-Logan 2,308; "with the Tank draw": d707203 (144 runs, 48.7 h); "now": with the fixes above (144 runs, 54.4 h), live
-43 visits (5.87 h). The damage on Logan: live the overhead numbers on him match the server's status drops (12,843 to
+Logan 2,308; "with the Tank draw": d707203 (144 runs, 48.7 h); "now": with the fixes above (144 runs, 50.8 h), live
+45 visits (6.20 h). The damage on Logan: live the overhead numbers on him match the server's status drops (12,843 to
 12,805 on 41 visits); the runner's own hits-lost count reads 0.90x of them live (11,496) and 0.84x of the world's
 simulated. Monsters met an hour (now): within the live interval the tormented soul, shadowguard, banshee, shadow
-minion, apparition, bound soul, nightstalker, vampire bat, countess, forgotten soul, purger and the elder vampires;
-below it the shade wolf 0.76x, corpsebride 0.80x, vampire 0.61x, reanimated knight 0.38x, transfixed copies 0.35x;
-above it the blightmare 1.4x, daemon 1.5x, master reanimator 1.7x, consort 2.7x. The 18:22 replay now: 1 death of
-24, 14 jars, lowest hits median 57.
+minion, apparition, bound soul, nightstalker, vampire bat, countess, purger and the elder vampires; below it the
+shade wolf 0.73x, corpsebride 0.81x, vampire 0.58x, reanimated knight 0.40x, transfixed copies 0.33x; above it the
+forgotten soul 1.5x, blightmare 1.4x, daemon 1.4x, master reanimator 1.8x, consort 2.9x. The 18:22 replay (before the
+retarget): 1 death of 24, 14 jars, lowest hits median 57; with it 2 of 24, 13 jars, 62.
 
-**On par** (one-second samples, all 41 visits, 5.2 h, against 12 simulated runs): the pace (5,555 walk requests an
-hour on the level live, 5,836 simulated; quiet and standing 18 % of the time live, 15 % simulated; moving with
-nothing in war mode in view 27 % in both; fighting in view 55 % and 58 %), Logan's distance to the nearest monster in
-war mode (adjacent 7.6 % of fighting time live, 9.2 % simulated), the gravebug's fights (a monster in war mode
-beside it 0.55 on average live, 0.53 simulated after the phoenix fix), whom a monster hits first (Logan 15 % in both,
-the gravebug 75 % and 65 %, of 541 and 985 monsters), the server's answers (a skill's target cursor median 46 ms, a
-corpse opened 47 ms) and the runner's reactions to them (the next packet after a bard result median 2.7 s live, 2.3
-simulated; after a vet channel 0.47 and 0.3).
+**On par** (one-second samples, all 41 visits, 5.2 h, against 12 simulated runs, before the retarget): the pace
+(5,555 walk requests an hour on the level live, 5,836 simulated; quiet and standing 18 % of the time live, 15 %
+simulated; moving with nothing in war mode in view 27 % in both; fighting in view 55 % and 58 %), Logan's distance to
+the nearest monster in war mode (adjacent 7.6 % of fighting time live, 9.2 % simulated), the gravebug's fights (a
+monster in war mode beside it 0.55 on average live, 0.53 simulated after the phoenix fix), whom a monster hits first
+(Logan 15 % in both), the server's answers (a skill's target cursor median 46 ms, a corpse opened 47 ms) and the
+runner's reactions to them (the next packet after a bard result median 2.7 s live, 2.3 simulated; after a vet
+channel 0.47 and 0.3).
 
 **Still apart** (open):
-- **The damage on Logan** 0.66x (heal potions 0.64x) with deaths inside the interval. By source (live: the nearest
-  monster in war mode at each number): the countess 0.10 of it live and 0.03 simulated, her transfixed copies met
-  0.35x, the shadowguards 0.08 and 0.04, the tormented souls 0.09 and 0.04 (first on Logan 8 of 46 live, 3 %
-  simulated); the simulated nightstalker (0.11 against 0.03, first on Logan 0 of 35 live, 10 % simulated),
-  apparitions (0.10 against 0.03) and daemon (0.10 against 0.05) give him more. A monster that began on Logan hit
-  only him in 42 of 83 live (unambiguous hits only, so an upper bound), 19 % simulated.
-- **The phoenix's damage** 1.8x and the gravebug's 1.3x, hence 1.5x the vet supplies; bard uses 1.83 a kill against
-  1.51, pull holds and stand-offs 1.3-1.45x; gold 1.31x (1.22x a kill: the dearer daemon, reanimators, consort and
-  blightmare met 1.4-2.7x, the cheap shade wolves 0.76x).
+- **Deaths for the damage**: live 0.6 an hour on 2,295 of damage, simulated 1.4 on 2,056 (0.9 on 1,522 without the
+  retarget). Live more of it comes steady: 96 of his 603 numbers were a disease's -21 ticks (16 % of the damage;
+  4.1 infections an hour: a purger's barrage 1.4, a blightmare's spell 1.4, "You have been ensnared and diseased!"
+  0.9 from an unseen source, a tormented soul's melee 0.4), simulated 1.7 infections an hour; and his hits from
+  3-5 tiles off are 2.3x the simulator's. The simulator's deaths: the nightstalker's charges (18 of ~70 in a batch,
+  live none since the live server), the blightmare and purger diseases (37).
+- **The phoenix's damage** 1.5x and the gravebug's 1.3x, hence 1.5x the vet supplies; bard uses 1.86 a kill against
+  1.50, pull holds and stand-offs 1.25-1.5x; gold 1.29x (the dearer daemon, reanimators, consort, blightmare and
+  forgotten soul met 1.4-2.9x, the cheap shade wolves 0.73x).
 - **The level's population**: an idle monster stood within 4 tiles of a spawn at Logan's approach (60+ s away) 33 %
   of 1,171 times live, 63 % simulated, about as low on a visit's first approach (36 %) as 7+ minutes after his last
   pass (23 %); idle monsters in his view 1.52 on average live, 1.9-2.1 simulated (in war mode 0.87 and 0.94). Live

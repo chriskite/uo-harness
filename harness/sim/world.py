@@ -64,6 +64,12 @@ THINK_S = 0.5             # a monster/pet re-decides its target this often (RunU
 LEASH = 24                # a monster chasing beyond this from home gives up [INFERENCE]
 LOST_S = 8.0              # ...or after its target was out of sight this long [INFERENCE]
 TANK_DRAW_R = 3           # a guarding Tank this much beyond a waking monster's range can still draw it (_think)
+SWITCH_X = 1.1            # a monster changes target when another's threat passes its target's by this factor
+RETARGET_P = 0.15         # a monster on a pet turns to the player nearer it, this chance a think (docs/SIM.md "Parity
+#                           with the live runs": live Logan took 16 % of our side's damage, the simulator 8 %; of the
+#                           attributed hits by type his share was 0.03-0.23 live against 0.00-0.05; 0.15 gave his
+#                           damage 0.88-0.90x with deaths 1.3-1.4 an hour (live 0.6, its interval to 1.3-1.4), 0.3
+#                           1.00x and deaths 2.6x) [INFERENCE: the mechanism; the server's re-acquire of the nearest]
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
 PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
@@ -1027,9 +1033,15 @@ class World:
                  and o.serial not in held]
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
+        pl = self.player
+        if RETARGET_P and cur is not None and cur.kind == "pet" and pl.serial in live and not pl.ghost \
+                and cheb(pl.pos, m.pos) < cheb(cur.pos, m.pos) and self.can_see(m, pl) and self.rng.random() < RETARGET_P:
+            m.threat[pl.serial] = max(m.threat.get(pl.serial, 0), threat.get(cur.serial, 0) * SWITCH_X + 1)
+            m.target, m.seen_target_t = pl.serial, t
+            return
         if threat:
             best = max(threat, key=threat.get)
-            if best != m.target and (cur is None or threat[best] > threat.get(m.target, 0) * 1.1):
+            if best != m.target and (cur is None or threat[best] > threat.get(m.target, 0) * SWITCH_X):
                 m.target, m.seen_target_t = best, t
             return
         if cur is not None:
@@ -1050,11 +1062,12 @@ class World:
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
         o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other"), -o.spec.get("threat_x", 1.0)))
-        if o.kind == "player":
+        if o.kind == "player" or (o.kind == "pet" and o.spec.get("threat_x", 1.0) < 2.0):
             # but live the gravebug took the first contact in 61 of the 99 wakes where Logan was the nearest seen; the
             # rule above alone gave it 29 % (docs/SIM.md "Parity with the live runs"; the user's call 2026-10-20 to
             # follow the data): a guarding Tank that the monster sees within its range + TANK_DRAW_R (the pets trail
-            # us 1-3 tiles) draws it at the wake with `defaults.tank_draw`, fitted to that 61 %
+            # us 1-3 tiles) draws it at the wake with `defaults.tank_draw`, fitted to that 61 %. The phoenix nearest
+            # too: live its first victim was the gravebug 74 % and the phoenix 7 % (58 wakes, 2026-10-20)
             tanks = [p for p in cands if p.kind == "pet" and p.mode == "guard" and p.spec.get("threat_x", 1.0) >= 2.0
                      and cheb(p.pos, m.pos) <= m.spec["aggro_range"] + TANK_DRAW_R and self.can_see(m, p)]
             if tanks and self.rng.random() < self.sc["defaults"].get("tank_draw", 0.0):
