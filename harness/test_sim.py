@@ -115,22 +115,26 @@ def discord(link, m):
 
 
 def test_aggro_rules():
-    print("== a monster goes for whichever of us it sees first; our act pulls it only before the pets hit ==")
+    print("== a monster goes for whichever of us it sees first, a guarding Tank behind us drawing it at "
+          "tank_draw; our act pulls it only before the pets hit ==")
     results = {}
-    for where, ys in (("behind", 646), ("between", 650)):
+    for where, ys, draw in (("behind", 646, 0.0), ("behind, Tank draw", 646, 1.0), ("between", 650, 0.0)):
         w = world_with([{"key": "shade wolf", "at": [5266, 654, 0]}])
         m = next(m for m in w.mobs.values() if m.kind == "monster")
         m.spec = {**m.spec, "aggro_range": 7}                   # we at 6; the pets at 8 (behind) or 4 (between)
         w.sc["defaults"]["wake_s"] = None                       # who it picks, at once: no wake delay here
+        w.sc["defaults"]["tank_draw"] = draw
         for p, x in zip(w.pets(), (5266, 5267)):
             p.x, p.y = x, ys
         link, clock = link_for(w)
         link.send(tamer.command("all guard me"))
         clock.advance(0.6)
         tgt = w.mobs.get(m.target)
-        results[where] = tgt.kind if tgt else None
-    check("pets on guard behind us, out of its range: it goes for us; the pets between: for a pet",
-          results == {"behind": "player", "between": "pet"}, str(results))
+        results[where] = tgt.key if tgt and tgt.kind == "pet" else tgt.kind if tgt else None
+    check("pets behind us, out of its range: us; with the Tank draw: the gravebug (live first contact 61 %); "
+          "the pets between: a pet",
+          results["behind"] == "player" and results["behind, Tank draw"] == "gravebug"
+          and results["between"] in ("gravebug", "phoenix"), str(results))
     pulled = {}
     for hurt_first in (False, True):
         w = world_with([{"key": "shade wolf", "at": [5266, 651, 0]}], seed=3)

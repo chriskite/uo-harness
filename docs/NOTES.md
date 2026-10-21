@@ -4030,7 +4030,8 @@ improve-maus branch:
   respawns, 4 game minutes, 24 seeds. On the final calibration of "The simulator against the live runs" below: the
   runner of the morning (c334fce) 7 deaths, 24 jars filled, Logan's lowest hits median 43; the merged runner (main's
   jar guards, transfix wait and failed-walk carry-on, and the fix below) 1 death, 13 jars, 55. The deaths left are
-  the countess room's own fight (corpsebride wails, transfixed copies).
+  the countess room's own fight (corpsebride wails, transfixed copies). With the Tank draw adopted later the same
+  day ("The simulator against the live runs"): 3 deaths, 9 jars, 53.
 - **A step away in a fight that mobiles block no longer stands waiting** (`Mover.walk_to` `mobile_wait=0` for the
   retreat, stand-off, back-off, evade, fall-back and back-to-the-pets walks; `WalkFailed` at once): `MOBILE_WAIT_S`
   90 s let a retreat stand "cut by mobiles we couldn't shove; waiting" while hit (live 2026-10-15 22:57:56, dead a
@@ -4065,13 +4066,19 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   attack, where the simulator applied 386. Its damage x 1.373; kill times from our first hit came from 1.0-1.6x of
   live to 0.9-1.3x. Not the creatures' hits: live kills from full took exactly the scenario's hits + 1.
 - **Eerie corpses**: 2.5 an hour came into view live; the simulator now has them (`--eerie`), 2.4.
-- **Now within the live interval** (merged with main's 7047a1d): hits lost, heal potions, retreats, discord and peace
-  failures, leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares; kills 0.92x, just under it.
-  **Still apart** (docs/SIM.md "Still apart"): deaths to monsters 2.8x (2.0 against 0.7 an hour; the nightstalker's
-  charges on Logan, its share of his damage 0.14 against 0.02 live), the pets' damage 1.7x and 2.7x (vet 1.6x; the
-  live number two ways, overhead "-N" and their hits share drops x their real hits, agree within 7 %), stand-offs and
-  pull holds 1.3-1.4x, gold 1.16x, and the monsters met an hour ~1.3x for several types: the simulator walks more an
-  hour at the same step pace [INFERENCE: live time between decisions].
+- **Now within the live interval** (merged with main's 7047a1d, with the Tank draw below): kills, the damage on Logan
+  (overhead numbers live 1,617 an hour, the world's 1,757; the runner's own hits-lost count doesn't compare: live it
+  runs 1.28x over the server's status drops), deaths to monsters (1.5 against 0.7), retreats, peace failures, leaves
+  for hits, walk-out deaths, soul jars, eerie corpses, the zone shares.
+- **The first contact** (user's call 2026-10-20, "Adopt the Tank draw"): where Logan was the nearest seen at a wake,
+  live the gravebug took the first contact 61 % (99 wakes, 2026-10-15 audit), the simulator 29 %, so its monsters,
+  the nightstalker above all (Logan nearer at 31 of 44 simulated wakes against 4 of 22 live), went for Logan. A
+  guarding Tank in sight within the monster's range + 3 now takes the wake with `tank_draw` 0.9 (61 % simulated):
+  deaths 2.0 -> 1.5 an hour, the damage on Logan 2,308 -> 1,757 (live 1,617).
+  **Still apart** (docs/SIM.md "Still apart"): heal potions 0.70x, the pets' damage 1.8x and 3.0x (vet 1.7x; the live
+  number two ways, overhead "-N" and their hits share drops x their real hits, agree within 7 %), stand-offs and pull
+  holds 1.2-1.3x, gold 1.19x, and the monsters met an hour ~1.3x for several types: the simulator walks more an hour
+  at the same step pace [INFERENCE: live time between decisions].
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

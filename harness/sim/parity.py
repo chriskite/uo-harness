@@ -231,7 +231,7 @@ def sim_visits(results: list[dict]) -> tuple[list[dict], list[dict], dict]:
     the level, the damage on the pets and on us by source (the world's own accounting), the monsters met by type and
     the eerie corpses seen (runs with them on)."""
     visits, fights = [], []
-    world = {"hunt_h": 0.0, "pets": {}, "us_by": {}, "met": {}, "eerie_seen": 0, "eerie_h": 0.0}
+    world = {"hunt_h": 0.0, "us": 0.0, "pets": {}, "us_by": {}, "met": {}, "eerie_seen": 0, "eerie_h": 0.0}
     for r in results:
         if "sim_s" not in r:
             continue
@@ -246,6 +246,7 @@ def sim_visits(results: list[dict]) -> tuple[list[dict], list[dict], dict]:
         visits += vs
         fights += r.get("fights") or []
         world["hunt_h"] += r["hunt_s"] / 3600
+        world["us"] += r["player_damage_taken"]
         for n, d in (r.get("pet_damage_taken") or {}).items():
             world["pets"][n] = world["pets"].get(n, 0) + d
         for key, src in (("us_by", r.get("player_damage_by")), ("met", r.get("met"))):
@@ -304,14 +305,17 @@ def report(live: list[dict], live_fights: list[dict], scan: list[dict], sim: lis
         for w in scan:
             i = idx.get(f"{w['t0']:.1f}")
             if i is not None:
-                rows.append({"h": L[i]["h"], **{f"pet:{n}": d for n, d in w["pets"].items()},
+                rows.append({"h": L[i]["h"], "us": sum(w["us_by"].values()),
+                             **{f"pet:{n}": d for n, d in w["pets"].items()},
                              **{f"met:{k}": n for k, n in w["met"].items()}})
         wh = max(world["hunt_h"], 1e-9)
         keys = {k for r in rows for k in r if k != "h"} | {f"met:{k}" for k in world["met"]}
         for r in rows:
             for k in keys:
                 r.setdefault(k, 0)
-        out.append("damage on the pets (overhead numbers live; the world's accounting simulated), per hour on the level:")
+        out.append("damage on us and the pets (overhead numbers live, which match the status drops: 7,242 numbers to "
+                   "7,222 hits lost on 35 visits; the world's accounting simulated), per hour on the level:")
+        line("us", rows, world["us"] / wh)
         for k in sorted(k for k in keys if k.startswith("pet:")):
             line(k, rows, world["pets"].get(k[4:], 0) / wh)
         out.append("monsters met on the level (first sightings), per hour:")

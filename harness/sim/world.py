@@ -63,6 +63,7 @@ TICK_S = 0.1              # world step
 THINK_S = 0.5             # a monster/pet re-decides its target this often (RunUO AI ~0.5-1 s) [INFERENCE]
 LEASH = 24                # a monster chasing beyond this from home gives up [INFERENCE]
 LOST_S = 8.0              # ...or after its target was out of sight this long [INFERENCE]
+TANK_DRAW_R = 3           # a guarding Tank this much beyond a waking monster's range can still draw it (_think)
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
 PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
@@ -1026,6 +1027,15 @@ class World:
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
         o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other"), -o.spec.get("threat_x", 1.0)))
+        if o.kind == "player":
+            # but live the gravebug took the first contact in 61 of the 99 wakes where Logan was the nearest seen; the
+            # rule above alone gave it 29 % (docs/SIM.md "Parity with the live runs"; the user's call 2026-10-20 to
+            # follow the data): a guarding Tank that the monster sees within its range + TANK_DRAW_R (the pets trail
+            # us 1-3 tiles) draws it at the wake with `defaults.tank_draw`, fitted to that 61 %
+            tanks = [p for p in cands if p.kind == "pet" and p.mode == "guard" and p.spec.get("threat_x", 1.0) >= 2.0
+                     and cheb(p.pos, m.pos) <= m.spec["aggro_range"] + TANK_DRAW_R and self.can_see(m, p)]
+            if tanks and self.rng.random() < self.sc["defaults"].get("tank_draw", 0.0):
+                o = min(tanks, key=lambda p: cheb(p.pos, m.pos))
         m.target, m.seen_target_t = o.serial, t
         m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
 
