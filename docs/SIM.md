@@ -780,6 +780,16 @@ transfixed copies 0.34x.
   the simulator's do. Live nightstalker wakes came with Logan a median 10 tiles off and a pet nearer (the pets
   fighting by its spawn, or the nightstalker room below a floor away); why the simulated runner meets them first
   is open.
+  **First contact**: where Logan was the nearest seen at a wake, the gravebug took the first contact in 61 of 99
+  live (the 2026-10-15 audit) but 29 % in the simulator (334 wakes, 24 runs), where a monster keeps the nearest it
+  saw until a pet's damage outweighs him. Tried and not kept (2026-10-20): a guarding Tank within the monster's range
+  + 3 that it sees takes the wake with a chance fitted to the live 61 % (0.9). 144 runs: deaths 2.0 -> 1.5 an hour
+  (inside the live interval), kills 0.95x, but Logan's hits lost 2,043 -> 1,517 and heal potions 45.6 -> 33.6 an hour,
+  both below the live interval, and the pets' damage up (gravebug 13,451, phoenix 4,578); the replay 1 -> 3 deaths
+  of 24. It also goes against the user's rule the simulator keeps ("Any mob that 'sees' Logan before it sees a pet is
+  going to aggro on him directly", 2026-10-15): a pet's first contact may be the pet striking first, not the
+  monster's pick. The rest of Logan's live damage (the countess 0.13 of it, the purgers 0.07, against 0.01-0.02
+  simulated) would have to rise with it. Needs the user's call.
 - **The pets' damage** 1.7x (gravebug) and 2.7x (phoenix), hence 1.6x the vet supplies: monsters stand in war mode
   within 12 tiles of a pet 2.5x as long an hour as live (none 66 % of the hunting time live, 28 % simulated; measured
   before the phoenix's recalibration).
