@@ -4151,8 +4151,13 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   eerie rate refitted to it): kills 0.99x, gold 0.98x, the damage on Logan 0.97x, hits lost 0.99x, potions 1.00x,
   discord and peace successes and fails, stand-offs, retreats, leaves, walk-out deaths, soul jars, eerie corpses,
   every monster type met within the live interval.
-  **Still apart** (docs/SIM.md "Still apart"): the phoenix's damage 1.41x (vet 1.17x), pull holds 1.24x, deaths 1.3
-  an hour against 0.5 (two live deaths: inside the interval).
+  **Then**: the phoenix's `threat_x` 0.3 -> 0.1 (live 81 / 9.6 / 9.4 % of the monsters' attributed hits on the
+  gravebug / phoenix / Logan; 0.1 gives 80 / 9.4 / 11 %), the nightstalker takes the Tank before the phoenix (live 94 %
+  of its hits on the gravebug), and the vet supplies heal a pet 104-202 (the gravebug's bar rose a median 30 % at a
+  live channel's finish, 145 of them; 40-120 before). On the yardstick now: kills 0.98x, gold 0.97x, the damage on
+  Logan 0.95x, the phoenix 1.22x and the gravebug 0.92x (both inside the interval), potions 0.99x, vet 1.11x.
+  **Still apart** (docs/SIM.md "Still apart"): pull holds 1.22x, discord fails 1.19x (at the interval's top), vet
+  1.11x, deaths 1.4 an hour against 0.5 (inside the interval).
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

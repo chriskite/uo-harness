@@ -850,35 +850,42 @@ What was off, and the changes:
   x 5235-5239, y 670-687, two at once 7 times; met 17.8 an hour simulated against 25.8); the dear rare spawns refitted
   (the blightmare back to 120-300 s, the daemon and the master reanimator 240-480 s, the consort 360-720 s; met
   live 5.3 / 3.5 / 3.2 / 1.6); the eerie corpses' level rate 7.5 an hour (3.7 came into view live, 2.3 at 5.0).
+- **Whom the pets' foes hit**: of the monsters' attributed hits on all 41 live visits the gravebug took 81 %, the
+  phoenix 9.6 %, Logan 9.4 %; the simulator with the phoenix's `threat_x` 0.3 78 / 11.6 / 10.6 %, with 0.1 80 / 9.4 /
+  11 %: now 0.1. The nightstalker (`pets_first`) takes the Tank before the phoenix (live 94 % of its hits on the
+  gravebug, 5 % on the phoenix; any pet put 32 % on the phoenix).
+- **The vet supplies' heal on a pet** (`vet.heal_pet` 104-202, median 135): the gravebug's hit bar rose 23 / 30 / 45 %
+  (q10 / median / q90, n=145) at a channel's finish live, x 4.5 hits a percent; 40-120 before (36 from the first
+  capture). Vet supplies an hour 1.19x -> 1.11x.
 
 | per hour on the level | live since 10-17 23:08 (95 % interval) | live since 10-15 21:10 | sim at the start | sim now |
 |---|---|---|---|---|
-| kills | 103.8 (97.4-110.3) | 96.1 | 87.8 | 102.2 |
-| gold | 114,000 (107,600-119,800) | 91,800 | 89,500 | 111,700 |
-| damage on Logan (overhead numbers live, the world's simulated) | 2,588 (2,185-3,078) | 2,362 | - | 2,514 |
-| hits lost (the runner's count) | 2,424 (2,051-2,851) | 2,144 | 2,125 | 2,401 |
-| heal potions | 51.6 (43.4-60.3) | 48.0 | 46.4 | 51.6 |
-| vet supplies | 144 (132-157) | 129 | 227 | 169 |
-| stand-offs | 31.7 (24.5-39.0) | 28.9 | 30.9 | 26.5 |
-| retreats | 1.6 (0.3-3.4) | 1.7 | 3.3 | 1.6 |
-| pull holds | 92.0 (82.2-102.0) | 83.6 | 64.0 | 114.3 |
-| discord successes | 78.5 (72.4-84.7) | 67.0 | - | 80.9 |
-| discord fails | 35.4 (28.7-42.1) | 31.5 | 51.4 | 41.3 |
-| peace successes | 36.7 (32.5-41.6) | 29.2 | - | 37.8 |
-| peace fails | 18.9 (14.2-24.0) | 15.4 | 23.3 | 21.3 |
-| deaths to monsters | 0.5 (0-1.4) | 0.6 | 1.7 | 1.3 |
-| deaths on the walk out | 0.5 (0-1.4) | 0.5 | 0.5 | 0.5 |
-| soul jars filled | 1.3 (0.3-2.7) | 0.9 | 1.2 | 1.6 |
-| eerie corpses seen | 3.7 (1.7-6.4) | 2.7 | 1.6 | 3.5 |
-| damage on the gravebug | 11,794 (10,460-13,063) | 10,937 | 14,255 | 10,546 |
-| damage on the phoenix | 2,165 (1,640-2,749) | 2,150 | 4,779 | 3,053 |
+| kills | 103.8 (97.4-110.3) | 96.1 | 87.8 | 101.6 |
+| gold | 114,000 (107,600-119,800) | 91,800 | 89,500 | 110,800 |
+| damage on Logan (overhead numbers live, the world's simulated) | 2,588 (2,185-3,078) | 2,362 | - | 2,450 |
+| hits lost (the runner's count) | 2,424 (2,051-2,851) | 2,144 | 2,125 | 2,335 |
+| heal potions | 51.6 (43.4-60.3) | 48.0 | 46.4 | 51.0 |
+| vet supplies | 144 (132-157) | 129 | 227 | 160 |
+| stand-offs | 31.7 (24.5-39.0) | 28.9 | 30.9 | 25.2 |
+| retreats | 1.6 (0.3-3.4) | 1.7 | 3.3 | 1.5 |
+| pull holds | 92.0 (82.2-102.0) | 83.6 | 64.0 | 112.1 |
+| discord successes | 78.5 (72.4-84.7) | 67.0 | - | 79.8 |
+| discord fails | 35.4 (28.7-42.1) | 31.5 | 51.4 | 42.3 |
+| peace successes | 36.7 (32.5-41.6) | 29.2 | - | 36.8 |
+| peace fails | 18.9 (14.2-24.0) | 15.4 | 23.3 | 20.7 |
+| deaths to monsters | 0.5 (0-1.4) | 0.6 | 1.7 | 1.4 |
+| deaths on the walk out | 0.5 (0-1.4) | 0.5 | 0.5 | 0.6 |
+| soul jars filled | 1.3 (0.3-2.7) | 0.9 | 1.2 | 1.4 |
+| eerie corpses seen | 3.7 (1.7-6.4) | 2.7 | 1.6 | 3.3 |
+| damage on the gravebug | 11,794 (10,460-13,063) | 10,937 | 14,255 | 10,846 |
+| damage on the phoenix | 2,165 (1,640-2,749) | 2,150 | 4,779 | 2,648 |
 
 "At the start": the scenario and runner of the morning (c334fce) with eerie corpses and players, no `--prior`;
-"now": with the fixes above (288 runs, seeds 1001-1288, 102.8 h). The damage on Logan: live the overhead numbers on
+"now": with the fixes above (288 runs, seeds 1001-1288, 100.9 h). The damage on Logan: live the overhead numbers on
 him match the server's status drops (12,843 to 12,805 on 41 visits); the runner's own hits-lost count reads 0.94x of
-them on the yardstick and 0.96x of the world's simulated. Monsters met an hour: every type within the yardstick's
-interval but the void slime (not in the scenario). Crawl time by zone 16/21/30/28/5 % live, 14/29/30/22/5 %
-simulated. The 18:22 replay: 4 deaths of 24, 13 jars, lowest hits median 62.
+them on the yardstick and 0.95x of the world's simulated. Monsters met an hour: every type within the yardstick's
+interval but the void slime (not in the scenario). Crawl time by zone 16/21/30/28/5 % live, 14/28/30/23/5 %
+simulated. The 18:22 replay: 2 deaths of 24, 14 jars, lowest hits median 59.
 
 **On par** (one-second samples, all 41 visits, 5.2 h, against 12 simulated runs, before the retarget): the pace
 (5,555 walk requests an hour on the level live, 5,836 simulated; quiet and standing 18 % of the time live, 15 %
@@ -887,16 +894,17 @@ the nearest monster in war mode (adjacent 7.6 % of fighting time live, 9.2 % sim
 monster in war mode beside it 0.55 on average live, 0.53 simulated after the phoenix fix), whom a monster hits first
 (Logan 15 % in both), the server's answers (a skill's target cursor median 46 ms, a corpse opened 47 ms) and the
 runner's reactions to them (the next packet after a bard result median 2.7 s live, 2.3 simulated; after a vet
-channel 0.47 and 0.3). Since: the phoenix's distance from Logan in fights, idle monsters' drift.
+channel 0.47 and 0.3). Since: the phoenix's distance from Logan in fights, idle monsters' drift, the share of the
+monsters' hits on each of us.
 
 **Still apart** (open, on the yardstick):
-- **The phoenix's damage** 1.41x (the gravebug's 0.89x), hence 1.17x the vet supplies. Apparitions blink 34 times an
-  hour in our view simulated against 21 on all live visits.
-- **Pull holds** 1.24x ("holding here: X would see us").
-- **Deaths** 1.3 an hour against 0.5 (two live deaths in 3.76 h: inside the interval). On all live visits Logan's
+- **Pull holds** 1.22x ("holding here: X would see us"); discord fails 1.19x (at the interval's top); vet supplies
+  1.11x.
+- **Deaths** 1.4 an hour against 0.5 (two live deaths in 3.76 h: inside the interval). On all live visits Logan's
   damage holds more disease ticks (96 of his 603 numbers were -21: 4.1 infections an hour, a purger's barrage 1.4, a
   blightmare's spell 1.4, "You have been ensnared and diseased!" 0.9 from an unseen source, a tormented soul's
   melee 0.4), simulated 5.8 ticks an hour against the live 17.3.
+- The void slime (1.9 met an hour live) isn't in the scenario.
 
 ## Limits
 

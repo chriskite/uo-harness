@@ -1101,10 +1101,14 @@ class World:
             m.seen_target_t = t
         cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)
                  and o.serial not in held]
-        if m.key in self.sc["defaults"].get("pets_first", ()) and any(o.kind == "pet" and not o.ghost for o in cands):
-            cands = [o for o in cands if o.kind != "player"]     # scenario defaults pets_first_note
-            if cur is not None and cur.kind == "player":
-                m.target, cur = None, None
+        if m.key in self.sc["defaults"].get("pets_first", ()):
+            # scenario defaults pets_first_note: the Tank, else a pet, over Logan
+            ours = [o for o in cands if o.kind == "pet" and not o.ghost]
+            keep = [o for o in ours if o.spec.get("threat_x", 1.0) >= 2.0] or ours
+            if keep:
+                cands = keep + [o for o in cands if o.kind in OTHERS]
+                if cur is not None and cur.serial not in {o.serial for o in cands}:
+                    m.target, cur = None, None
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
         pl = self.player
