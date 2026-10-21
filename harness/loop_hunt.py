@@ -144,6 +144,7 @@ import home as home_mod  # noqa: E402
 import hunt_return  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import healing  # noqa: E402
+import localmap  # noqa: E402
 import los  # noqa: E402
 import nav  # noqa: E402
 import pathfind  # noqa: E402
@@ -170,7 +171,7 @@ ROPE_RETRY_S = 2.0            # after a try that found no landing or got no curs
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
 ROPE_REFUSED = (501942, 500237, 500446)   # "That location is blocked." (live 13:40:52.9), "Target cannot be seen.", too far
 ROPE_CALM_S = 3.0             # a flight's rope only when no player has hit or attacked us this long (rope_worth)
-ROPE_LEGS_MAX = 30
+GATE_LEGS_MAX = 30           # walk legs of a planned walk out to the leave gate (a fight or a pet wait between legs)
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE; 12, as
 #                              the blightmare cast live 2026-10-19 19:54:43, cost the sim 12 more pet-death runs in 144 by
@@ -193,6 +194,21 @@ DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25")
 CAST_CURSOR_WAIT_S = 4.0      # a spell's cursor comes after its cast delay
 SPELL_RANGE = 10              # [INFERENCE] RunUO spell range (12 pre-ML, 10 ML)
 SPELL_BLOCK_S = 10.0          # after "too far away" / "cannot be seen": melee only for this long
+# A flight from hostile players (leave_by_gate's flee_out; live 2026-10-21 10:35:05-13, hunt-20261021-102636-fdda: two
+# reds came down the corridor (5243, 708) -> south, the only way from Maus 3's east wing to the leave gate; the rope
+# jumped Logan 9 tiles north onto their tile column, (5244, 716) beside Ticket Tongje, and the walk went on north past
+# them: dead 8 s after the leave at (5244, 710))
+RED_RECENT_S = 20.0           # a hostile player out of view still counts where last seen this long (hostile_spots)
+RED_ZONE_R = 6                # ...the Mover's danger zone round each: the flight's routes bend round them
+RED_PASS_R = SPELL_RANGE      # a route to the gate that comes this close to one, nearer than we stand, passes it
+FLEE_FAR_R = 22               # a flee tile this far from every hostile player is far enough (past the 18-tile view)
+FLEE_SEARCH_R = 24            # flee tiles: those the walk rules reach within this square (localmap.steps)...
+FLEE_DETOUR = 2               # ...in at most this many times their distance in steps (not round a wall to another room)
+FLEE_GAIN = 2                 # a flee leg only toward a tile at least this much farther from the nearest hostile player
+FLEE_LEG_STEPS = 6            # steps of a flight's leg before the way to the gate is looked at again
+FLEE_MAX_S = 60.0             # flee legs this long at most; then to the gate past them, round them as the zones allow
+FLEE_HOLD_S = 0.5             # far enough and the way still passes them: a look again after this
+FLEE_LEGS_MAX = 200           # legs, ropes and looks of a flight at most (flee_out)
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
 LOOT_DEFER_S = 1.0            # a corpse in an area hitter's reach (tamer.Team.loot_tile): looked at again this soon
@@ -289,6 +305,7 @@ class HuntLoop:
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
         self.rope_next = 0.0                     # --rope: the next rope jump not before
         self.rope_refused = set()                # --rope: (x, y) landings the server refused this run
+        self.hostile_seen = {}                   # serial -> ((x, y), monotonic time) of hostile players (hostile_spots)
         self._drinking = False
         self._looking = False                    # in look(): a pause inside the threat checks sleeps plainly
         self._looked_t = -1e9
@@ -1698,26 +1715,20 @@ class HuntLoop:
             and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC))
 
     def rope_worth(self, st) -> bool:
-        """A flight's rope (rope_ready_now) only while no player is on us: the cast stands us ~1 s (user
-        2026-10-17: "ropes are useful for getting through groups of mobs or getting a lead on a red while they're
-        not currently hitting us ... if a red is already on top of us its not good to just stand there and wait
-        for the rope cast to resolve"). On us: '<name> is attacking you!' from a player, or a damage number over
-        us while a red stands within spell range, in the last ROPE_CALM_S."""
-        if not self.rope_ready_now(st):
-            return False
+        """A flight's rope (rope_ready_now) only while no player is on us (player_calm)."""
+        return self.rope_ready_now(st) and self.player_calm(st)
+
+    def player_calm(self, st) -> bool:
+        """No player on us: the rope's cast stands us ~1 s (user 2026-10-17: "ropes are useful for getting through
+        groups of mobs or getting a lead on a red while they're not currently hitting us ... if a red is already on
+        top of us its not good to just stand there and wait for the rope cast to resolve"). On us: '<name> is
+        attacking you!' from a player, or a damage number over us while a red stands within spell range, in the
+        last ROPE_CALM_S."""
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
         players = [t for t in a.threats if t.player]
         names = {(t.name or "").lower() for t in players}
         red_near = any(t.kind == "red" and 0 <= t.distance <= self.watch.params.player_strike_range for t in players)
-        me, now = self.me(st), time.time()
-        ev, et = self.link.events, self.link.event_t
-        for i in range(len(ev) - 1, -1, -1):
-            if now - et[i] > ROPE_CALM_S:
-                break
-            e = ev[i]
-            if e.get("ev") != "speech_heard" or serial_of(e.get("serial") or 0) != me:
-                continue
-            text = e.get("text") or ""
+        for text in self.lines_over_us(st, ROPE_CALM_S):
             if text.endswith(ATTACKED_BY) and (text[: -len(ATTACKED_BY)].lower() in names
                                                or not text[0].islower()):   # a player, seen or not ("a shade wolf" isn't)
                 return False
@@ -1725,19 +1736,91 @@ class HuntLoop:
                 return False
         return True
 
-    def rope_jump(self, goal) -> bool:
+    def lines_over_us(self, st, within_s: float) -> list[str]:
+        """The overhead texts over us (speech_heard on our serial) of the last `within_s`, newest first."""
+        me, now = self.me(st), time.time()
+        ev, et, out = self.link.events, self.link.event_t, []
+        for i in range(len(ev) - 1, -1, -1):
+            if now - et[i] > within_s:
+                break
+            e = ev[i]
+            if e.get("ev") == "speech_heard" and serial_of(e.get("serial") or 0) == me:
+                out.append(e.get("text") or "")
+        return out
+
+    def hostile_spots(self, st) -> dict:
+        """{serial: (x, y)} of the hostile players a flight runs from: red players in view, and players in view
+        named in '<name> is attacking you!' within RED_RECENT_S; one out of view counts where it was last seen for
+        RED_RECENT_S (hostile_seen)."""
+        a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
+        named = {t[: -len(ATTACKED_BY)].lower() for t in self.lines_over_us(st, RED_RECENT_S) if t.endswith(ATTACKED_BY)}
+        mobs, now = st["world"]["mobiles"], time.monotonic()
+        for t in a.threats:
+            if t.player and t.distance >= 0 and (t.kind == "red" or (t.name or "").lower() in named):
+                m = mobs.get(f"0x{t.serial:08X}") or {}
+                if m.get("x") is not None:
+                    self.hostile_seen[t.serial] = ((m["x"], m["y"]), now)
+        for s, (_, t) in list(self.hostile_seen.items()):
+            if now - t > RED_RECENT_S:
+                del self.hostile_seen[s]
+        return {s: xy for s, (xy, _) in self.hostile_seen.items()}
+
+    def hostile_zones(self, spots: dict):
+        """The Mover's danger zones (keys 'red:<serial>', RED_ZONE_R) round `spots`: a flight's routes bend round
+        them (Mover.danger_cost), a moved one asks for a replan; the ones not in `spots` go."""
+        mv = self.mover
+        for k in [k for k in mv.danger if k.startswith("red:") and int(k[4:], 16) not in spots]:
+            del mv.danger[k]
+        for s, xy in spots.items():
+            k, old = f"red:{s:08X}", mv.danger.get(f"red:{s:08X}")
+            if old is None or cheb(old[0], xy) >= 2:
+                mv.danger[k] = (xy, RED_ZONE_R)
+                mv.replan_requested = True
+
+    def passes_hostile(self, path, spots: dict, here):
+        """The serial of a hostile player the route `path` passes (comes within RED_PASS_R of, nearer than we
+        stand now), else None."""
+        for s, xy in spots.items():
+            if path and len(path) > 1 and min(cheb(t, xy) for t in path[1:]) < min(cheb(here, xy), RED_PASS_R):
+                return s
+        return None
+
+    def flee_tile(self, st, spots: dict, failed=()):
+        """The tile to run to from `spots`: of those the walk rules reach within FLEE_SEARCH_R in at most
+        FLEE_DETOUR times their distance (no mobile on it, no known teleporter, not `failed`: walks there that
+        failed), the farthest from the nearest of them (up to FLEE_FAR_R), the fewest steps on a tie; None without
+        one FLEE_GAIN farther than here (cornered, or far enough already)."""
+        walk = self.mover.walk_map(st)
+        if walk is None or not spots:
+            return None
+        x, y, z = self.pos(st)[:3]
+
+        def far(t) -> int:
+            return min(FLEE_FAR_R, *(cheb(t, xy) for xy in spots.values()))
+        steps = localmap.steps(walk, (x, y, los.surface_z(walk, x, y, z)), radius=FLEE_SEARCH_R)
+        skip = self.mover.occupied(st) | self.mover.teleporter_tiles(st["world"]["self"].get("map")) | set(failed)
+        best = max(((far(t), -n, t) for t, n in steps.items()
+                    if n <= FLEE_DETOUR * cheb((x, y), t) and t not in skip), default=None)
+        return best[2] if best is not None and best[0] >= far((x, y)) + FLEE_GAIN else None
+
+    def rope_jump(self, goal, spots: dict | None = None) -> bool:
         """One Adventurer's Rope jump toward `goal` (Logan's escapes: '[Rope', then the ground target;
         jumps of 7-10 tiles, an 11-tile target refused): the farthest tile of the route there within ROPE_R
         that is in sight, 4 or more tiles off, its z walked along the route (a ledge's z beside it would
-        strand us). True when we landed. Knowledge #13325: a Teleport by the spell's rules, 5 s cooldown
-        from the use; followers on Follow come along (#5141)."""
+        strand us). From hostile players (`spots`, hostile_spots) only a landing farther from every one of them
+        than we stand: none on the route, the one of the tiles we could walk to within ROPE_R farthest from the
+        nearest of them (live 2026-10-21 10:35:06: the route to the gate ran past two reds and the rope landed
+        Logan beside one of them). The cursor answered with Esc when a player turned on us meanwhile (player_calm;
+        live 10:35:06.07 "Ticket Tongje is attacking you!" between the cursor and our target). True when we
+        landed. Knowledge #13325: a Teleport by the spell's rules, 5 s cooldown from the use; followers on Follow
+        come along (#5141)."""
         st = self.link.state()
         if not self.rope_ready_now(st):
             return False
         self.rope_next = time.monotonic() + ROPE_RETRY_S
         path, walk = self.mover.plan(st, nav.within(goal, 0), mobiles=False)
         sight = los.sight_for(self.mover.walkers, st["world"]["self"].get("map")) if walk is not None else None
-        if not path or sight is None:
+        if sight is None or not (path or spots):
             return False
         # in our sight as a ground target is checked: from our eye (z from the map's surface where we stand, not the
         # world model's z, which lags) to the tile's ground (as the "All Patrol" clicks: 8 of 8 agreed with the
@@ -1747,17 +1830,31 @@ class HuntLoop:
         pos = (x0, y0, los.surface_z(walk, x0, y0, zw))
         eye = (x0, y0, pos[2] + los.EYE)
         occupied = self.mover.occupied(st)      # live 13:40:52.9 "That location is blocked." (a summon on it)
+        spots = spots or {}
+        tele = self.mover.teleporter_tiles(st["world"]["self"].get("map"))   # never onto one (the Mover's walls too)
+
+        def ok(t) -> bool:
+            return cheb(pos, t) >= 4 and sight.point_blocked(eye, t) is None and t[:2] not in occupied \
+                and t[:2] not in self.rope_refused and t[:2] not in tele \
+                and all(cheb(t, xy) > cheb(pos, xy) for xy in spots.values())
         best, cur = None, pos
-        for t in path[1:]:
+        for t in path[1:] if path else ():
             if cheb(pos, t) > ROPE_R:
                 break
             cur = walk.can_walk(cur[0], cur[1], cur[2], nav.direction(cur[:2], t[:2]))
             if cur is None or cur[:2] != tuple(t[:2]):
                 break
-            if cheb(pos, cur) >= 4 and sight.point_blocked(eye, cur) is None and cur[:2] not in occupied \
-                    and cur[:2] not in self.rope_refused:
+            if ok(cur):
                 best = cur
+        if best is None and spots:
+            steps = localmap.steps(walk, pos, radius=ROPE_R)
+            cands = [(t[0], t[1], los.surface_z(walk, t[0], t[1], pos[2])) for t, n in steps.items()
+                     if n <= FLEE_DETOUR * cheb(pos, t)]
+            best = max((t for t in cands if ok(t)), default=None,
+                       key=lambda t: (min(cheb(t, xy) for xy in spots.values()), -cheb(t, goal)))
         if best is None:
+            if spots:
+                log("rope: no landing in reach farther from the hostile player(s)")
             return False
         mark = len(self.link.events)
         self.link.act(actions.say_ascii("[Rope"))
@@ -1771,6 +1868,10 @@ class HuntLoop:
             return False
         cur = self.link.state()["world"]["target"]
         self.human.wait("hotkey_aim")
+        if self.pk_flight and not self.player_calm(self.link.state()):
+            self.cancel(cur)
+            log("rope: a player turned on us before the target went out: cursor cancelled (Esc), running on")
+            return False
         self.link.act(actions.target_xyz(cur["cursor_id"], best[0], best[1], best[2], 0, cur.get("cursor_type") or 0))
         mark = len(self.link.events)
         landed = self.link.wait(lambda s: cheb(s["movement"]["pos"], best) <= 1
@@ -1785,8 +1886,13 @@ class HuntLoop:
             self.rope_refused.add(tuple(best[:2]))
         self.rope_next = time.monotonic() + ROPE_COOLDOWN_S
         self.count("ropes" if landed else "rope_misses")
-        log(f"rope to {best[:2]} ({cheb(pos, best)} tiles): " + ("landed" if landed else
-                                                                 f"no jump (cliloc {refused})" if refused else "no jump"))
+        away = ""
+        if spots:
+            away = (f", {min(cheb(pos, xy) for xy in spots.values())} -> "
+                    f"{min(cheb(best, xy) for xy in spots.values())} tiles from the nearest hostile player")
+        log(f"rope to {best[:2]} ({cheb(pos, best)} tiles{away}): " + ("landed" if landed else
+                                                                       f"no jump (cliloc {refused})" if refused else
+                                                                       "no jump"))
         return landed
 
     def leave_by_gate(self, severity: str) -> dict:
@@ -1798,7 +1904,8 @@ class HuntLoop:
         as the walk-in does (walk_in_stop): attacked, the pets guard until it's over (walk_in_fight); a pet
         lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside the gate).
         From a hostile player (severity urgent), as Logan fled reds three times (20261013_173449,
-        20261014_170144, _173858): Adventurer's Rope jumps along the way whenever one is ready (rope_jump).
+        20261014_170144, _173858): flee_out, away from them first when the way passes them, Adventurer's Rope
+        jumps whenever one is worth it (rope_jump).
         -> {ok, from, to, dest, elapsed_s[, error]}."""
         gate = tuple(self.args.leave_gate)
         urgent = severity not in PLANNED
@@ -1829,40 +1936,39 @@ class HuntLoop:
                 def stop(s):
                     if through(s):
                         return "through the gate"
-                    if flee:
-                        return "a rope is worth it" if self.rope_worth(s) else None
                     if severity not in PLANNED:
                         return self.leave_called_off(s, severity)
                     if self.walk_hurt(s) or self.attackers(s):
                         return "under attack"
                     return self.pets_lagging(s) if lag["wait"] else None
-                for _ in range(ROPE_LEGS_MAX):
-                    if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
-                        break
-                    if flee and self.rope_worth(self.link.state()) and self.rope_jump(near):
-                        continue
-                    why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
-                                             max_moves=max(250, 3 * self.out_steps), stop=stop)
-                    if why == "through the gate" or through(self.link.state()):
-                        break
-                    if why and severity in PLANNED:
-                        if why == "under attack" and cheb(self.pos(self.link.state()), gate) <= GATE_DASH_R:
-                            # live 2026-10-17 19:04:15: attacked 2 tiles from the gate, the pets guarded and Logan
-                            # stood in an apparition's hits there, dead 3.5 s later (user: "We were at the gate
-                            # and Logan just stood there dying instead of going through")
-                            log(f"to the moongate: attacked {cheb(self.pos(self.link.state()), gate)} tiles from "
-                                f"it; through it now")
-                            dash = True
+                if flee:
+                    if near is not None:
+                        self.flee_out(gate, near, through)
+                else:
+                    for _ in range(GATE_LEGS_MAX):
+                        if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
                             break
-                        if why == "under attack":
-                            self.walk_in_fight("to the moongate", "out")
-                        elif not self.wait_pets("to the moongate", None, required=False):
-                            lag["wait"] = False
-                        continue
-                    if why and not flee:
-                        return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
-                                "dest": self.args.gate_dest}
-                    if not why:
+                        why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
+                                                 max_moves=max(250, 3 * self.out_steps), stop=stop)
+                        if why == "through the gate" or through(self.link.state()):
+                            break
+                        if why and severity in PLANNED:
+                            if why == "under attack" and cheb(self.pos(self.link.state()), gate) <= GATE_DASH_R:
+                                # live 2026-10-17 19:04:15: attacked 2 tiles from the gate, the pets guarded and Logan
+                                # stood in an apparition's hits there, dead 3.5 s later (user: "We were at the gate
+                                # and Logan just stood there dying instead of going through")
+                                log(f"to the moongate: attacked {cheb(self.pos(self.link.state()), gate)} tiles from "
+                                    f"it; through it now")
+                                dash = True
+                                break
+                            if why == "under attack":
+                                self.walk_in_fight("to the moongate", "out")
+                            elif not self.wait_pets("to the moongate", None, required=False):
+                                lag["wait"] = False
+                            continue
+                        if why:
+                            return {"ok": False, "called_off": why, "from": list(self.pos(self.link.state())[:2]),
+                                    "dest": self.args.gate_dest}
                         break
                 if (out := self.through_gate(gate, t_walk, through)) is not None:
                     return out
@@ -1912,6 +2018,76 @@ class HuntLoop:
                     "dest": self.args.gate_dest}
         finally:
             self.walking_out = self.pk_flight = False
+
+    def flee_out(self, gate, near, through):
+        """The flight from hostile players to beside the leave gate (`near`; leave_by_gate, severity urgent): their
+        danger zones on the Mover (hostile_zones: the routes bend round them), a look at the way every
+        FLEE_LEG_STEPS while any is known (hostile_spots). When the route passes one (passes_hostile), a leg away
+        from them first (flee_tile), from far enough a look again after FLEE_HOLD_S, and only cornered, or after
+        FLEE_MAX_S of it, the way past them as the zones bend it. A rope jump whenever one is worth it, never
+        landing nearer them (rope_jump). Live 2026-10-21 10:35:05-13 the only way from Maus 3's east wing ran up
+        the corridor two reds came down: the rope landed Logan beside one and the walk went on past them."""
+        t_end = time.monotonic() + FLEE_MAX_S
+        leg = {"start": 0, "look": False}
+        said, failed = [None], set()
+
+        def stop(s):
+            if through(s):
+                return "through the gate"
+            self.hostile_zones(self.hostile_spots(s))
+            if self.rope_worth(s):
+                return "a rope is worth it"
+            return "a look again" if leg["look"] and self.mover.steps - leg["start"] >= FLEE_LEG_STEPS else None
+
+        def say(line):
+            if line != said[0]:
+                said[0] = line
+                log(line)
+        try:
+            for _ in range(FLEE_LEGS_MAX):
+                st = self.link.state()
+                here = tuple(self.pos(st)[:2])
+                if cheb(here, gate) <= 1 or through(st):
+                    return
+                spots = self.hostile_spots(st)
+                self.hostile_zones(spots)
+                goal, label = near, "to the moongate"
+                if spots:
+                    path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
+                    s = self.passes_hostile(path, spots, here)
+                    if s is not None:
+                        xy, fleeing = spots[s], time.monotonic() < t_end
+                        who = (st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name") or f"0x{s:X}"
+                        tile = self.flee_tile(st, spots, failed) if fleeing else None
+                        if tile is not None:
+                            goal, label = tile, "away from them"
+                            say(f"to the moongate: the way passes {who} at {xy} ({cheb(here, xy)} tiles off): away "
+                                f"from them first, toward {tile}")
+                        elif fleeing and min(cheb(here, p) for p in spots.values()) >= FLEE_FAR_R:
+                            say(f"to the moongate: the way passes {who} at {xy}; {FLEE_FAR_R}+ tiles from them here, "
+                                f"looking again")
+                            time.sleep(FLEE_HOLD_S)
+                            continue
+                        else:
+                            say(f"to the moongate: no way round {who} at {xy} ({cheb(here, xy)} tiles off) "
+                                f"{'left' if fleeing else f'after {FLEE_MAX_S:.0f} s'}: past them, round them as "
+                                f"far as the way allows")
+                if self.rope_worth(st) and self.rope_jump(goal, spots):
+                    continue
+                leg["start"], leg["look"] = self.mover.steps, bool(spots)
+                try:
+                    why = self.mover.walk_to(lambda: goal, 0, label, urgent=True,
+                                             max_moves=max(250, 3 * self.out_steps), stop=stop)
+                except WalkFailed as e:
+                    if goal == near:
+                        raise
+                    log(f"away from them: {e}")
+                    failed.add(goal)
+                    continue
+                if why == "through the gate" or (not why and goal == near):
+                    return
+        finally:
+            self.hostile_zones({})
 
     def through_gate(self, gate, t_walk: float, through) -> dict | None:
         """The walk to the leave gate went through it (`through`: a jump from beside it to more than

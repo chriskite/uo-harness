@@ -39,8 +39,12 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   level, run between spawn areas, fight the monsters near them at a measured damage rate and leave;
   monsters take them as targets by the same first-sight and threat rules as us. Their kills' corpses
   are blue (0xFF sub 0xDEAD notoriety 1) and an open of one is refused. They never die [INFERENCE].
+- **Red players** (`World.add_red`, placed by a test; not in the scenario or the batches): a player killer
+  (notoriety 6, flags 0x20) who runs at us, says "<name> is attacking you!" over us within `RED["attack_r"]`
+  in sight, closes to `keep_r` and casts at us every `cast_s`, as the two reds of the live 2026-10-21 10:35
+  death did (`RED`'s numbers). Monsters and the pets leave it be [INFERENCE].
 
-Not modelled: red players, chat or trades with players, the Society job, item durability, skill gains.
+Not modelled: red players in the batches, chat or trades with players, the Society job, item durability, skill gains.
 """
 from __future__ import annotations
 
@@ -100,8 +104,19 @@ TEXT_SONG_WAIT = "You must wait a few moments before performing another barding 
 TEXT_ROPE_PROMPT = "Where do you wish to traverse to?"
 ROPE_R = 10
 ROPE_COOLDOWN_S = 5.0
+ROPE_LAND_S = 0.8         # the rope's target answered -> on the landing tile (live 2026-10-21 10:35:06.54 -> 07.33)
 OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (never ours: not in `team()`)
 FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
+ATTACKED_TEXT = " is attacking you!"   # the server's line over us when a player makes us its target (loop_hunt.ATTACKED_BY)
+# A red player (add_red), from the live death of 2026-10-21 10:35:05-13 (capture session_20261021_085153, Maus 3:
+# 'Ticket Tongje' 0x15abe and 'Di ve nha' 0x6545 on Logan): running, a 0x77 step every 0.18-0.21 s; "... is attacking
+# you!" with him 12-13 tiles off (5243, 712-713 against 5243, 725); both then stood 2-5 tiles off (keep_r) and cast,
+# each one's spell words 2.1-2.4 s apart; the numbers on Logan (-33 -31 -28 -27 and the last 9) 1.4-2.5 s after words.
+# Their first words came 1.3 and 2.6 s after their attack lines. A cast stands it `cast_stand_s` [INFERENCE: ServUO's
+# Spell.BlocksMovement for the cast delay; live Di ve nha's steps came 1.86 and 2.0 s after its words].
+RED = {"step_s": 0.19, "attack_r": 12, "keep_r": 3, "cast_r": 10, "cast_s": 2.3, "first_cast_s": (1.0, 2.6),
+       "cast_stand_s": 1.5, "land_s": (1.4, 2.5), "damage": (27, 33), "words": ("Corp Por", "Vas Ort Flam"),
+       "hits": 120}
 TEXT_NOT_YOURS = "You may not loot this corpse."   # live answer to opening another's kill (docs/HUNT_LOOP.md)
 HELD_NO_USE_TEXT = "You cannot use items while in this state."   # live 2026-10-20 19:23:27.13, transfixed
 LIFT_GAP_S = 0.5         # the server's gap between lifts it takes (combat.LIFT_GAP_S's evidence: refused up to ~0.5 s)
@@ -189,6 +204,7 @@ class Mob:
     leave_t: float = 0.0          # another player leaves the level after this
     dest: tuple | None = None     # ... runs to this spawn area next
     linger_until: float = 0.0     # ... stands about it until then
+    casts: list = field(default_factory=list)   # a red player's spells on their way to us: [landing time, damage]
 
     @property
     def pos(self):
@@ -249,6 +265,7 @@ class World:
         self.song_ready = 0.0
         self.songs = {}                       # barding song -> until
         self.rope_ready = 0.0
+        self.rope_landing = None              # (time, (x, y, z)): a rope's jump on its way (ROPE_LAND_S)
         self.last_use_t = -1e9
         self.potion_ready = 0.0
         self.vet_end = None                   # the running vet channel's finish time
@@ -575,6 +592,46 @@ class World:
             m.next_step = self._due(m.next_step, o["step_s"])
             self._step_toward(m, owner.pos, 1)
 
+    # ------------------------------------------------------------ red players (add_red; module docstring)
+    def add_red(self, x, y, z=None, name="Ticket Tongje", spec=None) -> Mob:
+        """A red player at (x, y) (z: the surface nearest ours), `spec` over RED's numbers."""
+        spec = {**RED, **(spec or {})}
+        z = self.stand_z(x, y, self.player.z if z is None else z)
+        m = Mob(self._serial(), "red", "red player", name, 0x190, x, y, z, hits=spec["hits"], hits_max=spec["hits"],
+                noto=6, spec=spec)
+        self.mobs[m.serial] = m
+        self._view()
+        return m
+
+    def _red(self, m: Mob):
+        """A red player: at us while we live (it knows where we are [INFERENCE]): runs to within keep_r and our
+        sight; our attacker from attack_r in sight (the server's line over us); a spell at us every cast_s within
+        cast_r in sight, standing cast_stand_s for it, landing land_s later wherever we went (a cast spell isn't
+        outrun [INFERENCE])."""
+        t, pl, sp = self.t, self.player, m.spec
+        for c in [c for c in m.casts if t >= c[0]]:
+            m.casts.remove(c)
+            self.hurt(pl, c[1], m, kind="spell")
+        if pl.ghost:
+            m.target, m.casts = None, []
+            self._warm(m, False)
+            return
+        d, sees = cheb(m.pos, pl.pos), self.can_see(m, pl)
+        if m.target is None and d <= sp["attack_r"] and sees:
+            m.target = pl.serial
+            self._warm(m, True)
+            self.send(P.says(pl.serial, pl.name, m.name + ATTACKED_TEXT, kind=0, hue=34, body=pl.body))
+            m.next_swing = t + self.rng.uniform(*sp["first_cast_s"])
+            self.count("red_attacks")
+        if t >= m.next_step and (d > sp["keep_r"] or not sees):
+            m.next_step = self._due(m.next_step, sp["step_s"])
+            self._step_toward(m, pl.pos, sp["keep_r"] if sees else 1)
+        if m.target is not None and t >= m.next_swing and d <= sp["cast_r"] and sees:
+            m.next_swing = self._due(m.next_swing, sp["cast_s"])
+            self._overhead(m, self.rng.choice(sp["words"]), kind=10)
+            m.casts.append([t + self.rng.uniform(*sp["land_s"]), self.rng.randint(*sp["damage"])])
+            m.next_step = max(m.next_step, t + sp["cast_stand_s"])     # no step while casting
+
     def _others_sample(self):
         """Once a second: players in our view while we're on the level (`others_view_s`: count -> seconds, their
         in-view stays `others_dwell`), and the runner's engaged target while it fights another player and no one
@@ -631,7 +688,7 @@ class World:
         return cheb(m.pos, self.player.pos) <= VIEW
 
     def _flags(self, m: Mob, war: bool) -> int:
-        return (0x40 if war else 0) | (FLAG_PLAYER if m.kind == "other" else 0)
+        return (0x40 if war else 0) | (FLAG_PLAYER if m.kind in ("other", "red") else 0)
 
     def _show(self, m: Mob):
         flags = self._flags(m, m.warmode)
@@ -918,6 +975,10 @@ class World:
                 self._land(dest)
         if self.vet_end and t >= self.vet_end:
             self._vet_finish()
+        if self.rope_landing and t >= self.rope_landing[0]:
+            _, to = self.rope_landing
+            self.rope_landing = None
+            self._rope_land(to)
         for due, i in [x for x in self.spawn_due if x[0] <= t]:
             self.spawn_due.remove((due, i))
             self._spawn(i)
@@ -955,6 +1016,8 @@ class World:
                 self._other(m)
             elif m.kind == "otherpet":
                 self._other_pet(m)
+            elif m.kind == "red":
+                self._red(m)
         if self.others_on and int(round(t / TICK_S)) % 10 == 0:
             self._others_sample()
             self._unseen_tick()
@@ -1604,7 +1667,7 @@ class World:
     def _walk(self, p):
         pl = self.player
         seq, d = p[2], p[1] & 7
-        if pl.ghost or pl.held_until > self.t:
+        if pl.ghost or pl.held_until > self.t or self.rope_landing is not None:   # a rope's jump on its way: hindered
             self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
             return
         if d != pl.d:
@@ -2215,11 +2278,18 @@ class World:
         if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), (x, y, z)) is not None:
             self.send(P.cliloc(500237))
             return
-        came = [m for m in self.pets() if m.alive and m.mode == "follow" and cheb(m.pos, pl.pos) <= 12]
         it = self.items[pend["item"]]
         it["amount"] = it.get("amount", 1) - 1
         self.count("ropes")
-        self._teleport(pl, (x, y, z))
+        self.rope_landing = (self.t + ROPE_LAND_S, (x, y, z))
+
+    def _rope_land(self, to):
+        """The rope's jump lands (ROPE_LAND_S after the target): us there, our followers on Follow beside us."""
+        pl = self.player
+        if pl.ghost:
+            return
+        came = [m for m in self.pets() if m.alive and m.mode == "follow" and cheb(m.pos, pl.pos) <= 12]
+        self._teleport(pl, to)
         self._place_beside(came)
         self._view()
         for m in came:

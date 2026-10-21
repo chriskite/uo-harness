@@ -667,9 +667,9 @@ long way out through the countess room. That walk is the open problem now, not t
 
 User request 2026-10-19: other (non-hostile) players in the simulator, so the pets runner's handling of monsters
 fighting someone else, loot rights on their kills and crowded spawns can be tested and A/B'd. Off by default
-(`run.py --others`, the scenario's `others.enabled`); reds are out of scope. The numbers come from 19 live captures
-with Logan on Maus 3 (6.69 h, docs/NOTES.md "Other players at the Mausoleum"); each parameter's evidence is in
-`mausoleum.json`'s `others.note`.
+(`run.py --others`, the scenario's `others.enabled`); reds are out of scope here ("Red players" below). The numbers
+come from 19 live captures with Logan on Maus 3 (6.69 h, docs/NOTES.md "Other players at the Mausoleum"); each
+parameter's evidence is in `mausoleum.json`'s `others.note`.
 
 - **Who**: blue players (notoriety 1, 92 % of the live sightings), a human body, flags 0x20 as every live player's
   0x20/0x77, a player's name (16 seen live) as name and click label: the runner's `threats.identify` calls them
@@ -717,6 +717,17 @@ with Logan on Maus 3 (6.69 h, docs/NOTES.md "Other players at the Mausoleum"); e
 - **Why off by default**: players move every headline number 15-30 % (gold, kills, deaths), so with them on no batch
   would compare with the tables above this section. Use `--others` for anything players touch (targets on others,
   loot rights, crowding), and for a final check of a change.
+
+## Red players (2026-10-21)
+
+For the flight from a red (docs/HUNT_LOOP.md "Never toward them"; live death 2026-10-21 10:35:13, docs/NOTES.md "Dead
+leaving from two reds on Maus 3"). A test places one with `World.add_red(x, y)`; none in the scenario or the batches.
+From that capture (`world.RED`): notoriety 6, flags 0x20, a step every 0.19 s (running) toward us while we live
+[INFERENCE: it knows where we are]; within 12 tiles in sight "<name> is attacking you!" over us; then to 3 tiles in
+sight, a spell at us every 2.3 s within 10 in sight (27-33, landing 1.4-2.5 s after the words, standing 1.5 s for
+each cast [INFERENCE: ServUO's Spell.BlocksMovement]). Monsters and the pets leave it be [INFERENCE]. The rope's jump
+now lands 0.8 s after our target (live 10:35:06.54 -> 07.33), steps denied meanwhile. Tests: test_sim
+`test_red_flight` (the live ground, both reds), `test_rope_cancel_attacked`.
 
 ## Parity with the live runs (2026-10-20)
 
@@ -935,10 +946,10 @@ monsters' hits on each of us.
   teleporters and the monsters first seen near it.
 - Eerie corpses (`--eerie`) lie at the 11 live spots only; their level-wide rate and how long one lies are
   [INFERENCE], set to the live in-view rate. Other players fill jars at them only by standing within 2.
-- Other players since 2026-10-19 ("Other players" below), blue only: no reds (PKs), no chat, trades or
-  guild/party play, no greens or greys (3.6 % of the sightings), and they never die. Their routes (spawn area to
-  spawn area, standing about each), damage cadence and reach, the monsters they pick (not one on our party) and
-  their pets' share are [INFERENCE]. No item loot beyond gold, no skill gain,
+- Other players since 2026-10-19 ("Other players" below), blue only: no reds (PKs) but the ones a test places ("Red
+  players"), no chat, trades or guild/party play, no greens or greys (3.6 % of the sightings), and they never die.
+  Their routes (spawn area to spawn area, standing about each), damage cadence and reach, the monsters they pick (not
+  one on our party) and their pets' share are [INFERENCE]. No item loot beyond gold, no skill gain,
   no pet levels or xp, no Society job. The countess' drain and the poisons are generic (the wiki's; no
   drain heal was ever seen); the bound soul's bleed as an area on everyone within a tile, the
   transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].

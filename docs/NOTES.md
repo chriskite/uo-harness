@@ -4307,6 +4307,54 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   Earlier batches' "pets left behind" here (eb4aba4's 0 -> 1, 2445d12's 6 / 4) were counted the same way. Fixed: a
   run's junctures are those posted in it (test_sim `test_career_junctures`).
 
+## Dead leaving from two reds on Maus 3 (live 2026-10-21 10:35:13, hunt-20261021-102636-fdda)
+
+Capture session_20261021_085153 (0x77 is serial u32, x u32, y u32, z i32, dir: `world/layouts.py`), the store's events.
+
+- **The leave.** 10:35:05.11 "LEAVING by the moongate: red player 0x15abe in view at 17 tiles": 'Ticket Tongje' 0x15abe
+  ('Legendary Serial Killer', '[PEC]', notoriety 6) at (5243, 708), Logan at (5243, 725), the pets beside him. Tongje
+  ran south down Logan's own column, a 0x77 every 0.18-0.21 s (712 at 06.18, 716 at 07.07, 718 at 07.45); 'Di ve nha'
+  0x6545 ('[PEC]', red) came into view at (5243, 707) at 06.23 behind him. The way to the gate (5203, 703) from Maus
+  3's east wing is one corridor north (x 5240-5246, y 696-719) and round by (5242, 654): 135 steps from (5243, 726),
+  through them.
+- **The rope toward them.** "All Follow Me" 05.39; "[Rope" 05.99 (no player on him yet: `rope_worth` true); the cursor
+  06.04; **"Ticket Tongje is attacking you!" 06.07** (and 0xAA, the server making Tongje his combatant), Tongje at
+  (5243, 711), 14 tiles; our target (5244, 716) still went out at 06.54, 0.47 s later, against the user's rule (a rope
+  only while no player is hitting us yet). The target was the route's farthest tile within 9: north, toward them.
+  Landed 07.33 at (5244, 716), Tongje at (5243, 717): beside him. The pets didn't come along (both pets' next 0x20 at
+  07.59 at (5243, 725), 9 tiles behind).
+- **The walk past them.** "to the moongate: route 124 steps from (5244, 716)", north. Two steps refused with 500111
+  "You are frozen and cannot move." (08.09, 09.08; the cause isn't in the packets [INFERENCE: a paralyze]). Di ve
+  nha's "Corp Por" 07.59, 09.88, 11.90, Tongje's "Vas Ort Flam" 08.71, "Corp Por" 11.00, 13.35 (2.1-2.4 s apart each;
+  both stood 2-5 tiles off to cast); on Logan -33 -31 (10.12, 100 -> 36), a potion (+27, 63), the vet, then on north at
+  11.56: (5244, 715 ... 710) past them, -28 12.39, -27 13.20, -9 13.51: dead at (5244, 710), Tongje at (5243, 713),
+  Di ve nha at (5243, 711). 8.4 s from the leave.
+- **Not ours: the swings at Tongje.** 0x2F Logan -> 0x15abe at 07.36 and 12.54 are the server's auto-defence after the
+  0xAA (as with Bastet, "PK death in the Terran wilds"): no 0x05 or 0x72 from the agent or the client, Logan's 0x20
+  flags 0x20-0x22 throughout (never 0x40, war mode); the same swings at monsters at 10:26:45 and 10:29:34.
+- **Fixed** (`loop_hunt.flee_out`, `rope_jump`; docs/HUNT_LOOP.md "Never toward them"): the hostile players are danger
+  zones on the Mover (6 tiles); a way to the gate that comes within 10 of one, nearer than we stand, makes the flight
+  run away from them first (the reachable tile farthest from them), from 22+ off it waits, and only cornered (or after
+  60 s) does it go past them, round them as far as the way allows; a rope lands only farther from every one of them
+  (off the route if need be); a player's attack line between the rope's cursor and our target cancels the cursor.
+  New log lines: "to the moongate: the way passes Ticket Tongje at (5243, 711) (15 tiles off): away from them first,
+  toward (5245, 733)", "rope to (5244, 732) (6 tiles, 15 -> 21 tiles from the nearest hostile player): landed",
+  "rope: a player turned on us before the target went out: cursor cancelled (Esc), running on", "to the moongate: no
+  way round … past them, round them as far as the way allows", "rope: no landing in reach farther from the hostile
+  player(s)".
+- **The simulator** now has red players a test places (`World.add_red`, from these numbers; docs/SIM.md) and the rope's
+  0.8 s from our target to the landing (06.54 -> 07.33). test_sim `test_red_flight` (this ground, both reds): before,
+  the rope 12 -> 3 tiles from Tongje and the nearest red 0 tiles in the first 3 s; after, the rope 9 -> 15 and 16 -> 22,
+  the nearest 9. `test_rope_cancel_attacked`: before the jump went out after the attack line, after the cursor is
+  cancelled. Seeds 1-20 of the live ground: before, 20 dead in 10.3 s on average (9.2-16.5), nearest red in the first
+  3 s 0, 87 of Logan's own moves brought him nearer the nearest red; after, 20 dead in 13.2 s (11.5-20.4), nearest 9-11,
+  35 such moves (cornered at the wing's south end, going round them). One red from behind (Logan at (5243, 716), the
+  red at (5243, 734), the gate's way north): 10 of 10 through the gate, before and after.
+- **No way out of that wing past two chasing casters.** In the simulator they keep 3-4 tiles behind and kill him in
+  the pocket. The only other way from the east wing is the teleporter at (5253, 736) to Maus 4 and back onto the fight
+  level by (5700, 627) -> (5266, 627) (Logan walked it on 2026-10-14 in 83 s; `harness/data/sim/mausoleum.json`
+  `teleporters`); the Mover doesn't route across levels, so a flight doesn't take it.
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

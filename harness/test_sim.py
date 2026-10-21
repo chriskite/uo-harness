@@ -1893,6 +1893,104 @@ def test_rope_sight():
           f"jumped {jumped} refused {refused} at {w.player.pos} misses {loop.totals.get('rope_misses', 0)}")
 
 
+def red_world(seed=1, start=(5243, 726)):
+    """The live 10:35 death's ground (2026-10-21): Logan with both pets beside him in Maus 3's east wing, whose only way
+    to the leave gate runs north up the corridor (5240-5246, 696-719)."""
+    w = world_with([], seed=seed, start=start)
+    for p, d in zip(w.pets(), ((-1, 1), (1, 1))):
+        p.x, p.y = start[0] + d[0], start[1] + d[1]
+    return w
+
+
+def red_loop(w, seed=1):
+    """A --pets runner on `w` (the scenario's --leave-gate and --rope): (loop, clock, store, patched)."""
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", str(seed)])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    with contextlib.redirect_stdout(io.StringIO()):
+        loop = loop_hunt.HuntLoop(link, store, args)
+        loop.team.setup(loop.state())
+    return loop, clock, store, patched
+
+
+def test_red_flight():
+    print("== fleeing two reds coming down the only way to the gate: no rope or walk toward them ==")
+    # live 2026-10-21 10:35:05-13 (hunt-20261021-102636-fdda, Maus 3): 'Ticket Tongje' in view at (5243, 708), 17 tiles
+    # north of Logan at (5243, 726), running south, 'Di ve nha' behind him; the gate's route ran north up their corridor,
+    # the rope landed Logan at (5244, 716) beside Tongje and the walk went on north past both: dead at (5244, 710)
+    from agent_link import Abort
+    w = red_world()
+    loop, clock, store, patched = red_loop(w)
+    reds = [w.add_red(5243, 708)]
+    world_tick, last, jumps, near = clock.on_advance, [w.player.pos], [], []
+
+    def watch(now):
+        world_tick(now)
+        if len(reds) == 1 and w.t >= 1.2:                     # the second one 1.2 s later, a tile behind (live)
+            reds.append(w.add_red(5243, 707, name="Di ve nha"))
+        here = w.player.pos
+        if sim_cheb(here, last[0]) > 1 and not w.player.ghost:
+            jumps.append([(sim_cheb(last[0], r.pos), sim_cheb(here, r.pos)) for r in reds])
+        if w.t <= 3.0:
+            near.append(min(sim_cheb(here, r.pos) for r in reds))
+        last[0] = here
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            try:
+                res = loop.leave_by_gate("urgent")
+            except Abort as e:
+                res = {"ok": False, "error": str(e)}
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("a rope jump, each landing farther from every red than we stood", jumps
+          and all(after > before for j in jumps for before, after in j), str(jumps))
+    check("...the first 3 s of the flight 8+ tiles from them (live: beside one 2.2 s after the leave)", min(near) >= 8,
+          f"nearest {min(near)}")
+    check("...the way past them seen, away from them first", "away from them first" in out.getvalue())
+    print(f"  ({'through the gate' if res.get('ok') else res.get('error')} at {w.t:.1f} s, deaths {w.metrics['deaths']})")
+
+
+def test_rope_cancel_attacked():
+    print("== a player turns on us between the rope's cursor and our target: the cursor cancelled, no jump ==")
+    # live 2026-10-21 10:35:05.99 "[Rope", 06.04 its cursor, 06.07 "Ticket Tongje is attacking you!", 06.54 our target
+    # anyway; landed beside him (user: a rope only while no player is hitting us yet)
+    w = red_world()
+    loop, clock, store, patched = red_loop(w)
+    red = w.add_red(5243, 704)                                 # 22 tiles north, out of view, standing
+    red.next_step = 1e9
+    world_tick, moved = clock.on_advance, []
+
+    def watch(now):
+        world_tick(now)
+        if w.pending and w.pending.get("kind") == "rope" and not moved:
+            moved.append(w.t)
+            w._teleport(red, (5243, 715, 0))                    # 11 tiles off in sight: its attack line next tick
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            loop.pk_flight = True
+            start = w.player.pos
+            jumped = loop.rope_jump((5247, 737))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("its attack line came while the cursor was up", bool(moved) and w.metrics.get("red_attacks") == 1)
+    check("...no jump: the cursor cancelled, we stand to run on", not jumped and w.player.pos == start
+          and not w.metrics.get("ropes") and "cursor cancelled" in out.getvalue(),
+          f"jumped {jumped} {start} -> {w.player.pos}")
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -2437,7 +2535,8 @@ def main():
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_vet_tile_off_tank,
               test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_rope_sight, test_ledge_attacker, test_caster_at_12,
+              test_bard_sight, test_rope_sight, test_red_flight, test_rope_cancel_attacked, test_ledge_attacker,
+              test_caster_at_12,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
