@@ -4126,14 +4126,23 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   (n=26); the scenario put [15, 38] x 1.6 on him. Now `ranged_observed` [11, 21, 15.5].
 - **Melee on Logan is ~1.2x the gravebug's, not 1.6x**: by type 0.88-1.41 (1.18 weighted, 58 of his attributed
   hits); `defaults.melee_to_player_x` 1.2, spells keep 1.6 (the banshee's 1.74).
-- **On par now** (live 47 visits, 288 simulated runs): kills (99 against 96), the gravebug's damage (1.06x), stand-offs,
-  leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, idle and fighting monsters in view;
-  the pace; Logan's distance to the nearest monster in war mode; whom a monster hits first; the phoenix's distance
-  from Logan; idle monsters' drift; the gravebug's fights; server answers and the runner's reaction to them.
-  **Still apart** (docs/SIM.md "Still apart"): deaths 1.2 an hour against 0.6 with the damage on Logan 0.71x (live
-  more of it is disease ticks: 17.3 an hour against 5.8; disease, apparition bursts, blightmares and purgers finish
-  the simulated Logan); the phoenix's damage 1.5x (vet 1.3x); bard uses a kill 1.78 against 1.49; pull holds 1.4x;
-  gold 1.22x; the crawl stops short of the north-east room (live 6.3 % of his time there, simulated 0 %).
+- **The simulator's level box missed the north rooms**: `area` ended at y 640, so the north-east room and the elder
+  vampires' hall (10 % of live Logan's time on the level) fell out of its hours, and the damage on the walk in counted.
+  Now y 610 and the counters gate on `World._on_level`. The "north-east room never visited" finding before it was
+  this: the sampler skipped y < 640.
+- **The dear rare spawns respawn slower**: met an hour live the blightmare 4.4, the reanimated daemon 3.2, the
+  master reanimator 2.6, the consort 1.5 against 5.7, 4.3, 3.9, 3.1 at 120-300 s; now 180-480 s (the blightmare) and
+  360-720 s [INFERENCE: fitted]. Gold 1.23x -> 1.19x.
+- **On par now** (live 47 visits, 288 simulated runs): kills (100 against 96), the gravebug's damage (0.97x),
+  stand-offs, leaves for hits, walk-out deaths, soul jars, the zone shares, idle and fighting monsters in view, most
+  monsters met (the dear rare ones too); the pace; Logan's distance to the nearest monster in war mode; whom a monster
+  hits first; the phoenix's distance from Logan; idle monsters' drift; the gravebug's fights; server answers and the
+  runner's reaction to them.
+  **Still apart** (docs/SIM.md "Still apart"): deaths 1.2 an hour against 0.6 with the damage on Logan 0.66x (live
+  more of it is disease ticks: 17.3 an hour against 5.8; blightmares, disease, purgers and apparition bursts finish
+  the simulated Logan); where the crawl goes (live 22 % of his time in the west wing, simulated 12 %; the east 19 %
+  against 29 %), hence the west wing's types met 0.6-0.8x; the phoenix's damage 1.46x (vet 1.3x); bard uses a kill
+  1.77 against 1.49; pull holds 1.34x; gold 1.19x.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

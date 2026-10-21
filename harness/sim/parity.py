@@ -140,7 +140,7 @@ def capture_windows(logs: str, visits: list[dict], me_serial: int) -> dict[str, 
     return out
 
 
-SCAN_V = 4         # the capture scan's version: a cached window of another is scanned again
+SCAN_V = 5         # the capture scan's version: a cached window of another is scanned again (5: the area north to 610)
 HUMAN_BODIES = (400, 401, 605, 606)
 
 

@@ -638,8 +638,7 @@ class World:
         elif m.kind == "monster" and m.serial not in self.met:
             # the monsters we meet on the hunting level, by type (sim/parity.py against the captures' first sightings)
             self.met.add(m.serial)
-            area, pl = self.sc.get("area"), self.player
-            if area and area[0] <= pl.x <= area[2] and area[1] <= pl.y <= area[3]:
+            if self._on_level():
                 self.count("met", m.key)
         if m.kind == "pet" and m.ghost:
             self.send(P.pet_dead(m.serial))
@@ -741,12 +740,13 @@ class World:
                 w = by.spec.get("threat_x", 1.0) if by.kind == "pet" else 1.0
                 victim.threat[by.serial] = victim.threat.get(by.serial, 0) + n * w
                 self.metrics["team_damage"] += n if by.kind in ("player", "pet") else 0
-        if victim.kind == "player":
+        if victim.kind == "player" and self._on_level():
             self.metrics["player_damage_taken"] += n
             self.count("player_damage_by", by.key if by is not None else kind, n)
+        if victim.kind == "player":
             self.player_log.append((self.t, by.key if by is not None else kind, n, int(victim.hits)))
             self.player_log = [e for e in self.player_log if self.t - e[0] <= 15.0]
-        elif victim.kind == "pet":
+        elif victim.kind == "pet" and self._on_level():
             self.count("pet_damage_taken", victim.name, n)
             self.count("pet_damage_by", by.key if by is not None else kind, n)
         if victim.kind not in OTHERS and (by is None or by.kind not in OTHERS):
@@ -952,12 +952,17 @@ class World:
             self._unseen_tick()
         if self.eerie_on:
             self._eerie_tick()
-        area = self.sc.get("area")
-        if area and not pl.ghost and area[0] <= pl.x <= area[2] and area[1] <= pl.y <= area[3]:
+        if not pl.ghost and self._on_level():
             self.metrics["hunt_s"] += TICK_S
         if not pl.ghost and t - pl.last_hurt_t > 10 and pl.hits < pl.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
             pl.hits += 1
             self.send(P.hits(pl.serial, int(pl.hits), int(pl.hits_max)))
+
+    def _on_level(self) -> bool:
+        """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,
+        as the live visits are."""
+        a, pl = self.sc.get("area"), self.player
+        return not a or (a[0] <= pl.x <= a[2] and a[1] <= pl.y <= a[3])
 
     def _effects(self, m: Mob):
         t = self.t
