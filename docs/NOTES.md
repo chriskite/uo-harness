@@ -4117,15 +4117,23 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   (q75 4, q90 6) and idle monsters in view moved in 11 % of seconds. `defaults.spawn_spread` 4 and `wander_per_s`
   0.11 (`world.wrng`, so the world's other draws stay put). With them the retarget refitted: 0.05 (0 gave Logan's
   damage 0.75x and deaths 1.2 an hour; 0.15 0.99x and 2.0).
-- **On par now** (live 47 visits): kills (104 against 96), deaths to monsters (1.1 against 0.6, inside the
-  interval), retreats, stand-offs, leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, the
-  monsters met but the corpsebride (0.80x) and four rare dear types (1.4-2.8x); the pace; Logan's distance to the
-  nearest monster in war mode; whom a monster hits first; the phoenix's distance from Logan; idle monsters' drift;
-  the gravebug's fights; server answers and the runner's reaction to them.
-  **Still apart** (docs/SIM.md "Still apart"): the damage on Logan 0.84x (more of it live is steady disease and hits
-  from 3-5 tiles; the simulator's deaths rise faster with it); the phoenix's damage 1.8x and the gravebug's 1.26x
-  (vet 1.46x); bard uses a kill 1.79 against 1.49; pull holds 1.37x; gold 1.28x; a spawn occupied at Logan's approach
-  48 % against 33 %.
+- **The level is emptier than its spawns**: live idle monsters in Logan's view 1.52 on average, a spawn's point
+  occupied at his first approach 36 % and 7+ minutes after his last pass 23 %; with the spread and wander the
+  simulator still had 1.72, 59 % and 59 %. `others.unseen` (an idle spawn out of his view gone at 1/600 a second, 60 %
+  of the spawns up at the start) gives 1.50, 49 %, 47 % [INFERENCE: other hunters]. A longer respawn instead
+  emptied the spots he had just passed (8 % at 1-3 minutes against the live 28 %).
+- **The purger's barrage was 2x on Logan**: live his numbers with a purger nearest (disease ticks out) 14 / 20.5 / 27
+  (n=26); the scenario put [15, 38] x 1.6 on him. Now `ranged_observed` [11, 21, 15.5].
+- **Melee on Logan is ~1.2x the gravebug's, not 1.6x**: by type 0.88-1.41 (1.18 weighted, 58 of his attributed
+  hits); `defaults.melee_to_player_x` 1.2, spells keep 1.6 (the banshee's 1.74).
+- **On par now** (live 47 visits, 288 simulated runs): kills (99 against 96), the gravebug's damage (1.06x), stand-offs,
+  leaves for hits, walk-out deaths, soul jars, eerie corpses, the zone shares, idle and fighting monsters in view;
+  the pace; Logan's distance to the nearest monster in war mode; whom a monster hits first; the phoenix's distance
+  from Logan; idle monsters' drift; the gravebug's fights; server answers and the runner's reaction to them.
+  **Still apart** (docs/SIM.md "Still apart"): deaths 1.2 an hour against 0.6 with the damage on Logan 0.71x (live
+  more of it is disease ticks: 17.3 an hour against 5.8; disease, apparition bursts, blightmares and purgers finish
+  the simulated Logan); the phoenix's damage 1.5x (vet 1.3x); bard uses a kill 1.78 against 1.49; pull holds 1.4x;
+  gold 1.22x; the crawl stops short of the north-east room (live 6.3 % of his time there, simulated 0 %).
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

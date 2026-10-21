@@ -285,6 +285,8 @@
   "ranged_range_note": "spells landed at 11-14 tiles: banshee 5 of 25 attributed hits, shadow minion 6 of 19, the countess 1 of 21 at 12 (today's captures); 10 before [INFERENCE]",
   "ranged_kb_factor": 0.5,
   "damage_to_player_x": 1.6,
+  "melee_to_player_x": 1.2,
+  "melee_to_player_note": "a melee hit's number on Logan / the gravebug's, medians of the hits attributed to one animating monster on all 41 live visits (2026-10-20; the -21 disease ticks left out): the vampire bat 1.30 (14 Logan / 79 GR), shadowguard 1.19 (12/52), shade wolf 1.41 (10/314), tormented soul 0.97 (10/135), vampire countess 1.13 (7/74), bound soul 0.88 (5/122): 1.18 weighted by Logan's hits (the apparition's 2.2 and the corpsebride's 1.5 are their area hits, with their own numbers). damage_to_player_x 1.6 stays for spells (the banshee's 1.74). With 1.6 on melee a simulated tormented soul hit him 32-40 (live 12-19, n=8)",
   "victim_note": "a monster's melee and spell numbers are the gravebug's (they come from the attributed hits, mostly on it); Logan takes damage_to_player_x of them (World._taken_x): medians Logan/gravebug, same monster type and attack, today's captures, song-corrected: banshee spells 1.74 (n=11 Logan / 17 GR), corpsebride 1.70 (9/45), vampire countess 1.95 (7/28), shade wolf 1.40 (3/130); the specials 1.25-1.65 (wail 1.4, charges 1.6, burst 1.25) have their own numbers. 1.0 before. Every observed number is divided by (1 - the Song of Discordance up then: 15.8-18.4 %), as the sim cuts it again",
   "respawn_s": [
    120,
@@ -524,6 +526,13 @@
    "damage": [15, 17.5, 16],
    "every_s": 3.4,
    "note": "live 2026-10-19 19:54:40-57 (capture 20261019_192054, docs/NOTES.md 'Dead in a blightmare's sight'): one blightmare in war mode 12 tiles from Logan, its cast animation (7) every 1.5-1.8 s, its spell hits on him -26 -28 -28 -24 -24 at 40.8, 47.5, 50.2, 53.8, 57.2 (3.3-3.6 s apart): Logan's 24-28 / 1.6 gravebug-referenced (defaults victim_note). One fight [INFERENCE: the rate]. Not in the simulator before 2026-10-20: live it was met 2.5 an hour at (5239-5245, 684-691)"
+  },
+  "corpse purger": {
+   "range": 10,
+   "damage": [11, 21, 15.5],
+   "every_s": 2.29,
+   "keep": 4,
+   "note": "gravebug-referenced (defaults victim_note): Logan's numbers with a purger the nearest monster in war mode, its disease ticks (-21) left out, 14 / 20.5 / 27 (q10 / median / q90, n=26, 41 visits 2026-10-20) / 1.6, song-corrected; the earlier [15, 38] put 24-61 on Logan (a simulated purger 3 tiles off took him 65 -> 0 in 7 s, seed 133), 8 of 24 simulated deaths"
   },
   "banshee": {
    "range": 12,
@@ -989,6 +998,7 @@
  },
  "others": {
   "enabled": false,
+  "unseen": {"life_s": 600, "start_fill": 0.6, "note": "the level's other hunters out of our view (World._unseen_tick): an idle spawned monster out of Logan's view goes at 1/life_s a second, and a spawn is up at a run's start with start_fill. Live (all 41 visits, 2026-10-20, one-second samples): idle monsters in his view 1.52 on average, in war mode 0.87; an idle monster within 4 tiles of a spawn's point at his approach 36 % on a visit's first approach and 23 % 7+ minutes after his last pass (28 % 1-3 minutes after, where his own kills set it). The simulator with only the modelled players (the spawn spread and wander on): 1.72, 0.92, first approach 59 % and 7+ minutes 59 %. 600 s and 0.6 gave 1.50, 0.87, 49 % and 47 % (24 runs) [INFERENCE: that other hunters clear the level unseen; the two respawns seen live, 148 and 205-264 s, don't suggest a slow respawn, and a 480-1,200 s respawn emptied the spots Logan had just passed (8 % at 1-3 minutes against the live 28 %)]"},
   "note": "other (blue) players on the fight level, measured 2026-10-19 over 19 live captures with Logan on Maus 3 (20261013_173449 ... 20261019_095934, 6.69 h, 24,098 one-second samples; docs/NOTES.md 'Other players at the Mausoleum'). Off unless enabled (sim/run.py --others). Calibration targets in our view: >= 1 other player 27.4 % of the time, 0.36 on average (1.3 when any); 82 arrivals in view an hour; in-view stays median 8 s (p25 3.9, p75 25, p90 44, n 525): players mostly run through; 279 monsters seen on another player died in view (42 an hour). arrive_per_h and stay_s are level-wide [INFERENCE: not observable], set so the simulator gives about those in view: at 10/h (28 runs) 25.4 %, 0.32, 57 arrivals/h; at 11/h (4 x 144 runs, docs/SIM.md 'Other players') 31-33 %, 0.39-0.44, 66-80 arrivals/h, stays median 10-11 s (p90 43-54), their kills in view 30-37 an hour. notoriety: 92 % of player sightings blue (1), green 2.7 %, grey 0.9 %, red 2.8 % (reds out of scope): all blue here. pet_share: 266 of 565 in-view appearances had a pet or summon not ours within 4 tiles; pets by sightings (tag as live: bonded or summoned). dps: the group's (player + pet) damage on a monster it fought, from 89 kills seen from engagement to death (hits x share at the start / seconds): p10 178, p50 456, p90 885 hits/s. Kill times there (n 97): median 9.9 s (p25 3.9, p75 16.3). 160 of 164 monsters killed by another player left a blue corpse. every_s, reach, step_s, engage_r, linger_s, roam_r, pet_part, hits: [INFERENCE]",
   "arrive_per_h": 11.0,
   "stay_s": [300, 1800, 600],

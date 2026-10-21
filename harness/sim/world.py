@@ -230,7 +230,7 @@ class World:
             self.metrics.update({"others_arrived": 0, "others_kills": 0, "others_kills_in_view": 0, "others_view_s": {},
                                  "others_dwell": [],
                                  "kill_on_others": 0, "blue_corpse_opens": 0, "wait_on_others_s": 0.0,
-                                 "wait_on_others_mobs": 0})
+                                 "wait_on_others_mobs": 0, "others_kills_unseen": 0})
         ee = scenario.get("eerie") or {}
         self.eerie_on = bool(ee.get("enabled"))     # the Field of Souls' eerie corpses (off by default)
         self.erng = random.Random(seed * 104729 + 5)  # their own draws: the rest of the world's stay put
@@ -382,6 +382,34 @@ class World:
         for _ in range(n):
             self._other_arrive(stay=self.orng.random() * self._oroll(st))
         self.next_other_t = self.orng.expovariate(rate) if rate > 0 else None
+        fill = o.get("unseen", {}).get("start_fill", 1.0)
+        for i, sp in enumerate(self.spawns):
+            m = self.mobs.get(sp["mob"])
+            if m is not None and self.orng.random() >= fill:
+                self._unseen_kill(m, due=self.orng.uniform(0, self._respawn_s(i)[1]))
+
+    def _respawn_s(self, i) -> list:
+        return self.spawns[i].get("respawn_s", self.sc.get("respawn_s", [240, 360]))
+
+    def _unseen_tick(self):
+        """Once a second: each idle spawned monster out of our view goes to the level's other hunters at
+        1 / `others.unseen.life_s` a second (scenario note)."""
+        life = self.sc["others"].get("unseen", {}).get("life_s")
+        if not life:
+            return
+        pl = self.player
+        for m in [m for m in self.mobs.values() if m.kind == "monster" and m.alive and m.spawn is not None
+                  and m.target is None and not m.warmode and cheb(m.pos, pl.pos) > VIEW]:
+            if self.orng.random() < 1.0 / life:
+                self._unseen_kill(m)
+
+    def _unseen_kill(self, m: Mob, due: float | None = None):
+        """A spawn's monster gone out of our view (no corpse we'd see), its respawn timer started (or `due` from now)."""
+        lo_s, hi_s = self._respawn_s(m.spawn)
+        self.spawn_due.append((self.t + (self.orng.uniform(lo_s, hi_s) if due is None else due), m.spawn))
+        self.viewing.discard(m.serial)
+        del self.mobs[m.serial]
+        self.count("others_kills_unseen")
 
     def _other_serial(self) -> int:
         self.next_other_serial += 1
@@ -813,7 +841,7 @@ class World:
             if o.provoke and o.provoke[0] == m.serial:
                 o.provoke = None
         if m.spawn is not None:
-            lo_s, hi_s = self.spawns[m.spawn].get("respawn_s", self.sc.get("respawn_s", [240, 360]))
+            lo_s, hi_s = self._respawn_s(m.spawn)
             self.spawn_due.append((self.t + self.rng.uniform(lo_s, hi_s), m.spawn))
         del self.mobs[m.serial]
 
@@ -921,6 +949,7 @@ class World:
                 self._other_pet(m)
         if self.others_on and int(round(t / TICK_S)) % 10 == 0:
             self._others_sample()
+            self._unseen_tick()
         if self.eerie_on:
             self._eerie_tick()
         area = self.sc.get("area")
@@ -1138,9 +1167,11 @@ class World:
 
     def _taken_x(self, tgt: Mob, kind: str) -> float:
         """A monster's melee and spell numbers are the gravebug's (it takes most hits); the others take more:
-        Logan `damage_to_player_x` of them, the phoenix its `melee_taken_x` of a melee hit (scenario notes)."""
+        Logan `damage_to_player_x` of a spell and `melee_to_player_x` of a melee hit, the phoenix its
+        `melee_taken_x` of a melee hit (scenario notes)."""
         if tgt.kind == "player":
-            return self.sc["defaults"]["damage_to_player_x"]
+            d = self.sc["defaults"]
+            return d.get("melee_to_player_x", d["damage_to_player_x"]) if kind == "melee" else d["damage_to_player_x"]
         if tgt.kind == "pet" and kind == "melee":
             return tgt.spec.get("melee_taken_x", 1.0)
         return 1.0
