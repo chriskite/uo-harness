@@ -889,6 +889,68 @@ def test_countess_held_pet():
     check("the copy gone: back on the gravebug (its threat)", m.target == gb.serial, f"target {m.target}")
 
 
+def test_countess_reguard():
+    print("== the gravebug out of a countess' transfix with her on us: 'All Guard Me' at once; transfixed ourselves, "
+          "the command waits the hold out ==")
+    # live hunt-20261021-091743-38b6 09:48:44-09:49:53 (user 2026-10-21): six releases, the countess fight on
+    # throughout, no "All Guard Me" from 09:48:53 until her kill
+    w = world_with([{"key": "vampire countess", "at": [5267, 649, 0]}], seed=5, start=(5266, 648))
+    m = next(m for m in w.mobs.values() if m.key == "vampire countess")
+    m.hits = m.hits_max = 10 ** 6
+    sp = next(sp for sp in m.spec["specials"] if sp["kind"] == "transfix")
+    m.spec = {**m.spec, "specials": [s for s in m.spec["specials"] if s["kind"] != "transfix"]}  # only the test's own
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    buf = io.StringIO()
+    world_tick = clock.on_advance
+
+    def topped_up(now):
+        world_tick(now)
+        w.player.hits = max(w.player.hits, 90)          # she stays on us, beside the pets: no retreat, no leave
+    clock.on_advance = topped_up
+    try:
+        with contextlib.redirect_stdout(buf):
+            w._transfix(gb, {**sp, "pet_damage": None}, m)
+            copy = next(o for o in w.mobs.values() if o.spec.get("copy_of") == gb.serial)
+            freed = copy.expires
+            pl = w.player
+            m.target, m.threat, m.warmode = pl.serial, {pl.serial: 1e9}, True    # she turns on us (user's report)
+            mark, recent = None, False
+            while w.t < freed + 3.0:
+                if not recent and w.t >= freed - 1.5:
+                    # a guard 1-1.5 s before the release, as live (09:48:53.69 after a kill, the gravebug free at 54.77):
+                    # GUARD_REPEAT_S would hold the next one (a lost target's) back 6.5 s
+                    loop.team.guard_t, recent = tamer.time.monotonic(), True
+                clock.advance(0.5)
+                loop.tick()
+                if mark is None and w.t >= freed:
+                    mark = (w.metrics["guard_commands"], w.t)
+                if mark is not None and w.metrics["guard_commands"] > mark[0]:
+                    break
+            took = w.t - freed
+            guarded = mark is not None and w.metrics["guard_commands"] > mark[0]
+            mode = gb.mode
+            w.transfix_player(11.1)                                              # now Logan himself
+            clock.advance(0.2)
+            loop.state()                                                         # the runner's read before its care
+            g0, t0 = w.metrics["guard_commands"], w.t
+            loop.team.guard_t = -1e9
+            loop.team.guard()
+            waited = w.t - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    log = buf.getvalue()
+    check("released with her on us: 'All Guard Me' within 2 s of the copy's vanish, the gravebug on guard",
+          guarded and took <= 2.0 and mode == "guard" and "GraveRobber free of the transfix after" in log
+          and "on us: 'All Guard Me'" in log,
+          f"guarded {guarded} {took:.1f} s after, mode {mode}; "
+          f"{[l for l in log.splitlines() if 'transfix' in l or 'Guard' in l]}")
+    check("transfixed ourselves: the guard waits the hold out (not silenced) and lands",
+          w.metrics["silenced"] == 0 and w.metrics["guard_commands"] == g0 + 1 and waited >= 10.0,
+          f"silenced {w.metrics['silenced']}, guards {w.metrics['guard_commands'] - g0}, waited {waited:.1f} s")
+
+
 def test_on_another_player():
     print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
     # live 20261019_095934 10:10:57-10:11:28 (hunt-20261019-100618-80b2): a tormented soul in war mode on Lord Phaze at
@@ -983,12 +1045,13 @@ def test_leave_called_off():
                     loop.tick()
                 except Abort:
                     pass                                   # gone: no --enter-recall in the test
-            out[healed] = (loop.visit is not None, cheb(w.player.pos, tuple(loop.args.leave_gate)))
+            out[healed] = (loop.visit is not None, cheb(w.player.pos, tuple(loop.args.leave_gate)),
+                           sorted({p.mode for p in w.pets()}))
         finally:
             store.close()
             simclock.uninstall(patched)
-    check("healed: still on the visit, short of the gate; hurt: through it",
-          out[True][0] and out[True][1] > 1 and not out[False][0], str(out))
+    check("healed: still on the visit, short of the gate, the pets back on guard; hurt: through it",
+          out[True][0] and out[True][1] > 1 and out[True][2] == ["guard"] and not out[False][0], str(out))
 
 
 def test_leave_from_far():
@@ -2201,7 +2264,8 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet, test_pet_shot, test_countess_held_pet, test_on_another_player, test_others_corpse_not_looted,
+              test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_on_another_player,
+              test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,

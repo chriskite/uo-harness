@@ -146,7 +146,9 @@ What the capture and the wiki fixed:
     transfixed: no step, no attack.
     About 2 % of her transfixes take Logan instead (`player_share` 0.018: 2 on him live against 110 pet copies):
     "The creature overpowers your will and transfixes you!", no copy, his steps denied and his item uses
-    refused for 11.1 s, then "You are no longer hindered." (`World.transfix_player`).
+    refused for 11.1 s, then "You are no longer hindered." (`World.transfix_player`). A pet command meanwhile gets
+    "You have been silenced and cannot speak." and the pets don't take it (live 2026-10-17 15:27:06, 2026-10-21
+    09:49:20; `World._speech`, metric `silenced`).
   - The corpsebride's wail, every 7.6 s: 13-25 on each of us within a tile 75 % of the time (the pets
     beside it live: about 18 of 24), 20 % at 2-3 tiles (Logan: 2 of 11) [INFERENCE: an area hit].
   - The shade wolf's Vanish: 4.3-15 s into a fight, then every 19-22 s, it is unseen and can't be hit

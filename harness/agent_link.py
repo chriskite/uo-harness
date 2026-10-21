@@ -128,6 +128,8 @@ WORLD_SAVE_MAX_S = 15.0
 # aborted with Logan left on Maus 3); at most HELD_MAX_S when the end line is missed.
 HELD_TEXT = "The creature overpowers your will and transfixes you!"
 HELD_END_TEXT = "You are no longer hindered."
+HELD_SILENCED_TEXT = "You have been silenced and cannot speak."   # speech while held (live 2026-10-17 15:27:06.20,
+#                                                                  2026-10-21 09:49:20.89: the pet command lost)
 HELD_MAX_S = 13.0
 SYSTEM_SERIALS = (None, 0, 0xFFFFFFFF, "0xFFFFFFFF")
 

@@ -4216,6 +4216,33 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   10 in 45 simulated; "The creature's spell blights you with a foul disease!" 8 times live, 4 in the 10-19 19:54
   death), but the simulated blightmares reach Logan 2.7 times an hour against 0.9 on all live visits.
 
+## Live run of 2026-10-21 (hunt-20261021-091743-38b6, capture session_20261021_085153)
+
+- **No "All Guard Me" through a vampire countess fight** (user: "once the tank is transfixed and the countess aggros on
+  our character, it looks like we're not saying 'All Guard Me' to get the aggro back on the tank once it is
+  un-transfixed"). True. The countess 0x00379747 on Maus 3, 09:48:27-09:49:53: the guards at 09:48:45 and 09:48:53
+  (after two kills), then none until her kill. Store events: her `*transfixed*` over a hostile copy named as the pet
+  (GraveRobber 3650410 09:48:44.58, AlaFlambe 3650486 09:48:55.37, GraveRobber 3650556 09:49:05.48, AlaFlambe 3650606
+  09:49:11.06, GraveRobber 3650980 09:49:30.09, AlaFlambe 3651017 09:49:35.17; Logan's own copy 3650892 at 09:49:19.87
+  with "The creature overpowers your will and transfixes you!"); each copy's 0x1D 10.1-11.1 s later (09:48:54.77,
+  09:49:05.71, 16.54, 21.90, 40.23, 45.71): no "end" line over a pet, the copy's removal is the release. The runner's
+  "target GraveRobber 0x0037B36A" (09:48:52) and "0x0037B3FC" (09:49:11) were these hostile copies (notoriety 3,
+  pacified with the area peace), not our pets. Their attack animations line up with most of Logan's hits: -21
+  09:48:51.01, -21 09:49:10.50, -21 16.33, -17 19.74, -23 38.45, -16 40.68, -20 44.06.
+  Causes: (1) "All Guard Me" came only at an arrival, a kill, a pet back alive, a lost target or the end of an evade;
+  nothing on a pet's release (six releases, the fight on throughout); the 8 s `GUARD_REPEAT_S` would also have held a
+  release 1 s after a guard back (09:48:53.69, release 09:48:54.77). (2) A called-off leave (09:49:34 "healed to
+  100/100; back to the pets") walked back with no guard, the pets left on the leave's "All Follow Me". (3) That
+  "All Follow Me" (09:49:20.84) never reached them: Logan was transfixed at 09:49:19.87 and the server answered "You
+  have been silenced and cannot speak." at 09:49:20.89 (also 2026-10-17 15:27:06.20, an "All Guard Me"); the pets fought
+  on at the countess on the 09:48:57 "All Kill" (her -227/-224/-347 at 09:49:23.9-24.8). Fixed: `Team.free_pets` says
+  "All Guard Me" at a release with something on us (an attacker or a hit within 5 s), past the 8 s; a called-off leave
+  guards before the walk back; `Team.say` waits Logan's own hold out. The simulator now silences speech while Logan is
+  held. test_sim `test_countess_reguard`, `test_leave_called_off`. 48 x 20 min, seed 17, `--vet-range 5` (the same
+  simulator): deaths/h 0.96 -> 0.88 (runs with a death 14 -> 13), kills/h 109.6 -> 110.4, gold/h 107,145 -> 106,806,
+  damage on Logan/h 2,278 -> 2,258, pet deaths 1 -> 1, a pet left behind 0 -> 1 (seed 40: the gravebug 9 tiles off
+  didn't come to "All Follow Me" for 25 s on a time-up walk out; 92da05a's batch had one too), guards/h 186.5 -> 193.7.
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

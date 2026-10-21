@@ -55,7 +55,7 @@ import nav
 import pathfind
 import soul_jar
 import tamer
-from agent_link import HELD_END_TEXT, HELD_TEXT
+from agent_link import HELD_END_TEXT, HELD_SILENCED_TEXT, HELD_TEXT
 from sim import packets as P
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
@@ -222,7 +222,7 @@ class World:
                         "team_damage": 0.0, "vet_uses": 0, "potions": 0, "bard": {}, "steps": 0, "denied_steps": 0,
                         "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "violations": [],
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
-                        "patrol_commands": 0,
+                        "patrol_commands": 0, "silenced": 0,
                         "fights": [], "hunt_s": 0.0}
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
@@ -1638,6 +1638,12 @@ class World:
         if tamer.irreversible(text):
             self.metrics["violations"].append({"t": round(self.t, 1), "what": "release/transfer speech",
                                                "text": text})
+            return
+        if self.player.held_until > self.t:
+            # transfixed: live 2026-10-17 15:27:06.20 and 2026-10-21 09:49:20.89, 0.04-0.05 s after a pet command,
+            # and the pets didn't take it (09:49:20 "All Follow Me": they fought on at the countess on "All Kill")
+            self.metrics["silenced"] += 1
+            self._sys(HELD_SILENCED_TEXT)
             return
         pets = [m for m in self.pets() if m.alive and not m.ghost]
         if text == "all guard me":

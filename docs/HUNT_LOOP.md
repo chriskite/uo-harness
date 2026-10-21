@@ -379,7 +379,13 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 **The rules** (each from the capture or a user statement):
 
 1. **Guard, don't pull.** "All Guard Me" at every arrival (guarding stops at a recall or a level
-   transition, wiki Animal Taming) and after every kill; Logan said it 26 times for 25 kills. The
+   transition, wiki Animal Taming) and after every kill; Logan said it 26 times for 25 kills. Also at once,
+   past the 8 s between guards (`GUARD_REPEAT_S`), when a pet comes out of a vampire countess' transfix with
+   something on us (an attacker, or a hit on us within 5 s; `Team.free_pets`: her `*transfixed*` over a hostile
+   copy named as the pet, the pet free when the copy leaves the view, at most 12 s): "<pet> free of the transfix
+   after N s, <who> on us: 'All Guard Me'" (user 2026-10-21: "once the tank is transfixed and the countess
+   aggros on our character ... 'All Guard Me' to get the aggro back on the tank once it is un-transfixed"; live
+   hunt-20261021-091743-38b6 09:48:53-09:49:53 none in six releases). The
    user (2026-10-12): a mob aggroes on what comes into its aggro range and line of sight; pets on
    guard engage it before it engages the character, while an aggressive act of ours (Discordance,
    "All Kill") makes the mob aggro on the character. So a target the pets haven't engaged is only
@@ -450,7 +456,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    anyway), or at the pets' target when a live pet within 12 of it stands out of war mode for 5 s
    (`Team.idle_pet`; live 20261015_210709 21:19:51-20:43 the phoenix came out of a countess' transfix and
    stood 45 s while the gravebug fought her alone), at most every 12 s per mob; the target cursor is
-   answered after an aim pause and a fresh read (the monsters-only guard). Not re-guarded until the kill.
+   answered after an aim pause and a fresh read (the monsters-only guard). Not re-guarded until the kill,
+   unless a pet comes out of a transfix with something on us (rule 1).
 4. **Vet supplies** (graphic `0x6496`, one double-click, no target): every pet within range and us
    at 25 % (patch 2023-08-14); a 5.0–5.3 s channel (43 on the trip) with the range checked at the
    finish, so no step during it. Used for a hurt or poisoned pet in range, or for us below
@@ -702,8 +709,9 @@ moongate, and never near a red one).
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
-    in running to the gate when he's fully healed"). He walks back to within `--vet-range` - 1 of the
-    nearest pet (`Team.rejoin`) and the hunt goes on.
+    in running to the gate when he's fully healed"). "All Guard Me" at once (the pets were on "All Follow Me"
+    for the leave; live 2026-10-21 09:49:34 none until the countess' kill 19 s later), then he walks back to
+    within `--vet-range` - 1 of the nearest pet (`Team.rejoin`) and the hunt goes on.
   - **Through the gate on the way** (`HuntLoop.through_gate`): a jump from within 2 tiles of the gate to more
     than 30 tiles from it between two reads went through it and counts as the gate taken. Live 16:38:56 a hurt
     walk stepped onto the gate's tile and came out at Totem; its stop then read "healed" there, called the leave
@@ -984,7 +992,11 @@ runs its guard and `stop`, logs "<label>: held in place (transfixed); waiting it
 after N s", and plans again. The denied steps don't count toward `--max-blocked` and aren't remembered as
 blocked tiles. At most `HELD_MAX_S` 13 s if the end line is missed. Before, a retreat at 19:23:23 counted 21
 denials in 7 s and the run aborted ("too many blocked moves"), leaving Logan on Maus 3. test_sim
-`test_transfixed_walk`.
+`test_transfixed_walk`. Transfixed, Logan is silenced too: a pet command then gets "You have been silenced and
+cannot speak." and the pets never take it (live 2026-10-17 15:27:06 an "All Guard Me", 2026-10-21 09:49:20.84
+the leave's "All Follow Me"), so `Team.say` waits the hold out first ('saying "All Guard Me": held in place
+(transfixed); waiting it out'): nothing else can be done meanwhile (steps denied, items and skills refused).
+test_sim `test_countess_reguard`.
 
 **A failed walk doesn't end the run** (`agent_link.WalkFailed`, `HuntLoop.walk_failed`, since 2026-10-20). A
 walk the Mover gives up on (no route, too many blocked moves, too many replans, boxed in, cut by mobiles, over

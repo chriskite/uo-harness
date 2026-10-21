@@ -15,9 +15,12 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   KILL_AFTER_S (its aggro is on us anyway).
 - **"All Guard Me"** at every arrival (guarding stops at a recall or dungeon level transition:
   wiki Animal Taming, Pet Commands) and after every kill (26 times for 25 kills on the trip; pets
-  told "All Kill" go back to the owner after the kill, knowledge #2073). "All Follow Me" before
-  every recall or walk out (user directive 2026-10-11, knowledge #17043: a pet was left behind),
-  waiting up to FOLLOW_WAIT_S for the pets to come within FOLLOW_R.
+  told "All Kill" go back to the owner after the kill, knowledge #2073); at once (past GUARD_REPEAT_S)
+  when a pet comes out of a vampire countess' transfix with something on us (`held_pets`, user 2026-10-21:
+  the aggro back on the tank) and when a leave is called off (loop_hunt: the pets on "All Follow Me" since).
+  "All Follow Me" before every recall or walk out (user directive 2026-10-11, knowledge #17043: a pet was
+  left behind), waiting up to FOLLOW_WAIT_S for the pets to come within FOLLOW_R. Transfixed ourselves,
+  we are silenced: a command waits the hold out (`say`).
 - **Pet commands are Razor-shaped speech** (actions.razor_say: hue 0x03B1, double NUL; every pet
   command in Logan Wolf's captures; "All Patrol" his recorded macro's hue 0x0239, COMMAND_HUES) and only the
   phrases in COMMANDS. Nothing here or in `ctl` ever
@@ -117,6 +120,10 @@ PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the 
 SKIP_S = 60.0                 # ...and passed over this long
 SEE_WALK_S = 10.0             # a monster on another player still unseen this soon after a walk to see it: passed over
 GUARD_REPEAT_S = 8.0
+TEXT_TRANSFIXED = "*transfixed*"   # over a countess' hostile copy of a pet, named as the pet, on its tile: the pet held
+PET_HELD_MAX_S = 12.0         # the pet free when its copy is gone (0x1D), at most this long: live copies 9.9-11.1 s (n=31;
+#                               hunt-20261021-091743-38b6 10.1-11.1 s, n=6)
+HIT_ON_US_S = 5.0             # a hit on us this recent: something is on us (free_pets; the countess' swings, 3.38 s apart)
 APPROACH_R = 6                # [INFERENCE] aggro range: a target the pets haven't engaged is approached to this
 APPROACH_MOVES = 10
 WALK_TO_PET_S = 5.0
@@ -439,6 +446,7 @@ class Team:
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
         self.sighted = set()             # mobiles already looked at for a first sighting
+        self.held_pets = {}              # countess copy serial -> [pet serial, monotonic of its '*transfixed*', seen]
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -545,6 +553,11 @@ class Team:
                     self.blinks[s] = (now, target)
                     if target in self.roster:
                         log(f"0x{s:08X} phases: it lands on {self.roster[target]} in ~1.5 s")
+                elif text == TEXT_TRANSFIXED and s not in self.roster and (pet := next(
+                        (p for p, n in self.roster.items() if n == (e.get("name") or (
+                            st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name"))), None)) is not None:
+                    self.held_pets[s] = [pet, now, False]
+                    log(f"{self.roster[pet]} transfixed (a hostile copy 0x{s:08X} on its tile)")
                 elif "barding break" in text.lower() and s not in self.roster:
                     fx = self.effects.setdefault(s, {})
                     fx["calm"], fx["immune"] = 0.0, now + BREAK_IMMUNE_S
@@ -553,6 +566,7 @@ class Team:
                 self.effects.pop(s, None)
                 self.attack_t.pop(s, None)
         self.ev_upto = len(evs)
+        self.free_pets(st, now)
         for s in [s for s, (t, _) in self.blinks.items() if now - t > BLINK_S]:
             del self.blinks[s]
         for p in self.pets(st):
@@ -687,11 +701,42 @@ class Team:
 
     # ------------------------------------------------------------ speech
     def say(self, text: str) -> bool:
+        mv = self.h.mover
+        if mv.held():
+            # transfixed, we are silenced (agent_link.HELD_SILENCED_TEXT; live 2026-10-17 15:27:06 an "All Guard Me" and
+            # 2026-10-21 09:49:20.84 the leave's "All Follow Me" lost so): nothing else works meanwhile either (steps
+            # denied, items and skills refused), so the command waits the hold out
+            mv.wait_held(f'saying "{COMMANDS[text.lower()]}"')
         self.h.human.wait("hotkey")       # a Razor "Say" hotkey (humanize SCRIPT_MEDIAN)
         self.h.link.act(command(text))
         self.count("commands")
         log(f'said "{COMMANDS[text.lower()]}"')
         return True
+
+    def free_pets(self, st, now: float):
+        """A pet out of a vampire countess' transfix (its copy gone from view, or PET_HELD_MAX_S): with something on
+        us (an attacker, or a hit on us within HIT_ON_US_S: she casts too, no swing to read), "All Guard Me" at once,
+        past GUARD_REPEAT_S (user 2026-10-21: "once the tank is transfixed and the countess aggros on our character
+        ... 'All Guard Me' to get the aggro back on the tank once it is un-transfixed"; live hunt-20261021-091743-38b6
+        09:48:53-09:49:53 none in six releases, the countess fight going on throughout)."""
+        for c, held in list(self.held_pets.items()):
+            pet, t0, seen = held
+            m = st["world"]["mobiles"].get(f"0x{c:08X}")
+            up = m is not None and m.get("x") is not None
+            held[2] = seen or up
+            if not (seen and not up) and now - t0 < PET_HELD_MAX_S:
+                continue
+            del self.held_pets[c]
+            if any(o[0] == pet for o in self.held_pets.values()) or pet in self.dead_since:
+                continue                          # transfixed again meanwhile, or dead
+            name, on_us = self.roster.get(pet, f"0x{pet:08X}"), self.h.attackers(st)
+            hit = now - self.h.hurt_t.get(self.h.me(st), -1e9)
+            if on_us or hit <= HIT_ON_US_S:
+                who = (on_us[0]["name"] or on_us[0]["serial"]) if on_us else f"a hit {hit:.1f} s ago"
+                log(f"{name} free of the transfix after {now - t0:.1f} s, {who} on us: 'All Guard Me'")
+                self.guard_needed, self.guard_t = True, -1e9
+            else:
+                log(f"{name} free of the transfix after {now - t0:.1f} s")
 
     def busy_healing(self, st) -> bool:
         """Don't walk on yet: a vet channel runs (a step shortens its reach to 1, wiki Veterinary), a pet in

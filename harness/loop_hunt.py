@@ -1901,6 +1901,11 @@ class HuntLoop:
                                           **self._where(self.state()))
                     self.left_why = None
                     if self.team is not None:
+                        # the pets on "All Follow Me" since the leave fight nothing: guard again at once, past the
+                        # guard's 8 s (live hunt-20261021-091743-38b6 09:49:34 called off, the countess on us, no
+                        # "All Guard Me" until her kill at 09:49:53; user 2026-10-21)
+                        self.team.guard_t = -1e9
+                        self.team.guard()
                         self.team.rejoin(self.state())
                     return "called off"
                 if gate["ok"] and self.team is not None:
