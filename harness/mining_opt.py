@@ -152,8 +152,9 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
         elif last is not None and last["dry"] and now - last["t1"] < REGROW_MIN * 60:
             why = f"dry {round((now - last['t1']) / 60)} min ago"
             ready_in = REGROW_MIN * 60 - (now - last["t1"])
-        mean_score = _score(alpha / beta, haz["sent_home"][0] / haz["sent_home"][1], haz["died"][0] / haz["died"][1],
-                            death_cost_h)
+        h_d = haz["died"][0] / haz["died"][1]
+        h_s = haz["sent_home"][0] / haz["sent_home"][1]
+        mean_score = _score(alpha / beta, h_s, h_d, death_cost_h)
         models[sid] = {"alpha": alpha, "beta": beta, "haz": haz, "score": mean_score}
         rows.append({"id": sid, "name": s.get("name"), "status": s.get("status"), "eligible": why is None,
                      "why_not": why, "trips": len(mine), "field_h": round(sum(o["field_h"] for o in mine), 2),
@@ -161,6 +162,8 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
                      "rate_80": [round(lumber_opt.gamma_quantile(alpha, beta, 0.1)),
                                  round(lumber_opt.gamma_quantile(alpha, beta, 0.9))],
                      "deaths": sum(1 for o in mine if o["died"]), "sent_home": sum(1 for o in mine if o["sent_home"]),
+                     "deaths_per_h": round(h_d, 4), "sent_home_per_h": round(h_s, 3),
+                     "p_death_stint": round(-math.expm1(-h_d * stint_min / 60.0), 4),
                      "score_ore_h": round(mean_score), "p_best": None,
                      "landing": None if landing is None else {k: landing.get(k)
                                                               for k in ("name", "dist", "source", "library")},
@@ -169,13 +172,16 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
                      "ready_in_min": None if ready_in is None else math.ceil(ready_in / 60)})
     rows.sort(key=lambda r: (not r["eligible"], -r["score_ore_h"]))
     eligible = [r["id"] for r in rows if r["eligible"]]
-    out = {"ok": True, "now": now, "prior_ore_h": round(mean), "spots": rows}
+    out = {"ok": True, "now": now, "prior_ore_h": round(mean), "prior_cv": PRIOR_CV,
+           "deaths_pooled_per_h": round(pooled["died"], 4), "sent_home_pooled_per_h": round(pooled["sent_home"], 3),
+           "stint_min": stint_min, "regrow_min": REGROW_MIN, "spots": rows}
     if not eligible:
         waits = sorted((r["ready_in_min"], r["id"]) for r in rows if r["ready_in_min"] is not None)
         err = "no eligible mining spot (see spots[].why_not)"
         if waits:
             err += f"; the first one ready: {waits[0][1]} in {waits[0][0]} min"
-        return {"ok": False, "error": err, "spots": rows, "retry_in_min": waits[0][0] if waits else None}
+        out.update(ok=False, error=err, retry_in_min=waits[0][0] if waits else None)
+        return out
 
     def draw(sid):
         m = models[sid]
@@ -193,9 +199,13 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
         args = ["--spot", sid, "--trips", "1", "--field-min", f"{stint_min:g}",
                 "--timeout", str(int(stint_min * 60 * 1.5 + 900))]
         landing = next(r["landing"] for r in rows if r["id"] == sid)
-        died = models[sid]["haz"]["died"]
+        m = models[sid]
+        h_d = m["haz"]["died"][0] / m["haz"]["died"][1]
+        h_s = m["haz"]["sent_home"][0] / m["haz"]["sent_home"][1]
         return {"spot": sid, "p_best": round(wins[sid] / draws, 3), "landing": landing,
-                "expected_ore_h": round(models[sid]["score"]), "death_h": round(died[0] / died[1], 4),
+                "expected_ore_h": round(m["score"]), "rate_ore_h": round(m["alpha"] / m["beta"]),
+                "death_h": round(h_d, 4), "sent_home_h": round(h_s, 3),
+                "p_death_stint": round(-math.expm1(-h_d * stint_min / 60.0), 4),
                 "field_min": stint_min, "args": args, "command": "ctl run mining " + " ".join(args)}
     if exploit:
         pick, chosen_by = greedy, "greedy (--exploit)"
@@ -228,7 +238,8 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_m
     """plan() over the memory store and a state-port snapshot (world None: no proxy). The
     character is the proxy's (world self name), else `who` (ctl's --char), else the newest mining
     trip row's; its home from harness/data/homes.json (home.for_character; `home` overrides: the
-    runner's own), its own books from the store, each spot's landing from lumber_opt.spot_landings."""
+    runner's own), its own books from the store, each spot's landing from lumber_opt.spot_landings.
+    Without a home the spots are still ranked (every active one 'no landing'), ok False and no pick."""
     import home as homes
     import places
     now = time.time() if now is None else now
@@ -240,11 +251,13 @@ def plan_from_store(memory, world: dict | None, self_serial, pos, facet, stint_m
         (e["character"]["name"] for e in reversed(episodes)
          if isinstance(e.get("character"), dict) and e["character"].get("name")), None)
     home = homes.for_character(who) if home is None else home
-    if home is None:
-        return {"ok": False, "error": f"no home in harness/data/homes.json for {who}"}
-    landings = lumber_opt.spot_landings(memory, spots, home, places.known_books(memory, who), route_check)
+    landings = {}
+    if home is not None:
+        landings = lumber_opt.spot_landings(memory, spots, home, places.known_books(memory, who), route_check)
     deaths = [e["t"] for e in memory.job_events("mining") if e.get("kind") == "death" and e.get("t") is not None]
     out = plan(spots, episodes, now, random.Random(seed), landings, exploit=exploit, stint_min=stint_min,
                exclude=exclude, deaths=deaths)
     out["character"] = None if char is None else {"name": char["name"], "serial": char["serial"]}
+    if home is None:
+        out.update(ok=False, error=f"no home in harness/data/homes.json for {who}", retry_in_min=None)
     return out

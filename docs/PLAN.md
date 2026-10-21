@@ -2023,8 +2023,21 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
 - *No Restock of the room's storage shelf after a mining trip*, unlike lumber: Restock took the three live trapped
   pouches out of the pack (docs/NOTES.md "Storage shelves"), and the live pouch holds the carried ingots. Spent
   pouches go into the chest instead.
-- *Not built*: a viz Jobs tab for mining, ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and
-  the next dig equips the spare or aborts with none).
+- *The planner on the viz, as lumber's* (2026-10-20, user request: the Mining page showed no planner data).
+  `/api/jobs/plan?job=mining` (`jobs.mining_plan`, sharing `jobs._plan_spot_extras` with `lumber_plan`) feeds the
+  Jobs → Mining "Optimizer: next pick" and spots panels and the Live Mining job pane's spot name, landing,
+  "Expected" and "History here" (docs/VISUALIZER.md §2.4, §2.19). Decisions:
+  - The planner panels and "Expected" show ingots, 2 × the planner's ore (a smelt gives 2 an ore), with ore in the
+    tooltips and a "field ore/hr" row; the Live now-rate, the spots-in-range table and the KPIs stay in ore, since
+    they measure ore dug.
+  - No gold/hr projection in the planner UI: the model scores ore, not metal value. Gold per active hour is
+    already a KPI tile.
+  - Without a home the planner still ranks the spots (every active one "no landing", no pick), as lumber does,
+    so the dashboard shows the model for a store whose legs name no character.
+  - Draws stay at `mining_opt.DRAWS` (2000): the dashboard plan took 0.19 s on the live store. Lumber's
+    `PLAN_DRAWS` cut was not needed.
+- *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
+  spare or aborts with none).
 
 ## Risks
 

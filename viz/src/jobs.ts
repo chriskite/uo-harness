@@ -349,7 +349,7 @@ export interface PlanResponse {
 }
 
 /** Plan rows worth a line: active spots and any spot with trips; `hidden` = the untried candidates/disabled. */
-export function spotRows(plan: LumberPlan | null): { rows: PlanSpot[]; hidden: number } {
+export function spotRows<S extends { status: string; trips: number }>(plan: { spots: S[] } | null): { rows: S[]; hidden: number } {
   if (!plan) return { rows: [], hidden: 0 };
   const rows = plan.spots.filter((s) => s.status === "active" || s.trips > 0);
   return { rows, hidden: plan.spots.length - rows.length };
@@ -1056,6 +1056,113 @@ export interface MiningResponse {
   open_leg?: OpenLeg;
   /** job events except the per-stand ones (stand, smelt) */
   events: JobEvent[];
+}
+
+/** A mining spot's landing rune (mining_opt.plan's row.landing: the lumber_opt.landing_for row cut down) */
+export interface MiningLanding {
+  name: string;
+  /** tiles from the spot's centre */
+  dist: number;
+  source: "library" | "book";
+  library: string | null;
+}
+
+/** One spot of /api/jobs/plan?job=mining (mining_opt.plan's row plus jobs._plan_spot_extras). Rates are ore. */
+export interface MiningPlanSpot {
+  id: string;
+  name: string | null;
+  status: string;
+  eligible: boolean;
+  why_not: string | null;
+  /** legs at the spot */
+  trips: number;
+  field_h: number;
+  ore: number;
+  /** λ: ore per field hour, posterior mean */
+  rate_ore_h: number;
+  /** λ's 80% interval */
+  rate_80: [number, number];
+  /** the planner's score: λ net of the sent-home and death costs (posterior means) */
+  score_ore_h: number;
+  deaths: number;
+  sent_home: number;
+  /** h_D: deaths per field hour, posterior mean */
+  deaths_per_h: number;
+  /** h_S: legs a threat sent home per field hour, posterior mean */
+  sent_home_per_h: number;
+  /** P(death) over one run's field minutes (stint_min) */
+  p_death_stint: number;
+  /** null when not eligible */
+  p_best: number | null;
+  last_trip_h_ago: number | null;
+  nodes: number | null;
+  ready_in_min: number | null;
+  landing: MiningLanding | null;
+  pk_escapes: number;
+  creature_recalls: number;
+  creature_hits: number;
+  last_outcome: string | null;
+  last_why: string | null;
+  /** the landing as text: name (library or own book, tiles from the spot) */
+  reach: string | null;
+  pvp: boolean;
+}
+
+/** One mining run's terms (mining_opt.plan's run()) */
+export interface MiningRun {
+  spot: string;
+  p_best: number;
+  /** the spot's score_ore_h */
+  expected_ore_h: number;
+  rate_ore_h: number;
+  death_h: number;
+  sent_home_h: number;
+  p_death_stint: number;
+  field_min: number;
+  landing: MiningLanding | null;
+  args: string[];
+  command: string;
+}
+
+export interface MiningPlan {
+  ok: boolean;
+  error?: string;
+  now: number;
+  /** the new-spot prior: the pooled rate of the measured legs, else mining_opt.PRIOR_ORE_H */
+  prior_ore_h: number;
+  prior_cv: number;
+  deaths_pooled_per_h: number;
+  sent_home_pooled_per_h: number;
+  stint_min: number;
+  /** minutes a spot that ran dry waits */
+  regrow_min: number;
+  retry_in_min?: number | null;
+  /** Mining skill: the newest leg's skill_end, else its skill */
+  skill: number | null;
+  character: { name: string; serial: string } | null;
+  spots: MiningPlanSpot[];
+  pick?: MiningRun & { mode: "explore" | "exploit"; chosen_by: string };
+  greedy?: MiningRun;
+}
+
+/** /api/jobs/plan?job=mining: the mining_opt plan at the server's clock over all history (null without a store). */
+export interface MiningPlanResponse {
+  plan: MiningPlan | null;
+  store: boolean;
+}
+
+/** A smelt gives 2 ingots an ore (loop_mining.smelt; docs/NOTES.md k12631). */
+export const INGOTS_PER_ORE = 2;
+
+/** Ore as the ingots it smelts to; null for unknown. */
+export function oreToIngots(ore: number | null | undefined): number | null {
+  return ore === null || ore === undefined ? null : ore * INGOTS_PER_ORE;
+}
+
+/** A plan spot's human-readable name: its row's name, else the id, else null. */
+export function planSpotName(plan: { spots: { id: string; name: string | null }[] } | null, id: string | null | undefined): string | null {
+  if (!id) return null;
+  return plan?.spots.find((s) => s.id === id)?.name ?? id;
 }
 
 /** How a leg ended in a few words: "dry", "time up", "creature in reach", else the outcome. */

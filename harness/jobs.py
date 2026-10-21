@@ -482,44 +482,73 @@ def recall_cause(data: dict) -> str:
     return "creature" if kind == "monster" or (why and not why.startswith("tracking") and kind is None) else "player"
 
 
-def lumber_plan(memory, now: float) -> dict:
-    """`ctl lumber plan` as the dashboard sees it: lumber_opt.plan_from_store with no
-    live character (the newest trip row's character and skill; no hatchet options) and
-    no new route planning (cached landing routes only, route_check False), seeded by the
-    minute so a refresh within the minute shows the same draws. Per spot it adds what
-    the trip rows and job events say beyond the model: PK escapes (recall or guard
-    flight), creature recalls (a recall away from a creature, data.cause 'creature',
-    since 2026-10-03) and creature hits (monster_hit episodes), the last trip's outcome
-    and why, and the landing rune a trip recalls to (`reach`)."""
-    import lumber_opt
-    out = lumber_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now,
-                                     route_check=False)
-    spots = lumber_opt.load_spots(memory)
-    trips = [(r.get("spot") or r.get("venue"), r) for r in memory.episodes("lumber")]
+def _plan_spot_extras(rows: list, spots: dict, runs: list, events: list, default_outcome: str | None) -> None:
+    """Adds to each plan row (`rows`, mutated) what the job's run rows and events say beyond the
+    model: PK escapes (recall or guard flight), creature recalls (a recall away from a creature,
+    data.cause 'creature', since 2026-10-03) and creature hits (monster_hit events), the last run's
+    outcome (`default_outcome` when the row has none) and why, the landing rune a run recalls to
+    (`reach`) and the spot's pvp flag (`spots`: the job's load_spots). `runs`: [(spot id, row)] in
+    insert order; `events`: the job's job_events (an event without data.spot goes to the run
+    whose time span, plus 60 s, holds it)."""
     escapes, creature_recalls, creature_hits = {}, {}, {}
-    for e in memory.job_events("lumber"):
+    for e in events:
         if e["kind"] in ("recall", "guard_flight", "monster_hit"):
-            sid = e["data"].get("spot") or next((s for s, r in reversed(trips) if _num(r.get("t_start"), 0) <= e["t"]
+            sid = e["data"].get("spot") or next((s for s, r in reversed(runs) if _num(r.get("t_start"), 0) <= e["t"]
                                                 <= _num(r.get("t_end"), 0) + 60), None)
             if sid is None:
                 continue
             tally = (creature_hits if e["kind"] == "monster_hit"
                      else creature_recalls if recall_cause(e["data"]) == "creature" else escapes)
             tally[sid] = tally.get(sid, 0) + 1
-    for r in out["spots"]:
+    for r in rows:
         s = spots.get(r["id"]) or {}
-        last = next((row for sid, row in reversed(trips) if sid == r["id"]), None)
+        last = next((row for sid, row in reversed(runs) if sid == r["id"]), None)
         landing = r.get("landing") or {}
         r["pk_escapes"] = escapes.get(r["id"], 0)
         r["creature_recalls"] = creature_recalls.get(r["id"], 0)
         r["creature_hits"] = creature_hits.get(r["id"], 0)
-        r["last_outcome"] = None if last is None else (last.get("outcome") or "banked")
+        r["last_outcome"] = None if last is None else (last.get("outcome") or default_outcome)
         r["last_why"] = None if last is None else last.get("why")
         r["reach"] = None if not landing else (
             f"{landing.get('name')} ({landing.get('library') if landing.get('source') == 'library' else 'own book'}, "
             f"{landing.get('dist')} tiles off)")
         r["pvp"] = s.get("pvp", True)
+
+
+def lumber_plan(memory, now: float) -> dict:
+    """`ctl lumber plan` as the dashboard sees it: lumber_opt.plan_from_store with no
+    live character (the newest trip row's character and skill; no hatchet options) and
+    no new route planning (cached landing routes only, route_check False), seeded by the
+    minute so a refresh within the minute shows the same draws; per spot the extras of
+    _plan_spot_extras (a trip row without an outcome banked)."""
+    import lumber_opt
+    out = lumber_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now,
+                                     route_check=False)
+    _plan_spot_extras(out["spots"], lumber_opt.load_spots(memory),
+                      [(r.get("spot") or r.get("venue"), r) for r in memory.episodes("lumber")],
+                      memory.job_events("lumber"), "banked")
     out.pop("hatchets", None)
+    return out
+
+
+def mining_plan(memory, now: float) -> dict:
+    """`ctl mining plan` as the dashboard sees it: mining_opt.plan_from_store with no live character
+    (the newest leg row's), cached landing routes only (route_check False), seeded by the minute;
+    per spot the lumber dashboard's extras (_plan_spot_extras), and `skill`: the newest leg's
+    skill_end, else its skill, else None."""
+    import mining_opt
+    out = mining_opt.plan_from_store(memory, None, None, None, None, seed=int(now // 60), now=now,
+                                     route_check=False)
+    legs = memory.episodes("mining")
+    _plan_spot_extras(out["spots"], mining_opt.load_spots(memory), [(r.get("spot"), r) for r in legs],
+                      memory.job_events("mining"), None)
+    out["skill"] = None
+    for r in reversed(legs):
+        skill = _num(r.get("skill_end"), None)
+        skill = _num(r.get("skill"), None) if skill is None else skill
+        if skill is not None:
+            out["skill"] = skill
+            break
     return out
 
 

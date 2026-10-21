@@ -697,13 +697,23 @@ def test_overseer_routes(logdir):
               and "shelter_island" not in {r["id"] for r in plan["spots"]} and plan["ok"] is False
               and plan["error"].startswith("no home in harness/data/homes.json for"),
               str(plan)[:300])
+        mp = get(base + "/api/jobs/plan?job=mining")
+        mplan = mp["plan"]
+        check("GET /api/jobs/plan?job=mining: the mining plan (no mining legs, so no character and no home: ok false "
+              "with the reason, the named seed spots still ranked, no pick)",
+              mp["store"] is True and isinstance(mplan, dict) and mplan["ok"] is False
+              and mplan["error"].startswith("no home in harness/data/homes.json for")
+              and mplan["spots"] and all(r["name"] for r in mplan["spots"]) and "pick" not in mplan,
+              str(mplan)[:300])
+        code, _ = get_status(base + "/api/jobs/plan?job=hunt")
+        check("GET /api/jobs/plan?job=hunt: 400 (lumber and mining only)", code == 400, str(code))
         entered, release, real_plan = threading.Event(), threading.Event(), viz_server.jobs_mod.lumber_plan
 
         def slow_plan(mem, t):
             entered.set()
             release.wait(10)
             return real_plan(mem, t)
-        viz_server.jobs_mod.lumber_plan, srv.overseer.plan_cache = slow_plan, None
+        viz_server.jobs_mod.lumber_plan, srv.overseer.plan_cache = slow_plan, {}
         try:
             pending = threading.Thread(target=get, args=(base + "/api/jobs/plan",), daemon=True)
             pending.start()
@@ -823,6 +833,8 @@ def test_overseer_routes(logdir):
         check("no store: /api/jobs empty with store=false", jb["store"] is False and jb["trips"] == []
               and jb["totals"]["trips"] == 0, str(jb["totals"]["trips"]))
         check("no store: /api/jobs/plan null with store=false", get(base + "/api/jobs/plan") == {"plan": None, "store": False})
+        check("no store: /api/jobs/plan?job=mining null with store=false",
+              get(base + "/api/jobs/plan?job=mining") == {"plan": None, "store": False})
         hb = get(base + "/api/jobs?job=hunt")
         check("no store: /api/jobs?job=hunt is the hunt shape, empty, store=false",
               hb["store"] is False and hb["job"] == "hunt" and hb["visits"] == [] and hb["totals"]["kills"] == 0,

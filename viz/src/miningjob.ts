@@ -127,6 +127,27 @@ export function tripTally(done: readonly MiningLeg[], current: { ore: number } |
   };
 }
 
+/** The legs at `spot`, newest first by t_start (a leg without one last). */
+export function spotLegs(legs: readonly MiningLeg[], spot: string): MiningLeg[] {
+  return legs.filter((l) => l.spot === spot).sort((a, b) => (b.t_start ?? -Infinity) - (a.t_start ?? -Infinity));
+}
+
+export interface MetalMix {
+  name: string;
+  ingots: number;
+  /** of all the ingots made in the legs */
+  share: number;
+}
+
+/** The ingots made in `legs` by metal (metals_made), most first (ties by name), zeros dropped. */
+export function metalMix(legs: readonly MiningLeg[]): MetalMix[] {
+  const by = new Map<string, number>();
+  for (const l of legs) for (const [name, n] of Object.entries(l.metals_made)) by.set(name, (by.get(name) ?? 0) + n);
+  const rows = [...by].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const total = rows.reduce((s, [, n]) => s + n, 0);
+  return rows.map(([name, ingots]) => ({ name, ingots, share: ingots / total }));
+}
+
 /** The ore rate's trailing window, and the least field time it needs before it shows. */
 export const RATE_WINDOW_S = 300;
 export const RATE_MIN_S = 60;

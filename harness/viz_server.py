@@ -51,8 +51,9 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       store over [since, until) epoch s (harness/jobs.py: hunt -> compute_hunt, mining ->
                       compute_mining, else the lumber trip shape; tz = minutes east of UTC for the
                       per-day split, default the server's local offset), cached 2 s
-  GET  /api/jobs/plan  {plan, store}: the lumber optimizer's plan (jobs.lumber_plan, all
-                      history), recomputed once a minute; the Jobs page loads it on its own
+  GET  /api/jobs/plan[?job=lumber|mining]  {plan, store}: the job's optimizer plan
+                      (jobs.lumber_plan / jobs.mining_plan, all history; default lumber),
+                      recomputed once a minute; the Jobs page loads it on its own
   GET  /api/fos/reapers  the Field of Souls reaper heatmap (fos_field.reaper_map: field geometry,
                       per-cell time watched / spawns / in-view deaths, spawn points), cached 30 s
   GET  /api/overseer?after_chat=N&after_juncture=M[&char=0xS]  {chat, junctures, open, open_ids,
@@ -205,7 +206,7 @@ class OverseerDB:
         self.jobs_cache = {}
         self.plan_lock = threading.Lock()
         self.plan_mem = None
-        self.plan_cache = None     # (minute, body): ~3 s to compute on the 2026-10-05 store
+        self.plan_cache = {}       # {job: (minute, body)}: lumber ~3 s to compute on the 2026-10-05 store
         self.fos_cache = None      # (monotonic, body) of fos_reapers
 
     def _open(self, create: bool):
@@ -239,22 +240,24 @@ class OverseerDB:
             self.jobs_cache[key] = (now, body)
             return body
 
-    def plan(self) -> bytes:
-        """{plan, store}: jobs.lumber_plan at the server's clock, recomputed once per
-        wall-clock minute (its seed); plan null without a store. Concurrent callers wait
-        for one computation."""
+    def plan(self, job: str = "lumber") -> bytes:
+        """{plan, store}: jobs.lumber_plan (job 'lumber') or jobs.mining_plan (job 'mining') at the
+        server's clock, recomputed once per wall-clock minute (its seed) per job; plan null without
+        a store. Concurrent callers wait for one computation."""
+        fn = jobs_mod.mining_plan if job == "mining" else jobs_mod.lumber_plan
         with self.plan_lock:
             t = time.time()
             minute = int(t // self.PLAN_CACHE_S)
-            if self.plan_cache is not None and self.plan_cache[0] == minute:
-                return self.plan_cache[1]
+            cached = self.plan_cache.get(job)
+            if cached is not None and cached[0] == minute:
+                return cached[1]
             if self.plan_mem is None and os.path.exists(self.path):
                 self.plan_mem = memory_mod.Memory(self.path)
             mem = self.plan_mem
-            body = json.dumps({"plan": jobs_mod.lumber_plan(mem, t) if mem is not None else None,
+            body = json.dumps({"plan": fn(mem, t) if mem is not None else None,
                                "store": mem is not None}).encode()
             if mem is not None:
-                self.plan_cache = (minute, body)
+                self.plan_cache[job] = (minute, body)
             return body
 
     def overseer(self, after_chat: int, after_juncture: int, char_serial: int | None = None) -> dict:
@@ -576,7 +579,11 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/jobs":
             self._jobs(parse_qs(url.query))
         elif url.path == "/api/jobs/plan":
-            self._send(200, self.server.overseer.plan())
+            job = parse_qs(url.query).get("job", ["lumber"])[0]
+            if job not in ("lumber", "mining"):
+                self._json(400, {"error": "job must be lumber or mining"})
+            else:
+                self._send(200, self.server.overseer.plan(job))
         elif url.path == "/api/lumber/grove":
             self._grove(parse_qs(url.query))
         elif url.path == "/api/fos/reapers":

@@ -2421,7 +2421,7 @@ ol.job-events li {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* the left-column Mining job pane: long spot ids in the legs table */
+/* the left-column Mining job pane: long spot names in the legs table (name and id on hover) */
 .mining-job td.ml-spot {
   max-width: 84px;
   overflow: hidden;

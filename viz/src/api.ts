@@ -4,7 +4,7 @@
 // and the overseer chat (§2.4), the Nystul assistant chat, and the Razor
 // hotkeys page (profiles from the Razor Assistant dir, hotkey saves).
 import { getChar, type Session, withChar } from "./character.ts";
-import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type MiningResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
+import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type MiningPlanResponse, type MiningResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
 import type { NystulConversation, NystulList, NystulModels } from "./nystul.ts";
 import type { Binding, ProfileDoc, RazorSummary } from "./razor.ts";
 import type { OverseerResponse } from "./overseer.ts";
@@ -59,6 +59,13 @@ export async function fetchLumberPlan(): Promise<PlanResponse> {
   const r = await fetch("/api/jobs/plan", { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/jobs/plan: HTTP ${r.status} ${await r.text()}`);
   return (await r.json()) as PlanResponse;
+}
+
+/** The mining optimizer's plan (mining_opt via jobs.mining_plan; the same per-minute server cache). */
+export async function fetchMiningPlan(): Promise<MiningPlanResponse> {
+  const r = await fetch("/api/jobs/plan?job=mining", { cache: "no-store" });
+  if (!r.ok) throw new Error(`/api/jobs/plan?job=mining: HTTP ${r.status} ${await r.text()}`);
+  return (await r.json()) as MiningPlanResponse;
 }
 
 /** Chat rows and junctures above the cursors (0 = the newest 200), open junctures, heartbeat;

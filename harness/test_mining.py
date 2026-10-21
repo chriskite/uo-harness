@@ -96,6 +96,13 @@ def test_plan():
     check("its command runs it", out["pick"]["command"].startswith("ctl run mining --spot A --trips 1 --field-min 60"),
           out["pick"]["command"])
     check("ineligible rows sort last", [r["eligible"] for r in out["spots"]] == [True, True, False, False, False, False])
+    check("every row carries its hazards: deaths/h, sent home/h, P(death) over one run",
+          all({"deaths_per_h", "sent_home_per_h", "p_death_stint"} <= r.keys() for r in out["spots"]), out["spots"])
+    check("a spot with a sent-home leg is above the pooled sent-home rate",
+          rows["hot"]["sent_home_per_h"] > out["sent_home_pooled_per_h"],
+          (rows["hot"]["sent_home_per_h"], out["sent_home_pooled_per_h"]))
+    check("the pick carries its field rate and P(death) over one run",
+          "rate_ore_h" in out["pick"] and 0 < out["pick"]["p_death_stint"] < 1, out["pick"])
     out = mining_opt.plan(spots, episodes, NOW, random.Random(1), landings, exploit=True, exclude={"A"})
     rows = {r["id"]: r for r in out["spots"]}
     check("exclude drops the current spot", rows["A"]["why_not"] == "current spot" and out["pick"]["spot"] == "B",
@@ -113,6 +120,42 @@ def test_plan():
     check("every spot cooling down: when each is ready, and the soonest in the error (the overseer waits that long)",
           out["ok"] is False and rows["hot"]["ready_in_min"] == 20 and rows["dry"]["ready_in_min"] == 30
           and out["retry_in_min"] == 20 and "the first one ready: hot in 20 min" in out["error"], out)
+    check("a plan without a pick keeps the prior and the pooled figures",
+          {"prior_ore_h", "deaths_pooled_per_h", "regrow_min"} <= out.keys(), out.keys())
+
+
+def test_dashboard_plan():
+    print("the dashboard's plan (jobs.mining_plan): the planner plus the legs' and events' extras")
+    import jobs
+    mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
+    dan = {"serial": "0x00000001", "name": "Outland Dan"}
+    sid = "forge_2599_620"
+    mem.episode("mining", {**trip(sid, 300, ago_min=120), "outcome": "stored", "skill": 71.0, "skill_end": 71.5,
+                           "character": dan})
+    mem.episode("mining", {**trip(sid, 100, ago_min=60, why="threat: monster an orc at 8 tiles"), "outcome": "aborted",
+                           "skill": 71.5, "skill_end": 72.0, "character": dan})
+    mem.job_event("mining", "recall", {"spot": sid, "cause": "creature"}, t=NOW - 3700)
+    mem.job_event("mining", "recall", {"spot": sid, "cause": "player"}, t=NOW - 3650)
+    mem.job_event("mining", "monster_hit", {"spot": sid}, t=NOW - 3680)
+    out = jobs.mining_plan(mem, NOW)
+    row = next((r for r in out["spots"] if r["id"] == sid), {})
+    check("ok, with the newest leg's skill", out["ok"] is True and out["skill"] == 72.0, (out.get("error"), out["skill"]))
+    check("the spot's row: name, reach, the dtf landing, legs and threats",
+          row.get("name") and row.get("reach") and (row.get("landing") or {}).get("library") == "dtf"
+          and row["trips"] == 2 and row["sent_home"] == 1 and row["pvp"] is True, row)
+    check("its events: one creature recall, one PK escape, one creature hit; the last leg aborted",
+          (row.get("creature_recalls"), row.get("pk_escapes"), row.get("creature_hits")) == (1, 1, 1)
+          and row.get("last_outcome") == "aborted", row)
+    check("a pick and its command", out.get("pick", {}).get("command", "").startswith("ctl run mining --spot "),
+          out.get("pick"))
+    mem.close()
+    empty = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
+    out = mining_opt.plan_from_store(empty, None, None, None, None, seed=1, now=NOW, route_check=False)
+    check("no home: still ranked (every active spot 'no landing'), ok false, no pick",
+          out["ok"] is False and out["error"].startswith("no home in harness/data/homes.json for") and out["spots"]
+          and all(r["why_not"] == "no landing" for r in out["spots"] if r["status"] == "active")
+          and "pick" not in out, {k: out.get(k) for k in ("ok", "error", "pick")})
+    empty.close()
 
 
 def test_hop_choice():
@@ -220,7 +263,8 @@ def test_reachable_stands():
 
 
 def main():
-    for t in (test_outcome, test_plan, test_hop_choice, test_death_events, test_memory, test_reachable_stands):
+    for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
+              test_reachable_stands):
         t()
     print()
     if FAILURES:

@@ -153,7 +153,7 @@ channels.
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
-| `GET /api/jobs/plan` | the lumber optimizer's plan over all history, recomputed once a minute on its own connection and lock (§2.4) |
+| `GET /api/jobs/plan[?job=lumber\|mining]` | the job's optimizer plan over all history (default lumber; any other job 400), recomputed once a minute per job on its own connection and lock (§2.4) |
 | `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either |
 | `GET /api/fos/reapers` | the Field of Souls reaper heatmap (`fos_field.reaper_map`, §2.17): `{box, cell, view_r, spawn_r, instances: [{name, offset}], runs, watched_s, cells: [[ix, iy, watched_view_s, watched_spawn_s, deaths, spawns]], spawns: [[x, y]], store}` in the field frame; cached 30 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M[&char=0xS]` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4); `char` (a serial) scopes them to one character (§2.14) |
@@ -348,12 +348,14 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
   `until` <= `since` is **400**. `tz` is minutes east of UTC for the per-day split (the browser
   sends its own; default the server's local offset). Cached 2 s per (job, since, until, tz).
   The lumber plan is not in it: see the next route.
-- `GET /api/jobs/plan` → `{plan, store}`: `jobs.lumber_plan` (below) at the server's clock over all
-  history, `plan` null without a store (which it never creates). Recomputed once per wall-clock
-  minute (its seed) and shared by every caller. It has its own `Memory` connection and lock, so its
+- `GET /api/jobs/plan[?job=lumber|mining]` → `{plan, store}`: `jobs.lumber_plan` (the default) or
+  `jobs.mining_plan` (both below) at the server's clock over all history, `plan` null without a store
+  (which it never creates); any other `job` is **400**. Recomputed once per wall-clock minute (its
+  seed) per job and shared by every caller. It has its own `Memory` connection and lock, so its
   seconds of Monte Carlo (~3.4 s on the 2026-10-05 store, against 10–40 ms for the ranged
   analytics) never hold up `/api/jobs`, `/api/overseer` or the chat (2026-10-05, user request:
-  the page waited for the plan before showing anything).
+  the page waited for the plan before showing anything). The two jobs share the lock; the mining
+  plan takes ~0.2 s (live store 2026-10-20, 51 spots).
 
 **Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs:
 `Memory.episodes(job, since, until)` (trip rows), `Memory.job_events(job, since, until)`, the
@@ -417,6 +419,16 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   the PK escapes (`recall`/`guard_flight` events), the last trip's outcome and why, and how it's
   reached (`reach`: the landing rune's name, its library or "own book", tiles from the grove).
   0.18 s on the live store on 2026-10-03; ~3.4 s on 2026-10-05 (131 spots), hence its own route.
+- `jobs.mining_plan` (2026-10-20, user request: the Mining page had no planner data) is the same for
+  mining: `mining_opt.plan_from_store` with no live character (the newest leg row's), cached landing
+  routes only, seeded by the minute. Without a home it still ranks the spots (every active one "no
+  landing", `ok: false`, no pick), as lumber does. Per spot `mining_opt.plan` gives the field rate
+  (`rate_ore_h`, `rate_80`), the score (`score_ore_h`), the hazards' posterior means (`deaths_per_h`,
+  `sent_home_per_h`) and `p_death_stint` (P(death) over one run's `stint_min` field minutes); the plan
+  the pooled hazards, the prior and `regrow_min`; the pick also `rate_ore_h`, `sent_home_h` and
+  `p_death_stint`. `jobs._plan_spot_extras`, shared with `lumber_plan`, adds the PK escapes, creature
+  recalls and hits, the last leg's outcome and why, `reach` and `pvp`; `skill` is the newest leg's
+  `skill_end`, else its `skill`.
 
 **Hunt analytics (`jobs.compute_hunt`, pure; added 2026-10-02).** Inputs: `Memory.episodes("hunt")`
 (one row per visit to the spot, docs/HUNT_LOOP.md "Memory") and the hunt job events.
@@ -604,8 +616,18 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     ingots carried now (left in
     the pack at the newest leg's end), legs (hopped, aborted), deaths · threats. A line under them says what
     field time is and that each trip's ingots go into the stockpile at home.
-  - A spots table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the legs-and-
-    events strip with the event list (hops, threats, deaths).
+  - **Optimizer: next pick** and **Optimizer: spots** (2026-10-20, `components/MiningOptimizer.tsx`, from
+    `/api/jobs/plan?job=mining`, loaded on its own like lumber's): the pick's spot name and id,
+    explore/exploit, P(best), field minutes, the landing, field ingots/hr (ore beside it), P(death) per run
+    and sent home/hr, expected net ingots/hr; then skill, the regrowth wait, the pooled hazards, the new-spot
+    prior and the `ctl run mining` command. The spots table: name (id on hover), status, reached by, legs,
+    field h, field and net ingots/hr, nodes, deaths/hr, sent home/hr, P(death)/run, PK escapes, creature
+    recalls (hits on hover), last leg, P(best) and why not (with when it's ready). The planner works in ore;
+    these panels show ingots, 2 an ore (`jobs.ts` `INGOTS_PER_ORE`). Lumber's Q*, overhead, PK sightings,
+    thefts, loss/trip, place fails and supplies have no mining terms and are left out.
+  - A spots-in-range table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the legs-and-
+    events strip with the event list (hops, threats, deaths). Spot cells there and in the legs table show the
+    plan's spot name (id on hover).
   - The legs table, newest first: start, spot, trip · leg, field time, ore, ore/hr, digs (landed), smelts,
     ingots made, ingots stored, gold stored (tooltip: each metal's ingots and the price used), ingots carried,
     how it ended (`jobs.ts` `legEnd`: died, threat, else the outcome with dry /
@@ -617,6 +639,11 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     (no proxy) on a temp store with 3 synthetic legs (603 ore, 1,206 ingots, a hop off a dry spot, a threat
     abort): tiles 603 ore, 630 ore/field hr, 67% of 780 digs, 1,206 ingots carried; and on an empty store:
     clean empty panels; no page errors.
+  - The optimizer panels verified 2026-10-20 in headless Edge (Playwright, 1500×2400 and 2400×1100) against the
+    live viz, `#jobs/mining?all`: pick "Horseshoe Bay Cemetary forge (2106,2222)", explore, P(best) 5%, out by
+    Horseshoe Bay Cemetary (23 tiles off), ~3354 field ingots/hr (1677 ore), P(death) 20% per run, expected
+    1040 net ingots/hr, skill 78.1; "Optimizer: spots (49)" with the pick's row highlighted, the disabled
+    spots dimmed, every column filled; no page errors.
 
 **Verified in headless Chromium, 2026-09-29** (1600×1000; `--replay 20260929_163420 --port 12760
 --no-facet`, on a temp copy of the store holding the 5 real Shelter Island trips, plus seeded chat
@@ -1097,10 +1124,17 @@ alone, as §2.11.
 - **Status line:** what the run is doing, from the intent kind: `heading out`, `digging` (`to_stand`,
   `dig`), `to the forge` / `smelting`, `lockout`, `escaping`, `hopping` (`hop_plan`, `hop`) or `home`
   (recall home, the room, the stockpile, `trip_done`). Kinds that happen anywhere (`captcha`, `speech`,
-  `track`) take the newest earlier history entry with a phase. Then the spot id and the target tile.
+  `track`) take the newest earlier history entry with a phase. Then the spot's name from the plan (its id
+  beside it), a `PvP` badge for a PvP spot, its status when not active, and the target tile; under it
+  "via" the landing (`reach`, 2026-10-20).
+- **Expected** (2026-10-20, user request: what `LumberJobPanel` shows), from the spot's
+  `/api/jobs/plan?job=mining` row: field ingots/hr with its 80% interval (2 an ore), field ore/hr, net
+  ingots/hr (the planner's score), P(best) (or why it can't be picked), P(death) per run, deaths/hr and
+  sent home/hr.
 - **This trip:**
   - **Ore/hr now:** the ore dug over the last 5 min at the spot, per hour (`currentOreRate`), next to
-    the spot's all-time field rate. It works like the lumber pane's rate, with these differences:
+    the planner's expected field ore/hr (the spot's all-time `/api/jobs` rate without a plan row). It
+    works like the lumber pane's rate, with these differences:
     - The tally is the runner's per-leg ore count in its `to_stand`/`dig` texts ("Mining by x,y (N ore)").
       The intent carries no ore field, so no proxy or runner change was needed.
     - Smelting, escapes and captchas are field time (as `mining_opt.trip_obs`). They keep the last tally.
@@ -1114,16 +1148,20 @@ alone, as §2.11.
     trapped pouches count;
   - pickaxes (`0x0E85`/`0x0E86`) worn and in the backpack;
   - ingots stored today: today's `ingots_stored` from the per-day rows.
-- **Legs this trip:** each finished leg's number, spot, ore, field ore/hr and end (`legEnd`, as on the Jobs
-  page), then the leg in progress marked `now`; below, the spot's all-time legs, ore, ore/hr and dry legs.
+- **Legs this trip:** each finished leg's number, spot (the plan's name, name and id on hover), ore, field
+  ore/hr and end (`legEnd`, as on the Jobs page), then the leg in progress marked `now`.
   - The trip's legs are the newest leg rows with the intent's trip number. Their leg numbers count down
     to 1, and each but the newest hopped on. A row that didn't hop ends a trip, so it is the newest only
     at `trip_done`.
   - Rows that started before the newest history entry of another trip or loop are left out. That drops
     an earlier run's trip with the same number.
-- It polls the all-time `/api/jobs?job=mining` every 15 s only while it is shown (`useJobPoll`).
+- **History here** (2026-10-20): the spot's legs, field hours and ore (the plan row), ingots stored and dry
+  legs (`/api/jobs` per spot), deaths and the last leg; then its newest 5 legs (`spotLegs`: when, ore,
+  field ore/hr, end) and the metal mix of their ingots made (`metalMix`).
+- It polls the all-time `/api/jobs?job=mining` and `/api/jobs/plan?job=mining` every 15 s only while it is
+  shown (`useJobPoll`, `useMiningPlan`).
 - `viz/src/miningjob.ts` is the pure model (bun tests); `components/MiningJobPanel.tsx` draws it. Python:
-  `test_viz.py` `test_mining_jobs` (`open_leg`).
+  `test_viz.py` `test_mining_jobs` (`open_leg`), `test_mining.py` `test_dashboard_plan` (`jobs.mining_plan`).
 - Verified in headless Chrome against the live viz (Outland Dan mining `forge_2616_662`, trip 1/1):
   - "digging", 1948 ore/hr over 2:55, 95 ore dug;
   - carried: 95 ore, 0 ingots, 1 pickaxe worn and 2 in the pack;
@@ -1131,6 +1169,11 @@ alone, as §2.11.
   - smelts "—", since the stack's viz server predates `open_leg`.
   - A second viz server (port 8099) on the same proxy and store showed `0 · 0` smelts with
     `open_leg` `{stands: 7, smelts: 0}`.
+- The plan parts verified 2026-10-20 in headless Edge (Playwright) against a replay viz server
+  (`--replay 20261020_102748 --rate 10`, port 8097) on the live store: "digging", "Desert Outpost forge
+  (1494,2559)" with `forge_1494_2559`, PvP, "via Desert Outpost (dtf, 32 tiles off)"; Expected 3048 field
+  ingots/hr (80% 2658–3452), 1524 ore, 180 net, P(best) 0%, P(death)/run 19.7%; now 1472 ore/hr "· expected
+  1524"; History here 1 leg, 94 ore, its row "threat"; no page errors.
 
 ## 3. Parity principle
 
@@ -1420,7 +1463,8 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
   without woods, `since`, `until` exclusive at the boundary, a [since, until) window, a trip
   without `t_start` only in the unbounded range, determinism, empty data); `/api/jobs` equals
   `jobs.analytics`, also with `since`+`until`, and answers 400 to an empty, reversed, NaN or
-  non-numeric range; `/api/jobs/plan` serves the plan (null with no store) and, while it computes,
+  non-numeric range; `/api/jobs/plan` serves the lumber plan and `?job=mining` the mining one (each
+  ranked without a home, null with no store), `?job=hunt` is 400, and while the plan computes,
   `/api/jobs` and `/api/overseer` answer at once;
   `/api/overseer` cursors, the newest-200 window, open ids after an ack, and heartbeat;
   `POST /api/chat` stores a trimmed `user` row and rejects empty, whitespace, missing,

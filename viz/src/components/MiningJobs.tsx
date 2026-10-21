@@ -1,8 +1,9 @@
 import { fmtDuration } from "../format.ts";
-import { eventView, fmtGp, fmtIngotPrice, fmtInt, fmtNum, fmtStamp, legEnd, miningKpis, oneLocalDay, type MiningLeg } from "../jobs.ts";
+import { eventView, fmtGp, fmtIngotPrice, fmtInt, fmtNum, fmtStamp, legEnd, miningKpis, oneLocalDay, planSpotName, type MiningLeg } from "../jobs.ts";
 import { EventStrip } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
-import { fetchMining, JobsHead, JobsLoading, useJobPoll, type JobDashboardProps } from "./JobsCommon.tsx";
+import { fetchMining, JobsHead, JobsLoading, useJobPoll, useMiningPlan, type JobDashboardProps } from "./JobsCommon.tsx";
+import { MiningOptimizer } from "./MiningOptimizer.tsx";
 
 /** The tooltip of a leg's gold: each metal's ingots and the per-ingot price the value used. */
 function legPrices(l: MiningLeg): string | undefined {
@@ -15,10 +16,13 @@ function legPrices(l: MiningLeg): string | undefined {
   return lines.join("\n") || undefined;
 }
 
-/** Mining job dashboard from /api/jobs?job=mining (harness/jobs.py compute_mining). */
+/** Mining job dashboard from /api/jobs?job=mining (harness/jobs.py compute_mining) and the planner's
+ *  /api/jobs/plan?job=mining (jobs.mining_plan). */
 export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
   const { data, error, at, reload, loading } = useJobPoll(fetchMining, range);
+  const plan = useMiningPlan();
   if (!data) return <JobsLoading job="mining" onJob={onJob} error={error} />;
+  const planned = plan.res?.plan ?? null;
   const t = data.totals;
   const legs = data.legs;
   const sameDay = oneLocalDay(legs.flatMap((l) => (l.t_start === null ? [] : [l.t_start])));
@@ -37,7 +41,10 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
         store={data.store}
         error={error}
         at={at}
-        onRefresh={reload}
+        onRefresh={() => {
+          reload();
+          plan.reload();
+        }}
         range={range}
         onRange={onRange}
         loading={loading}
@@ -58,8 +65,10 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
         at each trip's end the runner puts the ingots into the room's Resource Stockpile.
       </div>
 
+      <MiningOptimizer plan={plan} />
+
       <div className="jobs-charts">
-        <Panel title={`Spots (${data.spots.length})`}>
+        <Panel title={`Spots in range (${data.spots.length})`}>
           {data.spots.length === 0 ? (
             <p className="dim">No legs at any spot yet.</p>
           ) : (
@@ -79,7 +88,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
               <tbody>
                 {data.spots.map((s) => (
                   <tr key={s.spot}>
-                    <td className="mono">{s.spot}</td>
+                    <td title={s.spot}>{planSpotName(planned, s.spot)}</td>
                     <td className="monster-bar">
                       <div className="bar-track">
                         <div className="bar-fill monster-fill" style={{ width: `${(s.ore / maxOre) * 100}%` }} />
@@ -150,7 +159,7 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
                     <tr key={l.n}>
                       <td className="mono">{l.n}</td>
                       <td className="mono">{l.t_start ? fmtStamp(l.t_start, sameDay) : "—"}</td>
-                      <td className="mono">{l.spot ?? "—"}</td>
+                      <td title={l.spot ?? undefined}>{planSpotName(planned, l.spot) ?? "—"}</td>
                       <td className="mono num">
                         {l.trip ?? "—"} · {l.leg ?? "—"}
                       </td>

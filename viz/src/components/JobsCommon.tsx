@@ -1,8 +1,8 @@
 // Shared by the job dashboards (docs/VISUALIZER.md §2.4): polling /api/jobs over the
 // page's date range, and the page head with the job switch and the range picker.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { fetchJobs, fetchLumberPlan } from "../api.ts";
-import { fmtStamp, localDay, parseRange, presetRange, RANGE_PRESETS, rangeBounds, rangeQuery, tzMinutesEast, type DateRange, type PlanResponse, type RangeBounds } from "../jobs.ts";
+import { fetchJobs, fetchLumberPlan, fetchMiningPlan } from "../api.ts";
+import { fmtStamp, localDay, parseRange, presetRange, RANGE_PRESETS, rangeBounds, rangeQuery, tzMinutesEast, type DateRange, type MiningPlanResponse, type PlanResponse, type RangeBounds } from "../jobs.ts";
 import { Badge } from "./common.tsx";
 
 export const JOBS = [
@@ -63,32 +63,42 @@ export const fetchHunt = (tz: number, range: RangeBounds) => fetchJobs("hunt", t
 export const fetchMining = (tz: number, range: RangeBounds) => fetchJobs("mining", tz, range);
 
 /** The plan poll: the last answer (null until the first), the last error, refresh now. */
-export interface PlanState {
-  res: PlanResponse | null;
+export interface PlanState<T = PlanResponse> {
+  res: T | null;
   error: string | null;
   reload: () => void;
 }
 
-/** The optimizer's plan, polled on its own (seconds when the server's per-minute cache is
- *  cold) so the rest of the dashboard never waits for it. */
-export function usePlan(): PlanState {
-  const [res, setRes] = useState<PlanResponse | null>(null);
+/** An optimizer's plan, polled on its own (seconds when the server's per-minute cache is
+ *  cold) so the rest of the dashboard never waits for it. `fetch` must be stable (module-level). */
+function usePlanPoll<T>(fetch: () => Promise<T>): PlanState<T> {
+  const [res, setRes] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const reload = useCallback(() => {
-    fetchLumberPlan().then(
+    fetch().then(
       (r) => {
         setRes(r);
         setError(null);
       },
       (e: unknown) => setError(String(e)),
     );
-  }, []);
+  }, [fetch]);
   useEffect(() => {
     reload();
     const t = setInterval(reload, REFRESH_MS);
     return () => clearInterval(t);
   }, [reload]);
   return { res, error, reload };
+}
+
+/** The lumber optimizer's plan (usePlanPoll). */
+export function usePlan(): PlanState {
+  return usePlanPoll(fetchLumberPlan);
+}
+
+/** The mining optimizer's plan (usePlanPoll). */
+export function useMiningPlan(): PlanState<MiningPlanResponse> {
+  return usePlanPoll(fetchMiningPlan);
 }
 
 export function JobSwitch({ job, onJob }: { job: JobKind; onJob: (j: JobKind) => void }) {

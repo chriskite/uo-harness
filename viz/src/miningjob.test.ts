@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MiningLeg } from "./jobs.ts";
-import { currentOreRate, legOre, miningCarried, miningPhase, oreTally, runningMining, tripBound, tripLegs, tripTally } from "./miningjob.ts";
+import { currentOreRate, legOre, metalMix, miningCarried, miningPhase, oreTally, runningMining, spotLegs, tripBound, tripLegs, tripTally } from "./miningjob.ts";
 import type { AgentIntent, Item, Snapshot } from "./types.ts";
 
 const ORE_KINDS = ["to_stand", "dig"];
@@ -115,6 +115,29 @@ describe("tripTally", () => {
     expect(tripTally(done, { ore: 25 }, undefined)).toEqual({ ore: 175, smelts: null, ingotsMade: null });
     expect(tripTally(done, null, undefined)).toEqual({ ore: 150, smelts: 3, ingotsMade: 300 });
     expect(tripTally([], { ore: 0 }, open)).toEqual({ ore: 0, smelts: 1, ingotsMade: 40 });
+  });
+});
+
+describe("spotLegs", () => {
+  test("the legs at the spot, newest first, a leg without a start last", () => {
+    const at = (n: number, spot: string, t_start: number | null) => ({ n, spot, t_start }) as unknown as MiningLeg;
+    const legs = [at(1, "a", 100), at(2, "b", 200), at(3, "a", null), at(4, "a", 300), at(5, "a", 50)];
+    expect(spotLegs(legs, "a").map((l) => l.n)).toEqual([4, 1, 5, 3]);
+    expect(spotLegs(legs, "c")).toEqual([]);
+  });
+});
+
+describe("metalMix", () => {
+  const made = (metals_made: Record<string, number>) => ({ metals_made }) as unknown as MiningLeg;
+  test("the legs' ingots made summed per metal, most first, with their share; zeros dropped", () => {
+    expect(metalMix([made({ iron: 90, gold: 10, copper: 0 }), made({ iron: 10 })])).toEqual([
+      { name: "iron", ingots: 100, share: 100 / 110 },
+      { name: "gold", ingots: 10, share: 10 / 110 },
+    ]);
+  });
+  test("ties by name; no legs, no mix", () => {
+    expect(metalMix([made({ verite: 5, agapite: 5 })]).map((m) => m.name)).toEqual(["agapite", "verite"]);
+    expect(metalMix([])).toEqual([]);
   });
 });
 
