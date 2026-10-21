@@ -3767,6 +3767,10 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     drop-off step took it (the skill mastery tome's step is for scrolls [INFERENCE: not tried with an orb]), so it
     would have stayed in the pack. homes.json `to_chest` now has graphic 0x5740 and the name "skill mastery orb";
     `dropoff.chest_items` on the live state picked only the orb.
+  - **Seeds go to the chest since 2026-10-20** (user: "add seeds (e.g. the 'very common seed' in our pack) to the list of
+    things to drop off"). "very common seed" 0x51F5EDA4, graphic 0x5736, at the pack's top level. `to_chest` now has
+    graphic 0x5736 and the name "seed" (the other rarities by name; their graphic not seen yet); `dropoff.chest_items`
+    on the live state picked only the seed.
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 

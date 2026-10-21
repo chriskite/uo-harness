@@ -1935,8 +1935,8 @@ class HuntLoop:
 
     def drop_off(self):
         """--drop-off, home after a recall: into the rental room through the house steward (room.enter) and the
-        room's drop-off (dropoff.run: the user's Razor 'New Drop Off', then research materials, resource maps and skill
-        mastery orbs into the chest; homes.json `dropoff`). The run goes back in from the room (a recall out of it works: user
+        room's drop-off (dropoff.run: the user's Razor 'New Drop Off', then homes.json `dropoff.to_chest` items into
+        the chest). The run goes back in from the room (a recall out of it works: user
         2026-10-14). Anything that goes wrong is logged and the run goes on with the load (a `dropoff` job event
         either way)."""
         st = self.state()
