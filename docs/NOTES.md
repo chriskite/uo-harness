@@ -4143,16 +4143,16 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   banshee, minion), simulated 0.00-0.05. `world.SHOT_AT_PLAYER_P` 0.2 (a shot at a pet goes to him when he is in
   reach and sight): his damage 0.63x -> 0.99x, potions 0.64x -> 1.02x, deaths unchanged; turning whole monsters to
   him instead (`RETARGET_P` up) raised deaths before the damage.
-- **On par now** (live 47 visits, 288 simulated runs): kills (101 against 96), the damage on Logan (0.99x), the
-  runner's hits lost (1.05x), heal potions (1.02x), the gravebug's damage (0.93x), deaths to monsters (1.1 against 0.6,
-  inside the interval), stand-offs, retreats, leaves for hits, walk-out deaths, soul jars, the zone shares, idle and
-  fighting monsters in view, most monsters met; the pace; Logan's distance to the nearest monster in war mode; whom a
-  monster hits first; the phoenix's distance from Logan; idle monsters' drift; the gravebug's fights; server answers
-  and the runner's reaction to them.
-  **Still apart** (docs/SIM.md "Still apart"): where the crawl goes (live 22 % of his time in the west wing,
-  simulated 12 %; the east 19 % against 29 %), hence the west wing's types met 0.6-0.8x; the phoenix's damage 1.34x
-  (vet 1.26x); bard uses a kill 1.76 against 1.49; pull holds 1.36x; gold 1.19x; disease ticks on Logan 17.3 an hour
-  live against 5.8.
+- **Compare the simulator with the visits of the runner it runs**: the live pets visits since 10-15 21:10 were run
+  by several runners; the crawl's seek of monsters in view (11c884b) came at 10-17 23:08, and the simulator's crawl
+  sought 74 times an hour against 21 on all live visits. The "where the crawl goes", gold, bard and west-wing gaps
+  were mostly that. `parity.py --since` defaults to `RUNNER_SINCE` (2026-10-17 23:08) now: 32 visits, 3.76 h.
+  On that yardstick (288 runs, after a second tormented soul spawn at (5236, 685), the rare spawns' respawns and the
+  eerie rate refitted to it): kills 0.99x, gold 0.98x, the damage on Logan 0.97x, hits lost 0.99x, potions 1.00x,
+  discord and peace successes and fails, stand-offs, retreats, leaves, walk-out deaths, soul jars, eerie corpses,
+  every monster type met within the live interval.
+  **Still apart** (docs/SIM.md "Still apart"): the phoenix's damage 1.41x (vet 1.17x), pull holds 1.24x, deaths 1.3
+  an hour against 0.5 (two live deaths: inside the interval).
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
