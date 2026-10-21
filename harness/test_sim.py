@@ -289,6 +289,20 @@ def test_bard_and_vet():
           and gb.hits > gb.hits_max * 0.5, f"{took:.2f} s, {gb.hits}/{gb.hits_max}")
     for p in w.pets():
         p.mode = "stay"
+    gb.hits, gb.x, gb.y = gb.hits_max * 0.5, w.player.x, w.player.y + 3
+    w.player.hits = w.player.hits_max
+    clock.advance(1.0)
+    mark = len(link.events)
+    link.send(actions.dclick(vet))
+    clock.advance(1.0)
+    link.send(actions.walk(4, seq=1))                 # a turn south, then a step mid-channel: the gravebug 2 off then
+    link.send(actions.walk(4, seq=2))
+    until((tamer.TEXT_VET_FINISH, tamer.TEXT_VET_FAR))
+    check("a step during the channel: the gravebug 2 tiles off at the finish healed (live 126 of 128 channels with "
+          "steps finished)", w.player.pos[:2] == (FLOOR[0], FLOOR[1] + 1) and gb.hits > gb.hits_max * 0.5,
+          f"at {w.player.pos[:2]}, {gb.hits}/{gb.hits_max}")
+    for p in w.pets():
+        p.mode = "stay"
     gb.hits, gb.x, gb.y = gb.hits_max * 0.5, w.player.x + 4, w.player.y
     w.player.hits = w.player.hits_max
     clock.advance(1.0)
@@ -824,6 +838,26 @@ def test_idle_pet():
         simclock.uninstall(patched)
     check("'All Kill' at the gravebug's target, the phoenix on it", said >= 1 and af.target == m.serial,
           f"kill commands {said}, phoenix target {af.target}")
+
+
+def test_pet_shot():
+    print("== the phoenix blind to its target (the pillar row, the gravebug in its one gap): it moves to a shot ==")
+    # the simulator 2026-10-20 (seed 20, 285-385 s): AlaFlambe at (5265, 651) on a bound soul at (5265, 649) stood
+    # 100 s without an attack, stepping only straight at it; live the phoenix went 10+ s without one in 1.5 % of the
+    # gravebug's fighting time (35 visits)
+    w = world_with([{"key": "bound soul", "at": [5265, 649, 0]}], seed=7, start=(5265, 655))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    (gb.x, gb.y), (af.x, af.y) = (5266, 650), (5265, 651)
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    for p in (gb, af):
+        p.mode, p.target = "guard", m.serial
+    link, clock = link_for(w)
+    check("blind at the start", not w.can_see(af, m))
+    clock.advance(10.0)
+    check("the phoenix hit it within 10 s", af.serial in m.damage_by, f"phoenix at {af.pos[:2]}")
 
 
 def test_on_another_player():
@@ -2035,7 +2069,7 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,
-              test_idle_pet, test_on_another_player, test_others_corpse_not_looted,
+              test_idle_pet, test_pet_shot, test_on_another_player, test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
               test_songs,

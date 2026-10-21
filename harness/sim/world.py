@@ -101,6 +101,22 @@ def tile_dir(a, b) -> int:
     return nav.direction(tuple(a[:2]), tuple(b[:2]))
 
 
+class _ShotGoal(nav.within):
+    """Goal predicate for `World._step_to_shot`: within `radius` of the target and in its sight from the tile's
+    surface (pathfind.plan passes (x, y); nav.within's heuristic keeps the search small)."""
+
+    __slots__ = ("sight", "at")
+
+    def __init__(self, sight, at, radius: int):
+        super().__init__(at, radius)
+        self.sight, self.at = sight, at
+
+    def __call__(self, t) -> bool:
+        if not super().__call__(t):
+            return False
+        return self.sight.can_see((t[0], t[1], los.surface_z(self.sight.walk, t[0], t[1], self.at[2])), self.at)
+
+
 @dataclass
 class Mob:
     serial: int
@@ -219,8 +235,7 @@ class World:
         self.rope_ready = 0.0
         self.last_use_t = -1e9
         self.potion_ready = 0.0
-        self.vet_end = None                   # (finish time, moved during the channel?)
-        self.vet_moved = False
+        self.vet_end = None                   # the running vet channel's finish time
         self.last_step_t = 0.0
         self.penalty = 0
         self.gump_n = 0x7700
@@ -1400,6 +1415,11 @@ class World:
                 m.next_step = self._due(m.next_step, spec["step_s"])
                 self._step_toward(m, self.player.pos, spec.get("follow", 2))
             return
+        if ranged and not spec.get("melee"):
+            if t >= m.next_step:
+                m.next_step = self._due(m.next_step, spec["step_s"])
+                self._step_to_shot(m, tgt, ranged["range"])
+            return
         if d <= 1:
             if spec.get("melee") and t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
@@ -1414,6 +1434,24 @@ class World:
         if t >= m.next_step:
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
+
+    def _step_to_shot(self, m: Mob, tgt: Mob, rng: int):
+        """A ranged pet without a shot: a step on the way to the nearest tile within `rng` of its target that sees
+        it. Live the phoenix went 10+ s without an attack in 1.5 % of the gravebug's fighting time (14 of 948 s an
+        hour, 35 visits, 2026-10-20); stepping straight at the target, the simulator's stood 25 % of its targeting
+        time behind a pillar or the gravebug in a gap, 2 tiles off and blind, while the gravebug fought alone."""
+        if m.path:
+            nxt = m.path.pop(0)
+            if not self._occupied(nxt[0], nxt[1], m.serial) and cheb(nxt, m.pos) == 1:
+                self._place(m, nxt)
+                return
+            m.path = []
+        occ = {(o.x, o.y) for o in self.mobs.values() if o.alive and not o.ghost and o.serial != m.serial}
+        path = pathfind.plan(self.walk, m.pos, _ShotGoal(self.sight, tgt.pos, rng), occupied=occ,
+                             max_expand=4000, max_steps=40)
+        if path and len(path) > 1:
+            m.path = [tuple(p) for p in path[2:]]
+            self._place(m, tuple(path[1]))
 
     # ------------------------------------------------------------ client packets
     def c2s(self, p: bytes, seq: int | None = None):
@@ -1474,8 +1512,6 @@ class World:
         self.send(P.confirm_walk(seq))
         self.metrics["steps"] += 1
         self.last_step_t = self.t
-        if self.vet_end:
-            self.vet_moved = True
         if self.penalty:
             self.penalty -= 1
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
@@ -1871,12 +1907,16 @@ class World:
         self._sys(tamer.TEXT_VET_BEGIN)
         self.metrics["vet_uses"] += 1
         self._consume(s)
-        self.vet_end, self.vet_moved = self.t + self.rng.uniform(*v["channel_s"]), False
+        self.vet_end = self.t + self.rng.uniform(*v["channel_s"])
 
     def _vet_finish(self):
+        """A channel's end: heals every hurt pet within range of us then (and us), or 'too far' with none. Moving
+        during the channel doesn't shorten the range: live, of 128 channels with steps of ours in them, 126 finished
+        and healed, 44 of those with the nearest pet 2-8 tiles off (2026-10-20, 35 visits); before, a step cut the
+        range to 1 [INFERENCE of the first build] and the simulator's runner got 'too far' 30 times an hour (live 0.6)."""
         pl, v = self.player, self.sc["vet"]
         self.vet_end = None
-        rng = 1 if self.vet_moved else v["range"]
+        rng = v["range"]
         ghosts = [m for m in self.pets() if m.ghost and cheb(m.pos, pl.pos) <= rng]
         pets = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng
                 and (m.hits < m.hits_max or m.poison_until > self.t)]

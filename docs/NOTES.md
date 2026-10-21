@@ -4066,19 +4066,29 @@ hour on the level, with a bootstrap 95 % interval over the live visits. What it 
   attack, where the simulator applied 386. Its damage x 1.373; kill times from our first hit came from 1.0-1.6x of
   live to 0.9-1.3x. Not the creatures' hits: live kills from full took exactly the scenario's hits + 1.
 - **Eerie corpses**: 2.5 an hour came into view live; the simulator now has them (`--eerie`), 2.4.
-- **Now within the live interval** (merged with main's 7047a1d, with the Tank draw below): kills, the damage on Logan
-  (overhead numbers live 1,617 an hour, the world's 1,757; the runner's own hits-lost count doesn't compare: live it
-  runs 1.28x over the server's status drops), deaths to monsters (1.5 against 0.7), retreats, peace failures, leaves
-  for hits, walk-out deaths, soul jars, eerie corpses, the zone shares.
+- **Now within the live interval** (with the Tank draw and the three fixes below): the damage on Logan (overhead
+  numbers live 1,617 an hour, the world's 1,626; the runner's own hits-lost count doesn't compare: live it runs 1.28x
+  over the server's status drops), deaths to monsters (1.2 against 0.7), kills (100 against 95), retreats, leaves for
+  hits, walk-out deaths, soul jars, eerie corpses, the zone shares.
 - **The first contact** (user's call 2026-10-20, "Adopt the Tank draw"): where Logan was the nearest seen at a wake,
   live the gravebug took the first contact 61 % (99 wakes, 2026-10-15 audit), the simulator 29 %, so its monsters,
   the nightstalker above all (Logan nearer at 31 of 44 simulated wakes against 4 of 22 live), went for Logan. A
   guarding Tank in sight within the monster's range + 3 now takes the wake with `tank_draw` 0.9 (61 % simulated):
   deaths 2.0 -> 1.5 an hour, the damage on Logan 2,308 -> 1,757 (live 1,617).
-  **Still apart** (docs/SIM.md "Still apart"): heal potions 0.70x, the pets' damage 1.8x and 3.0x (vet 1.7x; the live
-  number two ways, overhead "-N" and their hits share drops x their real hits, agree within 7 %), stand-offs and pull
-  holds 1.2-1.3x, gold 1.19x, and the monsters met an hour ~1.3x for several types: the simulator walks more an hour
-  at the same step pace [INFERENCE: live time between decisions].
+- **A vet channel keeps its range when we step** (live: 126 of 128 channels with our steps in them healed, 44 with
+  the nearest pet 2-8 off); the simulator had cut it to 1 and answered "too far" 30 times an hour (live 0.6).
+- **A blind ranged pet walks to a shot**: the simulated phoenix stood 25 % of its targeting time behind a pillar or
+  the gravebug in a gap without an attack (one fight 100 s on the gravebug alone); live it went 10+ s without an
+  attack in 1.5 % of the gravebug's fighting time. Fights over 60 s beside the gravebug: 5.4 an hour -> 0.8 (live 0.4).
+- **A shadowguard spawn** moved 3 tiles east to its live sightings: in pull reach through a wall, the runner walked
+  155-168-step routes at it (live never over 100).
+- **Server answers are fast**: a skill's target cursor median 46 ms after the request (611), a corpse opened 47 ms
+  (276), walk confirms 0.26 s (16,508, paced). Not where live time goes.
+  **Still apart** (docs/SIM.md "Still apart"): the pets' damage 1.7x and 2.4x (vet 1.5x): fights last as live, the
+  gravebug meets 1.6x the monsters; the level's idle population at a spawn on approach 31 % live against 63 %, in
+  view 0.98 against 1.9, 2-3x in four 20-tile cells and equal elsewhere (a level-wide clearing tried and not kept:
+  kills fell to 0.90x); the runner walks 1.6x more an hour (live stands still in a quiet view 45 % of the time,
+  simulated 12 %); heal potions 0.67x; gold 1.32x.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

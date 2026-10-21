@@ -330,7 +330,7 @@ def report(live: list[dict], live_fights: list[dict], scan: list[dict], sim: lis
         tl, ts = sum(by_l.values()) or 1e-9, sum(by_s.values()) or 1e-9
         top = sorted(set(by_l) | set(by_s), key=lambda k: -(by_l.get(k, 0) / tl + by_s.get(k, 0) / ts))
         out.append("damage on us by source, share (live: overhead numbers, the nearest monster in war mode; "
-                   "the runner's hits_lost above is the comparable total):")
+                   "simulated: the world's accounting; the totals are the 'us' row above):")
         out += [f"  {k:<22} {by_l.get(k, 0) / tl:>9.2f} {'':>19} {by_s.get(k, 0) / ts:>9.2f}" for k in top[:16]]
     kl, ks = kill_times(live_fights), kill_times(sim_fights)
     out.append("time to kill, median s (n): live / sim")
