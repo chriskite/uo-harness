@@ -586,7 +586,7 @@ Paste this (or point the session at this section) to start an overseer.
 >    proxy restart** `status.mobiles` is empty, so the pets look gone: wait until they show again, or ask the
 >    user (they may need fetching).
 > 2. **In the room before every run: `act dropoff`** (the user's drop-off: gold into the bank deposit safe,
->    loot into its tomes, research materials and resource maps into the chest, then the shelf's Resupply).
+>    loot into its tomes, research materials, resource maps and skill mastery orbs into the chest, then the shelf's Resupply).
 >    Read its `reply`. From the DTF landing, `act room enter` first (Logan's own room, no owner words).
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"
 >    and the like): heal potions `0x0F0C`, vet supplies `0x6496`, Total Refresh `0x0F0B`, adventurer's rope,
@@ -598,7 +598,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    chest's list (research materials, resource maps) accept. Read `status.backpack.items` and move each item a
 >    monster dropped with `act drop <item serial> 0x4AE0DD2C` (the room's chest, `homes.json` `dropoff.chest`),
 >    one act per item, then `status` again to see it gone. Examples: dyes (the mastery chain dye; the user used that
->    one on his chain), jewellery, gems, instruments ("supremely melodious") and hued valuables. **Leave Logan's
+>    one on his chain), skill mastery orbs (the drop-off moves them since 2026-10-20; one left behind is still loot),
+>    jewellery, gems, instruments ("supremely melodious") and hued valuables. **Leave Logan's
 >    kit**: gold (the next drop-off takes it), the supplies (potions, vet supplies, bandages, rope, empty bottles),
 >    the rune tome and runebook, his lute and crook, the codexes, books and tomes, bags, pouches, the satchel, the
 >    wooden box and its key, the wraith mask and hood, the Kasa, the spyglass, **mastery chains** (player-crafted

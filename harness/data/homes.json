@@ -19,7 +19,7 @@
       "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]},
       "forge": {"serial": "0x51CF24B3", "name": "forge", "pos": [400, 923, 2]},
       "dropoff": {
-        "_doc": "harness/dropoff.py, `ctl act dropoff`: the user's Razor script 'New Drop Off' (Scripts/New Drop Off.razor, F5), step for step; entries are clilocs (1095566 Add All In Backpack, 1095568 Add All Unidentified Items From Backpack, 3006349 Restock, 3006348 Resupply). Names: the items' labels (ctl status ground_items, 2026-10-16). Then `to_chest` from the pack's top level into `chest` (user 2026-10-15: research materials and resource maps, 'chest for now, we'll buy tomes later'; resource maps by name, their graphic not seen yet).",
+        "_doc": "harness/dropoff.py, `ctl act dropoff`: the user's Razor script 'New Drop Off' (Scripts/New Drop Off.razor, F5), step for step; entries are clilocs (1095566 Add All In Backpack, 1095568 Add All Unidentified Items From Backpack, 3006349 Restock, 3006348 Resupply). Names: the items' labels (ctl status ground_items, 2026-10-16). Then `to_chest` from the pack's top level into `chest` (user 2026-10-15: research materials and resource maps, 'chest for now, we'll buy tomes later'; resource maps by name, their graphic not seen yet; user 2026-10-20: skill mastery orbs 0x5740 are loot no step takes).",
         "steps": [
           {"serial": "0x62659A52", "name": "a treasure map tome", "entry": 1095566},
           {"serial": "0x431E6BAA", "name": "a mastery chain link tome", "entry": 1095566},
@@ -31,7 +31,7 @@
           {"serial": "0x6CEB65CD", "name": "a storage shelf", "entry": 3006348}
         ],
         "chest": {"serial": "0x4AE0DD2C"},
-        "to_chest": {"graphics": ["0x5F72"], "names": ["research materials", "resource map"]}
+        "to_chest": {"graphics": ["0x5F72", "0x5740"], "names": ["research materials", "resource map", "skill mastery orb"]}
       }
     }
   }

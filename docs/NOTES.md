@@ -3762,6 +3762,11 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     menu's arrival (the entry still chosen by cliloc, one round trip a step), the stockpile's cursor answered at once,
     and each step's line taken from what arrives before the next menu (the server answers in order): 0.32 s against
     the fake, about a round trip a step live [INFERENCE: not yet run live]. test_dropoff checks the line attribution.
+  - **Skill mastery orbs go to the chest since 2026-10-20** (user: "The overseer failed to drop off a skill orb that is
+    loot"). "a skill mastery orb" 0x51F6DD09, graphic 0x5740, looted 22:48:49 in hunt-20261020-223926-1d18; no
+    drop-off step took it (the skill mastery tome's step is for scrolls [INFERENCE: not tried with an orb]), so it
+    would have stayed in the pack. homes.json `to_chest` now has graphic 0x5740 and the name "skill mastery orb";
+    `dropoff.chest_items` on the live state picked only the orb.
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 
