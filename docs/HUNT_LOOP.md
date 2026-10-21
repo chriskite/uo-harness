@@ -667,8 +667,15 @@ moongate, and never near a red one).
     tiles): "All Guard Me" and the fight tick's order (stand-off, a potion, the pets' care, the pets at
     what is on us, our kills looted) until nothing attacks us for 4 s (at most 90 s), then "All Follow Me"
     and walk on. Live 22:33:39, with only the pets' care, Logan stood among the mobs dying.
-  - Before each step onto a teleporter, every pet within 3 tiles of it (they come through only if
-    near it), else the waits above. `--songs`: a song due before each leg.
+  - **Attacked near the teleporter** (`walk_in_dash`, since 2026-10-20; live 22:57:15-31 Logan stood fighting 13
+    steps from 5522,637 until the user walked him through to Maus 3): attacked within `TELE_DASH_R` 15 route steps
+    of the teleporter walked to, no stand: "<label>: attacked N steps from it; through it now", "All Follow Me"
+    without waiting for the pets, on to the tile before it at flight pace with no stop for the attackers (a ready
+    heal potion below `--heal-at` on the way), then the step through with no wait for the pets beside it. Farther
+    out it still stands. The leave gate's `GATE_DASH_R` below is the same rule.
+  - Before each step onto a teleporter (not after a dash), every pet within 3 tiles of it, else the waits above.
+    A caution: on "All Follow Me" pets come through with us while in view (user 2026-10-20, Outlands), not only
+    from within 3 tiles. `--songs`: a song due before each leg.
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
   - The runner says "All Follow Me" and walks to the gate (user 2026-10-17, after a time-up walk out on
     "All Guard Me" left the pets fighting behind: "all follow me to run out, not all guard"), and says it

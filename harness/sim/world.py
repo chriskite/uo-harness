@@ -1452,7 +1452,7 @@ class World:
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
         tp = next((tp for tp in self.sc.get("teleporters", []) if tuple(tp["from"][:2]) == (pl.x, pl.y)), None)
         if tp is not None:
-            self._move_party(tp["to"])
+            self._move_party(tp["to"], follow_r=VIEW)
         gate = self.gates.get((pl.x, pl.y))
         if gate is not None:
             self._gate_menu(gate)
@@ -1921,12 +1921,16 @@ class World:
             return True
         return any(cheb(pos, g) <= d.get("recall_r", 2) for g in d.get("gold_gates", []))
 
-    def _move_party(self, to):
+    def _move_party(self, to, follow_r: int | None = None):
         """Us to `to`, and our live pets within pet_range of us with us (a recall, a moongate, a
-        teleporter: ServUO TeleportPets [INFERENCE: the range]). They default to Follow: a
-        transition stops guarding (wiki, #11539/#11561). What fought us there stays behind."""
+        teleporter: ServUO TeleportPets [INFERENCE: the range]); `follow_r` (a teleporter) also those on Follow
+        this close (user 2026-10-20: on Outlands pets on "All Follow Me" come through a teleporter with Logan
+        while in visual range). They default to Follow: a transition stops guarding (wiki, #11539/#11561). What
+        fought us there stays behind."""
         pl = self.player
-        came = [m for m in self.pets() if cheb(m.pos, pl.pos) <= self.sc["recall"].get("pet_range", 3)]
+        r = self.sc["recall"].get("pet_range", 3)
+        came = [m for m in self.pets() if cheb(m.pos, pl.pos) <= r
+                or (follow_r is not None and m.mode == "follow" and cheb(m.pos, pl.pos) <= follow_r)]
         self._teleport(pl, to)
         self._place_beside(came)
         for m in came:

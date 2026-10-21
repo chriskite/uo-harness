@@ -1851,6 +1851,58 @@ def test_walk_in():
           f"max {max(lag) if lag else None}")
 
 
+def test_tele_dash():
+    print("== attacked on the walk-in within TELE_DASH_R of the teleporter: on and through it, no stand ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 2026-10-20 22:57:15-31 (hunt-20261020-223926-1d18): attacked 13 steps from 5522,637 (route 12 from
+    # (5513, 647)), the pets guarded and Logan stood dying until the user walked him through to Maus 3. Here
+    # something unseen takes a hit point every 0.5 s down to 60, so a stand lasts ~20 s
+    w = world_with([], seed=7, start=(5513, 647))
+    tele, arrival = (5522, 637), (5199, 737)
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs"], 10, at_hunt=False)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    world_tick, last, err = clock.on_advance, [None], None
+
+    def bleed(now):
+        world_tick(now)
+        if (last[0] is None or now - last[0] >= 0.5) and sim_cheb(w.player.pos, arrival) > 20:
+            last[0] = now
+            if w.player.hits > 60:
+                w.hurt(w.player, 1, None, kind="bleed")
+    clock.on_advance = bleed
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            g0 = w.metrics["guard_commands"]
+            t0 = loop_hunt.time.monotonic()
+            try:
+                loop.walk_in([tele])
+            except Exception as e:  # noqa: BLE001
+                err = e
+            took = loop_hunt.time.monotonic() - t0
+    finally:
+        clock.on_advance = world_tick
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("through within seconds, on Maus 3 (not a stand while the pets guard)",
+          err is None and took < 10 and sim_cheb(w.player.pos, arrival) <= 3, f"{err} in {took:.1f} s at {w.player.pos}")
+    check("...no 'All Guard Me', 'through it now' logged, not 'attacked on the way in'",
+          w.metrics["guard_commands"] == g0 and "steps from it; through it now" in out
+          and "attacked on the way in" not in out, f"guards {w.metrics['guard_commands'] - g0}")
+    check("...both pets came through with us", all(sim_cheb(p.pos, w.player.pos) <= tamer.FOLLOW_R + 1 for p in w.pets()),
+          str([(p.name, p.pos) for p in w.pets()]))
+
+
 def test_soul_jar():
     print("== Field of Souls: with an empty soul jar, walk to an eerie corpse and fill it there; no jar, no walk ==")
     import json
@@ -2037,7 +2089,7 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_soul_jar, test_soul_jar_guards, test_transfixed_walk,
+              test_rest_hurt_pet, test_walk_in, test_tele_dash, test_soul_jar, test_soul_jar_guards, test_transfixed_walk,
               test_walk_failed_carries_on):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

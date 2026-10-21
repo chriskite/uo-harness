@@ -763,8 +763,8 @@ class Team:
 
     def together(self, st, at=None) -> bool:
         """Every pet of the roster in view within FOLLOW_R of us, or of tile `at` (a teleporter we step
-        onto next: the pets that come along are counted from it [INFERENCE: ServUO TeleportPets from the
-        mover's location]; a pet 3 tiles behind us was 4 from it and stayed behind in the simulator)."""
+        onto next: walk_in's caution before the step; on 'All Follow Me' pets come through a teleporter with us
+        while in view, user 2026-10-20 on Outlands, not only from within a few tiles of it)."""
         near = {p["serial"] for p in self.pets(st)
                 if (p["dist"] if at is None else cheb((p["x"], p["y"]), at)) <= FOLLOW_R}
         return all(s in near for s in self.roster)

@@ -3935,6 +3935,21 @@ share and Logan's first run: `ctl know search "Field of Souls" --tag fos`. Code:
     the transfix); now it counts one walk's, and the abort names its walk, so the retreat's own catch sees it.
     (2) A failed walk inside the hunt no longer ends the run: `WalkFailed`, `HuntLoop.walk_failed` (docs/HUNT_LOOP.md
     "Guards"). test_sim `test_walk_failed_carries_on` (before: `WalkFailed` out of `hunt()`).
+- **Stood fighting 13 steps from the last teleporter (2026-10-20 22:57:06-31, hunt-20261020-223926-1d18).** On the
+  walk-in to 5522,637 (onto Maus 3), attacked 58 steps out (the pets guard, potion 79 -> 100, vet 75), then again
+  at (5513, 647), route 12 to the tile before the teleporter (cheb 10): the pets guarded and Logan stood among an
+  abomination, a devourer beetle and an insane reanimator (vet 56, potions at 60 and 62, a discord, a provocation)
+  until the user took over at 22:57:30.8 and walked him through (user: "I had to take control because Logan was
+  dying to a mob instead of running to Maus 3"). Fixed: attacked within `TELE_DASH_R` 15 route steps of the
+  teleporter, `walk_in_dash` (docs/HUNT_LOOP.md "Recall in, recall out", In). test_sim `test_tele_dash` (before: a
+  stand under "All Guard Me" until the 780 s test timeout; after: on Maus 3 in 3.6 s, both pets through). Simulator
+  48 x 20 min seed 17, before / after (with the simulator's teleporter rule below): deaths 25 / 21 runs (1.95 / 1.57
+  per game hour), kills 100.6 / 106.0 and gold 94,650 / 98,583 per hour, runs with a pet death 18 / 21, a pet left
+  behind 1 / 0.
+  - **Pets on "All Follow Me" come through a teleporter while in view** (user 2026-10-20, Outlands; this replaces
+    the earlier [INFERENCE] of RunUO TeleportPets' 3 tiles). The normal walk-in still waits for them within 3 tiles
+    of the teleporter before its step (a caution now, not a need); the dash doesn't wait. The simulator's
+    teleporters bring pets on Follow within its view (18) too.
 
 ## Field of Souls: the field map (reaper spawns, 2026-10-17)
 

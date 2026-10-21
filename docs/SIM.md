@@ -702,7 +702,9 @@ with Logan on Maus 3 (6.69 h, docs/NOTES.md "Other players at the Mausoleum"); e
     and out of the Mausoleum").
   - Not known: the gold gates' menus and the ways back up.
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
-  its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]).
+  its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]), and through a
+  teleporter also any on Follow within the view (18; user 2026-10-20: on Outlands pets on "All Follow Me" come
+  through with Logan while in view).
   Patrol ("All Patrol", since 2026-10-18 from the user's demo, docs/NOTES.md "All Patrol"): a location
   cursor, "Target cannot be seen." for a tile out of our sight, the pets run to the tile, attack a monster
   within 3 of it (`PATROL_TAKE_R`) and stay about the spot; "All Guard Me" leaves the target they fight.

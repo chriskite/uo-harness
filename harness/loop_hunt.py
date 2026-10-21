@@ -208,6 +208,11 @@ WALK_IN_ARRIVED_R = 3         # --enter-via: this close to a teleporter's known 
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
+TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fewer from the teleporter walked to: on and
+#                               through it, no stand (live 2026-10-20 22:57:15: attacked again 13 steps from 5522,637, the
+#                               route's 12 to the tile before it and the step on; the stand there was killing Logan until
+#                               the user walked him through. 13 plus a 2-step margin, ~3 s running against a stand of up
+#                               to WALK_IN_FIGHT_S; GATE_DASH_R's rule for the leave gate)
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
 JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
 #                               "no other way on" memory, so the retry stops at the same place again)
@@ -2062,8 +2067,10 @@ class HuntLoop:
         live 22:20:56 a guard said at the landing set them fighting there while Logan walked off alone).
         A pet falling behind (WALK_IN_LAG_R, or out of view) stops the walk: 'All Follow Me' again and
         WALK_IN_PETS_S for it to come; something attacking us or our hits falling stops it too, and the
-        pets guard until it's over (walk_in_fight). Before each step onto a teleporter, every pet within
-        reach of it (they come through with us). The guard comes on the fight level (landed, then care).
+        pets guard until it's over (walk_in_fight), unless we are within TELE_DASH_R route steps of the
+        teleporter: then on and through it (walk_in_dash). Before each step onto a teleporter, every pet within
+        reach of it: caution only (user 2026-10-20: on Outlands pets on 'All Follow Me' come through with us while
+        in view). The guard comes on the fight level (landed, then care).
         --songs: a song due before each leg (live 20261013_204518: all three went up on the first level
         and on the way in)."""
         self.walk_hits, self.walk_hurt_t = None, -1e9
@@ -2083,12 +2090,19 @@ class HuntLoop:
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
                 if near is None:
                     raise Abort(f"{label}: no route onto it")
+                dash = False
                 while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
                     if why == "under attack":
+                        path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+                        if path and len(path) - 1 <= TELE_DASH_R:
+                            log(f"{label}: attacked {len(path) - 1} steps from it; through it now")
+                            self.walk_in_dash(label, near)
+                            dash = True
+                            break
                         self.walk_in_fight(label)
                     else:
                         self.wait_pets(label, None)
-                if self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
+                if not dash and self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
                     self.wait_pets(label, tile[:2])
                 here = tuple(self.pos(self.link.state())[:2])
                 self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
@@ -2121,6 +2135,27 @@ class HuntLoop:
         if self.team is not None and (self.walk_hurt(st) or self.attackers(st)):
             return "under attack"
         return self.pets_lagging(st)
+
+    def walk_in_dash(self, label, near):
+        """Attacked within TELE_DASH_R route steps of the teleporter (walk_in): 'All Follow Me' without waiting for the
+        pets and on to `near`, the tile its step goes from, at flight pace (no pause, no stop for the attackers);
+        a ready heal potion below --heal-at on the way. walk_in then steps through without waiting for the pets
+        beside it: on 'All Follow Me' they come through with us while in view (user 2026-10-20); one left behind
+        can be claimed from the stablemaster, Logan dead can't. Live 2026-10-20 22:57:15-31
+        (hunt-20261020-223926-1d18): attacked 13 steps from 5522,637, the pets guarded and Logan stood in an
+        abomination's, a devourer beetle's and an insane reanimator's hits (potions at 60 and 62, the vet at 56)
+        until the user walked him through (user: "Logan was dying to a mob instead of running to Maus 3")."""
+        self.doing("enter", "Attacked near the teleporter: through it now")
+        self.team.follow(wait=False)
+
+        def stop(s):
+            me = s["world"]["self"]
+            if me.get("hits") is not None and self.frac(me) < self.args.heal_at \
+                    and self.potions.ready(time.monotonic()) and healing.heal_potions(s["world"], self.me(s)):
+                return "a heal potion"
+            return None
+        while self.mover.walk_to(lambda: near, 0, label, urgent=True, stop=stop):
+            self.heal(self.link.state())
 
     def no_idle(self, st) -> bool:
         """Mover.no_idle: no walk pause or sidestep while walking out or with a monster in war mode in view (live
