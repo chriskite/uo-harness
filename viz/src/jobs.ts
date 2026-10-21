@@ -261,6 +261,8 @@ export interface JobAgg {
   flees: number;
   value_gp: number | null;
   value_unpriced_logs: number;
+  /** value_gp (the logs chopped, at each trip's prices) per active hour; null when nothing could be priced */
+  gp_per_active_hour: number | null;
 }
 
 export interface JobTotals extends JobAgg {
@@ -488,6 +490,12 @@ export function kpis(t: JobTotals): Kpi[] {
     {
       key: "bph", label: "boards / hr", value: fmtNum(boardsPerHour, 0), sub: "per active hour", tone: "info",
       hint: "Boards the Resource Stockpile confirmed taking, per active hour (the sum of trip durations; idle time between runs doesn't count).",
+    },
+    {
+      key: "gpa", label: "gold / active hr", value: fmtGp(t.gp_per_active_hour),
+      sub: t.value_unpriced_logs > 0 ? `${fmtInt(t.value_unpriced_logs)} logs unpriced` : `${fmtGp(t.value_gp)} of logs`, tone: "info",
+      hint: "The logs chopped, each wood at the newest board:<wood> price as of the trip's end (else woods.json), per active hour " +
+        "(the sum of trip durations; idle time between runs doesn't count). Supplies aren't subtracted.",
     },
     { key: "trips", label: "trips", value: String(t.trips), tone: "dim", hint: "Trips that started in the date range, aborted ones included." },
     { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim", hint: "The sum of trip durations, start to end." },

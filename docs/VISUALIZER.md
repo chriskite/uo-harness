@@ -377,7 +377,8 @@ indexes of docs/MEMORY.md "Indexes for time-range reads".
   active hours, logs/hr, logs/trip, captchas, deaths by cause (`death` events, `data.cause` `pk` /
   `mob` / anything else → `other`), thefts (`theft` events: `data.amount` when numeric, else the
   summed `data.items`, which may be `{name: n}`, `[{name|graphic, amount}]` or `[name]`), PK
-  sightings (`pk_seen`), flees (`flee`) and estimated value.
+  sightings (`pk_seen`), flees (`flee`), estimated value and `gp_per_active_hour` (2026-10-20: that
+  value per active hour, null when nothing could be priced).
 - **Active time** is the sum of trip durations, so idle time between runs doesn't dilute logs/hr.
 - **Rolling series:** one point per trip end, with logs/hr over the trips that ended in the last
   hour of wall time (active time only) plus cumulative logs/hr.
@@ -537,7 +538,9 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     since 2026-10-08, the overseer's hand stores, shown as "N by hand" under the number in place of
     "in the resource stockpile", which doesn't fit beside it; the
     chest's don't count), **boards / hr** (2026-10-08, user request: `stockpiled` per active hour, "—"
-    with no active time), trips, active hours, deaths to PKs (with PK sightings), deaths to mobs,
+    with no active time), **gold / active hr** (2026-10-20: `gp_per_active_hour`, the logs chopped at each
+    trip's board prices per active hour; sub the unpriced logs, else the value; supplies not subtracted),
+    trips, active hours, deaths to PKs (with PK sightings), deaths to mobs,
     loss to thieves. The captchas tile was removed 2026-10-08 (the Trips and Per day tables keep their
     captchas columns). Safety tiles are green at 0, red or amber
     otherwise. The Trips table has `put away` and `stored` columns, the Per day table `stored`.

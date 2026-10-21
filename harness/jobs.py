@@ -206,6 +206,7 @@ def _finish(agg):
     agg["captcha_wait_s"] = round(agg["captcha_wait_s"], 1)
     agg["active_hours"] = round(agg["active_s"] / 3600.0, 3)
     agg["logs_per_hour"] = _rate(agg["logs"], agg["active_s"])
+    agg["gp_per_active_hour"] = _rate(agg["value_gp"], agg["active_s"]) if agg["value_gp"] is not None else None
     agg["logs_per_trip"] = _ratio(agg["logs"], agg["trips"])
     agg["success_rate"] = _ratio(agg["successes"], agg["attempts"])
     agg["deaths"]["total"] = sum(agg["deaths"][c] for c in DEATH_CAUSES)

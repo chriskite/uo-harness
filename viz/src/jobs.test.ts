@@ -11,6 +11,7 @@ function totals(p: Partial<JobTotals> = {}): JobTotals {
     active_s: 0,
     active_hours: 0,
     logs_per_hour: null,
+    gp_per_active_hour: null,
     logs_per_trip: null,
     captchas: 0,
     captcha_wait_s: 0,
@@ -74,7 +75,7 @@ describe("kpis", () => {
   test("today's shape: 5 trips, no deaths -> safety tiles are ok-toned zeros", () => {
     const k = kpis(totals({ trips: 5, logs: 89, stored: 118, stockpiled: 2410, active_s: 851.9, logs_per_hour: 376.1, logs_per_trip: 17.8, success_rate: 0.29, captchas: 1, captcha_wait_s: 10 }));
     const by = Object.fromEntries(k.map((x) => [x.key, x]));
-    expect(k.map((x) => x.key)).toEqual(["lph", "lpt", "stored", "bph", "trips", "active", "pk", "mob", "theft"]);
+    expect(k.map((x) => x.key)).toEqual(["lph", "lpt", "stored", "bph", "gpa", "trips", "active", "pk", "mob", "theft"]);
     expect(by.stored!.value).toBe("2,410");
     expect(by.bph!.value).toBe("10184");
     expect(by.bph!.sub).toBe("per active hour");
