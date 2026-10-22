@@ -118,6 +118,26 @@ def test_dropoff():
         check("off the landing tile, out of reach: refused before anything is sent",
               far.sent == [] and "within 2 tiles" in str(e), str(e))
 
+    print("== the tomes in a wooden shelf by the landing (the user's house, 2026-10-21) ==")
+    shelf_serial, tomes = 0x5656B661, [int(s["serial"], 16) for s in plan["steps"][:4]]
+    inside = {f"0x{shelf_serial:08X}": {"graphic": 0x0A9D, "x": 401, "y": 923, "z": 1, "name": "wooden shelf"},
+              **{f"0x{t:08X}": {"graphic": 0x1234, "x": 60, "y": 80, "container": f"0x{shelf_serial:08X}"}
+                 for t in tomes}}       # container-local x/y: nowhere near the landing as tiles
+    room = Room(plan, inside)
+    out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
+    first_menu = next(i for i, p in enumerate(room.sent) if p[0] == 0xBF and p[4] == 0x13)
+    check("tomes inside a shelf 2 tiles off: reach is the shelf's tile, the shelf opened first, every step picked",
+          out["ok"] and room.sent.index(actions.dclick(shelf_serial)) < first_menu
+          and len([p for p in room.sent if p[0] == 0xBF and p[4] == 0x15]) == len(plan["steps"]),
+          f"{out.get('error')}")
+    room = Room(plan, {**inside, f"0x{shelf_serial:08X}": {**inside[f"0x{shelf_serial:08X}"], "x": 399}})
+    try:
+        dropoff.run(room, NoHuman(), plan, timeout=0.5)
+        check("a shelf 4 tiles off: refused", False)
+    except dropoff.DropoffError as e:
+        check("a shelf 4 tiles off: refused before anything is sent", room.sent == [] and "within 2 tiles" in str(e),
+              str(e))
+
 
 def main():
     test_dropoff()

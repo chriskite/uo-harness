@@ -566,6 +566,13 @@ Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
   0x4AE0DD2C (3575,3250,23) 1; bank deposit safe 0x431E86F5 (3575,3249) 2; recycler 0x6264BB54
   (3573,3250) 2; tomes 0x62659A52 / 0x431E6BAA / 0x62658F0D / 0x62657BB3 at 1; magic item vault
   0x6264CB96. **New forge 0x56372DCC** (3574,3254,6), 3 tiles off; the room's forge 0x51CF24B3 is gone.
+- **The four drop-off tomes moved into the "wooden shelf" 0x5656B661** (3573,3251,6), 2 tiles off (user,
+  later on 2026-10-21; the chest then read z 19). `act dropoff` first refused them ("isn't in view within
+  2 tiles": it measured items on the ground only). `dropoff.run` now takes an item's reach from the
+  outermost container on the ground (`dropoff.ground_item`) and opens a container the server hasn't
+  opened for us first. Live 21:5x: all 8 steps answered, the aspect tome took 1 item ("1 aspect items
+  added to tome."), the stockpile 1; Logan's loadout at the house shelf: "No resupply:" Wizard's
+  Satchel, Potion Satchel and the five platemail pieces.
 - **Runes:** Outland Dan's runebook 0x49865F8F (9 charges): Prev Bank, Cambria MG, Terran MG,
   Cambria Bank, Anchor's Rest, Ossuary, Anchor's Rest MG, SSC, Shelter Stairs, **"DTF Loot Chest"
   (4134,1429) = the default**, **"Logan's House" (3575,3251)**; Khal Draco was removed. So Dan's
