@@ -89,6 +89,72 @@ def test_geometry():
           and w2.metrics["denied_steps"] == 1, str(w2.player.pos))
 
 
+def test_shove():
+    print("== mobiles in the way: shoved through at full stamina (-10), refused below it; stamina's step cost and regen ==")
+    # user 2026-10-22: "in Outlands I can run through mobs when I have full stamina, and they block me when I don't";
+    # the captures (sim/shove_scan.py): "You shove something out of the way." and 25 -> 15 at each shove into a monster,
+    # a point every 15 steps, a point back every 2.04 s, a Total Refresh to full
+    bats = [{"key": "vampire bat", "at": [5266, 647, 0]}, {"key": "vampire bat", "at": [5266, 646, 0]}]
+    w = world_with(bats)
+    link, clock = link_for(w)
+    pl = w.player
+    for p in w.pets():
+        p.mode = "stay"
+    for m in w.mobs.values():
+        if m.kind == "monster":
+            m.next_step = 1e9                      # they stand where placed
+    seq = iter(range(1, 255))
+
+    def step(d):
+        link.send(actions.walk(d, run=True, seq=next(seq)))
+    step(0)                                        # facing north already: a step into the first bat at 25/25
+    first = (pl.pos[:2], pl.stam, w.metrics["shoves"],
+             any(e.get("cliloc") == 1019042 for e in link.events))
+    step(0)                                        # the second bat at 15/25
+    refused = (pl.pos[:2], pl.stam, w.metrics["denied_steps"])
+    clock.advance(2.1)
+    regen = pl.stam
+    refresh = next(s for s, it in w.items.items() if it.get("kind") == "refresh_potion")
+    left = w.items[refresh]["amount"]
+    link.send(actions.dclick(refresh))
+    drank = (pl.stam, w.items[refresh]["amount"])
+    step(0)
+    through = (pl.pos[:2], pl.stam)
+    check("at 25/25 a step into a bat goes through: the cliloc, stamina 15",
+          first == ((5266, 647), 15, 1, True), str(first))
+    check("at 15/25 a step into the next bat is refused (0x21) and we stay", refused == ((5266, 647), 15, 1),
+          str(refused))
+    check("a point back after 2.04 s", regen == 16, str(regen))
+    check("a Total Refresh: stamina to full, one potion fewer", drank == (25, left - 1), str(drank))
+    check("...and the bat is shoved through again", through == ((5266, 646), 15), str(through))
+    w2 = world_with([{"key": "vampire bat", "at": [5266, 647, 0]}])
+    link2, clock2 = link_for(w2)
+    for p in w2.pets():
+        p.mode = "stay"
+    for m in w2.mobs.values():
+        if m.kind == "monster":
+            m.next_step = 1e9
+    s2 = iter(range(1, 255))
+    for _ in range(15):                            # west and back, a turn before each step
+        for d in ((6, 6) if w2.player.x == 5266 else (2, 2)):
+            link2.send(actions.walk(d, run=True, seq=next(s2)))
+    after15 = (w2.player.pos[:2], w2.player.stam)
+    if w2.player.x != 5266:
+        for d in (2, 2):
+            link2.send(actions.walk(d, run=True, seq=next(s2)))
+    for d in (0, 0):
+        link2.send(actions.walk(d, run=True, seq=next(s2)))
+    check("15 steps on foot cost a point (24/25), and at 24/25 the bat blocks",
+          after15[1] == 24 and w2.player.pos[:2] == (5266, 648) and w2.metrics["shoves"] == 0,
+          f"{after15} then {w2.player.pos} shoves {w2.metrics['shoves']}")
+    gr = next(p for p in w2.pets() if (p.x, p.y) == (5267, 648))
+    for d in (2, 2):                               # east, onto GraveRobber's tile, at 24/25
+        link2.send(actions.walk(d, run=True, seq=next(s2)))
+    check("our own pet doesn't block, below full stamina too (live 244 of 255), and costs nothing",
+          w2.player.pos[:2] == gr.pos[:2] and w2.player.stam == 24 and w2.metrics["shoves"] == 0,
+          f"{w2.player.pos} {gr.name} {gr.pos} stam {w2.player.stam}")
+
+
 def test_aggro():
     print("== monsters aggro within range and sight; guarding pets take it ==")
     behind = world_with([{"key": "corpse purger", "at": [5265, 657, 0]}])
@@ -2733,7 +2799,8 @@ def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
         return 0
-    for t in (test_clock, test_geometry, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials, test_hunt,
+    for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials,
+              test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_vet_tile_off_tank,
               test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,

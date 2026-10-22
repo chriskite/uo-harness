@@ -190,6 +190,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "patrol_commands": m["patrol_commands"],
             "follow_commands": m["follow_commands"], "aggressive_acts": m["aggressive_acts"],
             "recalls": m["recalls"], "steps": m["steps"], "denied_steps": m["denied_steps"],
+            "shoves": m["shoves"], "shoves_by": m.get("shoves_by", {}), "refresh_potions": m["refresh_potions"],
+            "stam_below_s": round(m["stam_below_s"], 1),
             "death_causes": m.get("death_causes", []),
             "others": {k: m[k] for k in ("others_arrived", "others_kills", "others_kills_in_view", "others_kills_unseen",
                                          "others_view_s",

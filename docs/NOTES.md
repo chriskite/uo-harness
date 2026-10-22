@@ -66,10 +66,15 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
 - Outlands map/art files aren't the stock names: `facet00.mul`–`facet05.mul`, `art.uoo`, `artdata.uoo`, `anim.uoo` in the install root. The map and tiledata formats are decoded in docs/MAP.md, and so are the gump and item art pixels (`gumps.uoo`, `art.uoo`: raw-deflate RGB555; art.uoo ids are item graphics with no 0x4000 offset, read by `harness/uoart.py`, 2026-10-02). `anim.uoo` isn't decoded.
 - **S2C 0x21 move-reject is 15 B with z = i32be at offset 11** (`seq, x u32, y u32, dir, z i32`). For example `21 fb 00000778 000009fd 80 ffffffec` is z −20 (found while validating docs/MAP.md). `harness/world/layouts.py` read i8@11, which gave 0 for z 0…255; **fixed 2026-09-29** (tests use the real packet). The proxy's re-anchor already wrote the i32 form.
 - **Mobiles don't block walking in UOO:** you shove through them with enough stamina (user,
-  2026-09-29). The threshold and the stamina cost aren't measured yet; RunUO requires full stamina
-  and costs 10 `[INFERENCE]`. A denied shove comes back as a normal walk reject (0x21), and
-  `Mover` logs the stamina with each one. Live attempt 2 failed because the planner treated NPCs
-  in the inn's one-tile upstairs hallway as walls (LUMBER_LOOP.md §13).
+  2026-09-29). **Measured 2026-10-22** (user: "in Outlands I can run through mobs when I have full stamina, and they
+  block me when I don't"; `harness/sim/shove_scan.py` over the 82 captures since 10-13): only at full stamina,
+  monster or pet, with "You shove something out of the way." (cliloc 1019042; 1019043 for "something invisible") and
+  10 stamina off (25 -> 15 at all 83 shoves into monsters with the cliloc); below full the step is refused (0x21). On
+  foot Logan (25 stamina, on Maus 3) loses a point every 15 steps (19 before 10-17) and gets one back every 2.04 s
+  (n=4,255): 24/25 after a run is common, and then a mobile blocks. A Total Refresh takes him to full (15-17 -> 25).
+  The simulator does the same since then (docs/SIM.md "Shoving and stamina"). `Mover` logs the stamina with each
+  refused step. Live attempt 2 failed because the planner treated NPCs in the inn's one-tile upstairs hallway as
+  walls (LUMBER_LOOP.md §13).
 - **S2C 0x6C with cursor type 3 is a cancel, not a cursor** (ClassicUO TargetManager:
   IsTargeting = cursorType < 3). The server sent one after a moongate Travel reply. The world
   model showed it as an active cursor until 2026-09-30.
@@ -4580,7 +4585,9 @@ significantly worse (one-sided Welch t-test on per-run gold per game hour, p >= 
   it" by type: apparition 229, tormented soul 172, blightmare 155, shadowguard 141, nightstalker 128) [INFERENCE: a
   woken apparition, shadowguard or nightstalker comes on to us as well as to the pets]. Not kept; the wandering is
   still open.
-- **The simulator, looked at and not changed** (no live evidence either way): it refuses every step into a monster's
+- **The simulator, looked at and not changed then** (no live evidence at the time; the shove was measured and fixed
+  the same day, docs/NOTES.md "Mobiles don't block walking in UOO" and docs/SIM.md "Shoving and stamina": the original
+  runner 1.047 -> 0.835 deaths an hour, main's 0.512 -> 0.267, seeds 1001-1200): it refused every step into a monster's
   tile whatever the stamina (`World._walk`, `blocker.kind == "monster"`), where ServUO lets a player with full stamina
   shove any mobile [INFERENCE: Outlands the same]; the refused shoves at 25/25 are what started the long loot walks and
   the corridor waits. Its blightmare walks after us when we break its sight (docs/SIM.md "Limits"), so the cover may

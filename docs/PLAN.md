@@ -2067,7 +2067,9 @@ easier; then (user, same night) "stay out of their aggro range and patrol the pe
 blightmares. Evidence and every number: docs/NOTES.md "Half the deaths in the simulator".
 
 - *Runner only; the simulator untouched.* Its two doubtful points (no shove into a monster at any stamina, a blightmare
-  that follows us out of its sight) had no live evidence either way: noted, not changed.
+  that follows us out of its sight) had no live evidence either way: noted, not changed. The shove was measured and
+  fixed later that day (user: "in Outlands I can run through mobs when I have full stamina"; docs/SIM.md "Shoving and
+  stamina").
 - *Keep out of a purger's or blightmare's shot rather than out of their room.* A `--crawl-avoid` box over the north-east
   room gave nearly the same death cut with the gold held, but gives up the bound souls; `Team.cover`, the pets
   patrolled in (`--patrol-pull` on by default) and "All Kill" at once at one on us did it with more gold (+4 %).

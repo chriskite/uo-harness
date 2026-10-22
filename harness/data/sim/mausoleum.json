@@ -128,6 +128,14 @@
     "container": 2100524846
    },
    {
+    "serial": 1102440511,
+    "graphic": 3851,
+    "amount": 15,
+    "kind": "refresh_potion",
+    "container": 2100524846,
+    "note": "Total Refresh (0x0F0B): the loadout's 15 (docs/NOTES.md 2026-10-17 resupply: 30 heal, 15 cure, 15 refresh); live a drink took Logan to full (15-17 -> 25, captures 20261017_155426, 20261019_095934, 20261019_192054, 20261020_180909)"
+   },
+   {
     "serial": 1145745907,
     "graphic": 29103,
     "kind": "tome",

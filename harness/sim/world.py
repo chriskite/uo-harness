@@ -82,6 +82,16 @@ SHOT_AT_PLAYER_P = 0.2    # a monster shooting at a pet sends a shot at the play
 #                           his damage 0.63x and potions 0.64x, 0.1 0.83x and 0.83x, 0.2 0.99x and 1.02x, deaths 0.9-1.1
 #                           an hour throughout (live 0.6, its interval to 1.3) [INFERENCE: the mechanism]
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
+# Stamina (live, Logan's 25 on Maus 3, sim/shove_scan.py over the captures 2026-10-13..21, docs/SIM.md "Shoving and
+# stamina"): a step into any live mobile's tile goes through at full stamina only, with "You shove something out of the
+# way." and SHOVE_STAM less (83 of 83 shoves into monsters with that cliloc: 25 -> 15); below full it is refused (monsters
+# at full stamina 202 confirmed, 1 refused; below, 250 refused); a point less every STEP_STAM_EVERY steps on foot (1,464 of
+# 3,393 intervals between those drops, most since 10-18; 19 before 10-17 [INFERENCE: a server change]); a point back
+# every STAM_REGEN_S (+1 changes q10-q90 1.98-2.07 s, n=4,255)
+SHOVE_STAM = 10
+SHOVE_CLILOC, SHOVE_HIDDEN_CLILOC = 1019042, 1019043      # "...something out of the way." / "...something invisible..."
+STEP_STAM_EVERY = 15
+STAM_REGEN_S = 2.04
 PATROL_TAKE_R = 3         # pets on "All Patrol" attack a monster this close to the spot on arrival (live demo 2026-10-18)
 CORPSE_DECAY_S = 420.0    # [INFERENCE] RunUO monster corpses ~7 min
 ACTION_DELAY_S = 0.5      # item uses this close together: cliloc 500119 (RunUO ActionDelay) [INFERENCE]
@@ -240,8 +250,8 @@ class World:
                         "team_damage": 0.0, "vet_uses": 0, "potions": 0, "bard": {}, "steps": 0, "denied_steps": 0,
                         "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "violations": [],
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
-                        "patrol_commands": 0, "silenced": 0, "lift_waits": 0,
-                        "fights": [], "hunt_s": 0.0}
+                        "patrol_commands": 0, "silenced": 0, "lift_waits": 0, "shoves": 0, "refresh_potions": 0,
+                        "stam_below_s": 0.0, "fights": [], "hunt_s": 0.0}
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
         self.orng = random.Random(seed * 7919 + 17)  # the other players' own draws: the rest of the world's stay put
@@ -270,6 +280,8 @@ class World:
         self.potion_ready = 0.0
         self.vet_end = None                   # the running vet channel's finish time
         self.last_step_t = 0.0
+        self.steps_taken = 0                  # our confirmed steps: a stamina point every STEP_STAM_EVERY of them
+        self.stam_next = None                 # when our stamina regains its next point (STAM_REGEN_S), below max
         self.penalty = 0
         self.gump_n = 0x7700
         self.gate_n = 0x7800                  # moongate menus' serials
@@ -1038,9 +1050,19 @@ class World:
             self._eerie_tick()
         if not pl.ghost and self._on_level():
             self.metrics["hunt_s"] += TICK_S
+            if pl.stam < pl.stam_max:
+                self.metrics["stam_below_s"] += TICK_S      # live 22 % of the time on the level (shove_scan)
         if not pl.ghost and t - pl.last_hurt_t > 10 and pl.hits < pl.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
             pl.hits += 1
             self.send(P.hits(pl.serial, int(pl.hits), int(pl.hits_max)))
+        if pl.ghost or pl.stam >= pl.stam_max:
+            self.stam_next = None
+        elif self.stam_next is None:
+            self.stam_next = t + STAM_REGEN_S
+        elif t >= self.stam_next:
+            pl.stam += 1
+            self.stam_next = None if pl.stam >= pl.stam_max else self.stam_next + STAM_REGEN_S
+            self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
 
     def _on_level(self) -> bool:
         """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,
@@ -1688,15 +1710,34 @@ class World:
             self.send(P.confirm_walk(seq))
             return
         to = self.walk.can_walk(pl.x, pl.y, pl.z, d)
+        # our own pets never block (the captures since 10-13: steps into GraveRobber's or AlaFlambe's tile went through
+        # 1,257 of 1,278 times, 244 of 255 below full stamina, 14 with a shove's cliloc) [INFERENCE: the owner walks
+        # through, or the pet steps aside first]
         blocker = None if to is None else next((m for m in self.mobs.values() if m.alive and not m.ghost
-                                                and (m.x, m.y) == to[:2] and m.serial != pl.serial), None)
-        if to is None or (blocker is not None and (blocker.kind == "monster" or pl.stam < pl.stam_max)):
+                                                and m.kind != "pet" and (m.x, m.y) == to[:2]
+                                                and m.serial != pl.serial), None)
+        if to is None or (blocker is not None and pl.stam < pl.stam_max):
             self.metrics["denied_steps"] += 1
             self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
             return
+        if blocker is not None:
+            # a shove (user 2026-10-22: "in Outlands I can run through mobs when I have full stamina, and they block me
+            # when I don't"): live the cliloc, the confirm, then 0xA3 with SHOVE_STAM less
+            self.metrics["shoves"] += 1
+            by = self.metrics.setdefault("shoves_by", {})
+            k = "player" if blocker.kind == "other" else blocker.key
+            by[k] = by.get(k, 0) + 1
+            self.send(P.cliloc(SHOVE_HIDDEN_CLILOC if blocker.hidden_until > self.t else SHOVE_CLILOC))
         pl.x, pl.y, pl.z = to
         self.send(P.confirm_walk(seq))
         self.metrics["steps"] += 1
+        self.steps_taken += 1
+        lost = (SHOVE_STAM if blocker is not None else 0) + (1 if self.steps_taken % STEP_STAM_EVERY == 0 else 0)
+        if lost:
+            pl.stam = max(0, pl.stam - lost)
+            if self.stam_next is None:
+                self.stam_next = self.t + STAM_REGEN_S
+            self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
         self.last_step_t = self.t
         if self.penalty:
             self.penalty -= 1
@@ -1985,6 +2026,8 @@ class World:
             self._vet(s)
         elif kind == "heal_potion":
             self._drink(s)
+        elif kind == "refresh_potion":
+            self._refresh(s)
         elif kind == "soul_jar":
             self._fill_jar(s)
         elif kind == "tome":
@@ -2156,6 +2199,18 @@ class World:
             self._sys("Potion satchel used.")
         else:
             self._consume(s)
+
+    def _refresh(self, s):
+        """A Total Refresh: stamina to full (live 15-17 -> 25 at once). At full it isn't drunk [INFERENCE: ServUO's
+        RefreshPotion, cliloc 500767 "You decide against drinking this potion, as you are already at full stamina."]."""
+        pl = self.player
+        if pl.stam >= pl.stam_max:
+            self.send(P.cliloc(500767))
+            return
+        self.metrics["refresh_potions"] += 1
+        pl.stam = pl.stam_max
+        self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
+        self._consume(s)
 
     def _lift(self, s, amount):
         it = self.items.get(s)

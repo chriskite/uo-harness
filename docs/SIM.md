@@ -99,6 +99,7 @@ python harness/sim/fight2227.py 1,2,...,12 [--log] [--harness DIR]   # the 2026-
 | `sim/calibrate.py` | The capture extractor that wrote `mausoleum_observed.json` (its rules are in the file's `rules`). |
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
+| `sim/shove_scan.py` | Shoves and stamina in the live captures (the walking rules of "Shoving and stamina"). |
 | `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
 | `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
@@ -953,6 +954,47 @@ monsters' hits on each of us.
 - Of the ~45 rates compared, 2 outside their 95 % interval is what parity itself would give by chance (2.25
   expected); both are 1.1-1.2x.
 
+## Shoving and stamina (2026-10-22)
+
+User 2026-10-22: "in Outlands I can run through mobs when I have full stamina, and they block me when I don't". Before,
+`World._walk` refused every step into a monster's tile and let one into a player's or pet's at full stamina for free;
+our stamina never changed. Measured with `harness/sim/shove_scan.py` (the 82 captures since 2026-10-13, replayed through
+`WorldRuntime`; docs/NOTES.md "Mobiles don't block walking in UOO"):
+
+- **A shove**: a step into a live monster's or another player's tile goes through at full stamina only (into monsters
+  at full 202 confirmed, 1 refused; below full 250 refused), with "You shove something out of the way." (cliloc
+  1019042; 1019043 "something invisible" for a hidden one), the confirm, then 0xA3 with 10 less (25 -> 15 at all 83 such
+  shoves with the cliloc). `SHOVE_STAM`, metric `shoves`, `shoves_by`.
+- **Our own pets don't block**: steps into GraveRobber's or AlaFlambe's tile went through 1,257 of 1,278 times, 244 of
+  255 below full stamina, 14 with the shove cliloc [INFERENCE: the owner walks through, or the pet steps aside first].
+  With the pets blocking as other mobiles do the simulated runner shoved its own pets 86 times an hour and drank 32
+  refreshes an hour.
+- **Stamina**: a point off every 15 steps on foot (`STEP_STAM_EVERY`: 1,464 of 3,393 intervals between Logan's -1
+  drops on Maus 3, most since 10-18; 19 before 10-17, 737 [INFERENCE: a server change]), a point back every 2.04 s
+  (`STAM_REGEN_S`: q10-q90 1.98-2.07 s, n=4,255). Logan below full 22 % of his time on the level live (5.6 h since
+  10-17 23:08), 22-23 % simulated.
+- **The Total Refresh** (the loadout's 15, `refresh_potion`): stamina to full (live 15-17 -> 25 at once); at full it
+  isn't drunk [INFERENCE: ServUO's cliloc 500767]. Metric `refresh_potions`.
+
+Per hour on the level, live (6.76 h of captures on Maus 3 since 10-17 23:00) against the simulator (200 runs, seeds
+1001-1200, the goal batch below): shoves 5.9 / 14.4, refused steps into a mobile 14.5 / 9.3 (the simulator's all
+refused steps), Total Refreshes 2.1 / 6.2 (Limits: the runner's view has no lag).
+
+The goal batch (`run.py --runs 200 --seed 1001 --careers 20 --others --eerie --prior <the store frozen at EPOCH> --
+--vet-range 5 --crawl-learn-s 180`, docs/NOTES.md "Half the deaths in the simulator"), before and after this change:
+
+| 200 runs | deaths/h | gold/h per run | kills/h | pet-death runs | pets left behind |
+|---|---|---|---|---|---|
+| runner 41412d3, old walking | 1.047 | 98,707 | 93.1 | 4 | 1 |
+| runner 41412d3, shoves and stamina | 0.835 | 101,862 | 94.6 | 1 | 3 |
+| runner d703532 (main), old walking | 0.512 | 104,554 | 97.4 | 5 | 2 |
+| runner d703532 (main), shoves and stamina | 0.267 | 106,994 | 97.8 | 11 | 6 |
+
+With the older runner the deaths in the countess corridor around (5192, 672, 25), where refused shoves at 25/25 had left
+it "cut by mobiles … waiting", went 12 -> 1, and it is near the live yardstick (deaths to monsters and on the walk out
+1.0 an hour live, "Parity with the live runs"). The current runner's pet-death runs rose 5 -> 11 (open). test_sim
+`test_shove`.
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
@@ -998,19 +1040,14 @@ monsters' hits on each of us.
   of the holdout block, after Logan's cover steps out of its shot, it stood 2 tiles from him on the tile he had just
   looted from, so the cover reads worse here than it may be live. Wanted: a live blightmare fight where Logan leaves
   its sight and stays near (does it step after him, and how far).
-- **No shove into a monster at any stamina** (`World._walk`: `blocker.kind == "monster"` denies the step; a player or
-  pet blocks only below full stamina). ServUO's `Mobile.CheckShove` lets a player with full stamina shove any live
-  mobile (it costs 10 stamina) [INFERENCE: Outlands the same; docs/NOTES.md 2026-09-29 "Mobiles don't block walking in
-  UOO: you shove through them with enough stamina", threshold unmeasured]. In the 2026-10-21/22 batches the refusals at
-  25/25 started the corridor waits ("off the tank: shove into (5192, 671) denied (stamina 25/25)", then "cut by mobiles
-  we couldn't shove; waiting", 11 of 84 baseline deaths at (5192, 672, 25)) and the 119-123-step loot detours from
-  (5182-5184, 682). **To fix**: find a live step into a monster's tile at full stamina in the captures (a 0x21 deny or
-  a confirm with the monster on that tile, Logan's stamina from 0xA3) and model what the server did; until then the
-  runner's fixes (no hurt waits, bounded loot walks) don't depend on it.
 - **Blightmares reach Logan 2.7 times an hour here against 0.9 live** ("Parity with the live runs", "Still apart"),
   and per engagement they kill about as live: the simulator's blightmare deaths (14 of 84 in the goal run's baseline,
   9-17 of 38-53 in its batches after the runner's fixes) are likely too many. Unexplained; the follow above is one
   candidate.
+- **The runner sees every mobile where the server has it** (the client model is fed the server's packets at once), so
+  a refused step into a monster's tile is always a refused shove to it, and it drinks a Total Refresh 6.2 times an hour
+  on the level against the live 2.1 ("Shoving and stamina"). Live the model's positions lag and many refusals read as
+  walls. Not modelled: packet latency on mobile moves.
 
 ## Captures wanted (live, on Logan Wolf)
 

@@ -64,8 +64,8 @@ FIELD_GRAPHICS = frozenset([0x4D1B, *range(0x3914, 0x392A), *range(0x3946, 0x396
                             *range(0x398C, 0x39A0)])
 # After a dispel went out: how long to look for the field's delete before replanning.
 FIELD_GONE_WAIT_S = 1.0
-# Mobiles: shoving through one needs stamina (UOO; threshold unknown, RunUO needs
-# full stamina [INFERENCE]). Plans prefer going around (entering a mobile's tile
+# Mobiles: shoving through one takes full stamina and costs 10 (user 2026-10-22; the captures: 83 of 83 shoves into
+# monsters 25 -> 15, below full refused; sim/shove_scan.py). Plans prefer going around (entering a mobile's tile
 # costs MOBILE_COST_X normal steps); after a denied shove that tile is a wall for
 # SHOVE_RETRY_S. A route cut only by such tiles is waited out up to MOBILE_WAIT_S.
 MOBILE_COST_X = 4.0
