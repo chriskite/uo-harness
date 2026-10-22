@@ -2058,6 +2058,25 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 
+## Half the Mausoleum deaths: shy monsters, waits and loot walks (decided and built offline 2026-10-22)
+
+Goal (user 2026-10-21): half the simulator's deaths an hour without significantly less gold, the simulator not made
+easier; then (user, same night) "stay out of their aggro range and patrol the pets into them" for purgers and
+blightmares. Evidence and every number: docs/NOTES.md "Half the deaths in the simulator".
+
+- *Runner only; the simulator untouched.* Its two doubtful points (no shove into a monster at any stamina, a blightmare
+  that follows us out of its sight) had no live evidence either way: noted, not changed.
+- *Keep out of a purger's or blightmare's shot rather than out of their room.* A `--crawl-avoid` box over the north-east
+  room gave nearly the same death cut with the gold held, but gives up the bound souls; `Team.cover`, the pets
+  patrolled in (`--patrol-pull` on by default) and "All Kill" at once at one on us did it with more gold (+4 %).
+  `--never-aggro` for both cut deaths but left pets behind (pet-death runs 4 -> 11).
+- *No Mover wait where it can hurt*: a walk's wait for mobiles ends when we are hit; the fight's care walks never wait.
+- *Bounded loot walks* (twice the distance + 8): a corpse beyond that is left.
+- *Not built*: "All Patrol" at any idle target out of our sight (the user's report of wandering in the soul cells):
+  in the simulator it patrolled 5x as often for no more kills and more deaths. Open until a live look.
+- *Live*: untried. The §5 command is unchanged (the flag's default changed). Watch for "cover:", "hurt waiting" and
+  "'All Patrol' to" lines and for corpses left as "only a N-step detour".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

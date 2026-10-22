@@ -484,11 +484,16 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (`Team.retreat_tile`; live 20261015_090607 the straight-away tile was in a second apparition's
    sight and it came for Logan: user 2026-10-15, a monster that sees us while the pets fight aggroes
    on us directly). A step away in a fight (the retreat, the stand-off, the back-off, the evade, the
-   fall-back, back to the pets) whose route only mobiles block gives up at once (`Mover.walk_to`
+   fall-back, back to the pets, and since 2026-10-22 the spacing off the tank, the pull spot, out of the fire, the
+   reposition, the bard step and the cover) whose route only mobiles block gives up at once (`Mover.walk_to`
    `mobile_wait=0`; after a stamina potion when short): the tick goes on to the potion and the vet.
    Before 2026-10-20 it waited up to `MOBILE_WAIT_S` 90 s where it stood (live 2026-10-15 22:57:56 dead
    a second after "cut by mobiles … waiting"; simulator fight1822 seed 5, dead in the countess
-   corridor while "waiting").
+   corridor while "waiting"). Any other walk that isn't a flight (a loot walk, to a hurt pet, an approach, a
+   patrol) ends its wait for mobiles as soon as our hits fall below where they were when it began ("cut by
+   mobiles; hurt waiting (A -> B)"); the leave's urgent walk to the gate keeps waiting and drinking (simulator
+   2026-10-21: 29 of 84 deaths stood "cut by mobiles we couldn't shove; waiting", 12 of them "off the tank" at
+   (5192, 672, 25) in the countess corridor).
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
@@ -613,17 +618,33 @@ Discordance in the demo). A walk to a hurt pet stops on a step into an idle shy 
 Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel); from
 a shy one a step out of its reach counts too (13 tiles from a blightmare), though it still sees us there.
 
-**"All Patrol" at a purger** (`--patrol-pull`, off by default; `Team.patrol_pull`, user 2026-10-18 "We can send our
-pets to a spot away from us, e.g. to within aggro distance of a purger, while we're not in aggro range"; the demo in
-docs/NOTES.md "All Patrol"; since 2026-10-21 at an idle blightmare too, as a shy monster: untried live). Nothing
-fighting, nothing on us, both pets within vet range, and the purger (within 14)
+**Out of a shy monster's shot first** (`Team.cover`, since 2026-10-22; user 2026-10-21: "All you really have to do for
+disease casters like corpse purgers and blightmares is stay out of their aggro range and patrol the pets into them. If
+the pets are busy fighting something else just stay out of their aggro range or keep the pets between us and the
+mob"). An awake purger or blightmare that sees us within its reach (12 / 13): walk (up to 8 steps, at most every
+2 s, mid-channel too) to the nearest tile out of every such shot, out of area hits and fire, the fewest idle eyes
+first: "cover: the corpse purger shoots us here; to (x, y), N steps, out of its shot". In care it comes right after
+the retreat, before the vet supplies on anyone, the spacing and the rest; the spacing off the tank and the vet tile
+keep out of such shots too. The reposition's caster rule (4 steps, the pets kept in vet range, no more idle eyes)
+found no tile at any of its tries in the purger room (simulator seed 1003: an awake purger 8 off took Logan 100 -> 13
+in 13 s while he stepped off the tank and vetted). One on us gets "All Kill" at once (not after `KILL_AFTER_S`: its
+aggro is on us already, and 4 s of its shot and stacking disease is 40-60 hits), and there is no walk back to
+the pets through its shot (`Team.rejoin`; seed 2072 walked 12 steps under one, 100 -> 33). The crawl never seeks
+one in view (`Crawl.seek`): walking up to it puts us in its shot before the pets.
+
+**"All Patrol" at a purger or a blightmare** (`--patrol-pull`, on by default since 2026-10-22; `Team.patrol_pull`,
+user 2026-10-18 "We can send our pets to a spot away from us, e.g. to within aggro distance of a purger, while we're
+not in aggro range"; the demo in docs/NOTES.md "All Patrol"; since 2026-10-21 at an idle blightmare too, as a shy
+monster: untried live). Nothing fighting, nothing on us, both pets within vet range, and the purger (within 14)
 not seeing us before the pets: the runner says "All Patrol" (his Razor macro's bytes, hue 0x0239) and clicks a tile
 1-2 from it, within 11 of us and in our sight (los.Sight, as the server's 500237 check), with no other monster within
 4 of it nor seeing where we'd stand to vet the pets there. It stands; once the purger is awake with a pet on it,
 "All Guard Me" (they fight on: live), at once if something comes onto us, and after 10 s without it (the purger then
-passed over for 60 s). Off by default: in the simulator's loop crawl (144 runs) it lost 71 runs to a death against
-54 keeping off purgers, pet deaths 97 runs against 46, gold 92.6k/h against 98.9k; the purger patrolled at never hit
-Logan, the second purger of the pair did as the fight drew him in (docs/NOTES.md). The zone crawl rarely meets one.
+passed over for 60 s). Off by default from 2026-10-18 to 10-22: then the simulator's loop crawl (144 runs) lost 71
+runs to a death against 54 keeping off purgers (the second purger of the pair took Logan as the fight drew him in).
+With the cover above it pays: deaths an hour 1.05 -> 0.41 and gold an hour +4 % in 200 runs as live (docs/NOTES.md
+"Half the deaths in the simulator"). The §5 command doesn't name it, so live runs went without it until the default
+changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
 
 | Argument | Default | Meaning |
 |---|---|---|
@@ -1094,16 +1115,21 @@ vanished item as taken ("looted 1 item(s) from a mongbat: +0 gold, ~21 xp", 1255
 counted the corpse's gold as xp. Now (`loop_hunt.loot`):
 - A **blue corpse** (notoriety 1) is skipped before any walk or open: no packet, logged "corpse of X
   is someone else's kill (blue): not looted".
-- **No loot walk into an area hitter's reach** (`--pets`, `Team.loot_tile`, since 2026-10-21). With an area hitter
-  (`tamer.AREA_R`, a charger) in war mode in view, the corpse is looted from a tile clear of every area hit's reach
-  (`area_zone`, the stand-off's model) within `combat.LOOT_RANGE` 2 of it, out of fire, the fewest monsters in war
-  mode within 3, the fewest idle eyes, the fewest steps (the vet tile's chooser): "to the corpse: looting from (x,
-  y), N from it, out of the area hits' reach". The walk's route goes round the reach when that is a short detour (the
-  reach among the Mover's danger zones for that walk, `Team.around_areas`, the route bounded to twice the distance + 8
-  steps, `LOOT_DETOUR_STEPS`: unbounded it planned 117-123-step detours to corpses 7 tiles off in the simulator and
-  doubled its deaths); no route that short: the plain walk as before. When every tile within 2 of the corpse is in reach it
+- **No loot walk into an area hitter's reach or a shy monster's shot** (`--pets`, `Team.loot_tile`, since
+  2026-10-21). With an area hitter (`tamer.AREA_R`, a charger) or an awake corpse purger or blightmare (in war mode,
+  `Team.shy_awake`; its shot: sight within 12 or 13, `Team.shot_at`) in view, the corpse is looted from a tile clear
+  of every area hit's reach (`area_zone`, the stand-off's model) and out of every such shot within `combat.LOOT_RANGE`
+  2 of it, out of fire, the fewest monsters in war mode within 3, the fewest idle eyes, the fewest steps (the vet
+  tile's chooser, which ranks the vet tile by the shots too): "to the corpse: looting from (x, y), N from it, out of
+  the area hits' reach". Every loot walk's route is bounded to twice the distance + 8 steps (`LOOT_DETOUR_STEPS`;
+  round an area hit's reach among the Mover's danger zones when that is a short detour, `Team.around_areas`, else the
+  plain walk within the same bound): unbounded it planned 117-123-step detours to corpses 7 tiles off, and after a
+  refused shove in the countess corridor at (5182-5184, 682) it walked 119-123 steps through two rooms away from the
+  pets (simulator 2026-10-21: 14 of 41 deaths in one batch); longer, the corpse is left ("corpse of X at (x, y): to
+  the corpse: only a N-step detour …; leaving it"). When every tile within 2 of the corpse is in reach or in a shot it
   stays queued (other players race us to loot): "not looting <name> yet: the corpse at (x, y) lies D into an area
-  hit's reach, every tile within 2 of it too; waiting for the area hitter to die or go", looked at again every
+  hit's reach, every tile within 2 of it too; waiting for the area hitter to die or go" (or "… lies in the shot of
+  the awake corpse purger, every tile within 2 of it too; …"), looked at again every
   `LOOT_DEFER_S` 1 s (`HuntLoop.loot_next` passes it over meanwhile, so the fight goes on) and looted as soon as the
   hitter is dead, gone or out of war mode. Here clear and within reach: looted from here. User 2026-10-21; live
   hunt-20261021-091743-38b6 09:54:10 "to the corpse" walked to (5242, 676), a tile from the reanimated daemon

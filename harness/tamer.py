@@ -12,7 +12,8 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   a target the pets haven't engaged is only approached (to APPROACH_R) and waited for, and passed over
   when it can't see us there (`unseen`); the bard skills go only at a target the pets are already
   fighting (`engaged`), and "All Kill" only at a mob already attacking us that the pets leave alone for
-  KILL_AFTER_S (its aggro is on us anyway).
+  KILL_AFTER_S (its aggro is on us anyway; a corpse purger or blightmare at once), or one already fighting
+  someone else.
 - **"All Guard Me"** at every arrival (guarding stops at a recall or dungeon level transition:
   wiki Animal Taming, Pet Commands) and after every kill (26 times for 25 kills on the trip; pets
   told "All Kill" go back to the owner after the kill, knowledge #2073); at once (past GUARD_REPEAT_S)
@@ -189,6 +190,8 @@ CASTER_R = 12                 # a caster in war mode this close in sight is cast
 #                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 RANGED_R = 13                 # a ranged monster in war mode this close in sight is shooting at us (the purger's barrage: 12)
+COVER_STEPS = 8               # cover: out of an awake purger's or blightmare's shot this far at most
+COVER_S = 2.0                 # ...at most this often
 BACK_OFF_S = 2.0              # back_off at most this often
 KEEP_OFF_S = 60.0             # ...and the purger it backed off from isn't sought this long (loop_hunt.SKIP_S)
 HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
@@ -435,6 +438,7 @@ class Team:
         self.pull_why = None
         self.evading = False
         self.reposition_t = -1e9
+        self.cover_t = -1e9               # the last cover (out of an awake purger's or blightmare's shot)
         self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
         self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
@@ -861,8 +865,50 @@ class Team:
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.area_peace(st) or self.retreat(st) or (low and self.vet(st)) or self.spacing(st) or self.vet(st) \
-            or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) or self.song(st)
+            or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st)) or self.spacing(st) \
+            or self.vet(st) or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) \
+            or self.song(st)
+
+    def cover(self, st) -> bool:
+        """An awake corpse purger or blightmare (aggro.SHY) that sees us within its reach: walk (up to COVER_STEPS) to
+        the nearest tile out of every such shot, out of area hits and fire, the fewest idle eyes (stand_score) first,
+        before the vet supplies on anyone, the spacing or anything else but a retreat; mid-channel too (its shot and
+        the diseases it stacks outrun the channel). User 2026-10-21: "All you really have to do for disease casters
+        like corpse purgers and blightmares is stay out of their aggro range and patrol the pets into them. If the pets
+        are busy fighting something else just stay out of their aggro range or keep the pets between us and the mob."
+        Simulator seed 1003: an awake purger 8 tiles off shot Logan 100 -> 13 in 13 s at (5271, 654) while the
+        reposition found no tile within its 4 steps that kept the pets in vet range and woke no more eyes."""
+        h, now = self.h, time.monotonic()
+        if now - self.cover_t < COVER_S:
+            return False
+        v = self.view(st)
+        shy = self.shy_awake(v)
+        if v.walk is None or not shy or not self.shot_at(v, shy, v.pos):
+            return False
+        self.cover_t = now
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, COVER_STEPS).items():
+            if k == 0 or t[:2] in zone or t[:2] in fire or self.shot_at(v, shy, t):
+                continue
+            c = (round(v.stand_score(t)), k)
+            if best_c is None or c < best_c:
+                best, best_c = t, c
+        if best is None:
+            return False
+        label = "cover"
+        kinds = ", ".join(sorted({m["kind"] for m in shy if v.sees(m, v.pos, CASTER_R if m["caster"] else RANGED_R)}))
+        h.doing("reposition", f"Out of the {kinds}'s shot to {best[0]},{best[1]}", best[:2])
+        self.count("covers")
+        log(f"cover: the {kinds} shoots us here; to {best[:2]}, {best_c[1]} steps, out of its shot")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * COVER_STEPS,
+                            max_route=2 * COVER_STEPS, mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"cover: {e}")
+        return True
 
     def spacing(self, st) -> bool:
         """In a fight (aggro.View.engaged, or one within FIGHT_LINGER_S) with --vet-range SPACING_R + 1 or
@@ -893,9 +939,11 @@ class Team:
         zone, fire = self.area_zone(st), self.fire_tiles(st)
         clear = ClearOf(zone)
         best, best_c = None, None
+        shy = self.shy_awake(v)
         for t, k in self.tiles_within(v, SPACING_STEPS).items():
             if k == 0 or t[:2] in fire or not clear(t) or any(cheb(t, n) < SPACING_R for n in near) \
-                    or any(cheb(t, p) > self.a.vet_range - 1 for p in pets):
+                    or any(cheb(t, p) > self.a.vet_range - 1 for p in pets) \
+                    or (shy and self.shot_at(v, shy, t)):     # not into an awake purger's or blightmare's shot (cover)
                 continue
             c = (round(v.stand_score(t)), k)
             if best_c is None or c < best_c:
@@ -907,7 +955,8 @@ class Team:
         self.count("spacing")
         log(f"keeping off the tank: {best[:2]}, {SPACING_R}+ from the pets and what fights them")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS, max_route=2 * SPACING_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS, max_route=2 * SPACING_STEPS,
+                            mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1218,7 +1267,8 @@ class Team:
             + (f", {best_c[0]:g} over the pull budget together" if best_c[0] else "")
             + f" (here {here[3]}, {here[1]:g} before a pet" + (f", {here[0]:g} over" if here[0] else "") + ")")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS,
+                            mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1305,7 +1355,8 @@ class Team:
         self.count("fire_steps")
         log(f"standing in fire at {v.pos[:2]}: stepping to {best[:2]}")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * FIRE_STEPS, max_route=2 * FIRE_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * FIRE_STEPS, max_route=2 * FIRE_STEPS,
+                            mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1369,7 +1420,7 @@ class Team:
             log(f"reposition: {who} can cast at us here; to {best[:2]} ({hit_by} -> {best_c[0]} in reach)")
         try:
             n = 2 * (CASTER_STEPS if casting else REPOSITION_STEPS)
-            h.mover.walk_to(lambda: best[:2], 0, label, urgent=casting, max_moves=n, max_route=n)
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=casting, max_moves=n, max_route=n, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1601,27 +1652,45 @@ class Team:
         return self._reach_tile(st, reach, self.a.vet_range, steps, margin=1, spaced=True, clear=False)
 
     def loot_tile(self, st, spot) -> tuple:
-        """Where to loot the corpse at `spot` from while an area hitter is in war mode in view (area_zone) -> (tile,
-        None): walk there; (None, None): as before (no hitter, or here is in reach of the corpse and clear of every
-        area hit); (None, why): wait, no tile within combat.LOOT_RANGE of the corpse is clear of the area hits. The
-        tile: clear of every area hit and fire, within LOOT_RANGE, the fewest monsters in war mode within SPACING_R,
-        the fewest idle eyes, the fewest steps (vet_tile's chooser). User 2026-10-21, live 09:54:10: "to the corpse"
-        walked to (5242, 676), a tile from the reanimated daemon at (5241, 675) still fighting the pets, in its bone
-        burst's reach (6), 8 s before its death."""
+        """Where to loot the corpse at `spot` from while an area hitter or an awake shy monster (a corpse purger or a
+        blightmare in war mode, aggro.SHY: it shoots from where it stands) is in view -> (tile, None): walk there;
+        (None, None): as before (neither, or here is in reach of the corpse, clear of every area hit and out of every
+        shy one's shot); (None, why): wait, no tile within combat.LOOT_RANGE of the corpse is clear of the area hits,
+        or each is in a shy one's shot. The tile: clear of every area hit and fire and out of the shy ones' shots,
+        within LOOT_RANGE, the fewest monsters in war mode within SPACING_R, the fewest idle eyes, the fewest steps
+        (vet_tile's chooser). User 2026-10-21, live 09:54:10: "to the corpse" walked to (5242, 676), a tile from the
+        reanimated daemon at (5241, 675) still fighting the pets, in its bone burst's reach (6), 8 s before its death.
+        Simulator 2026-10-21, seed 1004: "to the corpse" walked 11 steps into an awake purger's shot at 3-5 tiles, then
+        100 -> 6 in 8 s (its shot ~20 and a stacking disease); user 2026-10-21: "stay out of their aggro range"."""
         zone = self.area_zone(st)
-        if not zone:
+        v = self.view(st)
+        shy = self.shy_awake(v)
+        if not zone and not shy:
             return None, None
         pos = tuple(self.h.pos(st)[:2])
-        if cheb(pos, spot) <= combat.LOOT_RANGE and not self.zone_depth(zone, pos):
+        if cheb(pos, spot) <= combat.LOOT_RANGE and not self.zone_depth(zone, pos) and not self.shot_at(v, shy, pos):
             return None, None
         lr = combat.LOOT_RANGE
-        if all(self.zone_depth(zone, (spot[0] + dx, spot[1] + dy))
-               for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1)):
+        if zone and all(self.zone_depth(zone, (spot[0] + dx, spot[1] + dy))
+                        for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1)):
             return None, (f"the corpse at {spot} lies {self.zone_depth(zone, spot)} into an area hit's reach, every tile "
                           f"within {lr} of it too")
         t = self._reach_tile(st, [spot], lr, min(combat.VIEW_RANGE, cheb(pos, spot) + lr + 1), margin=0, spaced=False,
-                             clear=True)
+                             clear=True, unshot=bool(shy))
+        if t is None and shy:
+            return None, (f"the corpse at {spot} lies in the shot of the awake "
+                          f"{', '.join(sorted({m['kind'] for m in shy}))}, every tile within {lr} of it too")
         return t, None                    # no walkable clear tile found near: the walk as before, round the reach
+
+    @staticmethod
+    def shy_awake(v) -> list[dict]:
+        """Corpse purgers and blightmares (aggro.SHY) in war mode in view: they shoot from where they stand."""
+        return [m for m in v.mobs if m["war"] and m["shy"]]
+
+    @staticmethod
+    def shot_at(v, shy: list, tile) -> int:
+        """How many of the `shy` monsters see `tile` within their reach (CASTER_R, RANGED_R)."""
+        return sum(1 for m in shy if v.sees(m, tile, CASTER_R if m["caster"] else RANGED_R))
 
     @contextlib.contextmanager
     def around_areas(self, st):
@@ -1640,15 +1709,18 @@ class Team:
             for k in keys:
                 mv.danger.pop(k, None)
 
-    def _reach_tile(self, st, reach: list, r: int, steps: int, margin: int, spaced: bool, clear: bool):
+    def _reach_tile(self, st, reach: list, r: int, steps: int, margin: int, spaced: bool, clear: bool,
+                    unshot: bool = False):
         """vet_tile's and loot_tile's chooser: a tile within `steps` steps and `r` of every tile in `reach`, out of fire;
-        `spaced`: SPACING_R from every live pet and monster in war mode; `clear`: clear of every area hit. Ranked by the
-        depth in an area hit's reach, the monsters in war mode within SPACING_R, beyond r - `margin` of `reach`, the idle
-        eyes (aggro.View.stand_score), the steps -> (x, y, z), or None."""
+        `spaced`: SPACING_R from every live pet and monster in war mode; `clear`: clear of every area hit; `unshot`: out
+        of every awake shy monster's shot (shot_at). Ranked by the depth in an area hit's reach, the awake shy monsters
+        that shoot there, the monsters in war mode within SPACING_R, beyond r - `margin` of `reach`, the idle eyes
+        (aggro.View.stand_score), the steps -> (x, y, z), or None."""
         v = self.view(st)
         if v.walk is None:
             return None
         zone, fire = self.area_zone(st), self.fire_tiles(st)
+        shy = self.shy_awake(v)
         war = [m["pos"][:2] for m in v.mobs if m["war"]]
         keep = war + [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
         cands = []
@@ -1659,12 +1731,15 @@ class Team:
             depth = self.zone_depth(zone, t)
             if clear and depth:
                 continue
-            cands.append((depth, sum(cheb(t, n) < SPACING_R for n in war), any(cheb(t, p) > r - margin for p in reach),
-                          k, t))
+            shot = self.shot_at(v, shy, t) if shy else 0
+            if unshot and shot:
+                continue
+            cands.append((depth, shot, sum(cheb(t, n) < SPACING_R for n in war),
+                          any(cheb(t, p) > r - margin for p in reach), k, t))
         if not cands:
             return None
-        best = min(cands)[:3]
-        return min((c for c in cands if c[:3] == best), key=lambda c: (round(v.stand_score(c[4])), c[3]))[4]
+        best = min(cands)[:4]
+        return min((c for c in cands if c[:4] == best), key=lambda c: (round(v.stand_score(c[5])), c[4]))[5]
 
     def retreat(self, st) -> bool:
         h, now = self.h, time.monotonic()
@@ -1925,10 +2000,17 @@ class Team:
             log(f"{idle} stands idle beside the fight with {name}: 'All Kill' at it")
             self.all_kill(serial)
             return
-        if on_us and not engaged and not any(not p["dead"] and p["dist"] <= self.a.vet_range + 2 for p in self.pets(st)) \
+        shy_on = on_us and aggro.shy(type_key(mob.get("name")))
+        if on_us and not engaged and not shy_on \
+                and not any(not p["dead"] and p["dist"] <= self.a.vet_range + 2 for p in self.pets(st)) \
                 and self.rejoin(st):
             return                        # nothing between it and us here: to the pets (rejoin)
-        if on_us and not engaged and now - self.attack_t[serial] >= KILL_AFTER_S \
+        # a corpse purger or blightmare on us (aggro.SHY) gets "All Kill" at once and no walk back to the pets through
+        # its shot (cover takes us out of it; simulator seed 2072: a 12-step rejoin under a purger, 100 -> 33): it shoots
+        # from where it stands and its diseases stack, so 4 s more of it is 40-60 hits; its aggro is on us already (user
+        # 2026-10-21: "If you 'All Kill' on a mob that isn't already aggro'd on something else ... it will aggro on us")
+        wait = 0.0 if shy_on else KILL_AFTER_S
+        if on_us and not engaged and now - self.attack_t[serial] >= wait \
                 and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
                 and self.effects.get(serial, {}).get("los", 0) < now:
             self.all_kill(serial)
@@ -2144,7 +2226,8 @@ class Team:
         self.count("bard_los_moves")
         log(f"{m['kind']} 0x{serial:08X} out of our sight: stepping to {best[:2]}")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS, max_route=2 * REPOSITION_STEPS)
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS, max_route=2 * REPOSITION_STEPS,
+                            mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise

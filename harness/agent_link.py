@@ -1144,13 +1144,17 @@ class Mover:
                 now = time.monotonic()
                 if self._refreshed(label):
                     continue                 # full stamina: the denied tiles are tried again
+                hits = (st["world"].get("self") or {}).get("hits")
                 if mobile_wait_until is None:
                     if mobile_wait <= 0:
                         raise WalkFailed(f"{label}: route from {cur} cut by mobiles we couldn't shove")
-                    mobile_wait_until = now + mobile_wait
+                    mobile_wait_until, wait_hits = now + mobile_wait, hits
                     log(f"{label}: route from {cur} cut by mobiles we couldn't shove; waiting")
                 elif now > mobile_wait_until:
                     raise WalkFailed(f"{label}: route from {cur} cut by mobiles for {mobile_wait:.0f} s")
+                elif not urgent and hits is not None and wait_hits is not None and hits < wait_hits:
+                    # hit while standing there: the caller's ticks (heals, the pets, a leave) come first
+                    raise WalkFailed(f"{label}: route from {cur} cut by mobiles; hurt waiting ({wait_hits} -> {hits})")
                 if urgent:
                     time.sleep(0.05)         # a poll interval, not a player's pause
                 else:

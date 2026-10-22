@@ -445,6 +445,17 @@ def test_shove_denied():
     check("mobile_wait=0 (a fight's step away): aborts at once, no wait for the NPC (MOBILE_WAIT_S untouched)",
           msg.startswith("retreat: route from") and msg.endswith("cut by mobiles we couldn't shove")
           and tuple(link.here)[0] < 3, f"{msg} at {link.here}")
+
+    class Hurt(FakeLink):              # something hits us while we stand waiting on the NPC
+        def state(self):
+            st = super().state()
+            st["world"]["self"]["hits"] = max(0, 100 - 5 * self.polls)
+            return st
+    link = Hurt((0, 0), facing=2, mobiles=[(3, 0, 10 ** 9)], can_shove=False)
+    msg = walk_msg(map_mover(link, HALLWAY), (6, 0))
+    check("hurt while waiting on mobiles (a walk, not a flight): the wait ends at once, so the caller's ticks can "
+          "heal and leave (sim: 29 of 84 deaths stood 'cut by mobiles ...; waiting')",
+          "hurt waiting" in msg and tuple(link.here)[0] < 3, f"{msg} at {link.here}")
     link = FakeLink((0, 0), facing=2, mobiles=[(3, 0, 10 ** 9)])
     msg = walk_msg(map_mover(link, HALLWAY), (8, 0))
     check("a goal walls cut off is still 'no route' (mobiles or not)", "no route" in msg, msg)

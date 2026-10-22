@@ -1901,6 +1901,40 @@ def test_blightmare_reach():
           f"before {before} moved {moved} after {after} at {w.player.pos} ({sim_cheb(w.player.pos, bm.pos)} off) {said}")
 
 
+def test_cover():
+    print("== an awake corpse purger 8 off shooting us, the pets 3 off: care walks out of its shot first ==")
+    # simulator 2026-10-21 (seed 1003, the goal batch): in the north-east room an awake purger 8 off shot Logan 100 -> 13
+    # in 13 s while care stepped off the tank and vetted, the reposition finding no tile within 4 steps that kept the
+    # pets in vet range and woke no more eyes; dead on the walk out (user 2026-10-21: "stay out of their aggro range ...
+    # or keep the pets between us and the mob"). Here the room's second purger spawn, Logan 8 off in its sight
+    import aggro
+    w = world_with([{"key": "corpse purger", "at": [5274, 652, 0]}], seed=7, start=(5266, 651))
+    pg = next(m for m in w.mobs.values() if m.key == "corpse purger")
+    loop, clock, store, patched = hurt_loop(w, 90)
+    for p, xy in zip(w.pets(), ((5263, 651), (5266, 654))):
+        p.x, p.y = xy
+    pg.target, pg.threat = w.player.serial, {w.player.serial: 50}
+    w._warm(pg, True)
+    pg.next_step = 1e9                         # it shoots from where it stands
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            st = loop.state()
+            v = aggro.View(loop, st)
+            before = tamer.Team.shot_at(v, tamer.Team.shy_awake(v), loop.pos(st))
+            moved = loop.team.care(st)
+            st = loop.state()
+            v = aggro.View(loop, st)
+            after = tamer.Team.shot_at(v, tamer.Team.shy_awake(v), loop.pos(st))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [line for line in out.getvalue().splitlines() if "cover:" in line]
+    check("in its shot, then out of it, logged", before == 1 and moved and after == 0 and said,
+          f"before {before} moved {moved} after {after} at {w.player.pos} ({sim_cheb(w.player.pos, pg.pos)} off) {said}")
+
+
 def test_blightmare_first_sight():
     print("== the live 18:20:44 scene: the runner never takes an idle blightmare's first sight (it doesn't come on) ==")
     # live 2026-10-21 18:20:44-48: "crawl: blightmare ... in view at 13 tiles: patrolling toward it", an approach and a
@@ -2705,7 +2739,8 @@ def main():
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
               test_rope_cancel_attacked, test_ledge_attacker,
-              test_caster_at_12, test_blightmare_reach, test_blightmare_first_sight, test_blightmare_awake_patrol,
+              test_caster_at_12, test_blightmare_reach, test_cover, test_blightmare_first_sight,
+              test_blightmare_awake_patrol,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,

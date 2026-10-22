@@ -4485,6 +4485,60 @@ Visit 3 on Maus 3, the run started 17:55:14 (after 0a6bb7f). Capture session_202
   and 1 tiles, after his steps out of its reach or sight: the simulator's blightmare follows, live it stood (docs/SIM.md
   "Limits").
 
+## Half the deaths in the simulator (2026-10-21/22, goal run on the optimize-maus branch)
+
+Goal (user 2026-10-21): deaths an hour in the simulator at most half the current runner's, gold an hour not
+significantly worse (one-sided Welch t-test on per-run gold per game hour, p >= 0.05), the simulator not made easier.
+
+- **The batch**: `python harness/sim/run.py --runs 200 --seed 1001 --careers 20 --jobs 16 --others --eerie --prior
+  <frozen> --json -- --vet-range 5 --crawl-learn-s 180` (the parity batch as live plays, 200 runs). `<frozen>` is a
+  copy of the main store's `episodes` (loop hunt) and `job_events` (job hunt) rows older than `run.py`'s `EPOCH`, the
+  only rows `seed_prior` reads (90 episodes, 4,446 events), so the batch can't drift as the live store grows. A batch
+  is deterministic: the same code and seeds gave the same 200 summaries twice. Deaths an hour = deaths / game hours
+  (`sim_s`), as `run.py`'s `all:`. Seeds 2001-2200 were a holdout for every candidate.
+- **Baseline** (41412d3): 84 deaths in 80.2 game hours, 1.047 an hour; per-run gold an hour 98,707 (sd 16,187);
+  holdout 83 in 79.3 h, 1.046.
+- **Where the 84 died** (the runner's logs; the damage sources in the last 15 s): 29 stood in a Mover wait "cut by
+  mobiles we couldn't shove; waiting" (12 "off the tank" at (5192, 672, 25) in the countess corridor, 8 "to the
+  corpse"), a wait in which no tick runs (no potion, no vet); 35 left at 1-14 hits (`HEAL_IN_PLACE_FLOOR`) and died on
+  the walk out; by top source the corpse purger 27 (2.4 % of the gold) and the blightmare 14 (2.5 %); a purger's shot
+  (~20) and its stacking disease (17 every 5 s, two or three at once) took Logan 100 -> 6 in 6-15 s.
+- **Kept** (each step measured on seeds 1001-1200; the whole set on both blocks below):
+  - `Mover._walk_to`: a non-urgent walk's wait for mobiles ends when our hits fall ("hurt waiting"); the fight's care
+    walks (spacing, pull spot, fire, reposition, bard step) never wait (`mobile_wait=0`). 84 -> 70.
+  - Every loot walk bounded to twice the distance + 8 steps: after a refused shove in the countess corridor the loot
+    walk replanned 119-123 steps through the south rooms (14 of 41 deaths in one batch); after it none over 100.
+  - `Team.cover` (the user's rule: "stay out of their aggro range"): out of an awake purger's or blightmare's shot
+    first; the spacing, the loot tile and the vet tile out of it too; `--patrol-pull` on by default; no crawl seek of
+    a shy monster; "All Kill" at once at one on us; no rejoin walk under one. With "All Patrol" on, the first cover
+    (the reposition's 4-step rule) gave 48 deaths, the own 8-step walk 35.
+- **Final** (this branch, `--patrol-pull` default on, the batch command unchanged):
+
+  | 200 runs | deaths | game h | deaths/h | ratio | gold/h pooled | gold/h per run | Welch p (worse) | pet-death runs | pet left behind |
+  |---|---|---|---|---|---|---|---|---|---|
+  | seeds 1001-1200, baseline | 84 | 80.2 | 1.047 | | 101,403 | 98,707 | | 4 | 1 |
+  | seeds 1001-1200, final | 38 | 92.5 | 0.411 | 0.393 | 105,285 | 103,686 | 0.9996 | 4 | 2 |
+  | seeds 2001-2200, baseline | 83 | 79.3 | 1.046 | | 101,041 | 96,337 | | 6 | 2 |
+  | seeds 2001-2200, final | 44 | 91.4 | 0.481 | 0.460 | 105,302 | 103,285 | 1.0000 | 4 | 4 |
+
+  Runs ended without a death but not done: 4 and 3 (baseline 3 and 3), most "overall timeout (1800s + 180s to
+  leave)" on a time-up walk out (the batch's 30-min `--timeout`; live runs have none).
+- **Tried, not kept**: `HEAL_IN_PLACE_FLOOR` 0.35 (69 deaths against 70) and `--retreat-at 0.8` (69): noise.
+  `--never-aggro` the purger and the blightmare: 44 deaths but pet-death runs 4 -> 11 and pets left behind 1 -> 7 (the
+  evade runs off without them). A `--crawl-avoid` box over the north-east room (5252 640 5285 662): 35-41 deaths with
+  the earlier fixes, gold the same, but it gives up the bound souls' room; the user's way (patrol the pets in, keep out
+  of the shot) got there without it. "All Patrol" at any idle target that can't see us (the user's 2026-10-22 report of
+  the runner wandering the soul cells "not engaging anything"): patrols 340 -> 1,895, pass-overs 4,888 -> 3,338 in
+  ~89 h, but tormented souls killed 1,210 -> 1,219, gold an hour 105.9k -> 104.8k and deaths 48 -> 60 (patrols "on
+  it" by type: apparition 229, tormented soul 172, blightmare 155, shadowguard 141, nightstalker 128) [INFERENCE: a
+  woken apparition, shadowguard or nightstalker comes on to us as well as to the pets]. Not kept; the wandering is
+  still open.
+- **The simulator, looked at and not changed** (no live evidence either way): it refuses every step into a monster's
+  tile whatever the stamina (`World._walk`, `blocker.kind == "monster"`), where ServUO lets a player with full stamina
+  shove any mobile [INFERENCE: Outlands the same]; the refused shoves at 25/25 are what started the long loot walks and
+  the corridor waits. Its blightmare walks after us when we break its sight (docs/SIM.md "Limits"), so the cover may
+  be worth more live than here.
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

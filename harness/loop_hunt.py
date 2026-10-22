@@ -1309,17 +1309,19 @@ class HuntLoop:
             goal, r = (loot_at[:2], 0) if loot_at is not None else (spot, 1)
             if loot_at is not None:
                 log(f"to the corpse: looting from {loot_at[:2]}, {cheb(loot_at, spot)} from it, out of the area hits' reach")
+            # at most twice the distance plus LOOT_DETOUR_STEPS: round an area hit's reach when that is a short detour
+            # (the reach among the Mover's danger zones); unbounded it planned 117-123-step detours to corpses 7 tiles
+            # off (sim seeds 18-22), and after a refused shove one walked 119 steps away from the pets through two
+            # rooms and died there (sim 2026-10-21, seed 1019)
+            bound = 2 * cheb(self.pos(st), goal) + LOOT_DETOUR_STEPS
             try:
                 try:
-                    # round an area hit's reach when that is a short detour (the reach among the Mover's danger zones);
-                    # unbounded it planned 117-123-step detours to corpses 7 tiles off (sim seeds 18-22)
                     with self.team.around_areas(st) if self.team is not None else contextlib.nullcontext() as round_:
-                        self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=(
-                            2 * cheb(self.pos(st), goal) + LOOT_DETOUR_STEPS) if round_ else None)
+                        self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound)
                 except WalkFailed as e:
-                    if not str(e).startswith("to the corpse: no route within"):
+                    if not round_ or not str(e).startswith("to the corpse: no route within"):
                         raise
-                    self.mover.walk_to(lambda: goal, r, "to the corpse")      # only a longer way: as before
+                    self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound)   # through the reach
             except Abort as e:
                 if not str(e).startswith("to the corpse"):
                     raise
@@ -3174,11 +3176,12 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--rope", action=argparse.BooleanOptionalAction, default=True,
                     help="fleeing a hostile player by --leave-gate: 'All Follow Me' at once and an Adventurer's "
                          "Rope jump toward the gate whenever one is ready, as Logan fled reds")
-    ap.add_argument("--patrol-pull", action=argparse.BooleanOptionalAction, default=False,
-                    help="--pets: wake an idle corpse purger with 'All Patrol' at a tile beside it while we stand "
-                         "out of its sight, so its barrage goes to the pets; 'All Guard Me' once they're on it "
-                         "(user 2026-10-18, docs/NOTES.md 'All Patrol'). Off by default: the simulator's loop crawl "
-                         "lost more runs to deaths with it (71 vs 54 of 144) than keeping off purgers")
+    ap.add_argument("--patrol-pull", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: wake an idle corpse purger or blightmare with 'All Patrol' at a tile beside it while "
+                         "we stand out of its sight, so its shots go to the pets; 'All Guard Me' once they're on it "
+                         "(user 2026-10-18, docs/NOTES.md 'All Patrol'). On by default since 2026-10-22 (user: \"stay "
+                         "out of their aggro range and patrol the pets into them\"; with Team.cover and the rest of "
+                         "docs/NOTES.md 'Half the deaths in the simulator')")
     ap.add_argument("--hold-first-sight", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets, nothing fighting: stop where an idle monster first sees us within its aggro "
                          "range and let it come (up to 10 s each), as Logan at the nightstalker room's edge")
