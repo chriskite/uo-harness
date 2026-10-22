@@ -1204,6 +1204,8 @@ class LumberLoop:
             self.thief_near(st, a, step=escape)
         if a.damage["lost"] > 0 or a.damage["damage_events"] > 0 or self.spelled:
             self.creature_hit(st, a, swung, monsters, escape)
+        if monsters and self.at_home(st):       # in the house (home.at_home): a creature outside can't get at us
+            monsters = [t for t in monsters if t.serial in swung]   # (user 2026-10-22); one swinging at us still counts
         if not monsters or self.mode == "escape":
             return
         if not escape:
@@ -4976,8 +4978,8 @@ class LumberLoop:
         st = self.link.wait(lambda s: (s["world"].get("self") or {}).get("name"), 5.0)
         if st is None:
             raise Abort("the proxy doesn't know the character's name yet (it keys the home: harness/data/homes.json)")
+        self.home = self.find_home(st)          # before the first threat check: at home it ignores creatures outside
         self.guarded(lambda: self.check_guards(self.link.state()))
-        self.home = self.find_home(st)
         self.hatchet(st, self.want_hatchet)
         self.books = self.read_books(st)
         self.recall_book = self.prepare_recall(self.link.state())
@@ -4991,9 +4993,9 @@ class LumberLoop:
                 return
             self.trip_n = n                          # intents from here on are this trip's
             self.pre_trip = (time.time(), self.mover.steps, self.mover.blocked_count)
-            self.resupply_home()                # the loadout from the storage shelf at home; no hatchet: no trip
-            self.mount_home()                   # ride out on our pet
-            self.pouch_ready(self.link.state())  # a trip uses a trapped pouch up: none left, no trip
+            self.guarded(self.resupply_home)    # the loadout from the storage shelf at home; no hatchet: no trip
+            self.guarded(self.mount_home)       # ride out on our pet
+            self.guarded(lambda: self.pouch_ready(self.link.state()))  # a trip uses a trapped pouch up: none left, no trip
             hopped = self.trip(n)
             if self.break_due:
                 log(f"break due: {self.HOME_DONE} after trip {n}; stopping for the break (ctl break)")

@@ -1026,6 +1026,15 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   now 8) or a 4th from the same creature (`ESCAPES_PER_MONSTER` 3), during a speech hold, on damage
   when the rule below says so (until 2026-10-03: on any damage), and, as before, at once for a
   hostile player/red/grey/orange in flee range or a non-creature swinging at us.
+- **No creature escapes at home (since 2026-10-22, user: "we don't need to check for monsters in
+  our own house, we're safe inside"):** in the house (`home.at_home`, within `HOME_R` 6 of the
+  landing) a creature in flee range is no threat; only one swinging or casting at us (`swung_at_us`)
+  and damage taken (`creature_hit`) still count. Players are unchanged. Live 2026-10-22 a headless
+  (0x00443B94) loitering 5–8 tiles south of Outland Dan's house cost two runs: `mining-…-154543-f753`
+  crashed with an uncaught `Escape` from the shelf resupply's use pause (`resupply_home`, `mount_home`
+  and `pouch_ready` ran outside `guarded`; they run inside it now), and `mining-…-161327-2830`
+  walked out of the front door at the start check (`run` read the home only after its first
+  `check_guards`; it reads it first now) and then aborted for want of a pickaxe it never collected.
 - **Run until it gives up (since 2026-10-07, user: "Dan is still not running far away enough from
   monsters; he's giving up and recalling out too soon. If you run far enough from a monster it
   'rubber bands' back to its spawn point, and you can continue chopping"; `escape`, `escape_leg`,
