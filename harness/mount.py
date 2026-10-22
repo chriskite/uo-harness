@@ -10,9 +10,10 @@ horse; docs/NOTES.md "Our mount").
 - A bonded pet that dies becomes a ghost that follows us (S2C 0xBF sub 0x19 dead = 1, hits 0;
   world `mobiles[s].dead`). Healers and stable masters revive pets (wiki); the runners don't: a ghost
   pet is a `mount_missing` juncture.
-- The DTF guild house sends a ridden mount to rest when we come into it by a recall ("Your mount
-  finds a quiet place to rest safely.": the mount item goes, followers stay 0/5), and gives it back
-  when we leave it by a recall out ("Your mount returns.", live 2026-10-05). A mount that follows us
+- The DTF guild house, and our house (user 2026-10-21: it "auto stashes mounts" too), send a ridden
+  mount to rest when we come into them by a recall ("Your mount
+  finds a quiet place to rest safely.": the mount item goes, followers stay 0/5), and give it back
+  when we leave by a recall out ("Your mount returns.", live 2026-10-05). A mount that follows us
   there (not ridden in: live 2026-10-08 after a death the horse followed Dan home on foot) can't be
   ridden there: "Your mount refuses to let you ride it while in this area." (REFUSED); it can once
   we're out (the runner mounts after the recall).

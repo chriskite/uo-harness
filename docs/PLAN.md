@@ -2084,7 +2084,7 @@ facts: docs/NOTES.md "Logan Wolf's house"; details: LUMBER_LOOP.md §12.6, §13 
 - *The hunt drop-off*: home after the recall (Logan's default), the walk to the landing tile, the
   drop-off; not at home: logged and skipped. Replaced: the steward and the room.
 - *Mount*: no room revival of a ghost pet (a healer or stable master); a remembered mount not in view
-  at home is "resting" as before. Whether the house rests mounts is unknown.
+  at home is "resting" as before: the house auto-stashes mounts like the guild house (user 2026-10-21).
 - *Room code kept only as `ctl act room`* (`harness/room.py`): a generic overseer tool for any rental
   room; no runner uses it. The trip phase key `to_room` keeps its name (store history, the planners and
   the viz read it) and now means the recall home and the walk to the landing tile; `leave_room` is no

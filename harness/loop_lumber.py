@@ -4107,11 +4107,11 @@ class LumberLoop:
     def mount_home(self):
         """Ride out (user, 2026-10-05; docs/NOTES.md "Our mount"): at home before each trip, not
         riding, our pet within reach (mount.find_own: the one remembered for this character, else
-        the pet whose menu offers "Release") gets the stock double-click. The DTF guild house sends a
-        ridden mount to rest when we recall into it ("Your mount finds a quiet place to rest safely.") and
-        gives it back when we recall out ("Your mount returns.", live): a remembered mount that isn't in
-        view at home is taken to be resting, and the trip rides from the landing (`resting`;
-        mount_after_recall checks it came back; whether the house itself rests one is unknown, 2026-10-21).
+        the pet whose menu offers "Release") gets the stock double-click. The DTF guild house and our
+        house (user 2026-10-21: it "auto stashes mounts" like the guild house) send a ridden mount to rest
+        when we recall into them ("Your mount finds a quiet place to rest safely.") and give it back when we
+        recall out ("Your mount returns.", live): a remembered mount that isn't in view at home is resting,
+        and the trip rides from the landing (`resting`; mount_after_recall checks it came back).
         A ghost is a `low_supplies` juncture (item 'mount', once a run: a healer or a stable master revives
         it) and the trip goes on foot. The trip row's `mount` says what happened."""
         if self.args.mount == "off":
@@ -4166,9 +4166,9 @@ class LumberLoop:
                               "how": "find it, or have a healer or a stable master revive its ghost; then act mount"})
 
     def mount_after_recall(self):
-        """After the recall out: our remembered mount is under us again. The guild house rests it
-        when we recall into it, and gives it back on the recall out ("Your mount
-        returns.", live 2026-10-05). One that followed us instead (the guild house refused it:
+        """After the recall out: our remembered mount is under us again. Our house and the guild house
+        rest it when we recall into them, and give it back on the recall out ("Your mount
+        returns.", live 2026-10-05). One that followed us instead (the house refused it:
         mount_home's `deferred`; live 2026-10-08 after a death the horse walked with Dan, and the
         whole trip went on foot) gets the double-click here once it's in reach (mount.mount_up).
         The trip row's `mount.mounted` says whether we ride; a juncture when we still don't."""

@@ -551,7 +551,7 @@ History since 2026-10-21: home moved to Logan Wolf's house (next section); no ru
   The lumber sim's steward no longer answers a right-click, and the main scenario checks he is
   never right-clicked. Same risk remains for other injected right-clicks (`mount.py` pet menu,
   `ctl act menu`, vendor `buy`) [not changed].
-- Memory: #4082 (procedure, `char:outland_dan`; #4081 superseded); superseded on 2026-10-21 by #17142.
+- Memory: #4082 (procedure, `char:outland_dan`; #4081 superseded); superseded on 2026-10-21 by #17142 (now #17146).
 
 ## Logan Wolf's house (live 2026-10-21)
 
@@ -575,15 +575,17 @@ Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
 - **The DTF guild house** is now only the way to the rune library (stand 4152,1429, reached by
   "DTF Loot Chest") and its stocked shelf 0x40B84C55 (4133,1427,11), whose recall scrolls top up
   Dan's runebook. It rests a ridden mount when we recall in and gives it back on the recall out.
-- **Unknown:** whether the house rests mounts (Dan was unmounted; his remembered horse 0x0154FE11
-  was not in view).
+- **Mounts (user, 2026-10-21):** the house "auto stashes mounts" like the guild house: a ridden mount
+  rests when we recall in and comes back on the recall out. So at home Dan is on foot and his
+  remembered horse 0x0154FE11 isn't in view (as seen 2026-10-21); the runner records `resting` and
+  checks it rides after the recall out (`mount_after_recall`).
 - **How the runners use it** (offline-proven 2026-10-21, not yet run live; LUMBER_LOOP §13 "Trip"):
   `prepare_recall` takes a book whose default lands at home, else the book holding "Logan's House"
   by name (Dan's runebook); `come_home` (phase `to_room`) recalls and walks to the landing tile when
   beyond 2 tiles; library trips `to_library_house` (travel leg `to_library`) by "DTF Loot Chest",
   then `guild_resupply` when the house shelf left something out or the book is short; resupply
   `where` is `home`/`guild`; mining smelts at the house forge (`home_forge`, `smelt` event `at: home`).
-- Memory: #17142 (procedure, pinned: the house as home and how to get there).
+- Memory: #17146 (procedure, pinned: the house as home and how to get there; supersedes #17142).
 
 ## Storage shelves (live 2026-10-04/05, Outland Dan)
 

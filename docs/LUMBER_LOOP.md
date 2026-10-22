@@ -935,11 +935,11 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A
      ghost (0xBF sub 0x19) can't be ridden: an attention `low_supplies` juncture (item `mount`, once a
      run, `mount_missing`: a healer or stable master revives it; until 2026-10-21 going through the
-     rental room's steward did) and the trip goes on foot. The DTF guild house rests a ridden mount
-     when we come into it by recall and gives it back on the recall out ("Your mount returns."): at
-     home a remembered mount not in view is `resting`, no detour, and after the recall out
-     `mount_after_recall` checks we ride (not after the recall into the guild house; whether the
-     house itself rests mounts is unknown). A remembered mount not back after the recall out is the
+     rental room's steward did) and the trip goes on foot. Our house and the DTF guild house rest a
+     ridden mount when we come into them by recall and give it back on the recall out ("Your mount
+     returns."; the house: user 2026-10-21): at home a remembered mount not in view is `resting`, no
+     detour, and after the recall out `mount_after_recall` checks we ride (not after the recall into
+     the guild house, where it rests again). A remembered mount not back after the recall out is the
      same juncture. Trip row `mount` {pet, mounted, resting, why}.
   2. **Out** (`go_out`): from home. Unless already at the grove (its area + 10) or no farther from
      it than the landing, recall to the landing (`lumber_opt.landing_for`, chosen once a run; the

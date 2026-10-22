@@ -866,7 +866,8 @@ class World:
     def recall_to(self, dest, log):
         """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03). Out (the library's
         rune or our book's): the travel lockout comes; at the library rune a player chops nearby
-        (crowding). Into the guild house (our book's default rune): it rests a ridden mount."""
+        (crowding). Into the guild house (our book's default rune) or home: each rests a ridden mount (our
+        house auto-stashes mounts like the guild house, user 2026-10-21)."""
         log.append(dest)
         self.send(sys_text("Kal Ort Por"))
         handles = [asyncio.get_running_loop().call_later(2.1, self.jump, *dest)]
@@ -886,6 +887,8 @@ class World:
             elif self.no_ride_home and self.horse is not None and not self.mounted:   # it follows us out
                 asyncio.get_running_loop().call_later(2.2, self.send_horse)
         else:
+            if self.mounted:                           # our house sends a ridden mount to rest too (user 2026-10-21)
+                asyncio.get_running_loop().call_later(2.15, self.mount_rests)
             if self.chase:                             # a creature at our heels stays behind (a recall jumps)
                 handles.append(asyncio.get_running_loop().call_later(2.1, self.attacker_left))
             if self.pk_chase:                          # ... and so does a chasing red
@@ -913,7 +916,7 @@ class World:
 
     def mount_rests(self):
         """'Your mount finds a quiet place to rest safely.' (live 2026-10-05: into the DTF guild house by a
-        recall): the mount item goes until we leave the house (the recall out)."""
+        recall; our house the same, user 2026-10-21): the mount item goes until we leave the house (the recall out)."""
         self.mounted, self.mount_resting, self.mount_rested = False, True, self.mount_rested + 1
         self.send(delete(MOUNT_ITEM))
         self.send(sys_text("Your mount finds a quiet place to rest safely."))
@@ -925,7 +928,7 @@ class World:
 
     def send_horse(self):
         """Our horse following us, a tile off (with the ghost flag, 0xBF sub 0x19, when it's dead); not while
-        we ride it or it rests in the guild house."""
+        we ride it or it rests in a house."""
         if self.horse is None or self.mounted or self.mount_resting:
             return
         self.send(creature_pkt(HORSE, HORSE_BODY, self.pos[0] + 1, self.pos[1], noto=2, flags=0))
