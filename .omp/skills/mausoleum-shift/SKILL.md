@@ -29,8 +29,9 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
 ## 2. Dispatch
 
 One `task` call; `agent: "overseer"` goes **on the `tasks[]` item** (a top-level `agent` is ignored: OVERSEER.md
-§6). Name `SeerLoganWolf` (omp numbers repeats). Don't set `isolated`: ctl must run the main checkout's code
-against the main store (§5 step 0).
+§6). Name `SeerLoganWolf`, with a number when `history://` lists that name from an earlier session (omp refuses
+the repeat: "already owned by another session generation", 2026-10-22). Don't set `isolated`: ctl must run the
+main checkout's code against the main store (§5 step 0).
 
 `context`: the goal and the reporting contract below. `task`:
 
