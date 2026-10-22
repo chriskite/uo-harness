@@ -1,4 +1,4 @@
-"""Offline proof of harness/dropoff.py against a fake room that answers as the live one did
+"""Offline proof of harness/dropoff.py against a fake home that answers as the live rental room did
 (capture 20261015_210709, the user's 'New Drop Off' runs 21:29:49-22:45:44).
 
 Run: python harness/test_dropoff.py"""
@@ -113,9 +113,9 @@ def test_dropoff():
     far.state["movement"]["pos"] = [400, 927, 1]
     try:
         dropoff.run(far, NoHuman(), plan, timeout=0.5)
-        check("off the arrival tile, out of reach: refused", False)
+        check("off the landing tile, out of reach: refused", False)
     except dropoff.DropoffError as e:
-        check("off the arrival tile, out of reach: refused before anything is sent",
+        check("off the landing tile, out of reach: refused before anything is sent",
               far.sent == [] and "within 2 tiles" in str(e), str(e))
 
 

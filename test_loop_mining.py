@@ -1,6 +1,7 @@
 """Offline end-to-end test of the mining loop runner (harness/loop_mining.py) on test_loop_lumber's simulated
-world (the rental room, the runebook, the steward, the real proxy), with mining in place of the trees: the
-protocol of the live hand-mining capture 20261019_200350 (docs/NOTES.md "Live hand-mining capture").
+world (the house on facet 0, the runebook and its home rune by name, the guild house, the real proxy), with mining
+in place of the trees: the protocol of the live hand-mining capture 20261019_200350 (docs/NOTES.md "Live
+hand-mining capture").
 
 - the pickaxe worn (layer 1); its double-click digs with no cursor: a decoy captcha gump at once, the reply
   1.0 s later, cliloc 500119 "You must wait..." for a press within 0.9 s of the last dig, the travel lockout
@@ -11,21 +12,21 @@ protocol of the live hand-mining capture 20261019_200350 (docs/NOTES.md "Live ha
   status with the weight (ore 2 stones)
 - the forge at FORGE_POS: an ore stack's double-click within 2 tiles of it turns n ore into 2n ingots
   (cliloc 501988), farther "You are not near a forge" (500420)
-- the room's Resource Stockpile: its context menu (Restock 3006349 first, as live); the Restock's cursor answered
+- the house's Resource Stockpile: its context menu (Restock 3006349 first, as live); the Restock's cursor answered
   with our backpack takes every ingot stack in the pack, the trapped pouch's too ("You add N item(s) ...")
 
-mine_main: one trip from the rental room to the rocks by the runebook's "Sim Woods" rune; both stands dug out
-(the leg runs dry), smelted at the forge on the way (weight) and at the end, home, the ingots into the resource
-stockpile, then the storage shelf's Restock and Resupply, exit 0 in the room.
+mine_main: one trip from the house to the rocks by the runebook's "Sim Woods" rune; both stands dug out
+(the leg runs dry), smelted at the forge on the way (weight) and at the end, home by "Logan's House", the ingots into
+the resource stockpile, then the storage shelf's Restock and Resupply, exit 0 at home.
 mine_hop: two spots, one rock each; the first runs dry, the runner asks the plan at home (the current spot
-excluded) and goes on to the second with the ingots carried (--hops 1); that one dry too, the room, every ingot
+excluded) and goes on to the second with the ingots carried (--hops 1); that one dry too, home, every ingot
 into the stockpile, exit 0.
 mine_dry_start: every block dug out already: the carried ore smelted before leaving. mine_unworkable: every
-stand refuses mining: the spot disabled. mine_room_forge / mine_room_forge_abort: a forge in the rental room
+stand refuses mining: the spot disabled. mine_home_forge / mine_home_forge_abort: a forge in the house
 (homes `forge`): no smelt at the spots' forge on leaving, the ore smelted at home before the store.
 
-Run: python test_loop_mining.py [mine_main|mine_hop|mine_dry_start|mine_unworkable|mine_room_forge|
-mine_room_forge_abort]   (~6 min; private ports and temp dir, like test_loop_lumber.py)
+Run: python test_loop_mining.py [mine_main|mine_hop|mine_dry_start|mine_unworkable|mine_home_forge|
+mine_home_forge_abort]   (~6 min; private ports and temp dir, like test_loop_lumber.py)
 """
 import asyncio
 import os
@@ -37,7 +38,7 @@ import test_loop_lumber as T
 from world.parsers import parse_packet
 
 PICKAXE = 0x44ADB600
-CHEST_PICKS = (0x44ADB701, 0x44ADB702)    # spare pickaxes in the room's chest (mine_main)
+CHEST_PICKS = (0x44ADB701, 0x44ADB702)    # spare pickaxes in the house chest (mine_main)
 ORE_G, INGOT_G = 0x19B9, 0x1BF2
 ORE_GS = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
 ROCK_A, ROCK_B = (104, 203), (95, 197)
@@ -72,16 +73,16 @@ class MineWorld(T.World):
         self.doubles = 0
         self.replies = {"success": 0, "fail": 0, "nothing_near": 0}
         self.smelted = []                 # ore per smelt
-        self.smelted_room = []            # ore per smelt at the room's forge (room_forge)
+        self.smelted_home = []            # ore per smelt at the house's forge (home_forge)
         self.smelt_refused = 0
         self.login_extra = [T.equip(PICKAXE, 0x0E86, 0x01), self.status()]
-        # the room's Resource Stockpile (homes.json gets it: run_scenario): its context menu's Restock, the cursor
+        # the house's Resource Stockpile (homes.json gets it: run_scenario): its context menu's Restock, the cursor
         # answered with our backpack (live 2026-10-19 22:44:39: every ingot stack in the pack, the live pouch's too)
         self.stockpile = {"boards": 0, "adds": [], "refused": [], "gumps": set(), "closed": 0}
         self.pile_ingots = 0              # ingots the stockpile's Restock took
         self.pile_restocks = []           # (target serial, stacks taken) per Restock cursor answered
         self.pile_cursor_r = None         # the cursor id the Restock pick gave
-        self.chest_picks = set()          # spare pickaxes lying in the room's chest (the scenario puts them there)
+        self.chest_picks = set()          # spare pickaxes lying in the house chest (the scenario puts them there)
         self.taken_picks = []             # chest pickaxes dropped into our backpack, in order
 
     @property
@@ -101,14 +102,14 @@ class MineWorld(T.World):
     def on_packet(self, p):
         if p[0] == 0x06 and int.from_bytes(p[1:5], "big") == T.CHEST and self.chest_picks:
             super().on_packet(p)                        # the chest opens (0x24), then its spare pickaxes
-            if self.facet == T.ROOM_FACET and self.cheb(T.CHEST_POS) <= 2:
+            if self.in_house and self.cheb(T.CHEST_POS) <= 2:
                 for s in sorted(self.chest_picks):
                     self.send(T.contained(s, 0x0E86, 1, T.CHEST))
             return
         if p[0] == 0x08 and self.lifted is not None and self.lifted["serial"] in self.chest_picks:
             f = parse_packet("c2s", p)
             s, self.lifted = f["serial"], None
-            if f["container"] == T.BACKPACK and self.facet == T.ROOM_FACET and self.cheb(T.CHEST_POS) <= 2:
+            if f["container"] == T.BACKPACK and self.in_house and self.cheb(T.CHEST_POS) <= 2:
                 self.chest_picks.discard(s)
                 self.taken_picks.append(s)
                 self.send(T.contained(s, 0x0E86, 1, T.BACKPACK))
@@ -125,7 +126,7 @@ class MineWorld(T.World):
         if p[0] == 0xBF and p[3:5] in (b"\x00\x13", b"\x00\x15") and int.from_bytes(p[5:9], "big") == T.STOCKPILE:
             self.c2s.append(p)
             self.c2s_t.append(time.time())
-            if self.facet != T.ROOM_FACET or self.cheb(T.STOCKPILE_POS) > 2:
+            if not self.in_house or self.cheb(T.STOCKPILE_POS) > 2:
                 return
             if p[4] == 0x13:                        # its context menu: Restock (3006349) first, as live
                 self.send(popup(T.STOCKPILE, [(3006349, 0, 0), (3006123, 1, 0)]))
@@ -206,8 +207,8 @@ class MineWorld(T.World):
         self.send(self.status())
 
     def smelt(self, serial):
-        room = self.facet == T.ROOM_FACET
-        if (self.cheb(T.ROOM_FORGE_POS) > 2 or not self.room_forge) if room else self.cheb(FORGE_POS) > 2:
+        home = self.in_house
+        if (self.cheb(T.HOME_FORGE_POS) > 2 or not self.home_forge) if home else self.cheb(FORGE_POS) > 2:
             self.smelt_refused += 1
             self.send(T.cliloc(500420))
             return
@@ -217,8 +218,8 @@ class MineWorld(T.World):
         self.send(T.cliloc(501988))
         self.send(self.status())
         self.smelted.append(n)
-        if room:
-            self.smelted_room.append(n)
+        if home:
+            self.smelted_home.append(n)
 
 
 SPOTS_DOC = {"spots": [{"id": "sim", "name": "simulated rocks", "facet": 0,
@@ -229,8 +230,8 @@ SPOTS_DOC = {"spots": [{"id": "sim", "name": "simulated rocks", "facet": 0,
 async def mine_main():
     print("\n== mine_main: dig two rocks dry, smelt at the forge, home, the ingots into the resource stockpile ==")
     world = MineWorld()
-    world.shelf_stock = {"room": 0, "landing": 0}      # the storage shelves: Restock + Resupply after the stockpile
-    world.chest_picks = set(CHEST_PICKS)               # two spares in the room's chest; one worn: one comes out
+    world.shelf_stock = {"home": 0, "guild": 0}        # the storage shelves: Restock + Resupply after the stockpile
+    world.chest_picks = set(CHEST_PICKS)               # two spares in the house chest; one worn: one comes out
     st = parse_packet("s2c", world.status())
     T.check("the simulated status packet carries our weight and weight_max",
             (st.get("weight"), st.get("weight_max"), st.get("hits"), st.get("mana")) == (BASE_WEIGHT, WEIGHT_MAX, 100, 100),
@@ -241,9 +242,11 @@ async def mine_main():
         script="harness/loop_mining.py", spots_doc=SPOTS_DOC)
     try:
         T.check("runner exited 0", code == 0, str(code))
-        T.check("it ended in the rental room", world.facet == T.ROOM_FACET, str(world.facet))
+        T.check("it came home by \"Logan's House\" and ended on the landing", world.at_home_landing
+                and world.recalls_home == [T.HOME_RUNE_POS], f"at {world.pos} facet {world.facet} home "
+                                                              f"{world.recalls_home}")
         rows0 = store.episodes("mining")
-        T.check("before the trip one spare pickaxe came out of the room's chest (PICKAXES_CARRY 2), the row says so",
+        T.check("before the trip one spare pickaxe came out of the house chest (PICKAXES_CARRY 2), the row says so",
                 len(world.taken_picks) == 1 and world.taken_picks[0] in CHEST_PICKS and len(world.chest_picks) == 1
                 and rows0 and (rows0[0].get("pickaxes") or {}).get("have") == 2
                 and (rows0[0].get("pickaxes") or {}).get("from_chest") == [f"0x{world.taken_picks[0]:08X}"],
@@ -279,7 +282,7 @@ async def mine_main():
                 row.get("ingots_by_metal") == {"iron": 2 * world.dug} and row.get("stored_by_metal") == {"iron": 2 * world.dug},
                 f"made {row.get('ingots_by_metal')}, stored {row.get('stored_by_metal')}")
         T.check("then the storage shelf's Restock with the backpack and Resupply (the ingots out first); no theft "
-                "suspected", world.restocks == [("room", T.BACKPACK)] and bool(row.get("restock"))
+                "suspected", world.restocks == [("home", T.BACKPACK)] and bool(row.get("restock"))
                 and not [j for j in store.junctures() if j["kind"] == "theft_suspected"],
                 f"shelf restocks {world.restocks}, row restock {row.get('restock')}")
         T.check("the run completed its one trip", "loop complete: 1 trip(s)" in text)
@@ -332,8 +335,8 @@ async def mine_hop():
                                 "--field-min", "30"],
         script="harness/loop_mining.py", spots_doc=doc, routes=routes)
     try:
-        T.check("runner exited 0 in the rental room", code == 0 and world.facet == T.ROOM_FACET,
-                f"{code}, facet {world.facet}")
+        T.check("runner exited 0 at home", code == 0 and world.at_home_landing,
+                f"{code}, at {world.pos} facet {world.facet}")
         rows = store.episodes("mining")
         T.check("two legs: sim hopped, sim2 stored",
                 [(r.get("spot"), r.get("outcome"), r.get("leg")) for r in rows] == [("sim", "hopped", 1),
@@ -380,8 +383,8 @@ async def mine_dry_start():
         world, "mine_dry_start", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
         script="harness/loop_mining.py", spots_doc=SPOTS_DOC, prepare=prepare)
     try:
-        T.check("the abort ends the run (exit 1) in the rental room", code == 1 and world.facet == T.ROOM_FACET
-                and "no ore stand with an available node" in text, f"{code}, facet {world.facet}")
+        T.check("the abort ends the run (exit 1) at home (its recall home)", code == 1 and world.at_home_landing
+                and "no ore stand with an available node" in text, f"{code}, at {world.pos} facet {world.facet}")
         smelts = [(e["data"].get("why"), e["data"].get("ore"), e["data"].get("ok"))
                   for e in store.job_events("mining") if e["kind"] == "smelt"]
         T.check("the carried ore smelted on leaving, no digging", smelts == [("leaving", CARRIED_ORE, True)]
@@ -394,21 +397,21 @@ async def mine_dry_start():
         store.close()
 
 
-async def mine_room_forge():
-    print("\n== mine_room_forge: a forge in the rental room: no field smelt (the weight never calls for it), the raw "
+async def mine_home_forge():
+    print("\n== mine_home_forge: a forge in the house: no field smelt (the weight never calls for it), the raw "
           "ore carried on across the hop and smelted at home, every ingot into the stockpile ==")
     world = carrying_ore(MineWorld())
-    world.room_forge = True
+    world.home_forge = True
     doc = {"spots": [spot_doc("sim", "simulated rocks A", [STAND_A]), spot_doc("sim2", "simulated rocks B", [STAND_B])]}
     routes = {T.lumber_opt.route_key({"x": lx, "y": ly}, s): max(1, T.lumber_opt.area_dist(s["area"], (lx, ly)))
               for s in doc["spots"] for (lx, ly) in (T.BOOK_RUNE_POS, T.RUNE_POS)}
     text, code, store, _rows = await T.run_scenario(
-        world, "mine_room_forge", [], ["--trips", "1", "--hops", "1", "--human", "off", "--smelt-free", "20",
+        world, "mine_home_forge", [], ["--trips", "1", "--hops", "1", "--human", "off", "--smelt-free", "20",
                                        "--field-min", "30"],
         script="harness/loop_mining.py", spots_doc=doc, routes=routes)
     try:
-        T.check("runner exited 0 in the rental room", code == 0 and world.facet == T.ROOM_FACET,
-                f"{code}, facet {world.facet}")
+        T.check("runner exited 0 at home", code == 0 and world.at_home_landing,
+                f"{code}, at {world.pos} facet {world.facet}")
         rows = store.episodes("mining")
         T.check("two legs: sim hopped, sim2 stored",
                 [(r.get("spot"), r.get("outcome")) for r in rows] == [("sim", "hopped"), ("sim2", "stored")],
@@ -416,9 +419,9 @@ async def mine_room_forge():
         all_ore = CARRIED_ORE + ORE[ROCK_A] + ORE[ROCK_B]
         smelts = [(e["data"].get("at"), e["data"].get("why"), e["data"].get("ore"))
                   for e in store.job_events("mining") if e["kind"] == "smelt"]
-        T.check("one smelt: at home in the room, all the ore of both legs and the carried-in ore; none at the spots' "
-                "forge", smelts == [("room", "home", all_ore)] and world.smelted_room == [all_ore]
-                and world.smelt_refused == 0, f"{smelts}, room {world.smelted_room}, refused {world.smelt_refused}")
+        T.check("one smelt: at home at the house's forge (`at` 'home'), all the ore of both legs and the carried-in "
+                "ore; none at the spots' forge", smelts == [("home", "home", all_ore)] and world.smelted_home == [all_ore]
+                and world.smelt_refused == 0, f"{smelts}, home {world.smelted_home}, refused {world.smelt_refused}")
         T.check("the hop carried leg 1's raw ore (no ingots), and the row says so",
                 len(rows) == 2 and (rows[0].get("hop") or {}).get("carried") == 0
                 and rows[0]["hop"].get("carried_ore") == CARRIED_ORE + ORE[ROCK_A], str(rows[0].get("hop") if rows else None))
@@ -431,11 +434,11 @@ async def mine_room_forge():
         store.close()
 
 
-async def mine_room_forge_abort():
-    print("\n== mine_room_forge_abort: every block dug out, the leg aborts at once: no smelt on leaving, the carried "
-          "ore smelted at the room's forge after the way home ==")
+async def mine_home_forge_abort():
+    print("\n== mine_home_forge_abort: every block dug out, the leg aborts at once: no smelt on leaving, the carried "
+          "ore smelted at the house's forge after the way home ==")
     world = carrying_ore(MineWorld())
-    world.room_forge = True
+    world.home_forge = True
     blocks = [tuple(b) for s in (STAND_A, STAND_B) for b in s["blocks"]]
 
     def prepare(db):
@@ -443,15 +446,15 @@ async def mine_room_forge_abort():
         m.mine_blocks_mark(0, blocks, "depleted")
         m.close()
     text, code, store, _rows = await T.run_scenario(
-        world, "mine_room_forge_abort", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
+        world, "mine_home_forge_abort", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
         script="harness/loop_mining.py", spots_doc=SPOTS_DOC, prepare=prepare)
     try:
-        T.check("the abort ends the run (exit 1) in the rental room", code == 1 and world.facet == T.ROOM_FACET
-                and "no ore stand with an available node" in text, f"{code}, facet {world.facet}")
+        T.check("the abort ends the run (exit 1) at home", code == 1 and world.at_home_landing
+                and "no ore stand with an available node" in text, f"{code}, at {world.pos} facet {world.facet}")
         smelts = [(e["data"].get("at"), e["data"].get("why"), e["data"].get("ore"))
                   for e in store.job_events("mining") if e["kind"] == "smelt"]
-        T.check("the carried ore smelted at home, not on leaving", smelts == [("room", "home", CARRIED_ORE)]
-                and world.smelted_room == [CARRIED_ORE] and world.dug == 0, str(smelts))
+        T.check("the carried ore smelted at home, not on leaving", smelts == [("home", "home", CARRIED_ORE)]
+                and world.smelted_home == [CARRIED_ORE] and world.dug == 0, str(smelts))
         T.check("its ingots into the resource stockpile, no ore left",
                 world.pile_ingots == 2 * CARRIED_ORE and not any(g in ORE_GS or g == INGOT_G
                                                                  for g, _, _ in world.stacks.values()),
@@ -472,8 +475,8 @@ async def mine_unworkable():
         world, "mine_unworkable", [], ["--trips", "1", "--hops", "0", "--human", "off", "--field-min", "30"],
         script="harness/loop_mining.py", spots_doc=doc)
     try:
-        T.check("runner exited 0 in the rental room", code == 0 and world.facet == T.ROOM_FACET,
-                f"{code}, facet {world.facet}")
+        T.check("runner exited 0 at home", code == 0 and world.at_home_landing,
+                f"{code}, at {world.pos} facet {world.facet}")
         ends = [e["data"]["end"] for e in store.job_events("mining") if e["kind"] == "stand"]
         T.check(f"{loop_mining.UNWORKABLE_STANDS} no-harvest stands, then no more digging",
                 ends == ["no_harvest"] * loop_mining.UNWORKABLE_STANDS
@@ -489,7 +492,7 @@ async def mine_unworkable():
         store.close()
 
 
-runs = [mine_main, mine_hop, mine_dry_start, mine_unworkable, mine_room_forge, mine_room_forge_abort]
+runs = [mine_main, mine_hop, mine_dry_start, mine_unworkable, mine_home_forge, mine_home_forge_abort]
 
 
 if __name__ == "__main__":

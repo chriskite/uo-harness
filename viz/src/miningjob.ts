@@ -16,7 +16,6 @@ export function runningMining(intent: AgentIntent | null | undefined): AgentInte
 export type MiningPhase = "out" | "dig" | "smelt" | "lockout" | "escape" | "hop" | "home";
 
 const PHASE: Record<string, MiningPhase> = {
-  leave_room: "out",
   resupply: "out",
   mount: "out",
   aspect: "out",

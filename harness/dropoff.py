@@ -1,6 +1,6 @@
-"""The rental-room drop-off as one deterministic flow: the user's Razor script "New Drop Off" (F5 in
+"""The home drop-off as one deterministic flow: the user's Razor script "New Drop Off" (F5 in
 the profile "Logan Wolf Tribard Tamer"; ClassicUO/Data/Plugins/Assistant/Scripts/New Drop Off.razor),
-plus what it leaves in the pack (user 2026-10-15: research materials and resource maps, into the room
+plus what it leaves in the pack (user 2026-10-15: research materials and resource maps, into the home
 chest "for now, we'll buy tomes later").
 
 The script is a list of `menu <serial> <index>` lines: each opens that item's context menu (0xBF sub
@@ -16,7 +16,7 @@ waits only for its menu (one round trip: the entry is chosen by cliloc) and the 
 else; a step's line is the system text heard before the next step's menu (the server answers in order).
 
 Then every item in the backpack's top level (where loot lands; never the user's own bags or anything
-worn) that `to_chest` names goes into the room chest: lift, a drag pause, drop (the stock drag).
+worn) that `to_chest` names goes into the home chest: lift, a drag pause, drop (the stock drag).
 
 IO-agnostic like shelf.py and stockpile.py: `io` has send(pkt) and poll() -> (state, new world
 events) (escape.LinkIO for runners, ctl._CtlIO for ctl)."""
@@ -31,7 +31,7 @@ import combat
 
 EVENT_WAIT_S = 3.0
 LINE_WAIT_S = 1.5             # after the last pick: its line (the server's lines come within ~0.1 s live)
-RANGE = 2                     # every drop-off item stands within 2 tiles of the room's arrival tile
+RANGE = 2                     # every drop-off item stands within 2 tiles of the home landing tile
 
 
 class DropoffError(Exception):
@@ -105,7 +105,7 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
         if it is None or it.get("x") is None or not pos \
                 or max(abs(it["x"] - pos[0]), abs(it["y"] - pos[1])) > RANGE:
             raise DropoffError(f"{s['name']} 0x{_serial(s['serial']):08X} isn't in view within {RANGE} tiles: "
-                               "stand on the room's arrival tile")
+                               "stand on the home landing tile")
     pack = combat.backpack(items, st["movement"].get("self_serial"))
     flow, done, error = _Flow(io), [], None
     human.wait("hotkey")              # the script's hotkey (F5); its lines then run back to back

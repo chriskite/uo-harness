@@ -510,6 +510,8 @@ viz map's grove layer, docs/VISUALIZER.md §2.12) on the 2026-10-07 store:
 
 ## Rental room via the DTF house steward (live 2026-10-04, Outland Dan)
 
+History since 2026-10-21: home moved to Logan Wolf's house (next section); no runner enters the room.
+
 - **Access:** Dan has no room of his own; he is Co-Owner of Logan Wolf's (the user's other
   character). A house steward reaches rental rooms like an innkeeper does: Chase the house steward
   (0x009F57FB, ~4138, 1435, invulnerable) in the DTF guild house. His context menu: 0 "Open
@@ -549,7 +551,39 @@ viz map's grove layer, docs/VISUALIZER.md §2.12) on the 2026-10-07 store:
   The lumber sim's steward no longer answers a right-click, and the main scenario checks he is
   never right-clicked. Same risk remains for other injected right-clicks (`mount.py` pet menu,
   `ctl act menu`, vendor `buy`) [not changed].
-- Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
+- Memory: #4082 (procedure, `char:outland_dan`; #4081 superseded); superseded on 2026-10-21 by #17142.
+
+## Logan Wolf's house (live 2026-10-21)
+
+User 2026-10-21: "We've moved from an inn room into our own house." Read through ctl ~21:10, both
+characters logged in, standing in the house, facet 0. Decision: docs/PLAN.md "Home moves to Logan
+Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
+- **Landing:** "Logan's House" lands at (3575, 3251, 6), where Logan Wolf stood. At home =
+  within `home.HOME_R` (6) tiles of it on facet 0. Interior ~x 3570-3578, y 3249-3254; door
+  0x4C7C2469 at (3579, 3252), house sign at (3580, 3251).
+- **Items:** the room's serials, now in the house (distance from the landing): stockpile
+  0x62645C82 (3574,3249,6) 2; storage shelf 0x6CEB65CD (3573,3249,6) 2; chest "paragon chest (drake)"
+  0x4AE0DD2C (3575,3250,23) 1; bank deposit safe 0x431E86F5 (3575,3249) 2; recycler 0x6264BB54
+  (3573,3250) 2; tomes 0x62659A52 / 0x431E6BAA / 0x62658F0D / 0x62657BB3 at 1; magic item vault
+  0x6264CB96. **New forge 0x56372DCC** (3574,3254,6), 3 tiles off; the room's forge 0x51CF24B3 is gone.
+- **Runes:** Outland Dan's runebook 0x49865F8F (9 charges): Prev Bank, Cambria MG, Terran MG,
+  Cambria Bank, Anchor's Rest, Ossuary, Anchor's Rest MG, SSC, Shelter Stairs, **"DTF Loot Chest"
+  (4134,1429) = the default**, **"Logan's House" (3575,3251)**; Khal Draco was removed. So Dan's
+  default does not go home: the way home is "Logan's House" by name. Logan Wolf's rune tome
+  0x444AB1F3 (47 charges): **default = "Logan's House"** (row 25), "DTF Loot Chest" row 23 at
+  (4135,1431), "Maus Near 2" row 24.
+- **The DTF guild house** is now only the way to the rune library (stand 4152,1429, reached by
+  "DTF Loot Chest") and its stocked shelf 0x40B84C55 (4133,1427,11), whose recall scrolls top up
+  Dan's runebook. It rests a ridden mount when we recall in and gives it back on the recall out.
+- **Unknown:** whether the house rests mounts (Dan was unmounted; his remembered horse 0x0154FE11
+  was not in view).
+- **How the runners use it** (offline-proven 2026-10-21, not yet run live; LUMBER_LOOP §13 "Trip"):
+  `prepare_recall` takes a book whose default lands at home, else the book holding "Logan's House"
+  by name (Dan's runebook); `come_home` (phase `to_room`) recalls and walks to the landing tile when
+  beyond 2 tiles; library trips `to_library_house` (travel leg `to_library`) by "DTF Loot Chest",
+  then `guild_resupply` when the house shelf left something out or the book is short; resupply
+  `where` is `home`/`guild`; mining smelts at the house forge (`home_forge`, `smelt` event `at: home`).
+- Memory: #17142 (procedure, pinned: the house as home and how to get there).
 
 ## Storage shelves (live 2026-10-04/05, Outland Dan)
 
@@ -4733,7 +4767,8 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - Between spots (a leg cut short, home at the landing): only when the load is too risky for the next leg.
       `mining_opt.hop_choice` compares the load × P(death) with `STORE_FIRST_S` at the spot's ore rate. The `hop`
       job event has `risk` {carried_ore, p_death, risk_ore, store_cost_ore}, and the log says "storing the N
-      ingots first is worth more …" or "hop … (risks X ore; the room would cost Y)".
+      ingots first is worth more …" or "hop … (risks X ore; storing would cost Y)" ("the room would cost Y" before 2026-10-21). `STORE_FIRST_S`
+      went 60 → 40 s on 2026-10-21: home is a recall and a few steps, no room in between.
     - Before this (2026-10-19 evening to 2026-10-20 noon) every hop carried the ingots on, e.g. 1242 and 2554
       ingots in mining-20261020-105606-baf5.
   - **Pickaxes wear out in the hand** (capture session_20261020_102748).

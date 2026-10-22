@@ -1266,6 +1266,7 @@ and no banker, one travel rule for every spot. Removed: bankers in spots, `--ban
 home), Young-only Shelter. A PvP escape still stops at home outside the room (entry may be refused
 for 2 min after PvP). Details: LUMBER_LOOP.md §12.5, §13 "Trip"; offline proof
 `test_loop_lumber.py` (a simulated steward, room menus from the live gumps, door, chest).
+History since 2026-10-21: home is Logan Wolf's house ("Home moves to Logan Wolf's house" below).
 
 ## Jobs page date range (decided and built 2026-10-05)
 
@@ -1992,7 +1993,8 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
       trip's field time left, at the next spot's posterior death hazard. Raw ore rides along either way: the
       stockpile leaves it, so it doesn't count. Until 13:11 on 2026-10-20 it did, and a leg with 0 ingots went into
       the room to "store the 0 ingots".
-    - store first: `STORE_FIRST_S` (60 s: the room and a new run) at the spot's expected ore/h.
+    - store first: `STORE_FIRST_S` (60 s: the room and a new run; 40 s since 2026-10-21, the house) at the spot's
+      expected ore/h.
   - The runner hops when the risk is no more than the room's cost. Otherwise the leg goes into the room, stores,
     and the trip ends there.
   - This is lumber's comparison (`lumber_opt.hop_choice`: the load at risk vs the room's time) without its trip-size
@@ -2057,6 +2059,36 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
     `PLAN_DRAWS` cut was not needed.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
+
+## Home moves to Logan Wolf's house (user 2026-10-21)
+
+User: "We've moved from an inn room into our own house. … The runners that use DTF rune tomes will now
+need to recall to the DTF guild house instead of just exiting the inn room to the house steward. … The
+runners will now need to recall home to drop off instead of going to DTF and entering the inn room."
+Clean cutover; supersedes "Lumber trips end in the rental room" (2026-10-04) as to where home is. Live
+facts: docs/NOTES.md "Logan Wolf's house"; details: LUMBER_LOOP.md §12.6, §13 "Trip".
+- *Home = the house* (`homes.json` `landing` 3575,3251,6 on facet 0; `home.at_home` = within
+  `HOME_R` 6 tiles) for every character. Replaced: the `room` entry, `home.in_room` and the 60-tile
+  `NEAR_LANDING`. Convert, stockpile, chest, the house forge, the drop-off and the shelf all at home.
+- *The way home is our own book's rune that lands at home*: its default when that one does (the
+  spell-on-book fallback while a book recharges goes only to the default), else the rune named in
+  `homes.json` `rune`, "Logan's House", by name. Why both: Logan's tome defaults to the house; Dan's
+  runebook keeps "DTF Loot Chest" as its default. Replaced: "home = the default rune" plus the steward.
+- *Library rows recall in*: the own book's `library_rune` ("DTF Loot Chest") into the guild house,
+  checked against its landing, then the walk to the tome. One more recall per library trip, counted
+  in `overhead_prior_s`. Replaced: leaving the room by "Exit to House Steward". Own-book rows recall
+  from home.
+- *The guild shelf only when passing*: the house shelf before every trip; the guild shelf (the only one
+  with recall scrolls for Dan's book) right after a library recall-in, when the house shelf left
+  something out or the book is below `BOOK_FULL`. Why: no extra recall just to shop.
+- *The hunt drop-off*: home after the recall (Logan's default), the walk to the landing tile, the
+  drop-off; not at home: logged and skipped. Replaced: the steward and the room.
+- *Mount*: no room revival of a ghost pet (a healer or stable master); a remembered mount not in view
+  at home is "resting" as before. Whether the house rests mounts is unknown.
+- *Room code kept only as `ctl act room`* (`harness/room.py`): a generic overseer tool for any rental
+  room; no runner uses it. The trip phase key `to_room` keeps its name (store history, the planners and
+  the viz read it) and now means the recall home and the walk to the landing tile; `leave_room` is no
+  longer emitted.
 
 ## Risks
 

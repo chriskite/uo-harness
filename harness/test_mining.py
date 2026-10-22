@@ -160,10 +160,10 @@ def test_dashboard_plan():
 
 def test_hop_choice():
     print("home after a leg cut short: carry the ingots on or store them first (user 2026-10-20)")
-    run = {"spot": "B", "expected_ore_h": 1200, "death_h": 0.1}    # the room: 20 ore of time
+    run = {"spot": "B", "expected_ore_h": 1200, "death_h": 0.1}    # storing first: STORE_FIRST_S of ore time
     light, _ = mining_opt.hop_choice(run, 50, 0.5)          # 100 ingots, half an hour of the trip left
     heavy, terms = mining_opt.hop_choice(run, 600, 0.5)     # 1200 ingots
-    check("a light load hops on; a heavy one is stored first (risk above the room's cost)",
+    check("a light load hops on; a heavy one is stored first (risk above storing first's cost)",
           light and not heavy and terms["risk_ore"] > terms["store_cost_ore"], terms)
     late, _ = mining_opt.hop_choice(run, 600, 0.0)
     deadly, _ = mining_opt.hop_choice({**run, "death_h": 1.0}, 100, 0.5)

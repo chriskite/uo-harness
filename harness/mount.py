@@ -8,15 +8,14 @@ horse; docs/NOTES.md "Our mount").
 - Our own pet's context menu offers the pet commands (live: Animal Lore, Kill, Patrol, Guard,
   Follow, Come, Move, Stay, Stop, Release, Transfer); "Release" is how we know a pet is ours.
 - A bonded pet that dies becomes a ghost that follows us (S2C 0xBF sub 0x19 dead = 1, hits 0;
-  world `mobiles[s].dead`). Live 2026-10-05 the ghost followed Dan through a recall home and came
-  back alive (10/100 hits) when he entered the rental room through the house steward
-  [mechanism unknown, one observation]; healers and stable masters also revive pets (wiki).
-- The DTF guild house sends a ridden mount to rest when we come into it, by a recall or out of
-  the rental room ("Your mount finds a quiet place to rest safely.": the mount item goes, followers
-  stay 0/5), and gives it back when we leave it by a recall out or into the room ("Your mount
-  returns.", live 2026-10-05). A mount that follows us there (not ridden in: live 2026-10-08 after
-  a death the horse followed Dan home on foot) can't be ridden there: "Your mount refuses to let you
-  ride it while in this area." (REFUSED); it can once we're out (the runner mounts after the recall).
+  world `mobiles[s].dead`). Healers and stable masters revive pets (wiki); the runners don't: a ghost
+  pet is a `mount_missing` juncture.
+- The DTF guild house sends a ridden mount to rest when we come into it by a recall ("Your mount
+  finds a quiet place to rest safely.": the mount item goes, followers stay 0/5), and gives it back
+  when we leave it by a recall out ("Your mount returns.", live 2026-10-05). A mount that follows us
+  there (not ridden in: live 2026-10-08 after a death the horse followed Dan home on foot) can't be
+  ridden there: "Your mount refuses to let you ride it while in this area." (REFUSED); it can once
+  we're out (the runner mounts after the recall).
 
 IO-agnostic like room.py: `io` has send(pkt) and poll() -> (state, new world events)."""
 
@@ -153,8 +152,8 @@ def try_mount(io, human, pet: int, timeout: float = MOUNT_WAIT_S) -> str:
 
 
 def mount_up(io, human, known: int | None = None) -> dict:
-    """Ride our pet if we don't: {ok, mounted, pet, name, dead, why}. `dead`: it's a ghost (revive
-    it first: the rental room did, live). No pet in reach (or none of them ours): ok False."""
+    """Ride our pet if we don't: {ok, mounted, pet, name, dead, why}. `dead`: it's a ghost (a healer
+    or stable master revives it). No pet in reach (or none of them ours): ok False."""
     st, _ = io.poll()
     if mounted(st):
         return {"ok": True, "mounted": True, "already": True, "pet": None, "dead": False}

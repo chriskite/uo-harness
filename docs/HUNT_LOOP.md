@@ -40,7 +40,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--bank-gold N` | `0` (off) | At home after a recall: with N gold or more in the pack, bank all of it. Needs `--leave-recall`. |
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
 | `--return-at` | `auto` | Recall mode: take the loot home once this visit's carried value reaches V\* = r·sqrt(2T/h) (`auto`), a fixed gold value, or never (`off`); a full pack always ("Taking the loot home"). |
-| `--drop-off` / `--no-drop-off` | on | Home after a recall: into the rental room and its drop-off (homes.json `dropoff`), then back in from there. |
+| `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; not at home: logged and skipped. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` (`--pets` 0.50) | Leave below this share of max hits (plus the fight spot's route margin). |
@@ -299,10 +299,11 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   for the other ore, skinning and lumber maps (2026-10-04), distillations 1k, phylacteries 1.5k, skill scrolls 5k.
   Aspect cores by kind from the Discord posts since September (NOTES "Loot prices for the return rule").
   `ctl lumber price "loot:<name>" <gp>` adds one.
-- **The drop-off** (`--drop-off`, default on; homes.json `dropoff`): home after any recall, into the rental room
-  through the house steward (`room.look_for_keeper`, `room.enter`) and `dropoff.run` (the user's Razor drop-off and the
-  chest); the run then rests there and recalls back in from the room. A failure is logged (`dropoff` job event) and
-  the run goes on with the load. The simulator has no room (`--no-drop-off` in run.py's defaults).
+- **The drop-off** (`--drop-off`, default on; homes.json `dropoff`): home after any recall (since 2026-10-21 Logan
+  Wolf's house, his tome's default rune; before, the rental room through the house steward): `home.at_home` → the walk
+  to the landing tile → `dropoff.run` (the user's Razor drop-off and the chest); the run then rests there and recalls
+  back in from the house. Not at home, or a failure: logged (`dropoff` job event with the error) and the run goes on
+  with the load. The simulator has no home (`--no-drop-off` in run.py's defaults).
 - `--return-at auto` (default) | `off` | `GOLD` (a fixed value).
 
 ## Soul jars (`--soul-jars`; `harness/soul_jar.py`; user request 2026-10-17)

@@ -1,5 +1,6 @@
 """Deposit items into a Resource Stockpile as one deterministic flow (live 2026-10-05, Outland
-Dan in Logan Wolf's rental room; docs/NOTES.md "Resource Stockpile"; wiki Resource_Stockpile).
+Dan in Logan Wolf's rental room, since 2026-10-21 in his house; docs/NOTES.md "Resource Stockpile";
+wiki Resource_Stockpile).
 
 A Resource Stockpile holds crafting materials (boards, ingots, leather, ...) for the house's
 owners and co-owners; it is no container. Double-clicking it opens its menu (gump 0x6ECE2ABE);
@@ -33,7 +34,7 @@ STOCKPILE_GUMP_ID = 0x6ECE2ABE        # "Resource Stockpile" (live 2026-10-05)
 ADD_BUTTON = 2                        # "Add Items" (live: its prompt and cursor follow)
 ADD_PROMPT = "Target an item or container of items you wish to add to this Resource Stockpile"
 ADDED = re.compile(r"^You add (\d+) item\(s\) to the Resource Stockpile\.")
-STOCKPILE_RANGE = 2                   # tiles: opened from 2 in the room (live)
+STOCKPILE_RANGE = 2                   # tiles: opened from 2 (live)
 EVENT_WAIT_S = 4.0
 POUCH_GRAPHIC = 0x0E79                # pouch (trapped or spent): the logs' and boards' container on a trip
 RESTOCK_ENTRY = 3006349               # context menu "Restock": a cursor; the backpack answers it (dropoff.run)

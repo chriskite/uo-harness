@@ -61,8 +61,8 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
       </div>
       <div className="jobs-sub dim">
         Field time is the dig phase less the walk out and the travel lockout (the planner's measure, mining_opt.trip_obs). Active time is the legs
-        plus the gaps of up to 2 min between them. Ore is smelted at the spot's forge when the pack nears full weight and the rest in the rental room;
-        at each trip's end the runner puts the ingots into the room's Resource Stockpile.
+        plus the gaps of up to 2 min between them. Ore is smelted at the spot's forge when the pack nears full weight and the rest at the house's forge;
+        at each trip's end the runner puts the ingots into the house's Resource Stockpile.
       </div>
 
       <MiningOptimizer plan={plan} />

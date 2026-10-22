@@ -19,11 +19,12 @@ from memory import Memory  # noqa: E402
 FAILURES = []
 NOW = 1_800_000_000.0
 TABLE = lo.load_hatchets()
-# Outland Dan's home (harness/data/homes.json, live 2026-10-04; the Resource Stockpile since 2026-10-05)
-HOME = {"library": "dtf", "landing": [4134, 1429, 6], "facet": 0,
-        "room": {"owner": "logan", "facet": 3, "arrival": [403, 923, 1], "exit": "steward"},
-        "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [404, 922, 2]},
-        "stockpile": {"serial": "0x62645C82", "pos": [403, 921, 2]}}
+# Outland Dan's home (harness/data/homes.json: Logan Wolf's house since 2026-10-21)
+HOME = {"landing": [3575, 3251, 6], "facet": 0, "rune": "Logan's House", "library": "dtf",
+        "library_rune": {"name": "DTF Loot Chest", "landing": [4134, 1429, 6]},
+        "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [3575, 3250, 23]},
+        "stockpile": {"serial": "0x62645C82", "pos": [3574, 3249, 6]},
+        "forge": {"serial": "0x56372DCC", "name": "forge", "pos": [3574, 3254, 6]}}
 
 
 def check(name, cond, detail=""):
@@ -47,7 +48,7 @@ def landing(s, dist=20, **kw):
 
 def trip(sid, t1, logs, field_s, chop_share=0.7, skill=None, outcome="stored", dry=False, why=None,
          walk_out=60.0, to_room=20.0, convert=10.0, store=5.0, to_bank=60.0, **extra):
-    """A trip row as the runner writes it: home -> grove -> home ('stored': into the room's chest);
+    """A trip row as the runner writes it: home -> grove -> home ('stored': at home; to_room: the way home);
     outcome 'banked' writes a bank-era row (to_bank instead of to_room). extra: more row fields
     (successes, travel, lockout_s, ...)."""
     phases = {"harvest": walk_out + field_s}
@@ -571,18 +572,29 @@ def test_landings():
           lo.landing_for(s, HOME, books, bad=bad)["name"] == "Orc Fort 9", bad)
     check("the home in harness/data/homes.json is this one; it recalls out from its own library only",
           homes.for_character("outland dan") == HOME and homes.libraries(HOME) == ["dtf"])
+    no_rune = {k: v for k, v in HOME.items() if k != "library_rune"}
+    check("a home without a library_rune can't reach its library: only own-book runes",
+          lo.landing_for(s, no_rune, books, lambda row, sp: row["source"] == "library") is None
+          and lo.landing_for(s, no_rune, books)["name"] == "Grove A")
 
     # overhead prior: every trip from home
     lib_row = {**lib, "x": 3001, "y": 3000, "dist": 1, "route_tiles": None}
     by_book, by_lib = lo.overhead_prior_s(s, got, HOME), lo.overhead_prior_s(s, lib_row, HOME)
     stand = places.library("dtf")["stand"]
-    check("a library rune costs the walk from the home landing to the library's stand (DTF: 18 tiles); "
-          "an own book's is recalled on the spot",
-          lo.library_walk(lib_row, HOME) == lo.cheb(HOME["landing"], stand) == 18
-          and lo.library_walk(got, HOME) == 0 and abs(by_lib - by_book - 18 * lo.SEC_PER_TILE) < 1e-9,
+    walk = lo.cheb(HOME["library_rune"]["landing"], stand)
+    check("a library rune costs one more recall (into the guild house) and the walk from the library rune's "
+          "landing to the library's stand (DTF: 18 tiles); an own book's is recalled at home",
+          lo.library_walk(lib_row, HOME) == walk == 18 and lo.library_walk(got, HOME) == 0
+          and abs(by_lib - by_book - lo.RECALL_TRIP_S - 18 * lo.SEC_PER_TILE) < 1e-9,
           (by_book, by_lib))
-    fixed = (lo.ROOM_EXIT_S + 2 * lo.RECALL_TRIP_S + lo.LOCKOUT_S + lo.ROOM_ENTER_S + lo.OVERHEAD_FIXED_S)
-    check("the prior: room exit, two recalls, the lockout, into the room, convert and store, plus the walk into "
+    raised = False
+    try:
+        lo.library_walk(lib_row, no_rune)
+    except ValueError:
+        raised = True
+    check("a library rune with no library_rune at home: out of reach (ValueError)", raised)
+    fixed = 2 * lo.RECALL_TRIP_S + lo.LOCKOUT_S + lo.OVERHEAD_FIXED_S
+    check("the prior for an own book's rune: two recalls, the lockout, convert and store, plus the walk into "
           "the grove (to the area's inner half, or the planned route when known)",
           abs(by_book - fixed) < 1e-9
           and abs(lo.overhead_prior_s(s, {**got, "route_tiles": 40}, HOME) - fixed - 40 * lo.SEC_PER_TILE) < 1e-9
@@ -825,11 +837,11 @@ def test_library_hops():
         out = plan(spots, eps, carried=load, hop_from="a", exploit=True, **kw)
         return out.get("hop"), out.get("hop_why")
     h0, _ = hop(0)
-    check("nothing carried: always on to the next spot (the room would only cost its time), never back to the spot "
-          "just left; the gain is about the room's time at that spot's rate",
+    check("nothing carried: always on to the next spot (storing first would only cost its time), never back to the "
+          "spot just left; the gain is about storing first's time (HOP_BACK_S) at that spot's rate",
           h0 is not None and h0["spot"] == "b" and h0["carried"] == 0
-          and 0.5 * (lo.ROOM_EXIT_S + lo.HOP_BACK_S) / 3600 * h0["rate_logs_h"] < h0["gain_logs"]
-          < 1.5 * (lo.ROOM_EXIT_S + lo.HOP_BACK_S) / 3600 * h0["rate_logs_h"], h0)
+          and 0.5 * lo.HOP_BACK_S / 3600 * h0["rate_logs_h"] < h0["gain_logs"]
+          < 1.5 * lo.HOP_BACK_S / 3600 * h0["rate_logs_h"], h0)
     sizes = [hop(load)[0] for load in (0, 200, 400)]
     check("the more carried, the shorter the leg it is worth (the load is at risk all along)",
           all(s is not None for s in sizes) and sizes[0]["logs_per_trip"] >= sizes[1]["logs_per_trip"]

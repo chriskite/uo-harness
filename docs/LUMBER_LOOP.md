@@ -1,11 +1,11 @@
-# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → the rental room's chest (→ deed later)
+# LUMBER_LOOP.md — first repeatable game loop: chop trees → boards → home's Resource Stockpile (→ deed later)
 
 Status (2026-10-07): **self-optimizing (§6, "Built 2026-10-02"); spots are forests since 2026-10-07 (§6 "Forest spots").** `ctl lumber plan` picks the spot
 (Thompson sampling over spots learned from every trip), the trip size (death, sent-home and theft risk vs. walking
-overhead) and the hatchet; the runner takes `--spot`. Every trip starts and ends at home: out of the
-rental room, recall to the landing nearest the grove, chop, recall home by our own book's default rune,
-into the room through the house steward, convert there and store the boards in the room's secure
-chest (user decision 2026-10-04, §12.5; first live trip 2026-10-04 22:06–22:17 at Horseshoe Bay: 240
+overhead) and the hatchet; the runner takes `--spot`. Every trip starts and ends at home, Logan Wolf's house since 2026-10-21 (his rental room
+before): recall to the landing nearest the grove (a DTF library tome after our own book's recall into the
+guild house), chop, recall home by our own book's rune that lands at the house, convert there and store
+the boards in its Resource Stockpile (user decisions 2026-10-04, §12.5, and 2026-10-21, §12.6; first live trip 2026-10-04 22:06–22:17 at Horseshoe Bay: 240
 boards into the chest, docs/NOTES.md "First live room-storage trip"; the 2026-10-01 bank version ran
 live off Shelter on 2026-10-02 at Horseshoe Bay, Corpse Creek and Terran, the first room-storage
 version on Shelter on 2026-09-29: 3 trips, 50 boards, captcha solved and resumed; run 3, §13).
@@ -21,12 +21,12 @@ library, the rails and the captcha handling all get exercised by it.
 
 The agent should **learn** the loop, **run** it, and **improve** it over sessions:
 - chop trees
-- recall home, enter the rental room
+- recall home to the house (the rental room 2026-10-04..21)
 - convert the logs to boards there
 - store the boards in its Resource Stockpile (since 2026-10-05; the secure chest before)
 
-Character: Outland Dan since 2026-10-04 (home: the DTF guild house and Logan Wolf's rental room,
-`harness/data/homes.json`); a fresh Young character on Shelter Island before that (TestWorth until
+Character: Outland Dan since 2026-10-04 (home: Logan Wolf's house since 2026-10-21, his rental
+room via the DTF guild house before; `harness/data/homes.json`); a fresh Young character on Shelter Island before that (TestWorth until
 2026-10-01).
 
 These constraints come from existing docs and aren't optimization targets:
@@ -85,23 +85,25 @@ These constraints come from existing docs and aren't optimization targets:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Home: in the rental room or by the home landing (homes.json)
-  Home --> TravelOut: out of the room through its door (Exit to House Steward)
-  TravelOut --> Harvest: recall to the landing nearest the grove (library tome or own book), walk in
+  [*] --> Home: in the house, within 6 tiles of the home landing (homes.json)
+  Home --> GuildHouse: library row: to_library_house, own book's library_rune ("DTF Loot Chest") by name
+  GuildHouse --> TravelOut: guild_resupply when flagged, walk to the library stand, recall from the tome
+  Home --> TravelOut: own-book row: recall from home
+  TravelOut --> Harvest: landing nearest the grove, walk in
   Harvest --> Harvest: stand out of wood → next stand
   Harvest --> TravelHome: return trigger (§6), dry, break due
   Harvest --> Escape: red, thief, creature that keeps coming (§13)
-  Escape --> [*]: recall home by the own book's default rune, stop (logs stay in the pouch)
-  TravelHome --> Room: recall home by the own book's default rune (walk when within 60 tiles)
-  Room --> Convert: house steward → "Room" → "Visit Other Rooms" → owner's row
+  Escape --> [*]: recall home by the own book's home rune, stop (logs stay in the pouch)
+  TravelHome --> AtHome: come_home: recall by the way-home book (its default if it lands home, else homes.json rune by name)
+  AtHome --> Convert: walk to the landing tile when beyond 2 tiles of it
   Convert --> Store: trapped pouch set off, logs → boards
-  Store --> Home: boards into the Resource Stockpile, Restock (backpack) + Resupply at the room shelf
+  Store --> Home: boards into the Resource Stockpile, Restock (backpack) + Resupply at the house shelf
   Store --> Deed: stock ≥ deed quantum (not built)
   Harvest --> CaptchaHandoff: captcha gump
   CaptchaHandoff --> Harvest: captcha solved
 ```
 
-The trip threshold and the deed quantum are decoupled. Boards go into the rental room's chest every
+The trip threshold and the deed quantum are decoupled. Boards go into the house's Resource Stockpile every
 trip; a deed is made once the stock reaches the quantum (deeds aren't built yet, §12.4).
 
 Any state can be pre-empted by a proxy-enforced pause, break or kill (agent gate), or by a failure
@@ -295,15 +297,15 @@ below what the plan would risk. Now such a leg asks the plan, at home, whether t
   `--exploit`), never the spot just left. `plan_from_store(carried=, hop_from=, home=)` asks
   `plan(carried=…)`; the answer is `hop` (or `hop_why`).
 - **Whether:** renewal-reward at that spot's own posterior-mean net rate g. Storing first is
-  worth carried − g·`HOP_BACK_S` (recall, into the room, convert, store) and then a fresh trip
+  worth carried − g·`HOP_BACK_S` (recall home, convert, store) and then a fresh trip
   (worth ~0 at its Q* by the definition of g). The hop is worth the best leg with the load carried
   in (`trip_terms(load0=)`: the load is lost to a death and thinned by thieves like the logs chopped
-  there) with overhead `hop_out_s` (the spot's overhead minus room exit, room and the last recall)
-  plus `HOP_BACK_S`, each side as reward − g·time (`leg_value`). It saves the room and the room exit
-  (~70 s, ~50 logs at 2 500 logs/h), so it pays while the expected loss of the carried load stays
+  there) with overhead `hop_out_s` (the spot's overhead minus the way out of home and the store there)
+  plus `HOP_BACK_S`, each side as reward − g·time (`leg_value`). It saves the store at home and the way
+  out (~70 s measured in the rental-room era, ~50 logs at 2 500 logs/h), so it pays while the expected loss of the carried load stays
   below that: on the live store (2026-10-07) up to ~1 500–2 000 logs carried; the leg's quota shrinks
   as the load grows (e.g. 5 550 → 4 150 logs at 0 → 1 500 carried for witcher_124). Nothing carried
-  always hops (the room would only cost its time). **The way out is exposed too** (since
+  always hops (the store would only cost its time). **The way out is exposed too** (since
   2026-10-08): a death on the hop's way out (`hop_out_s`: the landing and the walk into the grove,
   at the spot's death hazard) loses the carried load and the gear and costs the recovery; it is
   counted on both sides, so the difference is the carried load at risk. The `hop` row gains
@@ -317,27 +319,31 @@ below what the plan would risk. Now such a leg asks the plan, at home, whether t
   and the last leg is the usual `stored` (its `woods` without what it carried in). `trip_obs` counts
   a hopped leg like an aborted one: logs and field time count, a threat ending it is "sent home", a
   hostile player in sight starts the spot's 30-min cooldown, and it has no overhead of its own (the
-  next leg's walk out holds the hop, its room phases the way home); a stored leg's `hop_home` phase
+  next leg's walk out holds the hop, its home phases the way home); a stored leg's `hop_home` phase
   (the recall home before the question) is overhead. Every hop question is a `hop`
   job event (from, reason, carried, the hop or why not).
 - **Runs:** the hop leg gets the plan's quota, regrowth window and a timeout that extends the run's
   deadline; per-spot threat memory (tracked reds escaped from, counted sightings) starts over. A run
-  whose trip hopped ends after that trip in the room; the overseer plans the next as usual.
+  whose trip hopped ends after that trip at home; the overseer plans the next as usual.
   `--hops 0` restores going home after every leg.
 
-**Home and the way out (user decision 2026-10-04).** The character's home comes from
+**Home and the way out (user decisions 2026-10-04 and 2026-10-21).** The character's home comes from
 `harness/data/homes.json` (`home.for_character`, keyed by the character's name: the proxy's
-`world.self.name`, else the newest trip row's `character.name`); Outland Dan's is the DTF guild
-house (landing 4134,1429), the DTF rune library (stand 4152,1429) and Logan Wolf's rental room with
-its secure chest. A trip leaves the room through the house steward, recalls out to the **landing
+`world.self.name`, else the newest trip row's `character.name`). Since 2026-10-21 both characters'
+home is Logan Wolf's house (`landing` 3575,3251,6, facet 0, `rune` "Logan's House"; at home =
+within `home.HOME_R` 6 tiles of the landing on its facet), with its stockpile, chest, shelf and forge;
+its rune library is DTF (`library_rune` "DTF Loot Chest" → the guild house landing 4134,1429, stand
+4152,1429). (2026-10-04..21: Logan Wolf's rental room through the DTF house steward, docs/NOTES.md.)
+A trip recalls out from home to the **landing
 nearest the grove** (`lumber_opt.landing_for`: the first `places.landings` row from the home rune
 library and the character's own runebooks/rune tomes, `places.known_books`, nearest the area: a
 square's centre, a forest's nearest cell, where `dist` is tiles to that edge; a landing whose
 tome/book is titled "Bad Places" is skipped (a rune's own name, "Orc Fort" or "Smugglers Den", counts for
 nothing since 2026-10-19: user, the Urk Fort/Smugglers Den landing at Prevalia Quarry was safe); a landing
 needs a walking route into the grove (a square's inner half, any cell of a
-forest), else the next nearest), chops, recalls home
-on its own book's default rune, enters the room, converts and stores. No public moongates, no
+forest), else the next nearest; a library row costs one more recall: the own book's `library_rune`
+into the guild house, then the walk to the stand), chops, recalls home on its own book's rune that
+lands at home (its default when that one does, else the `rune` by name), converts and stores. No public moongates, no
 walking from a bank. The route check plans on the map with the runner's budget (`make_route_fn`,
 the same machinery as discover), at most 3 plans per spot per `plan`, landings farther than 300
 tiles from the area's edge failing unplanned; answers are cached in the store's meta
@@ -400,13 +406,14 @@ patches show up within weeks):
   is left follows the aspect itself (10-08: logs per success at the cut 7.88 against the day's 8.21;
   that day's first trip re-activated the suit's aspect [INFERENCE: lost with the armor in the 10-06
   deaths]); the trip rows record its tier and xp since then.
-- overhead T (since 2026-10-04: room exit, walk to the landing's rune, recall out, walk into the
-  grove, lockout, recall home, into the room, convert, store): Normal posterior over the trips'
-  overheads; prior `overhead_prior_s` = room exit 10 s + the walk from the home landing to the
-  library's stand when the landing is a library rune (18 tiles at DTF; 0 for an own book) + 2
-  recalls of 4 s + the walk from the landing into the grove (its cached route, else the straight
-  distance to the area's inner half) at 0.45 s/tile + the 60 s lockout + into the room 15 s +
-  convert and store 40 s (room times [INFERENCE] until trips measure them).
+- overhead T (since 2026-10-21: for a library row the recall into the guild house and the walk to the
+  library's stand, the recall out, the walk into the grove, lockout, the recall home, the steps to the
+  landing tile, convert, store; 2026-10-04..21 the room exit and the room took the place of the recall
+  in): Normal posterior over the trips' overheads; prior `overhead_prior_s` = the walk from the
+  `library_rune` landing to the library's stand for a library row (18 tiles at DTF; 0 for an own book)
+  + 3 recalls of 4 s for a library row, 2 for an own book + the walk from the landing into the grove
+  (its cached route, else the straight distance to the area's inner half) at 0.45 s/tile + the 60 s
+  lockout + 40 s for the steps to the landing tile, convert and store (`OVERHEAD_FIXED_S`).
 - **hazards (rewritten 2026-10-03, user decisions; exposure and kinds 2026-10-11):** competing hazards
   per exposed hour, each a Gamma posterior per spot over recency-weighted exposed hours, shrunk to a
   pooled rate. Exposed = the walk from the landing into the grove (`walk_in_s`: the walk out less its
@@ -797,6 +804,8 @@ stock lives and whether to raise skill first) comes after the proof.
 
 ### 12.5 Decided (user, 2026-10-04): no bank; boards into the rental room's chest, recall to the nearest landing
 Supersedes the 2026-10-01 decision "bank the boards, no rental room" (kept below as history).
+**Its home part is history since 2026-10-21 (§12.6: Logan Wolf's house); the no-bank and
+nearest-landing rules stand.** As decided then:
 Every trip starts and ends at the character's home (`harness/data/homes.json`, `harness/home.py`):
 in the rental room or the guild house by it. Out: through the room's door ("Exit to House
 Steward", a teleport to the landing: the 60 s harvest lockout and the Stationary Penalty follow,
@@ -840,43 +849,73 @@ character: no rent, no Test Shard room wipe, no lockout from a room exit, any to
 The demo's Shelter room knowledge left lumber.json on 2026-10-04 (its capture facts stay in
 `harness/test_loop_demo.py`).
 
+### 12.6 Decided (user, 2026-10-21): home is Logan Wolf's house
+"We've moved from an inn room into our own house." Supersedes §12.5's rental room. Every trip
+starts and ends at home = Logan Wolf's house (facet 0, landing 3575,3251,6; at home = within
+`home.HOME_R` 6 tiles of it). Nothing enters or leaves a rental room any more. Converting, the
+stockpile and chest, smelting at the house forge, the drop-off and the house shelf's Restock +
+Resupply all happen at home, near the landing tile (walked to when an item is out of reach). The
+way home and the red escape: our own book's rune that lands at home: its default when that one
+does (the spell-on-book fallback while the book recharges goes only to the default), else the rune
+named in `homes.json` `rune`, "Logan's House", by name (Outland Dan: by name, his default is still
+"DTF Loot Chest"; Logan Wolf: his default). Out by a DTF library tome: first the own book's
+`library_rune` ("DTF Loot Chest") into the guild house, checked against its landing, then the
+walk to the tome as before; out by an own-book rune: one recall from home. The guild shelf (its
+recall scrolls top up Dan's runebook) is used only when a trip passes through the guild house
+anyway and the house shelf left something out or the book is short. Why: the house is ours, a
+recall reaches it directly (no steward, no 2-min PvP entry refusal, no facet-3 room without a
+map), and the runners no longer have to pass through the guild house to get home. `ctl act room`
+and `harness/room.py` stay as a generic tool for rental rooms; no runner uses them.
+
 ## 13. Runner (`harness/loop_lumber.py`, built 2026-09-29)
 
 Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports, gate-aware
 `act()`) and `Mover` (walking, learned blocks, doors). `errand_bank.py` uses it too.
 
-- **Trip** (since 2026-10-04, user decision §12.5: home is the rental room):
+- **Trip** (since 2026-10-21, user decision §12.6: home is Logan Wolf's house; 2026-10-04..21 the rental room, §12.5):
   1. **Home:** the character's home by its name (`world.self.name`; `--homes`, default
      `harness/data/homes.json`); none: abort "no home …". At the start the runner reads its own
      runebooks and rune tomes once (`escape.read_book`: title, default rune, charges, every rune's
-     landing tile; remembered for `lumber plan` by `places.remember_book`) and takes the one whose
-     default rune lands at home (`home.at_home`) with a charge or a castable Recall as the way home
-     and red escape (`prepare_recall`, required for every spot; `--recall off` is gone).
+     landing tile; remembered for `lumber plan` by `places.remember_book`) and picks the way home and
+     red escape (`prepare_recall`, required for every spot; `--recall off` is gone): among the books
+     with a charge or a castable Recall, first one whose default rune lands at home (`home.at_home`;
+     the fastest, and the spell-on-book fallback while a book recharges goes only to the default),
+     else one holding a rune matching `homes.json` `rune` ("Logan's House") that lands at home; its
+     exact name (`home_rune_name`) then goes with every recall home and every escape (`recall_out`,
+     `go_home`: `escape.escape(rune=)`). Neither: abort "no way home (…)". With the books read
+     2026-10-21: Logan Wolf's tome goes by its default, Outland Dan's runebook by name (its default
+     is "DTF Loot Chest").
   1a. **Resupply** (since 2026-10-05, user; `resupply_home`, `--resupply on|off`, default on): before
      each trip at home, the loadout is topped up from the Storage Shelf (`harness/shelf.py`, the same
-     flow as `ctl act resupply`; docs/NOTES.md "Storage shelves"): in the room its shelf first; when
-     that one lacks something ("No resupply: …", or "Unable to resupply: no items available."), or our
-     way-home book holds fewer than `BOOK_FULL` (10) charges (since 2026-10-11, user: "Recalls should be
-     available on the guild shelf"; `book_charges`, read at the run's start, less the charge each recall by
-     it took, `note_book_charge`), out of the room (the trip goes that way anyway) and the shelf by the
-     landing (Outland Dan: the DTF guild house's, the secured one on its tile skipped). A shelf tops the
+     flow as `ctl act resupply`; docs/NOTES.md "Storage shelves"): the house shelf in view at home
+     (`where` 'home'). When that one lacks something ("No resupply: …", or "Unable to resupply: no
+     items available."), or our way-home book holds fewer than `BOOK_FULL` (10) charges (since
+     2026-10-11, user: "Recalls should be available on the guild shelf"; `book_charges`, read at the
+     run's start, less the charge each recall by it took, `note_book_charge`), the guild shelf is
+     flagged (`guild_shelf`), but only when the trip's landing is a library row: an own-book trip
+     logs that the guild shelf is skipped. A flagged guild shelf runs right after the recall into the
+     guild house (`guild_resupply`, `where` 'guild'; Outland Dan: 0x40B84C55, the secured one on its
+     tile skipped). A shelf tops the
      book up to 10 on its Resupply when it holds recall scrolls and the character's loadout has the shelf
      option for it enabled (user, 2026-10-12: enabled for his characters); the shelf's reply doesn't list
-     the charges as an added item ("it had nothing to give" can still recharge). A shelf that
+     the charges as an added item ("it had nothing to give" can still recharge); after the guild shelf the
+     runner counts the way-home book as full [INFERENCE: its scrolls don't run out]. A shelf that
      fails is logged and passed over; what
-     each gave and lacked is the trip row's `resupply` [{where, shelf, s, added, missing,
-     none_available}]. Then the trapped-pouch check (`pouch_ready`): still none, a `low_supplies`
-     juncture, back into the room, exit 1. Offline: `test_loop_lumber.py` scenarios `resupply` (the
-     room's shelf empty, the landing's gives 3 pouches, the trip goes), `resupply_book` (a full pack
-     but 3 charges: the landing's shelf too) and `no_pouch` (both empty).
+     each gave and lacked is the trip row's `resupply` [{where: home|guild, shelf, s, added, missing,
+     none_available}] (rental-room era rows say `room`/`landing`). Then the trapped-pouch check
+     (`pouch_ready`): with the guild shelf flagged it waits until after that shelf (`guild_resupply`;
+     also on the early returns of `go_out`, without a shelf), since the trip's pouches may come only
+     from there; still none, a `low_supplies` juncture and an abort, exit 1 (from the guild house the
+     runner recalls home first, `home_on_abort`). Offline:
+     `test_loop_lumber.py` scenarios `resupply`, `resupply_book` and `no_pouch` (both empty).
   1a'. **Hatchet uses** (since 2026-10-08, user: "carry enough hatchets to complete the max chops the
      trip would require"; `hatchets_ready`, `hatchet_uses`, `uses_needed`): a hatchet loses one use per
      successful chop and breaks at 0 ("You broke your axe.", cliloc 500499, with that chop's logs;
-     live hatchet 0x5D8F64ED: 1125 → 154 uses over 970 successes). After the room's resupply the
+     live hatchet 0x5D8F64ED: 1125 → 154 uses over 970 successes). After the home resupply the
      runner single-clicks each hatchet it wears or has in the backpack itself (the server's "(N uses
      remaining)" label; else the newest label on record, else its kind's full uses) and needs
      quota / 5 uses (`HATCHET_LOGS_MIN`: the fewest logs a success gave in 11 398 since 2026-10-06; mean
-     8.2). Short, in the room: the most worn hatchet goes into the room's chest and the room's shelf
+     8.2). Short, at home: the most worn hatchet goes into the house chest and the house shelf
      resupplies the loadout's hatchet, until enough or the shelf gives none (a loadout of 2+ hatchets
      keeps the worn one and tops up anyway; user, 2026-10-08: both). The shelf out of hatchets
      (`hatchets_from_chest`, since 2026-10-12; live 2026-10-11 the lone hatchet stayed in the chest and
@@ -884,9 +923,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      (the newest label on record, else the kind's full uses), each read by a click once carried, until
      the quota is covered or the chest has none; the one just put away comes back that way. Still
      short: an attention `low_supplies` juncture (item `hatchet uses`) and the trip goes on; no hatchet
-     at all: the juncture with 0 uses, back into the room, exit 1, no trip. A hatchet that breaks
+     at all: the juncture with 0 uses, the run ends at home, exit 1, no trip. A hatchet that breaks
      mid-trip hands the chopping to the next one (`hatchet()` picks among those left); a library hop
-     whose quota the hatchets can't cover goes to the room first. The trip row's `hatchets` {need,
+     whose quota the hatchets can't cover goes home first. The trip row's `hatchets` {need,
      have, uses, how, swapped, from_chest}. Scenarios `hatchet_swap` (10 uses for a 100-log trip:
      swapped for the shelf's fresh one), `hatchet_back` (the shelf has none: the worn one comes back
      out, the trip goes short), `hatchet_chest` (the chest's spare covers the trip), `hatchet_none` (it
@@ -894,43 +933,45 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   1b. **Mount** (since 2026-10-05, user; `mount_home`, `--mount on|off`, default on): at home and not
      riding, our pet within 3 tiles (the one remembered for this character, else the pet whose menu
      offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A
-     ghost (0xBF sub 0x19) is revived first by out of the room and in again through the steward (live:
-     that revived Dan's horse; the healer didn't). The DTF guild house rests a ridden mount when we
-     come into it (a recall home, out of the room) and gives it back on the recall out or in the room
-     ("Your mount returns."): at the landing a remembered mount not in view is `resting`, no detour,
-     and after the recall out `mount_after_recall` checks we ride. A remembered mount missing in the
-     room, still a ghost, or not back after the recall out is an attention `low_supplies` juncture
-     (item `mount`, once a run); the trip goes on foot. Trip row `mount` {pet, mounted, resting,
-     why}. Offline: scenario `ghost_horse`.
-  2. **Out** (`go_out`): in the room, out through its door (`room.leave`, the home's exit). Unless
-     already at the grove (its area + 10) or no farther from it than the landing, recall to the
-     landing (`lumber_opt.landing_for`, chosen once a run; the route check plans on the map with the
-     Mover's planner and caches answers, `--no-map`: cached only): a library row by walking to its
-     tome and `escape.escape(tome, rune=name)`, an own-book row by `escape.escape(book, rune=name)`
-     where we stand. The `travel` leg `out` carries `landing` {source, library, tome, book, name,
-     x, y}.
+     ghost (0xBF sub 0x19) can't be ridden: an attention `low_supplies` juncture (item `mount`, once a
+     run, `mount_missing`: a healer or stable master revives it; until 2026-10-21 going through the
+     rental room's steward did) and the trip goes on foot. The DTF guild house rests a ridden mount
+     when we come into it by recall and gives it back on the recall out ("Your mount returns."): at
+     home a remembered mount not in view is `resting`, no detour, and after the recall out
+     `mount_after_recall` checks we ride (not after the recall into the guild house; whether the
+     house itself rests mounts is unknown). A remembered mount not back after the recall out is the
+     same juncture. Trip row `mount` {pet, mounted, resting, why}.
+  2. **Out** (`go_out`): from home. Unless already at the grove (its area + 10) or no farther from
+     it than the landing, recall to the landing (`lumber_opt.landing_for`, chosen once a run; the
+     route check plans on the map with the Mover's planner and caches answers, `--no-map`: cached
+     only): a library row by `to_library_house` (the own book's `library_rune` by name, the way-home
+     book first; a `travel` job event with leg `to_library`; a landing more than LANDING_SLACK (3)
+     tiles from `library_rune.landing` or on another facet aborts; skipped when already in that
+     library, `places.library_at`; no `library_rune` in homes.json aborts), then `guild_resupply`,
+     the walk to its tome (intent `to_library`) and `escape.escape(tome, rune=name)`; an own-book row
+     by `escape.escape(book, rune=name)` from home. The `travel` leg `out` (timed from after the
+     recall into the guild house) carries `landing` {source, library, tome, book, name, x, y}.
   3. **Harvest** by Smart Harvest at stands by the spot's trees (§13 "Harvest attempt", "Trees";
      trees out of wood in the last `--regrow-min` are skipped); each chop's logs into the trapped pouch.
-  4. **Home** (`to_room`): recall by the own book's default rune (`go_home`, the `travel` leg
-     `home`), unless within `home.NEAR_LANDING` (60) of the landing already, then walk; a recall that
-     lands anywhere but home aborts. With no keeper's click label known in view, walk to the landing
-     first; find the house steward by his label, else single-click the invulnerable human NPCs
-     within 18 tiles nearest first (`find_keeper`); `room.enter` (walks within 2 of him, his context
-     menu "Room", "Visit Other Rooms", the owner's row from `homes.json` `room.owner`).
-  5. **Convert** in the room: the trapped pouch set off ourselves, opened, every log stack → boards.
-  6. **Store** (`store`): the chest opened like a player would (double-click, the server's 0x24),
-     each board stack and then the spent pouches lifted and dropped into it at the auto position,
-     each declared to the ledger. Facet 3 has no map: the chest is within reach of the arrival; a walk
-     to it (only beyond 2 tiles) plans on walk memory.
+  4. **Home** (`come_home`; its phase key is still `to_room`): `go_home` recalls by the way-home
+     book (`travel` leg `home`; `rune=home_rune_name`, none when its default lands at home) unless at
+     home already; a recall that lands anywhere but home aborts. Then, standing more than
+     `stockpile.STOCKPILE_RANGE` (2) from the landing, the walk to the landing tile (intent
+     `to_room`; facet 0, planned on the map).
+  5. **Convert** at home: the trapped pouch set off ourselves, opened, every log stack → boards.
+  6. **Store** (`store`): every board stack into the house's Resource Stockpile (`harness/stockpile.py`,
+     `homes.json` `stockpile`; a home without one: the chest), then the house shelf's Restock with
+     the backpack and Resupply.
 
   Like a player, the runner opens the backpack before targeting logs in it, whenever the server
   hasn't opened it this session (ANTICHEAT.md §10, closed containers). It says nothing.
 
-  A run ends in the room. The trip phases are `harvest` (the way out included), `to_room`
-  (home + into the room), `convert`, `store`; the outcome `stored` (rows of the bank era say
-  `banked` with `to_bank`). The intents are `leave_room`, `to_library`, `recall_out`, `to_tree`,
+  A run ends at home. The trip phases are `harvest` (the way out included), `to_room`
+  (the recall home and the walk to the landing tile; 2026-10-04..21 home + into the room), `convert`,
+  `store`; the outcome `stored` (rows of the bank era say `banked` with `to_bank`). The intents are
+  `to_library` (the recall into the guild house and the walk to the tome), `recall_out`, `to_tree`,
   `chop`, `recall_home`, `to_room`, `convert`, `store`, `trip_done`, plus `escape` and `break_due`
-  (below).
+  (below); `leave_room` is no longer emitted (rental-room era rows have it).
 - **Hatchet (since 2026-10-01):** the best tool bonus by material (the hue; since 2026-10-05, when
   the shelf started handing out GM coloured hatchets), worn first among equals, else the shallowest
   in the backpack or in a bag in it at any depth (`hatchet()`, `pack_depth`); one in a chest or the
@@ -1171,7 +1212,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     the way to a tree 28 tiles from the landing and the planner sent Dan on a 255-step route
     through the wilds, into the fen daemon and brackish water above (`test_mover.py` `test_max_route`).
   - **Home instead** (`monster_stop`: `run_and_recall` with the book unless a recall wouldn't move
-    us (`on_home_rune`: in the room or on the way-home rune's tile); there, out of the room, run out
+    us (`on_home_rune`: at home or on the way-home rune's tile); there, run out
     of reach while anything is after us (`run_clear`), then stop; no log conversion either way; since
     2026-10-05 the guild house's 60-tile `at_home` radius no longer means "stop in place") on: hits
     below the threshold, two or more possible attackers, damage with nothing in view or just out of it
@@ -1626,14 +1667,14 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   cover (since 2026-10-03; before, any damage), a creature that kept
   coming after the walk-away escape, too many escapes, or a creature during a speech hold ends the
   run without converting (`monster_stop`), and when the runner is away from home (`home.at_home`:
-  not in the room, more than 60 tiles from the landing) with its book ready, it recalls home first (`recall_out`, the same retries) and
+  not within 6 tiles of the home landing; until 2026-10-21 the room or 60 tiles) with its book ready, it recalls home first (`recall_out`, the same retries) and
   posts an urgent `threat` juncture "Recalled away from …" (a player escape posts `pk_escape`).
   Live 2026-10-03 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
   and then exited in the field; the overseer's own recall landed at 15/100. The logs stay logs in
   the pack. Test: `test_loop_lumber.py` scenario `library_chased`.
 - **Break due (since 2026-10-01):** when the state port's `gate.break_due_at` is set (agent gate
-  `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, goes home into
-  the rental room, converts, stores, logs `break due: boards stored after trip N`, marks the episode row `break_due`
+  `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, recalls home to
+  the house, converts, stores, logs `break due: boards stored after trip N`, marks the episode row `break_due`
   and exits 0, so the overseer can `ctl break` there. Logs and boards weigh ~0.025 stone each
   (knowledge #88), so there is no weight trigger.
 
@@ -1718,9 +1759,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   home, aborts, and remembers the rune as a bad landing (memory meta `lumber_bad_landings`, by facet
   and tile, since 2026-10-05: DTF "Jonny's House" (1817,1865) put Dan at (1809,1871)); plans and runs
   pass it over (`lumber_opt.landing_for(bad=)`). Own-runebook runes count only on the map their name hue says (81 = facet 0);
-  tome runes carry no facet and count as facet 0. Home is a recall on the own book's default rune
-  (skipped within 60 tiles of the landing; a default rune that shows no tile doesn't count as the
-  way home), then the room. Both legs are `travel` job events (`leg` out/home, the recall
+  tome runes carry no facet and count as facet 0. Home is a recall on the own book's rune that lands
+  at home: its default when that one does, else `homes.json` `rune` by name (skipped when at home
+  already; a rune that shows no tile doesn't count as the way home), then the walk to the landing
+  tile (since 2026-10-21; then the room before). Both legs are `travel` job events (`leg` out/home, the recall
   result, `landing` on the out leg). A recall that can't be made aborts the trip. The offline proof
   is `test_loop_lumber.py` scenarios `library` (the library row, two trips) and the main run (the own
   book's row), with the captured tome and runebook layouts. Once the recall out lands the trip is
@@ -1755,7 +1797,7 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   after a reaction time. Routes never cut diagonally past a door. Plain walls never trigger a
   request.
 - **Guards:** overall timeout, HP loss, movement stall, the agent gate (pause/break → wait;
-  kill/budget → abort; break_due → finish the trip in the rental room, above), threats (escape or stop,
+  kill/budget → abort; break_due → finish the trip at home, above), threats (escape or stop,
   above), and the speech hold (a character speaking nearby → send nothing until the
   overseer acks the `speech_nearby` juncture; the pause doesn't count against the timeout).
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via

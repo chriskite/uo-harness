@@ -229,7 +229,7 @@ export interface LumberPlan {
     trips: number;
     expected_trip_min: number;
     expected_net_logs_h: number;
-    /** logs per trip expected in the room's chest (renewal-reward: a death stores nothing) */
+    /** logs per trip expected in the home chest (renewal-reward: a death stores nothing) */
     expected_stored_trip: number;
     p_death_trip: number;
     p_sent_home_trip: number;
@@ -379,11 +379,11 @@ export function fmtCounts(c: Record<string, number> | undefined | null): string 
   return e.length ? e.map(([k, n]) => `${k} ${n}`).join(", ") : "—";
 }
 
-/** Phases of a trip (since 2026-10-04: home, out, chop, recall home, into the room, convert, store);
+/** Phases of a trip (since 2026-10-04: home, out, chop, recall home and the walk to the landing tile (to_room), convert, store);
  * bank-era rows' to_bank comes after as an extra. */
 export const PHASES = ["harvest", "to_room", "convert", "store"] as const;
 
-/** A trip that brought its wood home: "stored" (the room's chest), or the bank era's "banked". */
+/** A trip that brought its wood home: "stored" (the home chest), or the bank era's "banked". */
 export function tripHome(outcome: string | null | undefined): boolean {
   return outcome === "stored" || outcome === "banked";
 }
@@ -924,7 +924,7 @@ export function huntKpis(t: HuntTotals): Kpi[] {
 // ------------------------------------------------------------------ mining job
 // /api/jobs?job=mining (harness/jobs.py compute_mining). One row per leg of loop_mining; field
 // time is mining_opt.trip_obs's (harvest phase less the walk out and the lockout). At each trip's
-// end the runner drops the ingots into the room's Resource Stockpile (ingots_stored). Active time is
+// end the runner drops the ingots into the home's Resource Stockpile (ingots_stored). Active time is
 // the legs' own time plus the short gaps between them (the overseer starting the next run).
 // Gold: each leg's ingots per metal at the store's newest ingot:<metal> price at or before the leg's
 // end (the first row before it); a metal with no row is unpriced, never guessed.
@@ -938,7 +938,7 @@ export interface MiningAgg {
   field_hours: number;
   ore: number;
   ingots_made: number;
-  /** ingots that went into the room's Resource Stockpile (the leg row's stockpiled) */
+  /** ingots that went into the home's Resource Stockpile (the leg row's stockpiled) */
   ingots_stored: number;
   attempts: number;
   successes: number;
@@ -1011,7 +1011,7 @@ export interface MiningLeg {
   why: string | null;
   ore: number;
   ingots_made: number;
-  /** the leg row's stockpiled: ingots that went into the room's Resource Stockpile; 0 when absent */
+  /** the leg row's stockpiled: ingots that went into the home's Resource Stockpile; 0 when absent */
   ingots_stored: number;
   /** {metal: ingots}; rows without the by-metal fields count everything as iron */
   metals_made: Record<string, number>;
@@ -1196,7 +1196,7 @@ export function miningKpis(t: MiningTotals): Kpi[] {
   return [
     { key: "ore", label: "ore dug", value: fmtInt(t.ore), sub: `${fmtInt(t.successes)} digs landed · ${fmtInt(t.doubles)} doubles`, tone: "info", hint: "Ore dug over the legs in the range (a double gives 2)." },
     { key: "ingots", label: "ingots made", value: fmtInt(t.ingots_made), sub: `${t.smelts} smelt${t.smelts === 1 ? "" : "s"}`, tone: "info", hint: "Ingots the field smelts made at the spots' forges." },
-    { key: "stored", label: "ingots stored", value: fmtInt(t.ingots_stored), sub: "into the stockpile", tone: "info", hint: "Ingots the runner put into the room's Resource Stockpile at the trips' ends (Restock with the backpack)." },
+    { key: "stored", label: "ingots stored", value: fmtInt(t.ingots_stored), sub: "into the stockpile", tone: "info", hint: "Ingots the runner put into the home's Resource Stockpile at the trips' ends (Restock with the backpack)." },
     {
       key: "gold", label: "gold stored", value: fmtGp(t.value_gp), sub: t.value_unpriced_ingots > 0 ? `${fmtInt(t.value_unpriced_ingots)} ingots unpriced` : "at each leg's prices", tone: "info",
       hint: "The ingots stored, each metal at the store's newest ingot:<metal> price (ctl price rows) as of the leg's end (the first row for legs before it). Legs without a by-metal count are all iron; a metal with no price row is unpriced, not guessed.",
