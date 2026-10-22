@@ -492,8 +492,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    corridor while "waiting"). Any other walk that isn't a flight (a loot walk, to a hurt pet, an approach, a
    patrol) ends its wait for mobiles as soon as our hits fall below where they were when it began ("cut by
    mobiles; hurt waiting (A -> B)"); the leave's urgent walk to the gate keeps waiting and drinking (simulator
-   2026-10-21: 29 of 84 deaths stood "cut by mobiles we couldn't shove; waiting", 12 of them "off the tank" at
-   (5192, 672, 25) in the countess corridor).
+   2026-10-21: 29 of 84 deaths stood "cut by mobiles we couldn't shove; waiting", 13 of them "off the tank", 11 of
+   those at (5192, 672, 25) in the countess corridor).
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet

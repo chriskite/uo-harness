@@ -4499,8 +4499,8 @@ significantly worse (one-sided Welch t-test on per-run gold per game hour, p >= 
 - **Baseline** (41412d3): 84 deaths in 80.2 game hours, 1.047 an hour; per-run gold an hour 98,707 (sd 16,187);
   holdout 83 in 79.3 h, 1.046.
 - **Where the 84 died** (the runner's logs; the damage sources in the last 15 s): 29 stood in a Mover wait "cut by
-  mobiles we couldn't shove; waiting" (12 "off the tank" at (5192, 672, 25) in the countess corridor, 8 "to the
-  corpse"), a wait in which no tick runs (no potion, no vet); 35 left at 1-14 hits (`HEAL_IN_PLACE_FLOOR`) and died on
+  mobiles we couldn't shove; waiting" (13 "off the tank", 11 of them at (5192, 672, 25) in the countess corridor; 10 "to
+  the corpse"), a wait in which no tick runs (no potion, no vet); 35 left at 1-14 hits (`HEAL_IN_PLACE_FLOOR`) and died on
   the walk out; by top source the corpse purger 27 (2.4 % of the gold) and the blightmare 14 (2.5 %); a purger's shot
   (~20) and its stacking disease (17 every 5 s, two or three at once) took Logan 100 -> 6 in 6-15 s.
 - **Kept** (each step measured on seeds 1001-1200; the whole set on both blocks below):

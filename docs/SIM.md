@@ -992,7 +992,24 @@ monsters' hits on each of us.
   (5243, 684-685), 10-21 18:20:40-18:21:14 at (5242, 685)), and the one time Logan left its reach (18:21:12.7, 10 -> 14
   tiles in 1.3 s) it didn't follow and was out of war mode at 18:21:14.6 [INFERENCE: one sample, 2 s]. Both
   blightmare deaths of the 2026-10-21 batch (seed block 1017) had it walk up to Logan after his steps out of its
-  reach or sight (to 2 tiles, and to 1). The tests of that death hold it still (`next_step`), as live.
+  reach or sight (to 2 tiles, and to 1). The tests of that death hold it still (`next_step`), as live. **To fix**: the
+  2026-10-22 goal run (docs/NOTES.md "Half the deaths in the simulator") saw it again with `Team.cover`: in seed 2014
+  of the holdout block, after Logan's cover steps out of its shot, it stood 2 tiles from him on the tile he had just
+  looted from, so the cover reads worse here than it may be live. Wanted: a live blightmare fight where Logan leaves
+  its sight and stays near (does it step after him, and how far).
+- **No shove into a monster at any stamina** (`World._walk`: `blocker.kind == "monster"` denies the step; a player or
+  pet blocks only below full stamina). ServUO's `Mobile.CheckShove` lets a player with full stamina shove any live
+  mobile (it costs 10 stamina) [INFERENCE: Outlands the same; docs/NOTES.md 2026-09-29 "Mobiles don't block walking in
+  UOO: you shove through them with enough stamina", threshold unmeasured]. In the 2026-10-21/22 batches the refusals at
+  25/25 started the corridor waits ("off the tank: shove into (5192, 671) denied (stamina 25/25)", then "cut by mobiles
+  we couldn't shove; waiting", 11 of 84 baseline deaths at (5192, 672, 25)) and the 119-123-step loot detours from
+  (5182-5184, 682). **To fix**: find a live step into a monster's tile at full stamina in the captures (a 0x21 deny or
+  a confirm with the monster on that tile, Logan's stamina from 0xA3) and model what the server did; until then the
+  runner's fixes (no hurt waits, bounded loot walks) don't depend on it.
+- **Blightmares reach Logan 2.7 times an hour here against 0.9 live** ("Parity with the live runs", "Still apart"),
+  and per engagement they kill about as live: the simulator's blightmare deaths (14 of 84 in the goal run's baseline,
+  9-17 of 38-53 in its batches after the runner's fixes) are likely too many. Unexplained; the follow above is one
+  candidate.
 
 ## Captures wanted (live, on Logan Wolf)
 
