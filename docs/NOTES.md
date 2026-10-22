@@ -4566,6 +4566,10 @@ significantly worse (one-sided Welch t-test on per-run gold per game hour, p >= 
 
   Runs ended without a death but not done: 4 and 3 (baseline 3 and 3), most "overall timeout (1800s + 180s to
   leave)" on a time-up walk out (the batch's 30-min `--timeout`; live runs have none).
+  Merged into main with that night's runner changes (04c4523: the approach ends on the target's floor; 1709477):
+  seeds 1001-1200 47 deaths in 91.8 h, 0.512 an hour (ratio 0.489), gold an hour per run 104,554 (p 1.0000). Within
+  the batch's noise of the branch's 38 [INFERENCE: ±8 deaths between equivalent arms], but the margin is thin: check
+  it again after the next runner change.
 - **Tried, not kept**: `HEAL_IN_PLACE_FLOOR` 0.35 (69 deaths against 70) and `--retreat-at 0.8` (69): noise.
   `--never-aggro` the purger and the blightmare: 44 deaths but pet-death runs 4 -> 11 and pets left behind 1 -> 7 (the
   evade runs off without them). A `--crawl-avoid` box over the north-east room (5252 640 5285 662): 35-41 deaths with
