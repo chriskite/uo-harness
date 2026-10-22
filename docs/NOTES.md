@@ -570,7 +570,7 @@ Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
   later on 2026-10-21; the chest then read z 19). `act dropoff` first refused them ("isn't in view within
   2 tiles": it measured items on the ground only). `dropoff.run` now takes an item's reach from the
   outermost container on the ground (`dropoff.ground_item`) and opens a container the server hasn't
-  opened for us first. Live 21:5x: all 8 steps answered, the aspect tome took 1 item ("1 aspect items
+  opened for us first. Live ~22:00: all 8 steps answered, the aspect tome took 1 item ("1 aspect items
   added to tome."), the stockpile 1; Logan's loadout at the house shelf: "No resupply:" Wizard's
   Satchel, Potion Satchel and the five platemail pieces.
 - **Runes:** Outland Dan's runebook 0x49865F8F (9 charges): Prev Bank, Cambria MG, Terran MG,
