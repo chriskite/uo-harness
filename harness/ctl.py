@@ -727,7 +727,7 @@ def cmd_stop(a, mem):
         mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
                       data={"cmd": "stop", "task_id": tid, "after_trip": True})
         how = {"lumber": "the run ends its trip at home (convert, store) and exits 0",
-               "mining": "the run ends its leg at home in the rental room (ingots into the resource stockpile) and "
+               "mining": "the run ends its leg at home in the house (ingots into the resource stockpile) and "
                          "exits 0"}.get(
             e.get("task"),
             "the hunt finishes the fight on us and its loot, leaves the way it leaves at time up and exits 0 at home")
@@ -1948,7 +1948,7 @@ def _act_read_tomes(a) -> dict:
 
 def _act_room(a, mem) -> dict:
     """room enter [OWNER WORDS…] | room leave [steward|town]: the rental room, as
-    one deterministic act (harness/room.py, shared with the lumber runner;
+    one deterministic act (harness/room.py: a generic overseer tool for rental rooms, no runner uses it;
     docs/NOTES.md "Rental room via the DTF house steward").
 
     enter: the nearest house steward or innkeeper in view (their click label) is
@@ -2026,9 +2026,8 @@ def _act_mount(a, mem) -> dict:
     """mount: ride our pet (harness/mount.py; docs/NOTES.md "Our mount"). Already riding: nothing
     sent. Else our pet within 3 tiles (the one remembered for this character, else the nearby pet
     whose context menu offers "Release": it's ours, and it is remembered) gets the stock
-    double-click. A ghost pet (it died) can't be ridden: revive it first, by going into the rental
-    room through the house steward (`act room enter`: it came back alive that way, live 2026-10-05)
-    or at a healer or stable master (wiki). Returns {ok, mounted, pet, name, dead, why}."""
+    double-click. A ghost pet (it died) can't be ridden: revive it first at a healer or stable
+    master (wiki). Returns {ok, mounted, pet, name, dead, why}."""
     if a.args:
         raise CtlError("mount takes no arguments")
     human = Human(a.human, seed=a.seed)
@@ -2042,7 +2041,7 @@ def _act_mount(a, mem) -> dict:
         if res.get("mounted"):
             stc.intent("Riding", "mount")
         reply = ("riding" if res["ok"] else res.get("why")) + (
-            "; go into the rental room (act room enter) or to a healer to revive it" if res.get("dead") else "")
+            "; take it to a healer or stable master to revive it" if res.get("dead") else "")
         return {**res, "character": name, "reply": reply, **({} if res["ok"] else {"error": reply})}
     finally:
         io.ctl.close()
@@ -2096,7 +2095,7 @@ def _act_stockpile(a, mem) -> dict:
     to your home's Resource Stockpile (homes.json `stockpile`; harness/stockpile.py, the flow the
     lumber runner stores with): its menu, Add Items and one target per pouch holding boards (all
     its stacks at once) or per loose stack, the menu closed. Stand within 2 tiles of it (in Logan
-    Wolf's room the arrival tile is). Never targets you (that would add every valid item in the
+    Wolf's house the home landing tile is). Never targets you (that would add every valid item in the
     pack, reagents and tools too). The boards that left the pack are booked as a lumber `store`
     job event ({boards, woods, via: "ctl"}): the Jobs page counts them as stored like a trip's,
     so boards an aborted trip left in the pack still count once the overseer puts them away."""
@@ -2115,7 +2114,7 @@ def _act_stockpile(a, mem) -> dict:
         if (st["world"]["items"].get(f"0x{pile:08X}") is None or not pos
                 or nav.chebyshev(tuple(pos[:2]), where) > stockpile_mod.STOCKPILE_RANGE):
             raise CtlError(f"the stockpile 0x{pile:08X} isn't in view within {stockpile_mod.STOCKPILE_RANGE} tiles "
-                           f"(it stands at {where} in your rental room)")
+                           f"(it stands at {where} in your house)")
         if a.args:
             stacks = [_parse_serial(s) for s in a.args]
         else:
@@ -2146,12 +2145,12 @@ def _act_stockpile(a, mem) -> dict:
 
 
 def _act_dropoff(a, mem) -> dict:
-    """dropoff: the rental room drop-off as one act (harness/dropoff.py; homes.json `dropoff`): the
+    """dropoff: the house drop-off as one act (harness/dropoff.py; homes.json `dropoff`): the
     user's Razor script 'New Drop Off' step for step (treasure maps, mastery and skill scrolls,
     aspect items into their tomes, gems and the like into the resource stockpile, gold into the bank
     deposit safe, unidentified items into the recycler, Resupply at the shelf), then research
-    materials and resource maps from the pack's top level into the room chest. In the rental room
-    (`act room enter`); off the arrival tile it walks there first (every item is within 2 of it)."""
+    materials and resource maps from the pack's top level into the house chest. At home (home.at_home:
+    in the house); off the home landing tile it walks there first (every item is within 2 of it)."""
     import contextlib
     import home as home_mod
     human = Human(a.human, seed=a.seed)
@@ -2162,9 +2161,10 @@ def _act_dropoff(a, mem) -> dict:
         home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
         if not home or not home.get("dropoff"):
             raise CtlError("no drop-off for this character (harness/data/homes.json `dropoff`)")
-        if not home_mod.in_room((st["world"].get("self") or {}).get("map"), home):
-            raise CtlError("not in the rental room: `act room enter` first")
-        arrival, pos = home["room"]["arrival"], st["movement"].get("pos") or [None, None]
+        pos = st["movement"].get("pos") or [None, None]
+        if not home_mod.at_home(pos, (st["world"].get("self") or {}).get("map"), home):
+            raise CtlError(f"not at home (the house by {tuple(home['landing'][:2])}): recall home first")
+        arrival = home["landing"]
         if tuple(pos[:2]) != tuple(arrival[:2]):
             io.ctl.close()                # the walk opens its own control connection (agent_link.Link)
             try:
@@ -2174,8 +2174,8 @@ def _act_dropoff(a, mem) -> dict:
             finally:
                 io.ctl = Control(a.control_port, char=a.char)
             if not res["ok"]:
-                raise CtlError(f"walking to the arrival tile {tuple(arrival[:2])}: {res.get('error') or res['reply']}")
-        stc.intent("Dropping off the loot in the room", "store")
+                raise CtlError(f"walking to the home landing {tuple(arrival[:2])}: {res.get('error') or res['reply']}")
+        stc.intent("Dropping off the loot at home", "store")
         out = dropoff_mod.run(io, human, home["dropoff"])
         stc.intent(None)
         lines = "; ".join(f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"])
@@ -3486,7 +3486,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grace", type=float, default=20.0, help="seconds to let the wrapper report")
     p.add_argument("--after-trip", action="store_true",
                    help="end gracefully: a lumber run stops harvesting, goes home, converts, stores and exits 0; a "
-                        "mining run ends its leg at home in the rental room, the ingots into the resource stockpile; a hunt finishes "
+                        "mining run ends its leg at home in the house, the ingots into the resource stockpile; a hunt finishes "
                         "its fight and leaves (returns at once; task_done follows). Without it the task is killed "
                         "where it stands")
     p.set_defaults(fn=cmd_stop)

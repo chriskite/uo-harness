@@ -150,7 +150,6 @@ import nav  # noqa: E402
 import pathfind  # noqa: E402
 import moongate  # noqa: E402
 import threats  # noqa: E402
-import room as room_mod  # noqa: E402
 import soul_jar  # noqa: E402
 import stationary  # noqa: E402
 import tamer  # noqa: E402
@@ -788,6 +787,14 @@ class HuntLoop:
             ok = pathfind.plan(walk, pos[:3], goal, occupied=tele, max_steps=budget) is not None
         self.floor_seen[serial] = (key, ok)
         return ok
+
+    def floor_z_ok(self, st, mob: dict):
+        """A Mover z_ok standing on `mob`'s floor (within FLOOR_Z_TOL of its map surface), or None without map data."""
+        walk = self.mover.walk_map(st)
+        if walk is None:
+            return None
+        z = los.surface_z(walk, mob["x"], mob["y"], mob.get("z") or 0)
+        return lambda sz: abs(sz - z) <= FLOOR_Z_TOL
 
     def worn(self, st, serial) -> bool:
         it = st["world"]["items"].get(key_of(serial)) or {}
@@ -2199,35 +2206,34 @@ class HuntLoop:
             self.drop_off()
 
     def drop_off(self):
-        """--drop-off, home after a recall: into the rental room through the house steward (room.enter) and the
-        room's drop-off (dropoff.run: the user's Razor 'New Drop Off', then homes.json `dropoff.to_chest` items into
-        the chest). The run goes back in from the room (a recall out of it works: user
-        2026-10-14). Anything that goes wrong is logged and the run goes on with the load (a `dropoff` job event
-        either way)."""
+        """--drop-off, home after a recall (Logan Wolf's default rune lands in the house): at home (home.at_home)
+        walk to the homes.json `landing` tile and run the drop-off there (dropoff.run: the user's Razor 'New Drop
+        Off', then homes.json `dropoff.to_chest` items into the chest). The run goes back in from the house. A
+        drop-off that can't run (not at home, an item out of reach, a container that won't open) ends the run there
+        with the load (Abort: task_failed at home, a `dropoff` job event either way): going back in with it carries
+        home's whole take into the dungeon again (live 2026-10-21 22:32:36-22:32:40: 25.5k gp back to Maus Near 2
+        after "a treasure map tome … isn't in view within 2 tiles"; the user paused the gate and took him home)."""
         st = self.state()
         home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
         if not home or not home.get("dropoff"):
             return
         before, t0 = hunt_return.carried(st, self.prices), time.monotonic()
-        self.doing("store", "Dropping off the loot in the rental room")
+        self.doing("store", "Dropping off the loot at home")
         try:
-            if not home_mod.in_room((st["world"].get("self") or {}).get("map"), home):
-                serial, label = room_mod.look_for_keeper(self.link, self.human, wait=self.wait_for, log=log)
-                res = room_mod.enter(escape_mod.LinkIO(self.link), self.human,
-                                     (home["room"].get("owner") or "").split(), walk=self.walk_to_keeper)
-                if not res["ok"]:
-                    raise room_mod.RoomError(res.get("error") or "not in the room")
-                log(f"in the rental room ({res['room']}) via {label}")
-            arrival = tuple(home["room"]["arrival"][:2])
-            if tuple(self.pos(self.state())[:2]) != arrival:
-                self.mover.walk_to(lambda: arrival, 0, "to the room's arrival tile")
+            pos = self.pos(st)
+            facet = (st["world"].get("self") or {}).get("map")
+            if not home_mod.at_home(pos, facet, home):
+                raise dropoff.DropoffError(f"not at home ({tuple(pos[:2])} facet {facet}; the house is at "
+                                           f"{tuple(home['landing'][:2])} facet {home['facet']})")
+            landing = tuple(home["landing"][:2])
+            if tuple(self.pos(self.state())[:2]) != landing:
+                self.mover.walk_to(lambda: landing, 0, "to the home landing tile")
             out = dropoff.run(escape_mod.LinkIO(self.link), self.human, home["dropoff"])
-        except (room_mod.RoomError, dropoff.DropoffError, Abort) as e:
-            log(f"drop-off: {e}; going on with the load")
+        except (dropoff.DropoffError, Abort) as e:
             self.memory.job_event("hunt", "dropoff", {"ok": False, "error": str(e), "carried": before,
                                                       "elapsed_s": round(time.monotonic() - t0, 1)},
                                   **self._where(self.state()))
-            return
+            raise Abort(f"drop-off failed at home with {before['total']} gp carried: {e}") from e
         after = hunt_return.carried(self.state(), self.prices)
         log(f"drop-off: {before['total']} gp carried -> {after['total']} (" + "; ".join(
             f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"]) + ")"
@@ -2236,13 +2242,6 @@ class HuntLoop:
                                                   "left": after, "chest": out["chest"],
                                                   "elapsed_s": round(time.monotonic() - t0, 1)},
                               **self._where(self.state()))
-
-    def walk_to_keeper(self, serial: int, rng: int):
-        """room.enter's walker: up to where the house steward stands now (guarded Mover)."""
-        def where():
-            m = self.link.state()["world"]["mobiles"].get(f"0x{serial:08X}") or {}
-            return (m["x"], m["y"]) if m.get("x") is not None else self.pos(self.link.state())[:2]
-        self.mover.walk_to(where, rng, "to the house steward")
 
     def return_reason(self, st):
         """(why, "return") when the carried value reaches V* (hunt_return: r, h and the trip from this place's visits,
@@ -3107,8 +3106,8 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="recall mode: take the loot home once the carried value (gold + loot:<name> prices) reaches "
                          "V* = r sqrt(2T/h) (auto; hunt_return), a fixed gold value, or never (off); a full pack always")
     ap.add_argument("--drop-off", action=argparse.BooleanOptionalAction, default=True,
-                    help="home after a recall: into the rental room and its drop-off (homes.json dropoff), then back in "
-                         "from there")
+                    help="home after a recall: walk to the house's landing tile and run its drop-off (homes.json "
+                         "dropoff), then back in from there")
     ap.add_argument("--pk-wait", type=float, default=600.0,
                     help="recall mode: after leaving from a hostile player, stay home this many seconds "
                          "before recalling back in")

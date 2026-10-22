@@ -1,18 +1,19 @@
 """Offline end-to-end test of the lumber loop runner (harness/loop_lumber.py).
 
 A simulated server behind the real proxy, with the packet shapes and texts of the
-demonstration capture (logs/session_20260929_204225) and of the live rental room
-(docs/NOTES.md "Rental room via the DTF house steward", 2026-10-04):
+demonstration capture (logs/session_20260929_204225) and of the live houses (Logan Wolf's house and the DTF
+guild house, contract 2026-10-21):
 
-- home (docs/LUMBER_LOOP.md §12.5): the character (CHAR_NAME, a test homes file) starts in its
-  rental room (facet 3, ROOM_ARRIVAL) with the secure chest 1 tile off and a door whose menu (the
-  live gump) "Exit to House Steward" puts it on the home landing (facet 0); there the house
-  steward (click label; "room" said within 2 tiles of him) opens the live room menus: "Visit Other
-  Rooms", then the owner's row ("Logan Wolf (DTF)") back into the room; drops into the open chest
-  are counted (boards merge like RunUO)
-- our runebook (the captured layout, two runes): "Sim Woods" (BOOK_RUNE_POS, by the trees of the
-  main run) and the default "Home" (the home landing); the home rune library (one tome at TOME_POS,
-  rune 286 by the library trees)
+- home (docs/LUMBER_LOOP.md §12.5): the character (CHAR_NAME, a test homes file) starts in its house on facet 0,
+  on the home landing (HOME_RUNE_POS), the secure chest, the house's storage shelf, its Resource Stockpile and
+  forge within reach of it; drops into the open chest are counted (boards merge like RunUO)
+- our runebook (the captured layout, three runes, as Outland Dan's): "Sim Woods" (BOOK_RUNE_POS, by the trees of
+  the main run), the default "DTF Loot Chest" (GUILD_POS, the guild house: it does NOT land at home) and the home
+  rune "Logan's House" (the home landing, or `home_rune_pos`), which the runner recalls home with by name
+- the guild house (GUILD_POS, more than places.AT_LIBRARY from home): the home rune library (one tome at
+  TOME_POS, rune 286 by the library trees) and its storage shelves (one secured against us); a trip out by the
+  library recalls into it with the book's "DTF Loot Chest" first; it rests a ridden mount on the way in and gives
+  it back on the recall out
 - hatchet dclick → cliloc 1010018 + cursor; the runner answers it with itself (Smart Harvest; the
   stock client's bytes, capture 20261001_214649) and the server chops the nearest tree with wood
   within SIM_RANGE, else says "You do not see any harvestable resources nearby." + "You cannot
@@ -23,16 +24,16 @@ demonstration capture (logs/session_20260929_204225) and of the live rental room
   'nothing nearby', the second unreadable (pause + beep fallback), then fail/success results;
   the dry tree never has wood, the good one runs out after GOOD_VISIT attempts per visit
 - log stack target → "You shape the logs into boards." (1:1)
-- a closed town door between the trees and the home landing that opens on the stock open-door
-  request and swings shut once the agent is past it
-- a moongate on each tile west of that door, so every walk between the trees and home steps on
-  one: like Shelter's player-cast gates (session 20261001_191355) it opens the renounce-Young
-  prompt before the step's confirm and never closes it; the agent must close it (button 0)
+- a closed town door west of the home landing that opens on the stock open-door request and swings
+  shut once the agent is past it
+- a moongate on each tile west of that door, so every walk between it and home steps on one: like Shelter's
+  player-cast gates (session 20261001_191355) it opens the renounce-Young prompt before the step's confirm and
+  never closes it; the agent must close it (button 0)
 
-The main run: two trips, each out of the room, by the runebook's "Sim Woods" rune to the trees,
-home on foot (the trees lie within home.NEAR_LANDING of the landing) through the door, into the
-room, convert, store in the chest. The "human" answers the unreadable (fallback) captcha through
-the client connection. The steward comes into view within 18 tiles and leaves it beyond 24.
+The main run: two trips from the house, each out by the runebook's "Sim Woods" rune to the trees, home by
+"Logan's House" (by name: the default rune lands in the guild house), which in this run lands outside the town
+door 5 tiles from the landing, so the walk to the landing tile crosses the door and a gate; convert, store in
+the chest. The "human" answers the unreadable (fallback) captcha through the client connection.
 
 More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - skirmish: the hatchet in a bag in the pack; 'a great hart' in war mode 4 tiles from the tree
@@ -42,11 +43,11 @@ More runs on the same simulator (LUMBER_LOOP.md §13), each with its own proxy:
 - leash: at the library spot a war-mode creature at the first chop follows at half our pace and snaps back to its
   spawn 10 tiles out: escape legs until it gave up (a `leash` event), then chop on at the far tree; stored, exit 0
 - break: the agent gate (pre-written budget file) announces a break mid-harvest; the trip ends
-  in the room with the carried and new logs stored as boards, exit 0
+  at home with the carried and new logs stored as boards, exit 0
 - stop_after_trip: `ctl stop --after-trip`'s request (meta task_finish for our UO_TASK_ID) mid-harvest: the
-  harvest stops, home, the carried and new logs stored as boards, exit 0 in the room, no trip 2
-- library: out by the home library's tome (the landing nearest the grove), home with our runebook's
-  default rune, into the room, store; twice
+  harvest stops, home, the carried and new logs stored as boards, exit 0 at home, no trip 2
+- library: into the guild house by our runebook's "DTF Loot Chest", out by the home library's tome (the landing
+  nearest the grove), home with our runebook's "Logan's House", store; twice
 - tracking reds: the library trip with the Tracking gump, buff and arrows as captured; Hunting
   murderers before going out, back on after the recall out stops it, a far red logged, a near one
   recalled from
@@ -131,33 +132,32 @@ C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF, BACKPACK, HATCHET = 0x00094375, 0x44ADA059, 0x44ADB57A
 SPARE_HATCHET, SHELF_HATCHETS = 0x44ADB57B, (0x44ADB590, 0x44ADB591)   # a second hatchet in the pack; the shelf's
-CHEST_HATCHET = 0x44ADB5A0                               # a spare lying in the room's chest
+CHEST_HATCHET = 0x44ADB5A0                               # a spare lying in the house chest
 HATCHET_USES = 1375                                      # an exceptional gold one's (hatchets.json), as handed out
 START = (100, 200)                                       # the main run's trees around it; BOOK_RUNE_POS lands here
 GOOD_TREE = {"x": 111, "y": 200, "z": 0, "graphic": "0x0CE0", "stand": [110, 200]}
 DRY_TREE = {"x": 105, "y": 194, "z": 0, "graphic": "0x0CE0", "stand": [105, 195]}
-# home (docs/LUMBER_LOOP.md §12.5; harness/home.py): the landing past the town door, the house steward by it,
-# the rental room on facet 3 (live values: Outland Dan's DTF guild house and Logan Wolf's room, 2026-10-04)
+# home (docs/LUMBER_LOOP.md §12.5; harness/home.py): Logan Wolf's house on facet 0 east of the town door, its landing,
+# and everything a trip ends with within reach of it (live 2026-10-21: chest 1 tile off, shelf, stockpile 2, forge 3)
 CHAR_NAME = "Testwood"                                   # the test homes file's key (the world model's self name)
-HOME_RUNE_POS = (125, 205)                                # our runebook's default rune "Home": the home landing
-STEWARD, STEWARD_POS = 0x009F57FB, (129, 205)             # Chase the house steward (live serial), 4 tiles from it
-STEWARD_LABEL = "Chase the house steward"
-ROOM_FACET, ROOM_ARRIVAL = 3, (403, 923)
-ROOM_DOOR, ROOM_DOOR_POS = 0x5CDC6B4F, (403, 929)          # the room's wooden door (live serial and tile)
-CHEST, CHEST_POS = 0x4AE0DD2C, (404, 922)                 # the secure paragon chest, 1 tile from the arrival
+HOME_RUNE_POS = (125, 205)                                # the home landing: where "Logan's House" lands
+HOME_RUNE_NAME = "Logan's House"                          # our runebook's home rune (homes `rune`), not its default
+DOOR_RUNE_POS = (120, 201)                                # main: "Logan's House" lands outside the town door, 5 off
+CHEST, CHEST_POS = 0x4AE0DD2C, (125, 204)                 # the secure paragon chest, 1 tile from the landing
 BOOK_RUNE_POS = START                                     # our runebook's rune "Sim Woods"
-with open(f"{ROOT}/harness/testdata/room_gumps.json", encoding="utf-8") as _f:
-    ROOM_GUMPS = json.load(_f)                             # the live room menus (steward, visit list, door)
-# storage shelves (docs/NOTES.md "Storage shelves", live 2026-10-04/05): the room's, and two on one tile by the
-# home landing as in the DTF guild house, the first secured against us; the loadout wants 3 trapped pouches
-ROOM_SHELF, ROOM_SHELF_POS = 0x6CEB65CD, (402, 921)
-SECURED_SHELF, LANDING_SHELF, LANDING_SHELF_POS = 0x40050A3B, 0x40B84C55, (124, 203)
+# the DTF guild house (live: Dan's default rune "DTF Loot Chest" lands there, 2026-10-21): the home rune library
+# and the guild's stocked storage shelves, more than places.AT_LIBRARY (20) from home
+GUILD_RUNE_NAME, GUILD_POS = "DTF Loot Chest", (160, 212)  # our runebook's default rune: the guild house's landing
+# storage shelves (docs/NOTES.md "Storage shelves", live 2026-10-04/05): the house's, and two on one tile by the
+# guild house's landing, the first secured against us; the loadout wants 3 trapped pouches
+HOUSE_SHELF, HOUSE_SHELF_POS = 0x6CEB65CD, (123, 203)
+SECURED_SHELF, GUILD_SHELF, GUILD_SHELF_POS = 0x40050A3B, 0x40B84C55, (159, 210)
 SHELF_POUCHES = (0x44ADD101, 0x44ADD102, 0x44ADD103)      # what a shelf hands out, in this order
 LOADOUT_POUCHES = 3
-# the room's Resource Stockpile (live 2026-10-05: Logan Wolf's room, 2 tiles north of the arrival): its menu, the
+# the house's Resource Stockpile (live 2026-10-21: 2 tiles from the landing): its menu, the
 # Add Items button (2) with the server's prompt and a cursor; a targeted stack "You add 1 item(s) ..."
-STOCKPILE, STOCKPILE_POS, STOCKPILE_GUMP = 0x62645C82, (403, 921), 0x6ECE2ABE
-ROOM_FORGE, ROOM_FORGE_POS = 0x4FD0EBA1, (403, 923)       # the room's small forge (live serial and tile, 2026-10-20)
+STOCKPILE, STOCKPILE_POS, STOCKPILE_GUMP = 0x62645C82, (124, 203), 0x6ECE2ABE
+HOME_FORGE, HOME_FORGE_POS = 0x56372DCC, (124, 208)       # the house's forge (live serial, 3 tiles off, 2026-10-21)
 STOCKPILE_LAYOUT = ("{ resizepic 18 25 11571 666 535 }{ text 305 16 2655 1 }{ button 93 53 2118 2118 1 0 100 }"
                     "{ button 96 508 2151 2154 1 0 2 }{ button 589 516 2118 2117 1 0 12 }{ text 610 513 149 3 }")
 with open(f"{ROOT}/harness/testdata/shelf_gumps.json", encoding="utf-8") as _f:
@@ -199,9 +199,9 @@ ATTACKER_POS = (113, 200)                                 # 3 tiles east of the 
 INITIAL_LOGS = 5                                          # logs carried from an earlier trip
 BREAK_AFTER_S = 10.0                                      # agent-active seconds left before the break is due
 # library scenario (docs/research/WORLD_LOCATIONS.md): a Witcher-style spot reached from the home rune
-# library's tome (the landing nearest the grove), home by our runebook's default rune
+# library's tome (the landing nearest the grove) in the guild house, home by our runebook's "Logan's House"
 TOME, RUNEBOOK = 0x546ACD06, 0x44ADB00C
-LIB_START, TOME_POS = (132, 212), (133, 212)              # the home library, 7 tiles from the landing: no door between
+LIB_START, TOME_POS = (163, 211), (163, 212)              # the home library, in the guild house 3 tiles from its landing
 RUNE_POS = (40, 250)                                      # where the tome's rune "286" puts us
 LIB_TREE = {"x": 40, "y": 253, "z": 0, "graphic": "0x0CE0", "stand": [40, 252]}
 with open(f"{ROOT}/harness/testdata/escape_gumps.json", encoding="utf-8") as _f:
@@ -225,7 +225,7 @@ CASTER, CASTER_BODY, CASTER_DMG, CASTER_OFF = 0x0000CA57, 4, 27, 26
 # pacer (live 2026-10-08, witcher_336): a mounted archer keeps 10 tiles off as we run and shoots every 2.26 s; a shot
 # landing while our recall casts disturbs it
 ARCHER, ARCHER_BODY, ARCHER_DMG, ARCHER_DIST, ARCHER_S = 0x0000A7C3, 0x30, 12, 10, 2.26
-# south of the gazer's zone (20 tiles from it) and > home.NEAR_LANDING (60) from the home landing: home is a recall
+# south of the gazer's zone (20 tiles from it)
 LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 271]}
 # landing_escape (live 2026-10-05 Wintertop): a war-mode creature 6 tiles south of the library rune's landing,
 # in view the moment we land; the grove (radius 2) lies 12 south of the landing, so the walk-away north ends
@@ -233,7 +233,7 @@ LIB_FAR_TREE = {"x": 46, "y": 272, "z": 0, "graphic": "0x0CE0", "stand": [46, 27
 LANDER, LANDER_POS = 0x0000A1A1, (40, 256)
 LANDER_SPOT = {"area": {"center": [40, 262], "radius": 2}, "pvp": True}
 # ghost_horse (live 2026-10-05, docs/NOTES.md "Our mount"): Outland Dan's bonded horse died with him and its ghost
-# followed him home; going into the rental room brought it back alive. Our pet's menu offers Release (cliloc 3006322)
+# followed him home; a healer or a stable master revives it. Our pet's menu offers Release (cliloc 3006322)
 HORSE, HORSE_BODY, MOUNT_ITEM = 0x0154FE11, 0xE4, 0x4816EF0E
 PET_POPUP = (bytes.fromhex("bf0024001400020154fe1103") + bytes.fromhex("000f4a1700000000")      # 0 Animal Lore
              + bytes.fromhex("002ddf6a00010000") + bytes.fromhex("002ddf7200090000"))       # 1 Kill, 9 Release
@@ -297,7 +297,7 @@ def login_pkt(pos):
 
 
 def map_change(facet):
-    """0xBF sub 8 as live (bf0006000800 on the room exit, 20261004_162411)."""
+    """0xBF sub 8 as live (bf0006000800, 20261004_162411)."""
     return bytes.fromhex("bf00060008") + bytes([facet])
 
 
@@ -316,14 +316,30 @@ def label_pkt(serial, name, text):
                + name.encode().ljust(30, b"\x00") + text.encode() + b"\x00")
 
 
-def book_gump(charges=10):
-    """Our runebook: the captured layout and texts with two runes, entry 0 'Sim Woods' (BOOK_RUNE_POS) and
-    the default entry 1 'Home' (the home landing), their sextant lines as the server prints them; `charges`."""
+BOOK_PAGE3 = ("{ page 3 }{ button 125 14 2205 2205 0 2 0 }{ button 393 14 2206 2206 0 4 0 }"
+              "{ button 130 65 2103 2104 1 0 14 }{ croppedtext 145 60 115 17 0 5 }")
+
+
+def book_gump(charges=10, home_at=HOME_RUNE_POS):
+    """Our runebook (as Outland Dan's, live 2026-10-21): the captured layout and texts with three runes, entry 0
+    'Sim Woods' (BOOK_RUNE_POS), the default entry 1 'DTF Loot Chest' (GUILD_POS: the default doesn't land at
+    home) and entry 2 "Logan's House" (`home_at`), drawn on page 3 like entry 0 on page 2 (its name, sextant lines,
+    the set-default, recall and gate buttons 16-18); their sextant lines as the server prints them; `charges`."""
     lines = list(BOOK_GUMP["lines"])
     lines[1], lines[4] = str(charges), "Sim Woods"
-    lines[6:10] = [*escape.tile_to_sextant(*BOOK_RUNE_POS), *escape.tile_to_sextant(*HOME_RUNE_POS)]
-    lines.append("Home")
-    return BOOK_GUMP["layout"].replace("{ croppedtext 305 60 115 17 81 4 }", "{ croppedtext 305 60 115 17 81 10 }"), lines
+    lines[6:10] = [*escape.tile_to_sextant(*BOOK_RUNE_POS), *escape.tile_to_sextant(*GUILD_POS)]
+    lines += [GUILD_RUNE_NAME, HOME_RUNE_NAME, *escape.tile_to_sextant(*home_at)]      # 10, 11, 12, 13
+    layout = BOOK_GUMP["layout"]
+    assert BOOK_PAGE3 in layout and "{ croppedtext 145 90 115 17 0 5 }" in layout
+    page3 = ("{ page 3 }{ button 125 14 2205 2205 0 2 0 }{ button 393 14 2206 2206 0 4 0 }"
+             "{ button 130 65 2103 2104 1 0 14 }{ text 135 80 0 12 18 0 1 0 0 0 }{ text 135 95 0 13 18 0 1 0 0 0 }"
+             "{ button 135 115 2437 2438 1 0 15 }{ button 160 20 2361 2361 1 0 16 }"
+             "{ button 135 140 2271 2271 1 0 17 }{ button 205 140 2291 2291 1 0 18 }"
+             "{ croppedtext 145 60 115 17 81 11 }")
+    layout = (layout.replace("{ croppedtext 305 60 115 17 81 4 }", "{ croppedtext 305 60 115 17 81 10 }")
+              .replace("{ croppedtext 145 90 115 17 0 5 }", "{ croppedtext 145 90 115 17 81 11 }")
+              .replace(BOOK_PAGE3, page3))
+    return layout, lines
 
 
 def seed_pkt(token):
@@ -520,7 +536,8 @@ class World:
         self.library = scenario in ("library", "tracking", "gazer", "red_aim", "thief", "pouch_pop", "landing_monster",
                                     "ghost_horse", "faction", "precast", "flee_aid", "leash", "escape_heal", "pk_chase")
         #                                   the library spot (pvp), black pearls in the pack
-        self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)   # every run starts in the rental room
+        self.facet, self.pos = 0, list(HOME_RUNE_POS)   # every run starts in the house, on the home landing
+        self.home_rune_pos = HOME_RUNE_POS               # where "Logan's House" lands (main: DOOR_RUNE_POS)
         self.facing = 0
         self.writer = None
         self.c2s = []
@@ -543,7 +560,7 @@ class World:
         self.stolen = 0
         self.chest_stack = None           # (serial, amount): the boards in the home chest
         self.stockpile = None             # {"boards": n, "adds": [stack serials], "gumps": set, "closed": n}: none
-        self.room_forge = False           # a forge in the rental room (the mining runner smelts there; homes `forge`)
+        self.home_forge = False           # a forge in the house (the mining runner smelts there; homes `forge`)
         self.pile_cursor = None           # the cursor id Add Items gave
         self.pouch_hue = {p: 38 for p in POUCHES}   # trapped pouches in the pack (hue 38 live, 0 gone off)
         self.pops = []                    # (pouch, time, 'us' | 'thief')
@@ -551,33 +568,28 @@ class World:
         self.chest_items = []             # other items dropped into the chest (spent pouches): (serial, hue)
         self.chest_axes = {}              # hatchets lying in the chest: serial -> uses left
         self.chest_axes_locked = False    # hatchet_chest_refused: a hatchet lifted out of the chest won't drop
-        self.chest_opens = 0              # the chest double-clicked (opened) within reach in the room
-        self.room_gumps = {}              # rental room menu serial -> which live gump (room_gumps.json key), open
-        self.room_serials = set()         # every room menu serial sent
-        self.room_presses = []            # (gump kind, button) the agent pressed on room menus
-        self.room_log = []                # ("enter" | "exit", time) of every way into and out of the room
-        self.keeper_far = 0               # the steward's menu picked from beyond 2 tiles (refused)
-        self.shelf_stock = None           # {"room": n, "landing": n} trapped pouches per shelf; None: no shelves
+        self.chest_opens = 0              # the chest double-clicked (opened) within reach at home
+        self.shelf_stock = None           # {"home": n, "guild": n} trapped pouches per shelf; None: no shelves
         self.book_charges = 10            # our runebook's charges as its gump shows them (resupply_book: 3)
         self.horse = None                 # our bonded horse off the mount: {"dead": bool}; None: no horse
         self.mounted = False              # riding it (the mount item on layer 0x19)
         self.mount_rested = 0             # times the guild house sent the ridden mount to rest
-        self.mount_resting = False        # it rests now (no mount item); a recall out or the room returns it
+        self.mount_resting = False        # it rests now (no mount item); a recall out of the guild house returns it
         self.no_ride_home = False         # horse_follows: riding refused within 10 tiles of the home landing (live
         #                                   2026-10-08, the DTF guild house); the following horse comes along a recall out
         self.horse_menus = 0              # context menus asked for on it
         self.horse_dclicks = []           # per double-click on it: was it a ghost then
-        self.shelf_gumps = {}             # shelf gump serial -> "room" | "landing", open
-        self.shelf_seen = False           # the landing's shelves sent (in update range, facet 0)
+        self.shelf_gumps = {}             # shelf gump serial -> "home" | "guild", open
+        self.shelf_seen = False           # the guild house's shelves sent (in update range, facet 0)
+        self.home_seen = False            # the house's items sent (in update range, facet 0)
         self.resupplies = []              # (shelf, pouches given) per Resupply press
         self.shelf_presses = []           # every button pressed on a shelf gump
         self.restock_cursor = None        # (cursor id, shelf) Restock gave
         self.restocks = []                # (shelf, targeted serial) per Restock answer
         self.shelf_pouches = []           # spent pouches the shelves took
         self.secured_tries = 0            # double-clicks on the shelf secured against us
-        self.steward_clicks = 0           # single clicks on the steward (each answered with his label)
-        self.steward_menus = 0            # right-clicks on the steward (none: "room" is said)
         self.recalls_book = []            # recalls to our runebook's 'Sim Woods' rune
+        self.recalls_guild = []           # recalls into the guild house by its default 'DTF Loot Chest'
         self.thief_pos = None             # thief: where the blue stands
         self.thief_at = []                # thief: every place he stepped next to us
         self.thief_followed = False       # thief: he came back next to us at the next stand
@@ -605,11 +617,10 @@ class World:
         self.late_blast = False           # red_aim: a PK's Explosion goes off on us 0.4 s after the recall home lands
         self.attacker_swings = 0
         self.far_attempts = 0             # skirmish: harvest attempts at the far tree
-        self.steward_seen = False         # the steward's 0x20 sent since he last left the client's view
         self.book_gumps, self.tome_gumps = set(), set()   # library scenario: gumps we sent
         self.recalls_out, self.recalls_home, self.tome_far = [], [], 0
         self.tome_seen = False
-        self.home_disturbed = 1 if scenario == "red_aim" else 0   # library: the first recall home is disturbed
+        self.home_disturbed = 1 if scenario == "red_aim" else 0   # the first recall home is disturbed
         self.lockout_due = False          # library: the first chop after a recall out meets the travel lockout
         self.lockouts = 0
         # tracking: the server's hunt (mode = index into TRACK_MODES; the proxy hasn't heard it yet)
@@ -630,7 +641,7 @@ class World:
         self.hatchet_left = {HATCHET: HATCHET_USES}   # uses per hatchet we carry; a success spends one, 0 breaks it
         self.active_hatchet = HATCHET                 # the one double-clicked last
         self.loadout_hatchets = 0                     # hatchets the shelves' Resupply tops up to (the loadout's count)
-        self.shelf_hatchets = {"room": 0, "landing": 0}   # fresh hatchets in each shelf's stock
+        self.shelf_hatchets = {"home": 0, "guild": 0}   # fresh hatchets in each shelf's stock
         self.hatchet_clicks = []                      # (serial, uses) per single click on a hatchet
         self.broke = []                               # hatchets that broke
         self.lone = None                  # faction_lone: 'stay' / 'close' (lone_foe) instead of the faction scene
@@ -645,8 +656,8 @@ class World:
         self.wary_late = False            # zone_on_way: the creature isn't there at first; it shows up as we come
         self.wary_shown = False           # zone_on_way: it has come into view
         self.carried = []                 # convert_stacks: (log graphic, amount) stacks in the pack at login
-        self.no_cursor_once = False       # convert_stacks: the first hatchet use in the room brings no cursor
-        self.door_seen = False            # the door and gates go out on facet 0, then again like the steward
+        self.no_cursor_once = False       # convert_stacks: the first hatchet use at home brings no cursor
+        self.door_seen = False            # the door and gates go out on facet 0 in update range, then again
         self.red_due = False              # red_aim: the red is on its way (RED_AIM_S after the chop's cursor)
         self.red_t = None                 # red_aim: when the red's 0x20 went out (faction/precast: the foe's tag / words)
         self.calm_t = None                # faction/precast: when the guildmate / the healer showed up
@@ -685,10 +696,16 @@ class World:
         self.guards_called = []           # (time, our tile) per "guards" said
         self.login_extra = []             # more login packets after the runebook (test_loop_mining: the pickaxe)
 
-    # ---- the pack's wood and trapped pouches ----
+    # ---- where we are; the pack's wood and trapped pouches ----
     @property
-    def room_entries(self):
-        return sum(1 for k, _ in self.room_log if k == "enter")
+    def at_home_landing(self):
+        """At home on the landing: facet 0, within reach (2) of the home landing tile (the runner's come_home)."""
+        return self.facet == 0 and self.cheb(HOME_RUNE_POS) <= 2
+
+    @property
+    def in_house(self):
+        """In the house: facet 0, within home.HOME_R (6) of the home landing."""
+        return self.facet == 0 and self.cheb(HOME_RUNE_POS) <= 6
 
     @property
     def logs(self):
@@ -755,16 +772,16 @@ class World:
         return max(abs(self.pos[0] - p[0]), abs(self.pos[1] - p[1]))
 
     def update_view(self):
-        """On facet 0 the steward comes into view within the server's update range (18) and leaves
+        """On facet 0 the house's items come into view within the server's update range (18) and leave
         the client's beyond its view range (24, ClassicUO MAX_VIEW_RANGE), as the proxy's world
-        model prunes it; so he is sent again on the way back. The library tome, the town door and
-        its gates the same way. A facet change prunes all of them (enter_room resets the flags)."""
+        model prunes them; so they are sent again on the way back. The library tome, the guild house's
+        shelves, the town door and its gates the same way."""
         if self.facet != 0:
             return
-        for flag, d, pkts in (("steward_seen", self.cheb(STEWARD_POS), lambda: [mobile_pkt(STEWARD, *STEWARD_POS)]),
+        for flag, d, pkts in (("home_seen", self.cheb(HOME_RUNE_POS), self.home_item_pkts),
                               ("tome_seen", self.cheb(TOME_POS), lambda: [ground_item(TOME, 0x71AF, *TOME_POS, 0)]),
                               ("door_seen", self.cheb(DOOR), self.door_pkts),
-                              ("shelf_seen", self.cheb(LANDING_SHELF_POS), self.landing_shelf_pkts)):
+                              ("shelf_seen", self.cheb(GUILD_SHELF_POS), self.guild_shelf_pkts)):
             if d <= 18 and not getattr(self, flag):
                 setattr(self, flag, True)
                 for p in pkts():
@@ -772,11 +789,22 @@ class World:
             elif d > 24:
                 setattr(self, flag, False)
 
-    def landing_shelf_pkts(self):
+    def home_item_pkts(self):
+        """The house's chest, storage shelf, Resource Stockpile and forge (the scenario's), by the landing."""
+        out = [ground_item(CHEST, 0x0E40, *CHEST_POS, 2)]                         # the secure chest
+        if self.shelf_stock is not None:
+            out.append(ground_item(HOUSE_SHELF, 0xAFC5, *HOUSE_SHELF_POS, 2))     # "storage shelf" (live)
+        if self.stockpile is not None:
+            out.append(ground_item(STOCKPILE, 0x59FA, *STOCKPILE_POS, 2))         # "a resource stockpile" (live)
+        if self.home_forge:
+            out.append(ground_item(HOME_FORGE, 0x0FB1, *HOME_FORGE_POS, 2))       # "forge" (live)
+        return out
+
+    def guild_shelf_pkts(self):
         if self.shelf_stock is None:
             return []
-        return [ground_item(SECURED_SHELF, 0xDC38, *LANDING_SHELF_POS, 0),     # "spring storage shelf" (live)
-                ground_item(LANDING_SHELF, 0xDC38, *LANDING_SHELF_POS, 0)]
+        return [ground_item(SECURED_SHELF, 0xDC38, *GUILD_SHELF_POS, 0),     # "spring storage shelf" (live)
+                ground_item(GUILD_SHELF, 0xDC38, *GUILD_SHELF_POS, 0)]
 
     def shelf_gump(self, which):
         self.shelf_gumps[self.next_gump()] = which
@@ -838,11 +866,15 @@ class World:
     def recall_to(self, dest, log):
         """Kal Ort Por, then the jump about 2.1 s later (live 2026-10-02/03). Out (the library's
         rune or our book's): the travel lockout comes; at the library rune a player chops nearby
-        (crowding)."""
+        (crowding). Into the guild house (our book's default rune) or home: each rests a ridden mount (our
+        house auto-stashes mounts like the guild house, user 2026-10-21)."""
         log.append(dest)
         self.send(sys_text("Kal Ort Por"))
         handles = [asyncio.get_running_loop().call_later(2.1, self.jump, *dest)]
-        if log is not self.recalls_home:
+        if log is self.recalls_guild:
+            if self.mounted:                           # live: the guild house sends a ridden mount to rest
+                asyncio.get_running_loop().call_later(2.15, self.mount_rests)
+        elif log is not self.recalls_home:
             self.lockout_due = True
             if dest == RUNE_POS:
                 self.later(2.3, [player_update(OTHER, LIB_TREE["x"] + 4, LIB_TREE["y"])])
@@ -855,14 +887,14 @@ class World:
             elif self.no_ride_home and self.horse is not None and not self.mounted:   # it follows us out
                 asyncio.get_running_loop().call_later(2.2, self.send_horse)
         else:
+            if self.mounted:                           # our house sends a ridden mount to rest too (user 2026-10-21)
+                asyncio.get_running_loop().call_later(2.15, self.mount_rests)
             if self.chase:                             # a creature at our heels stays behind (a recall jumps)
                 handles.append(asyncio.get_running_loop().call_later(2.1, self.attacker_left))
             if self.pk_chase:                          # ... and so does a chasing red
                 handles.append(asyncio.get_running_loop().call_later(2.1, self.pk_left))
             if self.late_blast:                        # red_aim: the PK's Explosion goes off on us at home
                 handles.append(asyncio.get_running_loop().call_later(2.5, self.blast))
-            if self.mounted:                           # live: the guild house sends a ridden mount to rest
-                handles.append(asyncio.get_running_loop().call_later(2.15, self.mount_rests))
             self.cast_handles = handles
 
     def jump(self, x, y):
@@ -883,8 +915,8 @@ class World:
         self.send(delete(ATTACKER))
 
     def mount_rests(self):
-        """'Your mount finds a quiet place to rest safely.' (live 2026-10-05: into the DTF guild house by a recall
-        or out of the rental room): the mount item goes until we leave the house (recall out, the room)."""
+        """'Your mount finds a quiet place to rest safely.' (live 2026-10-05: into the DTF guild house by a
+        recall; our house the same, user 2026-10-21): the mount item goes until we leave the house (the recall out)."""
         self.mounted, self.mount_resting, self.mount_rested = False, True, self.mount_rested + 1
         self.send(delete(MOUNT_ITEM))
         self.send(sys_text("Your mount finds a quiet place to rest safely."))
@@ -894,48 +926,14 @@ class World:
         self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
         self.send(sys_text("Your mount returns."))
 
-    # ---- the rental room (live 2026-10-04: docs/NOTES.md "Rental room via the DTF house steward") ----
-    def room_gump(self, kind):
-        self.room_gumps[self.next_gump()] = kind
-        self.room_serials.add(self.gump_serial)
-        g = ROOM_GUMPS[kind]
-        self.send(gump(self.gump_serial, int(g["gump_id"], 16), g["layout"], g["lines"]))
-
-    def enter_room(self):
-        """Into Logan Wolf's room: the map change to facet 3 (the world model prunes everything we
-        don't carry), our new tile, the door and the chest, the server's line."""
-        self.facet, self.pos = ROOM_FACET, list(ROOM_ARRIVAL)
-        self.steward_seen = self.tome_seen = self.door_seen = self.shelf_seen = False
-        self.door_open = False
-        self.room_log.append(("enter", time.time()))
-        self.send(map_change(ROOM_FACET))
-        self.send(self_at(*ROOM_ARRIVAL, self.facing))
-        self.send_room_items()
-        if self.mount_resting:                        # live: "Your mount returns."
-            self.mount_returns()
-        elif self.horse is not None and not self.mounted:   # live: its ghost came back alive in the room
-            self.horse["dead"] = False
-            self.send_horse()
-        self.send(sys_text("You enter the rental room."))
-
     def send_horse(self):
         """Our horse following us, a tile off (with the ghost flag, 0xBF sub 0x19, when it's dead); not while
-        we ride it or it rests in the guild house."""
+        we ride it or it rests in a house."""
         if self.horse is None or self.mounted or self.mount_resting:
             return
         self.send(creature_pkt(HORSE, HORSE_BODY, self.pos[0] + 1, self.pos[1], noto=2, flags=0))
         if self.horse["dead"]:
             self.send(bytes.fromhex("bf000b001900") + u32(HORSE) + b"\x01")
-
-    def send_room_items(self):
-        self.send(ground_item(ROOM_DOOR, 0x06A5, *ROOM_DOOR_POS, 1))      # "wooden door"
-        self.send(ground_item(CHEST, 0x0E40, *CHEST_POS, 2))               # the secure chest
-        if self.shelf_stock is not None:
-            self.send(ground_item(ROOM_SHELF, 0xAFC5, *ROOM_SHELF_POS, 2))   # "storage shelf" (live)
-        if self.stockpile is not None:
-            self.send(ground_item(STOCKPILE, 0x59FA, *STOCKPILE_POS, 2))     # "a resource stockpile" (live)
-        if self.room_forge:
-            self.send(ground_item(ROOM_FORGE, 0x0FB1, *ROOM_FORGE_POS, 2))   # "forge" (live)
 
     def stockpile_gump(self):
         """The Resource Stockpile's menu (a fresh serial each time, as live), the board count on its line."""
@@ -965,21 +963,8 @@ class World:
             self.send(sys_text("You cannot add that to the Resource Stockpile."))
         self.stockpile_gump()
 
-    def leave_room(self):
-        """'Exit to House Steward': back on facet 0 at the home landing (live: 4134,1429)."""
-        self.facet, self.pos = 0, list(HOME_RUNE_POS)
-        self.room_log.append(("exit", time.time()))
-        self.send(map_change(0))
-        self.send(self_at(*HOME_RUNE_POS, self.facing))
-        self.send(sys_text("You exit the rental room."))
-        if self.mounted:                               # live 12:32: out of the room into the guild house
-            self.mount_rests()
-        self.update_view()
-        self.field_mobiles()
-        self.send_horse()
-
     def field_mobiles(self):
-        """Mobiles standing in the field, sent on coming out on facet 0 (a facet change prunes them):
+        """Mobiles standing in the field, sent at login (12 tiles west of the home landing, in view):
         skirmish's 'great hart' in war mode fighting a player (knowledge #89), wary's war-mode creature
         by the near tree (until it has wandered off)."""
         if self.scenario == "skirmish":
@@ -1448,8 +1433,7 @@ class World:
                 self.send(bytes([0x22, seq, 0x01]))
                 return
             nx, ny = self.pos[0] + DD[d][0], self.pos[1] + DD[d][1]
-            blocked = self.facet == 0 and ((nx, ny) in WALLS or ((nx, ny) == DOOR and not self.door_open)
-                                           or (nx, ny) == STEWARD_POS)
+            blocked = self.facet == 0 and ((nx, ny) in WALLS or ((nx, ny) == DOOR and not self.door_open))
             if blocked:
                 self.send(b"\x21" + bytes([seq]) + u32(self.pos[0]) + u32(self.pos[1])
                           + bytes([self.facing]) + u32(0))
@@ -1493,23 +1477,12 @@ class World:
             s = int.from_bytes(p[1:5], "big")
             self.hatchet_clicks.append((s, self.hatchet_left[s]))
             self.later(0.05, [label_pkt(s, "", f"({self.hatchet_left[s]} uses remaining)")])
-        elif pid == 0x09:                                # single click: the steward answers with his label
-            if int.from_bytes(p[1:5], "big") == STEWARD and self.facet == 0 and self.cheb(STEWARD_POS) <= 18:
-                self.steward_clicks += 1
-                self.later(0.05, [label_pkt(STEWARD, "Chase", STEWARD_LABEL)])
         elif pid == 0xBF and p[3:5] == b"\x00\x13":    # context menu request (right-click)
-            if int.from_bytes(p[5:9], "big") == STEWARD:
-                self.steward_menus += 1                  # the runner says "room" instead (the menu stays up)
-            elif int.from_bytes(p[5:9], "big") == HORSE and self.horse is not None and not self.mounted:
+            if int.from_bytes(p[5:9], "big") == HORSE and self.horse is not None and not self.mounted:
                 self.horse_menus += 1
                 self.later(0.06, [PET_POPUP])
         elif p == actions.say_unicode("guards", hue=actions.CUO_SPEECH_HUE):   # guard_run: the guards called on the red
             self.guards_called.append((time.time(), tuple(self.pos)))
-        elif p == actions.say_unicode("room", hue=actions.CUO_SPEECH_HUE):     # "room" by the steward opens the room menu
-            if self.facet != 0 or self.cheb(STEWARD_POS) > 2:
-                self.keeper_far += 1
-                return
-            self.room_gump("steward_no_room")
         elif pid == 0x06:
             serial = int.from_bytes(p[1:5], "big")
             if serial == HORSE and self.horse is not None and not self.mounted \
@@ -1522,7 +1495,7 @@ class World:
                     self.mounted = True
                     self.send(delete(HORSE))
                     self.send(equip(MOUNT_ITEM, 0x3EA1, 0x19))
-            elif serial in self.hatchet_left and self.no_cursor_once and self.facet == ROOM_FACET:
+            elif serial in self.hatchet_left and self.no_cursor_once and self.in_house:
                 self.no_cursor_once = False              # convert_stacks: this use brings no cursor
             elif serial in self.hatchet_left:
                 self.active_hatchet = serial
@@ -1541,12 +1514,10 @@ class World:
                            "precast": self.precast_appears, "flee_aid": self.pk_attacks,
                            "escape_heal": self.pk_strikes, "pk_chase": self.pk_chases}[self.scenario]
                     asyncio.get_running_loop().call_later(RED_AIM_S, act)
-            elif serial == ROOM_DOOR and self.facet == ROOM_FACET:     # the door's menu (opened from 6 tiles live)
-                self.room_gump("door")
-            elif serial == STOCKPILE and self.stockpile is not None and self.facet == ROOM_FACET \
+            elif serial == STOCKPILE and self.stockpile is not None and self.in_house \
                     and self.cheb(STOCKPILE_POS) <= 2:
                 self.stockpile_gump()
-            elif serial == CHEST and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2:
+            elif serial == CHEST and self.in_house and self.cheb(CHEST_POS) <= 2:
                 self.chest_opens += 1
                 self.send(b"\x24" + u32(CHEST) + bytes.fromhex("0000003c007d"))
                 if self.chest_stack:
@@ -1568,16 +1539,16 @@ class World:
                 else:
                     self.containers_opened.append(serial)
                     self.send(b"\x24" + u32(serial) + bytes.fromhex("0000003c007d"))
-            elif serial == ROOM_SHELF and self.shelf_stock is not None and self.facet == ROOM_FACET \
-                    and self.cheb(ROOM_SHELF_POS) <= 2:
-                self.shelf_gump("room")
+            elif serial == HOUSE_SHELF and self.shelf_stock is not None and self.in_house \
+                    and self.cheb(HOUSE_SHELF_POS) <= 2:
+                self.shelf_gump("home")
             elif serial == SECURED_SHELF and self.shelf_stock is not None and self.facet == 0 \
-                    and self.cheb(LANDING_SHELF_POS) <= 2:
+                    and self.cheb(GUILD_SHELF_POS) <= 2:
                 self.secured_tries += 1
                 self.send(cliloc(501647))                # "That is secure."
-            elif serial == LANDING_SHELF and self.shelf_stock is not None and self.facet == 0 \
-                    and self.cheb(LANDING_SHELF_POS) <= 2:
-                self.shelf_gump("landing")
+            elif serial == GUILD_SHELF and self.shelf_stock is not None and self.facet == 0 \
+                    and self.cheb(GUILD_SHELF_POS) <= 2:
+                self.shelf_gump("guild")
             elif serial == TOME:                         # a locked-down tome opens within 2 tiles only
                 if self.cheb(TOME_POS) > 2:
                     self.tome_far += 1
@@ -1588,7 +1559,7 @@ class World:
                 if self.foe_pos is not None:                # faction/precast/red_aim: how far the foe was
                     self.book_dists.append(self.cheb(self.foe_pos))
                 self.book_gumps.add(self.next_gump())
-                self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump(self.book_charges)))
+                self.send(gump(self.gump_serial, 0x5C7DB029, *book_gump(self.book_charges, self.home_rune_pos)))
         elif pid == 0xFF and p[3:7] == u32(4):                 # a spell cast (0xFF sub 4)
             self.cast_spell(int.from_bytes(p[8:10], "big"))
         elif pid == 0x6C:
@@ -1646,24 +1617,17 @@ class World:
                     self.restock_cursor = (self.cid, which)
                     self.cursor_for = self.cid
                     self.send(cursor(self.cid, 0))
-            elif f["serial"] in self.room_gumps:
-                kind = self.room_gumps.pop(f["serial"])
-                self.room_presses.append((kind, f["button_id"]))
-                if kind == "steward_no_room" and f["button_id"] == 2:          # Visit Other Rooms
-                    self.room_gump("visit_list")
-                elif kind == "visit_list" and f["button_id"] == 100 and self.facet == 0:   # Logan Wolf (DTF)
-                    asyncio.get_running_loop().call_later(0.1, self.enter_room)
-                elif kind == "door" and f["button_id"] == 6 and self.facet == ROOM_FACET:  # Exit to House Steward
-                    asyncio.get_running_loop().call_later(0.1, self.leave_room)
             elif f["serial"] in self.book_gumps and f["button_id"] == 2:       # entry 0 'Sim Woods', a charge
                 self.recall_to(BOOK_RUNE_POS, self.recalls_book)
-            elif f["serial"] in self.book_gumps and f["button_id"] == 8:       # default entry 1 'Home', a charge
+            elif f["serial"] in self.book_gumps and f["button_id"] == 8:       # default entry 1 'DTF Loot Chest'
+                self.recall_to(GUILD_POS, self.recalls_guild)
+            elif f["serial"] in self.book_gumps and f["button_id"] == 14:      # entry 2 "Logan's House", a charge
                 if self.home_disturbed == 0:                                   # the first one is disturbed
                     self.home_disturbed += 1
                     self.send(sys_text("Kal Ort Por"))
                     self.later(0.5, [cliloc(500641)])
                     return
-                self.recall_to(HOME_RUNE_POS, self.recalls_home)
+                self.recall_to(self.home_rune_pos, self.recalls_home)
             elif f["serial"] in self.gate_gumps:
                 self.gate_gumps[f["serial"]].append(f["button_id"])
             elif f["serial"] in self.track_gumps:
@@ -1698,7 +1662,7 @@ class World:
             f = parse_packet("c2s", p)
             lf, self.lifted = self.lifted, None
             s, dest = f["serial"], f["container"]
-            in_chest = dest == CHEST and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2
+            in_chest = dest == CHEST and self.in_house and self.cheb(CHEST_POS) <= 2
             if lf is None or lf["serial"] != s:
                 self.drops_refused += 1
             elif in_chest and s in self.stacks and self.stacks[s][0] == BOARD_G:
@@ -1716,7 +1680,7 @@ class World:
                 self.send(contained(s, 0x0F44, 1, CHEST))
                 return
             elif (dest == BACKPACK and s in self.chest_axes and not self.chest_axes_locked
-                  and self.facet == ROOM_FACET and self.cheb(CHEST_POS) <= 2):   # a hatchet out of the chest
+                  and self.in_house and self.cheb(CHEST_POS) <= 2):   # a hatchet out of the chest
                 self.hatchet_left[s] = self.chest_axes.pop(s)
                 self.chest_items = [(c, v) for c, v in self.chest_items if c != s]
                 self.send(contained(s, 0x0F44, 1, BACKPACK))
@@ -1752,7 +1716,7 @@ class World:
         self.send(login_pkt(self.pos))
         for token in (5, 6, 7, 8):
             self.send(seed_pkt(token))
-        self.send(map_change(ROOM_FACET))                        # logged out in the rental room
+        self.send(map_change(0))                                 # logged out in the house
         self.send(status_pkt(CHAR_NAME))                         # our name: it keys the home
         self.send(equip(BACKPACK, 0x0E75, 0x15))
         self.send(skills_pkt(600 if self.tracking else 0, self.magery))   # Tracking 60 (Hackworth's) or none
@@ -1788,7 +1752,8 @@ class World:
         self.send(hits_pkt(self.hits))                          # our hits: the runner reads damage from them
         if self.poisoned:                                       # work_heal: poisoned before we set out
             self.send(poison_pkt(True))
-        self.send_room_items()
+        self.update_view()                                       # the house's items, the town door
+        self.field_mobiles()
         self.send_horse()
         await writer.drain()
         buf = bytearray()
@@ -1836,8 +1801,8 @@ def write_witcher(path):
 
 
 def write_libraries(path):
-    """The home rune library (places.py format): one tome at TOME_POS, its row 10 '286 - Midlands Ruins 1
-    (South)' landing at RUNE_POS (the captured tome page; its other rows are left out)."""
+    """The home rune library (places.py format), in the guild house: one tome at TOME_POS, its row 10 '286 -
+    Midlands Ruins 1 (South)' landing at RUNE_POS (the captured tome page; its other rows are left out)."""
     doc = {"libraries": [{"id": "simhome", "name": "Sim Rune Library", "facet": 0, "stand": list(LIB_START),
                           "use_range": 2, "access": "guild",
                           "tomes": [{"serial": f"0x{TOME:08X}", "title": "276-301", "pos": [*TOME_POS, 0],
@@ -1848,15 +1813,17 @@ def write_libraries(path):
 
 
 def write_homes(path, stockpile=False, forge=False):
-    """The test character's home (harness/home.py format): the simulated landing, home library, room
-    (Logan Wolf's, as live) and chest; with `stockpile`, the room's Resource Stockpile; with `forge`, its forge."""
-    home = {"library": "simhome", "landing": [*HOME_RUNE_POS, 0], "facet": 0,
-            "room": {"owner": "logan", "facet": ROOM_FACET, "arrival": [*ROOM_ARRIVAL, 1], "exit": "steward"},
+    """The test character's home (harness/home.py format, as Outland Dan's): the simulated landing, the home rune
+    "Logan's House" (our book's default doesn't land at home), the home library and the rune into its house
+    (`library_rune` "DTF Loot Chest"), the chest; with `stockpile`, the house's Resource Stockpile; with `forge`,
+    its forge."""
+    home = {"landing": [*HOME_RUNE_POS, 0], "facet": 0, "rune": HOME_RUNE_NAME, "library": "simhome",
+            "library_rune": {"name": GUILD_RUNE_NAME, "landing": [*GUILD_POS, 0]},
             "chest": {"serial": f"0x{CHEST:08X}", "name": "paragon chest (drake)", "pos": [*CHEST_POS, 2]}}
     if stockpile:
         home["stockpile"] = {"serial": f"0x{STOCKPILE:08X}", "pos": [*STOCKPILE_POS, 2]}
     if forge:
-        home["forge"] = {"serial": f"0x{ROOM_FORGE:08X}", "name": "forge", "pos": [*ROOM_FORGE_POS, 2]}
+        home["forge"] = {"serial": f"0x{HOME_FORGE:08X}", "name": "forge", "pos": [*HOME_FORGE_POS, 2]}
     doc = {"homes": {CHAR_NAME: home}}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(doc, f)
@@ -1977,6 +1944,7 @@ async def main():
     store.close()
 
     world = World()
+    world.home_rune_pos = DOOR_RUNE_POS               # "Logan's House" lands outside the town door: a walk home
     server, upstream = await start_server(world)
     proxy, (proxy_port, control_port, state_port) = await start_proxy(upstream, logdir, paths["db"])
     try:
@@ -2115,37 +2083,32 @@ async def main():
               len(world.decoys) >= 4 and world.decoy_replies == 0, f"{len(world.decoys)} decoys")
         b1_gate = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.gate_gumps]
         b1_book = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.book_gumps]
-        b1_room = [e for e in b1_agent if int(e["hex"][6:14], 16) in world.room_serials]
         check("agent gump replies = the auto-solved captcha + the moongate prompts it closed + our runebook "
-              "(read once and closed, one recall out a trip) + the room menus",
-              len(b1_agent) - len(b1_gate) - len(b1_book) - len(b1_room) == 1 and len(b1_book) == 3,
-              f"{len(b1_agent)} agent replies, {len(b1_gate)} to gates, {len(b1_book)} book, {len(b1_room)} room")
+              "(read once and closed, one recall out and one home a trip, trip 1's home cast disturbed once)",
+              len(b1_agent) - len(b1_gate) - len(b1_book) == 1 and len(b1_book) == 6,
+              f"{len(b1_agent)} agent replies, {len(b1_gate)} to gates, {len(b1_book)} book")
         closes = [e for e in log if e.get("ev") == "gump_close_client"]
         check("every moongate prompt the route opened was closed once, with button 0 (the stock right-click), "
               "and the client's copy closed by the proxy",
               len(world.gate_gumps) >= 2 and all(v == [0] for v in world.gate_gumps.values())
               and len(b1_gate) == len(world.gate_gumps) and len(closes) == len(b1_agent),
               f"{world.gate_gumps} client closes {len(closes)}")
-        check("each trip left the room by its door (Exit to House Steward) and came back through the steward "
-              "(Room, Visit Other Rooms, Logan Wolf's row); never End Rental Contract or Expand; ends in the room",
-              [k for k, _ in world.room_log] == ["exit", "enter", "exit", "enter"]
-              and world.room_presses == [("door", 6), ("steward_no_room", 2), ("visit_list", 100)] * 2
-              and world.keeper_far == 0 and world.facet == ROOM_FACET and "waiting in the rental room" in text,
-              f"{world.room_log} {world.room_presses} far {world.keeper_far} facet {world.facet}")
-        check("the steward was found by one single click on trip 1 (his label), known on trip 2; never "
-              "right-clicked (his context menu stays up on the client's screen)",
-              text.count("house steward search") == 1 and world.steward_clicks == 1 and world.steward_menus == 0,
-              f"clicks {world.steward_clicks} menus {world.steward_menus}")
-        check("out by our runebook's 'Sim Woods' rune (the landing nearest the grove), home on foot (within "
-              "NEAR_LANDING of the landing): no library or home recall",
-              world.recalls_book == [BOOK_RUNE_POS, BOOK_RUNE_POS] and world.recalls_home == []
-              and world.recalls_out == [], f"{world.recalls_book} {world.recalls_home} {world.recalls_out}")
+        check("each trip came home by the runebook's \"Logan's House\" by name (its default rune lands in the guild "
+              "house: never pressed), walked to the landing tile through the town door; the run ends there",
+              world.recalls_home == [DOOR_RUNE_POS] * 2 and world.recalls_guild == []
+              and "the rune \"Logan's House\" by name" in text and world.at_home_landing
+              and "waiting at home" in text,
+              f"home {world.recalls_home} guild {world.recalls_guild} at {world.pos} facet {world.facet}")
+        check("out by our runebook's 'Sim Woods' rune (the landing nearest the grove): no library recall",
+              world.recalls_book == [BOOK_RUNE_POS, BOOK_RUNE_POS] and world.recalls_out == [],
+              f"{world.recalls_book} {world.recalls_out}")
         trav = [e["data"] for e in store.job_events("lumber") if e["kind"] == "travel"]
-        check("each trip's travel leg names the landing: our book's rune, its tile",
-              [(d["leg"], (d.get("landing") or {}).get("source"), d["landing"].get("name"), d["book"])
-               for d in trav] == [("out", "book", "Sim Woods", f"0x{RUNEBOOK:08X}")] * 2
-              and all((d["landing"]["x"], d["landing"]["y"]) == BOOK_RUNE_POS and d["ok"] for d in trav),
-              str(trav)[:600])
+        check("each trip's travel legs: out naming the landing (our book's rune, its tile), home by our book",
+              [(d["leg"], (d.get("landing") or {}).get("source"), (d.get("landing") or {}).get("name"), d["book"])
+               for d in trav] == [("out", "book", "Sim Woods", f"0x{RUNEBOOK:08X}"),
+                                  ("home", None, None, f"0x{RUNEBOOK:08X}")] * 2
+              and all((d["landing"]["x"], d["landing"]["y"]) == BOOK_RUNE_POS for d in trav if d["leg"] == "out")
+              and all(d["ok"] for d in trav), str(trav)[:600])
         check("every harvested log not stolen ended in the home chest as boards; no drop refused",
               world.chest_stack is not None and world.harvested == 2 * 3 * LOGS_PER_SUCCESS
               and world.chest_stack[1] == world.harvested - world.stolen and world.drops_refused == 0,
@@ -2158,7 +2121,7 @@ async def main():
               world.stashed and stash_to == {POUCHES[0], POUCHES[1]}
               and sum(n for _, n, _ in world.stashed) >= world.harvested and world.converts_refused == 0,
               f"{world.stashed} refused {world.converts_refused}")
-        check("in the room each trip set its own pouch off (a double-click: a hit, no alarm), opened it, converted "
+        check("at home each trip set its own pouch off (a double-click: a hit, no alarm), opened it, converted "
               "there; the spent pouch went into the chest",
               [(p, by) for p, _, by in world.pops] == [(POUCHES[0], "us"), (POUCHES[1], "us")]
               and world.chest_items == [(POUCHES[0], 0), (POUCHES[1], 0)]
@@ -2210,13 +2173,12 @@ async def main():
         check("the town door opened on each of the 2 crossings (the walk home each trip)",
               world.doors_opened >= 2, str(world.doors_opened))
         check("like a player, the agent opened the backpack once before dragging the logs, each trip's spent "
-              "pouch once to convert in it, and the chest once a trip (leaving the room closes it)",
+              "pouch once to convert in it, and the chest once a trip (out of view on the trip, it closes)",
               [c for c in world.containers_opened if c != BACKPACK] == [POUCHES[0], POUCHES[1]]
               and world.containers_opened.count(BACKPACK) == 1
               and text.count(f"opening container 0x{BACKPACK:08X}") == 1 and world.chest_opens == 2,
               f"{world.containers_opened} chest opens {world.chest_opens}")
-        check("the only speech is 'room' by the steward, once per trip (no 'bank')",
-              speech == [actions.say_unicode("room", hue=actions.CUO_SPEECH_HUE)] * 2, str([p.hex() for p in speech]))
+        check("the agent says nothing (no 'room', no 'bank')", speech == [], str([p.hex() for p in speech]))
         check("two episode rows with logs and stored boards, none stockpiled (this home has only the chest); a dry "
               "trip asked about a library hop first (the `hop_home` phase, docs/LUMBER_LOOP.md §6: no other spot here)",
               len(rows) == 2 and all(r.get("logs", 0) >= 6 and r.get("stored", 0) >= 6 and "stockpiled" not in r
@@ -2239,7 +2201,7 @@ async def main():
         check("malformed intents rejected by the proxy (and not recorded)",
               all(not r["ok"] for r in bad_intents) and all(i and i.get("text") for i in intents),
               str(bad_intents))
-        phase = ["leave_room", "recall_out", "to_tree", "chop", "to_room", "convert", "store", "trip_done"]
+        phase = ["recall_out", "to_tree", "chop", "recall_home", "to_room", "convert", "store", "trip_done"]
         for n in (1, 2):
             seq = [i["kind"] for i in intents if i and i.get("trip") == n]
             check(f"trip {n}: intents follow the loop's phases in order",
@@ -2296,7 +2258,7 @@ async def run_scenario(world, tag, trees, runner_args, budget=None, spot_extra=N
         with open(os.path.join(logdir, "agent_budget.json"), "w", encoding="utf-8") as f:
             json.dump(budget, f)
     paths = write_world_files(tempfile.mkdtemp(dir=LOGDIR), trees, spot_extra, stockpile=world.stockpile is not None,
-                              more_spots=more_spots, routes=routes, banks=banks, forge=world.room_forge)
+                              more_spots=more_spots, routes=routes, banks=banks, forge=world.home_forge)
     if spots_doc is not None:
         with open(paths["spots"], "w", encoding="utf-8") as f:
             json.dump(spots_doc, f)
@@ -2381,15 +2343,16 @@ async def skirmish():
           f"exit {code}, {world.attacker_swings} swings")
     check("a creature at our heels: no 10 s log conversion next to it (live 2026-10-03: 85 -> 40 hits while "
           "converting); first a run RECALL_GAP away (user 2026-10-05: a few steps don't break aggro), then the "
-          "recall home; there, into the room, the logs converted and stored (Seer6 2026-10-05: they stayed logs)",
+          "recall home by \"Logan's House\"; there, on the landing, the logs converted and stored (Seer6 2026-10-05: "
+          "they stayed logs)",
           world.logs == 0 and world.harvested > 0 and world.chest_stack == (world.chest_stack or (0, 0))[:1]
-          + (world.harvested,) and [k for k, _ in world.room_log] == ["exit", "enter"]
+          + (world.harvested,) and world.at_home_landing
           and world.recalls_home == [HOME_RUNE_POS] and "out of reach before the recall" in text
-          and text.index("out of reach before the recall") < text.index("recalling out")
-          < text.index("into the rental room to convert and store")
+          and text.index("out of reach before the recall") < text.index("recalling out by \"Logan's House\"")
+          < text.index("to the landing to convert and store")
           and "converting the carried logs before stopping" not in text,
           f"logs {world.logs}, chest {world.chest_stack}, harvested {world.harvested}, home {world.recalls_home} "
-          f"room {world.room_log}")
+          f"at {world.pos}")
     eps = store.episodes("lumber")
     check("the stopped trip still left its episode row: aborted, why, the logs it got, now stored; the hatchet "
           "from the bag",
@@ -2433,7 +2396,7 @@ async def leash():
 async def stop_after_trip():
     """`ctl stop --after-trip` (user 2026-10-07, after a plain stop killed a run mid-store and left 561 boards in the
     pack): the request (meta task_finish naming our UO_TASK_ID) arrives mid-harvest; the run stops harvesting, goes
-    home, converts and stores the carried and new logs, and exits 0 in the room without starting trip 2."""
+    home, converts and stores the carried and new logs, and exits 0 at home without starting trip 2."""
     print("\n== stop after trip: a graceful stop mid-harvest -> home, convert, store, exit 0 ==")
     world = World("break")
     task_id = "lumber-sim-stop"
@@ -2457,11 +2420,11 @@ async def stop_after_trip():
     check("asked mid-harvest: the harvest stopped early (the good tree still had wood)",
           asked and "stop requested: stopping the harvest" in text and world.good_left > 0,
           f"asked {asked} good_left {world.good_left}")
-    check("one trip, 'stop requested: boards stored', exit 0 in the room, episode row marked stop_requested",
+    check("one trip, 'stop requested: boards stored', exit 0 at home, episode row marked stop_requested",
           code == 0 and "stop requested: boards stored after trip 1" in text and len(eps) == 1
-          and eps[0].get("stop_requested") is True and not eps[0].get("break_due") and world.facet == ROOM_FACET
+          and eps[0].get("stop_requested") is True and not eps[0].get("break_due") and world.at_home_landing
           and {"harvest", "to_room", "convert", "store"} <= set(eps[0]["phases_s"]),
-          f"exit {code}, {len(eps)} episodes, facet {world.facet}\n{text[-600:]}")
+          f"exit {code}, {len(eps)} episodes, at {world.pos} facet {world.facet}\n{text[-600:]}")
     check("carried and new logs became boards in the chest; nothing left in the pack",
           world.logs == 0 and world.chest_stack is not None
           and world.chest_stack[1] == INITIAL_LOGS + world.harvested,
@@ -2471,7 +2434,7 @@ async def stop_after_trip():
 
 async def break_due():
     """docs/OVERSEER.md break_due: the agent gate announces a break mid-harvest; the
-    trip ends early in the rental room (carried and new logs stored in the chest as boards), exit 0."""
+    trip ends early at home (carried and new logs stored in the chest as boards), exit 0."""
     print("\n== break due: stop harvesting, convert, store, exit 0 ==")
     world = World("break")
     budget = {"day": datetime.date.today().isoformat(), "active_today_s": 0.0,
@@ -2482,16 +2445,16 @@ async def break_due():
                                               ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
                                               budget=budget)
     eps = store.episodes("lumber")
-    check("one trip, 'break due: boards stored', exit 0 (for ctl break) in the room, episode row marked break_due",
+    check("one trip, 'break due: boards stored', exit 0 (for ctl break) at home, episode row marked break_due",
           code == 0 and "break due: boards stored" in text and "loop complete" not in text
-          and len(eps) == 1 and eps[0].get("break_due") is True and world.facet == ROOM_FACET
+          and len(eps) == 1 and eps[0].get("break_due") is True and world.at_home_landing
           and set(eps[0]["phases_s"]) == {"harvest", "to_room", "convert", "store"},
-          f"exit {code}, {len(eps)} episodes, facet {world.facet}")
+          f"exit {code}, {len(eps)} episodes, at {world.pos} facet {world.facet}")
     check("the harvest stopped early (the good tree still had wood)",
           "break due: stopping the harvest" in text and world.good_left > 0, str(world.good_left))
     check("carried and new logs became boards in the chest; nothing left in the pack",
           world.chest_stack is not None and world.chest_stack[1] == INITIAL_LOGS + world.harvested
-          and world.logs == 0 and not world.pack_boards and world.room_log[-1][0] == "enter",
+          and world.logs == 0 and not world.pack_boards and world.recalls_home == [HOME_RUNE_POS],
           f"chest {world.chest_stack}, harvested {world.harvested}")
     check("no threat juncture", not [j for j in store.junctures() if j["kind"] == "threat"])
     store.close()
@@ -2521,11 +2484,12 @@ async def no_harvest():
 
 async def library():
     """docs/research/WORLD_LOCATIONS.md, LUMBER_LOOP.md §12.5: a grove whose nearest landing is the home
-    rune library's rune 286. Each trip: out of the room, walk to the library tome, recall to rune 286 with
-    one of its charges, wait out the travel lockout, chop (a player chops nearby), recall home with the
-    runebook's default rune (trip 1's first cast is disturbed), into the room through the steward,
-    convert, store. The travel legs (with the landing) and supplies are recorded."""
-    print("\n== library: out by the home library's tome, home by our runebook, into the room; twice ==")
+    rune library's rune 286. Each trip: from the house into the guild house by our runebook's "DTF Loot Chest" (a
+    charge; contract 2026-10-21), walk to the library tome, recall to rune 286 with one of its charges, wait out
+    the travel lockout, chop (a player chops nearby), recall home with the runebook's "Logan's House" by name
+    (trip 1's first cast is disturbed), convert, store. The travel legs (with the landing) and supplies are
+    recorded."""
+    print("\n== library: into the guild house, out by its library's tome, home by our runebook; twice ==")
     world = World("library")
     spot = LIB_SPOT
     text, code, store, _ = await run_scenario(world, "library", [LIB_TREE],
@@ -2539,16 +2503,24 @@ async def library():
           "never by our book's 'Sim Woods' (farther from the grove)",
           world.recalls_out == [RUNE_POS, RUNE_POS] and world.tome_far == 0 and world.recalls_book == [],
           f"{world.recalls_out} far {world.tome_far} book {world.recalls_book}")
-    check("each trip recalled home with the runebook's default rune (a charge), then went into the room",
-          world.recalls_home == [HOME_RUNE_POS, HOME_RUNE_POS]
-          and [k for k, _ in world.room_log] == ["exit", "enter", "exit", "enter"],
-          f"{world.recalls_home} room {world.room_log}")
+    check("each trip recalled into the guild house by the runebook's default 'DTF Loot Chest' first, and home with "
+          "its \"Logan's House\" (a charge each); it ends at home on the landing",
+          world.recalls_guild == [GUILD_POS, GUILD_POS] and world.recalls_home == [HOME_RUNE_POS, HOME_RUNE_POS]
+          and world.at_home_landing,
+          f"guild {world.recalls_guild} home {world.recalls_home} at {world.pos}")
     check("everything harvested ended in the chest", world.harvested > 0 and world.chest_stack is not None
           and world.chest_stack[1] == world.harvested and world.logs == 0, f"{world.chest_stack} {world.harvested}")
-    check("the travels are job events (out then home, twice, all landed) and the walk out includes the recall",
-          [e["data"]["leg"] for e in trav] == ["out", "home", "out", "home"] and all(e["data"]["ok"] for e in trav)
+    check("the travels are job events (into the guild house, out, home, twice, all landed) and the walk out "
+          "includes the recalls",
+          [e["data"]["leg"] for e in trav] == ["to_library", "out", "home"] * 2 and all(e["data"]["ok"] for e in trav)
           and all(e["walk_out_s"] and e["walk_out_s"] > 2 for e in eps),
-          f"{[(e['data'].get('to'), e['data'].get('ok')) for e in trav]} {[e.get('walk_out_s') for e in eps]}")
+          f"{[(e['data'].get('leg'), e['data'].get('to'), e['data'].get('ok')) for e in trav]} "
+          f"{[e.get('walk_out_s') for e in eps]}")
+    guild = [e["data"] for e in trav if e["data"]["leg"] == "to_library"]
+    check("the guild house leg: our runebook, its 'DTF Loot Chest' landing, the library it serves",
+          [(d["trip"], d["book"], d["library"], d["landing"]["name"], (d["landing"]["x"], d["landing"]["y"]))
+           for d in guild] == [(n, f"0x{RUNEBOOK:08X}", "simhome", GUILD_RUNE_NAME, GUILD_POS) for n in (1, 2)]
+          and "in the Sim Rune Library at" in text, str(guild)[:600])
     out = [e["data"] for e in trav if e["data"]["leg"] == "out"]
     home = [e["data"] for e in trav if e["data"]["leg"] == "home"]
     check("each travel event names its trip, spot, book, Witcher rune and the landing (the library row), and "
@@ -2566,14 +2538,15 @@ async def library():
           == [[("charge", False, "disturbed"), ("charge", True, None)], [("charge", True, None)]]
           and home[0]["attempts"] == 2 and home[0]["ok"], str(home)[:600])
     rows_ok = len(eps) == 2 and all(
-        [leg["leg"] for leg in e["travel"]] == ["out", "home"] and e["travel_s"] > 2
-        and e["supplies"] == {"library_charges": 1, "own_charges": 1, "recall_casts": 0, "trapped_pouches": 1,
+        [leg["leg"] for leg in e["travel"]] == ["to_library", "out", "home"] and e["travel_s"] > 2
+        and e["supplies"] == {"library_charges": 1, "own_charges": 2, "recall_casts": 0, "trapped_pouches": 1,
                               "reagents_used": {}}
         and e["lockout_s"] >= LOCKOUT_S and e["players_seen"] >= 1 and "skill_end" in e and "weight_end" in e
         for e in eps)
     check("the trip rows carry the travel legs and their time, the lockout waited, the supplies (a library "
-          "charge, an own charge; the disturbed cast spent none), the player seen and the end snapshot",
-          rows_ok and world.lockouts == 2 and eps[0]["travel"][1]["tries"][0][1] == "disturbed",
+          "charge, two own charges: into the guild house and home; the disturbed cast spent none), the player seen "
+          "and the end snapshot",
+          rows_ok and world.lockouts == 2 and eps[0]["travel"][2]["tries"][0][1] == "disturbed",
           str([{k: e.get(k) for k in ("travel", "travel_s", "supplies", "lockout_s", "players_seen", "skill_end")}
                for e in eps])[:900])
     tev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "tracking"]
@@ -2701,10 +2674,10 @@ async def library_chased():
           code == 1 and "kept coming after the escape" in text and world.recalls_home
           and world.recalls_home[-1] == HOME_RUNE_POS and "escaped by recall" in text,
           f"exit {code}, home {world.recalls_home}\n{text[-600:]}")
-    check("no 10 s log conversion before leaving; home, into the room, converted and stored there",
-          "converting the carried logs before stopping" not in text and world.room_entries == 1
+    check("no 10 s log conversion before leaving; home, on the landing, converted and stored there",
+          "converting the carried logs before stopping" not in text and world.at_home_landing
           and world.logs == 0 and world.chest_stack is not None and world.chest_stack[1] == world.harvested > 0,
-          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested} room {world.room_log}")
+          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested} at {world.pos}")
     check("an urgent threat juncture says it recalled away (a creature: not a pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
           and not any(j["kind"] == "pk_escape" for j in js), str([(j["kind"], j["summary"]) for j in js]))
@@ -2731,7 +2704,7 @@ async def library_chased():
 
 # the library spot: a pvp grove by the home library's rune 286 (the landing nearest it), 85 tiles from home
 LIB_SPOT = {"area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 10}, "pvp": True}
-# the gazer's: wider, so the walk-away stays in it; never within home.NEAR_LANDING (60) of home: home is a recall
+# the gazer's: wider, so the walk-away stays in it
 GAZER_SPOT = {"area": {"center": [LIB_TREE["x"], LIB_TREE["y"]], "radius": 20}, "pvp": True}
 
 
@@ -2747,8 +2720,8 @@ async def gazer_run():
                                                "--regrow-min", "0.05"], spot_extra=GAZER_SPOT)
     eps = store.episodes("lumber")
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
-    check("the trip stored its boards in the room, exit 0 (no recall away, no stop)",
-          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.room_entries == 1
+    check("the trip stored its boards at home, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.at_home_landing
           and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
     check("the first damage is a monster_hit: the gazer, 10 tiles off, ranged, the only attacker, a run",
@@ -2792,7 +2765,7 @@ async def landing_escape():
           "recall out, no walk back to the tome",
           "ESCAPE 1/" in text and "already out at the spot" in text and world.recalls_out == [RUNE_POS]
           and "to the rune library: no route" not in text, f"{world.recalls_out}\n{text[-900:]}")
-    check("the trip went on out there and ended in the room (exit 0), not an abort",
+    check("the trip went on out there and ended at home (exit 0), not an abort",
           code == 0 and [e.get("outcome") for e in eps] == ["stored"],
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}")
     store.close()
@@ -2802,13 +2775,14 @@ async def horse_follows():
     """Live 2026-10-08: after a death the horse followed Dan home on foot instead of resting in the guild house; the
     runner's double-click there got "Your mount refuses to let you ride it while in this area." and, after the recall
     out, it only waited for a resting mount to return: the whole trip went on foot with the horse beside Dan. Here
-    the guild house refuses riding and the horse follows the recall out: the runner mounts it at the landing."""
+    the house refuses riding (as the guild house did) and the horse follows the recall out: the runner mounts it at
+    the landing. The house shelf lacks the pouches, so the guild house's shelf gives them on the way out."""
     print("\n== horse follows: riding refused at home, mounted at the landing after the recall out ==")
     world = World("ghost_horse")
     world.horse = {"dead": False}
     world.no_ride_home = True
-    world.pouch_hue = {}                               # the room's shelf lacks the pouches: out to the landing's
-    world.shelf_stock = {"room": 0, "landing": 3}
+    world.pouch_hue = {}                               # the house shelf lacks the pouches: the guild house's has them
+    world.shelf_stock = {"home": 0, "guild": 3}
 
     def remembered(db):                               # an earlier run knew the horse as ours (live: own_mounts)
         import mount as mount_mod
@@ -2820,9 +2794,8 @@ async def horse_follows():
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT, prepare=remembered)
     eps = store.episodes("lumber")
     check("refused at home, then one double-click at the landing: riding out there",
-          world.horse_dclicks == ["refused", False] and world.mount_rested >= 1
-          and "from the landing (it followed us out)" in text,
-          f"dclicks {world.horse_dclicks} rested {world.mount_rested}\n{text[-900:]}")
+          world.horse_dclicks == ["refused", False] and "from the landing (it followed us out)" in text,
+          f"dclicks {world.horse_dclicks}\n{text[-900:]}")
     check("the trip stored (exit 0); no 'mount can't be ridden' juncture",
           code == 0 and [e["outcome"] for e in eps] == ["stored"]
           and not any(j["data"].get("item") == "mount" for j in store.junctures()),
@@ -2831,49 +2804,42 @@ async def horse_follows():
 
 
 async def ghost_horse():
-    """Live 2026-10-05 (docs/NOTES.md "Our mount"): our bonded horse's ghost follows us. The room's storage shelf
-    lacks something, so the runner is out at the landing when it looks: its menu offers Release (ours), it's a
-    ghost, so into the rental room (revived), a double-click mounts it, and the trip rides. The guild house rests
-    the mount whenever we come into it (out of the room, a recall home) and gives it back on the recall out or in
-    the room: the second trip finds it resting at the landing (no detour) and rides again after the recall out."""
-    print("\n== our horse is a ghost: revived through the rental room, mounted; it rests in the guild house ==")
+    """Live 2026-10-05 (docs/NOTES.md "Our mount"): our bonded horse's ghost follows us home. Its menu offers Release
+    (ours); a ghost can't be ridden and nothing at home revives it (contract 2026-10-21 §6; the rental room did): one
+    attention low_supplies juncture (item 'mount': a healer or a stable master revives it), no double-click on the
+    ghost, and the trip goes on foot and stores."""
+    print("\n== our horse is a ghost: a mount juncture (healer / stable master), the trip goes on foot ==")
     world = World("ghost_horse")
     world.horse = {"dead": True}
-    world.shelf_stock = {"room": 0, "landing": 0}      # the room's shelf gives nothing: out to the landing's
     text, code, store, _ = await run_scenario(world, "ghost_horse", [LIB_TREE],
-                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
+                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     eps = store.episodes("lumber")
-    check("its menu asked once (ours: Release), no double-click on the ghost; into the room revived it; one "
-          "double-click mounted it before the first trip",
-          world.horse_menus == 1 and world.horse_dclicks == [False]
-          and [k for k, _ in world.room_log][:2] == ["exit", "enter"] and "is a ghost: into the rental room" in text,
-          f"menus {world.horse_menus} dclicks {world.horse_dclicks} {world.room_log}")
-    check("both trips stored (exit 0); rows' mount: riding after the recall out, the second from its rest "
-          "(no room detour for it)",
-          code == 0 and [e["outcome"] for e in eps] == ["stored", "stored"]
-          and eps[0].get("mount") == {"pet": "0x0154FE11", "mounted": True}
-          and eps[1].get("mount") == {"pet": "0x0154FE11", "mounted": True, "resting": True}
-          and [k for k, _ in world.room_log] == ["exit", "enter", "exit", "enter", "exit", "enter"]
-          and not any(j["data"].get("item") == "mount" for j in store.junctures()),
-          f"exit {code} {[(e.get('outcome'), e.get('why'), e.get('mount')) for e in eps]} {world.room_log}\n"
-          f"{text[-600:]}")
-    check("the guild house rested it 4 times (out of the room, home, twice) and gave it back each time: riding "
-          "at the end", world.mount_rested == 4 and world.mounted,
-          f"rested {world.mount_rested} mounted {world.mounted}")
+    mj = [j for j in store.junctures() if j["data"].get("item") == "mount"]
+    check("its menu asked once (ours: Release), no double-click on the ghost; one attention mount juncture naming "
+          "the ghost and who revives it",
+          world.horse_menus == 1 and world.horse_dclicks == [] and len(mj) == 1 and mj[0]["severity"] == "attention"
+          and "a ghost (a healer or a stable master revives it)" in mj[0]["data"]["why"]
+          and "healer or a stable master" in mj[0]["data"]["how"],
+          f"menus {world.horse_menus} dclicks {world.horse_dclicks} {mj}")
+    check("the trip went on foot and stored (exit 0); its row's mount: not riding",
+          code == 0 and [e["outcome"] for e in eps] == ["stored"]
+          and (eps[0].get("mount") or {}).get("pet") == "0x0154FE11" and eps[0]["mount"].get("mounted") is False
+          and not world.mounted and world.at_home_landing,
+          f"exit {code} {[(e.get('outcome'), e.get('why'), e.get('mount')) for e in eps]}\n{text[-600:]}")
     store.close()
 
 
 async def hatchet_swap():
     """User 2026-10-08 (a worn lone hatchet broke 1528 logs into a trip): before a trip the runner reads its hatchets'
     uses (single clicks: "(N uses remaining)") and needs the quota's worth at 5 logs a success. A hatchet with 10 uses
-    for a 100-log trip (20 needed): into the room's chest, and the room shelf's Resupply gives the loadout's fresh one;
+    for a 100-log trip (20 needed): into the house chest, and the house shelf's Resupply gives the loadout's fresh one;
     the trip chops with it and stores."""
     print("\n== hatchet swap: too few uses for the trip -> the worn one into the chest, a fresh one from the shelf ==")
     world = World("library")
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.shelf_stock = {"home": 0, "guild": 0}
     world.hatchet_left = {HATCHET: 10}
-    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 1, "landing": 0}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"home": 1, "guild": 0}
     text, code, store, _ = await run_scenario(world, "hatchet_swap", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
@@ -2898,9 +2864,9 @@ async def hatchet_back():
     with it (a low_supplies juncture for the shortfall)."""
     print("\n== hatchet back: the shelf has none -> the hatchet just put away comes back out of the chest ==")
     world = World("library")
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.shelf_stock = {"home": 0, "guild": 0}
     world.hatchet_left = {HATCHET: 10}
-    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 0, "landing": 0}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"home": 0, "guild": 0}
     text, code, store, _ = await run_scenario(world, "hatchet_back", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "200", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
@@ -2920,14 +2886,14 @@ async def hatchet_back():
 
 
 async def hatchet_chest():
-    """The shelf out of hatchets, a spare in the room's chest: after the worn one went in for nothing, the chest's
+    """The shelf out of hatchets, a spare in the house chest: after the worn one went in for nothing, the chest's
     hatchets come into the pack, the most uses first, until the trip's quota is covered; the trip chops and stores."""
     print("\n== hatchet chest: the shelf has none -> a spare from the chest covers the trip ==")
     world = World("library")
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.shelf_stock = {"home": 0, "guild": 0}
     world.hatchet_left = {HATCHET: 10}
     world.chest_axes = {CHEST_HATCHET: HATCHET_USES}
-    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 0, "landing": 0}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"home": 0, "guild": 0}
     text, code, store, _ = await run_scenario(world, "hatchet_chest", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
@@ -2945,20 +2911,20 @@ async def hatchet_chest():
 
 async def hatchet_none():
     """No hatchet can be had (the shelf has none, the one put away won't come back out of the chest): no trip. The run
-    stops in the rental room (exit 1) with a low_supplies juncture instead of recalling out without a hatchet."""
-    print("\n== hatchet none: no hatchet anywhere -> no trip, the run ends in the room ==")
+    stops at home (exit 1) with a low_supplies juncture instead of recalling out without a hatchet."""
+    print("\n== hatchet none: no hatchet anywhere -> no trip, the run ends at home ==")
     world = World("library")
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.shelf_stock = {"home": 0, "guild": 0}
     world.hatchet_left = {HATCHET: 10}
     world.chest_axes_locked = True
-    world.loadout_hatchets, world.shelf_hatchets = 1, {"room": 0, "landing": 0}
+    world.loadout_hatchets, world.shelf_hatchets = 1, {"home": 0, "guild": 0}
     text, code, store, _ = await run_scenario(world, "hatchet_none", [LIB_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT)
     low = [j["data"] for j in store.junctures() if j["data"].get("item") == "hatchet uses"]
-    check("no trip: exit 1 'no hatchet carried', still in the rental room, no episode",
-          code == 1 and "no hatchet carried" in text and world.facet == ROOM_FACET
-          and not store.episodes("lumber"), f"exit {code} facet {world.facet}\n{text[-700:]}")
+    check("no trip: exit 1 'no hatchet carried', still at home on the landing (no recall), no episode",
+          code == 1 and "no hatchet carried" in text and world.at_home_landing and not world.recalls_guild
+          and not store.episodes("lumber"), f"exit {code} at {world.pos} facet {world.facet}\n{text[-700:]}")
     check("a low_supplies juncture with 0 uses", [d["have"] for d in low] == [0], str(low))
     store.close()
 
@@ -3001,10 +2967,10 @@ async def gazer_rehit():
           code == 1 and world.recalls_home == [HOME_RUNE_POS] and len(rec) == 1 and rec[0]["ok"]
           and rec[0]["cause"] == "creature" and "escaped by recall" in text,
           f"exit {code} home {world.recalls_home} {str(rec)[:300]}\n{text[-600:]}")
-    check("no conversion in the field; home, into the room, converted and stored there",
-          "converting the carried logs before stopping" not in text and world.room_entries == 1
+    check("no conversion in the field; home, on the landing, converted and stored there",
+          "converting the carried logs before stopping" not in text and world.at_home_landing
           and world.logs == 0 and world.chest_stack is not None and world.chest_stack[1] == world.harvested > 0,
-          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested} room {world.room_log}")
+          f"logs {world.logs} chest {world.chest_stack} harvested {world.harvested} at {world.pos}")
     js = [j for j in store.junctures() if j["source"] == "lumber" and j["severity"] == "urgent"]
     check("urgent threat juncture 'Recalled away' (a creature: no pk_escape)",
           any(j["kind"] == "threat" and "Recalled away" in j["summary"] for j in js)
@@ -3033,8 +2999,8 @@ async def gazer_reflect():
     eps = store.episodes("lumber")
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
     check("Magic Reflection took the first spell", len(world.reflected) == 1, str(world.reflected))
-    check("the trip stored its boards in the room, exit 0 (no recall away, no stop)",
-          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.room_entries == 1
+    check("the trip stored its boards at home, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.at_home_landing
           and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
     check("the spell is a monster_hit: the gazer, 10 tiles off, ranged, the only attacker, no hits lost, a run",
@@ -3071,8 +3037,8 @@ async def unseen_caster():
     hits = [e["data"] for e in store.job_events("lumber") if e["kind"] == "monster_hit"]
     leash = [e["data"] for e in store.job_events("lumber") if e["kind"] == "leash"]
     check("the Flamestrike landed once", len(world.caster_hits) == 1, str(world.caster_hits))
-    check("the trip stored its boards in the room, exit 0 (no recall away, no stop)",
-          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.room_entries == 1
+    check("the trip stored its boards at home, exit 0 (no recall away, no stop)",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and world.at_home_landing
           and not [e for e in store.job_events("lumber") if e["kind"] == "recall"],
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]}\n{text[-800:]}")
     check("the hit is the gargoyle's, out of view at its last tile (26 off), ranged, the only attacker, a run; the "
@@ -3231,9 +3197,9 @@ async def red_aim():
           code == 1 and "escaped by recall" in text
           and any(j["kind"] == "pk_escape" for j in store.junctures()), f"exit {code}")
     check("the PK's Explosion landing on us at home (-31, its sound on our tile, no pouch of ours gone off) neither "
-          "kept us out of the room nor read as a thief: into the room",
-          world.hits == 69 and world.room_entries == 1 and "THIEF" not in text and "after the recall home" not in text,
-          f"hits {world.hits} room {world.room_log}\n{text[-600:]}")
+          "kept us from storing nor read as a thief: to the landing, stored",
+          world.hits == 69 and world.at_home_landing and "THIEF" not in text and "after the recall home" not in text,
+          f"hits {world.hits} at {world.pos}\n{text[-600:]}")
     print(f"  sim latency: red 0x20 -> cancel {round(cancels[0] - red, 3) if cancels else None} s, "
           f"-> first step {lat} s; book at {world.book_dists} tiles")
     store.close()
@@ -3265,9 +3231,9 @@ async def field_foe(tag, title, foe_why, calm_who):
     check(f"{tag}: the recall that landed names the foe and why ({foe_why}); one pk_seen sighting, the foe's",
           rec and rec[-1]["ok"] and rec[-1]["threat"]["serial"] == FOE and foe_why in rec[-1]["threat"]["reason"]
           and [s["serial"] for s in seen] == [FOE], f"{str(rec)[:400]} seen {[s['serial'] for s in seen]}")
-    check(f"{tag}: the run stopped after the escape (exit 1, pk_escape), in the room",
-          code == 1 and any(j["kind"] == "pk_escape" for j in store.junctures()) and world.room_entries == 1,
-          f"exit {code} room {world.room_log}")
+    check(f"{tag}: the run stopped after the escape (exit 1, pk_escape), at home",
+          code == 1 and any(j["kind"] == "pk_escape" for j in store.junctures()) and world.at_home_landing,
+          f"exit {code} at {world.pos}")
     return world, store, text
 
 
@@ -3402,8 +3368,8 @@ async def flee_aid():
           and all(k in ev[0] for k in ("stam", "stam_max", "trip", "spot", "why")), str(ev)[:800])
     check("potions spent: one cure, one heal", [n for _, n in world.potions.values()] == [4, 4, 5],
           str(world.potions))
-    check("the run stopped after the escape (exit 1), in the room", code == 1 and world.room_entries == 1,
-          f"exit {code} room {world.room_log}")
+    check("the run stopped after the escape (exit 1), at home", code == 1 and world.at_home_landing,
+          f"exit {code} at {world.pos}")
     print(f"  sim: hurt -> {[(k, round(t - hurt, 2), f) for t, k, f in clicks] if hurt else None}; book gaps {gaps}")
     store.close()
 
@@ -3444,9 +3410,9 @@ async def escape_heal():
     check("Recall's mana kept: no more than one heal's mana spent", world.mana >= 100 - combat.spell_mana(gheal),
           str(world.mana))
     junc = [j["kind"] for j in store.junctures()]
-    check("no theft_suspected (the reagents were declared); the pk_escape juncture; exit 1 in the room",
-          "theft_suspected" not in junc and "pk_escape" in junc and code == 1 and world.room_entries == 1,
-          f"{junc} exit {code} room {world.room_log}")
+    check("no theft_suspected (the reagents were declared); the pk_escape juncture; exit 1 at home",
+          "theft_suspected" not in junc and "pk_escape" in junc and code == 1 and world.at_home_landing,
+          f"{junc} exit {code} at {world.pos}")
     print(f"  sim: second hit -> {[(round(t - again, 2), s) for t, s in casts] if again else None}, "
           f"book {round(books[0] - again, 2) if books and again else None}; {ev[0]['why'] if ev else None}")
     store.close()
@@ -3513,7 +3479,7 @@ async def pk_island():
     check("no guard flight, no 500112, nobody called", world.guard_entered is None and world.guards_called == []
           and not any(e["kind"] == "guard_flight" for e in store.job_events("lumber"))
           and "no guarded place known" in text, "")
-    check("exit 1 in the room", code == 1 and world.room_entries == 1, f"exit {code} room {world.room_log}")
+    check("exit 1 at home", code == 1 and world.at_home_landing, f"exit {code} at {world.pos}")
     store.close()
 
 
@@ -3655,12 +3621,12 @@ async def thief_keep_away():
           and any(j["kind"] == "pk_escape" for j in store.junctures()) and "escaped by recall" in text,
           f"exit {code} {[e['data'].get('trigger') for e in ev]} home {world.recalls_home} "
           f"rec {[(r['attempts'], r['ok']) for r in rec]}\n{text[-600:]}")
-    check("the logs stayed in the trapped pouch (never set off in the field); home by the recall, into the room, "
+    check("the logs stayed in the trapped pouch (never set off in the field); home by the recall, on the landing, "
           "converted and stored there",
-          world.stashed and world.room_entries == 1 and world.logs == 0 and world.chest_stack is not None
+          world.stashed and world.at_home_landing and world.logs == 0 and world.chest_stack is not None
           and world.chest_stack[1] == world.harvested > 0 and all(by == "us" for _, _, by in world.pops),
           f"pops {world.pops} logs {world.logs} harvested {world.harvested} chest {world.chest_stack} "
-          f"room {world.room_log}")
+          f"at {world.pos}")
     inp = lumber_opt.store_inputs(store)
     check("lumber_opt reads the thief events (the recall one puts the spot on THIEF_COOLDOWN_S)",
           [e["data"]["action"] for e in inp["events"] if e["kind"] == "thief"] == ["keep_away", "recall"],
@@ -3683,7 +3649,7 @@ async def pouch_pop():
     ev = [e["data"] for e in store.job_events("lumber") if e["kind"] == "thief"]
     pouch_clicks = [i for i, p in enumerate(world.c2s) if p[0] == 0x06 and p[1:5] == u32(POUCHES[0])]
     book_clicks = [i for i, p in enumerate(world.c2s) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)]
-    check("the thief's pop (no double-click of ours on the pouch before the recall home; in the room one opens "
+    check("the thief's pop (no double-click of ours on the pouch before the recall home; at home one opens "
           "it to convert) recalled us home within 1.5 s: a `thief` event (pouch_pop, recall) with the signals, "
           "no player in view",
           [(p, by) for p, _, by in world.pops] == [(POUCHES[0], "thief")]
@@ -3703,14 +3669,14 @@ async def pouch_pop():
 
 
 async def no_pouch():
-    """No trapped pouch in the pack and none on the shelves: the room's shelf and the landing's (out of the room
-    for it, the secured one skipped) give nothing, then a `low_supplies` juncture (item 'trapped pouch'), no
-    trip, back into the room, exit 1."""
-    print("\n== no trapped pouch, none on the shelves: low_supplies, no trip, back in the room ==")
+    """No trapped pouch in the pack and none on the house shelf: the trip would go out by our own book's 'Sim Woods',
+    which doesn't pass the guild house, so its shelf is skipped (contract 2026-10-21 §4); then a `low_supplies`
+    juncture (item 'trapped pouch'), no trip, still at home, exit 1."""
+    print("\n== no trapped pouch, none on the house shelf: low_supplies, no trip, still at home ==")
     world = World("home")
     world.scripted = False
     world.pouch_hue = {}
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.shelf_stock = {"home": 0, "guild": 3}
     text, code, store, _ = await run_scenario(world, "no_pouch", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off"])
     low = [j for j in store.junctures() if j["kind"] == "low_supplies"]
@@ -3718,12 +3684,12 @@ async def no_pouch():
           code == 1 and len(low) == 1 and low[0]["data"]["item"] == "trapped pouch"
           and low[0]["severity"] == "attention" and store.episodes("lumber") == [] and not world.self_targets,
           f"exit {code} {low}\n{text[-400:]}")
-    check("both shelves tried (the room's, then out of the room the landing's, the secured one skipped), "
-          "only Resupply and close pressed; then back into the room",
-          world.resupplies == [("room", 0), ("landing", 0)] and world.secured_tries == 1
-          and set(world.shelf_presses) == {7, 0} and world.facet == ROOM_FACET
-          and [k for k, _ in world.room_log] == ["exit", "enter"],
-          f"{world.resupplies} secured {world.secured_tries} presses {world.shelf_presses} log {world.room_log}")
+    check("the house shelf tried (only Resupply and close pressed), the guild house's skipped for an own-book "
+          "trip; no recall, still at home",
+          world.resupplies == [("home", 0)] and world.secured_tries == 0
+          and set(world.shelf_presses) == {7, 0} and world.at_home_landing and not world.recalls_guild
+          and not world.recalls_book and "the guild house's shelf is skipped" in text,
+          f"{world.resupplies} secured {world.secured_tries} presses {world.shelf_presses} at {world.pos}")
     store.close()
 
 
@@ -3748,18 +3714,18 @@ async def convert_stacks():
 
 
 async def stockpile_store():
-    """User 2026-10-05: the boards now go into the Resource Stockpile in the room (live: its menu, Add Items, one
+    """User 2026-10-05: the boards now go into the Resource Stockpile at home (live: its menu, Add Items, one
     target per pouch holding boards, else per stack). Carried boards and logs of another wood in the pack and this
     trip's logs in the pouch come home as a loose stack and a pouch of boards: two targets, the menu closed once at
-    the end; then the room shelf's
+    the end; then the house shelf's
     Restock with our backpack and Resupply (the user's routine): the spent pouch goes into the shelf; no theft
     suspected; the row counts them."""
-    print("\n== the boards into the room's Resource Stockpile, one Add Items per stack; then Restock + Resupply ==")
+    print("\n== the boards into the house's Resource Stockpile, one Add Items per stack; then Restock + Resupply ==")
     world = World("home")
     world.scripted = False
     world.carried = [(0x1BDE, 7), (BOARD_G, 4)]
     world.stockpile = {"boards": 0, "adds": [], "refused": [], "gumps": set(), "closed": 0}
-    world.shelf_stock = {"room": 0, "landing": 0}
+    world.shelf_stock = {"home": 0, "guild": 0}
     text, code, store, _ = await run_scenario(world, "stockpile_store", [GOOD_TREE],
                                               ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
     pile = world.stockpile
@@ -3780,10 +3746,10 @@ async def stockpile_store():
           and not [j for j in store.junctures() if j["kind"] == "theft_suspected"],
           f"{[(e.get('outcome'), e.get('stored'), e.get('stockpiled')) for e in eps]}\n{text[-600:]}")
     rs = (eps[0].get("restock") or {}) if eps else {}
-    check("then the room shelf's Restock with our backpack (the user's routine) took the spent pouch and the two "
+    check("then the house shelf's Restock with our backpack (the user's routine) took the spent pouch and the two "
           "live ones, and Resupply gave two back (all it had): nothing into the chest; the row's `restock`",
-          world.restocks == [("room", BACKPACK)] and len(world.shelf_pouches) == 1 and not world.chest_items
-          and world.resupplies[-1] == ("room", 2) and rs.get("restocked") == ["3 items were added."]
+          world.restocks == [("home", BACKPACK)] and len(world.shelf_pouches) == 1 and not world.chest_items
+          and world.resupplies[-1] == ("home", 2) and rs.get("restocked") == ["3 items were added."]
           and rs.get("missing") == ["Trapped Pouch"],
           f"restocks {world.restocks} shelf {world.shelf_pouches} chest {world.chest_items} "
           f"resupplies {world.resupplies} row {rs}")
@@ -3791,46 +3757,50 @@ async def stockpile_store():
 
 
 async def resupply():
-    """No trapped pouch in the pack; the room's shelf has none, the landing's has 3: out of the room, Resupply
-    there gives 3, the trip goes, its row says what each shelf gave."""
-    print("\n== resupply: the room's shelf is empty, the landing's gives the trapped pouches, the trip goes ==")
-    world = World("home")
-    world.scripted = False
+    """No trapped pouch in the pack; the house shelf has none, the guild house's has 3: the trip goes out by the
+    library, so right after the recall into the guild house its shelf's Resupply gives 3 (the pouch check waits for
+    it), the trip goes, its row says what each shelf gave."""
+    print("\n== resupply: the house shelf is empty, the guild house's gives the trapped pouches, the trip goes ==")
+    world = World("library")
     world.pouch_hue = {}
-    world.shelf_stock = {"room": 0, "landing": 3}
-    text, code, store, _ = await run_scenario(world, "resupply", [GOOD_TREE],
-                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
+    world.shelf_stock = {"home": 0, "guild": 3}
+    text, code, store, _ = await run_scenario(world, "resupply", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"],
+                                              spot_extra=LIB_SPOT)
     eps = store.episodes("lumber")
     res = (eps[0].get("resupply") or []) if eps else []
-    check("the room's shelf gave nothing, the landing's (past the secured one) gave 3 trapped pouches",
-          world.resupplies[:2] == [("room", 0), ("landing", 3)] and world.secured_tries == 1,
-          f"{world.resupplies} secured {world.secured_tries}")
-    check("the trip went and stored (exit 0, outcome stored) with a resupplied pouch; at the end the room shelf's "
+    check("the house shelf gave nothing, the guild house's (past the secured one) gave 3 trapped pouches, after the "
+          "recall into the guild house and before the recall out",
+          world.resupplies[:2] == [("home", 0), ("guild", 3)] and world.secured_tries == 1
+          and world.recalls_guild == [GUILD_POS] and "the guild house's shelf after the recall into it" in text,
+          f"{world.resupplies} secured {world.secured_tries} guild {world.recalls_guild}")
+    check("the trip went and stored (exit 0, outcome stored) with a resupplied pouch; at the end the house shelf's "
           "Restock took the spent one (none into the chest)",
           code == 0 and len(eps) == 1 and eps[0]["outcome"] == "stored"
           and world.shelf_pouches and world.shelf_pouches[0] in SHELF_POUCHES and not world.chest_items,
           f"exit {code} {[(e.get('outcome'), e.get('why')) for e in eps]} shelf {world.shelf_pouches} "
           f"chest {world.chest_items}\n{text[-600:]}")
-    check("the trip row's resupply: the room's none_available, the landing's 3 pouches (hue 38)",
-          [r["where"] for r in res] == ["room", "landing"] and res[0]["none_available"] and res[0]["added"] == []
+    check("the trip row's resupply: the house's none_available, the guild house's 3 pouches (hue 38)",
+          [r["where"] for r in res] == ["home", "guild"] and res[0]["none_available"] and res[0]["added"] == []
           and [(a["amount"], a["hue"]) for a in res[1]["added"]] == [(1, 38)] * 3 and res[1]["missing"] == [],
           str(res)[:600])
     store.close()
 
 
 async def resupply_book():
-    """User 2026-10-11 ("Recalls should be available on the guild shelf"): the room shelf gives everything else but
-    holds no recall scrolls, so our book read 3 charges at the start: out of the room to the landing's shelf (it
-    recharges books), then the trip. With a full book (the `resupply` scenario's other runs) the room shelf is enough."""
-    print("\n== resupply: the book short of charges -> the landing's shelf too ==")
-    world = World("home")
-    world.scripted = False
+    """User 2026-10-11 ("Recalls should be available on the guild shelf"): the house shelf gives everything else but
+    holds no recall scrolls, so our book read 3 charges at the start: on the trip out by the library the guild house's
+    shelf too (it recharges books), right after the recall into it. With a full book (the `resupply` scenario's other
+    runs) the house shelf is enough."""
+    print("\n== resupply: the book short of charges -> the guild house's shelf too ==")
+    world = World("library")
     world.book_charges = 3
-    world.shelf_stock = {"room": 3, "landing": 3}
-    text, code, store, _ = await run_scenario(world, "resupply_book", [GOOD_TREE],
-                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"])
-    check("the room's shelf, then the landing's for the book's 3 charges; the trip stored",
-          [w for w, _ in world.resupplies[:2]] == ["room", "landing"]
+    world.shelf_stock = {"home": 3, "guild": 3}
+    text, code, store, _ = await run_scenario(world, "resupply_book", [LIB_TREE],
+                                              ["--trips", "1", "--logs-per-trip", "10", "--human", "off"],
+                                              spot_extra=LIB_SPOT)
+    check("the house shelf, then the guild house's for the book's 3 charges; the trip stored",
+          [w for w, _ in world.resupplies[:2]] == ["home", "guild"]
           and "the way-home book holds 3 charge(s)" in text and code == 0,
           f"{world.resupplies} exit {code}\n{text[-600:]}")
     store.close()
@@ -3929,11 +3899,11 @@ def hop_routes() -> dict:
 
 async def hop():
     """docs/PLAN.md "Next: hop through the rune library": the 'sim' leg runs dry short of its quota with the logs
-    in the pouch; home (on foot: 'sim' lies within home.NEAR_LANDING), the plan (carried, hop_from 'sim') sends
-    us on to 'sim2' (the only other eligible spot) instead of the room: leg 1's row 'hopped', then the walk to
-    the home library's tome, its rune 286 out, chop, home by our book and into the room once, both legs' logs
-    stored. Alongside, --hops 0: the dry leg goes home through the room as before (one 'stored' row, no hop)."""
-    print("\n== hop: a dry leg goes on from the home rune library to the next spot, the room once at the end ==")
+    in the pouch; home by "Logan's House", the plan (carried, hop_from 'sim') sends us on to 'sim2' (the only other
+    eligible spot) instead of storing: leg 1's row 'hopped', then into the guild house by 'DTF Loot Chest', the walk
+    to the home library's tome, its rune 286 out, chop, home by our book and storing once, both legs' logs stored.
+    Alongside, --hops 0: the dry leg goes home and stores as before (one 'stored' row, no hop)."""
+    print("\n== hop: a dry leg goes on from the home rune library to the next spot, storing once at the end ==")
     world, off = World("hop"), World("hop")
     args, routes = ["--trips", "1", "--logs-per-trip", "100", "--human", "off"], hop_routes()
     (text, code, store, _), (otext, ocode, ostore, _) = await asyncio.gather(
@@ -3956,34 +3926,38 @@ async def hop():
           two.get("spot") == "sim2" and two.get("leg") == 2 and two.get("outcome") == "stored"
           and two.get("carried_in") == one.get("logs") and (two.get("logs") or 0) > 0
           and ("woods" not in two or sum(two["woods"].values()) == two["logs"]), str(brief[1:]))
-    check("the rental room once (out at the start, in at the end): no room visit between the legs",
-          [k for k, _ in world.room_log] == ["exit", "enter"], str(world.room_log))
+    check("storing once (at the end): no convert or store between the legs",
+          not {"convert", "store"} & set(one.get("phases_s") or {})
+          and {"to_room", "convert", "store"} <= set(two.get("phases_s") or {}) and world.at_home_landing,
+          f"{one.get('phases_s')} {two.get('phases_s')} at {world.pos}")
     check("both legs' logs became boards in the chest, nothing left in the pack",
           world.chest_stack is not None and world.chest_stack[1] == one.get("logs", 0) + two.get("logs", 0)
           == world.harvested and world.logs == 0 and two.get("stored") == world.harvested,
           f"chest {world.chest_stack}, harvested {world.harvested}, logs {world.logs}, stored {two.get('stored')}")
     trav = [e["data"] for e in store.job_events("lumber") if e["kind"] == "travel"]
     outs = [(d["spot"], d["book"], (d.get("landing") or {}).get("source")) for d in trav if d["leg"] == "out"]
-    check("out to 'sim' by our book's 'Sim Woods', home on foot after the dry leg (within home.NEAR_LANDING: no "
-          "recall), out to 'sim2' by the home library's tome (landing source 'library', rune 286), home by our book",
+    check("out to 'sim' by our book's 'Sim Woods', home by its \"Logan's House\" after the dry leg, into the guild "
+          "house by 'DTF Loot Chest', out to 'sim2' by the home library's tome (landing source 'library', rune 286), "
+          "home by our book",
           world.recalls_book == [BOOK_RUNE_POS] and world.recalls_out == [RUNE_POS] and world.tome_far == 0
-          and world.recalls_home == [HOME_RUNE_POS] and len(outs) == 2
-          and outs[0][0] == "sim" and outs[1] == ("sim2", f"0x{TOME:08X}", "library"),
-          f"book {world.recalls_book} out {world.recalls_out} home {world.recalls_home} travel {outs}")
+          and world.recalls_home == [HOME_RUNE_POS, HOME_RUNE_POS] and world.recalls_guild == [GUILD_POS]
+          and len(outs) == 2 and outs[0][0] == "sim" and outs[1] == ("sim2", f"0x{TOME:08X}", "library"),
+          f"book {world.recalls_book} out {world.recalls_out} home {world.recalls_home} guild {world.recalls_guild} "
+          f"travel {outs}")
     hops = [e["data"] for e in store.job_events("lumber") if e["kind"] == "hop"]
     check("a `hop` job event from 'sim' with the hop to 'sim2' and the logs carried",
           any(h["from"] == "sim" and (h.get("hop") or {}).get("spot") == "sim2" and h["carried"] == one.get("logs")
               and h["why_not"] is None for h in hops), str(hops)[:800])
     oeps = ostore.episodes("lumber")
-    check("--hops 0: the dry leg goes home through the room as before: one 'stored' row (dry, leg 1, no hop), "
+    check("--hops 0: the dry leg goes home and stores as before: one 'stored' row (dry, leg 1, no hop), "
           "every log in the chest, no hop job event with a hop",
           ocode == 0 and len(oeps) == 1 and oeps[0].get("outcome") == "stored" and oeps[0].get("dry") is True
           and oeps[0].get("leg") == 1 and "hop" not in oeps[0] and off.recalls_out == []
-          and [k for k, _ in off.room_log] == ["exit", "enter"]
+          and off.recalls_home == [HOME_RUNE_POS] and off.at_home_landing
           and off.chest_stack is not None and off.chest_stack[1] == off.harvested > 0
           and not any(e["data"].get("hop") for e in ostore.job_events("lumber") if e["kind"] == "hop"),
           f"exit {ocode} {[(e.get('outcome'), e.get('dry'), e.get('leg'), e.get('hop')) for e in oeps]} "
-          f"room {off.room_log} chest {off.chest_stack}\n{otext[-800:]}")
+          f"home {off.recalls_home} chest {off.chest_stack}\n{otext[-800:]}")
     store.close()
     ostore.close()
 
@@ -4207,22 +4181,22 @@ def unit_home_on_abort():
     """Live 2026-10-06 (lumber-20261006-101348-70b3): the run aborted with Dan already at a hot landing and exited
     there; a snow elemental killed him 15 s later. A plain abort away from home now recalls home and stores first;
     at home, dead, or without a book it does nothing."""
-    print("\n== an abort away from home: recall home, then the room; never left standing in the field ==")
+    print("\n== an abort away from home: recall home, then convert and store; never left standing in the field ==")
     import loop_lumber
     calls = []
 
     def recall_out(st, a, worst, swung, pk=True, why=None, what=None, attempts=None):
         calls.append(("recall", pk, why))
-        raise loop_lumber.Unsafe("escaped by recall to (4134, 1429)")
+        raise loop_lumber.Unsafe("escaped by recall to (3575, 3251)")
     state = {"world": {"self": {"dead": False}}}
     home = [False]
     fake = SimpleNamespace(
         recall_book=0x49865F8F, link=SimpleNamespace(state=lambda: state), at_home=lambda st: home[0],
         watch=SimpleNamespace(update=lambda st, **kw: SimpleNamespace(dead=False)), recall_out=recall_out,
-        home_after_recall=lambda e, timed: calls.append(("room", str(e))))
+        home_after_recall=lambda e, timed: calls.append(("store", str(e))))
     loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("recall to 'X' not possible"), None)
-    check("away from home: one recall (a creature-style one, not pk), then the room phase",
-          [c[0] for c in calls] == ["recall", "room"] and calls[0][1] is False and "abort away from home" in calls[0][2],
+    check("away from home: one recall (a creature-style one, not pk), then the home phase (convert, store)",
+          [c[0] for c in calls] == ["recall", "store"] and calls[0][1] is False and "abort away from home" in calls[0][2],
           str(calls))
     calls.clear()
     home[0] = True
@@ -4602,7 +4576,7 @@ def unit_escape_heal():
 
 
 def unit_hop_salvage():
-    """try_hop after an escape recall decides like the room (home_after_recall): settled first, in mode 'salvage'
+    """try_hop after an escape recall decides like storing (home_after_recall): settled first, in mode 'salvage'
     (only players and death count). Live 2026-10-13 a resting horse blamed for a spell crashed
     lumber-20261013-161548-a508 at the landing; 2026-10-14 lxl's reflected spell was counted as 'taking damage, no
     creature in view' during the hop's hatchet clicks and stopped lumber-20261014-112045-b23a there with 1201 logs

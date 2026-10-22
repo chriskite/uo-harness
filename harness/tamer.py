@@ -2074,11 +2074,15 @@ class Team:
         return m is not None and not m["war"] and not v.sees(m, v.pos, APPROACH_R, strict=True)
 
     def approach(self, serial: int, mob: dict):
-        """Walk toward a target the pets haven't engaged until APPROACH_R (its aggro range): the
-        pets on guard engage it when it comes on. Stops as soon as it is hurt or attacks us. Stopped by a monster
-        we mustn't wake first ("would see us": a purger before the pets, a --never-aggro one), the target is passed
-        over for SKIP_S: the next approach takes the same way (simulator 2026-10-21: back off, approach, hold,
-        back off within 1-3 s, 7 repeated purger holds an hour against none live); one that comes on is fought."""
+        """Walk toward a target the pets haven't engaged until APPROACH_R (its aggro range), standing on its floor
+        (within FLOOR_Z_TOL of its map surface): the pets on guard engage it when it comes on. Stops as soon as it is
+        hurt or attacks us. Stopped by a monster we mustn't wake first ("would see us": a purger before the pets, a
+        --never-aggro one), the target is passed over for SKIP_S: the next approach takes the same way (simulator
+        2026-10-21: back off, approach, hold, back off within 1-3 s, 7 repeated purger holds an hour against none
+        live); one that comes on is fought. On its floor because the beeline to within APPROACH_R of a monster below a
+        ledge ends on the ledge, where on_our_floor no longer counts it, and the patrol's next step made it a target
+        again: live 2026-10-21 22:27:28-22:28:42, 40 rounds between (5180, 684) and (5181, 685) over two shade wolves
+        28 z below (sim/fight2227.py; user: "stuck bumping into a wall trying to approach a shade wolf")."""
         h, label = self.h, "toward a target"
         name = mob.get("name") or f"0x{serial:08X}"
         h.doing("approach", f"Approaching {name}", (mob["x"], mob["y"]), serial)
@@ -2096,7 +2100,8 @@ class Team:
                 blocked.append(why)
             return why
         try:
-            h.mover.walk_to(where, APPROACH_R, label, max_moves=APPROACH_MOVES, stop=stop)
+            h.mover.walk_to(where, APPROACH_R, label, max_moves=APPROACH_MOVES, z_ok=h.floor_z_ok(h.state(), mob),
+                            stop=stop)
         except Abort as e:
             if not str(e).startswith(label):
                 raise

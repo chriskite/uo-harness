@@ -163,7 +163,7 @@ export function MiningJobPanel({ intent, viz }: { intent: AgentIntent; viz: VizS
               {carried.pickaxesWorn} worn · {carried.pickaxesPacked} in the pack
             </span>
             <span>stored today</span>
-            <span className="mono" title="Ingots that went into the room's resource stockpile today">
+            <span className="mono" title="Ingots that went into the house's resource stockpile today">
               {data ? `${fmtInt(storedToday)} ingots` : "—"}
             </span>
           </div>

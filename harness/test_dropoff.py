@@ -1,4 +1,4 @@
-"""Offline proof of harness/dropoff.py against a fake room that answers as the live one did
+"""Offline proof of harness/dropoff.py against a fake home that answers as the live rental room did
 (capture 20261015_210709, the user's 'New Drop Off' runs 21:29:49-22:45:44).
 
 Run: python harness/test_dropoff.py"""
@@ -33,6 +33,7 @@ class Room:
 
     def __init__(self, plan, extra_items):
         self.sent, self.pending = [], []
+        self.contents = {}            # container serial -> items the server sends when it opens (0x3C)
         self.menus = {int(s["serial"], 16): s["entry"] for s in plan["steps"]}
         self.target_step = next(int(s["serial"], 16) for s in plan["steps"] if s.get("target"))
         items = {f"0x{PACK:08X}": {"graphic": 0x0E75, "layer": 0x15, "container": f"0x{ME:08X}"},
@@ -67,8 +68,10 @@ class Room:
         elif pkt[0] == 0x6C:
             self.say("You add 3 items to the Resource Stockpile.")
         elif pkt[0] == 0x06:
-            self.state["world"]["containers"].append(f"0x{int.from_bytes(pkt[1:5], 'big'):08X}")
-            self.pending.append({"ev": "container_open", "serial": int.from_bytes(pkt[1:5], "big")})
+            s = int.from_bytes(pkt[1:5], "big")
+            self.state["world"]["containers"].append(f"0x{s:08X}")
+            self.state["world"]["items"].update(self.contents.pop(s, {}))
+            self.pending.append({"ev": "container_open", "serial": s})
         elif pkt[0] == 0x08:
             s = int.from_bytes(pkt[1:5], "big")
             self.state["world"]["items"][f"0x{s:08X}"]["container"] = f"0x{CHEST:08X}"
@@ -113,10 +116,51 @@ def test_dropoff():
     far.state["movement"]["pos"] = [400, 927, 1]
     try:
         dropoff.run(far, NoHuman(), plan, timeout=0.5)
-        check("off the arrival tile, out of reach: refused", False)
+        check("off the landing tile, out of reach: refused", False)
     except dropoff.DropoffError as e:
-        check("off the arrival tile, out of reach: refused before anything is sent",
+        check("off the landing tile, out of reach: refused before anything is sent",
               far.sent == [] and "within 2 tiles" in str(e), str(e))
+
+    print("== the tomes in a wooden shelf by the landing (the user's house, 2026-10-21) ==")
+    shelf_serial, tomes = 0x5656B661, [int(s["serial"], 16) for s in plan["steps"][:4]]
+    inside = {f"0x{shelf_serial:08X}": {"graphic": 0x0A9D, "x": 401, "y": 923, "z": 1, "name": "wooden shelf"},
+              **{f"0x{t:08X}": {"graphic": 0x1234, "x": 60, "y": 80, "container": f"0x{shelf_serial:08X}"}
+                 for t in tomes}}       # container-local x/y: nowhere near the landing as tiles
+    room = Room(plan, inside)
+    out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
+    first_menu = next(i for i, p in enumerate(room.sent) if p[0] == 0xBF and p[4] == 0x13)
+    check("tomes inside a shelf 2 tiles off: reach is the shelf's tile, the shelf opened first, every step picked",
+          out["ok"] and room.sent.index(actions.dclick(shelf_serial)) < first_menu
+          and len([p for p in room.sent if p[0] == 0xBF and p[4] == 0x15]) == len(plan["steps"]),
+          f"{out.get('error')}")
+    room = Room(plan, {**inside, f"0x{shelf_serial:08X}": {**inside[f"0x{shelf_serial:08X}"], "x": 399}})
+    try:
+        dropoff.run(room, NoHuman(), plan, timeout=0.5)
+        check("a shelf 4 tiles off: refused", False)
+    except dropoff.DropoffError as e:
+        check("a shelf 4 tiles off: refused before anything is sent", room.sent == [] and "within 2 tiles" in str(e),
+              str(e))
+
+    print("== back from a trip: the client has forgotten the shelf's contents (live 2026-10-21 22:32:36) ==")
+    room = Room(plan, {f"0x{shelf_serial:08X}": inside[f"0x{shelf_serial:08X}"]})
+    for t in tomes:
+        del room.state["world"]["items"][f"0x{t:08X}"]
+    room.contents[shelf_serial] = {k: v for k, v in inside.items() if k != f"0x{shelf_serial:08X}"}
+    out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
+    first_menu = next((i for i, p in enumerate(room.sent) if p[0] == 0xBF and p[4] == 0x13), None)
+    check("tomes unknown: the shelf their steps name opened first, then every step picked",
+          out["ok"] and first_menu is not None and room.sent.index(actions.dclick(shelf_serial)) < first_menu
+          and len([p for p in room.sent if p[0] == 0xBF and p[4] == 0x15]) == len(plan["steps"]),
+          f"{out.get('error')}")
+    room = Room(plan, {f"0x{shelf_serial:08X}": inside[f"0x{shelf_serial:08X}"]})
+    for t in tomes:
+        del room.state["world"]["items"][f"0x{t:08X}"]
+    try:
+        dropoff.run(room, NoHuman(), plan, timeout=0.3)
+        check("a tome not in the opened shelf: refused", False)
+    except dropoff.DropoffError as e:
+        check("a tome not in the opened shelf: refused before any menu",
+              not any(p[0] == 0xBF for p in room.sent) and "isn't in the container 0x5656B661" in str(e), str(e))
 
 
 def main():

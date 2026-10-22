@@ -24,7 +24,7 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
    old from another session) already owns Logan; message it (`write agent://<id>`) instead of starting another.
    A parked one may be revived the same way when its context is still small; otherwise dispatch fresh.
 4. Anything off (dead, inside the dungeon with no run, pets missing, gate paused, a task running): tell the user
-   and dispatch only once they say how to proceed. §5 step 1: start in the inn room or at the DTF landing.
+   and dispatch only once they say how to proceed. §5 step 1: start at home in Logan Wolf's house (the "Logan's House" landing).
 
 ## 2. Dispatch
 
@@ -37,7 +37,7 @@ against the main store (§5 step 0).
 ```
 Act as the Seer for Logan Wolf: follow docs/OVERSEER.md §5. Goal: Mausoleum crawl shifts (§5 'Mausoleum crawl
 shifts') until the user says stop.
-State at dispatch (checked by the parent, <HH:MM>): <hits, pos, facet, room/landing, pets and their hits,
+State at dispatch (checked by the parent, <HH:MM>): <hits, pos, facet, at home or where, pets and their hits,
 gold, gate, tasks, open junctures>.
 Runner changes since the last shift (commits <shas>): <what each changes and the log lines it writes>.
 <Any change to §5's command or procedure the user asked for, else "§5 verbatim".>
@@ -96,12 +96,12 @@ User reports are ground truth; don't re-verify them in game.
 5. **Make it live.** Runner code (loop_hunt, tamer, crawl, aggro, escape, moongate, agent_link, …) loads at
    `ctl run`: the next run has it; a run in progress keeps the old code. ctl.py loads per call. Proxy and
    world-model code (`harness/world/`, the proxy, the state port) needs a proxy restart: ask the user, with
-   Logan in the room and no run (after it `status.mobiles` is empty until the pets show again). §5 or
+   Logan at home in the house and no run (after it `status.mobiles` is empty until the pets show again). §5 or
    overseer.md changes reach a running Seer only by message.
 6. **Brief the Seer** (`write agent://<id>`): the commit, what changed, the log lines it writes now, whether to
    resume. Tell the user in one or two lines: the issue, the cause, the fix, the commit.
 
 ## 5. Ending
 
-The user says stop: tell the Seer to end the shift (it runs `ctl stop --after-trip` and waits for `task_done` in
-the room), wait for its report, and pass the user its summary plus every fix made this shift with its commit.
+The user says stop: tell the Seer to end the shift (it runs `ctl stop --after-trip` and waits for `task_done` at
+home), wait for its report, and pass the user its summary plus every fix made this shift with its commit.

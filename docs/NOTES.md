@@ -510,6 +510,8 @@ viz map's grove layer, docs/VISUALIZER.md §2.12) on the 2026-10-07 store:
 
 ## Rental room via the DTF house steward (live 2026-10-04, Outland Dan)
 
+History since 2026-10-21: home moved to Logan Wolf's house (next section); no runner enters the room.
+
 - **Access:** Dan has no room of his own; he is Co-Owner of Logan Wolf's (the user's other
   character). A house steward reaches rental rooms like an innkeeper does: Chase the house steward
   (0x009F57FB, ~4138, 1435, invulnerable) in the DTF guild house. His context menu: 0 "Open
@@ -549,7 +551,48 @@ viz map's grove layer, docs/VISUALIZER.md §2.12) on the 2026-10-07 store:
   The lumber sim's steward no longer answers a right-click, and the main scenario checks he is
   never right-clicked. Same risk remains for other injected right-clicks (`mount.py` pet menu,
   `ctl act menu`, vendor `buy`) [not changed].
-- Memory: #4082 (procedure, `char:outland_dan`, standing in his brief; #4081 superseded).
+- Memory: #4082 (procedure, `char:outland_dan`; #4081 superseded); superseded on 2026-10-21 by #17142 (now #17146).
+
+## Logan Wolf's house (live 2026-10-21)
+
+User 2026-10-21: "We've moved from an inn room into our own house." Read through ctl ~21:10, both
+characters logged in, standing in the house, facet 0. Decision: docs/PLAN.md "Home moves to Logan
+Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
+- **Landing:** "Logan's House" lands at (3575, 3251, 6), where Logan Wolf stood. At home =
+  within `home.HOME_R` (6) tiles of it on facet 0. Interior ~x 3570-3578, y 3249-3254; door
+  0x4C7C2469 at (3579, 3252), house sign at (3580, 3251).
+- **Items:** the room's serials, now in the house (distance from the landing): stockpile
+  0x62645C82 (3574,3249,6) 2; storage shelf 0x6CEB65CD (3573,3249,6) 2; chest "paragon chest (drake)"
+  0x4AE0DD2C (3575,3250,23) 1; bank deposit safe 0x431E86F5 (3575,3249) 2; recycler 0x6264BB54
+  (3573,3250) 2; tomes 0x62659A52 / 0x431E6BAA / 0x62658F0D / 0x62657BB3 at 1; magic item vault
+  0x6264CB96. **New forge 0x56372DCC** (3574,3254,6), 3 tiles off; the room's forge 0x51CF24B3 is gone.
+- **The four drop-off tomes moved into the "wooden shelf" 0x5656B661** (3573,3251,6), 2 tiles off (user,
+  later on 2026-10-21; the chest then read z 19). `act dropoff` first refused them ("isn't in view within
+  2 tiles": it measured items on the ground only). `dropoff.run` now takes an item's reach from the
+  outermost container on the ground (`dropoff.ground_item`) and opens a container the server hasn't
+  opened for us first. Live ~22:00: all 8 steps answered, the aspect tome took 1 item ("1 aspect items
+  added to tome."), the stockpile 1; Logan's loadout at the house shelf: "No resupply:" Wizard's
+  Satchel, Potion Satchel and the five platemail pieces.
+- **Runes:** Outland Dan's runebook 0x49865F8F (9 charges): Prev Bank, Cambria MG, Terran MG,
+  Cambria Bank, Anchor's Rest, Ossuary, Anchor's Rest MG, SSC, Shelter Stairs, **"DTF Loot Chest"
+  (4134,1429) = the default**, **"Logan's House" (3575,3251)**; Khal Draco was removed. So Dan's
+  default does not go home: the way home is "Logan's House" by name. Logan Wolf's rune tome
+  0x444AB1F3 (47 charges): **default = "Logan's House"** (row 25), "DTF Loot Chest" row 23 at
+  (4135,1431), "Maus Near 2" row 24.
+- **The DTF guild house** is now only the way to the rune library (stand 4152,1429, reached by
+  "DTF Loot Chest") and its stocked shelf 0x40B84C55 (4133,1427,11), whose recall scrolls top up
+  Dan's runebook. It rests a ridden mount when we recall in and gives it back on the recall out.
+- **Mounts (user, 2026-10-21):** the house "auto stashes mounts" like the guild house: a ridden mount
+  rests when we recall in and comes back on the recall out. So at home Dan is on foot and his
+  remembered horse 0x0154FE11 isn't in view (as seen 2026-10-21); the runner records `resting` and
+  checks it rides after the recall out (`mount_after_recall`).
+- **How the runners use it** (offline-proven 2026-10-21, not yet run live; LUMBER_LOOP §13 "Trip"):
+  `prepare_recall` takes a book whose default lands at home, else the book holding "Logan's House"
+  by name (Dan's runebook); `come_home` (phase `to_room`) recalls and walks to the landing tile when
+  beyond 2 tiles; library trips `to_library_house` (travel leg `to_library`) by "DTF Loot Chest",
+  then `guild_resupply` when the house shelf left something out or the book is short; resupply
+  `where` is `home`/`guild`; mining smelts at the house forge (`home_forge`, `smelt` event `at: home`).
+- Memory: #17146 (procedure, pinned: the house as home and how to get there; supersedes #17142).
 
 ## Storage shelves (live 2026-10-04/05, Outland Dan)
 
@@ -4539,6 +4582,33 @@ significantly worse (one-sided Welch t-test on per-run gold per game hour, p >= 
   the corridor waits. Its blightmare walks after us when we break its sight (docs/SIM.md "Limits"), so the cover may
   be worth more live than here.
 
+## The first house trip: ping-pong at a ledge, the drop-off that couldn't see the tomes (live 2026-10-21 22:17-22:33, hunt-20261021-221736-1743)
+
+Capture session_20261021_164924. Visit 1: 25 kills, 25,504 gp, left by V\* (26,410) at 22:32:24.
+- **Ping-pong at the ledge** (user: "Logan is stuck bumping into a wall trying to approach a shade wolf").
+  22:27:28-22:28:42, 40 rounds of `patrol to (5177, 681): route 3 steps from (5181, 685)` / `stopped (a target in
+  reach)` / `target a shade wolf 0x003EACBE at 7 tiles` / `toward a target: route 1 steps from (5180, 684)` /
+  `arrived at (5181, 685)`. Logan on the Maus 3 ledge at z 25; the wolves below at (5176-5180, 691, -3) (0x20/0x77;
+  their way up is the ramp west, (5177, 689) at z 2). `on_our_floor` (the walk to beside it at its height within
+  the beeline - 1 + `FLOOR_DETOUR`): from (5180, 684) 11 steps against a budget of 10, a target; from (5181, 685) 12
+  against 9, not one. The approach walked the beeline to within 6 in x/y, onto the ledge's edge at (5181, 685),
+  where the wolf stopped being a target; the patrol's first step back made it one again. It ended when the wolf
+  moved and `Team.unseen` passed it over. **Fix:** the approach ends standing on the target's floor (`z_ok`,
+  `HuntLoop.floor_z_ok`). `sim/fight2227.py` (the capture's tiles, 2 min, 12 seeds) before / after: 655 / 9
+  approaches, 655 / 0 of them ending on the ledge, 15 / 24 kills (both wolves every seed after), no deaths either way.
+  Batch, 24 runs seed 17 `--others --eerie --prior` the main store, before / after: deaths 1.42 / 1.00 per h, runs
+  with a death 13 / 10, kills 93.2 / 98.4 per h, gold 99.9k / 104.9k per h (noise-level; no cost).
+- **The drop-off saw no tomes.** 22:32:36 `recalled home to (3575, 3251)`, then `drop-off: a treasure map tome
+  0x62659A52 isn't in view within 2 tiles: stand on the home landing tile; going on with the load`, and at 22:32:40
+  the recall back to Maus Near 2 with 25.5k gp; the user paused the gate (22:32:47) and took him home. Logan was on
+  the landing tile. The tomes sit in the wooden shelf 0x5656B661 (2 tiles off); the world model drops a container's
+  contents with its 0x1D (`WorldState.delete`), so back from the dungeon the shelf is known and its tomes aren't
+  until it is opened again. `act dropoff` at 22:17 worked because the shelf had been opened earlier in the session
+  (0x3C of its contents at 22:02:25). **Fix:** homes.json steps name their container (`in`); a step whose item is
+  unknown is reached through it: the shelf opened, then its contents waited for (`test_dropoff.py` "back from a
+  trip": before, exactly the live error). And a drop-off that can't run now ends the run at home (`Abort`,
+  task_failed) instead of going back in with the load (docs/PLAN.md "Home moves to Logan Wolf's house").
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0
@@ -4787,7 +4857,8 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - Between spots (a leg cut short, home at the landing): only when the load is too risky for the next leg.
       `mining_opt.hop_choice` compares the load × P(death) with `STORE_FIRST_S` at the spot's ore rate. The `hop`
       job event has `risk` {carried_ore, p_death, risk_ore, store_cost_ore}, and the log says "storing the N
-      ingots first is worth more …" or "hop … (risks X ore; the room would cost Y)".
+      ingots first is worth more …" or "hop … (risks X ore; storing would cost Y)" ("the room would cost Y" before 2026-10-21). `STORE_FIRST_S`
+      went 60 → 40 s on 2026-10-21: home is a recall and a few steps, no room in between.
     - Before this (2026-10-19 evening to 2026-10-20 noon) every hop carried the ingots on, e.g. 1242 and 2554
       ingots in mining-20261020-105606-baf5.
   - **Pickaxes wear out in the hand** (capture session_20261020_102748).

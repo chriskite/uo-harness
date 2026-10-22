@@ -44,7 +44,7 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     have = set(a for a in extra if a.startswith("--"))
     out = list(extra)
     defaults = [("--pets", []), ("--leave-recall", [tome]), ("--timeout", [str(minutes * 60)]),
-                ("--no-drop-off", [])]   # no rental room in the scenario
+                ("--no-drop-off", [])]   # no home in the scenario
     rn = sc.get("runner") or {}
     if rn.get("leave_gate"):
         defaults += [("--leave-gate", [str(v) for v in rn["leave_gate"]]), ("--gate-dest", [rn["gate_dest"]])]

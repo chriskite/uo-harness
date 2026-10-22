@@ -34,14 +34,14 @@ SEEDS = os.path.join(HERE, "data", "mining_spots.json")
 PRIOR_ORE_H = 1300.0     # ore per field hour before any trip (capture 20261019_200350: 189 ore in 8.7 field min)
 PRIOR_CV = 0.5           # the prior rate's coefficient of variation
 REGROW_MIN = 60          # minutes a spot that ran dry waits (nodes respawn in 30-60 min, docs/NOTES.md)
-RESTART_H = 0.1          # hours a threat that sends us home costs (recall, room, the next run's way out)
+RESTART_H = 0.1          # hours a threat that sends us home costs (recall home, storing, the next run's way out)
 DEATH_H = 0.5            # hours a death costs besides the carried ingots (recovery, re-equipping)
 DRAWS = 2000             # Thompson draws for P(best)
 STINT_MIN = 60           # field minutes one run should dig (the runner's --field-min)
-# Storing first between two spots costs a stop in the rental room and a new run: the house steward and back out,
-# the stockpile's and the shelf's Restock and Resupply (live 2026-10-20 11:47:34-49: 7 s to the room, 8 s storing;
-# ~10 s out, lumber_opt ROOM_EXIT_S), then the overseer's plan and the next run's start [INFERENCE: ~30 s]
-STORE_FIRST_S = 60.0
+# Storing first between two spots costs a stop at home and a new run: the stockpile's and the shelf's Restock and
+# Resupply at the house (live 2026-10-20 11:47:34-49: 8 s storing; the rental room's 7 s in and ~10 s out are gone
+# with the house, 2026-10-21), then the overseer's plan and the next run's start [INFERENCE: ~30 s]
+STORE_FIRST_S = 40.0
 DEATH_SLACK_S = 10.0     # a `death` job event this long after a leg's end still counts as that leg's (trip_obs)
 
 
@@ -218,10 +218,10 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
 
 def hop_choice(run: dict, carried_ore: float, leg_h: float) -> tuple[bool, dict]:
     """Home after a leg that ended early with a load: carry it on to `run`'s spot (plan's pick) or store it
-    first in the rental room, as the lumber runner decides for its logs (user 2026-10-20: "the same way we store
+    first at home, as the lumber runner decides for its logs (user 2026-10-20: "the same way we store
     boards ... when we head home and we have enough ingots that it's too risky to carry them back into the
     field, we store them"; lumber_opt.hop_choice). Both ways the next leg is the same; they differ by the load
-    at risk and the room's time. A hop risks what the room would store (`carried_ore`: the ingots / 2, in ore;
+    at risk and the time storing takes. A hop risks what storing would put away (`carried_ore`: the ingots / 2, in ore;
     raw ore stays carried either way: the stockpile leaves it, live 2026-10-19 22:44:39) to a death on the way in
     (LOCKOUT_S) and in the leg (`leg_h`, the trip's field time left) at the spot's death hazard (posterior mean
     `death_h`); storing first costs STORE_FIRST_S at its rate (`expected_ore_h`). Returns (hop?, the terms)."""

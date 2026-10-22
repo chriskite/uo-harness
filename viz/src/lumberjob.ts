@@ -14,7 +14,6 @@ export function runningLumber(intent: AgentIntent | null | undefined): AgentInte
 export type LumberLeg = "out" | "grove" | "home";
 
 const LEG: Record<string, LumberLeg> = {
-  leave_room: "out",
   resupply: "out",
   mount: "out",
   aspect: "out",

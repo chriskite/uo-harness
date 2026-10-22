@@ -1,6 +1,6 @@
-"""The rental-room drop-off as one deterministic flow: the user's Razor script "New Drop Off" (F5 in
+"""The home drop-off as one deterministic flow: the user's Razor script "New Drop Off" (F5 in
 the profile "Logan Wolf Tribard Tamer"; ClassicUO/Data/Plugins/Assistant/Scripts/New Drop Off.razor),
-plus what it leaves in the pack (user 2026-10-15: research materials and resource maps, into the room
+plus what it leaves in the pack (user 2026-10-15: research materials and resource maps, into the home
 chest "for now, we'll buy tomes later").
 
 The script is a list of `menu <serial> <index>` lines: each opens that item's context menu (0xBF sub
@@ -16,7 +16,7 @@ waits only for its menu (one round trip: the entry is chosen by cliloc) and the 
 else; a step's line is the system text heard before the next step's menu (the server answers in order).
 
 Then every item in the backpack's top level (where loot lands; never the user's own bags or anything
-worn) that `to_chest` names goes into the room chest: lift, a drag pause, drop (the stock drag).
+worn) that `to_chest` names goes into the home chest: lift, a drag pause, drop (the stock drag).
 
 IO-agnostic like shelf.py and stockpile.py: `io` has send(pkt) and poll() -> (state, new world
 events) (escape.LinkIO for runners, ctl._CtlIO for ctl)."""
@@ -31,7 +31,7 @@ import combat
 
 EVENT_WAIT_S = 3.0
 LINE_WAIT_S = 1.5             # after the last pick: its line (the server's lines come within ~0.1 s live)
-RANGE = 2                     # every drop-off item stands within 2 tiles of the room's arrival tile
+RANGE = 2                     # every drop-off item stands within 2 tiles of the home landing tile
 
 
 class DropoffError(Exception):
@@ -91,23 +91,70 @@ def chest_items(state: dict, rules: dict) -> list[tuple[int, dict]]:
     return out
 
 
+def ground_item(items: dict, serial: int) -> dict | None:
+    """The item on the ground that holds `serial` (itself when it lies there; else the outermost container it
+    sits in, e.g. the wooden shelf the user put the tomes on, 2026-10-21): the one whose tile counts for reach.
+    None when unknown or carried by a mobile."""
+    it, seen = items.get(f"0x{serial:08X}"), set()
+    while it is not None and it.get("container") is not None:
+        parent = _serial(it["container"])
+        if parent in seen:
+            return None
+        seen.add(parent)
+        it = items.get(f"0x{parent:08X}")
+    return it if it is not None and it.get("x") is not None else None
+
+
 def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
     """The drop-off `plan` (homes.json `dropoff`: steps [{serial, name, entry (cliloc), target?:
-    "pack"}], chest {serial}, to_chest {graphics, names}) from where we stand. Each step: its context
-    menu, the entry with that cliloc (refused when missing or disabled), the backpack targeted when
-    the step says so, then its line. Then the chest items (chest_items). A step whose item isn't in view
-    within RANGE stops the drop-off before anything is sent. Returns {ok, steps [{serial, name, lines}],
-    chest [{serial, name, amount}], left [serials not moved], error?, heard}."""
+    "pack", in?: container serial}], chest {serial}, to_chest {graphics, names}) from where we stand. Each step: its
+    context menu, the entry with that cliloc (refused when missing or disabled), the backpack targeted when
+    the step says so, then its line. Then the chest items (chest_items). A step's item may sit in a container
+    on the ground (the user's wooden shelf holds the tomes since 2026-10-21): its reach is the container's tile,
+    and a container the server hasn't opened for us yet is opened first, outermost first, like a player
+    (agent_link.containers_to_open). The client forgets a container's contents when it leaves view (0x1D): back
+    from a trip, the tomes in the shelf are unknown until the shelf is opened again (live 2026-10-21 22:32:36, the
+    hunt's drop-off after the recall home: "a treasure map tome … isn't in view within 2 tiles"). So a step whose
+    item is unknown is reached through the container its `in` names: that one opened, then its item looked for.
+    A step whose item (or `in` container) isn't in view within RANGE stops the drop-off before anything is sent.
+    Returns {ok, steps [{serial, name, lines}], chest [{serial, name, amount}], left [serials not moved], error?,
+    heard}."""
+    from agent_link import containers_to_open
     st, _ = io.poll()
     items, pos = st["world"]["items"], st["movement"].get("pos")
+    shut, unseen = [], []
     for s in plan["steps"]:
-        it = items.get(f"0x{_serial(s['serial']):08X}")
-        if it is None or it.get("x") is None or not pos \
-                or max(abs(it["x"] - pos[0]), abs(it["y"] - pos[1])) > RANGE:
-            raise DropoffError(f"{s['name']} 0x{_serial(s['serial']):08X} isn't in view within {RANGE} tiles: "
-                               "stand on the room's arrival tile")
+        serial = _serial(s["serial"])
+        it = ground_item(items, serial)
+        box = _serial(s["in"]) if it is None and s.get("in") else None
+        if box is not None:
+            it = ground_item(items, box)
+        if it is None or not pos or max(abs(it["x"] - pos[0]), abs(it["y"] - pos[1])) > RANGE:
+            raise DropoffError(f"{s['name']} 0x{serial:08X} isn't in view within {RANGE} tiles: "
+                               "stand on the home landing tile")
+        if box is None:
+            shut += [c for c in containers_to_open(st["world"], serial) if c not in shut]
+        else:
+            shut += [c for c in containers_to_open(st["world"], box, itself=True) if c not in shut]
+            unseen.append(s)
     pack = combat.backpack(items, st["movement"].get("self_serial"))
     flow, done, error = _Flow(io), [], None
+    for c in shut:                    # a player opens the shelf before using what's in it
+        def opened(e, c=c):
+            return e.get("ev") == "container_open" and _serial(e.get("serial")) == c
+        human.wait("use")
+        got = flow.send_wait(actions.dclick(c), opened, f"opening the container 0x{c:08X}", timeout)
+        if not any(opened(e) for e in got):
+            raise DropoffError(f"the container 0x{c:08X} holding drop-off items didn't open: {_lines(got)}")
+    end = time.monotonic() + timeout
+    while unseen:                     # its contents come right after the open (0x3C)
+        st, _ = io.poll()
+        unseen = [s for s in unseen if f"0x{_serial(s['serial']):08X}" not in st["world"]["items"]]
+        if unseen and time.monotonic() > end:
+            raise DropoffError(f"{unseen[0]['name']} 0x{_serial(unseen[0]['serial']):08X} isn't in the container "
+                               f"0x{_serial(unseen[0]['in']):08X}")
+        if unseen:
+            time.sleep(0.05)
     human.wait("hotkey")              # the script's hotkey (F5); its lines then run back to back
     for s in plan["steps"]:
         serial = _serial(s["serial"])

@@ -1,8 +1,8 @@
 """Self-optimizing lumber job (docs/LUMBER_LOOP.md §6): where to chop, how much
 to carry home, and which hatchet to use, learned from the memory store.
 
-The objective is stored logs per hour of agent time (what reaches the rental
-room's chest at home), net of expected PK losses (logs/hour is the proxy for
+The objective is stored logs per hour of agent time (what reaches the house's
+stockpile or chest at home), net of expected PK losses (logs/hour is the proxy for
 gold/hour until colored-wood prices are known; user decision 2026-10-02). The
 overseer asks `ctl lumber plan` before each lumber run and gets one runner
 command back.
@@ -23,10 +23,10 @@ character's home, harness/home.py, user decision 2026-10-04):
     success (the Harvest aspect's procs double some successes and grow with the
     aspect: OPTIMIZER.md F1), so a spot measured earlier is credited with what it
     would yield now.
-  - overhead T: room exit + walk to the landing's rune + recall out + walk into
-    the grove + lockout + recall home + into the room + convert + store, per
-    trip. Normal posterior; prior from the spot's landing (landing_for: the rune
-    landing nearest the grove, from our libraries and own books).
+  - overhead T: (for a library rune: the recall into the library's house + the
+    walk to its tome) + recall out + walk into the grove + lockout + recall home +
+    convert + store, per trip. Normal posterior; prior from the spot's landing
+    (landing_for: the rune landing nearest the grove, from our libraries and own books).
   - hazards per exposed hour (the walk in from the landing, the lockout at the grove
     and the field time), competing (trip_terms): death h_D (PK or creature; the trip
     stores nothing, the carried logs and every unblessed item we carry are lost, and
@@ -110,9 +110,7 @@ DRY_OBS_TILES = 30.0              # tree tiles of evidence one dry trip is worth
                                   # (the trees of one grove are emptied by the same players: not independent)
 YIELD_PRIOR_TILES = 10.0          # tree tiles of pseudo-data behind a spot's yielding share (pooled mean)
 SEC_PER_TILE = 0.45               # overhead prior: walking pace incl. detours [INFERENCE: mounted 0.1-0.2 s/step, on foot 0.4]
-OVERHEAD_FIXED_S = 40.0           # convert in the room + store in the chest + human pauses (live 10-20 s + pauses)
-ROOM_EXIT_S = 10.0                # the room door's menu, "Exit to House Steward", the teleport [INFERENCE]
-ROOM_ENTER_S = 15.0               # landing -> house steward, Visit Other Rooms, the owner's row [INFERENCE]
+OVERHEAD_FIXED_S = 40.0           # the steps to the landing tile at home + convert + store + human pauses (live 10-20 s + pauses)
 NO_LANDING_TILES = 60             # landing -> grove walk when no landing is known (display only) [INFERENCE]
 OVERHEAD_SD_MIN_S = 30.0
 HAZARD_PRIOR_H = 2.0              # field hours of pseudo-data behind a spot's hazard_prior (sightings)
@@ -158,7 +156,7 @@ RECALL_TRIP_S = 4.0               # open the book, press, the 2 s cast, arrival 
 FAIL_EXPOSURE_H = 0.25            # a trip the place itself spoiled counts at least this many field hours
 UNWORKABLE_TRIPS = 2              # that many such trips in a row: the spot is out ...
 UNWORKABLE_DAYS = 7.0             # ... for this long, then gets one more try
-HOP_BACK_S = RECALL_TRIP_S + ROOM_ENTER_S + OVERHEAD_FIXED_S   # a hop's last way home: the recall, the room, convert, store
+HOP_BACK_S = RECALL_TRIP_S + OVERHEAD_FIXED_S   # a hop's last way home: the recall, convert, store
 HOP_MIN_GAIN_LOGS = 0.0          # a library hop must be worth more than going home by this (docs/LUMBER_LOOP.md §6)
 # Areas no spot is planned or discovered in, whatever a store says (user decisions; committed so every machine's
 # store and every future `lumber discover` honour them): (facet, centre, Chebyshev radius, why)
@@ -289,8 +287,9 @@ def landing_for(spot: dict, home: dict | None, books=(), route_ok=None, bad=()) 
     """The landing a trip to `spot` recalls to (user decision 2026-10-04: always as
     close to the grove as we can): the first places.landings row nearest the area
     (a square's centre, a forest's nearest edge: `dist` is landing_dist), from the rune
-    library at home (home.libraries: trips start at home and
-    reach its tomes on foot) and the character's own books (places.known_books), the 'Bad Places'
+    library at home (home.libraries: reached by our own book's library_rune, a recall into the
+    library's house, then a walk to its tome; none without a library_rune: unreachable) and the
+    character's own books (places.known_books), the 'Bad Places'
     tomes' landings left out, and those in `bad` (landing_key: a recall to them landed elsewhere,
     bad_landings), for which route_ok(row, spot) holds (a walking route from the
     landing into the grove; None: no check). None when no landing qualifies."""
@@ -299,7 +298,8 @@ def landing_for(spot: dict, home: dict | None, books=(), route_ok=None, bad=()) 
     area = spot["area"]
     (cx, cy) = area["center"]
     facet = int(spot.get("facet") or 0)
-    rows = places.landings(cx, cy, facet, libraries=homes.libraries(home), books=books)
+    libs = homes.libraries(home) if homes.library_rune(home) else []
+    rows = places.landings(cx, cy, facet, libraries=libs, books=books)
     cells = area_cells(area)
     if cells is not None:                            # stable: a tie keeps landings' own-book-first order
         rows = sorted(({**row, "dist": area_dist(area, (row["x"], row["y"]), cells)} for row in rows),
@@ -551,9 +551,10 @@ def supply_gp(supplies: dict | None, prices: dict) -> tuple[float, int]:
 def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     """One trip row (episodes, loop lumber) as the model's observation, or None
     without times. A trip that ended at home (outcome "stored", since 2026-10-04: the
-    boards went into the rental room's chest) has an overhead: the walk out (room exit,
-    library, recall, walk into the grove), the lockout, the way into the room
-    (`to_room`: recall home, the house steward), convert and store. Legacy rows of the
+    boards went into the chest at home) has an overhead: the walk out (for a library rune
+    the recall into its house and the walk to the tome, the recall, the walk into the grove),
+    the lockout, the way home (`to_room`, the phase's old name: the recall home and the walk to
+    the landing tile), convert and store. Legacy rows of the
     bank era (outcome "banked", or none: the oldest rows) keep their form (walk out,
     lockout, convert, to_bank, store) as history. Rows written before 2026-10-02 lack
     walk_out_s/chop_s/skill: the walk out is taken to equal the walk to the bank, chops
@@ -566,11 +567,11 @@ def trip_obs(ep: dict, prices: dict | None = None) -> dict | None:
     a recall/guard_flight event. A leg that ended in a library hop (outcome "hopped",
     docs/LUMBER_LOOP.md §6 "Library hops") is a trip of its spot like an aborted one: its
     logs and field time count, a threat that ended it counts as sent home, and it has no
-    overhead of its own (the next leg's walk out holds the hop, its room phases the way home); a
+    overhead of its own (the next leg's walk out holds the hop, its `to_room` the way home); a
     stored leg's `hop_home` phase (the recall home before the hop question) is overhead.
     Exposure to the hazards (OPTIMIZER.md F3) is the field time plus the lockout waited at the grove
     plus the walk from the landing into it (`walk_in_s`: the walk out less its `out` travel leg, which
-    holds the room-to-library walk and the casts). `lps`: the trip's own logs per success (the
+    holds the recall into the library's house, the walk to the tome and the casts). `lps`: the trip's own logs per success (the
     Harvest aspect's procs drift it, F1); `home_kind`: "monster" when a creature (or its recall) sent us
     home, else "player"."""
     t0, t1 = _num(ep.get("t_start")), _num(ep.get("t_end"))
@@ -975,29 +976,36 @@ def capacity_logs(cap: dict | None, logs_per_tree: float, rng=None):
 
 # ------------------------------------------------------------------ the model
 def library_walk(landing: dict | None, home: dict | None) -> int:
-    """Tiles walked at home to reach the landing's rune on a trip out: 0 for an own
-    book's rune (recalled where we stand), else from the home landing to the stand of
-    the library holding it (home.libraries: the home library only; DTF: 4134,1429 ->
-    4152,1429, 18 tiles)."""
+    """Tiles walked on a trip out to reach the landing's rune: 0 for an own book's rune
+    (recalled at home where we stand), else from where our own book's library_rune lands
+    (home.library_rune: the recall into the library's house) to the stand of the library
+    holding it (DTF: 4134,1429 -> 4152,1429, 18 tiles). A library rune without a
+    library_rune is out of reach (landing_for never picks one): ValueError."""
     if landing is None or landing.get("source") != "library" or not home:
         return 0
+    import home as homes
     import places
-    return cheb(home["landing"], places.library(landing["library"])["stand"])
+    rune = homes.library_rune(home)
+    if not rune:
+        raise ValueError(f"library rune {landing.get('name')!r}: the home has no library_rune to reach "
+                         f"library {landing.get('library')!r}")
+    return cheb(rune["landing"], places.library(landing["library"])["stand"])
 
 
 def overhead_prior_s(spot: dict, landing: dict | None = None, home: dict | None = None) -> float:
     """Prior seconds of one trip's overhead, every trip starting and ending at home
-    (docs/LUMBER_LOOP.md §6): out of the rental room (ROOM_EXIT_S), the walk to the
-    landing's rune (library_walk), the recall out, the
+    (docs/LUMBER_LOOP.md §6): for a library rune the recall into the library's house
+    (home.library_rune, one more RECALL_TRIP_S) and the walk from its landing to the
+    tome (library_walk), the recall out, the
     walk from the landing into the grove (its planned route when known, else the
     straight distance to a square's inner half, a forest's edge plus half a cell), the harvest lockout after the recall
-    (LOCKOUT_S), the recall home on our book's default rune, into the room
-    (ROOM_ENTER_S), convert and store (OVERHEAD_FIXED_S). Without a landing (no home
+    (LOCKOUT_S), the recall home on our book's home rune, the steps to the landing tile,
+    convert and store (OVERHEAD_FIXED_S). Without a landing (no home
     known) the walk in is the spot's discovered route_tiles, else NO_LANDING_TILES."""
     into = _into_tiles(spot, landing)
     walk = library_walk(landing, home)
-    return (ROOM_EXIT_S + (walk + into) * SEC_PER_TILE + 2 * RECALL_TRIP_S + LOCKOUT_S
-            + ROOM_ENTER_S + OVERHEAD_FIXED_S)
+    recalls = 3 if home and landing is not None and landing.get("source") == "library" else 2
+    return (walk + into) * SEC_PER_TILE + recalls * RECALL_TRIP_S + LOCKOUT_S + OVERHEAD_FIXED_S
 
 
 def dispersion(trips_by_spot: dict, p_now, lps_now=None) -> float:
@@ -1477,7 +1485,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
     (highest posterior-mean net logs/h) instead of the Thompson draw's; `greedy` is that
     spot's own run either way. carried (a runner in the middle of a trip, at home after a
     leg that ended early with that many logs): `hop` says whether to go out again to another
-    spot from the home rune library instead of the room (hop_choice)."""
+    spot from the home rune library instead of storing first (hop_choice)."""
     char = char or {}
     young = bool(char.get("young"))
     alias = merged_alias(spots)
@@ -1723,9 +1731,9 @@ def leg_value(q, lam, t_h, hz, gear_logs, cost_logs, load, g, recovery_h=RECOVER
 
 
 def hop_out_s(m) -> float:
-    """A hop's way out to a spot: its trip overhead without the room (exit, way in, convert,
-    store) and the last recall home (HOP_BACK_S has those), at least the lockout."""
-    return max(LOCKOUT_S, m["overhead_s"] - ROOM_EXIT_S - ROOM_ENTER_S - OVERHEAD_FIXED_S - RECALL_TRIP_S)
+    """A hop's way out to a spot: its trip overhead without convert, store and the last recall
+    home (HOP_BACK_S has those), at least the lockout."""
+    return max(LOCKOUT_S, m["overhead_s"] - OVERHEAD_FIXED_S - RECALL_TRIP_S)
 
 
 def hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings, mode) -> tuple:
@@ -1736,7 +1744,7 @@ def hop_choice(models, target, gear_logs, q_cap, carried, regrow, landings, mode
     along from the rune library or to store it first:
       - store first: carried − g·HOP_BACK_S now, then a fresh trip to the spot (its full overhead);
       - hop: one leg there with the load at risk (its death and theft hazards), the hop's way out
-        (hop_out_s) and HOP_BACK_S at its end; it saves the room visit and the room exit.
+        (hop_out_s) and HOP_BACK_S at its end; it saves storing first.
     Each side at its best q by reward − g·time (leg_value), g = the target's own posterior-mean
     net rate (the rate a fresh trip there earns, so the fresh side is worth ~0 at its Q* and the
     hop leg's q stays near it). The heavier the load, the more a leg risks and the less it should
@@ -2067,7 +2075,7 @@ def spot_landings(memory, spots: dict, home: dict, books=(), route_check: bool =
 
 def pouch_plan(char: dict | None) -> dict:
     """The trapped pouches the run carries (docs/PLAN.md "Keep thieves off the logs"): each
-    trip keeps its logs in one and uses it up (the runner sets it off in the rental room to
+    trip keeps its logs in one and uses it up (the runner sets it off at home to
     convert), so carry pouch.CARRY; `buy` = how many to buy at a provisioner first. The runner
     starts no trip without a live one (`low_supplies`). Unknown without the proxy."""
     import pouch

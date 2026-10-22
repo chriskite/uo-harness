@@ -131,7 +131,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
             series={[
               {
                 label: "field logs/hr", cls: "field", values: trips.filter((r) => r.t_end !== null).map((r) => r.field_logs_per_hour), dots: true,
-                hint: "Logs per hour at the grove only (chopping and walking between stands): no travel, lockout, room or storing. This is the field rate λ the optimizer learns per spot",
+                hint: "Logs per hour at the grove only (chopping and walking between stands): no travel, lockout, home walks or storing. This is the field rate λ the optimizer learns per spot",
               },
               {
                 label: "whole-trip logs/hr", cls: "cum", values: trips.filter((r) => r.t_end !== null).map((r) => r.logs_per_hour),
@@ -229,7 +229,7 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
                   </th>
                   <th className="num" title="Chops that gave logs / chop attempts">chops</th>
                   <th className="num" title="Real captchas met (time waiting on hover)">captchas</th>
-                  <th title="Where the time went. travel: recall casts + the walk to a library tome; lockout: the 60 s harvest lockout after travel; field: at the grove; rest: room, walks, convert, store. Each phase's time on hover">
+                  <th title="Where the time went. travel: recall casts + the walk to a library tome; lockout: the 60 s harvest lockout after travel; field: at the grove; rest: walks at home, convert, store. Each phase's time on hover">
                     split (travel · lockout · field · rest)
                   </th>
                   <th title="Each recall: out (home → landing), home (back) or escape (away from a threat). ✓ landed, ✗ failed; 'N casts' when it took retries, with why in brackets. Book, charges and seconds on hover">
@@ -566,7 +566,7 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
                   </th>
                   <th
                     className="num"
-                    title="T: mean time per trip spent not chopping here (recency-weighted): room exit, walk to the landing's rune, recall out, walk into the grove, lockout, recall home, into the room, convert, store"
+                    title="T: mean time per trip spent not chopping here (recency-weighted): the walk to the landing's rune, recall out, walk into the grove, lockout, recall home, the walk to the landing tile, convert, store"
                   >
                     overhead
                   </th>
@@ -698,7 +698,7 @@ function OptimizerPanels({ data, plan: planState }: { data: JobsResponse; plan: 
             className="split-bar"
             title={
               "All trips' time: travel (recall casts + the walk to a library tome), lockout (the 60 s harvest lockout after travel), " +
-              "field (at the grove), other (room, walks, convert, store). " +
+              "field (at the grove), other (walks at home, convert, store). " +
               shares.map((s) => `${s.key} ${fmtDuration(s.s)}`).join(", ")
             }
           >

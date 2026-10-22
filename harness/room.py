@@ -1,6 +1,6 @@
 """The rental room menu as one deterministic flow each way: in through a house
 steward or innkeeper, out through the room's door (docs/NOTES.md "Rental room via
-the DTF house steward"). Shared by `ctl act room` and the lumber runner.
+the DTF house steward"). A generic overseer tool (`ctl act room`) for rental rooms; no runner uses it.
 
 Live 2026-10-04 (Outland Dan, DTF guild house): the keeper's context menu entry
 "Room" (steward) / "Rent" (innkeeper) opens gump 0x8EAEFBDB, and so does saying

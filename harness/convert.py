@@ -1,4 +1,4 @@
-"""Logs into boards as one deterministic flow: the lumber runner's convert in the rental room
+"""Logs into boards as one deterministic flow: the lumber runner's convert at home
 (loop_lumber.convert) and the overseer's `ctl act convert` (docs/OVERSEER.md §2) run this code.
 
 Every log stack in the backpack, at any bag depth, becomes boards with the hatchet: use the hatchet

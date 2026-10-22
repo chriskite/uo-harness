@@ -185,7 +185,7 @@ const SPLIT_HELP: Record<(typeof SPLIT_KEYS)[number], string> = {
   travel: "Recall casts out, home and away from threats, plus the walk from the landing to a library tome",
   lockout: "The 60 s harvest lockout after any travel, as far as it wasn't spent walking",
   field: "Time at the grove: walking between stands and chopping, holds and escapes there included",
-  other: "Everything else: room exit, walks to the landing and the steward, into the room, converting logs, storing boards",
+  other: "Everything else: walks at home (to the landing tile and the library runes), converting logs, storing boards",
 };
 
 /** Where each trip's time went (harness/jobs.py time_split) as stacked bars in minutes. */
