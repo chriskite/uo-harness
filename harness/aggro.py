@@ -105,10 +105,13 @@ def ranged(kind: str) -> bool:
     return (creatures().get(kind) or {}).get("ai") == "ranged"
 
 
-# Ranged monsters whose first sight of us we keep the pets ahead of (tamer.Team.back_off): their aggro goes to whoever
-# they see first and their attack reaches us wherever the pets stand. The corpse purger (user 2026-10-17: "We're
-# frequently getting diseased by the corpse purgers"; its barrage diseases: docs/NOTES.md "Corpse purger diseases").
-SHY = ("corpse purger",)
+# Monsters that shoot from where they stand, whose first sight of us we keep the pets ahead of (tamer.Team.back_off):
+# their aggro goes to whoever they see first and their attack reaches us wherever the pets stand. The corpse purger
+# (user 2026-10-17: "We're frequently getting diseased by the corpse purgers"; its barrage diseases: docs/NOTES.md
+# "Corpse purger diseases"); the blightmare since 2026-10-21 (a mage that stood at its spot and cast at Logan from 10-12
+# with its Spellblight disease in both live deaths to it, 10-19 19:55 and 10-21 18:21; docs/NOTES.md "Dead in a
+# blightmare's reach again").
+SHY = ("corpse purger", "blightmare")
 
 
 def shy(kind: str) -> bool:

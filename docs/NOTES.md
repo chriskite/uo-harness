@@ -4406,6 +4406,85 @@ The runner of ad908ed (loaded at 17:28:08). Capture session_20261021_164924, the
   holding there (the pets on guard) or running elsewhere (the east wing's teleporter to Maus 4 at (5253, 736)) does
   better is not known.
 
+## Dead in a blightmare's reach again (live 2026-10-21 18:21:15, hunt-20261021-175514-caa5)
+
+Visit 3 on Maus 3, the run started 17:55:14 (after 0a6bb7f). Capture session_20261021_164924 (0x20 flags, 0x77,
+0xA1, effects), the store's events (speech_heard numbers, intents), the task log. No player in view; the pets
+(GraveRobber, AlaFlambe) whole at the end. The same blightmare spawn and the same tiles as the 10-19 19:55 death above
+("Dead in a blightmare's sight").
+
+- **Who hit him.** One blightmare, 0x003C5C2A, at (5242, 685) from 18:20:40 (its last 0x77 18:20:46, the same tile) to
+  the end: war mode (0x20 flags 0x40) from 18:20:48.5 to 18:21:14.6, its cast animation (7) every 1.5-1.9 s, the
+  18:21:01.4 bolt (graphic 14036) from it to Logan. Its spells on Logan: -27 51.8 (with "The creature's spell blights
+  you with a foul disease!"), -24 56.8, -26 57.8, -27 01.9, -23 07.0 (the second "spell blights you"), -25 10.3, -28
+  11.9, -12 15.0 (its 13.6 cast [INFERENCE]: no disease effect with it). The two infections' -21 ticks (effect 14186):
+  56.8, 01.8, 06.9, 11.8 (the first one's four) and 12.1 (the second's first). The only other hit, -13 at 48.2, was
+  the tormented soul 0x003C59EF a tile or two off as he left the pull spot (its swing animation at 48.2 [INFERENCE]; it
+  then fought the pets: GraveRobber -23 -17 -20, AlaFlambe -16). No shadowguard or other caster: the shadowguard names
+  are corpses.
+- **Hits** (0xA1): 100 (potion 44.3) -> 87 (48.2) -> 60 (51.8) -> 100 (potion 54.9, +39) -> 55 (56.8) -> 29 (57.8)
+  -> 73 (vet +39, 58.3) -> 84 -> 36 (01.8-01.9) -> 69 (vet +32, 04.0) -> 74 -> 100 (potion 05.6, +26) -> 56
+  (06.9-07.0) -> ~92 (vet +31, 09.4) -> 67 (10.3) -> 76 (vet ticks) -> 6 (11.8-12.1: -21, -28, -21 in 0.3 s) -> 11
+  -> 0 (15.0).
+  Potions 44.3, 54.9, 05.6 (`healing.POTION_COOLDOWN_S` 10 s: the next one 15.6, after the death); the vet channel
+  begun 10.7 on him would have finished ~15.7. At 6/100 nothing could heal in time: only being out of its sight before
+  its 13.6 cast (he was 10 -> 14 tiles off between 12.7 and 14.0).
+- **How he got there.** 18:20:44 at (5244, 672), 13 tiles off: "crawl: blightmare in view at 13 tiles; not waiting
+  here", "patrolling toward it ((5243, 682))". 45: an approach to a soul, (5245, 675) (10 off, in its sight; "would
+  wake 2 worth 4.1 at once"), the pull spot (5246, 675) (10 off, out of its sight by los.Sight); 48.0 the patrol on, a
+  step to (5245, 675) ("would wake 2.3 more onto 1.8": the 2.3 is the blightmare's weight), 48.3 "off the tank" to
+  (5242, 673), 12 off and in its sight; 48.5 it woke on Logan (first sight 45.5 or 48.0: its wake delay can't tell).
+  From 49.5 to 18:21:05 he stood at (5242, 673) with the pets 4 off on the soul ("Waiting for the pets", the soul's
+  fight, "Healing up before moving on"): five spells, two infections, two potions, three vet channels. Kill 18:21:05,
+  loot at (5244, 673) (12 off: the -23 and the second infection), then 18:21:09 the crawl's patrol went on to its
+  waypoint (5243, 682) toward the blightmare at 61/100, (5245, 675) 10 off: "stopped (under attack)", "target a
+  blightmare at 10 tiles", "Pets on guard; waiting for a blightmare to come on" (KILL_AFTER_S), vet at 71/100, then
+  the 0.3 s burst. "LEAVING by the moongate: hits 6/100", dead at (5243, 667) at 15.0, 18 tiles from it.
+- **The runner's three faults.** (1) The patrol and an approach walked into an idle blightmare's first sight with the
+  pets behind; it stands and casts from 10-12, it doesn't come on (the corpse purger's case, `aggro.SHY`). (2) The
+  reposition (the 10-19 fix) refused the step out of its reach: from (5242, 673) to (5242, 672), 13 off, it still
+  sees him, and `stand_score` counts a caster's sight to 18 tiles, so the "no more idle eyes" test took the step as an
+  eye more (19 against 18; replayed in the simulator on the live tiles: `reposition` False). Sixteen seconds in its
+  reach. (3) After the loot the crawl walked on toward its waypoint by the awake blightmare that had just cast at him
+  (12 -> 10), at 61/100, two infections running and the potion 3.5 s old.
+- **Fixed.** `aggro.SHY` takes the blightmare: an advance stops on a step into an idle one's sight before the pets
+  ("a blightmare would see us"), `Team.back_off` steps out of it, kept off 60 s as a crawl danger zone; no approach to
+  it, no hold for it, no bard skill before the pets fight it (and `--patrol-pull`, off, would send the pets at one).
+  `Team.reposition`: from a shy caster or ranged monster a tile out of its reach counts as out of its sight (it
+  doesn't come on; `Team.shy_beyond`), logged "reposition: blightmare 0x… 12 tiles off can cast at us here; to (5242,
+  672) (1 -> 0 in reach)". `crawl.Crawl.observe`: an awake (war-mode) shy monster's reach (12 for the blightmare, 13
+  for the purger) is a crawl danger zone while it stays awake ("crawl: keeping out of the reach of the awake
+  blightmare at (5242, 685)", "crawl: (5243, 682) is near a creature we avoid now; choosing another"). Not changed:
+  the loot walk into its reach (one spell), the 4 s "waiting for … to come on" before "All Kill" at a caster on us.
+  The reposition rule out of reach for every caster was tried first: the casters that come on follow (sim seed block
+  1017: 43 runs with a death in 144 against 33, deaths/h 1.02 against 0.76, kills/h 109.0, gold/h 107,469).
+- **Tests** (test_sim, each failing on 0a6bb7f): `test_blightmare_reach` (the 18:20:49 tiles, a channel on us: before
+  no step, after (5242, 672), 13 off, 0 in reach); `test_blightmare_first_sight` (the 18:20:44 scene, the runner's
+  ticks for 60 s, seeds 3, 5, 7: before seed 3 dead (the blightmare on him 2 s, 58 of its damage) and seed 5 hit for
+  22; after none on him); `test_blightmare_awake_patrol` (the 18:21:09 tiles, the crawl's waypoint (5243, 682) by the
+  awake blightmare: before the patrol to 10 tiles off, after the waypoint dropped, never nearer than 12). The scene
+  replayed whole (`sim/fight1820.py`, from 18:20:44, 3 min, seeds 1-48): before 22 deaths, 40 runs with its spells on
+  him (148), lowest hits median 13; with only the reposition and the awake rule still 22 (the simulator's blightmare
+  woke on the pets and turned to Logan nearer it); after 0 deaths, none of its spells, lowest hits median 100 (it
+  backs off and patrols elsewhere; no kill in that room).
+- **Batches** (20 min runs, `--vet-range 5`; before 0a6bb7f / after):
+
+  | | seed 17, 48 runs | seed 1017, 144 runs |
+  |---|---|---|
+  | deaths/h | 0.61 / 0.61 | 0.76 / 0.76 |
+  | runs with a death | 9 / 9 | 33 / 33 |
+  | kills/h | 112.0 / 112.2 | 111.1 / 110.7 |
+  | gold/h | 108,202 / 108,100 | 108,943 / 108,569 |
+  | pet-death runs | 4 / 4 | 2 / 2 |
+  | blightmare damage on Logan (disease) | 21 (68) / 0 (0) | 186 (289) / 277 (306) |
+  | deaths with a blightmare in the last 15 s | 0 / 0 | 1 / 2 |
+  | back-offs | 1 / 4 | 4 / 22 |
+
+  The batches meet few blightmares (12-13 in 43 game hours on the 1017 block, 2-3 on the 17 one): no cost to kills or
+  gold beyond noise. Both blightmare deaths after (seeds 1081 and 1086; 1081 also before) had it walk up to Logan, 2
+  and 1 tiles, after his steps out of its reach or sight: the simulator's blightmare follows, live it stood (docs/SIM.md
+  "Limits").
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

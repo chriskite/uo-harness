@@ -591,24 +591,32 @@ them), so the reposition, the spacing off the tank and the retreat pick tiles ou
 the pets between; the pull spot steps back so the pets, a tile or two behind us, end up between us and
 what comes.
 
-**Corpse purgers** (`aggro.SHY`; user 2026-10-17: "We're frequently getting diseased by the corpse purgers"): a
-ranged monster's first sight takes whoever it sees first and its barrage reaches us wherever the pets stand. It isn't
-held for (it doesn't come on). An advance (patrol, approach) stops on a step into an idle purger's sight before the
-pets ("a corpse purger would see us"; the crawl then patrols elsewhere), and the runner steps back (up to 3, out of
-its sight first, else farther from it, the pets within vet range; `Team.back_off`). One backed off from is kept off
-for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint near it, routes bend round,
-not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into it four times, then its
-barrage). An approach stopped by such a monster ("would see us": a purger before the pets, a never-aggro one)
-passes its target over for 60 s (`Team.approach`; the simulator's runner backed off, approached the same way and
-held again within 1-3 s, 7 times an hour); one that comes on is fought. Never an approach to an idle purger, no bard
-skill on one the pets haven't hurt and that isn't on us, nor a
-provocation of one (our skill draws its aggro; once the pets fight it the skills go, as the user's Discordance in the
-demo). A walk to a hurt pet stops on a step into an idle purger's sight before the pets. Ranged monsters in war mode
-count as casters for the reposition (out of their sight within 13, even mid-channel).
+**Corpse purgers and blightmares** (`aggro.SHY`; user 2026-10-17: "We're frequently getting diseased by the corpse
+purgers"; the blightmare since 2026-10-21, after two live deaths in its spells and Spellblight disease from 10-12 tiles
+at its spawn (5243, 687), docs/NOTES.md "Dead in a blightmare's reach again"): they shoot from where they stand, their
+first sight takes whoever they see first and their barrage or spells reach us wherever the pets stand. Neither is
+held for (it doesn't come on). An advance (patrol, approach) stops on a step into an idle one's sight before the
+pets ("a corpse purger would see us", "a blightmare would see us"; the crawl then patrols elsewhere), and the runner
+steps back (up to 3, out of its sight first, else farther from it, the pets within vet range; `Team.back_off`). One
+backed off from is kept off for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint
+near it, routes bend round, not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into a
+purger four times, then its barrage). **Awake**, its reach is a crawl danger zone while it stays in war mode (12 for
+the blightmare, `tamer.CASTER_R`; 13 for the purger, `RANGED_R`): no waypoint within 2 of it, routes bend round, a
+patrol toward a waypoint there picks another ("crawl: keeping out of the reach of the awake blightmare at …", "… is
+near a creature we avoid now; choosing another"; live 2026-10-21 18:21:09 the patrol went on toward a blightmare that
+had cast at Logan from 12 two seconds before, 12 -> 10 tiles, dead). An approach stopped by such a monster ("would
+see us": a shy one before the pets, a never-aggro one) passes its target over for 60 s (`Team.approach`; the
+simulator's runner backed off, approached the same way and held again within 1-3 s, 7 times an hour); one that comes
+on is fought. Never an approach to an idle shy monster, no bard skill on one the pets haven't hurt and that isn't on
+us, nor a provocation of one (our skill draws its aggro; once the pets fight it the skills go, as the user's
+Discordance in the demo). A walk to a hurt pet stops on a step into an idle shy monster's sight before the pets.
+Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel); from
+a shy one a step out of its reach counts too (13 tiles from a blightmare), though it still sees us there.
 
 **"All Patrol" at a purger** (`--patrol-pull`, off by default; `Team.patrol_pull`, user 2026-10-18 "We can send our
 pets to a spot away from us, e.g. to within aggro distance of a purger, while we're not in aggro range"; the demo in
-docs/NOTES.md "All Patrol"). Nothing fighting, nothing on us, both pets within vet range, and the purger (within 14)
+docs/NOTES.md "All Patrol"; since 2026-10-21 at an idle blightmare too, as a shy monster: untried live). Nothing
+fighting, nothing on us, both pets within vet range, and the purger (within 14)
 not seeing us before the pets: the runner says "All Patrol" (his Razor macro's bytes, hue 0x0239) and clicks a tile
 1-2 from it, within 11 of us and in our sight (los.Sight, as the server's 500237 check), with no other monster within
 4 of it nor seeing where we'd stand to vet the pets there. It stands; once the purger is awake with a pet on it,
@@ -622,7 +630,7 @@ Logan, the second purger of the pair did as the fight drew him in (docs/NOTES.md
 | `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. With nothing fighting, a step that shows us to two or more idle monsters worth more than it together stops the patrol and rests the waypoints within 15 tiles (`crawl`: "patrolling elsewhere"); walking out of such a spot goes on. The pull spot puts us where they don't all wake together. 0 = off. |
 | `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
-| `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. A caster in war mode within 12 (`tamer.CASTER_R`; a blightmare cast from 12 live) or a ranged monster within 13 with sight of us: up to 4 steps to a tile fewer of them see, that no more idle monsters see first, and that keeps the pets in vet range; out of a caster's sight is worth the steps by itself (before 2026-10-19 one caster's sight never beat a step's cost: live 19:54:39-57 a blightmare 12 off cast at Logan 18 s, 100 -> 4, dead). Mid vet channel only while the channel heals us (our share of hits no higher than the pets': a step cuts its reach to the pets to 1). |
+| `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. A caster in war mode within 12 (`tamer.CASTER_R`; a blightmare cast from 12 live) or a ranged monster within 13 with sight of us: up to 4 steps to a tile fewer of them see, that no more idle monsters see first, and that keeps the pets in vet range; out of a caster's sight is worth the steps by itself (before 2026-10-19 one caster's sight never beat a step's cost: live 19:54:39-57 a blightmare 12 off cast at Logan 18 s, 100 -> 4, dead). From a shy one (a purger, a blightmare: they don't come on) out of its reach counts as out of its sight (before 2026-10-21 a tile it still saw counted as an eye more: live 18:20:51-18:21:07 a blightmare 12 off cast at Logan 16 s while the step to 13 was refused; for the casters that come on the sim lost 43 runs to a death in 144 against 33, so not for them); logged "reposition: blightmare 0x… 12 tiles off can cast at us here; to (x, y) (1 -> 0 in reach)". Mid vet channel only while the channel heals us (our share of hits no higher than the pets': a step cuts its reach to the pets to 1). |
 | `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster sees us within its aggro range (its type's, 10 or 13; it was 14, the user's 13 plus a tile: live 21:34:05 a shadowguard 14 tiles off held the patrol 10 s and never woke), and let it come; the pull spot must stay in its sight. |
 
 - **Weights** ("weighted by danger"): (wiki difficulty - 50) / 40, clamped to 0.25-3: a vampire bat

@@ -41,6 +41,7 @@ python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main ch
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
 python harness/sim/parity.py sim.jsonl --db <main checkout>/harness/data/harness.db --logs <main checkout>/logs
 python harness/sim/fight1822.py 1,2,...,24 [--log] [--harness DIR]   # the 18:22 live death replayed
+python harness/sim/fight1820.py 1,2,...,48 [--awake] [--log] [--harness DIR]   # the 2026-10-21 18:21 blightmare death
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>
@@ -97,7 +98,7 @@ python harness/sim/fight1822.py 1,2,...,24 [--log] [--harness DIR]   # the 18:22
 | `sim/calibrate.py` | The capture extractor that wrote `mausoleum_observed.json` (its rules are in the file's `rules`). |
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
-| `sim/fight1949.py`, `sim/fight1822.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
+| `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
 | `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
@@ -986,6 +987,12 @@ monsters' hits on each of us.
   number) hit the pets unscaled [INFERENCE]: both make purger fights dearer for the pets than seen.
 - The rune tome's charges aren't spent (36 on the trip); the ping-pong above would have emptied it.
 - Monster positions and respawns aren't carried across a career's runs: only the runner's memory is.
+- The blightmare stands while it has its target in reach and sight and otherwise walks toward it, like every ranged
+  monster: a step out of its reach or sight is followed. Live it stood at its spot in both fights (10-19 19:54:40-57 at
+  (5243, 684-685), 10-21 18:20:40-18:21:14 at (5242, 685)), and the one time Logan left its reach (18:21:12.7, 10 -> 14
+  tiles in 1.3 s) it didn't follow and was out of war mode at 18:21:14.6 [INFERENCE: one sample, 2 s]. Both
+  blightmare deaths of the 2026-10-21 batch (seed block 1017) had it walk up to Logan after his steps out of its
+  reach or sight (to 2 tiles, and to 1). The tests of that death hold it still (`next_step`), as live.
 
 ## Captures wanted (live, on Logan Wolf)
 

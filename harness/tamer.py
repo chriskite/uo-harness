@@ -927,7 +927,7 @@ class Team:
 
     def pull_check(self, st) -> str | None:
         """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, a --never-aggro
-        monster or an idle corpse purger (aggro.SHY) that would see us before a pet (back_off steps out), or
+        monster or an idle corpse purger or blightmare (aggro.SHY) that would see us before a pet (back_off steps out), or
         hold_reason. Its "at once" (more than the budget idle in sight together) only on a step that adds to
         what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
         budget = self.a.pull_budget
@@ -996,21 +996,21 @@ class Team:
         return f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles: letting it come"
 
     def shy_first(self, v, tile) -> list[dict]:
-        """Idle corpse purgers (aggro.SHY) that would see us on `tile` before a pet (aggro.View.first_on_us)."""
+        """Idle corpse purgers and blightmares (aggro.SHY) that would see us on `tile` before a pet (first_on_us)."""
         return [m for m in v.first_on_us(tile, margin=1) if m["shy"]]
 
     def back_off(self, st) -> bool:
-        """An idle corpse purger (aggro.SHY) would see us before a pet (aggro.View.first_on_us): its first sight puts
-        its aggro on us and its barrage reaches us wherever the pets stand, so step (up to PULL_STEPS, at most every
-        BACK_OFF_S) to a tile out of its sight, else farther from it than here, keeping the pets within --vet-range:
-        the guarding pets trail us, so it meets them first. User 2026-10-17: "We're frequently getting diseased by
-        the corpse purgers"; all 4 purger diseases that day came right after "holding here: corpse purger in sight
-        at 10 tiles: letting it come" (live 23:14:08-12: it woke at 9 with Logan the nearest of us, barraged him -23,
-        -26 with "You have contracted a foul disease!", the gravebug beside it). It isn't held for (hold_reason: it
-        doesn't come on), an advance stops on a step into its sight before the pets (pull_check), and once backed off
-        from, the patrol doesn't seek it for KEEP_OFF_S (crawl.Crawl.seek); live 2026-10-18 12:05:09-25 back off, then
-        the patrol or an approach on into its sight, "letting it come", back off, four times, then its barrage. True
-        when we stepped."""
+        """An idle corpse purger or blightmare (aggro.SHY) would see us before a pet (aggro.View.first_on_us): its first
+        sight puts its aggro on us and its barrage or spells reach us wherever the pets stand, so step (up to
+        PULL_STEPS, at most every BACK_OFF_S) to a tile out of its sight, else farther from it than here, keeping the
+        pets within --vet-range: the guarding pets trail us, so it meets them first. User 2026-10-17: "We're frequently
+        getting diseased by the corpse purgers"; all 4 purger diseases that day came right after "holding here: corpse
+        purger in sight at 10 tiles: letting it come" (live 23:14:08-12: it woke at 9 with Logan the nearest of us,
+        barraged him -23, -26 with "You have contracted a foul disease!", the gravebug beside it). It isn't held for
+        (hold_reason: it doesn't come on), an advance stops on a step into its sight before the pets (pull_check), and
+        once backed off from, the patrol doesn't seek it for KEEP_OFF_S (crawl.Crawl.seek); live 2026-10-18
+        12:05:09-25 back off, then the patrol or an approach on into its sight, "letting it come", back off, four
+        times, then its barrage. True when we stepped."""
         h, now = self.h, time.monotonic()
         if now - self.back_off_t < BACK_OFF_S:
             return False
@@ -1338,6 +1338,7 @@ class Team:
         steps = self.tiles_within(v, CASTER_STEPS if casting else REPOSITION_STEPS)
         here = v.stand_score(pos)
         hit_by = self.casting_at(v, pos)
+        far = self.shy_beyond(v, pos)
         best, best_s, best_c = None, here, None
         for t, k in steps.items():
             if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
@@ -1347,9 +1348,13 @@ class Team:
             if casting:
                 # out of a casting caster's sight is worth the steps by itself (live 2026-10-19 19:54:39-57: a
                 # blightmare 12 off cast at Logan for 18 s, 100 -> 4, while he stood vetting; one caster's sight is
-                # stand_score 1.0, never REPOSITION_GAIN over a step's 0.3): fewer of them first, no more idle eyes
+                # stand_score 1.0, never REPOSITION_GAIN over a step's 0.3): fewer of them first, no more idle eyes.
+                # Out of a shy one's reach counts though it still sees us there (stand_score counts its sight to 18;
+                # it doesn't come on): live 2026-10-21 18:20:51-18:21:07 a blightmare 12 off cast at Logan for 16 s,
+                # a step to 13 refused. Not for the others: they come on (sim, 144 runs: 43 with a death against 33)
                 c = self.casting_at(v, t)
-                if c < hit_by and v.stand_score(t) - c <= here - hit_by and (best is None or (c, s) < best_c):
+                if c < hit_by and v.stand_score(t) - c - self.shy_beyond(v, t) <= here - hit_by - far \
+                        and (best is None or (c, s) < best_c):
                     best, best_s, best_c = t, s, (c, s)
             elif s < best_s:
                 best, best_s = t, s
@@ -1358,6 +1363,10 @@ class Team:
         label = "to a better tile"
         h.doing("reposition", f"Stepping to {best[0]},{best[1]}: fewer eyes on us ({here:.0f} -> {best_s:.0f})", best[:2])
         self.count("los_moves")
+        if casting:
+            who = ", ".join(f"{m['kind']} 0x{m['serial']:08X} {cheb(m['pos'], pos)} tiles off"
+                            for m in self.casters_at(v, pos))
+            log(f"reposition: {who} can cast at us here; to {best[:2]} ({hit_by} -> {best_c[0]} in reach)")
         try:
             n = 2 * (CASTER_STEPS if casting else REPOSITION_STEPS)
             h.mover.walk_to(lambda: best[:2], 0, label, urgent=casting, max_moves=n, max_route=n)
@@ -1368,10 +1377,22 @@ class Team:
         return True
 
     @staticmethod
-    def casting_at(v, tile) -> int:
+    def casters_at(v, tile) -> list[dict]:
         """Casters (within CASTER_R) and ranged monsters (RANGED_R) in war mode that see `tile`: what can hit us there."""
-        return sum(1 for m in v.mobs if m["war"] and (m["caster"] and v.sees(m, tile, CASTER_R)
-                                                       or m["ranged"] and v.sees(m, tile, RANGED_R)))
+        return [m for m in v.mobs if m["war"] and (m["caster"] and v.sees(m, tile, CASTER_R)
+                                                   or m["ranged"] and v.sees(m, tile, RANGED_R))]
+
+    @staticmethod
+    def casting_at(v, tile) -> int:
+        return len(Team.casters_at(v, tile))
+
+    @staticmethod
+    def shy_beyond(v, tile) -> int:
+        """Shy casters and ranged monsters (aggro.SHY) in war mode that see `tile` beyond their reach: in stand_score's
+        count (sight to los.MAX_DISTANCE), yet they shoot from where they stand and can't hit us there."""
+        reach = {m["serial"] for m in Team.casters_at(v, tile)}
+        return sum(1 for m in v.mobs if m["war"] and m["shy"] and (m["caster"] or m["ranged"])
+                   and m["serial"] not in reach and v.sees(m, tile, los.MAX_DISTANCE))
 
     def channel_for_us(self, st) -> bool:
         """The running vet channel is most likely healing us: our share of hits no higher than every live pet's

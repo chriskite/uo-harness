@@ -1863,6 +1863,126 @@ def test_caster_at_12():
           f"before {before} moved {moved} after {after} at {w.player.pos}")
 
 
+def test_blightmare_reach():
+    print("== the live 18:20:49 tiles: a blightmare awake 12 off casting at us mid-channel: a step out of its reach ==")
+    # live 2026-10-21 18:20:49-18:21:05 (hunt-20261021-175514-caa5): Logan at (5242, 673), the blightmare at (5242, 685)
+    # cast at him for 16 s (-27 -24 -26 -27 -23, two "spell blights you with a foul disease!" and their -21 ticks) while
+    # the pets at (5246, 675) killed a tormented soul at (5245, 674). The reposition refused (5242, 672), 13 off: out of
+    # its reach, but still in its sight there, which stand_score counts (to 18) and the no-more-idle-eyes test took as an
+    # eye more
+    import aggro
+    import loop_hunt
+    w = world_with([{"key": "blightmare", "at": [5242, 685, 0]}, {"key": "tormented soul", "at": [5245, 674, 0]}],
+                   seed=7, start=(5242, 673))
+    bm, soul = (next(m for m in w.mobs.values() if m.key == k) for k in ("blightmare", "tormented soul"))
+    loop, clock, store, patched = hurt_loop(w, 60)
+    for p in w.pets():
+        p.x, p.y = 5246, 675
+    bm.target, bm.threat = w.player.serial, {w.player.serial: 50}
+    soul.target, soul.threat = w.pets()[0].serial, {w.pets()[0].serial: 50}
+    w._warm(bm, True)
+    bm.next_step = 1e9                         # it stood at (5242, 685) the whole fight, live
+    w._warm(soul, True)
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            st = loop.state()
+            loop.team.vet_busy_until = loop_hunt.time.monotonic() + 5.0    # a channel on us (live 53.1: us at 61/100)
+            before = tamer.Team.casting_at(aggro.View(loop, st), loop.pos(st))
+            moved = loop.team.reposition(st)
+            st = loop.state()
+            after = tamer.Team.casting_at(aggro.View(loop, st), loop.pos(st))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [line for line in out.getvalue().splitlines() if "can cast at us" in line]
+    check("in its reach at 12, then a step out of it, logged", before == 1 and moved and after == 0 and said,
+          f"before {before} moved {moved} after {after} at {w.player.pos} ({sim_cheb(w.player.pos, bm.pos)} off) {said}")
+
+
+def test_blightmare_first_sight():
+    print("== the live 18:20:44 scene: the runner never takes an idle blightmare's first sight (it doesn't come on) ==")
+    # live 2026-10-21 18:20:44-48: "crawl: blightmare ... in view at 13 tiles: patrolling toward it", an approach and a
+    # patrol step into its sight at 10 with the pets behind, and it woke on Logan (war mode 18:20:48.5); it never
+    # stepped, cast at him from 10-12 and he died at 18:21:15. Simulator (sim/fight1820.py), seeds 1-48: 22 deaths before
+    import crawl
+    from agent_link import Abort
+    out = []
+    for seed in (3, 5, 7):
+        w = world_with([{"key": "blightmare", "at": [5242, 685, 0]}, {"key": "tormented soul", "at": [5248, 674, 0]},
+                        {"key": "tormented soul", "at": [5251, 681, 0]}, {"key": "tormented soul", "at": [5239, 688, 0]}],
+                       seed=seed, start=(5244, 672))
+        bm = next(m for m in w.mobs.values() if m.key == "blightmare")
+        loop, clock, store, patched = hurt_loop(w, 100)
+        on_us = [0.0]
+        world_tick = clock.on_advance
+
+        def watch(now):
+            world_tick(now)
+            if bm.alive and bm.target == w.player.serial:
+                on_us[0] += 0.1
+        clock.on_advance = watch
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop.crawl = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+                loop.crawl.setup(loop.state())
+                t0 = crawl.time.monotonic()
+                while crawl.time.monotonic() - t0 < 60 and w.player.alive and not w.player.ghost:
+                    loop.tick()
+        except Abort:
+            pass                                        # a leave's recall (dead before it, live and here before the fix)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out.append((seed, round(on_us[0]), w.metrics.get("player_damage_by", {}).get("blightmare", 0),
+                    w.metrics["deaths"]))
+    check("3 seeds: the blightmare never on Logan, none of its spells on him",
+          all(s == 0 and d == 0 and not dead for _, s, d, dead in out),
+          f"(seed, seconds it was on him, its damage, deaths) {out}")
+
+
+def test_blightmare_awake_patrol():
+    print("== the live 18:21:09 tiles: a blightmare awake on us 12 off, the patrol toward it: none into its reach ==")
+    # live 2026-10-21 18:21:09-12: after the loot at (5244, 673), 61/100 and two infections, "patrol to (5243, 682)"
+    # (the waypoint its seek chose at 18:20:44) went on toward it, 12 -> 10 tiles; "stopped (under attack)", "waiting
+    # for a blightmare to come on", -21 -28 -21 in 0.3 s: 6/100, dead on the way out
+    import crawl
+    w = world_with([{"key": "blightmare", "at": [5242, 685, 0]}], seed=7, start=(5244, 673))
+    bm = next(m for m in w.mobs.values() if m.key == "blightmare")
+    loop, clock, store, patched = hurt_loop(w, 61)
+    for p in w.pets():
+        p.x, p.y = 5243, 672
+    bm.target, bm.threat = w.player.serial, {w.player.serial: 50}
+    w._warm(bm, True)
+    bm.next_step = 1e9
+    near = [sim_cheb(w.player.pos, bm.pos)]
+    world_tick = clock.on_advance
+
+    def watch(now):
+        world_tick(now)
+        near[0] = min(near[0], sim_cheb(w.player.pos, bm.pos))
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            c = loop.crawl = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            c.wp = min(range(len(c.wps)), key=lambda i: sim_cheb(c.wps[i], (5243, 682)))
+            c.seek_for, c.leg_t = bm.serial, crawl.time.monotonic()
+            wp = c.wps[c.wp]
+            st = loop.state()
+            c.account(st, 0)
+            c.idle(st)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [line for line in out.getvalue().splitlines() if "awake blightmare" in line or "avoid now" in line]
+    now = c.wps[c.wp] if c.wp is not None else None
+    check("the waypoint by it dropped, never nearer it than 12", near[0] >= 12 and now != wp,
+          f"nearest {near[0]}, waypoint {wp} -> {now}; {said}")
+
+
 def test_rope_sight():
     print("== --rope from (5207, 689) toward the gate: no landing out of our sight as a ground target ==")
     # live 2026-10-19 10:29:20.1-21.3 fleeing the red Malito: "[Rope" at (5208, 698) from (5207, 689), "Target cannot be
@@ -2585,7 +2705,7 @@ def main():
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
               test_rope_cancel_attacked, test_ledge_attacker,
-              test_caster_at_12,
+              test_caster_at_12, test_blightmare_reach, test_blightmare_first_sight, test_blightmare_awake_patrol,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,

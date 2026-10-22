@@ -56,6 +56,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import aggro  # noqa: E402
 import combat  # noqa: E402
 import nav  # noqa: E402
+import tamer  # noqa: E402
 import threats  # noqa: E402
 from agent_link import Abort, log  # noqa: E402
 
@@ -624,7 +625,7 @@ class Crawl:
         labels = world.get("labels") or {}
         me = st["movement"]["self_serial"]
         hits_max = world["self"].get("hits_max")
-        danger_zones = {}
+        danger_zones, awake = {}, set()
         never = set(getattr(self.a, "never_aggro", None) or aggro.NEVER_AGGRO)
         for key, mob in world["mobiles"].items():
             s = int(key, 16) if isinstance(key, str) else key
@@ -648,8 +649,9 @@ class Crawl:
                     log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
                 self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_MAX + aggro.NEVER_MARGIN)
                 continue
+            war = (mob.get("flags") or 0) & aggro.WAR
             kept = (getattr(getattr(self.h, "team", None), "kept_off", None) or {}).get(s, 0)
-            if kept > now and (mob.get("flags") or 0) & aggro.WAR:
+            if kept > now and war:
                 self.h.team.kept_off.pop(s, None)         # awake now: the fight's rules (reposition out of its sight)
             elif kept > now:
                 # an idle corpse purger backed off from (tamer.Team.back_off): its sight is no-go for the patrol and
@@ -657,6 +659,16 @@ class Crawl:
                 if self.danger.get(s, (None, 0, None))[2] != "kept":
                     log(f"crawl: keeping out of sight of the {type_key(name)} at {tile} for {kept - now:.0f} s")
                 self.danger[s] = (tile, now, "kept", aggro.aggro_range(type_key(name)) + 1)
+                continue
+            if war and aggro.shy(type_key(name)):
+                # an awake purger or blightmare shoots from where it stands, it doesn't come on: its reach is no-go for
+                # the patrol and the routes while it is awake (live 2026-10-21 18:21:09: after the loot the patrol went
+                # on toward a blightmare that had cast at Logan from 12 two seconds before, 12 -> 10 tiles; dead)
+                awake.add(s)
+                if self.danger.get(s, (None, 0, None))[2] != "awake":
+                    log(f"crawl: keeping out of the reach of the awake {type_key(name)} at {tile}")
+                reach = tamer.CASTER_R if aggro.caster(type_key(name)) else tamer.RANGED_R
+                self.danger[s] = (tile, now, "awake", reach)
                 continue
             why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s) \
                 if getattr(self.a, "crawl_avoid_types", True) is not False else None
@@ -673,7 +685,8 @@ class Crawl:
                 # over Logan at z 25 kept (5198, 642) "productive", and he stood there until its 60 s skip ran out
                 self.target_t[i] = now
         for s, (tile, t, name, r) in list(self.danger.items()):
-            if now - t > DANGER_S or (name == "kept" and (getattr(self.h.team, "kept_off", None) or {}).get(s, 0) <= now):
+            if now - t > DANGER_S or (name == "kept" and (getattr(self.h.team, "kept_off", None) or {}).get(s, 0) <= now) \
+                    or (name == "awake" and s not in awake):
                 del self.danger[s]
                 continue
             danger_zones[f"crawl:{s:08X}"] = (tile, r)
