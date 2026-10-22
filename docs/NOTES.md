@@ -4528,6 +4528,33 @@ Visit 3 on Maus 3, the run started 17:55:14 (after 0a6bb7f). Capture session_202
   and 1 tiles, after his steps out of its reach or sight: the simulator's blightmare follows, live it stood (docs/SIM.md
   "Limits").
 
+## The first house trip: ping-pong at a ledge, the drop-off that couldn't see the tomes (live 2026-10-21 22:17-22:33, hunt-20261021-221736-1743)
+
+Capture session_20261021_164924. Visit 1: 25 kills, 25,504 gp, left by V\* (26,410) at 22:32:24.
+- **Ping-pong at the ledge** (user: "Logan is stuck bumping into a wall trying to approach a shade wolf").
+  22:27:28-22:28:42, 40 rounds of `patrol to (5177, 681): route 3 steps from (5181, 685)` / `stopped (a target in
+  reach)` / `target a shade wolf 0x003EACBE at 7 tiles` / `toward a target: route 1 steps from (5180, 684)` /
+  `arrived at (5181, 685)`. Logan on the Maus 3 ledge at z 25; the wolves below at (5176-5180, 691, -3) (0x20/0x77;
+  their way up is the ramp west, (5177, 689) at z 2). `on_our_floor` (the walk to beside it at its height within
+  the beeline - 1 + `FLOOR_DETOUR`): from (5180, 684) 11 steps against a budget of 10, a target; from (5181, 685) 12
+  against 9, not one. The approach walked the beeline to within 6 in x/y, onto the ledge's edge at (5181, 685),
+  where the wolf stopped being a target; the patrol's first step back made it one again. It ended when the wolf
+  moved and `Team.unseen` passed it over. **Fix:** the approach ends standing on the target's floor (`z_ok`,
+  `HuntLoop.floor_z_ok`). `sim/fight2227.py` (the capture's tiles, 2 min, 12 seeds) before / after: 655 / 9
+  approaches, 655 / 0 of them ending on the ledge, 15 / 24 kills (both wolves every seed after), no deaths either way.
+  Batch, 24 runs seed 17 `--others --eerie --prior` the main store, before / after: deaths 1.42 / 1.00 per h, runs
+  with a death 13 / 10, kills 93.2 / 98.4 per h, gold 99.9k / 104.9k per h (noise-level; no cost).
+- **The drop-off saw no tomes.** 22:32:36 `recalled home to (3575, 3251)`, then `drop-off: a treasure map tome
+  0x62659A52 isn't in view within 2 tiles: stand on the home landing tile; going on with the load`, and at 22:32:40
+  the recall back to Maus Near 2 with 25.5k gp; the user paused the gate (22:32:47) and took him home. Logan was on
+  the landing tile. The tomes sit in the wooden shelf 0x5656B661 (2 tiles off); the world model drops a container's
+  contents with its 0x1D (`WorldState.delete`), so back from the dungeon the shelf is known and its tomes aren't
+  until it is opened again. `act dropoff` at 22:17 worked because the shelf had been opened earlier in the session
+  (0x3C of its contents at 22:02:25). **Fix:** homes.json steps name their container (`in`); a step whose item is
+  unknown is reached through it: the shelf opened, then its contents waited for (`test_dropoff.py` "back from a
+  trip": before, exactly the live error). And a drop-off that can't run now ends the run at home (`Abort`,
+  task_failed) instead of going back in with the load (docs/PLAN.md "Home moves to Logan Wolf's house").
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

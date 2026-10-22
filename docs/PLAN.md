@@ -2082,7 +2082,13 @@ facts: docs/NOTES.md "Logan Wolf's house"; details: LUMBER_LOOP.md §12.6, §13 
   with recall scrolls for Dan's book) right after a library recall-in, when the house shelf left
   something out or the book is below `BOOK_FULL`. Why: no extra recall just to shop.
 - *The hunt drop-off*: home after the recall (Logan's default), the walk to the landing tile, the
-  drop-off; not at home: logged and skipped. Replaced: the steward and the room.
+  drop-off. Replaced: the steward and the room. A drop-off that can't run (not at home, an item out of
+  reach, a container that won't open) ends the run at home (decided 2026-10-21 after the first house
+  trip went back in with 25.5k gp; "went on with the load" before): the gold stays home, the Seer and
+  the user see a task_failed. The tomes in the wooden shelf are reached through it (`dropoff` step
+  `in`): back from a trip the client has forgotten the shelf's contents. Rejected: remembering the
+  tomes' container in the world model across the 0x1D (the client itself forgets it; a player opens
+  the shelf again).
 - *Mount*: no room revival of a ghost pet (a healer or stable master); a remembered mount not in view
   at home is "resting" as before: the house auto-stashes mounts like the guild house (user 2026-10-21).
 - *Room code kept only as `ctl act room`* (`harness/room.py`): a generic overseer tool for any rental

@@ -40,7 +40,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--bank-gold N` | `0` (off) | At home after a recall: with N gold or more in the pack, bank all of it. Needs `--leave-recall`. |
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
 | `--return-at` | `auto` | Recall mode: take the loot home once this visit's carried value reaches V\* = r·sqrt(2T/h) (`auto`), a fixed gold value, or never (`off`); a full pack always ("Taking the loot home"). |
-| `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; not at home: logged and skipped. |
+| `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; a drop-off that can't run (not at home, an item out of reach) ends the run at home. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` (`--pets` 0.50) | Leave below this share of max hits (plus the fight spot's route margin). |
@@ -302,8 +302,12 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
 - **The drop-off** (`--drop-off`, default on; homes.json `dropoff`): home after any recall (since 2026-10-21 Logan
   Wolf's house, his tome's default rune; before, the rental room through the house steward): `home.at_home` → the walk
   to the landing tile → `dropoff.run` (the user's Razor drop-off and the chest); the run then rests there and recalls
-  back in from the house. Not at home, or a failure: logged (`dropoff` job event with the error) and the run goes on
-  with the load. The simulator has no home (`--no-drop-off` in run.py's defaults).
+  back in from the house. The tomes sit in the wooden shelf (homes.json step `in`): back from a trip the client has
+  forgotten its contents, so the drop-off opens it and waits for them. A drop-off that can't run (not at home, an
+  item out of reach, a container that won't open) ends the run at home with the load (`Abort`, task_failed; a
+  `dropoff` job event with the error): until 2026-10-21 the run went back in with it (live 22:32:36, 25.5k gp back
+  to Maus Near 2). A refused step still lets the run go on. The simulator has no home (`--no-drop-off` in run.py's
+  defaults).
 - `--return-at auto` (default) | `off` | `GOLD` (a fixed value).
 
 ## Soul jars (`--soul-jars`; `harness/soul_jar.py`; user request 2026-10-17)
@@ -403,7 +407,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    hitting a pet from up there doesn't count, nor does it make the pets "busy" for the patrol: live 2026-10-19
    19:34:43-35:50 an insane reanimator at z 30 over GraveRobber at z 5 was picked, dropped and picked again every
    15 s while the walk in stood its whole 90 s), and doesn't hold a crawl waypoint either; neither does a passed-over
-   one (user 2026-10-17: "it doesn't understand the z-levels put the creatures out of sight above it").
+   one (user 2026-10-17: "it doesn't understand the z-levels put the creatures out of sight above it"). One the
+   short way reaches is approached **on its floor**: the walk ends within 6 tiles standing within `FLOOR_Z_TOL` of
+   its surface (`Team.approach`, `HuntLoop.floor_z_ok`). The beeline to within 6 tiles ended on the ledge above it,
+   where it was off our floor again, and the patrol's next step made it a target again: live 2026-10-21
+   22:27:28-22:28:42, 40 rounds between (5180, 684) and (5181, 685) over two shade wolves 28 z below (user: "stuck
+   bumping into a wall trying to approach a shade wolf"; `sim/fight2227.py`).
    **Someone else's fight**: a target in war mode within `ELSEWHERE_R` 2 of another player or a pet not ours,
    not on us or our pets, with neither pet in war mode beside it (within 2; the guarding pets keep war mode between
    fights: live 2026-10-19 10:10:57-10:11:28 two tormented souls on other players were waited for 15 s each while

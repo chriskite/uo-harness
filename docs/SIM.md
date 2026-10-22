@@ -42,6 +42,7 @@ python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main ch
 python harness/sim/parity.py sim.jsonl --db <main checkout>/harness/data/harness.db --logs <main checkout>/logs
 python harness/sim/fight1822.py 1,2,...,24 [--log] [--harness DIR]   # the 18:22 live death replayed
 python harness/sim/fight1820.py 1,2,...,48 [--awake] [--log] [--harness DIR]   # the 2026-10-21 18:21 blightmare death
+python harness/sim/fight2227.py 1,2,...,12 [--log] [--harness DIR]   # the 2026-10-21 22:27 ping-pong at a ledge
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>

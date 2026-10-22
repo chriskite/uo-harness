@@ -107,24 +107,36 @@ def ground_item(items: dict, serial: int) -> dict | None:
 
 def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
     """The drop-off `plan` (homes.json `dropoff`: steps [{serial, name, entry (cliloc), target?:
-    "pack"}], chest {serial}, to_chest {graphics, names}) from where we stand. Each step: its context
-    menu, the entry with that cliloc (refused when missing or disabled), the backpack targeted when
+    "pack", in?: container serial}], chest {serial}, to_chest {graphics, names}) from where we stand. Each step: its
+    context menu, the entry with that cliloc (refused when missing or disabled), the backpack targeted when
     the step says so, then its line. Then the chest items (chest_items). A step's item may sit in a container
     on the ground (the user's wooden shelf holds the tomes since 2026-10-21): its reach is the container's tile,
     and a container the server hasn't opened for us yet is opened first, outermost first, like a player
-    (agent_link.containers_to_open). A step whose item isn't in view within RANGE stops the drop-off before
-    anything is sent. Returns {ok, steps [{serial, name, lines}], chest [{serial, name, amount}], left
-    [serials not moved], error?, heard}."""
+    (agent_link.containers_to_open). The client forgets a container's contents when it leaves view (0x1D): back
+    from a trip, the tomes in the shelf are unknown until the shelf is opened again (live 2026-10-21 22:32:36, the
+    hunt's drop-off after the recall home: "a treasure map tome … isn't in view within 2 tiles"). So a step whose
+    item is unknown is reached through the container its `in` names: that one opened, then its item looked for.
+    A step whose item (or `in` container) isn't in view within RANGE stops the drop-off before anything is sent.
+    Returns {ok, steps [{serial, name, lines}], chest [{serial, name, amount}], left [serials not moved], error?,
+    heard}."""
     from agent_link import containers_to_open
     st, _ = io.poll()
     items, pos = st["world"]["items"], st["movement"].get("pos")
-    shut = []
+    shut, unseen = [], []
     for s in plan["steps"]:
-        it = ground_item(items, _serial(s["serial"]))
+        serial = _serial(s["serial"])
+        it = ground_item(items, serial)
+        box = _serial(s["in"]) if it is None and s.get("in") else None
+        if box is not None:
+            it = ground_item(items, box)
         if it is None or not pos or max(abs(it["x"] - pos[0]), abs(it["y"] - pos[1])) > RANGE:
-            raise DropoffError(f"{s['name']} 0x{_serial(s['serial']):08X} isn't in view within {RANGE} tiles: "
+            raise DropoffError(f"{s['name']} 0x{serial:08X} isn't in view within {RANGE} tiles: "
                                "stand on the home landing tile")
-        shut += [c for c in containers_to_open(st["world"], _serial(s["serial"])) if c not in shut]
+        if box is None:
+            shut += [c for c in containers_to_open(st["world"], serial) if c not in shut]
+        else:
+            shut += [c for c in containers_to_open(st["world"], box, itself=True) if c not in shut]
+            unseen.append(s)
     pack = combat.backpack(items, st["movement"].get("self_serial"))
     flow, done, error = _Flow(io), [], None
     for c in shut:                    # a player opens the shelf before using what's in it
@@ -134,6 +146,15 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
         got = flow.send_wait(actions.dclick(c), opened, f"opening the container 0x{c:08X}", timeout)
         if not any(opened(e) for e in got):
             raise DropoffError(f"the container 0x{c:08X} holding drop-off items didn't open: {_lines(got)}")
+    end = time.monotonic() + timeout
+    while unseen:                     # its contents come right after the open (0x3C)
+        st, _ = io.poll()
+        unseen = [s for s in unseen if f"0x{_serial(s['serial']):08X}" not in st["world"]["items"]]
+        if unseen and time.monotonic() > end:
+            raise DropoffError(f"{unseen[0]['name']} 0x{_serial(unseen[0]['serial']):08X} isn't in the container "
+                               f"0x{_serial(unseen[0]['in']):08X}")
+        if unseen:
+            time.sleep(0.05)
     human.wait("hotkey")              # the script's hotkey (F5); its lines then run back to back
     for s in plan["steps"]:
         serial = _serial(s["serial"])

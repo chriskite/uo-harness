@@ -788,6 +788,14 @@ class HuntLoop:
         self.floor_seen[serial] = (key, ok)
         return ok
 
+    def floor_z_ok(self, st, mob: dict):
+        """A Mover z_ok standing on `mob`'s floor (within FLOOR_Z_TOL of its map surface), or None without map data."""
+        walk = self.mover.walk_map(st)
+        if walk is None:
+            return None
+        z = los.surface_z(walk, mob["x"], mob["y"], mob.get("z") or 0)
+        return lambda sz: abs(sz - z) <= FLOOR_Z_TOL
+
     def worn(self, st, serial) -> bool:
         it = st["world"]["items"].get(key_of(serial)) or {}
         return it.get("container") is not None and serial_of(it["container"]) == self.me(st) and bool(it.get("layer"))
@@ -2198,9 +2206,11 @@ class HuntLoop:
     def drop_off(self):
         """--drop-off, home after a recall (Logan Wolf's default rune lands in the house): at home (home.at_home)
         walk to the homes.json `landing` tile and run the drop-off there (dropoff.run: the user's Razor 'New Drop
-        Off', then homes.json `dropoff.to_chest` items into the chest). Not at home: logged and skipped. The run goes
-        back in from the house. Anything that goes wrong is logged and the run goes on with the load (a `dropoff`
-        job event either way)."""
+        Off', then homes.json `dropoff.to_chest` items into the chest). The run goes back in from the house. A
+        drop-off that can't run (not at home, an item out of reach, a container that won't open) ends the run there
+        with the load (Abort: task_failed at home, a `dropoff` job event either way): going back in with it carries
+        home's whole take into the dungeon again (live 2026-10-21 22:32:36-22:32:40: 25.5k gp back to Maus Near 2
+        after "a treasure map tome … isn't in view within 2 tiles"; the user paused the gate and took him home)."""
         st = self.state()
         home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
         if not home or not home.get("dropoff"):
@@ -2218,11 +2228,10 @@ class HuntLoop:
                 self.mover.walk_to(lambda: landing, 0, "to the home landing tile")
             out = dropoff.run(escape_mod.LinkIO(self.link), self.human, home["dropoff"])
         except (dropoff.DropoffError, Abort) as e:
-            log(f"drop-off: {e}; going on with the load")
             self.memory.job_event("hunt", "dropoff", {"ok": False, "error": str(e), "carried": before,
                                                       "elapsed_s": round(time.monotonic() - t0, 1)},
                                   **self._where(self.state()))
-            return
+            raise Abort(f"drop-off failed at home with {before['total']} gp carried: {e}") from e
         after = hunt_return.carried(self.state(), self.prices)
         log(f"drop-off: {before['total']} gp carried -> {after['total']} (" + "; ".join(
             f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"]) + ")"

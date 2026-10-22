@@ -673,7 +673,10 @@ Paste this (or point the session at this section) to start an overseer.
 > 6. **`task_done`** (home): recall home if not in the house, `act dropoff` (the runner drops off between
 >    visits itself, not at the end), check pets and supplies (step 2), start the next run. A new loot type the
 >    user prices: `ctl lumber price "loot:<the client's name>" <gp> --source user` (the carried value reads
->    them). Say one progress line every few runs (kills, gold, deaths).
+>    them). Say one progress line every few runs (kills, gold, deaths). **`task_failed` at home with "drop-off
+>    failed at home with N gp carried: …"** (since 2026-10-21 the run ends there rather than going back in with
+>    the load): `act dropoff` by hand, read its `reply`, tell the parent session (or the user) the runner's
+>    error, and start the next run only once the gold is in.
 > 7. **`task_failed` with Logan still in the Mausoleum** (a walk-in that couldn't go on, a runner error),
 >    **`death`**, **`pet_left_behind`** or **`pet_down`**: `ctl say "@user …"` at once with the position and
 >    the log line, and start nothing until the user answers. A ghost can't recall out, and walking out of
