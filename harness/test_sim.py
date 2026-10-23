@@ -2175,7 +2175,7 @@ def red_loop(w, seed=1):
 
 
 def test_red_flight():
-    print("== two reds coming down the only way to the gate (a dead end): past them at once, no rope away ==")
+    print("== two reds down the only way to the gate (a dead end): past them at once; ropes as from casters ==")
     # live 2026-10-21 10:35:05-13 (hunt-20261021-102636-fdda, Maus 3): 'Ticket Tongje' in view at (5243, 708), 17 tiles
     # north of Logan at (5243, 726), running south, 'Di ve nha' behind him; the gate's route ran north up their corridor,
     # the rope landed Logan at (5244, 716) beside Tongje and the walk went on north past both: dead at (5244, 710). Then
@@ -2185,16 +2185,12 @@ def test_red_flight():
     w = red_world()
     loop, clock, store, patched = red_loop(w)
     reds = [w.add_red(5243, 708)]
-    world_tick, last, jumps = clock.on_advance, [w.player.pos], []
+    world_tick = clock.on_advance
 
     def watch(now):
         world_tick(now)
         if len(reds) == 1 and w.t >= 1.2:                     # the second one 1.2 s later, a tile behind (live)
             reds.append(w.add_red(5243, 707, name="Di ve nha"))
-        here = w.player.pos
-        if sim_cheb(here, last[0]) > 1 and not w.player.ghost:
-            jumps.append([(sim_cheb(last[0], r.pos), sim_cheb(here, r.pos)) for r in reds])
-        last[0] = here
     clock.on_advance = watch
     out = io.StringIO()
     try:
@@ -2208,8 +2204,9 @@ def test_red_flight():
         simclock.uninstall(patched)
     first = next((ln for ln in out.getvalue().splitlines() if "to the moongate: the way passes" in ln), "")
     check("the first decision: a dead end, past them at once, not away into the wing", "(a dead end)" in first, first)
-    check("...every rope landing farther from every red than we stood",
-          all(after > before for j in jumps for before, after in j), str(jumps))
+    ropes = [ln for ln in out.getvalue().splitlines() if "rope to" in ln]
+    check("...every rope chosen as from ranged reds (the simulator's cast), not only farther off", all(
+        "(ranged)" in ln for ln in ropes), str(ropes[:2]))
     print(f"  ({'through the gate' if res.get('ok') else res.get('error')} at {w.t:.1f} s, deaths {w.metrics['deaths']})")
 
 
@@ -2252,9 +2249,36 @@ def test_red_out_of_view():
     lines = [ln for ln in out.getvalue().splitlines() if "rope to" in ln or "moongate" in ln or "away from" in ln]
     check("the leave from him, then him out of view before the flight", bool(why) and "I Make Bodies" in why[0] and gone,
           str(why))
-    check("...the flight's first decision from where he was: a dead end, past them at once; ropes farther from him",
+    check("...the flight's first decision from where he was: a dead end, past them at once; ropes as from a caster",
           bool(lines) and "(a dead end)" in lines[0]
-          and all("from the nearest hostile player" in ln for ln in lines if "rope to" in ln), str(lines[:3]))
+          and all("(ranged)" in ln for ln in lines if "rope to" in ln), str(lines[:3]))
+
+
+def test_rope_ranged():
+    print("== a caster red on us at the east wing's mouth: the rope anyway, along the way to the gate ==")
+    # live 2026-10-22 22:03: Flat Lander (nothing in his hands, Energy Bolts every ~2.2 s) on Logan at the wing's mouth;
+    # no rope while a player hit us, dead in 10 s. User 2026-10-22: rope from casters and bows even while they hit us
+    import nav
+    w = red_world(start=(5239, 654))
+    loop, clock, store, patched = red_loop(w)
+    red = w.add_red(5230, 651, name="Flat Lander")             # 9 tiles west, in sight: his attack line, then bolts
+    red.next_step = 1e9
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(2.0)
+            st = loop.state()
+            calm, ranged = loop.player_calm(st), loop.ranged_fight(st)
+            before = len(loop.mover.plan(st, nav.within((5204, 702), 0), mobiles=False)[0])
+            loop.pk_flight = True
+            jumped = loop.rope_jump((5204, 702), loop.hostile_spots(loop.state()))
+            after = len(loop.mover.plan(loop.state(), nav.within((5204, 702), 0), mobiles=False)[0])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("a player on us, but a caster: the rope went, landing nearer the gate along the way (past him)",
+          not calm and ranged and jumped and after < before and "cursor cancelled" not in out.getvalue(),
+          f"calm {calm} ranged {ranged} jumped {jumped} route {before} -> {after}")
 
 
 def test_rope_cancel_attacked():
@@ -2943,7 +2967,7 @@ def main():
               test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
-              test_rope_cancel_attacked, test_rope_combat_cooldown, test_ledge_attacker,
+              test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot, test_blightmare_first_sight,
               test_blightmare_awake_patrol,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,

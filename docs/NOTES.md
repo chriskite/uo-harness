@@ -4749,6 +4749,13 @@ session_20261022_163222.
   and potions the shelf gives (the Seer counted ~30 heal potions, 70 vet supplies, 5 Total Refresh after it) so the
   deaths to reds waste less (OVERSEER.md §5 step 2). The user clarified 2026-10-22 that "new normal" meant the
   loadout, not the deaths.
+- **Flat Lander's kit** (a replay of the capture to 22:03:05, `replay.timed_packets`): nothing in his hands (layers 1/2
+  empty), a hued leather suit (hue 2406), a wizard's hat, a mastery chain (0x0E9A, layer 9). Spells: "Corp Por" at
+  +2.70, +4.91, +7.07 and "Por Ort Grav" at +9.49 s after 22:03:00, cast animations every ~2.2 s. Hits on Logan -34,
+  -30, -30, -33, plus -4/-1 ones with no words (he said "All Kill" at +2.15: [INFERENCE] a pet's). Magic resist
+  potions wouldn't help: the wiki says they "only work against pets and creature spells, but not player spells".
+- **Ranged reds** (user: rope from casters and bows even while they hit us): built, docs/HUNT_LOOP.md "From ranged
+  reds". `sim/fight2203.py` replays this death: 3 of 24 dead before and after.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

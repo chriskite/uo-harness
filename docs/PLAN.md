@@ -2142,7 +2142,11 @@ is a status that makes us walk slower"). The captures show the slow walk is Hams
 is a hold (docs/NOTES.md "Hinder, Hamstring and the rope"). Built: the rope while hamstrung, even with a player on
 us (it jumped live during one). The rope's 2-minute combat cooldown is now known to the runner and the simulator:
 the 20:00:58 rope was refused by it. During a hold (Hinder, Entangle, Paralyze, a transfix) the runner tries no rope
-(user: "I'm sure the 'hold' conditions don't let us rope").
+(user: "I'm sure the 'hold' conditions don't let us rope"). From ranged reds (spell words, a bow or crossbow, or
+nothing in hand) the rope goes even while they hit us (user: "being near them for a second while roping is no worse
+than being a few tiles away"). It lands along the way to the goal, the tile fewest of them see first. Main proposed
+"out of their sight first" over every tile in reach; the dead-end replay lost 7 of 24 with it, so the landing stays on
+the way. Magic resist potions were the user's other idea: the wiki says they don't work against player spells.
 
 ## Risks
 

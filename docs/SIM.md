@@ -45,6 +45,7 @@ python harness/sim/fight1820.py 1,2,...,48 [--awake] [--log] [--harness DIR]   #
 python harness/sim/fight2227.py 1,2,...,12 [--log] [--harness DIR]   # the 2026-10-21 22:27 ping-pong at a ledge
 python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--harness DIR]   # the 2026-10-22 18:53 red on the walk in
 python harness/sim/fight2001.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
+python harness/sim/fight2203.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>

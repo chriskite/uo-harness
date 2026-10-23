@@ -181,6 +181,13 @@ ROPE_COMBAT_AFTER_S = 20.0    # ...a player's "... is attacking you!" this recen
 HAMSTRING_ICON = 53           # "Can Only Walk and Cannot Regain Stamina", 3 s from a player's hit, stamina 0: the rope
 #                               went out and jumped during one (live 2026-10-19 19:59:09.2, docs/NOTES.md "Hinder")
 HOLD_ICONS = (19, 20, 135)    # Hinder, Entangle, Paralyze: every step refused while they last (62 captures); no rope
+# A red who hurts from afar (user 2026-10-22: "expand caster to include ranged weapons like the bow, since being near
+# them for a second while roping is no worse than being a few tiles away"): harmful spell words from him this recent
+# (live 22:03 Flat Lander "Corp Por" x3 and "Por Ort Grav", nothing in his hands), or a bow or crossbow in his hands
+# (Druidx, 20:00:56 and 22:03:02: bow animation 18 and arrows 0x0F42 at Logan), or nothing in them
+RANGED_WORDS_S = 10.0
+ARCHERY_GRAPHICS = frozenset({0x13B1, 0x13B2, 0x0F4F, 0x0F50, 0x13FC, 0x13FD, 0x26C2, 0x26CC, 0x26C3, 0x26CD,
+                              0x27A5, 0x27F0, 0x2D1E, 0x2D2A, 0x2D1F, 0x2D2B})   # bows, crossbows (tiledata)
 GATE_LEGS_MAX = 30           # walk legs of a planned walk out to the leave gate (a fight or a pet wait between legs)
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE; 12, as
@@ -1775,9 +1782,38 @@ class HuntLoop:
                    and b["ends_t"] > now for i in HOLD_ICONS)
 
     def rope_worth(self, st) -> bool:
-        """A flight's rope (rope_ready_now) only while no player is on us (player_calm), or hamstrung (user
-        2026-10-22: with a walk's pace only, the rope even while they hit us)."""
-        return self.rope_ready_now(st) and (self.player_calm(st) or self.hamstrung(st))
+        """A flight's rope (rope_ready_now) only while no player is on us (player_calm); or hamstrung (user
+        2026-10-22: with a walk's pace only, the rope even while they hit us); or when every hostile player is a ranged
+        one (ranged_fight: next to him for the rope's second is no worse than a few tiles off)."""
+        return self.rope_ready_now(st) and (self.player_calm(st) or self.hamstrung(st) or self.ranged_fight(st))
+
+    def ranged_fight(self, st) -> bool:
+        """Every hostile player the flight runs from (hostile_spots) is a ranged one (ranged_player), and there is one."""
+        spots = self.hostile_spots(st)
+        return bool(spots) and all(self.ranged_player(st, s) for s in spots)
+
+    def ranged_player(self, st, serial: int) -> bool:
+        """A hostile player who hurts from afar: harmful spell words from him within RANGED_WORDS_S
+        (threats.harmful_spell), or, in view, a bow or crossbow in his hands (ARCHERY_GRAPHICS, or a tiledata name
+        ending in "bow") or nothing in them (a caster: live 22:03 Flat Lander, a mastery chain, leather and a wizard's
+        hat, three Energy Bolts and a Lightning)."""
+        now = time.time()
+        ev, et = self.link.events, self.link.event_t
+        for i in range(len(ev) - 1, -1, -1):
+            if now - et[i] > RANGED_WORDS_S:
+                break
+            e = ev[i]
+            if e.get("ev") == "speech_heard" and serial_of(e.get("serial") or 0) == serial \
+                    and threats.harmful_spell(e.get("text")):
+                return True
+        world = st["world"]
+        if key_of(serial) not in world["mobiles"]:
+            return False
+        hands = [it for it in world["items"].values()
+                 if it.get("layer") in (combat.LAYER_ONE_HANDED, combat.LAYER_TWO_HANDED)
+                 and it.get("container") is not None and serial_of(it["container"]) == serial]
+        return not hands or any(it.get("graphic") in ARCHERY_GRAPHICS or combat.item_name(it).endswith("bow")
+                                for it in hands)
 
     def hamstrung(self, st) -> bool:
         """Hamstring (buff HAMSTRING_ICON) on us and not past the end the server gave it; without an end (no TimeSync
@@ -1931,12 +1967,15 @@ class HuntLoop:
         occupied = self.mover.occupied(st)      # live 13:40:52.9 "That location is blocked." (a summon on it)
         spots = spots or {}
         tele = self.mover.teleporter_tiles(st["world"]["self"].get("map"))   # never onto one (the Mover's walls too)
+        # every one of them ranged (ranged_fight; user 2026-10-22): a landing beside one is no worse than a few tiles
+        # off, so out of their sight first, then along the way, then the farthest from them
+        ranged = bool(spots) and self.ranged_fight(st)
 
         def ok(t) -> bool:
             return cheb(pos, t) >= 4 and sight.point_blocked(eye, t) is None and t[:2] not in occupied \
                 and t[:2] not in self.rope_refused and t[:2] not in tele \
-                and all(cheb(t, xy) > cheb(pos, xy) for xy in spots.values())
-        best, cur = None, pos
+                and (ranged or all(cheb(t, xy) > cheb(pos, xy) for xy in spots.values()))
+        best, cur, on_route = None, pos, []
         for t in path[1:] if path else ():
             if cheb(pos, t) > ROPE_R:
                 break
@@ -1945,7 +1984,19 @@ class HuntLoop:
                 break
             if ok(cur):
                 best = cur
-        if best is None and spots:
+                on_route.append(cur)
+        hidden = ""
+        if ranged:
+            mobs = st["world"]["mobiles"]
+            eyes = [(xy[0], xy[1], ((mobs.get(key_of(s)) or {}).get("z") or pos[2]) + los.EYE) for s, xy in spots.items()]
+
+            def seen_by(t) -> int:
+                return sum(1 for e in eyes if cheb(e, t) <= threats.SPELL_WORDS_RANGE
+                           and sight.point_blocked(e, (t[0], t[1], t[2] + los.EYE)) is None)
+            # along the way only, the least seen first: ranking every tile in reach "out of their sight first" landed
+            # Logan back in the dead end and behind them (sim/fight2001.py: 7 of 24 dead that way, 0 without ranged ropes)
+            best = min(enumerate(on_route), default=(0, None), key=lambda it: (seen_by(it[1]), -it[0]))[1]
+        elif best is None and spots:
             steps = localmap.steps(walk, pos, radius=ROPE_R)
             cands = [(t[0], t[1], los.surface_z(walk, t[0], t[1], pos[2])) for t, n in steps.items()
                      if n <= FLEE_DETOUR * cheb(pos, t)]
@@ -1953,8 +2004,11 @@ class HuntLoop:
                        key=lambda t: (min(cheb(t, xy) for xy in spots.values()), -cheb(t, goal)))
         if best is None:
             if spots:
-                log("rope: no landing in reach farther from the hostile player(s)")
+                log("rope: no landing in reach " + ("in sight" if ranged else "farther from the hostile player(s)"))
             return False
+        if ranged:
+            n = seen_by(best)
+            hidden = (", out of their sight" if n == 0 else f", in sight of {n}") + " (ranged)"
         # in combat with a player when the rope goes out: its 2-minute cooldown starts (ROPE_COMBAT_COOLDOWN_S)
         fighting = any(t.endswith(ATTACKED_BY) and not t[0].islower()
                        for t in self.lines_over_us(st, ROPE_COMBAT_AFTER_S))
@@ -1980,7 +2034,8 @@ class HuntLoop:
             return False
         cur = self.link.state()["world"]["target"]
         self.human.wait("hotkey_aim")
-        if self.pk_flight and not self.player_calm(self.link.state()) and not self.hamstrung(self.link.state()):
+        if self.pk_flight and not self.player_calm(self.link.state()) and not self.hamstrung(self.link.state()) \
+                and not ranged:
             self.cancel(cur)
             log("rope: a player turned on us before the target went out: cursor cancelled (Esc), running on")
             return False
@@ -2001,7 +2056,7 @@ class HuntLoop:
         away = ""
         if spots:
             away = (f", {min(cheb(pos, xy) for xy in spots.values())} -> "
-                    f"{min(cheb(best, xy) for xy in spots.values())} tiles from the nearest hostile player")
+                    f"{min(cheb(best, xy) for xy in spots.values())} tiles from the nearest hostile player{hidden}")
         log(f"rope to {best[:2]} ({cheb(pos, best)} tiles{away}): " + ("landed" if landed else
                                                                        f"no jump (cliloc {refused})" if refused else
                                                                        "no jump")
@@ -2154,7 +2209,7 @@ class HuntLoop:
                 return "through the gate"
             spots = self.hostile_spots(s)
             self.hostile_zones(spots)
-            if not leg["past"] and self.rope_worth(s):
+            if (not leg["past"] or self.ranged_fight(s)) and self.rope_worth(s):
                 return "a rope is worth it"
             if spots.keys() - leg["known"]:
                 return "a hostile player in view"
@@ -2188,7 +2243,8 @@ class HuntLoop:
                         who = self.hostile_seen[s][2] if s in self.hostile_seen else f"0x{s:X}"
                         tile = self.flee_tile(st, spots, failed) if fleeing else None
                         if tile is not None and self.dead_end(st, tile, near, spots):
-                            # no rope either: from them it lands only farther off, back into the dead end (fight2001)
+                            # no rope from melee ones: it lands only farther off, back into the dead end (fight2001);
+                            # from ranged ones it may land along the way, past them (rope_jump, ranged_fight)
                             leg["past"] = True
                             say(f"to the moongate: the way passes {who} at {xy} ({cheb(here, xy)} tiles off) and every "
                                 f"way from here does (a dead end): past them at once, round them as far as the way "
@@ -2206,7 +2262,7 @@ class HuntLoop:
                             say(f"to the moongate: no way round {who} at {xy} ({cheb(here, xy)} tiles off) "
                                 f"{'left' if fleeing else f'after {FLEE_MAX_S:.0f} s'}: past them, round them as "
                                 f"far as the way allows")
-                if not leg["past"] and self.rope_worth(st) and self.rope_jump(goal, spots):
+                if (not leg["past"] or self.ranged_fight(st)) and self.rope_worth(st) and self.rope_jump(goal, spots):
                     continue
                 leg["start"], leg["known"] = self.mover.steps, set(spots)
                 try:

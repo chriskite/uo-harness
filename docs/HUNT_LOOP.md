@@ -847,6 +847,16 @@ moongate, and never near a red one).
     before you may use this again while in combat."). So such a jump sets the next try 120 s out, and a refusal's
     time left is read back. Hinder (icon 19) is a hold, not a slow walk. No rope during a hold (Hinder, Entangle,
     Paralyze, a transfix: `held_now`; user: "the 'hold' conditions don't let us rope").
+    **From ranged reds, the rope even while they hit us** (since 2026-10-22; user: "expand caster to include ranged
+    weapons like the bow, since being near them for a second while roping is no worse than being a few tiles away").
+    A red is ranged (`ranged_player`) with harmful spell words from him in the last 10 s, a bow or crossbow in his
+    hands, or nothing in them. When every red the flight runs from is ranged (`ranged_fight`), the rope goes with them
+    on us, on a dead end's "past them at once" legs too, and lands along the way to the goal, the tile fewest of them
+    see first, then the farthest along ("…, out of their sight (ranged)" / "in sight of N (ranged)"). A melee red keeps
+    the rules above. Simulator replays: `sim/fight2203.py` (Flat Lander, 22:03) 3 of 24 dead before and after;
+    `sim/fight2001.py` 0 of 24 before and after. Ranking every tile in reach "out of their sight first" instead lost 7
+    of 24 in fight2001: the landings went back into the dead end. The simulated caster's spell lands even when Logan
+    is out of its sight by then, and it doesn't hamstring, so the replays can't credit a rope out of sight [INFERENCE].
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.
