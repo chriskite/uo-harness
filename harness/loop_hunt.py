@@ -219,6 +219,7 @@ FLEE_LEG_STEPS = 6            # steps of a flight's leg before the way to the ga
 FLEE_MAX_S = 60.0             # flee legs this long at most; then to the gate past them, round them as the zones allow
 FLEE_HOLD_S = 0.5             # far enough and the way still passes them: a look again after this
 FLEE_LEGS_MAX = 200           # legs, ropes and looks of a flight at most (flee_out)
+FLEE_NEAR_FAILS = 6           # failed walks toward the gate a flight tries again from (refused steps expire) before it ends
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
 LOOT_DEFER_S = 1.0            # a corpse in an area hitter's reach (tamer.Team.loot_tile): looked at again this soon
@@ -2151,6 +2152,7 @@ class HuntLoop:
             if line != said[0]:
                 said[0] = line
                 log(line)
+        near_fails = 0
         try:
             for _ in range(FLEE_LEGS_MAX):
                 st = self.link.state()
@@ -2200,7 +2202,14 @@ class HuntLoop:
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)
                 except WalkFailed as e:
                     if goal == near:
-                        raise
+                        # live 2026-10-22 22:03:06: "no route from (5223, 657)" on a stair with Flat Lander on it ended
+                        # the run there, Logan alive at 50/100 and no potion or vet more; the refused steps expire
+                        near_fails += 1
+                        if near_fails > FLEE_NEAR_FAILS:
+                            raise
+                        log(f"{e}; looking again ({near_fails} of {FLEE_NEAR_FAILS})")
+                        time.sleep(FLEE_HOLD_S)
+                        continue
                     log(f"away from them: {e}")
                     failed.add(goal)
                     continue
@@ -2285,6 +2294,11 @@ class HuntLoop:
             self.pk_left_t = time.monotonic()
         self.end_visit(why)
         if not res["ok"]:
+            # dead on the way out: the death juncture first (live 2026-10-22 22:03:06 "recall home failed (moongate: to
+            # the moongate: no route from (5223, 657))" with Logan dead beside Flat Lander and no `death` posted)
+            st = self.link.state()
+            if threats.is_dead(st) or st["world"]["self"].get("dead"):
+                self.died(st, f"ghost body (leaving: {why})")
             raise Abort(f"recall home failed ({res['failure']}) after: {why}")
         log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
         self.rearm(self.state())            # a recall knocks an arcane staff into the pack

@@ -592,7 +592,10 @@ Paste this (or point the session at this section) to start an overseer.
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"
 >    and the like): heal potions `0x0F0C`, vet supplies `0x6496`, Total Refresh `0x0F0B`, adventurer's rope,
 >    and the rune tome `0x444AB1F3`. The shelf's "Unable to resupply: no items available." also comes with
->    a full loadout. Short of potions or vet supplies after the Resupply: tell the user and don't start.
+>    a full loadout. Full is what the shelf's loadout gives, and the user sets it: since 2026-10-22 about 30 heal
+>    potions, 70 vet supplies, 5 Total Refresh and 15 rope (user: "I reduced our load out from the shelf so we aren't
+>    wasting so many resources when we keep dying to reds"; knowledge #17148). Short of that after the Resupply:
+>    tell the user and don't start.
 >    **Then the loot the drop-off left in the pack goes into the chest** (user 2026-10-20: "see if any loot
 >    that isn't auto-dropped off is in the pack and move it to the chest"; that day a mastery chain dye stayed in
 >    the pack). The drop-off only takes what its tomes, the deposit safe, the stockpile, the recycler and the

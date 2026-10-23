@@ -4723,6 +4723,26 @@ usually lets a buff expire without a sub 9, so only `ends_t` (state.py `buff_end
   dead-end rule: 4 of 24 dead without the rope changes (the flight stood for refused ropes), 0 of 24 with them.
   test_sim `test_rope_combat_cooldown`.
 
+## Dead at the east wing's mouth to a fast red (live 2026-10-22 22:03, hunt-20261022-211657-79a9)
+
+Visit 3 of the run (visits 1 and 2 took 31.5k and 28.6k home). Task log lines 2675-2698, capture
+session_20261022_163222.
+- 22:02:59 Logan at (5239, 654), the east wing's mouth. The red Flat Lander was in view at (5222, 659), 17 tiles west
+  on the way to the gate. The flee tile was back into the wing, so the dead-end rule went "past them at once". By
+  22:03:02 he had come 12 tiles in ~2 s to (5228, 651) [INFERENCE: mounted]. Logan's hits went 92 -> 58 by 22:03:05,
+  then a potion took him to 51.
+- **The run ended with Logan alive.** At 22:03:05 the route went up the stair to (5223, 657, z 25) beside him. The
+  next plan found "no route from (5223, 657)" even without mobiles: the steps the server refused there are walls
+  for `DENY_RETRY_S` [INFERENCE]. leave_by_gate returned the error, and leave_by_recall aborted ("recall home failed
+  (moongate: to the moongate: no route …)") at 22:03:06 with Logan at 50/100. No potion or vet after that. No
+  `death` juncture was posted: the run was gone when he died.
+- **Fixes:** a failed walk toward the gate no longer ends the flight. It looks again after `FLEE_HOLD_S`, up to
+  `FLEE_NEAR_FAILS` 6 times ("…; looking again (n of 6)"). A failed leave that finds Logan dead posts the death
+  first (`died`, "ghost body (leaving: …)"). Neither would likely have saved him: a red that closes 12 tiles in 2 s
+  can't be outrun on foot, and the rope's first use in a fight with a player buys one jump [INFERENCE].
+- User (chat 6159, after death #2): reds killing Logan is "the new normal"; he cut the shelf's loadout to ~30 heal
+  potions, 70 vet supplies, 5 Total Refresh so a death costs less (OVERSEER.md §5 step 2).
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0
