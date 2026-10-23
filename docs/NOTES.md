@@ -4740,8 +4740,10 @@ session_20261022_163222.
   `FLEE_NEAR_FAILS` 6 times ("…; looking again (n of 6)"). A failed leave that finds Logan dead posts the death
   first (`died`, "ghost body (leaving: …)"). Neither would likely have saved him: a red that closes 12 tiles in 2 s
   can't be outrun on foot, and the rope's first use in a fight with a player buys one jump [INFERENCE].
-- User (chat 6159, after death #2): reds killing Logan is "the new normal"; he cut the shelf's loadout to ~30 heal
-  potions, 70 vet supplies, 5 Total Refresh so a death costs less (OVERSEER.md §5 step 2).
+- User (chat 6159, after death #2): the reduced shelf loadout is "the new normal". He cut the vet supplies, bandages
+  and potions the shelf gives (the Seer counted ~30 heal potions, 70 vet supplies, 5 Total Refresh after it) so the
+  deaths to reds waste less (OVERSEER.md §5 step 2). The user clarified 2026-10-22 that "new normal" meant the
+  loadout, not the deaths.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
