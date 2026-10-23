@@ -2129,6 +2129,17 @@ the walk in, `walk_in_threat` / `walk_in_leave` / `walk_in_rush` (docs/HUNT_LOOP
 The flight switches gold gates when the way to the chosen one passes them. Simulator, the second-level replay
 (`sim/fight1853.py level2`): 12 of 12 dead before, 0 of 12 after.
 
+## A red in a dead end: past them at once (user 2026-10-22)
+
+The 20:01:02 death in Maus 3's east wing came from the "away from them first" rule of 2026-10-21. It ran ahead of
+three reds into the wing's dead end (docs/NOTES.md "Dead in the east wing's dead end"). Main put three options to
+the user, with the 10:35 death of 2026-10-21 (going past two reds in the same wing) as evidence against going
+past: past them at once, the pets on the red and then past him, or away first only outside dead ends. The user
+chose **away first only outside dead ends**. In a dead end, where every way to the gate from the flee tile still
+passes them, the flight goes past them at once with no rope away. Built: `HuntLoop.dead_end` in `flee_out`
+(docs/HUNT_LOOP.md "Not into a dead end"). The user's other point: hinder is a slow-walk status, not a hold. Its
+evidence from the captures comes before any change to the rope rule.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

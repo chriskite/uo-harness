@@ -833,6 +833,13 @@ moongate, and never near a red one).
     ("to the moongate: no way round …"). A rope lands only farther from every one of them than we stand (off the
     route when the route goes their way: the walkable tile within 9 farthest from them; none: no rope), and its
     cursor is answered with Esc when a player turns on us between the cursor and our target (live 10:35:06.07).
+    **Not into a dead end** (since 2026-10-22; user: "Away first only outside dead ends"; live 20:01:02 the
+    flight ran ahead of three reds down Maus 3's east wing into its south-west end, then back into them, NOTES
+    "Dead in the east wing's dead end"). Before running away it asks whether the way to the gate from the flee tile
+    would still pass them (`dead_end`). If so, every way out passes them, and it goes past them at once, round them
+    as far as the zones bend the route: "… and every way from here does (a dead end): past them at once". No rope
+    on such a leg: a rope lands only farther from them, back into the dead end. Once past them the way no longer
+    passes them, and the flight goes on as above. Simulator `sim/fight2001.py`: 24 of 24 dead before, 0 after.
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

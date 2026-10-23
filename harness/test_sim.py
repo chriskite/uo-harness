@@ -2175,15 +2175,17 @@ def red_loop(w, seed=1):
 
 
 def test_red_flight():
-    print("== fleeing two reds coming down the only way to the gate: no rope or walk toward them ==")
+    print("== two reds coming down the only way to the gate (a dead end): past them at once, no rope away ==")
     # live 2026-10-21 10:35:05-13 (hunt-20261021-102636-fdda, Maus 3): 'Ticket Tongje' in view at (5243, 708), 17 tiles
     # north of Logan at (5243, 726), running south, 'Di ve nha' behind him; the gate's route ran north up their corridor,
-    # the rope landed Logan at (5244, 716) beside Tongje and the walk went on north past both: dead at (5244, 710)
+    # the rope landed Logan at (5244, 716) beside Tongje and the walk went on north past both: dead at (5244, 710). Then
+    # "away from them first" (2026-10-21) ran ahead of three reds into the wing's south-west end, dead 2026-10-22
+    # 20:01:02; user 2026-10-22: "Away first only outside dead ends" (sim/fight2001.py)
     from agent_link import Abort
     w = red_world()
     loop, clock, store, patched = red_loop(w)
     reds = [w.add_red(5243, 708)]
-    world_tick, last, jumps, near = clock.on_advance, [w.player.pos], [], []
+    world_tick, last, jumps = clock.on_advance, [w.player.pos], []
 
     def watch(now):
         world_tick(now)
@@ -2192,8 +2194,6 @@ def test_red_flight():
         here = w.player.pos
         if sim_cheb(here, last[0]) > 1 and not w.player.ghost:
             jumps.append([(sim_cheb(last[0], r.pos), sim_cheb(here, r.pos)) for r in reds])
-        if w.t <= 3.0:
-            near.append(min(sim_cheb(here, r.pos) for r in reds))
         last[0] = here
     clock.on_advance = watch
     out = io.StringIO()
@@ -2206,16 +2206,15 @@ def test_red_flight():
     finally:
         store.close()
         simclock.uninstall(patched)
-    check("a rope jump, each landing farther from every red than we stood", jumps
-          and all(after > before for j in jumps for before, after in j), str(jumps))
-    check("...the first 3 s of the flight 8+ tiles from them (live: beside one 2.2 s after the leave)", min(near) >= 8,
-          f"nearest {min(near)}")
-    check("...the way past them seen, away from them first", "away from them first" in out.getvalue())
+    first = next((ln for ln in out.getvalue().splitlines() if "to the moongate: the way passes" in ln), "")
+    check("the first decision: a dead end, past them at once, not away into the wing", "(a dead end)" in first, first)
+    check("...every rope landing farther from every red than we stood",
+          all(after > before for j in jumps for before, after in j), str(jumps))
     print(f"  ({'through the gate' if res.get('ok') else res.get('error')} at {w.t:.1f} s, deaths {w.metrics['deaths']})")
 
 
 def test_red_out_of_view():
-    print("== the leave's red out of view before the flight, back along the gate's way: no walk toward him ==")
+    print("== the leave's red out of view before the flight, back along the gate's way: the wing is a dead end ==")
     # live 2026-10-21 17:37:09.9-22 (hunt-20261021-172808-cc2f, Maus 3): I Make Bodies came into view at (5219, 661, 25),
     # 18 tiles from Logan at (5237, 676), and walked down the ramp out of view by 10.9 (0x1D); the flight's first look
     # came at 11.4 and found no one: the rope to (5242, 674) and "route 82 steps" north up x 5243 to y 654, the gate's
@@ -2230,14 +2229,12 @@ def test_red_out_of_view():
     bot = [(5220 + i, 660 - i, 0.2) for i in range(7)] + [(x, 653, 0.2) for x in range(5227, 5240)] \
         + [(5240, 654, 0.3), (5241, 655, 0.2)]
     reds = [w.add_red(5219, 661, name="I Make Bodies", route=imb)]
-    world_tick, near = clock.on_advance, []
+    world_tick = clock.on_advance
 
     def watch(now):
         world_tick(now)
         if len(reds) == 1 and w.t >= 2.1:                     # Botan 2.1 s after him, on his tile (live)
             reds.append(w.add_red(5219, 661, name="Botan", route=bot))
-        if w.t <= 9.0:
-            near.append(min(sim_cheb(w.player.pos, r.pos) for r in reds))
     clock.on_advance = watch
     out = io.StringIO()
     try:
@@ -2255,11 +2252,9 @@ def test_red_out_of_view():
     lines = [ln for ln in out.getvalue().splitlines() if "rope to" in ln or "moongate" in ln or "away from" in ln]
     check("the leave from him, then him out of view before the flight", bool(why) and "I Make Bodies" in why[0] and gone,
           str(why))
-    check("...the flight runs from where he was: away first, the rope farther from him",
-          bool(lines) and "away from them first" in lines[0]
+    check("...the flight's first decision from where he was: a dead end, past them at once; ropes farther from him",
+          bool(lines) and "(a dead end)" in lines[0]
           and all("from the nearest hostile player" in ln for ln in lines if "rope to" in ln), str(lines[:3]))
-    check("...never within 8 of them in the first 9 s (live: beside them 7 s after the leave)", min(near) >= 8,
-          f"nearest {min(near)}")
 
 
 def test_rope_cancel_attacked():

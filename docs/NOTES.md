@@ -4659,6 +4659,34 @@ The first run after a400be6, from the house. Capture session_20261022_163222 (Bo
   (`--others --eerie --prior`, seed 17, 30 min), before / after: deaths/h 0.26 / 0.25 (6 / 6 runs with a death),
   pet deaths 2 / 2 runs, gold/h 109,978 / 109,423, kills/h 100.8 / 99.8.
 
+## Dead in the east wing's dead end (live 2026-10-22 20:01:02, hunt-20261022-191304-536b)
+
+Visit 3 of the run, after visits of 29.7k and 29.8k gp taken home. Capture session_20261022_163222, the task log
+(lines ~2584-2640).
+- **The ground.** Maus 3's east wing (x 5224-5247, y 655-737) is a cul-de-sac. Its only way out is north up the
+  x ≈ 5243 corridor to y 654, then west to the crimson gate: 94 steps from (5244, 685), 156 from the wing's
+  south-west end (5224, 737). The 2026-10-21 10:35 and 17:37 deaths were in the same wing.
+- **20:00:40.1** the red Druidx came into view at (5243, 667) in that corridor, 18 tiles north of Logan at
+  (5244, 685). Viny followed 1.1 s later on his tile, and OIOOOIIO appeared at (5243, 719) at 20:00:55.7.
+  "Druidx is attacking you!" came at 20:00:41.8, then "Corp Por" (Energy Bolt) at 42.4 and 56.2. All three ran
+  south down the corridor after him, a step every ~0.2 s.
+- **The flight** ("away from them first", 2026-10-21) ran south ahead of them. It roped twice (20:00:42 and :49)
+  and reached the south-west end at 20:01:01. Its next leg went back toward them ("route 34 steps", toward
+  (5245, 713)), and Logan died at 20:01:02 at (5228, 737). The pets were left near an awake corpse purger.
+- **Fix** (user 2026-10-22: "Away first only outside dead ends"). When the way to the gate passes them, the flight
+  first asks whether running to its flee tile would still leave every way to the gate passing them
+  (`HuntLoop.dead_end`: passes_hostile on the zone-bent route from that tile). If so it goes past them at once,
+  round them as far as the danger zones bend the route: "… and every way from here does (a dead end): past them at
+  once". No rope on such a leg: from them a rope lands only farther off, back into the dead end. Outside a dead end,
+  away first as before. test_sim `test_red_flight` and `test_red_out_of_view` now check for the dead end. Their
+  old "away first" / "8+ tiles in the first seconds" checks pinned the replaced rule. Both sims still die there:
+  their reds rush at once from deep in the wing, as before the change.
+- **Simulator** (`harness/sim/fight2001.py`, the reds' live tiles, 24 seeds): before 24 of 24 dead ("away
+  first"), after 0 of 24 dead, all through the gate ("dead end: past"). The simulated red's damage model is
+  docs/SIM.md "Red players" [INFERENCE: three live reds hit harder than it].
+- **Hinder** (the user: "a status that makes us walk slower, not a hold"): the evidence is being gathered from the
+  captures; until then the rope rule is unchanged.
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

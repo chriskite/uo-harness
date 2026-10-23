@@ -1853,6 +1853,18 @@ class HuntLoop:
                     if n <= FLEE_DETOUR * cheb((x, y), t) and t not in skip), default=None)
         return best[2] if best is not None and best[0] >= far((x, y)) + FLEE_GAIN else None
 
+    def dead_end(self, st, tile, near, spots: dict) -> bool:
+        """Whether running to `tile` (flee_tile's) leaves the way to `near` (beside the gate) still passing `spots`
+        (passes_hostile from there, the routes bent round them as the flight's are): every way out passes them, so
+        running away only corners us (user 2026-10-22, after the 20:01:02 death in Maus 3's east wing: "Away first
+        only outside dead ends"; Druidx came down the wing's only corridor and the flight ran ahead of him to its
+        south-west end, 156 steps from the gate, then back toward him)."""
+        mv = st["movement"]
+        at = {**st, "movement": {**mv, "pos": [tile[0], tile[1], tile[2] if len(tile) > 2 else mv["pos"][2],
+                                               *mv["pos"][3:]]}}
+        path, _ = self.mover.plan(at, nav.within(near, 0), mobiles=False)
+        return path is None or self.passes_hostile(path, spots, tuple(tile[:2])) is not None
+
     def rope_jump(self, goal, spots: dict | None = None) -> bool:
         """One Adventurer's Rope jump toward `goal` (Logan's escapes: '[Rope', then the ground target;
         jumps of 7-10 tiles, an 11-tile target refused): the farthest tile of the route there within ROPE_R
@@ -2082,7 +2094,7 @@ class HuntLoop:
         gold moongates, gold_gate_way): at each leg while one is known, another gate whose way passes none of them
         when this one's does (live 2026-10-22 Botan ran from (5610, 677) to beside the gold gate at (5588, 717))."""
         t_end = time.monotonic() + FLEE_MAX_S
-        leg = {"start": 0, "known": set()}
+        leg = {"start": 0, "known": set(), "past": False}
         said, failed = [None], set()
 
         def stop(s):
@@ -2090,7 +2102,7 @@ class HuntLoop:
                 return "through the gate"
             spots = self.hostile_spots(s)
             self.hostile_zones(spots)
-            if self.rope_worth(s):
+            if not leg["past"] and self.rope_worth(s):
                 return "a rope is worth it"
             if spots.keys() - leg["known"]:
                 return "a hostile player in view"
@@ -2114,6 +2126,7 @@ class HuntLoop:
                         say(f"to the moongate: the way to {gate} passes them; to the one at {alt[0]} instead")
                         gate, near = alt[0], alt[1]
                 goal, label = near, "to the moongate"
+                leg["past"] = False
                 if spots:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     s = self.passes_hostile(path, spots, here)
@@ -2121,7 +2134,13 @@ class HuntLoop:
                         xy, fleeing = spots[s], time.monotonic() < t_end
                         who = self.hostile_seen[s][2] if s in self.hostile_seen else f"0x{s:X}"
                         tile = self.flee_tile(st, spots, failed) if fleeing else None
-                        if tile is not None:
+                        if tile is not None and self.dead_end(st, tile, near, spots):
+                            # no rope either: from them it lands only farther off, back into the dead end (fight2001)
+                            leg["past"] = True
+                            say(f"to the moongate: the way passes {who} at {xy} ({cheb(here, xy)} tiles off) and every "
+                                f"way from here does (a dead end): past them at once, round them as far as the way "
+                                f"allows")
+                        elif tile is not None:
                             goal, label = tile, "away from them"
                             say(f"to the moongate: the way passes {who} at {xy} ({cheb(here, xy)} tiles off): away "
                                 f"from them first, toward {tile}")
@@ -2134,7 +2153,7 @@ class HuntLoop:
                             say(f"to the moongate: no way round {who} at {xy} ({cheb(here, xy)} tiles off) "
                                 f"{'left' if fleeing else f'after {FLEE_MAX_S:.0f} s'}: past them, round them as "
                                 f"far as the way allows")
-                if self.rope_worth(st) and self.rope_jump(goal, spots):
+                if not leg["past"] and self.rope_worth(st) and self.rope_jump(goal, spots):
                     continue
                 leg["start"], leg["known"] = self.mover.steps, set(spots)
                 try:
