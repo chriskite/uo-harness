@@ -233,6 +233,10 @@ TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fe
 #                               route's 12 to the tile before it and the step on; the stand there was killing Logan until
 #                               the user walked him through. 13 plus a 2-step margin, ~3 s running against a stand of up
 #                               to WALK_IN_FIGHT_S; GATE_DASH_R's rule for the leave gate)
+GOLD_GATE_STEPS = 120        # --enter-via: a hostile player on the walk in: flee to a gold moongate this many route steps
+#                               off at most and recall home (walk_in_threat; user 2026-10-22 after Botan's kill: "Flee to a
+#                               gold gate, recall home"); none that near (past the first teleporter: gold gates are on a
+#                               dungeon's first level only): on through the teleporters at flight pace, then the leave gate
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
 JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
 #                               "no other way on" memory, so the retry stops at the same place again); a hold ("letting
@@ -277,6 +281,15 @@ class PlayerThreat(Exception):
         self.why = why
 
 
+class WalkInFled(Exception):
+    """A hostile player on the walk in sent us home by a gold moongate's recall (walk_in_leave); enter_by_recall
+    goes back in once ready_to_go_back allows."""
+
+    def __init__(self, why: str):
+        super().__init__(why)
+        self.why = why
+
+
 def key_of(serial: int) -> str:
     return f"0x{serial:08X}"
 
@@ -303,6 +316,8 @@ class HuntLoop:
         self.fleeing = False                     # recall mode: leaving; the threat checks are off
         self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
+        self.walking_in = False                  # on the walk in (walk_in): the hostile-player checks are on (look)
+        self.walk_in_red = None                  # why a hostile player on the walk in sent us on to the leave gate
         self.rope_next = 0.0                     # --rope: the next rope jump not before
         self.rope_refused = set()                # --rope: (x, y) landings the server refused this run
         self.hostile_seen = {}                   # serial -> ((x, y), monotonic time, name) of hostile players (hostile_spots)
@@ -439,11 +454,14 @@ class HuntLoop:
 
     # ------------------------------------------------------------ recall mode: watchful waits
     def look(self, st=None):
-        """Recall mode, during a visit: a hostile player (player_threat) raises
+        """Recall mode, during a visit and on the walk in: a hostile player (player_threat) raises
         PlayerThreat from any state read, human pause or server wait, so the recall
         goes out at once (loop_lumber's look). Nothing while leaving (fleeing), at home
-        or inside the check itself; without --leave-recall it does nothing."""
-        if self.args.leave_recall is None or self._looking or self.fleeing or self.visit is None:
+        or inside the check itself; without --leave-recall it does nothing. Live 2026-10-22 18:52:33-18:53:48
+        (hunt-20261022-185159-c0c5): the red Botan in view on the walk in's first level 44 s before "Botan is
+        attacking you!", no check until Maus 3; the pets guarded, Area Peace twice, the vet in place: dead."""
+        if self.args.leave_recall is None or self._looking or self.fleeing \
+                or (self.visit is None and not self.walking_in):
             return None
         self._looking = True
         try:
@@ -460,7 +478,7 @@ class HuntLoop:
         and checking for hostile players every LOOK_EVERY_S and once more at its end,
         right before the action it delays (loop_lumber.pause: live 2026-10-03 Bastet came
         into view during an aim pause). A drag (BLIND_PAUSES) sleeps plainly."""
-        if kind in BLIND_PAUSES or self._looking or self.fleeing or self.visit is None:
+        if kind in BLIND_PAUSES or self._looking or self.fleeing or (self.visit is None and not self.walking_in):
             time.sleep(seconds)
             return
         t0 = time.monotonic()
@@ -603,10 +621,17 @@ class HuntLoop:
         self.heard_upto = len(self.link.events)
 
     def died(self, st, reason):
+        """A `death` juncture and job event, then Abort. Cause "pk" with a hostile player in view, one seen within
+        RED_RECENT_S (hostile_seen) or "… is attacking you!" over us that long (live 2026-10-22 18:53:48 Botan
+        killed Logan beside him and the juncture said "unknown": no player in view by the ghost's first read)."""
         a = self.watch.update(st, recall_s=0.0, margin_s=0.0)
         players = [t for t in a.threats if t.hostile and t.player]
-        cause = "pk" if players else ("mob" if self.attackers(st) or a.under_attack else "unknown")
-        data = {"reason": reason, "cause": cause, "attackers": self.attackers(st), "threats": a.to_dict()}
+        now = time.monotonic()
+        recent = [n for _, t, n in self.hostile_seen.values() if now - t <= RED_RECENT_S] \
+            + [t[: -len(ATTACKED_BY)] for t in self.lines_over_us(st, RED_RECENT_S) if t.endswith(ATTACKED_BY)]
+        cause = "pk" if players or recent else ("mob" if self.attackers(st) or a.under_attack else "unknown")
+        data = {"reason": reason, "cause": cause, "attackers": self.attackers(st), "threats": a.to_dict(),
+                "players_recent": sorted(set(recent))}
         self.memory.juncture("hunt", "death", f"Died ({cause}): {reason}", "urgent", data)
         self.memory.job_event("hunt", "death", data, **self._where(st))
         raise Abort(f"died ({cause}): {reason}")
@@ -2044,7 +2069,7 @@ class HuntLoop:
         finally:
             self.walking_out = self.pk_flight = False
 
-    def flee_out(self, gate, near, through):
+    def flee_out(self, gate, near, through, choose=None):
         """The flight from hostile players to beside the leave gate (`near`; leave_by_gate, severity urgent): their
         danger zones on the Mover (hostile_zones: the routes bend round them), a look at the way every
         FLEE_LEG_STEPS while any is known (hostile_spots), and at once when one we didn't know of comes into view.
@@ -2053,7 +2078,9 @@ class HuntLoop:
         it. A rope jump whenever one is worth it, never landing nearer them (rope_jump). Live 2026-10-21 10:35:05-13
         the only way from Maus 3's east wing ran up the corridor two reds came down: the rope landed Logan beside
         one and the walk went on past them; 17:37:13-22 the red of the leave was out of view at the flight's start
-        and two came back along the gate's way while the walk ran on toward them with no look."""
+        and two came back along the gate's way while the walk ran on toward them with no look. `choose` (the walk in's
+        gold moongates, gold_gate_way): at each leg while one is known, another gate whose way passes none of them
+        when this one's does (live 2026-10-22 Botan ran from (5610, 677) to beside the gold gate at (5588, 717))."""
         t_end = time.monotonic() + FLEE_MAX_S
         leg = {"start": 0, "known": set()}
         said, failed = [None], set()
@@ -2081,6 +2108,11 @@ class HuntLoop:
                     return
                 spots = self.hostile_spots(st)
                 self.hostile_zones(spots)
+                if spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate and alt[2]:
+                    path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
+                    if self.passes_hostile(path, spots, here) is not None:
+                        say(f"to the moongate: the way to {gate} passes them; to the one at {alt[0]} instead")
+                        gate, near = alt[0], alt[1]
                 goal, label = near, "to the moongate"
                 if spots:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
@@ -2266,9 +2298,20 @@ class HuntLoop:
         return (f"taking the loot home: {c['total']} gp carried (gold {c['gold']}, items {c['items_gp']}{floor}) "
                 f">= {how}", "return")
 
-    def enter_by_recall(self):
-        """Recall to --enter-recall's rune --enter-rune (its default without one). The
-        first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
+    def enter_by_recall(self) -> bool:
+        """recall_in; a hostile player on the walk in that sent us home by a gold moongate (WalkInFled): back in
+        once ready_to_go_back allows. False when the run ends at home meanwhile."""
+        while True:
+            try:
+                self.recall_in()
+                return True
+            except WalkInFled as e:
+                if not self.ready_to_go_back(e.why, "urgent"):
+                    return False
+
+    def recall_in(self):
+        """Recall to --enter-recall's rune --enter-rune (its default without one), then the walk in (--enter-via).
+        The first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
         if self.team is not None:
             self.team.follow()
@@ -2280,6 +2323,7 @@ class HuntLoop:
             raise Abort(f"recall to {rune or 'the default rune'} failed: {res['failure']} {res.get('error') or ''}")
         log(f"recalled to {rune or 'the default rune'} at {tuple(self.pos(self.link.state())[:2])} "
             f"({res['method']}, {res['elapsed_s']} s)")
+        self.attack_scan = len(self.link.events)     # "... is attacking you!" from before the recall is old news
         if self.args.enter_via:
             self.walk_in([tuple(t) for t in self.args.enter_via])
         arrival = tuple(self.pos(self.link.state())[:2])
@@ -2346,12 +2390,139 @@ class HuntLoop:
         reach of it: caution only (user 2026-10-20: on Outlands pets on 'All Follow Me' come through with us while
         in view). The guard comes on the fight level (landed, then care).
         --songs: a song due before each leg (live 20261013_204518: all three went up on the first level
-        and on the way in)."""
+        and on the way in).
+        A hostile player on the way (look, as on the hunt level: player_threat) ends the walk: walk_in_threat."""
+        self.walking_in, self.walk_in_i = True, 0
+        try:
+            self.walk_in_legs(tiles)
+        except PlayerThreat as e:
+            self.walking_in = False
+            self.walk_in_threat(e.why, tiles)
+        finally:
+            self.walking_in = False
+
+    def walk_in_threat(self, why, tiles):
+        """A hostile player on the walk in (user 2026-10-22, after Botan's kill on the second level, 18:53:48): a gold
+        moongate within GOLD_GATE_STEPS (the first level's) whose way doesn't pass them if one does: the flight there
+        and the recall home (walk_in_leave, WalkInFled); none (past the first teleporter): on through the rest at
+        flight pace (walk_in_rush), then on the hunt level the leave by the gate at once (to_spot)."""
+        st = self.link.state()
+        log(f"walk in: {why}")
+        way = self.gold_gate_way(st)
+        if way is not None:
+            self.walk_in_leave(why, *way[:2])
+        log(f"walk in: no gold moongate within {GOLD_GATE_STEPS} steps; on through the teleporters at flight pace, "
+            f"then the leave gate")
+        self.walk_in_rush(tiles[self.walk_in_i:])
+        self.walk_in_red = f"{why}, on the walk in"
+
+    def gold_gate_way(self, st, quiet: bool = False):
+        """(gate, the tile beside it to run to, its way clear) of the gold moongate of the dungeon we stand in within
+        GOLD_GATE_STEPS route steps (escape.gold_gates): one whose way passes no hostile player (passes_hostile)
+        first, then the nearest; None without one. `quiet`: no log line (flee_out's look at every leg)."""
+        here = tuple(self.pos(st)[:2])
+        gates, _ = escape_mod.gold_gates(here, st["world"]["self"].get("map"))
+        spots, best, seen = self.hostile_spots(st), None, []
+        for g in gates:
+            path, _ = self.mover.plan(st, nav.within(g, 1), mobiles=False)
+            if not path or len(path) - 1 > GOLD_GATE_STEPS:
+                seen.append(f"{g} {'no route' if not path else f'{len(path) - 1} steps'}")
+                continue
+            passes = self.passes_hostile(path, spots, here)
+            seen.append(f"{g} {len(path) - 1} steps" + (" past them" if passes is not None else ""))
+            key = (passes is not None, len(path))
+            if best is None or key < best[0]:
+                best = (key, g, tuple(path[-1]))
+        if gates and not quiet:
+            log(f"walk in: gold moongates from {here}: {'; '.join(seen)}")
+        return None if best is None else (best[1], best[2], not best[0][0])
+
+    def walk_in_leave(self, why, gate, near):
+        """From a hostile player on the walk in's first level: "All Follow Me" (no wait), the flight to beside the
+        gold moongate `gate` (flee_out: away from them first when the way passes them, rope jumps, potions and vet
+        supplies on the run, no bard skill), the recall home from there (a dungeon allows it only beside a gold
+        gate: escape.recall_forbidden), the `threat` juncture and `leave` event, the drop-off; then WalkInFled.
+        A recall that doesn't land stops the run."""
+        st = self.link.state()
+        t_fire = time.monotonic()
+        data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
+                "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
+                "walk_in": True, "gold_gate": list(gate)}
+        log(f"LEAVING the walk in by the gold moongate at {gate}: {why}")
+        self.fleeing = self.walking_out = self.pk_flight = True
+        try:
+            cancelled = self.drop_cursor()
+            self.disengage("fled")
+            self.doing("leave", f"Fleeing to the gold moongate at {gate[0]},{gate[1]}: {why}", gate)
+            if self.team is not None:
+                self.team.follow("urgent", wait=False)
+            data["react_s"] = round(time.monotonic() - t_fire, 2)
+            try:
+                self.flee_out(gate, near, lambda s: False, choose=lambda s: self.gold_gate_way(s, quiet=True))
+            except WalkFailed as e:
+                log(f"to the gold moongate: {e}")
+            res = self.recall(self.args.leave_recall, None, True, "home")
+        finally:
+            self.fleeing = self.walking_out = self.pk_flight = False
+        data.update(cursor_cancelled=cancelled,
+                    recall={k: res.get(k) for k in ("ok", "method", "from", "to", "elapsed_s", "attempts",
+                                                    "failure")})
+        if res["ok"]:
+            data["out_s"] = round(time.monotonic() - t_fire, 1)
+        self.memory.juncture("hunt", "threat", f"Leaving the walk in by a gold moongate's recall: {why}"
+                             + ("" if res["ok"] else f" (recall failed: {res['failure']})"), "urgent", data)
+        self.memory.job_event("hunt", "leave", data, **self._where(st))
+        self.count("leaves")
+        self.pk_left_t = time.monotonic()
+        if not res["ok"]:
+            raise Abort(f"recall home from the gold moongates' level failed ({res['failure']}) after: {why}")
+        log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
+        self.rearm(self.state())
+        if self.team is not None:
+            self.team.landed(self.state(), "home")
+        if self.args.bank_gold:
+            self.bank()
+        if self.args.drop_off:
+            self.drop_off()
+        raise WalkInFled(why)
+
+    def walk_in_rush(self, tiles):
+        """From a hostile player past the walk in's first level (no gold moongate there; the user 2026-10-22: "Dash
+        on to Maus 3, crimson gate"): the rest of the --enter-via teleporters at flight pace, "All Follow Me" with
+        no wait for the pets, no stop for attackers, potions and vet supplies on the run (drink_on_the_run), no bard
+        skill; the threat checks off meanwhile (fleeing)."""
+        self.fleeing = self.walking_out = self.pk_flight = True
+        try:
+            self.drop_cursor()
+            self.disengage("fled")
+            if self.team is not None:
+                self.team.follow("urgent", wait=False)
+            i = 0
+            while (i := self.walk_in_through(tiles, i)) < len(tiles):
+                tile = tiles[i]
+                label = f"to the teleporter at {tile[0]},{tile[1]}"
+                self.doing("leave", f"From a hostile player: through the teleporter at {tile[0]},{tile[1]}", tile)
+                path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+                near = tuple(path[-2]) if path and len(path) >= 2 else None
+                if near is None:
+                    raise Abort(f"{label}: no route onto it")
+                self.mover.walk_to(lambda: near, 0, label, urgent=True)
+                here = tuple(self.pos(self.link.state())[:2])
+                self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+                if self.team is not None:
+                    self.team.landed(self.state(), "in")
+                i += 1
+        finally:
+            self.fleeing = self.walking_out = self.pk_flight = False
+
+    def walk_in_legs(self, tiles):
+        """walk_in's legs, one --enter-via teleporter each."""
         self.walk_hits, self.walk_hurt_t = None, -1e9
         if self.team is not None:
             self.team.follow()
         i = 0
         while (i := self.walk_in_through(tiles, i)) < len(tiles):
+            self.walk_in_i = i                  # the leg a hostile player cut short: walk_in_rush goes on from it
             tile = tiles[i]
             label = f"to the teleporter at {tile[0]},{tile[1]}"
             self.doing("enter", f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
@@ -2743,11 +2914,25 @@ class HuntLoop:
         time.sleep(POLL_S)
 
     def go_back(self, reason) -> bool:
-        """After leaving: rest and go back in, or stop (a hostile player without
-        --leave-recall, --rest-to 0, or the rest takes too long). Recall mode: wait out
-        --pk-wait after a hostile player, recall back in (--enter-recall); False when
-        the time is up meanwhile (the run ends at home)."""
+        """After leaving: rest and go back in, or stop (ready_to_go_back). Recall mode: recall back in
+        (--enter-recall); False when the time is up meanwhile (the run ends at home)."""
         why, severity = reason
+        if not self.ready_to_go_back(why, severity):
+            return False
+        if self.args.leave_recall is None:
+            self.rearm(self.state())
+            self.enter()
+        elif not self.enter_by_recall():
+            return False
+        self.start_visit(self.state())
+        self.to_spot()
+        return True
+
+    def ready_to_go_back(self, why, severity) -> bool:
+        """After leaving (or a walk in a hostile player cut short, WalkInFled): rest, and in recall mode wait out
+        --pk-wait after a hostile player. Abort when we may not go back (a pet down, a hostile player without
+        --leave-recall, --rest-to 0, the rest takes too long, no --enter-recall); False when the time is up
+        meanwhile (the run ends at home)."""
         recall = self.args.leave_recall is not None
         if self.team is not None and (down := self.team.down(self.state())):
             self.memory.juncture("hunt", "pet_down", f"Not going back in: {down}", "attention",
@@ -2758,10 +2943,7 @@ class HuntLoop:
             return False
         if (severity == "urgent" and not recall) or self.args.rest_to <= 0 or not self.rest():
             raise Abort(f"left the hunt ({why}); not going back in")
-        if not recall:
-            self.rearm(self.state())
-            self.enter()
-        else:
+        if recall:
             if self.args.enter_recall is None:
                 raise Abort(f"left the hunt by recall ({why}); no --enter-recall to go back in")
             if not (self.finished() or self.timed_out()):
@@ -2769,21 +2951,23 @@ class HuntLoop:
             if self.finished() or self.timed_out():
                 log("the run is over (--kills / --timeout): not going back in")
                 return False
-            self.enter_by_recall()
-        self.start_visit(self.state())
-        self.to_spot()
         return True
 
     def to_spot(self):
         """Walk to the fight spot (the Mover avoids known teleporter tiles), then set
         this visit's leave margin. Crawling: build the floor once (crawl.Crawl.setup);
-        the patrol starts from where we stand."""
+        the patrol starts from where we stand. A hostile player on the walk in that sent us on through the
+        teleporters (walk_in_rush): PlayerThreat here, so the visit's first act is the leave by the gate (hunt)."""
         if self.crawl is not None:
             try:
                 self.crawl.setup(self.state())
             except ValueError as e:
                 raise Abort(f"crawl: {e}")
             self.leave_margin(self.state())
+        if (why := self.walk_in_red) is not None:
+            self.walk_in_red = None
+            raise PlayerThreat(why)
+        if self.crawl is not None:
             return
         self.doing("to_spot", f"Heading to the hunting spot {self.fight_spot[0]},{self.fight_spot[1]}", self.fight_spot)
         self.mover.walk_to(lambda: self.fight_spot, 0, "to the spot")
@@ -2960,26 +3144,31 @@ class HuntLoop:
                 + (f"; {d}: no attack spell, potions before heal spells inside" if d else ""))
         if self.team is not None:
             self.team.setup(st)
+        entered = True                          # False: a hostile player on the walk in sent us home, the run is over
         if self.args.enter_recall is not None and not self.at_hunt(st) \
                 and escape_mod.recall_forbidden(self.pos(st), st["world"]["self"].get("map")):
-            self.resume_inside(st)            # no recall from here: started inside the dungeon
+            try:
+                self.resume_inside(st)            # no recall from here: started inside the dungeon
+            except WalkInFled as e:
+                entered = self.ready_to_go_back(e.why, "urgent") and self.enter_by_recall()
             st = self.state()
         elif self.args.enter_recall is not None and not self.at_hunt(st):
-            self.enter_by_recall()
+            entered = self.enter_by_recall()
             st = self.state()
         elif self.args.enter and not self.at_hunt(st):
             self.enter()
             st = self.state()
-        if self.spot is None:                   # --leave-recall, started at the hunt: here it is
-            here = tuple(self.pos(st)[:2])
-            self.spot, self.fight_spot = here, self.fight_spot or here
-            self.recall_spot = self.recall_spot or here
-        if not self.at_hunt(st):
-            raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter"
-                        + (" or --enter-recall" if self.args.leave_recall is not None else ""))
-        if (self.args.crawl or self.args.crawl_loop) and self.crawl is None:
-            self.crawl = crawl.Crawl(self, crawl.load_prior(self.memory.con, self.spot, self.args.crawl_depth_risk))
-        self.hunt()
+        if entered:
+            if self.spot is None:                   # --leave-recall, started at the hunt: here it is
+                here = tuple(self.pos(st)[:2])
+                self.spot, self.fight_spot = here, self.fight_spot or here
+                self.recall_spot = self.recall_spot or here
+            if not self.at_hunt(st):
+                raise Abort(f"not near the hunting spot {self.spot} (at {self.pos(st)[:2]}); use --enter"
+                            + (" or --enter-recall" if self.args.leave_recall is not None else ""))
+            if (self.args.crawl or self.args.crawl_loop) and self.crawl is None:
+                self.crawl = crawl.Crawl(self, crawl.load_prior(self.memory.con, self.spot, self.args.crawl_depth_risk))
+            self.hunt()
         t = self.totals
         log(f"hunt complete: {t['kills']} kill(s) ({t['lost_kills']} more lost to others' loot rights), "
             f"{t['gold']} gold, ~{t['xp']} xp, {t['hits_lost']} hits lost, "

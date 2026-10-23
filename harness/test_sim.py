@@ -2559,6 +2559,80 @@ def test_tele_dash():
           str([(p.name, p.pos) for p in w.pets()]))
 
 
+def walk_in_red(start, place, tiles):
+    """A --pets runner from `start` on the walk in, a red placed by `place(w)` (None until it places one) as the world
+    ticks; walk_in(tiles). -> (exception or None, the runner's log, world, loop)."""
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = world_with([], seed=3, start=start)
+    for p, d in zip(w.pets(), ((-1, 1), (1, 1))):
+        p.x, p.y = start[0] + d[0], start[1] + d[1]
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs"], 10)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    world_tick, red, err = clock.on_advance, [], None
+
+    def tick(now):
+        world_tick(now)
+        if not red and (r := place(w)) is not None:
+            red.append(r)
+    clock.on_advance = tick
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            try:
+                loop.walk_in(tiles)
+            except Exception as e:  # noqa: BLE001
+                err = e
+    finally:
+        clock.on_advance = world_tick
+        store.close()
+        simclock.uninstall(patched)
+    return err, buf.getvalue(), w, loop
+
+
+def test_walk_in_red_first_level():
+    print("== a red on the walk in's first level: the flight to a gold moongate and the recall home ==")
+    # live 2026-10-22 18:52:33 (hunt-20261022-185159-c0c5): Botan in view at (5610, 677), 18 tiles from Logan at about
+    # (5592, 688) on the first level; no check on the walk in, so it walked on (sim/fight1853.py, docs/NOTES.md)
+    import loop_hunt
+    err, out, w, _ = walk_in_red((5600, 689), lambda w: w.add_red(5610, 677, name="Botan") if w.t >= 1.0 else None,
+                                 [tuple(t) for t in w_enter_via()])
+    check("WalkInFled: by a gold moongate's recall, home and alive",
+          isinstance(err, loop_hunt.WalkInFled) and not w.player.ghost and w.player.pos[0] < 5000
+          and "LEAVING the walk in by the gold moongate" in out, f"{err!r} at {w.player.pos}")
+    check("...no fight, guard or bard skill against him", "attacked on the way in" not in out
+          and "area peace" not in out, "")
+
+
+def test_walk_in_red_second_level():
+    print("== a red through the first teleporter after us: on through the rest at flight pace, the leave gate next ==")
+    # live 2026-10-22 18:53:14-48: Botan came through 5554,700 3 s after Logan, "Botan is attacking you!" at 18:53:17;
+    # the pets guarded, Logan vetted and played Area Peace, dead at (5535, 713). Simulator before the fix: 12 of 12
+    # dead (sim/fight1853.py level2)
+    start = (5547, 696)
+    err, out, w, loop = walk_in_red(start, lambda w: w.add_red(*start, name="Botan") if w.t >= 3.0 else None,
+                                    [tuple(t) for t in w_enter_via()[1:]])
+    check("through to Maus 3 alive, the leave gate's flight next (walk_in_red)",
+          err is None and not w.player.ghost and sim_cheb(w.player.pos, (5199, 737)) <= 3
+          and loop.walk_in_red is not None and "on through the teleporters at flight pace" in out,
+          f"{err!r} at {w.player.pos}, walk_in_red {loop.walk_in_red!r}")
+    check("...no stand: no 'attacked on the way in', no area peace", "attacked on the way in" not in out
+          and "area peace" not in out, "")
+
+
+def w_enter_via():
+    from sim.scenario import load
+    return load()["runner"]["enter_via"]
+
+
 def test_soul_jar():
     print("== Field of Souls: with an empty soul jar, walk to an eerie corpse and fill it there; no jar, no walk ==")
     import json
@@ -2820,7 +2894,8 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_tele_dash, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
+              test_rest_hurt_pet, test_walk_in, test_tele_dash, test_walk_in_red_first_level,
+              test_walk_in_red_second_level, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

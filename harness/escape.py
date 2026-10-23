@@ -120,10 +120,7 @@ DUNGEON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", 
 _DUNGEONS = None
 
 
-def recall_forbidden(pos, facet) -> str | None:
-    """Why a recall from `pos` on `facet` breaks the dungeon rule (inside a known dungeon box, farther than
-    its recall_r from every gold moongate), or None. The user 2026-10-17: "The runner is also trying to recall
-    out of the dungeon for some reason, which is not allowed" (live 18:28:29-45, four tries at (5261, 652))."""
+def _dungeons() -> list[dict]:
     global _DUNGEONS
     if _DUNGEONS is None:
         try:
@@ -132,17 +129,36 @@ def recall_forbidden(pos, facet) -> str | None:
             _DUNGEONS = [d] if d else []
         except (OSError, ValueError):
             _DUNGEONS = []
-    if pos is None:
-        return None
-    for d in _DUNGEONS:
+    return _DUNGEONS
+
+
+def _dungeon_at(pos, facet) -> dict | None:
+    for d in _dungeons():
         x0, y0, x1, y1 = d["box"]
-        if d.get("facet", 0) != (facet or 0) or not (x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1):
-            continue
-        r = d.get("recall_r", 2)
-        if not any(cheb(pos[:2], g) <= r for g in d.get("gold_gates", [])):
-            return (f"no recall from ({pos[0]}, {pos[1]}): inside {d.get('name', 'a dungeon')}, more than {r} tiles "
-                    f"from a gold moongate")
+        if d.get("facet", 0) == (facet or 0) and x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1:
+            return d
     return None
+
+
+def recall_forbidden(pos, facet) -> str | None:
+    """Why a recall from `pos` on `facet` breaks the dungeon rule (inside a known dungeon box, farther than
+    its recall_r from every gold moongate), or None. The user 2026-10-17: "The runner is also trying to recall
+    out of the dungeon for some reason, which is not allowed" (live 18:28:29-45, four tries at (5261, 652))."""
+    if pos is None or (d := _dungeon_at(pos, facet)) is None:
+        return None
+    r = d.get("recall_r", 2)
+    if not any(cheb(pos[:2], g) <= r for g in d.get("gold_gates", [])):
+        return (f"no recall from ({pos[0]}, {pos[1]}): inside {d.get('name', 'a dungeon')}, more than {r} tiles "
+                f"from a gold moongate")
+    return None
+
+
+def gold_gates(pos, facet) -> tuple[list[tuple[int, int]], int]:
+    """The gold moongates of the known dungeon `pos` stands in and the radius a recall is allowed within of one
+    (recall_forbidden's rule); ([], 0) outside every known dungeon."""
+    if pos is None or (d := _dungeon_at(pos, facet)) is None:
+        return [], 0
+    return [tuple(g) for g in d.get("gold_gates", [])], d.get("recall_r", 2)
 
 
 class RecallError(Exception):

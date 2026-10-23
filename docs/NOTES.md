@@ -4620,6 +4620,35 @@ Capture session_20261021_164924. Visit 1: 25 kills, 25,504 gp, left by V\* (26,4
   trip": before, exactly the live error). And a drop-off that can't run now ends the run at home (`Abort`,
   task_failed) instead of going back in with the load (docs/PLAN.md "Home moves to Logan Wolf's house").
 
+## Dead on the walk in to a red (live 2026-10-22 18:53:48, hunt-20261022-185159-c0c5)
+
+The first run after a400be6, from the house. Capture session_20261022_163222 (Botan's tiles from his 0x77s and the
+0x20s the server also sent for his mobile), the task log.
+- **18:52:33** the red Botan (0x0032A620, "Legendary Serial Killer", [Soul Reaper, Syn], notoriety 6) came into view
+  at (5610, 677) on the first level, 18 tiles from Logan at about (5592, 688) after a raw flesh fight. He ran south to
+  (5606, 701) and out of view at 18:52:42 [INFERENCE: hid], back at (5593, 711) at 18:53:04, then along y 707 to the
+  first teleporter and through it at 18:53:14, 3 s after Logan. "Botan is attacking you!" at 18:53:17 at (5542, 708);
+  his hits on Logan were -10 to -26 each, a Greater Explosion potion's countdown among them.
+- **The walk in had no hostile-player check.** `look` returned at once while `visit` was None, and the visit starts
+  only on Maus 3. So the runner saw "attacked on the way in; the pets guard", drank and vetted in place for 20 s,
+  played Area Peace on Botan twice ("none pacified") and retreated 7 tiles "the pets hold it". It died at (5535, 713)
+  at 18:53:48. The death juncture said "unknown", attackers [] (no player in view by the ghost's first read).
+- **Fix** (user's choice 2026-10-22: "Flee to a gold gate, recall home" on the first level, "Dash on to Maus 3,
+  crimson gate" past it): the threat checks run on the walk in (`walking_in`). A red in view or "… is attacking
+  you!" ends the walk (`walk_in_threat`). With a gold moongate within 120 route steps, Logan flees to it
+  (`walk_in_leave`: flee_out, switching to another gold gate when the way to this one passes them; ropes, potions
+  and the vet on the run, no bard skill), recalls home, drops off, waits `--pk-wait` and goes back in. With none,
+  he goes on through the rest of the teleporters at flight pace (`walk_in_rush`), and on Maus 3 the visit's first
+  act is the gate leave. `died` now calls it "pk" when a hostile player was seen, or attacked us, within 20 s.
+- **Simulator** (`harness/sim/fight1853.py`, 12 seeds each). level2: Botan through the first teleporter 3 s after
+  Logan, his live tiles. Before 12 of 12 dead, after 0 of 12, all home via the crimson gate. level1: his live tiles
+  from (5610, 677). Before 0 of 12 dead: the simulated red doesn't follow through teleporters, so the old runner got
+  away to Maus 3. After 0 of 12 dead, all home via a gold gate. test_sim `test_walk_in_red_first_level` (a red
+  rushing from 11 tiles: dead before the gate switch, home after) and `test_walk_in_red_second_level`.
+- **Limit:** the simulated red doesn't take teleporters. Live, Botan followed Logan through one, so the rush to
+  Maus 3 (about 110 steps over three teleporters, then 35 to the crimson gate) can still have a red on it the whole
+  way [INFERENCE].
+
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 
 Read for a mining runner modelled on `loop_lumber.py`. **Nothing about mining has been observed**: the store has 0

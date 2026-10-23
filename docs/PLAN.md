@@ -2117,6 +2117,18 @@ facts: docs/NOTES.md "Logan Wolf's house"; details: LUMBER_LOOP.md §12.6, §13 
   the viz read it) and now means the recall home and the walk to the landing tile; `leave_room` is no
   longer emitted.
 
+## A red on the Mausoleum walk in: gold gate or on through (user 2026-10-22)
+
+Logan died at 18:53:48 on the walk in's second level to the red Botan. Botan had been in view from the first level
+44 s earlier, and the runner ran its hostile-player checks only on the hunt level (docs/NOTES.md "Dead on the walk
+in to a red"). Main asked the user how to leave from there. The user chose: on the first level, **flee to a gold
+gate and recall home**; past it (no gold gates there, no known way back), **dash on to Maus 3 and out by the crimson
+gate**. The alternatives were a dash on from the first level too (a longer way out, and a red follows through the
+teleporters) and back to the first level for a gold gate (no return teleporter is known). Built: the checks run on
+the walk in, `walk_in_threat` / `walk_in_leave` / `walk_in_rush` (docs/HUNT_LOOP.md "A hostile player on the way").
+The flight switches gold gates when the way to the chosen one passes them. Simulator, the second-level replay
+(`sim/fight1853.py level2`): 12 of 12 dead before, 0 of 12 after.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

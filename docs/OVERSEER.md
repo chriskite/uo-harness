@@ -622,7 +622,11 @@ Paste this (or point the session at this section) to start an overseer.
 >    What it does, so the log reads right:
 >    - **In:** the recall to "Maus Near 2", the four teleporters with the pets on "All Follow Me" (a fight on
 >      the way: the pets guard until it's over, unless he is within 15 steps of the teleporter: then he goes through
->      it; a pet behind: a wait for it). "return threshold: home once
+>      it; a pet behind: a wait for it). **A red on the way in** (in view, or "… is attacking you!"; since
+>      2026-10-22): on the first level "LEAVING the walk in by the gold moongate at (x, y)", the flight there and the
+>      recall home (a `threat` juncture, then `--pk-wait` and back in by itself); past it "on through the teleporters
+>      at flight pace, then the leave gate", and on Maus 3 the crimson gate's red leave at once. Both are the runner's
+>      own leave: nothing for thee to do. "return threshold: home once
 >      this visit adds N gp" on arrival is the plan, not a leave.
 >    - **On Maus 3:** the crawl patrols the waypoints zone by zone. It holds for an idle monster within 10 that
 >      would see him past the walls ("letting it come"). It doesn't patrol while a pet fights or lags more

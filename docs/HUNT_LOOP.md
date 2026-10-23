@@ -751,6 +751,20 @@ moongate, and never near a red one).
   - Before each step onto a teleporter (not after a dash), every pet within 3 tiles of it, else the waits above.
     A caution: on "All Follow Me" pets come through with us while in view (user 2026-10-20, Outlands), not only
     from within 3 tiles. `--songs`: a song due before each leg.
+  - **A hostile player on the way** (since 2026-10-22; live 18:53:48 the red Botan, in view from the first level
+    on, killed Logan on the second while the pets guarded and he played Area Peace: docs/NOTES.md "Dead on the walk
+    in to a red"). The threat checks of the hunt level run on the walk in too: a red in view or "… is attacking
+    you!" ends it at once ("walk in: <why>"). The user's rule:
+    - **A gold moongate within `GOLD_GATE_STEPS` 120 route steps** (the first level's three): "walk in: gold
+      moongates from (x, y): …", "LEAVING the walk in by the gold moongate at (x, y): <why>". It is the gate's flight
+      (`flee_out`: "All Follow Me" with no wait, away from them first when the way passes them, ropes, potions and
+      the vet on the run, no bard skill), and it switches to another gold gate when the way to this one passes them
+      ("to the moongate: the way to (x, y) passes them; to the one at (x, y) instead"). Then the recall home, a
+      `threat` juncture, the drop-off, `--pk-wait`, and back in.
+    - **None** (past the first teleporter): "walk in: no gold moongate within 120 steps; on through the teleporters
+      at flight pace, then the leave gate". The rest of the teleporters go at flight pace with no stop for
+      attackers and no wait for the pets. On Maus 3 the visit's first act is the red's leave by the crimson gate
+      ("LEAVING by the moongate: <why>, on the walk in").
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
   - The runner says "All Follow Me" and walks to the gate (user 2026-10-17, after a time-up walk out on
     "All Guard Me" left the pets fighting behind: "all follow me to run out, not all guard"), and says it
