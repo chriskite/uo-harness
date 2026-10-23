@@ -2148,6 +2148,34 @@ than being a few tiles away"). It lands along the way to the goal, the tile fewe
 "out of their sight first" over every tile in reach; the dead-end replay lost 7 of 24 with it, so the landing stays on
 the way. Magic resist potions were the user's other idea: the wiki says they don't work against player spells.
 
+## Red players in the simulator (user 2026-10-22; built 2026-10-23)
+
+User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked
+per hour with them (reds are now the main or only killer) and to try strategies against them, e.g. hunting only where
+we can loop round a red back to the gate; "reds are regular players so all the same rules apply to them, and extra
+PvP restrictions apply to them once they attack someone". Decisions:
+- **Evidence first, from both sides.** Two research passes before any code: every red encounter in the 31 live Logan
+  captures (`sim/red_scan.py`, docs/NOTES.md "Red players met live") and the game rules from the knowledge base, wiki
+  and patch notes ("Red players: the game rules"). Each scenario number carries its source; what the captures can't
+  show is [INFERENCE] and set so the in-view numbers match.
+- **Reds as players, not as monsters with a red name.** They come in by the ways players come in (gold-gate recall and
+  the teleporters; Maus 3's second way in, found by a pop-in scan), find us by Tracking's real range and cadence, run
+  on the map's walk graph across levels, follow us through teleporters but not the crimson gate (Heat of Battle),
+  shove only at full stamina, cast with Magery's timings and its range-and-sight check at targeting (precasting), and
+  hamstring, paralyze and stick explosion potions as the live ones did. Rejected: arrivals at the crimson gate (it is
+  exit-only), a red that always knows where we are (Tracking gives a snapshot every 5 s within 50 tiles), the old
+  single caster spec for everyone (live 30 mages, 7 melee, 2 archers of 39).
+- **Our side's PvP rules in the world, not in the runner**: the 60 s PvP flag (the rope's 2-minute cooldown, no pets on
+  the jump, PvP heal amounts), a red's hit breaking our recall, Hamstring's walk-only 3 s, Paralyze broken by damage.
+- **Gold banked, not gold looted**, as the batch's money number: what reached home; a death loses what came after the
+  last landing home, and `banked_per_h_net` charges each death the live 21 min downtime. Batches without reds report
+  it too.
+- **Validated two ways**: the encounter numbers against the live ones (rates, sizes, kits, attack timing, where we were
+  met, the "red nearer the gate" lethality pattern), and the live red deaths replayed with the runner checkouts that
+  died live (they die in the simulator too: 24/24, 8/12). Today's runner dies about half as often per encounter.
+- Result: reds take 23 % of the banked gold an hour (31 % net of downtime); keeping the crawl out of the east wing
+  changed nothing (deaths moved elsewhere). docs/SIM.md "Red players".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

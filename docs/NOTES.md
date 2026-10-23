@@ -4626,7 +4626,8 @@ The first run after a400be6, from the house. Capture session_20261022_163222 (Bo
 0x20s the server also sent for his mobile), the task log.
 - **18:52:33** the red Botan (0x0032A620, "Legendary Serial Killer", [Soul Reaper, Syn], notoriety 6) came into view
   at (5610, 677) on the first level, 18 tiles from Logan at about (5592, 688) after a raw flesh fight. He ran south to
-  (5606, 701) and out of view at 18:52:42 [INFERENCE: hid], back at (5593, 711) at 18:53:04, then along y 707 to the
+  (5606, 701) and out of view at 18:52:42 (at exactly 18 tiles, the view's edge: not a hide, docs below "Red players
+  met live"), back at (5593, 711) at 18:53:04, then along y 707 to the
   first teleporter and through it at 18:53:14, 3 s after Logan. "Botan is attacking you!" at 18:53:17 at (5542, 708);
   his hits on Logan were -10 to -26 each, a Greater Explosion potion's countdown among them.
 - **The walk in had no hostile-player check.** `look` returned at once while `visit` was None, and the visit starts
@@ -4756,6 +4757,110 @@ session_20261022_163222.
   potions wouldn't help: the wiki says they "only work against pets and creature spells, but not player spells".
 - **Ranged reds** (user: rope from casters and bows even while they hit us): built, docs/HUNT_LOOP.md "From ranged
   reds". `sim/fight2203.py` replays this death: 3 of 24 dead before and after.
+
+## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
+
+For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`
+-> `WorldRuntime`) and extracts each red (notoriety 6, a player: `threats.identify`'s rules) with its packets, Logan's
+tile, speech, damage numbers ("-N" overhead: Outlands sends no 0x0B), buffs and 1 Hz snapshots; the live server only
+(the 10 test-shard captures out). "Runner era" = since 2026-10-15 21:10. A group = reds appearing within 30 s of each
+other; an appearance = a red in view after 30+ s out of it.
+
+- **Exposure and rate.** Logan alive on Maus 3 12.30 h (runner era 11.22 h), on the walk-in levels 2.76 h (2.55; 92
+  walk-ins, median 104 s). Maus 3: 24 groups, 39 appearances; runner era 20 groups, **1.78 an hour** (Poisson 95 %
+  1.09-2.75). Sizes 1 / 2 / 3 / 4: 14 / 6 / 3 / 1; later members 0-3.8 s after the first, 2 of 15 at +11 and +15 s.
+  Walk-ins: 4 groups in 2.55 h (1.57 an hour; 4.3 % of walk-ins). 9 of 24 groups came within 2.6 min of Logan's
+  arrival on Maus 3. Repeat names: Chaos Agent 5, This Game SuX 4, Dead End 3; guild tags Syn (4 players), PEC, BJV...
+- **Outcomes (runner era, 18 runner groups on Maus 3).** 8 red deaths (44 %; 0.71 an hour, 95 % 0.31-1.40), 9 escapes
+  through the gate (first sight to the gate median 9.3 s), 1 reached the gate and died to apparitions. First sight to
+  death median 9.5 s (7.8-23.5). **Geometry decided it**: with a red nearer the crimson gate than Logan at first sight
+  7 of 12 groups killed him, otherwise 0 of 5; the east wing (x 5224-5247, y 655-737; 27 % of his time) had 7 groups
+  and 4 deaths, every one by reds coming down its only way out. Walk-ins: 1 death in 92. The store's death `cause` says
+  "pk" for only 2 of its 8 red kills (the others "unknown"/"mob"), and the 22:03 death has no row.
+- **Where they come from.** 35 of 39 first sightings at 17-18 tiles (walked into view): the z 25 ramp top
+  (5214-5222, 655-666) 8, the west stair 5, the west balcony (5200, 682, 25) 4, the ramp top east (5226, 653) 4, the
+  east corridor 6, by the crimson gate 3. **None near the L2->L3 arrival (5199, 737)** or the Maus 4 return. The crimson
+  gate is exit-only (wiki), so they walk in. 29 of 35 far first sightings ran straight at Logan (Tracking: 50 tiles in
+  a dungeon at GM, wiki). Chaos Agent twice came out of stealth beside him with a hit (2 of 39).
+- **Maus 3 has a second way in** (`harness/sim/entry_scan.py` over 35 live captures, 14.1 h, 1,611 player appearances: a player
+  appearing within 14 tiles of Logan after 30+ s unseen, not after his own jump or arrival). 30 pop-ins not from hiding:
+  14 on the L2->L3 arrival (5199, 736-737, z 17) and 2 beside it, **6 on (5243, 612, z 0) at the north end of the
+  north-east hall**, 8 scattered; none clustered on the z 25 walkway, where all 167 first sightings (16 reds) were at
+  15-18 tiles and walked in. (5242-5244, 612-613) is two-way: 23 appearances and 23 exits within 3 tiles; no item marks
+  it and it isn't on our map [INFERENCE: a teleporter or stair to somewhere else]. In their first 15 s players went from
+  the arrival north up x 5205-5209 (19 of 32), from (5243, 612) south down x 5243 to y 645-654 and west along y 652-653
+  (13 of 20): both routes reach the ramp top. Exits within 14 tiles: 44 at the crimson gate, 4 at (5243, 612), 5 at the
+  arrival. Every player seen at either way in was blue or green. Two hue-2825 "moongates" at (5190, 680, 25) and
+  (5212, 708) showed only after Logan's deaths [INFERENCE: ghosts' gates].
+- **The attack.** 24 of 39 appearances attacked; **24 of 27 that came within 5 tiles**. The attack line came a median
+  2.9 s after first sight (p25 1.5, p75 6.2) at a median 4 tiles. On the walk-in levels 1 of 10 appearances attacked
+  (Dead End and Mammoth overtook him at 1-3 tiles; Botan stalked at 17-18 tiles for 30 s, then attacked).
+- **Kits (Maus 3 appearances):** mages 30 of 39 (a spellbook, a shield or empty hands), melee 7 (Chaos Agent 4 of
+  them), archers 2 (Botan: a heavy crossbow and a rapier; Druidx: a bow and a crossbow plus Energy Bolt).
+  - Words heard: Energy Bolt 28, Explosion 8, Teleport 6, Telekinesis 5, Magic Arrow 5, Lightning 4, Weaken 3, Greater
+    Heal 3, Flamestrike 2, one each of Reveal, Heal, Poison, Mind Blast, Bless, Protection, Magic Reflection. Openers
+    (n 21): Energy Bolt 13, Telekinesis 2, Explosion 2, Magic Arrow 2, Weaken 1, Greater Heal 1.
+  - Energy Bolt: standing 1.38-2.59 s (median 1.82, n 20), words to its damage 1.39-2.58 s (median 1.88), 22-34 (median
+    28, n 21); Explosion words to damage 1.41 and 2.05 s, 33; Flamestrike 2.71-2.75 s, 27-41; Lightning 11-22; one
+    caster's words 2.21 s apart (median, n 27). Distance at a damaging spell's words: median 4 (p10 1, p90 7, never
+    over 8, n 43); casters keep closing in (1 tile a cast while Logan stands).
+  - Telekinesis then "An explosion potion has stuck to you!" and a 5..1 countdown: 33-41 (Malito, This Game SuX,
+    KalVasKikUrAss). One Paralyze in 24 attackers (Ticket Tongje, broken by damage after 3.5 s).
+  - Melee swings at <= 1 tile hit 23 of 39 (59 %), 10-28 (median 13), 1.34-1.51 s apart (2.0-2.26 with a double axe or
+    halberd). Hamstring 3 times ("Their attack hamstrings you!", 3 s), disarm twice (5 s), Deadly Poison once.
+  - Gross damage a second on Logan from the attack line: one caster 12-19, two 17-20, four 39, melee 6.3-6.9.
+  - 7 of 24 groups had a summon or pet in view (daemons, elementals, a drake...): fireballs and -1..-4 chips.
+- **Moving.** 1-tile moves: p10 0.187, median 0.202, p90 0.31 s (n 1,648): running, no stamina walking. 9 jumps of 7-10
+  tiles in 39 appearances (Teleport "Rel Por", 1.0 s standing; without words [INFERENCE] a rope). Botan followed Logan
+  through a teleporter 3 s behind; **no red ever followed him through the crimson gate** (0 of 13 escapes; at Totem
+  the runner recalls 0.2-0.9 s after arriving).
+- **Monsters and pets.** A monster in war mode within 2 tiles of a red: 1-3 snapshots in 9 of 24 groups; reds' hit
+  bars fell to 50-74 % at worst; one died (Viny on L2, came into view at 9/120). No red was seen hitting a monster; our
+  pets never damaged a red and no red hit our pets.
+- **PvP numbers on our side.** Heal potions flagged in PvP (within 60 s of a player's attack line or hit) healed 21-29,
+  median 24 (n 10, not capped) against 29-53, median 34 (n 115) otherwise; vet supplies on Logan 15-22, median 18 (n 8)
+  against 5-39, median 29 (n 129).
+- **After a death.** The corpse's contents never reach the client, so looting isn't observable; reds stayed 20 s to
+  5 min in view after (NewbieMurderer, Druidx, Flat Lander). Resurrection a median 63 s after the death (30-328 s);
+  the next run a median 21 min later (n 8; the human response). Carried loot at a red death: mean 13.3k gp (n 8).
+- **How long they stay.** The same red seen again in one capture 0.8-17.3 min apart (n 9); of Logan's next visits
+  within 16 min 3 of 8 met the same red, of those 18-78 min later 0 of 7 [INFERENCE: they stay 15-20 min].
+- Corrections: Botan's 18:52:41 disappearance (10-22) was at the view's edge, not a hide; the 10-18 21:06 death at the
+  gate was to apparitions after a red-triggered leave; the 10-17 16:55 death was the user playing by hand.
+
+## Red players: the game rules (research 2026-10-22, the knowledge base, wiki and patch notes)
+
+`[k N]` = the store's `knowledge` row N (`./ctl.cmd know search`); RunUO/ServUO only where Outlands is silent.
+
+- **Getting in.** Magic travel into a dungeon lands only within 8 tiles of a golden moongate (wiki Magery [k 11588],
+  [k 17041]); reds recall in there too ([k 7826]). Crimson gates (levels 2-3) are exit-only "escape hatches" with no
+  recall near them ([k 11711], [k 13694-13697], forum [k 16839]); from Shelter/Arena they default to Corpse Creek for
+  reds. No mounts in a dungeon (wiki Mounts [k 11388]).
+- **Heat of Battle** (wiki [k 13531-13532]; patch 2020-09-29 [k 8074-8075]): our own aggressive act on a player (not
+  the server's auto-defence swings) blocks every moongate, recall, gate and hike: 2 min for a criminal act (a red
+  attacking a blue), 30 s for a non-criminal one (us attacking a red), (1 + attackers) min after a murder, at most
+  5 min. So a red that attacked us can't follow through the crimson gate; "All Kill" at a red would lock our gate 30 s.
+- **The PvP flag** ([k 7678], [k 7333]): set on both sides by a harmful spell or damage between players, 60 s for its
+  PvM restrictions. While flagged a rope or Teleport starts a 2-minute cooldown on both (wiki Adventurer's Rope
+  [k 13326]) and pets don't follow a rope or Teleport ([k 5163]); a heal potion heals 15-25 (patch 2025-06-06
+  [k 4909]). Razor's PvP script restrictions apply only in structured PvP, not to PKing ([k 14233-14234]).
+- **Magery** (wiki [k 11580-11615]): cast times by circle (Energy Bolt and Explosion 1.75 s, Flamestrike 2.0, Lightning
+  1.25, Paralyze 1.5), 0.2 s recovery, no Faster Casting found; the caster stands during the cast and may move while
+  holding the target (precast; RunUO, Discord); range (12) and sight are checked at targeting (ServUO Target.Invoke).
+  PvP damage at GM: Energy Bolt / Explosion 31.5-40.5 before our Resist. Mana regen ~1 a second (wiki Meditation,
+  forum [k 16898]). Paralyze 10 s at GM, broken by damage, our GM Resist resists 15 % ([k 13568]). Magic Resist
+  potions don't work against player spells ([k 13493]). Hostile spells and hits break our casts
+  (docs/research/SPELL_INTERRUPTS.md).
+- **Hamstring** (wiki [k 14382-14390]): melee or wrestling at 80+, never a bow; on a hit while toggled: 0 stamina for
+  3 s (a walk only), the target immune 30 s, the attacker's cooldown 30-53 s.
+- **Archery** (wiki [k 13328]): bow range 10, crossbows 8; 0.5-1.0 s standing before a shot in PvP.
+- **Tracking** (wiki [k 12857-12865]): range 20 + 80 x skill/100, halved in a dungeon (50 tiles at GM); success =
+  skill; 5 s between checks; against a player the arrow is where he was at the check. Stealth: 15 steps a use at GM,
+  10 s skill delay, running reveals ([k 14160]). Forum advice ([k 16888]): avoid dead ends, loop around approaching PKs.
+- **Death.** Everything not Blessed is lootable; no stat or skill loss; bonded pets become ghosts ([k 1205], [k 11547]).
+  A red who dies gets at least 15 min of region restriction in that dungeon ([k 16217], [k 5725]).
+- **Unsettled:** whether pets on Guard engage a player attacking their owner (no capture shows it); the explosion
+  potion's throw range; the Hamstring chance per toggled hit; the 2020 patch's 2 h dungeon lockout for a killed red.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

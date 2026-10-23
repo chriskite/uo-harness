@@ -46,6 +46,10 @@ python harness/sim/fight2227.py 1,2,...,12 [--log] [--harness DIR]   # the 2026-
 python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--harness DIR]   # the 2026-10-22 18:53 red on the walk in
 python harness/sim/fight2001.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
 python harness/sim/fight2203.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
+# with red players (docs below, "Red players"): gold banked an hour with them, their numbers against the live ones
+python harness/sim/run.py --runs 98 --jobs 16 --careers 14 --seed 17 --reds --others --eerie --prior <main checkout>/harness/data/harness.db \
+    -- --vet-range 5 --crawl-learn-s 180
+python harness/sim/red_scan.py <capture tag> ...                       # the live reds' evidence from the captures
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>
@@ -103,6 +107,8 @@ python harness/sim/fight2203.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
 | `sim/shove_scan.py` | Shoves and stamina in the live captures (the walking rules of "Shoving and stamina"). |
+| `sim/reds.py` | Red players (`--reds`, `World.add_red`): arrivals, Tracking, the walk graph across levels, the kits, the PvP rules ("Red players"). |
+| `sim/red_scan.py`, `sim/entry_scan.py` | Every red-player encounter in the live captures, and where players appear and leave on Maus 3 (the evidence of "Red players", docs/NOTES.md "Red players met live"). |
 | `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
 | `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
@@ -724,23 +730,104 @@ parameter's evidence is in `mausoleum.json`'s `others.note`.
   would compare with the tables above this section. Use `--others` for anything players touch (targets on others,
   loot rights, crowding), and for a final check of a change.
 
-## Red players (2026-10-21)
+## Red players (2026-10-21; a batch option since 2026-10-23)
 
-For the flight from a red (docs/HUNT_LOOP.md "Never toward them"; live death 2026-10-21 10:35:13, docs/NOTES.md "Dead
-leaving from two reds on Maus 3"). A test places one with `World.add_red(x, y)`; none in the scenario or the batches.
-From that capture (`world.RED`): notoriety 6, flags 0x20, a step every 0.19 s (running) toward us while we live
-[INFERENCE: it knows where we are]; within 12 tiles in sight "<name> is attacking you!" over us; then to 3 tiles in
-sight, a spell at us every 2.3 s within 10 in sight (27-33, landing 1.4-2.5 s after the words, standing 1.5 s for
-each cast [INFERENCE: ServUO's Spell.BlocksMovement]). Monsters and the pets leave it be [INFERENCE]. The rope's jump
-now lands 0.8 s after our target (live 10:35:06.54 -> 07.33), steps denied meanwhile. `add_red(..., route=[(x, y,
-seconds), ...])` walks a live red's own tiles first (the capture's 0x77s), then comes at us. Tests: test_sim
-`test_red_flight` (the live ground, both reds), `test_red_out_of_view` (17:37, the reds' live routes),
-`test_rope_cancel_attacked`. Since 2026-10-22 the rope has the live combat cooldown: a rope used within 20 s of a red's
-attack line starts 120 s in which "[Rope" gets "You must wait another 1m 50s before you may use this again while in
-combat." (docs/NOTES.md "Hinder, Hamstring and the rope"; test_sim `test_rope_combat_cooldown`). The simulated reds
-don't take teleporters (live Botan followed Logan through one, 2026-10-22 18:53:14) and don't hamstring.
+User 2026-10-22: red players as an option in the simulator, "as accurate as you can make it to what we've seen from
+reds live", to model gold banked per hour with the main killer in it and to try strategies against them; "reds are
+regular players so all the same rules apply to them, and extra PvP restrictions apply to them once they attack
+someone". `run.py --reds` turns on the scenario's `reds` (off by default, so earlier batches stay comparable); the code
+is `sim/reds.py`; every number in `mausoleum.json` `reds` carries its evidence: docs/NOTES.md "Red players met live"
+(31 live Logan captures, `sim/red_scan.py`) and "Red players: the game rules" (wiki, patch notes, forums, knowledge
+ids). `World.add_red(x, y, kit=, spec=, route=)` still places one for a test or a live-death replay: an attacker that
+knows where we are, walking a live red's own tiles first when given a route.
 
-Since 2026-10-21 the simulator also sends the 0x1D the live server sends when a mobile goes out of view range (live
+- **Coming in.** Groups of 1-4 (live sizes) arrive at `arrive_per_h`: 60 % recall in within 8 tiles of a first-level
+  gold gate (the only places magic travel into a dungeon lands) and run the teleporters down as Logan does, some
+  hunting the first two levels a while first (`upper`); 40 % come straight onto Maus 3 by its other way in at (5243,
+  612), a two-way tile at the north end of the north-east hall that players were seen popping in on and leaving by
+  (`north_entry`; not on our map). The crimson gate is exit-only. On the fight level a group hunts for `stay_s`, then
+  leaves; some are there when a run starts.
+- **Finding us.** Tracking every 5 s at the red's skill (80-100), 50 tiles in a dungeon, gives our tile at that moment;
+  in view they see us move. A group shares what it knows and decides together whether to attack (`attack_p` 0.9 on
+  Maus 3, `attack_p_transit` 0.1 on the levels it crosses). It drops us as a target when we leave its level or stay
+  out of its view 30 s (`lose_s`).
+- **Moving.** Running 0.19-0.22 s a tile on the map's walk graph (`reds.Graph`: ~17k tiles, the teleporters as edges;
+  routes from a BFS distance field per goal, ~10 ms, cached), through a mobile only at full stamina (a shove -10, a
+  Total Refresh when blocked), Teleport or a rope to close 6+ steps (in view 0.22 jumps an appearance, live 0.23),
+  through a teleporter after us if it saw us take it (live Botan). No red follows through the crimson gate (Heat of
+  Battle: no moongate for 2 min after attacking a blue; live 0 of 13 escapes).
+- **Kits** (live shares 30 / 7 / 2 of 39): **mage**: an opener then the live spell mix (Energy Bolt 22-34 every ~2.2 s,
+  Explosion, Flamestrike, Lightning, Magic Arrow, Weaken, Poison, Paralyze, Telekinesis with a stuck explosion potion,
+  a Greater Heal when hurt); it stands its cast, checks range (12) and sight when the cast ends and holds the spell
+  (precast) while they fail, moving meanwhile; casts from within 8 and closes to 1-4; 100 mana at 1 a second.
+  **melee**: swings when adjacent (59 % for 10-28, 1.34-2.26 s), Hamstring on a hit, weapon poison; 30 % approach in
+  Stealth (walking, unseen) and open with a swing beside us. **archer**: a crossbow (8) or bow (10), standing 0.5-1 s
+  to shoot, melee and Hamstring when adjacent. 25 % bring a summon whose 1-7 chips add to theirs. What a red holds is
+  sent (0x2E): the runner reads empty hands, a bow or a crossbow as a ranged red.
+- **The PvP rules on our side** (World): a red's attack line or hit flags us 60 s (`PVP_FLAG_S`): a rope then starts the
+  2-minute cooldown and no pet follows the jump; heal potions heal 21-29 (live while flagged) and the vet supplies 15-22
+  on us. A red's hit breaks our recall (500641, then the disturb recovery: 502644 until it passes). Hamstring: stamina
+  0, a walk's pace (steps closer than 0.38 s refused), no regen, 3 s, then the stamina back and 30 s immune. Paralyze:
+  steps refused with "You are frozen and cannot move." until 10 s pass or damage breaks it.
+- **Monsters** take reds as targets by the rules they take anyone (a hit breaks a red's cast); reds heal themselves
+  and never die here [INFERENCE: one of ~50 live appearances died]; reds and our pets leave each other be (live).
+- `run.py` reports `reds` in `all:` (the live comparisons below) and the scenario's `places` share of our time
+  (`place_share`: `east_wing`, `gate_arrival`).
+
+**Against the live numbers** (196 runs, seeds 17 and 115 x 98, 30 min, `--reds --others --eerie --prior <the live
+store> -- --vet-range 5 --crawl-learn-s 180`; live: the runner era on Maus 3, 11.22 h, 20 groups):
+
+| | live | simulator |
+|---|---|---|
+| red groups coming into view an hour on Maus 3 | 1.78 (1.09-2.75) | 2.07 |
+| ... an hour of walk-in (levels 1-2) | 1.57 | 1.65 |
+| group size 1 / 2 / 3 / 4 | 58 / 25 / 12.5 / 4 % | 60 / 27 / 12 / 1 % |
+| appearances that attacked | 62 % | 71 % |
+| attack line: s after first sight / tiles (median) | 2.9 / 4 | 2.2 / 5 |
+| jumps (Teleport, rope) an appearance in view | 0.23 | 0.22 |
+| met within 2.6 min of our arrival on the level | 9 of 24 | 55 % |
+| a group met again in the run | ~2-3 of 20 | 10 % |
+| our position at first sight: east wing / gate and arrival | 7 / 4 of 24 | 23 / 38 % |
+| red deaths an hour on Maus 3 | 0.71 (0.31-1.40) | 0.48 |
+| groups that killed us | 8 of 18 (44 %) | 23 % |
+| first sight to death, median | 9.5 s | 14.2 s |
+| killed us: a red nearer the gate at first sight / not | 7 of 12 / 0 of 5 | 30 % (86) / 8 % (38) |
+| killed us: Logan in the east wing at first sight / elsewhere | 4 of 7 / 4 of 11 | 45 % (29) / 17 % (95) |
+
+The encounters come out at the live rates, places and timing; the current runner dies in them about half as often
+as the runners of the live era did. Replaying the live red deaths (the live tiles; this simulator) with the runner that
+died live (a snapshot of its checkout, `--harness`) against today's: `sim/fight2001.py` 24 of 24 dead against 0 of 24,
+`sim/fight1853.py level2` 8 of 12 against 1 of 12 (`level1` 0 of 12 against 1 of 12), `sim/fight2203.py` 2 of 24
+against 0 of 24 (live that run ended on a route error with Logan alive, which the simulator doesn't reproduce). So
+the simulated reds kill the runner versions that died to them [INFERENCE: today's lower lethality is the runner's
+fixes of 10-21/22, not the model]. Not matched: the simulator meets 55 % of its groups within 2.6 min of our arrival
+(live 38 %) and more of them at the gate and the arrival.
+
+**Gold banked** (since 2026-10-23, with or without reds): live the drop-off at home takes what we carry; the simulator
+has no house (`--no-drop-off`), so `World._land` on the home rune counts the gold looted so far as banked
+(`gold_banked`), and a death loses only what came after (`gold_lost`). `all:` gives `banked_per_h` (game hours of the
+runs) and `banked_per_h_net`, which adds `--death-downtime-min` (default the scenario's `reds.death_downtime_s`: live
+the next run came a median 21 min after a red death) for each death. Same seeds, 196 runs each:
+
+| | no reds | reds |
+|---|---|---|
+| gold looted an hour | 107.1k | 86.8k |
+| gold banked an hour | 102.5k | 79.3k |
+| banked an hour net of death downtime | 91.1k | 62.9k |
+| deaths an hour | 0.36 | 0.75 |
+| kills an hour | 96.8 | 80.0 |
+
+Reds take 23 % of the banked gold (31 % net; Welch t -6.9 on per-run banked gold per hour).
+
+**First strategy A/B: keep the crawl out of the east wing** (user 2026-10-22: hunt where we can loop round a red back to
+the gate, not in a dead end; `--crawl-avoid 5224 655 5247 737`, 196 runs each, reds on): our time in the wing 32 % ->
+14 %, groups first met there 29 -> 7 and their deaths 13 -> 4, but deaths elsewhere 16 -> 33; deaths an hour 0.75 ->
+0.69, banked an hour 79.3k -> 80.0k (Welch t -0.05). A group met in the wing kills us 2.6 times as often as one met
+elsewhere, and the strongest marker is a red nearer the gate than we are (30 % against 8 %, live 7 of 12 against 0 of
+5); the time taken out of the wing went to places where reds coming in stand between us and the gate. No gain from
+this one.
+
+The simulator also sends the 0x1D the live server sends when a mobile goes out of view range (since 2026-10-21; live
 17:37:10.92 I Make Bodies stepping to 19 tiles, 17:37:13.63 Botan); before, the client model kept such a mobile at
 its last tile out to its own 24-tile prune (the simulator sends no 0xC8), so a red out of view still showed where it
 left the view, and so did monsters. Before / after, the runner of the day, 20 min runs: 144 runs seed 1017 deaths/h
@@ -1007,13 +1094,23 @@ it "cut by mobiles … waiting", went 12 -> 1, and it is near the live yardstick
   teleporters and the monsters first seen near it.
 - Eerie corpses (`--eerie`) lie at the 11 live spots only; their level-wide rate and how long one lies are
   [INFERENCE], set to the live in-view rate. Other players fill jars at them only by standing within 2.
-- Other players since 2026-10-19 ("Other players" below), blue only: no reds (PKs) but the ones a test places ("Red
-  players"), no chat, trades or guild/party play, no greens or greys (3.6 % of the sightings), and they never die.
+- Other players since 2026-10-19 ("Other players" below), blue only (reds: "Red players"), no chat, trades or
+  guild/party play, no greens or greys (3.6 % of the sightings), and they never die.
   Their routes (spawn area to spawn area, standing about each), damage cadence and reach, the monsters they pick (not
   one on our party) and their pets' share are [INFERENCE]. No item loot beyond gold, no skill gain,
   no pet levels or xp, no Society job. The countess' drain and the poisons are generic (the wiki's; no
   drain heal was ever seen); the bound soul's bleed as an area on everyone within a tile, the
   transfixed copies' hits (2000) and their pick among us within 3 tiles are [INFERENCE].
+- **Red players** ("Red players"): not observable live and so [INFERENCE] or set to the live in-view numbers: the
+  level-wide arrival rate, the stays, the share by each way in, the while on the first levels, how they roam with no
+  fix (random walkable tiles within 40), the summons' chip (on the red, no summon mobile). Reds never die, never fight
+  monsters or our pets, and our pets don't take them on (the wiki's Guard says they would; no capture shows it). No
+  looting (the run ends at our death), no greys or oranges, no time of day (live 0.6-6.9 groups an hour by 3-hour
+  block, too few hours each). The runner doesn't know Maus 3's second way in (5243, 612), and nor does its leave.
+  Where we were met differs from live: 38 % at the gate and arrival (live 4 of 24), 55 % within 2.6 min of arriving
+  (live 9 of 24).
+- Our casts are broken by a red's hit, not yet by a monster's (live 44 % of creature hits during a cast,
+  docs/research/SPELL_INTERRUPTS.md); the only cast we make is the recall, near a gold gate on a walk-in flight.
 - Not modelled: Frenzy ("*frenzies*" 31 times on shade wolves and nightstalkers on 2026-10-15: their
   next 10 s of hits 10-32, median 16, against 17.5 otherwise, 3.38 s apart as always, n=27: no effect
   measurable); the banshee's "*evasive*" after a dematerialize (it was still hit and still cast).

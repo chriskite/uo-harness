@@ -39,12 +39,13 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   level, run between spawn areas, fight the monsters near them at a measured damage rate and leave;
   monsters take them as targets by the same first-sight and threat rules as us. Their kills' corpses
   are blue (0xFF sub 0xDEAD notoriety 1) and an open of one is refused. They never die [INFERENCE].
-- **Red players** (`World.add_red`, placed by a test; not in the scenario or the batches): a player killer
-  (notoriety 6, flags 0x20) who runs at us, says "<name> is attacking you!" over us within `RED["attack_r"]`
-  in sight, closes to `keep_r` and casts at us every `cast_s`, as the two reds of the live 2026-10-21 10:35
-  death did (`RED`'s numbers). Monsters and the pets leave it be [INFERENCE].
+- **Red players** (scenario `reds`, off unless `enabled`, `run.py --reds`; `World.add_red` places one; the model and
+  its evidence: sim/reds.py, docs/SIM.md "Red players"): player killers who recall in by the first level's gold gates,
+  run the teleporters down, find us by Tracking, fight by their kit (mage, melee, archer) under a player's rules
+  (cast times, range and sight at targeting, Hamstring, Paralyze, the PvP flag on our rope and potions), disturb our
+  recall, and follow us through teleporters but not moongates. Monsters take them as targets; the pets leave them be.
 
-Not modelled: red players in the batches, chat or trades with players, the Society job, item durability, skill gains.
+Not modelled: chat or trades with players, the Society job, item durability, skill gains.
 """
 from __future__ import annotations
 
@@ -61,6 +62,7 @@ import soul_jar
 import tamer
 from agent_link import HELD_END_TEXT, HELD_SILENCED_TEXT, HELD_TEXT
 from sim import packets as P
+from sim.reds import Reds
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
 TICK_S = 0.1              # world step
@@ -114,24 +116,22 @@ TEXT_SONG_WAIT = "You must wait a few moments before performing another barding 
 TEXT_ROPE_PROMPT = "Where do you wish to traverse to?"
 ROPE_R = 10
 ROPE_COOLDOWN_S = 5.0
-# A rope used within ROPE_COMBAT_AFTER_S of a player's "... is attacking you!" starts a 2-minute cooldown, refused with
-# "You must wait another 1m 50s before you may use this again while in combat." (live 2026-10-19 19:59:10 and
-# 2026-10-22 20:00:58.9; docs/NOTES.md "Hinder, Hamstring and the rope")
+# A rope used while we are flagged in PvP (a player's harmful act or damage on us within PVP_FLAG_S; the flag is set on
+# both sides) starts a 2-minute cooldown on it, refused with "You must wait another 1m 50s before you may use this
+# again while in combat." (live 2026-10-19 19:59:10 and 2026-10-22 20:00:58.9, docs/NOTES.md "Hinder, Hamstring and the
+# rope"; wiki Adventurer's Rope, knowledge #13326), and our followers don't come along a rope then (patch #5163)
 ROPE_COMBAT_COOLDOWN_S = 120.0
-ROPE_COMBAT_AFTER_S = 20.0
+PVP_FLAG_S = 60.0         # the PvP flag's PvM restrictions last 60 s (patch 2021-10-02, knowledge #7333)
 ROPE_LAND_S = 0.8         # the rope's target answered -> on the landing tile (live 2026-10-21 10:35:06.54 -> 07.33)
 OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (never ours: not in `team()`)
 FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
 ATTACKED_TEXT = " is attacking you!"   # the server's line over us when a player makes us its target (loop_hunt.ATTACKED_BY)
-# A red player (add_red), from the live death of 2026-10-21 10:35:05-13 (capture session_20261021_085153, Maus 3:
-# 'Ticket Tongje' 0x15abe and 'Di ve nha' 0x6545 on Logan): running, a 0x77 step every 0.18-0.21 s; "... is attacking
-# you!" with him 12-13 tiles off (5243, 712-713 against 5243, 725); both then stood 2-5 tiles off (keep_r) and cast,
-# each one's spell words 2.1-2.4 s apart; the numbers on Logan (-33 -31 -28 -27 and the last 9) 1.4-2.5 s after words.
-# Their first words came 1.3 and 2.6 s after their attack lines. A cast stands it `cast_stand_s` [INFERENCE: ServUO's
-# Spell.BlocksMovement for the cast delay; live Di ve nha's steps came 1.86 and 2.0 s after its words].
-RED = {"step_s": 0.19, "attack_r": 12, "keep_r": 3, "cast_r": 10, "cast_s": 2.3, "first_cast_s": (1.0, 2.6),
-       "cast_stand_s": 1.5, "land_s": (1.4, 2.5), "damage": (27, 33), "words": ("Corp Por", "Vas Ort Flam"),
-       "hits": 120}
+# Our side of a red's specials (docs/NOTES.md "Hinder, Hamstring and the rope"; the reds themselves: sim/reds.py)
+HAMSTRING_ICON, HAMSTRING_GUMP = 53, 4523      # "Can Only Walk and Cannot Regain Stamina": 3 s at stamina 0
+HAMSTRING_STEP_S = 0.38   # hamstrung, a step at a walk's pace only: live confirms ~0.41 s apart
+PARALYZE_ICON = 135      # "You cannot move!" (live 2026-10-21 10:35:06.66, Ticket Tongje); its buff's text unrecorded
+FROZEN_CLILOC = 500111    # "You are frozen and cannot move." on a step while paralyzed (live 2026-10-21 10:35:08)
+DISTURB_CLILOC = 500641   # our cast disturbed by damage (docs/research/SPELL_INTERRUPTS.md: every player hit breaks it)
 TEXT_NOT_YOURS = "You may not loot this corpse."   # live answer to opening another's kill (docs/HUNT_LOOP.md)
 HELD_NO_USE_TEXT = "You cannot use items while in this state."   # live 2026-10-20 19:23:27.13, transfixed
 LIFT_GAP_S = 0.5         # the server's gap between lifts it takes (combat.LIFT_GAP_S's evidence: refused up to ~0.5 s)
@@ -219,7 +219,8 @@ class Mob:
     leave_t: float = 0.0          # another player leaves the level after this
     dest: tuple | None = None     # ... runs to this spawn area next
     linger_until: float = 0.0     # ... stands about it until then
-    casts: list = field(default_factory=list)   # a red player's spells on their way to us: [landing time, damage]
+    casts: list = field(default_factory=list)   # a red player's spells on their way to us: [landing time, spell]
+    rs: dict = field(default_factory=dict)      # a red player's state (sim/reds.py)
 
     @property
     def pos(self):
@@ -253,7 +254,7 @@ class World:
         self.lift_ok_t = -1e9                 # the last lift taken (LIFT_GAP_S)
         self.metrics = {"kills": 0, "kills_by": {}, "player_damage_taken": 0.0, "pet_damage_taken": {},
                         "team_damage": 0.0, "vet_uses": 0, "potions": 0, "bard": {}, "steps": 0, "denied_steps": 0,
-                        "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "violations": [],
+                        "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "gold_banked": 0, "violations": [],
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
                         "patrol_commands": 0, "silenced": 0, "lift_waits": 0, "shoves": 0, "refresh_potions": 0,
                         "stam_below_s": 0.0, "fights": [], "hunt_s": 0.0}
@@ -282,6 +283,13 @@ class World:
         self.rope_ready = 0.0
         self.rope_combat_until = 0.0          # the rope's combat cooldown (ROPE_COMBAT_COOLDOWN_S)
         self.attacked_by_player_t = -1e9      # the last "... is attacking you!" a red said over us
+        self.pvp_t = -1e9                     # the last harmful act or damage of a player on us (PVP_FLAG_S)
+        self.hamstrung_until = 0.0            # Hamstring on us until then (hamstring_player)
+        self.hamstring_immune_until = 0.0
+        self.stam_before = None               # our stamina when hamstrung (back at its end)
+        self.paralyzed_until = 0.0            # a player's Paralyze on us until then, or damage (paralyze_player)
+        self.recall_start_t = None            # our recall's power words (a disturbance's recovery)
+        self.cast_recover_until = 0.0         # a disturbed cast's recovery (SPELL_INTERRUPTS.md)
         self.rope_landing = None              # (time, (x, y, z)): a rope's jump on its way (ROPE_LAND_S)
         self.last_use_t = -1e9
         self.potion_ready = 0.0
@@ -297,7 +305,9 @@ class World:
         self.recall_at = None                 # (arrival time, destination row)
         self.spawn_due = []                   # (time, spawn index)
         self.player_log = []                  # (time, source, damage, hits after): the last 15 s
+        self.reds = Reds(self, seed, TICK_S)  # red players (sim/reds.py; arrivals only with the scenario's `reds` on)
         self._build()
+        self.reds.start()
 
     # ------------------------------------------------------------ setup
     def _serial(self) -> int:
@@ -611,55 +621,48 @@ class World:
             m.next_step = self._due(m.next_step, o["step_s"])
             self._step_toward(m, owner.pos, 1)
 
-    # ------------------------------------------------------------ red players (add_red; module docstring)
-    def add_red(self, x, y, z=None, name="Ticket Tongje", spec=None, route=()) -> Mob:
-        """A red player at (x, y) (z: the surface nearest ours), `spec` over RED's numbers; `route`: (x, y, seconds)
-        tiles it walks first, each that long after the last (a live red's own path), before it comes at us."""
-        spec = {**RED, **(spec or {})}
-        z = self.stand_z(x, y, self.player.z if z is None else z)
-        m = Mob(self._serial(), "red", "red player", name, 0x190, x, y, z, hits=spec["hits"], hits_max=spec["hits"],
-                noto=6, spec=spec)
-        m.cd["route"] = list(route)
-        if route:
-            m.next_step = self.t + route[0][2]
-        self.mobs[m.serial] = m
-        self._view()
-        return m
+    # ------------------------------------------------------------ red players (sim/reds.py; module docstring)
+    def add_red(self, x, y, z=None, name="Ticket Tongje", spec=None, route=(), kit="mage") -> Mob:
+        """A red player at (x, y) (z: the surface nearest ours) that attacks us on sight and knows where we are, with
+        the scenario's `reds.kits[kit]` numbers (`spec` over them); `route`: (x, y, seconds) tiles it walks first, each
+        that long after the last (a live red's own path), before it comes at us."""
+        return self.reds.add(x, y, z, name=name, kit=kit, spec=spec, route=route, attacker=True)
 
-    def _red(self, m: Mob):
-        """A red player: at us while we live (it knows where we are [INFERENCE]): runs to within keep_r and our
-        sight; our attacker from attack_r in sight (the server's line over us); a spell at us every cast_s within
-        cast_r in sight, standing cast_stand_s for it, landing land_s later wherever we went (a cast spell isn't
-        outrun [INFERENCE])."""
-        t, pl, sp = self.t, self.player, m.spec
-        for c in [c for c in m.casts if t >= c[0]]:
-            m.casts.remove(c)
-            self.hurt(pl, c[1], m, kind="spell")
+    def flagged(self) -> bool:
+        """We are flagged in PvP: a player's harmful act or damage on us within PVP_FLAG_S."""
+        return self.t - max(self.pvp_t, self.attacked_by_player_t) <= PVP_FLAG_S
+
+    def hamstring_player(self, seconds: float, immune_s: float) -> bool:
+        """A player's Hamstring on us (wiki Hamstring, knowledge #14382-14390; live 3 times, docs/NOTES.md "Hinder,
+        Hamstring and the rope"): "Their attack hamstrings you!", buff 53, stamina 0 for `seconds` (a walk's pace
+        only, no regen), then "You are no longer hamstrung." and the stamina it had; immune `immune_s` after. False
+        while immune."""
+        pl = self.player
+        if pl.ghost or self.t < self.hamstring_immune_until or self.hamstrung_until > self.t:
+            return False
+        self.hamstrung_until = self.t + seconds
+        self.hamstring_immune_until = self.t + seconds + immune_s
+        self.stam_before = pl.stam
+        pl.stam = 0
+        self._sys("Their attack hamstrings you!")
+        self.send(P.buff(pl.serial, HAMSTRING_ICON, HAMSTRING_GUMP, "Hamstrung",
+                         "Can Only Walk and Cannot Regain Stamina", seconds),
+                  P.stam(pl.serial, 0, pl.stam_max))
+        return True
+
+    def paralyze_player(self, seconds: float):
+        """A player's Paralyze on us: "You cannot move!", buff 135, every step refused with FROZEN_CLILOC until
+        `seconds` pass or damage breaks it (live 2026-10-21 10:35:06.66, broken by a hit 3.5 s in; wiki Magery)."""
+        pl = self.player
         if pl.ghost:
-            m.target, m.casts = None, []
-            self._warm(m, False)
             return
-        d, sees = cheb(m.pos, pl.pos), self.can_see(m, pl)
-        if m.target is None and d <= sp["attack_r"] and sees:
-            m.target = pl.serial
-            self._warm(m, True)
-            self.send(P.says(pl.serial, pl.name, m.name + ATTACKED_TEXT, kind=0, hue=34, body=pl.body))
-            self.attacked_by_player_t = t
-            m.next_swing = t + self.rng.uniform(*sp["first_cast_s"])
-            self.count("red_attacks")
-        route = m.cd.get("route")
-        if route and t >= m.next_step:
-            x, y, _ = route.pop(0)
-            self._place(m, (x, y, self.stand_z(x, y, m.z)))
-            m.next_step = t + (route[0][2] if route else 0.0)
-        elif not route and t >= m.next_step and (d > sp["keep_r"] or not sees):
-            m.next_step = self._due(m.next_step, sp["step_s"])
-            self._step_toward(m, pl.pos, sp["keep_r"] if sees else 1)
-        if m.target is not None and t >= m.next_swing and d <= sp["cast_r"] and sees:
-            m.next_swing = self._due(m.next_swing, sp["cast_s"])
-            self._overhead(m, self.rng.choice(sp["words"]), kind=10)
-            m.casts.append([t + self.rng.uniform(*sp["land_s"]), self.rng.randint(*sp["damage"])])
-            m.next_step = max(m.next_step, t + sp["cast_stand_s"])     # no step while casting
+        self.paralyzed_until = self.t + seconds
+        self._sys("You cannot move!")
+        self.send(P.buff(pl.serial, PARALYZE_ICON, 0, "Paralyze", "You are paralyzed.", seconds))
+
+    def _unparalyze(self):
+        self.paralyzed_until = 0.0
+        self.send(P.buff_remove(self.player.serial, PARALYZE_ICON))
 
     def _others_sample(self):
         """Once a second: players in our view while we're on the level (`others_view_s`: count -> seconds, their
@@ -736,6 +739,8 @@ class World:
                 self.count("met", m.key)
         if m.kind == "pet" and m.ghost:
             self.send(P.pet_dead(m.serial))
+        elif m.kind == "red":
+            self.reds.show(m)
 
     def _view(self):
         for s, m in self.mobs.items():
@@ -847,13 +852,26 @@ class World:
         elif victim.kind == "pet" and self._on_level():
             self.count("pet_damage_taken", victim.name, n)
             self.count("pet_damage_by", by.key if by is not None else kind, n)
-        if victim.kind not in OTHERS and (by is None or by.kind not in OTHERS):
+        if victim.kind not in OTHERS + ("red",) and (by is None or by.kind not in OTHERS):
             self._overhead(victim, f"-{n}")      # live: no "-N" over another player's fight (20261019_095934 10:11)
         if victim.kind == "player":
             self.send(P.hits(victim.serial, max(0, int(victim.hits)), int(victim.hits_max)))
+            if self.paralyzed_until:
+                self._unparalyze()               # damage breaks a paralyze (live 10:35:06.66 -> 10.12)
+            if by is not None and by.kind == "red":
+                self.pvp_t = self.t
+                if self.recall_at is not None:   # a player's hit breaks our cast (SPELL_INTERRUPTS.md: 3 of 3)
+                    e = self.t - (self.recall_start_t or self.t)
+                    self.recall_at = None
+                    self.cast_recover_until = self.t + max(0.2, 1 - math.sqrt(max(0.0, e) / 2.0))
+                    self.send(P.cliloc(DISTURB_CLILOC))
+                    self.reds.m["disturbed_recalls"] += 1
         elif victim.serial in self.viewing:
             self.send(P.hits(victim.serial, victim.pct(), 100))
-        if victim.kind in OTHERS:
+        if victim.kind == "red" and victim.rs.get("cast") is not None:
+            victim.rs["cast"] = None                 # a hit disturbs its cast (RunUO Spell.OnCasterHurt)
+            victim.rs["cast_ready"] = self.t + 0.5
+        if victim.kind in OTHERS + ("red",):
             if victim.hits < victim.hits_max * 0.25:
                 victim.hits = victim.hits_max    # they heal themselves and never die here [INFERENCE]
         elif victim.hits <= 0:
@@ -1028,6 +1046,16 @@ class World:
         if self.player.held_until and t >= self.player.held_until:
             self.player.held_until = 0.0
             self._sys(HELD_END_TEXT)
+        if self.hamstrung_until and t >= self.hamstrung_until:
+            self.hamstrung_until = 0.0
+            pl = self.player
+            if not pl.ghost:
+                pl.stam = max(pl.stam, self.stam_before or 0)
+                self._sys("You are no longer hamstrung.")
+                self.send(P.buff_remove(pl.serial, HAMSTRING_ICON), P.stam(pl.serial, pl.stam, pl.stam_max))
+        if self.paralyzed_until and t >= self.paralyzed_until:
+            self._unparalyze()
+        self.reds.tick()
         pl = self.player
         near_others = []
         if self.others_on:
@@ -1035,6 +1063,7 @@ class World:
                 self._other_arrive()
                 self.next_other_t = t + self.orng.expovariate(self.sc["others"]["arrive_per_h"] / 3600.0)
             near_others = [(o.x, o.y) for o in self.mobs.values() if o.kind in OTHERS]
+        near_others += [(o.x, o.y) for o in self.mobs.values() if o.kind == "red" and not o.hidden_until]
         for m in list(self.mobs.values()):
             if m.serial not in self.mobs:
                 continue
@@ -1043,6 +1072,9 @@ class World:
                 if cheb(m.pos, pl.pos) <= 2 * VIEW or m.target is not None \
                         or any(cheb(o, m.pos) <= 14 for o in near_others):
                     self._monster(m)
+                    if m.target is not None and m.target in self.mobs and self.mobs[m.target].kind == "red" \
+                            and not pl.ghost and cheb(m.pos, pl.pos) <= VIEW:
+                        self.reds.m["monster_on_red_s"] += TICK_S      # live: in our view, a monster on a red was rare
             elif m.kind == "pet":
                 self._pet(m)
             elif m.kind == "other":
@@ -1050,7 +1082,7 @@ class World:
             elif m.kind == "otherpet":
                 self._other_pet(m)
             elif m.kind == "red":
-                self._red(m)
+                self.reds.act(m)
         if self.others_on and int(round(t / TICK_S)) % 10 == 0:
             self._others_sample()
             self._unseen_tick()
@@ -1058,12 +1090,16 @@ class World:
             self._eerie_tick()
         if not pl.ghost and self._on_level():
             self.metrics["hunt_s"] += TICK_S
+            for name, b in (self.sc.get("places") or {}).items():
+                if b[0] <= pl.x <= b[2] and b[1] <= pl.y <= b[3]:
+                    ps = self.metrics.setdefault("place_s", {})
+                    ps[name] = ps.get(name, 0.0) + TICK_S
             if pl.stam < pl.stam_max:
                 self.metrics["stam_below_s"] += TICK_S      # live 22 % of the time on the level (shove_scan)
         if not pl.ghost and t - pl.last_hurt_t > 10 and pl.hits < pl.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
             pl.hits += 1
             self.send(P.hits(pl.serial, int(pl.hits), int(pl.hits_max)))
-        if pl.ghost or pl.stam >= pl.stam_max:
+        if pl.ghost or pl.stam >= pl.stam_max or self.hamstrung_until > t:
             self.stam_next = None
         elif self.stam_next is None:
             self.stam_next = t + STAM_REGEN_S
@@ -1208,14 +1244,15 @@ class World:
             return
         if cur is not None and self.can_see(m, cur):
             m.seen_target_t = t
-        cands = [o for o in self.team() + self.others() if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)
+        reds = [o for o in self.reds.mobs() if not o.hidden_until]       # players too (sim/reds.py)
+        cands = [o for o in self.team() + self.others() + reds if cheb(o.pos, m.pos) <= max(m.spec["aggro_range"], 12)
                  and o.serial not in held]
         if m.key in self.sc["defaults"].get("pets_first", ()):
             # scenario defaults pets_first_note: the Tank, else a pet, over Logan
             ours = [o for o in cands if o.kind == "pet" and not o.ghost]
             keep = [o for o in ours if o.spec.get("threat_x", 1.0) >= 2.0] or ours
             if keep:
-                cands = keep + [o for o in cands if o.kind in OTHERS]
+                cands = keep + [o for o in cands if o.kind in OTHERS + ("red",)]
                 if cur is not None and cur.serial not in {o.serial for o in cands}:
                     m.target, cur = None, None
         live = {o.serial: o for o in cands}
@@ -1248,7 +1285,8 @@ class World:
         # whichever of us it sees first, the nearest seen, a pet on a tie (user 2026-10-15: "Any mob that
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
-        o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other"), -o.spec.get("threat_x", 1.0)))
+        o = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other", "red"),
+                                     -o.spec.get("threat_x", 1.0)))
         if o.kind == "player" or (o.kind == "pet" and o.spec.get("threat_x", 1.0) < 2.0):
             # but live the gravebug took the first contact in 61 of the 99 wakes where Logan was the nearest seen; the
             # rule above alone gave it 29 % (docs/SIM.md "Parity with the live runs"; the user's call 2026-10-20 to
@@ -1713,6 +1751,12 @@ class World:
         if pl.ghost or pl.held_until > self.t or self.rope_landing is not None:   # a rope's jump on its way: hindered
             self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
             return
+        if self.paralyzed_until > self.t:
+            self.send(P.cliloc(FROZEN_CLILOC), P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
+            return
+        if self.hamstrung_until > self.t and self.t - self.last_step_t < HAMSTRING_STEP_S:
+            self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))      # hamstrung: a walk's pace only
+            return
         if d != pl.d:
             pl.d = d
             self.send(P.confirm_walk(seq))
@@ -1733,7 +1777,7 @@ class World:
             # when I don't"): live the cliloc, the confirm, then 0xA3 with SHOVE_STAM less
             self.metrics["shoves"] += 1
             by = self.metrics.setdefault("shoves_by", {})
-            k = "player" if blocker.kind == "other" else blocker.key
+            k = "player" if blocker.kind in ("other", "red") else blocker.key
             by[k] = by.get(k, 0) + 1
             self.send(P.cliloc(SHOVE_HIDDEN_CLILOC if blocker.hidden_until > self.t else SHOVE_CLILOC))
         pl.x, pl.y, pl.z = to
@@ -1752,6 +1796,7 @@ class World:
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
         tp = next((tp for tp in self.sc.get("teleporters", []) if tuple(tp["from"][:2]) == (pl.x, pl.y)), None)
         if tp is not None:
+            self.reds.player_teleported((pl.x, pl.y))
             self._move_party(tp["to"], follow_r=VIEW)
         gate = self.gates.get((pl.x, pl.y))
         if gate is not None:
@@ -2185,7 +2230,9 @@ class World:
             self.heal(m, self.roll(v["heal_pet"]) * share)
         if hurt_self:
             pl.poison_until = 0
-            self.heal(pl, self.roll(v["heal_self"]))
+            # flagged in PvP the supplies healed Logan 15-22 (median 18, n 8) against 5-39 (29, n 129) otherwise
+            # (docs/NOTES.md "Red players met live"; no rule found for it)
+            self.heal(pl, self.roll(v["heal_self_pvp"] if self.flagged() and v.get("heal_self_pvp") else v["heal_self"]))
 
     def _drink(self, s):
         pl, pot = self.player, self.sc["potions"]
@@ -2200,7 +2247,8 @@ class World:
         self.potion_ready = self.t + pot["cooldown_s"]
         self.metrics["potions"] += 1
         self._sys("You drink a healing potion.")
-        n = self.rng.randint(*pot["heal"])
+        # flagged in PvP a heal potion heals 15-25 (patch 2025-06-06, knowledge #4909); Logan's: 21-29, median 24 (n 10)
+        n = int(round(self.roll(pot["heal_pvp"]))) if self.flagged() and pot.get("heal_pvp") else self.rng.randint(*pot["heal"])
         self.send(P.cliloc(1008158, str(n).encode("utf-16-le")))
         self.heal(pl, n)
         if self.rng.random() < pot.get("satchel_save", 0.0):
@@ -2273,11 +2321,15 @@ class World:
         rows = self.sc["recall"]["rows"]
         if not 0 <= row < len(rows) or self.recall_at is not None:
             return
+        if self.t < self.cast_recover_until:
+            self.send(P.cliloc(502644))     # "You have not yet recovered from casting a spell." (SPELL_INTERRUPTS.md)
+            return
         self._overhead(self.player, "Kal Ort Por", kind=10)
         if not self.recall_allowed(self.player.pos):
             self.send(P.cliloc(501802))     # [INFERENCE] the live refusal text in a dungeon is unrecorded
             return
         self.recall_at = (self.t + RECALL_S, rows[row])
+        self.recall_start_t = self.t
 
     def recall_allowed(self, pos) -> bool:
         """Outside the dungeon, or within `recall_r` of one of its gold moongates (user 2026-10-13: a
@@ -2339,7 +2391,7 @@ class World:
             self._sys(f"You must wait another {f'{m}m' if m else ''}{' ' if m and s else ''}{f'{s}s' if s else ''} "
                       f"before you may use this again while in combat.")
             return
-        if self.t - self.attacked_by_player_t <= ROPE_COMBAT_AFTER_S:
+        if self.flagged():
             self.rope_combat_until = self.t + ROPE_COMBAT_COOLDOWN_S
         self._sys(TEXT_ROPE_PROMPT)
         self._cursor({"kind": "rope", "item": rope})
@@ -2368,11 +2420,13 @@ class World:
         self.rope_landing = (self.t + ROPE_LAND_S, (x, y, z))
 
     def _rope_land(self, to):
-        """The rope's jump lands (ROPE_LAND_S after the target): us there, our followers on Follow beside us."""
+        """The rope's jump lands (ROPE_LAND_S after the target): us there, our followers on Follow beside us (none
+        while we are flagged in PvP: knowledge #5163)."""
         pl = self.player
         if pl.ghost:
             return
-        came = [m for m in self.pets() if m.alive and m.mode == "follow" and cheb(m.pos, pl.pos) <= 12]
+        came = [] if self.flagged() else [m for m in self.pets() if m.alive and m.mode == "follow"
+                                           and cheb(m.pos, pl.pos) <= 12]
         self._teleport(pl, to)
         self._place_beside(came)
         self._view()
@@ -2384,6 +2438,10 @@ class World:
         self.metrics["recalls"] += 1
         self._move_party(dest["at"])
         self._apply_penalty()
+        if dest is self.sc["recall"]["rows"][0] and not self.player.ghost:
+            # home: what we carried is banked (live the drop-off takes it; run.py adds --no-drop-off, the simulator
+            # has no house), so a later death loses only what came after (docs/SIM.md "Red players": Gold banked)
+            self.metrics["gold_banked"] = self.metrics["gold_looted"]
 
     # moongates: the "Moongate Destinations" menu (docs/NOTES.md "Moongate gumps"; live 21:31:00)
     def _gate_layout(self, gate, picked=None):

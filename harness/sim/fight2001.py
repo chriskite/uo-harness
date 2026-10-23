@@ -69,7 +69,9 @@ def one(seed):
         world_tick(now)
         if t0[0] is None:
             t0[0] = w.t
-            reds.append(w.add_red(5243, 667, name="Druidx", route=DRUIDX))
+            # Druidx live: a recurve bow and a crossbow, an Energy Bolt now and then (the archer kit, a bow)
+            reds.append(w.add_red(5243, 667, name="Druidx", route=DRUIDX, kit="archer",
+                                  spec={"hands": [[5042, 2, 1, 10]]}))
         el = w.t - t0[0]
         if len(reds) == 1 and el >= VINY_T:
             reds.append(w.add_red(5243, 667, name="Viny", route=VINY))

@@ -138,6 +138,18 @@ def penalty_remove(self_serial):
     return var(0xFF, u32(9) + u32(self_serial) + u16(277))
 
 
+def buff(self_serial, icon, gump, title, text, seconds=0.0):
+    """Outlands 0xFF sub 8, any buff on us (penalty_buff's layout; no timer end: the sim sends no TimeSync, so the
+    runner reads the buff's presence and our stamina, as it does live before the first sync)."""
+    return var(0xFF, u32(8) + u32(self_serial) + u16(icon) + u16(gump) + u16(1) + u16(0) + u16(0) + u16(1)
+               + struct.pack(">f", seconds) + bytes(8) + bytes(8) + title.encode() + b"\x00" + text.encode() + b"\x00"
+               + u16(0) + u16(1) + bytes(4))
+
+
+def buff_remove(self_serial, icon):
+    return var(0xFF, u32(9) + u32(self_serial) + u16(icon))
+
+
 def warmode(on):
     return bytes([0x72, 1 if on else 0, 0, 0x32, 0])
 

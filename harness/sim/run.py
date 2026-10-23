@@ -90,14 +90,15 @@ def seed_prior(db: str, prior: str, serial: int) -> int:
 
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
              at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
-             eerie: bool = False, epoch: float = EPOCH, prior: str | None = None) -> dict:
+             eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
     memory store (a career's, kept across its runs: crawl priors, fights, avoided types, learnt
     teleporters), else a fresh one (with `prior`'s hunt history: seed_prior). `others`: other players on the
     level (the scenario's `others`, off by default so earlier batches stay comparable); `eerie`: the Field of
-    Souls' eerie corpses (the scenario's `eerie`, off by default too). `epoch`: the game time it starts at."""
+    Souls' eerie corpses (the scenario's `eerie`, off by default too); `reds`: red players (the scenario's `reds`, off
+    by default). `epoch`: the game time it starts at."""
     import ast
     import importlib
     import loop_hunt
@@ -125,6 +126,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
         sc["others"]["enabled"] = True
     if eerie:
         sc["eerie"]["enabled"] = True
+    if reds:
+        sc["reds"]["enabled"] = True
     if "--vet-range" in extra:
         # the runner's --vet-range is the character's (the Healer's Codex "Without Borders" adds 1/2/3 tiles,
         # knowledge #11343): the simulated supplies reach as far, else the runner stands where they don't
@@ -178,7 +181,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     return {"seed": seed, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
             "wall_s": round(wall, 2), "speed_x": round(clock.elapsed / wall, 1) if wall else None,
             "kills": m["kills"], "kills_by": m["kills_by"], "gold_looted": m["gold_looted"],
-            "hunt_s": round(m["hunt_s"], 1),
+            # banked: what reached home (World._land); lost: what a death left on the corpse
+            "gold_banked": m["gold_banked"], "gold_lost": m["gold_looted"] - m["gold_banked"] if m["deaths"] else 0,
+            "hunt_s": round(m["hunt_s"], 1), "place_s": {k: round(v, 1) for k, v in m.get("place_s", {}).items()},
             "kills_per_min": round(m["kills"] / max(clock.elapsed / 60, 1e-9), 2),
             "player_damage_taken": round(m["player_damage_taken"]), "player_hits_end": int(pl.hits),
             "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
@@ -199,6 +204,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
                                          "kill_on_others", "blue_corpse_opens", "wait_on_others_s",
                                          "wait_on_others_mobs") if k in m} if world.others_on else None,
             "eerie": {k: m.get(k, 0) for k in ("eerie_spawned", "eerie_seen", "soul_jars")} if world.eerie_on else None,
+            "reds": world.reds.summary() if world.reds.on else None,
             "met": m.get("met", {}),
             "violations": m["violations"], "junctures": juncs,
             "runner_totals": dict(loop.totals) if loop is not None else None,
@@ -220,7 +226,7 @@ def _pool_run(job):
     db = os.path.join(tempfile.mkdtemp(prefix="sim_career_"), "harness.db")
     out_all = []
     epoch = EPOCH
-    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior) in enumerate(runs):
+    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -230,7 +236,7 @@ def _pool_run(job):
         try:
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
-                         prior=prior if career is None else None)
+                         prior=prior if career is None else None, reds=reds)
         finally:
             sys.stdout = old
             out.close()
@@ -268,6 +274,11 @@ def main(argv=None):
     ap.add_argument("--eerie", action="store_true",
                     help="the Field of Souls' eerie corpses on the level, empty soul jars in the pack (the scenario's "
                          "`eerie`; off by default)")
+    ap.add_argument("--reds", action="store_true",
+                    help="red players (player killers): the scenario's `reds`, off by default (docs/SIM.md 'Red players')")
+    ap.add_argument("--death-downtime-min", type=float, default=None,
+                    help="game minutes a death costs beyond the run (resurrection, resupply, the restart) in "
+                         "banked_per_h_net; default: the scenario's reds.death_downtime_s")
     ap.add_argument("--prior", default=None, metavar="DB",
                     help="start every career's memory with this store's hunt history for the scenario's character (the "
                          "live store: the crawl's zone knowledge, the return rule's visits; docs/SIM.md 'Parity')")
@@ -279,7 +290,7 @@ def main(argv=None):
     if logdir:
         os.makedirs(logdir, exist_ok=True)
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
-             tuple(a.set), a.others, a.eerie, a.prior) for s in seeds]
+             tuple(a.set), a.others, a.eerie, a.prior, a.reds) for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
     if len(careers) == 1 or a.jobs <= 1:
@@ -294,37 +305,141 @@ def main(argv=None):
             print(json.dumps(r))
         return 0
     print(f"{'seed':>4} {'outcome':>8} {'game min':>8} {'x real':>7} {'kills':>5} {'k/min':>5} {'gold':>6} "
-          f"{'dmg us':>6} {'deaths':>6} {'pet deaths':>10} {'vet':>4} {'pots':>4} {'viol':>4}")
+          f"{'banked':>6} {'dmg us':>6} {'deaths':>6} {'pet deaths':>10} {'vet':>4} {'pots':>4} {'viol':>4}")
     for r in results:
         if "sim_s" not in r:
             print(f"{r['seed']:>4} {r['outcome']}")
             continue
         print(f"{r['seed']:>4} {r['outcome']:>8} {r['sim_s'] / 60:>8.1f} {r['speed_x'] or 0:>7.1f} {r['kills']:>5} "
-              f"{r['kills_per_min']:>5} {r['gold_looted']:>6} {r['player_damage_taken']:>6} {r['deaths']:>6} "
-              f"{len(r['pet_deaths']):>10} {r['vet_uses']:>4} {r['potions']:>4} {len(r['violations']):>4}")
+              f"{r['kills_per_min']:>5} {r['gold_looted']:>6} {r['gold_banked']:>6} {r['player_damage_taken']:>6} "
+              f"{r['deaths']:>6} {len(r['pet_deaths']):>10} {r['vet_uses']:>4} {r['potions']:>4} {len(r['violations']):>4}")
         if r.get("error"):
             print("      " + r["error"].splitlines()[0][:150])
-    print("all: " + json.dumps(aggregate(results)))
+    from sim.scenario import load
+    downtime = a.death_downtime_min * 60 if a.death_downtime_min is not None \
+        else (load(a.scenario).get("reds") or {}).get("death_downtime_s", 0.0)
+    print("all: " + json.dumps(aggregate(results, downtime)))
     if a.compare:
         print(compare(results, load_trip(a.scenario)))
     return 0
 
 
-def aggregate(results: list[dict]) -> dict:
-    """Across runs: game hours, kills per game hour, deaths per game hour, the share of runs with a
-    death, a pet death, a pet left behind, a crash or a rule violation."""
+def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
+    """Across runs: game hours, kills per game hour, deaths per game hour, the share of runs with a death, a pet
+    death, a pet left behind, a crash or a rule violation; gold looted and gold banked (what reached home) per game
+    hour, and banked per hour with `downtime_s` of game time added for each death (banked_per_h_net)."""
     ok = [r for r in results if "sim_s" in r]
     hours = sum(r["sim_s"] for r in ok) / 3600 or 1e-9
+    deaths = sum(r["deaths"] for r in ok)
     left = sum(1 for r in ok if any(j["kind"] == "pet_left_behind" for j in r["junctures"]))
+    banked = sum(r.get("gold_banked", 0) for r in ok)
     return {"runs": len(results), "game_h": round(hours, 2), "kills_per_h": round(sum(r["kills"] for r in ok) / hours, 1),
             "gold_per_h": round(sum(r["gold_looted"] for r in ok) / hours),
-            "deaths_per_h": round(sum(r["deaths"] for r in ok) / hours, 2),
+            "banked_per_h": round(banked / hours),
+            "banked_per_h_net": round(banked / (hours + deaths * downtime_s / 3600)),
+            "gold_lost": sum(r.get("gold_lost", 0) for r in ok),
+            # the scenario's `places`: their share of our time alive on the level
+            "place_share": {k: round(sum((r.get("place_s") or {}).get(k, 0) for r in ok)
+                                     / (sum(r["hunt_s"] for r in ok) or 1e-9), 3)
+                            for k in sorted({k for r in ok for k in (r.get("place_s") or {})})},
+            "deaths_per_h": round(deaths / hours, 2),
             "runs_with_death": sum(1 for r in ok if r["deaths"]),
             "runs_with_pet_death": sum(1 for r in ok if r["pet_deaths"]),
             "runs_with_pet_left_behind": left,
             "crashed": sum(1 for r in results if r.get("outcome") == "crashed"),
             "violations": sum(len(r["violations"]) for r in ok),
-            **({"others": others_summary(ok)} if any(r.get("others") for r in ok) else {})}
+            **({"others": others_summary(ok)} if any(r.get("others") for r in ok) else {}),
+            **({"reds": reds_summary(ok)} if any(r.get("reds") for r in ok) else {})}
+
+
+def _median(xs):
+    xs = sorted(xs)
+    return xs[len(xs) // 2] if xs else None
+
+
+def red_deaths(r: dict) -> list:
+    """A run's deaths with a red's damage in their last 15 s (World.die's death_causes)."""
+    return [d for d in r.get("death_causes", []) if d["last_15s"].get("red player")]
+
+
+EAST_WING = (5224, 655, 5247, 737)      # Maus 3's dead-end wing (docs/NOTES.md "Dead in the east wing's dead end")
+
+
+def in_box(p, b) -> bool:
+    return b[0] <= p[0] <= b[2] and b[1] <= p[1] <= b[3]
+
+
+def reds_summary(ok: list[dict]) -> dict:
+    """Red players across runs, as docs/NOTES.md "Red players met live" measured them: group sightings an hour on the
+    fight level and an hour of walk-in, their sizes, attack lines (seconds after first sight, distance), red deaths an
+    hour on the level, the share of sightings that ended in our death and first sight to death."""
+    rs = [(r, r["reds"]) for r in ok if r.get("reds")]
+    level_h = sum(x["level_s"] for _, x in rs) / 3600 or 1e-9
+    walk_h = sum(x["walkin_s"] for _, x in rs) / 3600 or 1e-9
+    hunt = ("maus3",)
+    sights = [(r, sg) for r, x in rs for sg in x["sightings"]]
+    lv = [(r, sg) for r, sg in sights if sg["level"] in hunt]
+    wk = [(r, sg) for r, sg in sights if sg["level"] not in hunt and sg["level"] is not None]
+    apps = [a for _, x in rs for a in x["appearances"] if a["level"] in hunt]
+    att = [a for a in apps if a["attack_s"] is not None]
+    sizes = {}
+    for _, sg in lv:
+        sizes[sg["seen"]] = sizes.get(sg["seen"], 0) + 1
+    to_death, fatal = [], 0
+    deaths_level = deaths_walk = 0
+    split = {"between": [0, 0], "not_between": [0, 0], "east_wing": [0, 0], "elsewhere": [0, 0]}   # [sightings, fatal]
+    for r, x in rs:
+        for d in red_deaths(r):
+            before = [sg for sg in x["sightings"] if sg["t"] <= d["t"]]
+            if before:
+                sg = max(before, key=lambda s: s["t"])
+                to_death.append(round(d["t"] - sg["t"], 1))
+                if sg["level"] in hunt:
+                    deaths_level += 1
+                else:
+                    deaths_walk += 1
+        for sg in x["sightings"]:
+            if sg["level"] not in hunt:
+                continue
+            dead = any(0 <= d["t"] - sg["t"] <= 60 for d in red_deaths(r))
+            fatal += dead
+            keys = ["east_wing" if in_box(sg["at"], EAST_WING) else "elsewhere"]
+            if sg.get("between") is not None:
+                keys.append("between" if sg["between"] else "not_between")
+            for k in keys:
+                split[k][0] += 1
+                split[k][1] += dead
+    n_app = len(apps) or 1
+    return {"level_h": round(level_h, 2), "walkin_h": round(walk_h, 2),
+            "groups_in_view_per_h": round(len(lv) / level_h, 2), "walkin_groups_per_h": round(len(wk) / walk_h, 2),
+            "group_sizes": dict(sorted(sizes.items())),
+            "appearances": len(apps), "attacked_share": round(len(att) / n_app, 2),
+            "attack_s_median": _median([a["attack_s"] for a in att]),
+            "attack_d_median": _median([a["attack_d"] for a in att]),
+            "red_deaths": deaths_level + deaths_walk, "red_deaths_per_level_h": round(deaths_level / level_h, 2),
+            "walkin_red_deaths": deaths_walk,
+            "fatal_share": round(fatal / (len(lv) or 1), 2), "sight_to_death_median": _median(to_death),
+            # [sightings, fatal]: a red nearer the leave gate than we were at first sight (live 12 / 7 against 5 / 0);
+            # Logan in the east wing (x 5224-5247, y 655-737) at first sight (live 7 / 4)
+            "fatal_by_place": split,
+            # the share of sightings within 2.6 min of our arrival on the level (live 9 of 24), and of a group met
+            # before in the run (live ~2-3 of 20)
+            "early_share": round(sum(1 for _, sg in lv if sg.get("since_arrival") is not None
+                                     and sg["since_arrival"] <= 156) / (len(lv) or 1), 2),
+            "repeat_share": round(sum(sum(1 for i, sg in enumerate(gs) if sg["group"] in {g["group"] for g in gs[:i]})
+                                      for gs in ([sg for sg in sorted(x["sightings"], key=lambda s: s["t"])
+                                                  if sg["level"] in hunt] for _, x in rs)) / (len(lv) or 1), 2),
+            "jumps_per_appearance": round(sum(x["jumps"] for _, x in rs) / n_app, 2),
+            # gross damage a second on us from its attack line while in view (live: one caster 12-19, melee 6-7)
+            "dps_by_kit": {k: round(sum(a.get("dmg", 0) for a in att if a["kit"] == k)
+                                    / (sum(a.get("fight_s", 0) for a in att if a["kit"] == k) or 1e-9), 1)
+                           for k in sorted({a["kit"] for a in att})},
+            "hamstrings": sum(x["hamstrings"] for _, x in rs), "paralyzes": sum(x["paralyzes"] for _, x in rs),
+            "potions_stuck": sum(x["potions_stuck"] for _, x in rs),
+            "disturbed_recalls": sum(x["disturbed_recalls"] for _, x in rs),
+            "monster_on_red_s_per_h": round(sum(x["monster_on_red_s"] for _, x in rs) / level_h),
+            "groups_arrived": sum(x["groups_arrived"] for _, x in rs),
+            "gold_lost_to_reds": sum(r.get("gold_lost", 0) for r, _ in rs if red_deaths(r))}
 
 
 def others_summary(ok: list[dict]) -> dict:

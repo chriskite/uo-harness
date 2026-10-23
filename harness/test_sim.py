@@ -2261,7 +2261,8 @@ def test_rope_ranged():
     import nav
     w = red_world(start=(5239, 654))
     loop, clock, store, patched = red_loop(w)
-    red = w.add_red(5230, 651, name="Flat Lander")             # 9 tiles west, in sight: his attack line, then bolts
+    # 9 tiles west, in sight: his attack line, then bolts (his live empty hands; this test's caster casts from there)
+    red = w.add_red(5230, 651, name="Flat Lander", spec={"open_r": 12, "cast_from_r": 12, "hands": [[0, 0, 1]]})
     red.next_step = 1e9
     out = io.StringIO()
     try:
@@ -2287,7 +2288,7 @@ def test_rope_cancel_attacked():
     # anyway; landed beside him (user: a rope only while no player is hitting us yet)
     w = red_world()
     loop, clock, store, patched = red_loop(w)
-    red = w.add_red(5243, 704)                                 # 22 tiles north, out of view, standing
+    red = w.add_red(5243, 704, spec={"open_r": 12})           # 22 tiles north, out of view, standing
     red.next_step = 1e9
     world_tick, moved = clock.on_advance, []
 
@@ -2319,7 +2320,7 @@ def test_rope_combat_cooldown():
     import loop_hunt
     w = red_world()
     loop, clock, store, patched = red_loop(w)
-    red = w.add_red(5243, 715)                                 # 11 tiles north in sight: its attack line, no spells
+    red = w.add_red(5243, 715, spec={"open_r": 12})           # 11 tiles north in sight: its attack line, no spells
     red.next_step = 1e9
     world_tick = clock.on_advance
 
@@ -2345,6 +2346,115 @@ def test_rope_combat_cooldown():
           in out.getvalue(), f"landed {first} next in {known:.0f} s")
     check("...a second '[Rope' refused: its time left read from the server's line", not second and 100 <= read <= 115
           and "its combat cooldown" in out.getvalue(), f"second {second} next in {read:.0f} s")
+
+
+def test_red_caster_sight():
+    print("== a red's spell: range and sight checked when the cast ends; held out of sight, released in sight ==")
+    # wiki Magery / ServUO Target.Invoke: the target is checked at targeting; a finished cast is held (precast)
+    w = world_with([], start=SEEN_FROM)
+    pl = w.player
+    bolt = {"opener": {"eb": 1}, "mix": {"eb": 1}, "open_r": 12, "cast_from_r": 12, "summon_share": 0.0}
+    red = w.add_red(*WALL_TO[:2], spec=bolt)
+    red.next_step = 1e9                                    # it stands: only its casting is under test
+    while not red.rs["cast"] and w.t < 5:
+        w.run_until(w.t + 0.1)
+    words_t = w.t
+    w._teleport(pl, WALL_FROM)                             # behind the wall before its cast ends
+    w.run_until(words_t + 4.0)
+    held = red.rs["held"] is not None and pl.hits == pl.hits_max
+    w._teleport(pl, SEEN_FROM)
+    w.run_until(w.t + 0.5)
+    check("cast out of sight: no damage, the spell held; back in sight: released and landed", held
+          and pl.hits < pl.hits_max and red.rs["held"] is None, f"held {held} hits {pl.hits}")
+
+
+def test_red_hamstring():
+    print("== a red's Hamstring: stamina 0 and a walk's pace for 3 s, then the stamina back; immune 30 s after ==")
+    w = world_with([], start=FLOOR)
+    pl = w.player
+    link, clock = link_for(w)
+    hit = {"open_r": 2, "hands": [[5119, 1, 1]], "stealth_p": 0.0, "summon_share": 0.0,
+           "melee": {"swing_s": [1.0, 1.0], "hit": 1.0, "damage": [1, 1],
+                     "hamstring": {"s": 3.0, "immune_s": 30.0, "cd_s": [1, 1]}}}
+    red = w.add_red(FLOOR[0] + 1, FLOOR[1], kit="melee", spec=hit)
+    red.next_step = 1e9
+    clock.advance(0.3)
+    hs = (w.hamstrung_until > w.t, pl.stam)
+    red.next_swing = 1e9                                   # no more hits: only our steps from here
+    clock.advance(0.5)
+    seq = iter(range(1, 50))
+    link.send(actions.walk(4, run=True, seq=next(seq)))   # a turn south, a step, then one 0.2 s and one 0.4 s later
+    link.send(actions.walk(4, run=True, seq=next(seq)))
+    at1 = pl.pos[:2]
+    clock.advance(0.2)
+    link.send(actions.walk(4, run=True, seq=next(seq)))
+    fast = pl.pos[:2]
+    clock.advance(0.4)
+    link.send(actions.walk(4, run=True, seq=next(seq)))
+    slow = pl.pos[:2]
+    clock.advance(3.0)
+    check("hit and hamstrung: stamina 0; a step 0.2 s after the last refused, one 0.4+ s after taken",
+          hs == (True, 0) and at1 != FLOOR and fast == at1 and slow != at1, f"{hs} {at1} {fast} {slow}")
+    check("...3 s later the stamina it had, and immune: the next hit hamstrings no one",
+          pl.stam == pl.stam_max and not w.hamstring_player(3.0, 30.0), f"stam {pl.stam}")
+
+
+def test_red_breaks_recall():
+    print("== a red's hit on us mid-recall: the cast disturbed (500641), the recast refused until it recovers ==")
+    # docs/research/SPELL_INTERRUPTS.md: every player hit broke the cast (3 of 3, Bastet); recovery max(0.2, 1-sqrt(e/T))
+    w = world_with([], start=FLOOR)
+    link, clock = link_for(w)
+    w.recall_at, w.recall_start_t = (w.t + 1.9, w.sc["recall"]["rows"][0]), w.t
+    clock.advance(0.3)
+    red = w.add_red(FLOOR[0] + 1, FLOOR[1], kit="melee",
+                    spec={"open_r": 2, "stealth_p": 0.0, "melee": {"swing_s": [9, 9], "hit": 1.0, "damage": [5, 5]}})
+    red.next_step = 1e9
+    clock.advance(0.2)
+    link.state()
+    disturbed = w.recall_at is None and any(e.get("cliloc") == 500641 for e in link.events)
+    check("the recall disturbed, no arrival, a recovery ahead", disturbed and w.cast_recover_until > w.t
+          and w.player.pos[:2] == FLOOR, f"{disturbed} recover {w.cast_recover_until - w.t:.2f} s")
+
+
+def test_red_follows_teleporter():
+    print("== a red on us when we take a teleporter follows us through it; one arriving by a gold gate reaches Maus 3 ==")
+    # live 2026-10-22 18:53:14 Botan 3 s behind Logan through (5554, 700); the crimson gate is exit-only, so reds walk in
+    w = world_with([], start=(5554, 701))
+    pl = w.player
+    pl.z = w.stand_z(5554, 701, 20)                        # on the platform the teleporter stands on (the map's z)
+    link, clock = link_for(w)
+    red = w.add_red(5564, 702, kit="melee", spec={"stealth_p": 0.0, "open_r": 1, "jump": {}})
+    clock.advance(0.5)
+    seq = iter(range(1, 50))
+    for d in (0, 0):                                       # north onto the teleporter tile (5554, 700), as Logan went
+        link.send(actions.walk(d, run=True, seq=next(seq)))
+        clock.advance(0.25)
+    through = w.reds.level(pl.pos) == "l2"
+    clock.advance(8.0)
+    check("we through to the second level, the red after us", through and w.reds.level(red.pos) == "l2",
+          f"us {pl.pos} red {red.pos}")
+    sc = load()
+    sc["reds"] = {**sc["reds"], "enabled": True, "arrive_per_h": 0.0}
+    sc["player"]["start"] = sc["recall"]["rows"][0]["at"]          # home: no one to hunt
+    w2 = World(sc, seed=1)
+    for m in list(w2.reds.mobs()):
+        w2.reds._gone(m)
+    w2.reds._group((5626, 689, 0), stay=600.0)
+    w2.run_until(240.0)
+    on3 = [m for m in w2.reds.mobs() if w2.reds.level(m.pos) == "maus3"]
+    check("a group recalled in by a gold gate runs the teleporters down to Maus 3", len(on3) == len(w2.reds.mobs()) > 0,
+          str([(m.name, m.pos) for m in w2.reds.mobs()]))
+
+
+def test_gold_banked():
+    print("== gold banked: what we carried at our last landing home; a death loses only what came after ==")
+    w = world_with([], start=FLOOR)
+    w.metrics["gold_looted"] = 5000
+    w._land(w.sc["recall"]["rows"][0])
+    w.metrics["gold_looted"] += 3000
+    w._land(w.sc["recall"]["rows"][1])                     # back in: nothing banked by that
+    check("5000 banked at home, the 3000 since not", w.metrics["gold_banked"] == 5000, str(w.metrics["gold_banked"]))
+
 
 
 def test_rest_hurt_pet():
@@ -2967,7 +3077,9 @@ def main():
               test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
-              test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_ledge_attacker,
+              test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
+              test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
+              test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot, test_blightmare_first_sight,
               test_blightmare_awake_patrol,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,

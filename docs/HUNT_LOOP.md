@@ -307,7 +307,7 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   item out of reach, a container that won't open) ends the run at home with the load (`Abort`, task_failed; a
   `dropoff` job event with the error): until 2026-10-21 the run went back in with it (live 22:32:36, 25.5k gp back
   to Maus Near 2). A refused step still lets the run go on. The simulator has no home (`--no-drop-off` in run.py's
-  defaults).
+  defaults); it counts what we carried at each landing home as banked (docs/SIM.md "Red players", "Gold banked").
 - `--return-at auto` (default) | `off` | `GOLD` (a fixed value).
 
 ## Soul jars (`--soul-jars`; `harness/soul_jar.py`; user request 2026-10-17)
@@ -855,8 +855,10 @@ moongate, and never near a red one).
     see first, then the farthest along ("…, out of their sight (ranged)" / "in sight of N (ranged)"). A melee red keeps
     the rules above. Simulator replays: `sim/fight2203.py` (Flat Lander, 22:03) 3 of 24 dead before and after;
     `sim/fight2001.py` 0 of 24 before and after. Ranking every tile in reach "out of their sight first" instead lost 7
-    of 24 in fight2001: the landings went back into the dead end. The simulated caster's spell lands even when Logan
-    is out of its sight by then, and it doesn't hamstring, so the replays can't credit a rope out of sight [INFERENCE].
+    of 24 in fight2001: the landings went back into the dead end. Then the simulated caster's spell landed even when
+    Logan was out of its sight by then; since 2026-10-23 (docs/SIM.md "Red players") range and sight are checked when
+    its cast ends and the spell is held while they fail, and reds hamstring: fight2203 0 of 24 dead with this runner,
+    2 of 24 with the one before this rule; fight2001 0 of 24.
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

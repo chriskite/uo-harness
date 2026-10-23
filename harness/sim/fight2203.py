@@ -64,7 +64,9 @@ def one(seed):
     def watch(now):
         world_tick(now)
         if not reds:
-            reds.append(w.add_red(5222, 659, name="Flat Lander", route=list(FLAT_LANDER)))
+            # his kit live: empty hands, Energy Bolts and a Lightning, two water elementals ("River", "Flow") on Logan
+            reds.append(w.add_red(5222, 659, name="Flat Lander", route=list(FLAT_LANDER),
+                                  spec={"hands": [[0, 0, 1]], "summon_share": 1.0}))
     clock.on_advance = watch
     out = io.StringIO()
     outcome = "?"

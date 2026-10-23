@@ -51,6 +51,7 @@ LEVEL1_AT, LEVEL1_WHEN = (5610, 677), 5592          # he showed when Logan stood
 LEVEL2 = [(5547, y, 0.2) for y in range(697, 707)] + [(5546, 707, 0.3), (5545, 708, 0.2), (5544, 708, 0.3),
                                                       (5543, 708, 0.2), (5542, 708, 0.8)]
 LEVEL2_AT, ARRIVAL, LEVEL2_DELAY = (5547, 696), (5547, 696), 3.0
+BOTAN = {"hands": [[5117, 2, 1, 8]]}                # live: a heavy crossbow and a rapier (Hamstring at 1 tile)
 
 
 def one(seed):
@@ -74,12 +75,12 @@ def one(seed):
         p = w.player.pos
         if not red:
             if CASE == "level1" and 5554 < p[0] <= LEVEL1_WHEN and 670 <= p[1] <= 730:
-                red.append(w.add_red(*LEVEL1_AT, name="Botan", route=LEVEL1))
+                red.append(w.add_red(*LEVEL1_AT, name="Botan", route=LEVEL1, kit="archer", spec=BOTAN))
             if CASE == "level2":
                 if seen["arrived"] is None and cheb(p, ARRIVAL) <= 2:
                     seen["arrived"] = w.t
                 if seen["arrived"] is not None and w.t - seen["arrived"] >= LEVEL2_DELAY:
-                    red.append(w.add_red(*LEVEL2_AT, name="Botan", route=LEVEL2))
+                    red.append(w.add_red(*LEVEL2_AT, name="Botan", route=LEVEL2, kit="archer", spec=BOTAN))
         elif not w.player.ghost:
             seen["nearest"] = min(seen["nearest"], cheb(p, red[0].pos))
     clock.on_advance = watch
