@@ -2141,8 +2141,8 @@ passes them, the flight goes past them at once with no rope away. Built: `HuntLo
 is a status that makes us walk slower"). The captures show the slow walk is Hamstring (icon 53) and Hinder (icon 19)
 is a hold (docs/NOTES.md "Hinder, Hamstring and the rope"). Built: the rope while hamstrung, even with a player on
 us (it jumped live during one). The rope's 2-minute combat cooldown is now known to the runner and the simulator:
-the 20:00:58 rope was refused by it. Not built: a rope during a hostile Hinder, Entangle or Paralyze. That was
-never tried live, and a 1-2 s hold is over before a rope (~1.1-1.8 s) gains anything [INFERENCE].
+the 20:00:58 rope was refused by it. During a hold (Hinder, Entangle, Paralyze, a transfix) the runner tries no rope
+(user: "I'm sure the 'hold' conditions don't let us rope").
 
 ## Risks
 

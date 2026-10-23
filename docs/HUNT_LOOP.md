@@ -845,7 +845,8 @@ moongate, and never near a red one).
     us (user: rope when slowed even if attacked; live the rope jumped during one). A rope used within 20 s of a
     player's "… is attacking you!" makes the server refuse the next for 2 minutes ("You must wait another 1m 50s
     before you may use this again while in combat."). So such a jump sets the next try 120 s out, and a refusal's
-    time left is read back. Hinder (icon 19) is a hold, not a slow walk.
+    time left is read back. Hinder (icon 19) is a hold, not a slow walk. No rope during a hold (Hinder, Entangle,
+    Paralyze, a transfix: `held_now`; user: "the 'hold' conditions don't let us rope").
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

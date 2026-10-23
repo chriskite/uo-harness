@@ -4713,8 +4713,10 @@ usually lets a buff expire without a sub 9, so only `ends_t` (state.py `buff_end
   Agent is attacking you!"), "… another 1m 50s …" (2026-10-22 20:00:58.9, 9.8 s after a jump made 6.2 s after
   "Druidx is attacking you!"). A jump 0.3 s before the attack line started none. Outside fights with players, jumps
   5.4-6.2 s apart always went.
-- **Never tried:** a rope during a hostile Hinder, an Entangle or an active Paralyze. During a transfix it is
-  [INFERENCE] refused: [Rope is speech, and speech is silenced.
+- **Never tried:** a rope during a hostile Hinder, an Entangle or an active Paralyze. The user (2026-10-22): "I'm sure
+  the 'hold' conditions don't let us rope". During a transfix speech is silenced too, and [Rope is speech. So the
+  runner tries no rope while one holds (`HuntLoop.held_now`: icons 19/20/135 before their `ends_t`, or the
+  transfix).
 - **Built** (user 2026-10-22: rope even when attacked while slowed). `rope_worth` allows the rope while hamstrung
   (`HuntLoop.hamstrung`: icon 53 before its `ends_t`, or stamina <= 1 without one) even with a player on us. A rope
   landed within 20 s of a player's "… is attacking you!" sets the next try 120 s out ("…; in combat with a player:
@@ -4723,14 +4725,16 @@ usually lets a buff expire without a sub 9, so only `ends_t` (state.py `buff_end
   dead-end rule: 4 of 24 dead without the rope changes (the flight stood for refused ropes), 0 of 24 with them.
   test_sim `test_rope_combat_cooldown`.
 
-## Dead at the east wing's mouth to a fast red (live 2026-10-22 22:03, hunt-20261022-211657-79a9)
+## Dead at the east wing's mouth to a red (live 2026-10-22 22:03, hunt-20261022-211657-79a9)
 
 Visit 3 of the run (visits 1 and 2 took 31.5k and 28.6k home). Task log lines 2675-2698, capture
 session_20261022_163222.
 - 22:02:59 Logan at (5239, 654), the east wing's mouth. The red Flat Lander was in view at (5222, 659), 17 tiles west
-  on the way to the gate. The flee tile was back into the wing, so the dead-end rule went "past them at once". By
-  22:03:02 he had come 12 tiles in ~2 s to (5228, 651) [INFERENCE: mounted]. Logan's hits went 92 -> 58 by 22:03:05,
-  then a potion took him to 51.
+  on the way to the gate. The flee tile was back into the wing, so the dead-end rule went "past them at once". He ran
+  at a normal running pace (0x77 every ~0.2 s, as Logan's 0.21): (5222, 659) at 22:02:59.75 to (5230, 651) at
+  22:03:01.3, then back west to (5226, 651), where he stood ~2 s. He wasn't mounted: players can't ride in a dungeon
+  (user 2026-10-22). The gap closed because they ran at each other, Logan west along y 655 toward the gate's way.
+  Logan's hits went 92 -> 58 by 22:03:05, then a potion took him to 51.
 - **The run ended with Logan alive.** At 22:03:05 the route went up the stair to (5223, 657, z 25) beside him. The
   next plan found "no route from (5223, 657)" even without mobiles: the steps the server refused there are walls
   for `DENY_RETRY_S` [INFERENCE]. leave_by_gate returned the error, and leave_by_recall aborted ("recall home failed
@@ -4738,8 +4742,9 @@ session_20261022_163222.
   `death` juncture was posted: the run was gone when he died.
 - **Fixes:** a failed walk toward the gate no longer ends the flight. It looks again after `FLEE_HOLD_S`, up to
   `FLEE_NEAR_FAILS` 6 times ("…; looking again (n of 6)"). A failed leave that finds Logan dead posts the death
-  first (`died`, "ghost body (leaving: …)"). Neither would likely have saved him: a red that closes 12 tiles in 2 s
-  can't be outrun on foot, and the rope's first use in a fight with a player buys one jump [INFERENCE].
+  first (`died`, "ghost body (leaving: …)"). Neither would likely have saved him once he was beside the red: the
+  rule ran him toward a red standing on the way out, and the rope's first use in a fight with a player buys one jump
+  [INFERENCE].
 - User (chat 6159, after death #2): the reduced shelf loadout is "the new normal". He cut the vet supplies, bandages
   and potions the shelf gives (the Seer counted ~30 heal potions, 70 vet supplies, 5 Total Refresh after it) so the
   deaths to reds waste less (OVERSEER.md §5 step 2). The user clarified 2026-10-22 that "new normal" meant the

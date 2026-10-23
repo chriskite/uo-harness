@@ -180,6 +180,7 @@ ROPE_COMBAT_RE = re.compile(r"You must wait another (?:(\d+)m)?\s*(?:(\d+)s)? be
 ROPE_COMBAT_AFTER_S = 20.0    # ...a player's "... is attacking you!" this recent counts as that combat [INFERENCE]
 HAMSTRING_ICON = 53           # "Can Only Walk and Cannot Regain Stamina", 3 s from a player's hit, stamina 0: the rope
 #                               went out and jumped during one (live 2026-10-19 19:59:09.2, docs/NOTES.md "Hinder")
+HOLD_ICONS = (19, 20, 135)    # Hinder, Entangle, Paralyze: every step refused while they last (62 captures); no rope
 GATE_LEGS_MAX = 30           # walk legs of a planned walk out to the leave gate (a fight or a pet wait between legs)
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE; 12, as
@@ -1758,9 +1759,20 @@ class HuntLoop:
         return res
 
     def rope_ready_now(self, st) -> bool:
-        """--rope: an Adventurer's Rope in the pack and its cooldown over."""
+        """--rope: an Adventurer's Rope in the pack, its cooldown over and no hold on us (held_now)."""
         return bool(self.args.rope) and time.monotonic() >= self.rope_next \
-            and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC))
+            and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC)) and not self.held_now(st)
+
+    def held_now(self, st) -> bool:
+        """A hold on us: Hinder, Entangle or Paralyze (HOLD_ICONS) before the end the server gave it, or a transfix
+        (Mover.held). No rope then (user 2026-10-22: "I'm sure the 'hold' conditions don't let us rope"; docs/NOTES.md
+        "Hinder, Hamstring and the rope")."""
+        if self.mover.held():
+            return True
+        buffs = (st["world"].get("buffs") or {}).get(f"0x{self.me(st):08X}") or {}
+        now = time.time()
+        return any((b := buffs.get(str(i)) or buffs.get(i)) is not None and b.get("ends_t") is not None
+                   and b["ends_t"] > now for i in HOLD_ICONS)
 
     def rope_worth(self, st) -> bool:
         """A flight's rope (rope_ready_now) only while no player is on us (player_calm), or hamstrung (user
