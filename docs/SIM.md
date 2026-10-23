@@ -741,12 +741,12 @@ is `sim/reds.py`; every number in `mausoleum.json` `reds` carries its evidence: 
 ids). `World.add_red(x, y, kit=, spec=, route=)` still places one for a test or a live-death replay: an attacker that
 knows where we are, walking a live red's own tiles first when given a route.
 
-- **Coming in.** Groups of 1-4 (live sizes) arrive at `arrive_per_h`: 60 % recall in within 8 tiles of a first-level
-  gold gate (the only places magic travel into a dungeon lands) and run the teleporters down as Logan does, some
-  hunting the first two levels a while first (`upper`); 40 % come straight onto Maus 3 by its other way in at (5243,
-  612), a two-way tile at the north end of the north-east hall that players were seen popping in on and leaving by
-  (`north_entry`; not on our map). The crimson gate is exit-only. On the fight level a group hunts for `stay_s`, then
-  leaves; some are there when a run starts.
+- **Coming in.** Groups of 1-4 (live sizes) arrive at `arrive_per_h`, recalling in within 8 tiles of a first-level gold
+  gate (the only places magic travel into a dungeon lands), and run the teleporters down as Logan does, some hunting
+  the first two levels a while first (`upper`). That is the only way onto Maus 3 (user 2026-10-23): the crimson gate is
+  exit-only, and (5243, 612) at the north end of the north-east hall, where players were seen popping in and leaving,
+  is the door of the mini-boss room, the Cistern Gorgon's (its other side about (5199, 842)). On the fight level a
+  group hunts for `stay_s`, then leaves; some are there when a run starts.
 - **Finding us.** Tracking every 5 s at the red's skill (80-100), 50 tiles in a dungeon, gives our tile at that moment;
   in view they see us move. A group shares what it knows and decides together whether to attack (`attack_p` 0.9 on
   Maus 3, `attack_p_transit` 0.1 on the levels it crosses). It drops us as a target when we leave its level or stay
@@ -779,20 +779,20 @@ store> -- --vet-range 5 --crawl-learn-s 180`; live: the runner era on Maus 3, 11
 
 | | live | simulator |
 |---|---|---|
-| red groups coming into view an hour on Maus 3 | 1.78 (1.09-2.75) | 2.07 |
-| ... an hour of walk-in (levels 1-2) | 1.57 | 1.65 |
-| group size 1 / 2 / 3 / 4 | 58 / 25 / 12.5 / 4 % | 60 / 27 / 12 / 1 % |
-| appearances that attacked | 62 % | 71 % |
-| attack line: s after first sight / tiles (median) | 2.9 / 4 | 2.2 / 5 |
-| jumps (Teleport, rope) an appearance in view | 0.23 | 0.22 |
+| red groups coming into view an hour on Maus 3 | 1.78 (1.09-2.75) | 1.81 |
+| ... an hour of walk-in (levels 1-2) | 1.57 | 1.46 |
+| group size 1 / 2 / 3 / 4 | 58 / 25 / 12.5 / 4 % | 70 / 19 / 7 / 3 % |
+| appearances that attacked | 62 % | 79 % |
+| attack line: s after first sight / tiles (median) | 2.9 / 4 | 2.3 / 4 |
+| jumps (Teleport, rope) an appearance in view | 0.23 | 0.25 |
 | met within 2.6 min of our arrival on the level | 9 of 24 | 55 % |
-| a group met again in the run | ~2-3 of 20 | 10 % |
-| our position at first sight: east wing / gate and arrival | 7 / 4 of 24 | 23 / 38 % |
-| red deaths an hour on Maus 3 | 0.71 (0.31-1.40) | 0.48 |
-| groups that killed us | 8 of 18 (44 %) | 23 % |
-| first sight to death, median | 9.5 s | 14.2 s |
-| killed us: a red nearer the gate at first sight / not | 7 of 12 / 0 of 5 | 30 % (86) / 8 % (38) |
-| killed us: Logan in the east wing at first sight / elsewhere | 4 of 7 / 4 of 11 | 45 % (29) / 17 % (95) |
+| a group met again in the run | ~2-3 of 20 | 9 % |
+| our position at first sight: east wing / gate and arrival | 7 / 4 of 24 | 23 / 43 % |
+| red deaths an hour on Maus 3 | 0.71 (0.31-1.40) | 0.47 |
+| groups that killed us | 8 of 18 (44 %) | 27 % |
+| first sight to death, median | 9.5 s | 14.9 s |
+| killed us: a red nearer the gate at first sight / not | 7 of 12 / 0 of 5 | 35 % (80) / 4 % (28) |
+| killed us: Logan in the east wing at first sight / elsewhere | 4 of 7 / 4 of 11 | 32 % (25) / 25 % (83) |
 
 The encounters come out at the live rates, places and timing; the current runner dies in them about half as often
 as the runners of the live era did. Replaying the live red deaths (the live tiles; this simulator) with the runner that
@@ -801,7 +801,8 @@ died live (a snapshot of its checkout, `--harness`) against today's: `sim/fight2
 against 0 of 24 (live that run ended on a route error with Logan alive, which the simulator doesn't reproduce). So
 the simulated reds kill the runner versions that died to them [INFERENCE: today's lower lethality is the runner's
 fixes of 10-21/22, not the model]. Not matched: the simulator meets 55 % of its groups within 2.6 min of our arrival
-(live 38 %) and more of them at the gate and the arrival.
+(live 38 %) and more of them at the gate and the arrival (43 %, live 4 of 24): every red comes onto Maus 3 at the
+arrival, beside the gate.
 
 **Gold banked** (since 2026-10-23, with or without reds): live the drop-off at home takes what we carry; the simulator
 has no house (`--no-drop-off`), so `World._land` on the home rune counts the gold looted so far as banked
@@ -811,21 +812,21 @@ the next run came a median 21 min after a red death) for each death. Same seeds,
 
 | | no reds | reds |
 |---|---|---|
-| gold looted an hour | 107.1k | 86.8k |
-| gold banked an hour | 102.5k | 79.3k |
-| banked an hour net of death downtime | 91.1k | 62.9k |
-| deaths an hour | 0.36 | 0.75 |
-| kills an hour | 96.8 | 80.0 |
+| gold looted an hour | 107.1k | 90.4k |
+| gold banked an hour | 102.5k | 84.3k |
+| banked an hour net of death downtime | 91.1k | 68.6k |
+| deaths an hour | 0.36 | 0.65 |
+| kills an hour | 96.8 | 83.3 |
 
-Reds take 23 % of the banked gold (31 % net; Welch t -6.9 on per-run banked gold per hour).
+Reds take 18 % of the banked gold (25 % net; Welch t -6.1 on per-run banked gold per hour).
 
 **First strategy A/B: keep the crawl out of the east wing** (user 2026-10-22: hunt where we can loop round a red back to
-the gate, not in a dead end; `--crawl-avoid 5224 655 5247 737`, 196 runs each, reds on): our time in the wing 32 % ->
-14 %, groups first met there 29 -> 7 and their deaths 13 -> 4, but deaths elsewhere 16 -> 33; deaths an hour 0.75 ->
-0.69, banked an hour 79.3k -> 80.0k (Welch t -0.05). A group met in the wing kills us 2.6 times as often as one met
-elsewhere, and the strongest marker is a red nearer the gate than we are (30 % against 8 %, live 7 of 12 against 0 of
-5); the time taken out of the wing went to places where reds coming in stand between us and the gate. No gain from
-this one.
+the gate, not in a dead end; `--crawl-avoid 5224 655 5247 737`, 196 runs each, reds on): our time in the wing 33 % ->
+13 %, groups first met there 25 -> 12 and their deaths 8 -> 3, but deaths elsewhere 21 -> 25; deaths an hour 0.65 ->
+0.67, banked an hour 84.3k -> 80.6k (Welch t -0.6). A group met in the wing kills us a little more often than one met
+elsewhere (32 % against 25 %); the strong marker is a red nearer the gate than we are (35 % against 4 %, live 7 of 12
+against 0 of 5), and every red comes in at the arrival beside the gate, so the time taken out of the wing went to
+places where reds coming in stand between us and the gate. No gain from this one.
 
 The simulator also sends the 0x1D the live server sends when a mobile goes out of view range (since 2026-10-21; live
 17:37:10.92 I Make Bodies stepping to 19 tiles, 17:37:13.63 Botan); before, the client model kept such a mobile at
@@ -1106,9 +1107,9 @@ it "cut by mobiles … waiting", went 12 -> 1, and it is near the live yardstick
   fix (random walkable tiles within 40), the summons' chip (on the red, no summon mobile). Reds never die, never fight
   monsters or our pets, and our pets don't take them on (the wiki's Guard says they would; no capture shows it). No
   looting (the run ends at our death), no greys or oranges, no time of day (live 0.6-6.9 groups an hour by 3-hour
-  block, too few hours each). The runner doesn't know Maus 3's second way in (5243, 612), and nor does its leave.
-  Where we were met differs from live: 38 % at the gate and arrival (live 4 of 24), 55 % within 2.6 min of arriving
-  (live 9 of 24).
+  block, too few hours each). No one goes into the Cistern Gorgon's room (5243, 612); live players did and came back
+  out there. Where we were met differs from live: 43 % at the gate and arrival (live 4 of 24), 55 % within 2.6 min of
+  arriving (live 9 of 24).
 - Our casts are broken by a red's hit, not yet by a monster's (live 44 % of creature hits during a cast,
   docs/research/SPELL_INTERRUPTS.md); the only cast we make is the recall, near a gold gate on a walk-in flight.
 - Not modelled: Frenzy ("*frenzies*" 31 times on shade wolves and nightstalkers on 2026-10-15: their

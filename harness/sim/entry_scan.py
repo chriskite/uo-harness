@@ -1,5 +1,5 @@
-"""Where players appear and disappear on Maus 3 in the live captures: the evidence for the simulator's ways onto the
-level (docs/SIM.md "Red players", docs/NOTES.md "Red players met live": Maus 3's second way in at (5243, 612)).
+"""Where players appear and disappear on Maus 3 in the live captures: the evidence for the simulator's reds' way onto
+the level (docs/SIM.md "Red players", docs/NOTES.md "Red players met live"; (5243, 612) is the Cistern Gorgon's door).
 
 python harness/sim/entry_scan.py <tag> ...  -> logs/entry_scan/<tag>.json
 While self is on Maus 3 (map 0, x 5150-5299, y 600-760): every mobile (not self, not Logan's pets) that becomes present in

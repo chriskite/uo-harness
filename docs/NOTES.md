@@ -4782,15 +4782,16 @@ other; an appearance = a red in view after 30+ s out of it.
   east corridor 6, by the crimson gate 3. **None near the L2->L3 arrival (5199, 737)** or the Maus 4 return. The crimson
   gate is exit-only (wiki), so they walk in. 29 of 35 far first sightings ran straight at Logan (Tracking: 50 tiles in
   a dungeon at GM, wiki). Chaos Agent twice came out of stealth beside him with a hit (2 of 39).
-- **Maus 3 has a second way in** (`harness/sim/entry_scan.py` over 35 live captures, 14.1 h, 1,611 player appearances: a player
-  appearing within 14 tiles of Logan after 30+ s unseen, not after his own jump or arrival). 30 pop-ins not from hiding:
-  14 on the L2->L3 arrival (5199, 736-737, z 17) and 2 beside it, **6 on (5243, 612, z 0) at the north end of the
-  north-east hall**, 8 scattered; none clustered on the z 25 walkway, where all 167 first sightings (16 reds) were at
-  15-18 tiles and walked in. (5242-5244, 612-613) is two-way: 23 appearances and 23 exits within 3 tiles; no item marks
-  it and it isn't on our map [INFERENCE: a teleporter or stair to somewhere else]. In their first 15 s players went from
-  the arrival north up x 5205-5209 (19 of 32), from (5243, 612) south down x 5243 to y 645-654 and west along y 652-653
-  (13 of 20): both routes reach the ramp top. Exits within 14 tiles: 44 at the crimson gate, 4 at (5243, 612), 5 at the
-  arrival. Every player seen at either way in was blue or green. Two hue-2825 "moongates" at (5190, 680, 25) and
+- **Where players come and go on Maus 3** (`harness/sim/entry_scan.py` over 35 live captures, 14.1 h, 1,611 player
+  appearances: a player appearing within 14 tiles of Logan after 30+ s unseen, not after his own jump or arrival). 30
+  pop-ins not from hiding: 14 on the L2->L3 arrival (5199, 736-737, z 17) and 2 beside it, 6 on (5243, 612, z 0) at the
+  north end of the north-east hall, 8 scattered; none clustered on the z 25 walkway, where all 167 first sightings (16
+  reds) were at 15-18 tiles and walked in. **(5242-5244, 612-613) is the door of the mini-boss room, the Cistern
+  Gorgon's** (user 2026-10-23; its other side about (5199, 842)): 23 appearances and 23 exits within 3 tiles were
+  players going into that room and coming back out. **Players reach Maus 3 only from level 1 down** (user), so the
+  L2->L3 arrival is the one way in. In their first 15 s players went from the arrival north up x 5205-5209 (19 of 32),
+  out of the Gorgon's room south down x 5243 to y 645-654 and west along y 652-653 (13 of 20). Exits within 14 tiles:
+  44 at the crimson gate, 4 into the Gorgon's room, 5 at the arrival. Two hue-2825 "moongates" at (5190, 680, 25) and
   (5212, 708) showed only after Logan's deaths [INFERENCE: ghosts' gates].
 - **The attack.** 24 of 39 appearances attacked; **24 of 27 that came within 5 tiles**. The attack line came a median
   2.9 s after first sight (p25 1.5, p75 6.2) at a median 4 tiles. On the walk-in levels 1 of 10 appearances attacked

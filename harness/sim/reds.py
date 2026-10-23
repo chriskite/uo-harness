@@ -5,9 +5,10 @@ Reds are players, so the simulator gives them a player's rules. The numbers and 
 patch notes, forums):
 
 - **They come in as we do.** A group (1-4 reds) recalls in beside one of the first level's gold moongates (the only
-  places magic travel into a dungeon lands) at `arrive_per_h`, and runs the teleporters down to the fight level (the
-  crimson gate is exit-only). On a level it crosses a red attacks only now and then (`attack_p_transit`); on the fight
-  level it hunts for `stay_s`, then leaves. Some are already on the fight level when a run starts.
+  places magic travel into a dungeon lands) at `arrive_per_h`, and runs the teleporters down to the fight level, the
+  only way onto it (user 2026-10-23: (5243, 612) is the door of the Cistern Gorgon's mini-boss room, not a way in;
+  the crimson gate is exit-only). On a level it crosses a red attacks only now and then (`attack_p_transit`); on the
+  fight level it hunts for `stay_s`, then leaves. Some are already on the fight level when a run starts.
 - **They find us by Tracking**: every `tracking.every_s` a check that succeeds at the red's skill, within
   `tracking.range` on the same level, gives our tile at that moment; in view (18) they see us move. They run
   (`step_s` a tile) on the map's walk graph (`Graph`, teleporters included), through mobiles only at full stamina (a
@@ -64,8 +65,8 @@ class Graph:
         seeds = [tp["to"] for tp in sc.get("teleporters", [])]
         seeds += [r["at"] for r in sc["recall"]["rows"]] + [s["at"] for s in sc.get("spawns", [])]
         seeds += [[x, y, 0] for x, y in sc["dungeon"].get("gold_gates", [])]
-        rc = sc.get("reds") or {}
-        seeds += [p for p in (rc.get("entry"), (rc.get("north_entry") or {}).get("at")) if p]
+        if (sc.get("reds") or {}).get("entry"):
+            seeds.append(sc["reds"]["entry"])
 
         def inside(t):
             return box[0] <= t[0] <= box[2] and box[1] <= t[1] <= box[3]
@@ -228,18 +229,14 @@ class Reds:
                     m.rs["last_view_t"] = t
             return
         if self.next_group_t is not None and t >= self.next_group_t:
-            north = self.cfg.get("north_entry") or {}
-            if north and self.rng.random() < north.get("p", 0.0):
-                self._group(tuple(north["at"]), at_hunt=True)       # straight onto Maus 3 by its other way in
-            else:
-                gates = w.sc["dungeon"].get("gold_gates") or []
-                r = self.cfg.get("arrive_r", 8)
-                if gates:
-                    gx, gy = self.rng.choice(gates)
-                    near = [n for dx in range(-r, r + 1) for dy in range(-r, r + 1)
-                            for n in self.graph.by_xy.get((gx + dx, gy + dy), ())]
-                    if near:
-                        self._group(self.rng.choice(near))
+            gates = w.sc["dungeon"].get("gold_gates") or []
+            r = self.cfg.get("arrive_r", 8)
+            if gates:
+                gx, gy = self.rng.choice(gates)
+                near = [n for dx in range(-r, r + 1) for dy in range(-r, r + 1)
+                        for n in self.graph.by_xy.get((gx + dx, gy + dy), ())]
+                if near:
+                    self._group(self.rng.choice(near))
             self.next_group_t = t + self.rng.expovariate(self.cfg["arrive_per_h"] / 3600.0)
         for item in [p for p in self.pending if p[0] <= t]:
             self.pending.remove(item)

@@ -2158,8 +2158,8 @@ PvP restrictions apply to them once they attack someone". Decisions:
   captures (`sim/red_scan.py`, docs/NOTES.md "Red players met live") and the game rules from the knowledge base, wiki
   and patch notes ("Red players: the game rules"). Each scenario number carries its source; what the captures can't
   show is [INFERENCE] and set so the in-view numbers match.
-- **Reds as players, not as monsters with a red name.** They come in by the ways players come in (gold-gate recall and
-  the teleporters; Maus 3's second way in, found by a pop-in scan), find us by Tracking's real range and cadence, run
+- **Reds as players, not as monsters with a red name.** They come in the one way players reach Maus 3 (gold-gate
+  recall on level 1 and the teleporters down; user 2026-10-23), find us by Tracking's real range and cadence, run
   on the map's walk graph across levels, follow us through teleporters but not the crimson gate (Heat of Battle),
   shove only at full stamina, cast with Magery's timings and its range-and-sight check at targeting (precasting), and
   hamstring, paralyze and stick explosion potions as the live ones did. Rejected: arrivals at the crimson gate (it is
@@ -2173,7 +2173,7 @@ PvP restrictions apply to them once they attack someone". Decisions:
 - **Validated two ways**: the encounter numbers against the live ones (rates, sizes, kits, attack timing, where we were
   met, the "red nearer the gate" lethality pattern), and the live red deaths replayed with the runner checkouts that
   died live (they die in the simulator too: 24/24, 8/12). Today's runner dies about half as often per encounter.
-- Result: reds take 23 % of the banked gold an hour (31 % net of downtime); keeping the crawl out of the east wing
+- Result: reds take 18 % of the banked gold an hour (25 % net of downtime); keeping the crawl out of the east wing
   changed nothing (deaths moved elsewhere). docs/SIM.md "Red players".
 
 ## Risks
