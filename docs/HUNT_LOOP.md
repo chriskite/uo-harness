@@ -840,6 +840,12 @@ moongate, and never near a red one).
     as far as the zones bend the route: "… and every way from here does (a dead end): past them at once". No rope
     on such a leg: a rope lands only farther from them, back into the dead end. Once past them the way no longer
     passes them, and the flight goes on as above. Simulator `sim/fight2001.py`: 24 of 24 dead before, 0 after.
+    **The rope while hamstrung, and its combat cooldown** (since 2026-10-22; NOTES "Hinder, Hamstring and the
+    rope"). Hamstrung (buff icon 53: 3 s at a walk's pace, from a player's hit), the rope goes even with a player on
+    us (user: rope when slowed even if attacked; live the rope jumped during one). A rope used within 20 s of a
+    player's "… is attacking you!" makes the server refuse the next for 2 minutes ("You must wait another 1m 50s
+    before you may use this again while in combat."). So such a jump sets the next try 120 s out, and a refusal's
+    time left is read back. Hinder (icon 19) is a hold, not a slow walk.
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.

@@ -4684,8 +4684,44 @@ Visit 3 of the run, after visits of 29.7k and 29.8k gp taken home. Capture sessi
 - **Simulator** (`harness/sim/fight2001.py`, the reds' live tiles, 24 seeds): before 24 of 24 dead ("away
   first"), after 0 of 24 dead, all through the gate ("dead end: past"). The simulated red's damage model is
   docs/SIM.md "Red players" [INFERENCE: three live reds hit harder than it].
-- **Hinder** (the user: "a status that makes us walk slower, not a hold"): the evidence is being gathered from the
-  captures; until then the rope rule is unchanged.
+- **Hinder** (the user: "a status that makes us walk slower, not a hold"): see the next section. The captures show
+  Hamstring is the slow walk and Hinder is a hold.
+
+## Hinder, Hamstring and the rope (62 Logan captures, read 2026-10-22)
+
+A subagent replayed every Logan capture (`replay.timed_packets` on the raw files, so long packets weren't cut) and
+read the store's walk events. Outlands sends buffs as 0xFF sub 8 (add) / 9 (remove), never 0xDF. The server
+usually lets a buff expire without a sub 9, so only `ends_t` (state.py `buff_ends_t`) or the end line tells it's over.
+- **Hinder** (icon 19, gump 4543, "Unable to Move or Take Actions"; the wiki's Buff Bar: "Full Paralysis") is a
+  hold, not a slow walk. On Logan: his own rope's cursor 64 times (1.0 s), filling a soul jar 27 (2.0 s), a vampire
+  countess transfix 4 (11 s), a flamekeeper knockback 4 (~1 s, ended by a sub 9 with no text). No player ever
+  hindered him. No start text; it ends with "You are no longer hindered." (95 of 99). During it, 542 step
+  requests were sent and none moved, nearly all denied with 0x21. Items and speech: refused only in the transfix
+  ("You cannot use items while in this state.", "You have been silenced and cannot speak."). During a soul-jar or rope
+  Hinder, potions, bandages and pet commands worked.
+- **Hamstring** (icon 53, gump 4523, cliloc 1110000 "Can Only Walk and Cannot Regain Stamina") is the slow walk.
+  It hit Logan 3 times, all from players ("Their attack hamstrings you!"): This Game SuX 2026-10-17 21:16:51.99,
+  Chaos Agent 2026-10-19 19:59:06.81, Botan 2026-10-22 18:53:19.54. It lasts 3.0 s with stamina 0, and steps were
+  confirmed every ~0.41 s against 0.21 running. It ends with "You are no longer hamstrung." Items worked. **The rope
+  worked during one**: 2026-10-19 19:59:09.22, 2.4 s into it, prompt, answer and landing at (5242, 655) 19:59:10.43.
+- **Entangle** (icon 20, "Unable to Move", 115 times, 1-5 s, ends "You are no longer entangled.") and **Paralyze**
+  (icon 135, "You cannot move!", self flags 0x21, "You are frozen and cannot move." on steps, broke with damage after
+  3.5 s; once, from Ticket Tongje 2026-10-21 10:35:06.66) also refuse every step. Items worked during an Entangle.
+  [INFERENCE from `Mover.held`, which starts only on the transfix line] those denials count toward `--max-blocked`.
+- **The rope's combat cooldown.** A rope used while a player is attacking us starts a 2-minute cooldown: "You must
+  wait another 2m before you may use this again while in combat." (2026-10-19 19:59:10.12, a jump 2.4 s after "Chaos
+  Agent is attacking you!"), "… another 1m 50s …" (2026-10-22 20:00:58.9, 9.8 s after a jump made 6.2 s after
+  "Druidx is attacking you!"). A jump 0.3 s before the attack line started none. Outside fights with players, jumps
+  5.4-6.2 s apart always went.
+- **Never tried:** a rope during a hostile Hinder, an Entangle or an active Paralyze. During a transfix it is
+  [INFERENCE] refused: [Rope is speech, and speech is silenced.
+- **Built** (user 2026-10-22: rope even when attacked while slowed). `rope_worth` allows the rope while hamstrung
+  (`HuntLoop.hamstrung`: icon 53 before its `ends_t`, or stamina <= 1 without one) even with a player on us. A rope
+  landed within 20 s of a player's "… is attacking you!" sets the next try 120 s out ("…; in combat with a player:
+  the next not for 120 s"), and the refusal's time left is read back ("rope: its combat cooldown, N s left").
+  The simulator now has this cooldown (`sim/world.py` ROPE_COMBAT_COOLDOWN_S). On it, `sim/fight2001.py` with the
+  dead-end rule: 4 of 24 dead without the rope changes (the flight stood for refused ropes), 0 of 24 with them.
+  test_sim `test_rope_combat_cooldown`.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

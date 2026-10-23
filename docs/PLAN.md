@@ -2137,8 +2137,12 @@ the user, with the 10:35 death of 2026-10-21 (going past two reds in the same wi
 past: past them at once, the pets on the red and then past him, or away first only outside dead ends. The user
 chose **away first only outside dead ends**. In a dead end, where every way to the gate from the flee tile still
 passes them, the flight goes past them at once with no rope away. Built: `HuntLoop.dead_end` in `flee_out`
-(docs/HUNT_LOOP.md "Not into a dead end"). The user's other point: hinder is a slow-walk status, not a hold. Its
-evidence from the captures comes before any change to the rope rule.
+(docs/HUNT_LOOP.md "Not into a dead end"). The user's other point was to rope when slowed even if attacked ("hinder
+is a status that makes us walk slower"). The captures show the slow walk is Hamstring (icon 53) and Hinder (icon 19)
+is a hold (docs/NOTES.md "Hinder, Hamstring and the rope"). Built: the rope while hamstrung, even with a player on
+us (it jumped live during one). The rope's 2-minute combat cooldown is now known to the runner and the simulator:
+the 20:00:58 rope was refused by it. Not built: a rope during a hostile Hinder, Entangle or Paralyze. That was
+never tried live, and a 1-2 s hold is over before a rope (~1.1-1.8 s) gains anything [INFERENCE].
 
 ## Risks
 

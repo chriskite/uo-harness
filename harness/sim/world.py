@@ -114,6 +114,11 @@ TEXT_SONG_WAIT = "You must wait a few moments before performing another barding 
 TEXT_ROPE_PROMPT = "Where do you wish to traverse to?"
 ROPE_R = 10
 ROPE_COOLDOWN_S = 5.0
+# A rope used within ROPE_COMBAT_AFTER_S of a player's "... is attacking you!" starts a 2-minute cooldown, refused with
+# "You must wait another 1m 50s before you may use this again while in combat." (live 2026-10-19 19:59:10 and
+# 2026-10-22 20:00:58.9; docs/NOTES.md "Hinder, Hamstring and the rope")
+ROPE_COMBAT_COOLDOWN_S = 120.0
+ROPE_COMBAT_AFTER_S = 20.0
 ROPE_LAND_S = 0.8         # the rope's target answered -> on the landing tile (live 2026-10-21 10:35:06.54 -> 07.33)
 OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (never ours: not in `team()`)
 FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
@@ -275,6 +280,8 @@ class World:
         self.song_ready = 0.0
         self.songs = {}                       # barding song -> until
         self.rope_ready = 0.0
+        self.rope_combat_until = 0.0          # the rope's combat cooldown (ROPE_COMBAT_COOLDOWN_S)
+        self.attacked_by_player_t = -1e9      # the last "... is attacking you!" a red said over us
         self.rope_landing = None              # (time, (x, y, z)): a rope's jump on its way (ROPE_LAND_S)
         self.last_use_t = -1e9
         self.potion_ready = 0.0
@@ -637,6 +644,7 @@ class World:
             m.target = pl.serial
             self._warm(m, True)
             self.send(P.says(pl.serial, pl.name, m.name + ATTACKED_TEXT, kind=0, hue=34, body=pl.body))
+            self.attacked_by_player_t = t
             m.next_swing = t + self.rng.uniform(*sp["first_cast_s"])
             self.count("red_attacks")
         route = m.cd.get("route")
@@ -2325,6 +2333,14 @@ class World:
         rope = next((s for s, it in self.items.items() if it.get("kind") == "rope" and it.get("amount", 0) > 0), None)
         if rope is None or self.t < self.rope_ready:
             return                                       # [INFERENCE] the server's answers then weren't captured
+        if self.t < self.rope_combat_until:
+            left = int(self.rope_combat_until - self.t + 0.999)
+            m, s = divmod(left, 60)
+            self._sys(f"You must wait another {f'{m}m' if m else ''}{' ' if m and s else ''}{f'{s}s' if s else ''} "
+                      f"before you may use this again while in combat.")
+            return
+        if self.t - self.attacked_by_player_t <= ROPE_COMBAT_AFTER_S:
+            self.rope_combat_until = self.t + ROPE_COMBAT_COOLDOWN_S
         self._sys(TEXT_ROPE_PROMPT)
         self._cursor({"kind": "rope", "item": rope})
 

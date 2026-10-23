@@ -2288,6 +2288,41 @@ def test_rope_cancel_attacked():
           f"jumped {jumped} {start} -> {w.player.pos}")
 
 
+def test_rope_combat_cooldown():
+    print("== a rope used while a player attacks us: its 2-minute combat cooldown known, a refusal read ==")
+    # live 2026-10-22 20:00:48.0 a jump 6.2 s after "Druidx is attacking you!", then at 20:00:58.86 "[Rope" refused:
+    # "You must wait another 1m 50s before you may use this again while in combat." (the flight stood for it)
+    import loop_hunt
+    w = red_world()
+    loop, clock, store, patched = red_loop(w)
+    red = w.add_red(5243, 715)                                 # 11 tiles north in sight: its attack line, no spells
+    red.next_step = 1e9
+    world_tick = clock.on_advance
+
+    def watch(now):
+        world_tick(now)
+        red.next_swing = 1e9
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(1.0)
+            loop.state()
+            first = loop.rope_jump((5247, 737))
+            known = loop.rope_next - loop_hunt.time.monotonic()
+            clock.advance(6.0)
+            loop.rope_next = 0.0                               # as if it hadn't known: the server's refusal
+            second = loop.rope_jump((5224, 737))
+            read = loop.rope_next - loop_hunt.time.monotonic()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the first jump landed and set the combat cooldown", first and known >= 110 and "in combat with a player"
+          in out.getvalue(), f"landed {first} next in {known:.0f} s")
+    check("...a second '[Rope' refused: its time left read from the server's line", not second and 100 <= read <= 115
+          and "its combat cooldown" in out.getvalue(), f"second {second} next in {read:.0f} s")
+
+
 def test_rest_hurt_pet():
     print("== out of vet supplies, the rest waits for a hurt pet instead of going back in ==")
     import tempfile
@@ -2908,7 +2943,7 @@ def main():
               test_stairs, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
-              test_rope_cancel_attacked, test_ledge_attacker,
+              test_rope_cancel_attacked, test_rope_combat_cooldown, test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot, test_blightmare_first_sight,
               test_blightmare_awake_patrol,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,

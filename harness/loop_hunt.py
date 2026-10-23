@@ -170,6 +170,16 @@ ROPE_RETRY_S = 2.0            # after a try that found no landing or got no curs
 ROPE_WAIT_S = 1.5             # live: the cursor 0.1 s after "[Rope", the jump ~1 s after the answer
 ROPE_REFUSED = (501942, 500237, 500446)   # "That location is blocked." (live 13:40:52.9), "Target cannot be seen.", too far
 ROPE_CALM_S = 3.0             # a flight's rope only when no player has hit or attacked us this long (rope_worth)
+# A rope used while a player is attacking us starts a 2-minute cooldown (live: "You must wait another 2m before you
+# may use this again while in combat." 0.84 s after a jump 2.4 s after "Chaos Agent is attacking you!", 2026-10-19
+# 19:59:10; "... another 1m 50s ..." 9.8 s after a jump 6.2 s after "Druidx is attacking you!", 2026-10-22 20:00:58.9;
+# a jump 0.3 s before the attack line started none). The refusal names what is left (ROPE_COMBAT_RE)
+ROPE_COMBAT_COOLDOWN_S = 120.0
+ROPE_COMBAT_RE = re.compile(r"You must wait another (?:(\d+)m)?\s*(?:(\d+)s)? before you may use this again "
+                            r"while in combat\.")
+ROPE_COMBAT_AFTER_S = 20.0    # ...a player's "... is attacking you!" this recent counts as that combat [INFERENCE]
+HAMSTRING_ICON = 53           # "Can Only Walk and Cannot Regain Stamina", 3 s from a player's hit, stamina 0: the rope
+#                               went out and jumped during one (live 2026-10-19 19:59:09.2, docs/NOTES.md "Hinder")
 GATE_LEGS_MAX = 30           # walk legs of a planned walk out to the leave gate (a fight or a pet wait between legs)
 SWING_RECENT_S = 10.0         # a mob whose last swing at us is this recent is attacking us
 CASTER_REACH = 10            # a caster in war mode this close while we take damage is attacking us (SPELL_RANGE; 12, as
@@ -1752,8 +1762,22 @@ class HuntLoop:
             and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC))
 
     def rope_worth(self, st) -> bool:
-        """A flight's rope (rope_ready_now) only while no player is on us (player_calm)."""
-        return self.rope_ready_now(st) and self.player_calm(st)
+        """A flight's rope (rope_ready_now) only while no player is on us (player_calm), or hamstrung (user
+        2026-10-22: with a walk's pace only, the rope even while they hit us)."""
+        return self.rope_ready_now(st) and (self.player_calm(st) or self.hamstrung(st))
+
+    def hamstrung(self, st) -> bool:
+        """Hamstring (buff HAMSTRING_ICON) on us and not past the end the server gave it; without an end (no TimeSync
+        yet) while our stamina is at most 1 (it sets stamina to 0 for its 3 s). The buff stays after it ends until the
+        server removes it, so its presence alone isn't enough (docs/NOTES.md "Hinder, Hamstring and the rope")."""
+        buffs = (st["world"].get("buffs") or {}).get(f"0x{self.me(st):08X}") or {}
+        b = buffs.get(str(HAMSTRING_ICON)) or buffs.get(HAMSTRING_ICON)
+        if b is None:
+            return False
+        if b.get("ends_t") is not None:
+            return b["ends_t"] > time.time()
+        stam = st["world"]["self"].get("stam")
+        return stam is not None and stam <= 1
 
     def player_calm(self, st) -> bool:
         """No player on us: the rope's cast stands us ~1 s (user 2026-10-17: "ropes are useful for getting through
@@ -1918,19 +1942,32 @@ class HuntLoop:
             if spots:
                 log("rope: no landing in reach farther from the hostile player(s)")
             return False
+        # in combat with a player when the rope goes out: its 2-minute cooldown starts (ROPE_COMBAT_COOLDOWN_S)
+        fighting = any(t.endswith(ATTACKED_BY) and not t[0].islower()
+                       for t in self.lines_over_us(st, ROPE_COMBAT_AFTER_S))
         mark = len(self.link.events)
         self.link.act(actions.say_ascii("[Rope"))
+
+        def combat_wait():
+            return next((m for e in self.link.events[mark:] if e.get("ev") == "speech_heard"
+                         and (m := ROPE_COMBAT_RE.search(e.get("text") or ""))), None)
         # an item use just before (a potion, the vet supplies) makes it "You must wait to perform another action."
         # (500119): no cursor comes; live 2026-10-18 21:14:26.1-27.1 the flight stood the whole ROPE_WAIT_S for it
-        if self.link.wait(lambda s: any(e.get("ev") == "target" or (e.get("ev") == "cliloc"
-                                                                  and e.get("cliloc") == tamer.CLILOC_ACTION_WAIT)
-                                        for e in self.link.events[mark:]), ROPE_WAIT_S) is None \
+        if self.link.wait(lambda s: combat_wait() is not None
+                          or any(e.get("ev") == "target" or (e.get("ev") == "cliloc"
+                                                             and e.get("cliloc") == tamer.CLILOC_ACTION_WAIT)
+                                 for e in self.link.events[mark:]), ROPE_WAIT_S) is None \
                 or not (self.link.state()["world"].get("target") or {}).get("active"):
+            if (m := combat_wait()) is not None:
+                left = 60 * int(m.group(1) or 0) + int(m.group(2) or 0)
+                self.rope_next = time.monotonic() + left
+                log(f"rope: its combat cooldown, {left} s left (\"{m.group(0)}\")")
+                return False
             log("rope: no target cursor")
             return False
         cur = self.link.state()["world"]["target"]
         self.human.wait("hotkey_aim")
-        if self.pk_flight and not self.player_calm(self.link.state()):
+        if self.pk_flight and not self.player_calm(self.link.state()) and not self.hamstrung(self.link.state()):
             self.cancel(cur)
             log("rope: a player turned on us before the target went out: cursor cancelled (Esc), running on")
             return False
@@ -1946,7 +1983,7 @@ class HuntLoop:
             # never that landing again this run (live 10:29:07.6 (5227, 653, 22), the top of a stack of statics:
             # "That location is blocked." with no mobile or item on it [INFERENCE: the server's fit check there])
             self.rope_refused.add(tuple(best[:2]))
-        self.rope_next = time.monotonic() + ROPE_COOLDOWN_S
+        self.rope_next = time.monotonic() + (ROPE_COMBAT_COOLDOWN_S if fighting and landed else ROPE_COOLDOWN_S)
         self.count("ropes" if landed else "rope_misses")
         away = ""
         if spots:
@@ -1954,7 +1991,9 @@ class HuntLoop:
                     f"{min(cheb(best, xy) for xy in spots.values())} tiles from the nearest hostile player")
         log(f"rope to {best[:2]} ({cheb(pos, best)} tiles{away}): " + ("landed" if landed else
                                                                        f"no jump (cliloc {refused})" if refused else
-                                                                       "no jump"))
+                                                                       "no jump")
+            + (f"; in combat with a player: the next not for {ROPE_COMBAT_COOLDOWN_S:.0f} s" if fighting and landed
+               else ""))
         return landed
 
     def leave_by_gate(self, severity: str) -> dict:

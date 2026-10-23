@@ -734,7 +734,10 @@ each cast [INFERENCE: ServUO's Spell.BlocksMovement]). Monsters and the pets lea
 now lands 0.8 s after our target (live 10:35:06.54 -> 07.33), steps denied meanwhile. `add_red(..., route=[(x, y,
 seconds), ...])` walks a live red's own tiles first (the capture's 0x77s), then comes at us. Tests: test_sim
 `test_red_flight` (the live ground, both reds), `test_red_out_of_view` (17:37, the reds' live routes),
-`test_rope_cancel_attacked`.
+`test_rope_cancel_attacked`. Since 2026-10-22 the rope has the live combat cooldown: a rope used within 20 s of a red's
+attack line starts 120 s in which "[Rope" gets "You must wait another 1m 50s before you may use this again while in
+combat." (docs/NOTES.md "Hinder, Hamstring and the rope"; test_sim `test_rope_combat_cooldown`). The simulated reds
+don't take teleporters (live Botan followed Logan through one, 2026-10-22 18:53:14) and don't hamstring.
 
 Since 2026-10-21 the simulator also sends the 0x1D the live server sends when a mobile goes out of view range (live
 17:37:10.92 I Make Bodies stepping to 19 tiles, 17:37:13.63 Botan); before, the client model kept such a mobile at
