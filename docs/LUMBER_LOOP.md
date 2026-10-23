@@ -857,8 +857,8 @@ stockpile and chest, smelting at the house forge, the drop-off and the house she
 Resupply all happen at home, near the landing tile (walked to when an item is out of reach). The
 way home and the red escape: our own book's rune that lands at home: its default when that one
 does (the spell-on-book fallback while the book recharges goes only to the default), else the rune
-named in `homes.json` `rune`, "Logan's House", by name (Outland Dan: by name, his default is still
-"DTF Loot Chest"; Logan Wolf: his default). Out by a DTF library tome: first the own book's
+named in `homes.json` `rune`, "Logan's House", by name (Outland Dan and Logan Wolf: their default
+since 2026-10-23; Dan's was "DTF Loot Chest" before). Out by a DTF library tome: first the own book's
 `library_rune` ("DTF Loot Chest") into the guild house, checked against its landing, then the
 walk to the tome as before; out by an own-book rune: one recall from home. The guild shelf (its
 recall scrolls top up Dan's runebook) is used only when a trip passes through the guild house

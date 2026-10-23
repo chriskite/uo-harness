@@ -711,8 +711,8 @@ Paste this (or point the session at this section) to start an overseer.
 >
 > **Travelling somewhere new.** Your own book first (`act recall <book> --check`, or open it). Else
 > a rune library: `ctl runes near X Y` (or `runes find WORDS`) names the rune that lands nearest,
-> its library and tome, and the exact `act recall` command. Outland Dan lives in the DTF guild house
-> (his book's default rune "DTF Loot Chest"): recall home, walk to the tomes (4152, 1429), then
+> its library and tome, and the exact `act recall` command. Outland Dan is a DTF guild member
+> (his book's "DTF Loot Chest" lands in the guild house): recall there, walk to the tomes (4152, 1429), then
 > recall with the library's tome (user, 2026-10-04: the guild library is where we go for any place
 > our own book doesn't have). Characters outside the guild use Cambria (Witcher runes only). Lumber
 > runs do this by themselves (`lumber plan` names the landing; never public moongates or a walk from
@@ -723,7 +723,7 @@ Paste this (or point the session at this section) to start an overseer.
 > a DTF library tome, reached by your own book's "DTF Loot Chest" into the guild house and the walk to the
 > stand, or your own book's rune) and recalls home with your book's rune that lands at the house (its default
 > when that one does, else "Logan's House" by name), so before such a run: be at home, have a runebook or
-> rune tome holding **"Logan's House"** (Outland Dan's default is still "DTF Loot Chest"; Logan's is the house), a live trapped pouch and a
+> rune tome holding **"Logan's House"** (both books' default since 2026-10-23: the user moved Dan's runes, entry 8 now; the runner recalls by the book's entry index from the last `act recall --check`, so re-check after the user moves runes), a live trapped pouch and a
 > hatchet. Travel rules for yourself: never cross unknown wilderness on foot when a recall would
 > do; `ctl act goto` stops on danger (read its `error` before walking on) and can't plan beyond
 > ~200 tiles; to look at a far place, recall there (`act recall --witcher N` from a library)
