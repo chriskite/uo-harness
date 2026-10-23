@@ -2001,6 +2001,40 @@ def test_cover():
           f"before {before} moved {moved} after {after} at {w.player.pos} ({sim_cheb(w.player.pos, pg.pos)} off) {said}")
 
 
+def test_to_pet_not_into_shot():
+    print("== a pet fighting an awake corpse purger, hurt beyond vet range: no walk into its shot to vet it ==")
+    # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber on a patrolled purger at (5228, 737); "to a
+    # hurt pet: (5232, 733)" four times, each into its shot, and cover walked Logan out to (5229, 729) each time
+    import aggro
+    w = world_with([{"key": "corpse purger", "at": [5228, 737, 0]}], seed=7, start=(5229, 729))
+    pg = next(m for m in w.mobs.values() if m.key == "corpse purger")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gr = next(p for p in w.pets() if p.name == "GraveRobber")
+    for p, xy in zip(w.pets(), ((5230, 736), (5226, 729))):
+        p.x, p.y = xy
+    gr.hits = int(gr.hits_max * 0.7)
+    pg.target, pg.threat = gr.serial, {gr.serial: 50}
+    w._warm(pg, True)
+    pg.next_step = 1e9                         # it shoots from where it stands
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            st = loop.state()
+            v = aggro.View(loop, st)
+            before = tamer.Team.shot_at(v, tamer.Team.shy_awake(v), loop.pos(st))
+            walked = loop.team.to_pet(st)
+            st = loop.state()
+            v = aggro.View(loop, st)
+            after = tamer.Team.shot_at(v, tamer.Team.shy_awake(v), loop.pos(st))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("out of its shot before and after: no walk into it, the reason logged",
+          before == 0 and after == 0 and not walked and "staying out of it" in out.getvalue(),
+          f"before {before} walked {walked} after {after} at {w.player.pos}")
+
+
 def test_blightmare_first_sight():
     print("== the live 18:20:44 scene: the runner never takes an idle blightmare's first sight (it doesn't come on) ==")
     # live 2026-10-21 18:20:44-48: "crawl: blightmare ... in view at 13 tiles: patrolling toward it", an approach and a
@@ -2880,7 +2914,7 @@ def main():
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
               test_rope_cancel_attacked, test_ledge_attacker,
-              test_caster_at_12, test_blightmare_reach, test_cover, test_blightmare_first_sight,
+              test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot, test_blightmare_first_sight,
               test_blightmare_awake_patrol,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,

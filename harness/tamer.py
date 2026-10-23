@@ -1897,6 +1897,16 @@ class Team:
                 return f"a {first[0]['kind']} would see us" if (first := self.shy_first(v, v.pos)) else None
             wb = self.a.vet_range >= SPACING_R + 1
             to = self.vet_tile(st, [(p["x"], p["y"])], min(combat.VIEW_RANGE, p["dist"] + SPACING_R)) if wb else None
+            v = self.view(st)
+            shy = self.shy_awake(v)
+            if wb and shy and not p["dead"] and p["frac"] >= self.a.pet_leave_at \
+                    and (to is None or self.shot_at(v, shy, to)):
+                # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber fought a patrolled corpse purger;
+                # four walks to vet him went into its shot and cover walked out each time (user 2026-10-21: "If the pets
+                # are busy fighting something else just stay out of their aggro range")
+                kinds = ", ".join(sorted({m["kind"] for m in shy}))
+                log(f"{label}: {p['name']} ({p['frac']:.0%}) is only in reach from the {kinds}'s shot; staying out of it")
+                return False
             stop = None if p["dead"] else purger_first
             if to is not None:
                 log(f"{label}: {to[:2]}, {cheb(to, (p['x'], p['y']))} from {p['name']} (--vet-range "

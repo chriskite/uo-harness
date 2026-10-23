@@ -4648,6 +4648,16 @@ The first run after a400be6, from the house. Capture session_20261022_163222 (Bo
 - **Limit:** the simulated red doesn't take teleporters. Live, Botan followed Logan through one, so the rush to
   Maus 3 (about 110 steps over three teleporters, then 35 to the crimson gate) can still have a red on it the whole
   way [INFERENCE].
+- **The next run (hunt-20261022-191304-536b, after the fix) and a cover ping-pong.** Visit 1: 25 kills, left by V\*
+  with 29,711 gp carried; visit 2 left by V\* at 19:44:52 with 29,787; no red. 19:39:36-53: GraveRobber fought a
+  corpse purger he had been patrolled onto at
+  (5228, 737). `to_pet` walked Logan to (5232, 733) to vet him, 4 from him and in the purger's shot, and `cover`
+  walked him out to (5229, 729). That happened four times in 17 s, until the kill: vet_tile ranks a tile's shot second
+  and had no unshot tile within vet range of him. Fix: `to_pet` doesn't walk a pet above `--pet-leave-at` into such a
+  shot (HUNT_LOOP.md "Out of a shy monster's shot first"). test_sim `test_to_pet_not_into_shot`: the live tiles, the
+  old rule walked to (5232, 733) in its shot, the new one stays at (5229, 729). Simulator, 48 runs as live
+  (`--others --eerie --prior`, seed 17, 30 min), before / after: deaths/h 0.26 / 0.25 (6 / 6 runs with a death),
+  pet deaths 2 / 2 runs, gold/h 109,978 / 109,423, kills/h 100.8 / 99.8.
 
 ## Mining: what the repo and the store know (research 2026-10-19, no capture yet)
 

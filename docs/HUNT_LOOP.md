@@ -640,7 +640,12 @@ found no tile at any of its tries in the purger room (simulator seed 1003: an aw
 in 13 s while he stepped off the tank and vetted). One on us gets "All Kill" at once (not after `KILL_AFTER_S`: its
 aggro is on us already, and 4 s of its shot and stacking disease is 40-60 hits), and there is no walk back to
 the pets through its shot (`Team.rejoin`; seed 2072 walked 12 steps under one, 100 -> 33). The crawl never seeks
-one in view (`Crawl.seek`): walking up to it puts us in its shot before the pets.
+one in view (`Crawl.seek`): walking up to it puts us in its shot before the pets. **No walk to a hurt pet into one's
+shot** (`Team.to_pet`, since 2026-10-22): a pet above `--pet-leave-at` whose every vet tile is in an awake shy
+monster's shot isn't walked to ("to a hurt pet: GraveRobber (70%) is only in reach from the corpse purger's shot;
+staying out of it"); it is vetted once the shooter is dead or the pet comes out. Below `--pet-leave-at`, or a
+ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and cover walked him out each time
+(docs/NOTES.md "Dead on the walk in to a red", the follow-up).
 
 **"All Patrol" at a purger or a blightmare** (`--patrol-pull`, on by default since 2026-10-22; `Team.patrol_pull`,
 user 2026-10-18 "We can send our pets to a spot away from us, e.g. to within aggro distance of a purger, while we're
