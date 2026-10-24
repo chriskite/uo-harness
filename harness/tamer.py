@@ -181,9 +181,7 @@ SPACING_STEPS = 4
 SPACING_REPEAT_S = 1.5
 FIGHT_LINGER_S = 8.0          # a fight counts this long after its last monster left the view (one blinking back)
 
-# Aggro (aggro.py): running from a --never-aggro monster in war mode, and a better tile in a fight
-EVADE_CLEAR_R = 22            # run this far beyond it (live: the consort chased Logan ~25 tiles from where it woke)
-EVADE_MOVES = 40
+# Aggro (aggro.py): a better tile in a fight
 REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
@@ -438,7 +436,6 @@ class Team:
         self.song_ready = 0.0
         self._view = None                # aggro.View of the last state read
         self.pull_why = None
-        self.evading = False
         self.reposition_t = -1e9
         self.cover_t = -1e9               # the last cover (out of an awake purger's or blightmare's shot)
         self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
@@ -879,7 +876,7 @@ class Team:
 
     # ------------------------------------------------------------ care: retreat, vet, guard
     def care(self, st) -> bool:
-        """One care action, True when something was done: evade a --never-aggro monster, "All Follow Me" after
+        """One care action, True when something was done: "All Follow Me" after
         a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, vet supplies on us
         when we are below --heal-at, keep off the tank, vet supplies, guard (also once an 'All Kill' target is
         dropped: kill_order_over), walk to a hurt pet or a ghost, a better tile for line of sight, a barding song.
@@ -889,7 +886,7 @@ class Team:
             self.guard_needed = True
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
-        return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
+        return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
             or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st)) or self.spacing(st) \
             or self.vet(st) or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) \
             or self.song(st)
@@ -1318,43 +1315,6 @@ class Team:
                         nxt.append(n)
             frontier = nxt
         return out
-
-    def evade(self, st) -> bool:
-        """A --never-aggro monster in war mode near (aggro.View.chasing): 'All Follow Me' and run from it,
-        to the gate when that is away from it, else EVADE_CLEAR_R beyond it, until it stops chasing (out
-        of war mode or of view) (user 2026-10-13: "I run until the consort leashes and I'm in an area
-        that I can manage"). The leave rules still send us to the gate when we're hurt."""
-        h = self.h
-        v = self.view(st)
-        chase = v.chasing()
-        if not chase:
-            if self.evading:
-                log("no longer chased: back to the hunt")
-                self.evading, self.guard_needed = False, True
-            return False
-        m = min(chase, key=lambda c: cheb(c["pos"], v.pos))
-        if not self.evading:
-            self.evading = True
-            self.count("evades")
-            log(f"a {m['kind']} is coming ({cheb(m['pos'], v.pos)} tiles, war mode): running until it gives up")
-            self.say("all follow me")
-        label = f"away from the {m['kind']}"
-        h.doing("evade", f"Running from a {m['kind']}", m["pos"][:2])
-
-        def stop(s):
-            return None if any(c["serial"] == m["serial"] for c in aggro.View(h, s).chasing()) else "it stopped chasing"
-        gate = tuple(self.a.leave_gate) if getattr(self.a, "leave_gate", None) else None
-        try:
-            if gate is not None and cheb(gate, m["pos"]) > cheb(v.pos, m["pos"]) + 3:
-                h.mover.walk_to(lambda: gate, 1, label, urgent=True, stop=stop, max_moves=EVADE_MOVES, mobile_wait=0)
-            else:
-                h.mover.walk_to(None, 0, label, goal_fn=nav.beyond([m["pos"][:2]], EVADE_CLEAR_R), urgent=True,
-                                stop=stop, max_moves=EVADE_MOVES, mobile_wait=0)
-        except Abort as e:
-            if not str(e).startswith(label):
-                raise
-            log(f"evade: {e}")
-        return True
 
     def out_of_fire(self, st) -> bool:
         """Standing on fire (FIRE_GRAPHICS): the nearest tile within FIRE_STEPS out of it and out of a

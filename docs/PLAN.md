@@ -2087,6 +2087,16 @@ blightmares. Evidence and every number: docs/NOTES.md "Half the deaths in the si
 - *Live*: untried. The §5 command is unchanged (the flag's default changed). Watch for "cover:", "hurt waiting" and
   "'All Patrol' to" lines and for corpses left as "only a N-step detour".
 
+## No running from the elder vampires (user 2026-10-24)
+
+User: remove the running from an elder vampire and the elder vampire countess. `Team.evade` is gone (clean cutover:
+`aggro.View.chasing`, `tamer.EVADE_*`, the evade branch of `drink_on_the_run`); one in war mode on us or the pets is
+fought like any other monster. Their sight stays no-go and they are still never pulled (`--never-aggro`'s default
+unchanged): the user asked to drop the running, not the avoidance. Simulator (200 runs, the goal batch's arguments;
+docs/NOTES.md "Elder vampires: no more running"): deaths 0.21 -> 0.19 an hour, banked 105k -> 106k an hour, pets
+left behind 5 -> 2 runs, all within the noise. *Live*: untried; the §5 command is unchanged. Watch for fights with
+"an elder vampire" / "an elder vampire countess" in the task log where "running until it gives up" was.
+
 ## Home moves to Logan Wolf's house (user 2026-10-21)
 
 User: "We've moved from an inn room into our own house. … The runners that use DTF rune tomes will now

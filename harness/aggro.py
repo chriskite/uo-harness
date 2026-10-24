@@ -12,11 +12,12 @@ follow-up questions decide the rules here:
   AGGRO_R + WAKE_MARGIN) stops when E + W > --pull-budget. With nothing fighting, a pack is pulled
   whole: it has to be fought some time, and alone it is (Logan at the nightstalker room's edge,
   20261013_204518: three wolves and the stalker came in stages; the knight only 1.5 min later).
-- **Never aggro a vampiric consort** (--never-aggro; user: only the consort): its sight within
-  AGGRO_R + NEVER_MARGIN is a no-go area for the patrol and the routes (crawl.Crawl.observe); one
-  that comes for us anyway is run from until it gives up ("I run until the consort leashes and I'm
-  in an area that I can manage"; live 20:57:55-20:58:18 it chased Logan ~25 tiles from where it
-  woke); the leave rules still send us to the gate when that fails.
+- **Never aggro a vampiric consort** (--never-aggro; user: only the consort; the elder vampire and
+  the elder vampire countess since 2026-10-15): its sight within AGGRO_R + NEVER_MARGIN is a no-go
+  area for the patrol and the routes (crawl.Crawl.observe), and it is never pulled. One that comes
+  for us anyway is fought like any other monster on us; until 2026-10-24 it was run from until it
+  gave up ("I run until the consort leashes and I'm in an area that I can manage"; user 2026-10-24:
+  remove the running; docs/HUNT_LOOP.md "Aggro").
 - **Line of sight while fighting** ("situational": between two rooms with the pets fighting in
   room A, stay out of sight of room B; "if it's easy to stand out of LoS of a caster like the
   banshee while still being able to heal our pets, all else being equal it's better"): a care action
@@ -231,10 +232,6 @@ class View:
     def never_near(self, tile, margin: int = NEVER_MARGIN) -> list[dict]:
         """--never-aggro monsters, idle, that would see us on `tile`."""
         return [m for m in self.mobs if m["never"] and not m["war"] and self.sees(m, tile, AGGRO_MAX + margin)]
-
-    def chasing(self, r: int = 18) -> list[dict]:
-        """--never-aggro monsters in war mode within `r`: coming for us or the pets."""
-        return [m for m in self.mobs if m["never"] and m["war"] and cheb(m["pos"], self.pos) <= r]
 
     def stand_score(self, tile) -> float:
         """Lower is better: idle monsters that would see us there before a pet (first_on_us, by weight), a

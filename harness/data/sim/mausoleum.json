@@ -477,9 +477,10 @@
     "pet_damage": [40, 55],
     "hits": 2000,
     "melee": [15, 21, 18],
+    "melee_player": [44, 64],
     "swing_s": 3.38,
     "copy_step_s": 0.4,
-    "note": "'*attempts to transfix*' 12 times (6 on 20261015_171928, where she made copies of the gravebug at 19:19:04.0 and the phoenix at 19:19:22.2 and her copies and she put Logan down at 19:19:41.4) [INFERENCE: the vampire countess' numbers]"
+    "note": "'*attempts to transfix*' 12 times (6 on 20261015_171928, where she made copies of the gravebug at 19:19:04.0 and the phoenix at 19:19:22.2 and her copies and she put Logan down at 19:19:41.4) [INFERENCE: the vampire countess' numbers, melee_player too (missing until 2026-10-24: World._transfix raised KeyError on her copies)]"
    }
   ],
   "apparition": [

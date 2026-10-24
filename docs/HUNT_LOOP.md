@@ -517,7 +517,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    the tile 7+ from every attacker within 14 steps that the fewest idle monsters would see
    (`Team.retreat_tile`; live 20261015_090607 the straight-away tile was in a second apparition's
    sight and it came for Logan: user 2026-10-15, a monster that sees us while the pets fight aggroes
-   on us directly). A step away in a fight (the retreat, the stand-off, the back-off, the evade, the
+   on us directly). A step away in a fight (the retreat, the stand-off, the back-off, the
    fall-back, back to the pets, and since 2026-10-22 the spacing off the tank, the pull spot, out of the fire, the
    reposition, the bard step and the cover) whose route only mobiles block gives up at once (`Mover.walk_to`
    `mobile_wait=0`; after a stamina potion when short): the tick goes on to the potion and the vet.
@@ -692,7 +692,7 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
 | Argument | Default | Meaning |
 |---|---|---|
 | `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. With nothing fighting, a step that shows us to two or more idle monsters worth more than it together stops the patrol and rests the waypoints within 15 tiles (`crawl`: "patrolling elsewhere"); walking out of such a spot goes on. The pull spot puts us where they don't all wake together. 0 = off. |
-| `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". |
+| `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". One that attacks us or the pets is fought like any other (run from until 2026-10-24). |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |
 | `--reposition` / `--no-reposition` | on | In a fight, step to a better tile for line of sight. A caster in war mode within 12 (`tamer.CASTER_R`; a blightmare cast from 12 live) or a ranged monster within 13 with sight of us: up to 4 steps to a tile fewer of them see, that no more idle monsters see first, and that keeps the pets in vet range; out of a caster's sight is worth the steps by itself (before 2026-10-19 one caster's sight never beat a step's cost: live 19:54:39-57 a blightmare 12 off cast at Logan 18 s, 100 -> 4, dead). From a shy one (a purger, a blightmare: they don't come on) out of its reach counts as out of its sight (before 2026-10-21 a tile it still saw counted as an eye more: live 18:20:51-18:21:07 a blightmare 12 off cast at Logan 16 s while the step to 13 was refused; for the casters that come on the sim lost 43 runs to a death in 144 against 33, so not for them); logged "reposition: blightmare 0x… 12 tiles off can cast at us here; to (x, y) (1 -> 0 in reach)". Mid vet channel only while the channel heals us (our share of hits no higher than the pets': a step cuts its reach to the pets to 1). |
 | `--hold-first-sight` / `--no-hold-first-sight` | on | Nothing fighting: stop where an idle monster sees us within its aggro range (its type's, 10 or 13; it was 14, the user's 13 plus a tile: live 21:34:05 a shadowguard 14 tiles off held the patrol 10 s and never woke), and let it come; the pull spot must stay in its sight. |
@@ -722,15 +722,16 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   nearer one already seeing us (a step out of it goes on: `Team.pull_check`, live 21:12-21:16 the patrol
   stopped before every first step, 3225 times, standing in an elder vampire's sight), and the crawl then rests
   that waypoint; the crawl skips waypoints within 16 of one and routes keep out (`crawl.Crawl.observe`); the
-  runner never pulls one. One that comes for us in war mode is run from ("I run until the consort leashes and I'm
-  in an area that I can manage"): "All Follow Me", then to the gate when that is away from it, else 22
-  tiles beyond it, until it stops chasing. The leave rules take over when we're hurt ("when all else
-  fails ... I will probably head for the gate").
+  runner never pulls one. One that comes for us in war mode is fought like any other monster on us: the pets
+  on guard, the target once it attacks us or a pet (`HuntLoop.pick_target`), the leave rules when we're hurt.
+  Until 2026-10-24 it was run from (`Team.evade`: "All Follow Me", to the gate when that was away from it, else
+  22 tiles beyond it, until it stopped chasing; "I run until the consort leashes and I'm in an area that I can
+  manage"); the user then asked to remove the running (docs/NOTES.md "Elder vampires: no more running").
   - **Healing on the run** (user 2026-10-17: "We absolutely must vet while fleeing"). Between the steps of
-    every flight (a monster's, a red's, a walk out to the gate), the vet supplies start whenever we're hurt
+    every flight (a red's, a walk out to the gate), the vet supplies start whenever we're hurt
     at all and no channel runs. A heal potion is drunk below `--heal-at` (`HuntLoop.drink_on_the_run`). A
     step doesn't stop the channel healing us. Live 16:38:32-41 a flight from an elder vampire countess had
-    none of it: diseased, 87 to 11 hits in 9 s. No area peace while running from a monster.
+    none of it: diseased, 87 to 11 hits in 9 s.
 - **Backspawn** (user 2026-10-15: "We know nightstalkers spawn in that room though. When a mob respawns
   behind you we call it backspawn. A human knows not to stand out in the open when stealth mobs are going to
   respawn there"; live 20261015_171928 18:40:10 an unseen nightstalker hit Logan -58 from 2 tiles, the side

@@ -634,7 +634,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    - **On Maus 3:** the crawl patrols the waypoints zone by zone. It holds for an idle monster within 10 that
 >      would see him past the walls ("letting it come"). It doesn't patrol while a pet fights or lags more
 >      than 8 tiles ("not patrolling yet"). It heals in place: potions, the vet supplies on Logan and the pets.
->      It runs from a never-aggro monster (elder vampire, elder vampire countess) and vets on the run.
+>      It keeps out of a never-aggro monster's sight (elder vampire, elder vampire countess) and fights one
+>      that comes for him (no running from it since 2026-10-24).
 >    - **Out:** hurt below the leave line with no heal coming, a pet hurt or lost, **a red** (in view,
 >      tracked, or "… is attacking you!"), or **the carried value reaching V\*** (gold rate against the death
 >      rate there, with red encounters, and the measured trip; ~24k live on 2026-10-17). The leave is the

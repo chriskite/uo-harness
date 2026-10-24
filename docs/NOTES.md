@@ -4897,6 +4897,41 @@ Visit 3 on Maus 3, the north end of the north-east hall. Capture session_2026102
   test_sim `test_boss_room_door` (before: left in the room, "no route from (5242, 587)"; after: out at (5243, 612)
   with the way out known or not).
 
+## Elder vampires: no more running (2026-10-24, simulator)
+
+User 2026-10-24: remove the runner's running from an elder vampire and an elder vampire countess. Removed `Team.evade`
+(and `aggro.View.chasing`, `tamer.EVADE_*`, the "evade" intent and `evades` count): one that comes for us in war mode
+is fought like any other monster on us. Kept: their sight is no-go for the patrol and routes, and the runner never
+pulls one (`--never-aggro`, aggro.NEVER_AGGRO).
+
+- **A simulator crash found on the way:** since the armor change (ab89414) a transfixed copy needs the transfix's
+  `melee_player`, which only the vampire countess' transfix had. The elder vampire countess' copies raised KeyError in
+  `World._transfix` (6 of 200 runs crashed in the first baseline). Hers now has the countess' `[44, 64]` (both
+  batches below are after that fix).
+- **Before and after** (200 runs, seed 1001, 20 careers, `--others --eerie --prior harness/data/harness.db --
+  --vet-range 5 --crawl-learn-s 180`, 30 game min each):
+
+  | | before (evade) | after (fight) |
+  |---|---|---|
+  | game h | 95.5 | 96.8 |
+  | deaths / game h | 0.21 (20; Poisson 95 % 0.12-0.30) | 0.19 (18; 0.10-0.27) |
+  | runs with a death | 20 | 18 |
+  | runs with a pet death | 3 | 2 |
+  | runs with a pet left behind | 5 | 2 |
+  | gold looted / h | 107,663 | 108,464 |
+  | gold banked / h | 105,172 | 106,310 |
+  | kills / h | 97.1 | 97.5 |
+  | damage on Logan / h | 1,565 | 1,582 |
+  | evades | 145 in 54 runs | 0 |
+  | the runner's fights with an elder | 0 | 26 (14 kills; median 21.6 s, 26 hits lost) |
+  | deaths with an elder's damage in the last 15 s | 0 | 0 |
+
+  The 54 runs that evaded before, the same seeds after: deaths 3 and 3, banked 101.9k and 104.2k an hour, no pet
+  death either way. Every difference is within the noise; fighting them costs nothing measurable here.
+- [INFERENCE] The simulator's elders are modelled thinly: the elder vampire's feed and the elder countess' transfix
+  carry the vampire's and the vampire countess' numbers (scenario notes), from 2-3 live fights each. Live, the
+  eleventh run's elder countess froze both pets and killed Logan (20261015_171928 19:19:41).
+
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
 For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`

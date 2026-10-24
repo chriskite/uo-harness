@@ -454,28 +454,24 @@ class HuntLoop:
         self.drink_on_the_run(st)
 
     def drink_on_the_run(self, st):
-        """On the walk out to --leave-gate, a red's flight included, and (--pets) running from a monster
-        (Team.evade) (Mover guard, between steps): a heal potion when hurt below --heal-at and one is ready
-        (user 2026-10-13: banshees catch real players on the way to the gate too; 'I just run and heal and
-        hope for the best, with pets guarding'), and (--pets) the vet supplies on us when no channel runs
-        (user 2026-10-15: "It needs to heal on the run when fleeing a red"; 2026-10-17, after an evade from an
-        elder vampire countess took Logan from 87 to 11 diseased with no heal: "We absolutely must vet while
-        fleeing": a channel whenever we are hurt at all, not only below --heal-at). A step doesn't stop the
+        """On the walk out to --leave-gate, a red's flight included (Mover guard, between steps): a heal potion
+        when hurt below --heal-at and one is ready (user 2026-10-13: banshees catch real players on the way to the
+        gate too; 'I just run and heal and hope for the best, with pets guarding'), and (--pets) the vet supplies on
+        us when no channel runs (user 2026-10-15: "It needs to heal on the run when fleeing a red"; 2026-10-17, after
+        a flight from an elder vampire countess took Logan from 87 to 11 diseased with no heal: "We absolutely must
+        vet while fleeing": a channel whenever we are hurt at all, not only below --heal-at). A step doesn't stop the
         channel healing us: it only shortens the reach to the pets to 1 (live 20261014_221341 22:35:50-55 Logan
         walked 2 tiles mid-channel and its finish still healed him and resurrected GraveRobber; 20261017
         16:38:43.97-49.21 begun, 25 steps, +32)."""
-        evading = self.team is not None and self.team.evading
-        if not (self.walking_out or evading) or self._drinking:
+        if not self.walking_out or self._drinking:
             return
         me = st["world"]["self"]
         self._drinking = True
         try:
-            if self.team is not None and not self.pk_flight and not evading \
-                    and self.team.area_peace(st, walking_out=True):
+            if self.team is not None and not self.pk_flight and self.team.area_peace(st, walking_out=True):
                 return                    # through monsters on the way out: a 2 s peace on them (Team.area_peace)
             #                               (not from a red: live 20261017_133304 13:40:56 it stopped 1.5 s to play
-            #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later; nor
-            #                               running from a monster)
+            #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later)
             if me.get("hits") is None or me.get("hits_max") is None or me["hits"] >= me["hits_max"]:
                 return
             if self.frac(me) < self.args.heal_at and self.potions.ready(time.monotonic()) \
@@ -3742,8 +3738,8 @@ def arg_parser() -> argparse.ArgumentParser:
                          "0.4, a nightstalker 1.8); 0 = off (user 2026-10-13: 'weighted by danger')")
     ap.add_argument("--never-aggro", action="append", default=None, metavar="TYPE",
                     help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
-                         "one that comes for us is run from (repeat; default aggro.NEVER_AGGRO: the elder vampire "
-                         "and the elder vampire countess, user 2026-10-15)")
+                         "it is never pulled; one that attacks us or the pets is fought (repeat; default "
+                         "aggro.NEVER_AGGRO: the elder vampire and the elder vampire countess, user 2026-10-15)")
     ap.add_argument("--crawl-avoid-types", action=argparse.BooleanOptionalAction, default=None,
                     help="crawl: avoid creature types the store's fights say cost too much (--crawl-max-hits, "
                          "--crawl-max-fight-s) or were fled from (default on, --pets off: user 2026-10-15)")
