@@ -2239,6 +2239,20 @@ goal tile teleported us, so it was meant" skipped the step back. Decisions:
 - **The door's tiles are seeds** (`harness/data/teleporters.json`, the simulator's scenario), so no stand tile or
   route picks (5242, 612) again. Only the tile he stepped on is seeded: the other door-row tiles aren't proven.
 
+## A pet out of a command's reach is walked to (2026-10-24)
+
+A pet-lag abort on the walk in's first level ended in the escape home without GraveRobber (docs/NOTES.md "GraveRobber
+left on the first level"). Three "All Follow Me" from 17 tiles never reached him. Decisions:
+- **The runner goes within reach before it calls again** (`HuntLoop.fetch_pet`, from `wait_pets` away from a
+  teleporter): a pet in view farther than `COMMAND_R` 12 gets the walk to within 8 of it first. Rejected: waiting out
+  the pet's fight, the abort's 25 s made longer. A pet on guard keeps taking new attackers (a corpse eater after the
+  apprentice), so the wait has no end it can see. Rejected too: a longer wait for the pets at the escape's gate. He
+  came into view 2 s before the recall, 15 off and coming [INFERENCE: once his fight ended], which no fixed wait
+  could count on.
+- **The range is an inference**, 12 in the runner and 14 in the simulator, from 71 "All Follow Me" with a pet 7+ off in
+  25 captures (in reach up to 13, out from 15). The simulator's pets used to hear every command at any distance, which
+  hid the failure.
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

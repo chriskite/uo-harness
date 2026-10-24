@@ -771,7 +771,13 @@ moongate, and never near a red one).
     "All Follow Me" after the landing for all four teleporters, the first "All Guard Me" on the fight
     level; live 22:20:56 the runner's "All Guard Me" at the landing set the pets fighting there and Logan
     walked 75 steps to the first teleporter alone). A pet farther than 8 tiles or out of view stops the
-    walk: 5 s for it to catch up, then "All Follow Me" again and 20 s more, else Abort.
+    walk: 5 s for it to catch up, then "All Follow Me" again and 20 s more, else Abort. **A pet in view farther than
+    `COMMAND_R` (12)** doesn't hear that command (since 2026-10-24; [INFERENCE] from the captures: a pet 11-13 off came
+    on 9 of 15, one 15-17 off on 0 of 7), so first the walk to within 8 of it ("<label>: GraveRobber at 17, beyond a
+    command's reach (12); going within 8 of it", `fetch_pet`), stopped by an attacker on us. Live 2026-10-24
+    18:26:46-18:27:50 "All Guard Me" on the first level sent GraveRobber 17 off after a reanimator apprentice and a
+    corpse eater; three "All Follow Me" didn't reach him, the walk aborted and the escape left him there. test_sim
+    `test_walk_in_fetch_pet`.
   - **Attacked on the way** (something swinging at us, or our hits falling: a calamity casts from 13
     tiles): "All Guard Me" and the fight tick's order (stand-off, a potion, the pets' care, the pets at
     what is on us, our kills looted) until nothing attacks us for 4 s (at most 90 s), then "All Follow Me"

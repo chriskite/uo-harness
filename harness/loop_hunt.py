@@ -250,6 +250,11 @@ WALK_IN_ARRIVED_R = 3         # --enter-via: this close to a teleporter's known 
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
+# A pet hears a command this far, with a margin [INFERENCE: 71 'All Follow Me' with a pet 7+ off in 25 captures to
+# 2026-10-24: from 11-13 tiles 9 of 15 were beside us 3 s later, from 15-17 none of 7; live 18:26:51-18:27:28 GraveRobber
+# at 17 fought on through three while AlaFlambe at 6 came; the simulator's sim.world.COMMAND_R is 14]
+COMMAND_R = 12
+COMMAND_R_GO = 8              # wait_pets/fetch_pet: a pet out of a command's reach is walked to this close first
 TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fewer from the teleporter walked to: on and
 #                               through it, no stand (live 2026-10-20 22:57:15: attacked again 13 steps from 5522,637, the
 #                               route's 12 to the tile before it and the step on; the stand there was killing Logan until
@@ -3009,12 +3014,15 @@ class HuntLoop:
         """Up to WALK_IN_QUIET_S for every pet within FOLLOW_R of us (of the teleporter `at` when given):
         on follow they catch up by themselves (the user said 'All Follow Me' once for four teleporters);
         then 'All Follow Me' again and WALK_IN_PETS_S more, else Abort: never through a teleporter
-        without them. `required` False (the walk out to the gate, which waits for them again beside it):
-        False instead, go on without them. True when they came."""
+        without them. A pet in view beyond COMMAND_R doesn't hear it: first to within COMMAND_R_GO of it (not beside a
+        teleporter: `at` None; fetch_pet). `required` False (the walk out to the gate, which waits for them again
+        beside it): False instead, go on without them. True when they came."""
         log(f"{label}: waiting for the pets ({self.pets_lagging(self.link.state()) or 'not all beside it'})")
         self.doing("enter" if required else "leave", "Waiting for the pets to catch up")
         if self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_QUIET_S):
             return True
+        if at is None:
+            self.fetch_pet(label)
         self.team.follow(wait=False)
         if not self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_PETS_S):
             if not required:
@@ -3023,6 +3031,36 @@ class HuntLoop:
             raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles "
                         f"{'of it' if at else 'of us'} after {WALK_IN_PETS_S:.0f} s; not going on without them")
         return True
+
+    def fetch_pet(self, label):
+        """The nearest pet in view farther than COMMAND_R: walk to within COMMAND_R_GO of it (re-aimed as it moves) so
+        the next 'All Follow Me' reaches it; a walk that fails or meets an attacker on us ends it. Live 2026-10-24
+        18:26:46-18:27:50 (hunt-20261024-173530-0ca1): on the walk in's first level 'All Guard Me' sent GraveRobber 17
+        tiles off after a reanimator apprentice, then a corpse eater; three 'All Follow Me' from 17 tiles left him
+        fighting (AlaFlambe at 6 came at once), the walk aborted and the escape home left him there."""
+        st = self.link.state()
+        far = [p for p in self.team.pets(st) if not p["dead"] and p["dist"] > COMMAND_R]
+        if not far:
+            return
+        p = min(far, key=lambda p: p["dist"])
+        serial, last = p["serial"], (p["x"], p["y"])
+
+        def center():
+            nonlocal last
+            q = next((q for q in self.team.pets(self.link.state()) if q["serial"] == serial), None)
+            if q is not None:
+                last = (q["x"], q["y"])
+            return last
+        log(f"{label}: {p['name']} at {p['dist']}, beyond a command's reach ({COMMAND_R}); going within "
+            f"{COMMAND_R_GO} of it")
+        self.doing("enter", f"Going back for {p['name']}", last)
+        try:
+            why = self.mover.walk_to(center, COMMAND_R_GO, f"{label}: to {p['name']}", max_moves=2 * p["dist"],
+                                     stop=lambda s: "under attack" if self.attackers(s) else None)
+            if why:
+                log(f"{label}: to {p['name']}: stopped ({why})")
+        except (WalkFailed, Abort) as e:
+            log(f"{label}: to {p['name']}: {e}")
 
     def walk_in_fight(self, label, way: str = "in"):
         """Attacked on the way in (or out, `way`, a planned walk to the gate): 'All Guard Me' and the fight

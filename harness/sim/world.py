@@ -68,6 +68,10 @@ from sim.reds import Reds
 from sim.scenario import player_armor
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
+COMMAND_R = 14            # a pet takes a spoken command this far from us [INFERENCE: 71 'All Follow Me' with a pet 7+ off in
+#                           25 captures to 2026-10-24: from 11-13 tiles 9 of 15 were beside us 3 s later, from 15-17 none
+#                           of 7 (live 18:26:51-18:27:28 GraveRobber at 17 fought on through three while AlaFlambe at 6
+#                           came); loop_hunt.COMMAND_R]
 TICK_S = 0.1              # world step
 _NUMBER = re.compile(r"^[+-]\d+$")  # an overhead damage/heal number: the trace has it as hurt/heal, not as a `say`
 THINK_S = 0.5             # a monster/pet re-decides its target this often (RunUO AI ~0.5-1 s) [INFERENCE]
@@ -2049,7 +2053,7 @@ class World:
             self.metrics["silenced"] += 1
             self._sys(HELD_SILENCED_TEXT)
             return
-        pets = [m for m in self.pets() if m.alive and not m.ghost]
+        pets = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, self.player.pos) <= COMMAND_R]
         if text == "all guard me":
             self.metrics["guard_commands"] += 1
             for m in pets:

@@ -831,7 +831,7 @@ class Team:
         far = [f"{p['name']} at {p['dist']}" for p in self.pets(self.h.link.state()) if p["dist"] > FOLLOW_R]
         if far:
             log("pets not all within reach after 'All Follow Me': " + ", ".join(far)
-                + ("" if wait else "; not waiting (hurt)"))
+                + ("" if wait else "; not waiting here"))
 
     def together(self, st, at=None) -> bool:
         """Every pet of the roster in view within FOLLOW_R of us, or of tile `at` (a teleporter we step

@@ -1420,7 +1420,9 @@ On the types whose numbers on him are plain melee (no area or spell hits; 164 hi
 - Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]), and through a
   teleporter also any on Follow within the view (18; user 2026-10-20: on Outlands pets on "All Follow Me" come
-  through with Logan while in view).
+  through with Logan while in view). A spoken command reaches the pets within `COMMAND_R` 14 of us only (since
+  2026-10-24 [INFERENCE]: in 25 captures a pet 11-13 off was beside us 3 s after "All Follow Me" 9 times of 15, one
+  15-17 off 0 of 7; live 18:26:51-18:27:28 GraveRobber at 17 fought on through three); before, every pet heard.
   Patrol ("All Patrol", since 2026-10-18 from the user's demo, docs/NOTES.md "All Patrol"): a location
   cursor, "Target cannot be seen." for a tile out of our sight, the pets run to the tile, attack a monster
   within 3 of it (`PATROL_TAKE_R`) and stay about the spot; "All Guard Me" leaves the target they fight.

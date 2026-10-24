@@ -4932,6 +4932,35 @@ pulls one (`--never-aggro`, aggro.NEVER_AGGRO).
   carry the vampire's and the vampire countess' numbers (scenario notes), from 2-3 live fights each. Live, the
   eleventh run's elder countess froze both pets and killed Logan (20261015_171928 19:19:41).
 
+## GraveRobber left on the first level: a command out of reach (live 2026-10-24 18:26:46-18:27:50, hunt-20261024-173530-0ca1)
+
+Visit 4's walk back in. Capture session_20261024_102346 and the task log:
+- 18:26:46 at (5570, 701) on the first level a hit on Logan (-12, hits 88), "attacked on the way in; the pets guard".
+  "You are no longer hindered." came at 18:27:29, so he was held for part of it. On "All Guard Me" GraveRobber ran 17
+  tiles NE to (5582, 684) after a reanimator apprentice (dead 18:27:12), then fought a corpse eater there, in war
+  mode, at 96-100 % hits. AlaFlambe went 7 off and came back.
+- Nothing hit Logan after that, so the walk-in's fight ended at 18:26:51 with "All Follow Me". AlaFlambe was beside
+  him within 3 s. GraveRobber, at 17, fought on through that call, the next (18:27:07) and the escape's (18:27:28). At
+  18:27:27 the walk aborted ("the pets aren't within 3 tiles of us after 20 s; not going on without them").
+- The escape (b3d6e53) did as designed: the rope, the gold moongate at (5588, 717), "All Follow Me", 11 s beside it,
+  the recall at 18:27:47. GraveRobber had come back into view at 18:27:45, at (5590, 702), 15 off and coming. "PETS
+  LEFT BEHIND (home): GraveRobber". The run exited 1 at home: the escape juncture, then task_failed.
+- The log's "not waiting (hurt)" on the second call was wrong text. It meant "this call doesn't wait; the caller
+  does", and Logan wasn't hurt. It says "not waiting here" now.
+- **Command range** [INFERENCE]: 71 "All Follow Me" with a pet 7+ tiles off in the last 25 captures. From 11-13 tiles
+  the pet was beside us 3 s later in 9 of 15 cases; from 15-17 tiles, in none of 7. Above ~14 a pet doesn't take the
+  command. ServUO's pets take commands within their perception range [INFERENCE: Outlands' own value unknown].
+- The simulator had every pet hear every command at any distance, so it couldn't show this. Its leash calls a guarding
+  pet off a target more than 14 from us; live GraveRobber fought at 18. The leash isn't changed: one sighting.
+- Fixed: on the walk in, a lagging pet in view farther than 12 gets a walk to within 8 of it before the second "All
+  Follow Me" (`HuntLoop.fetch_pet`). The simulator's pets hear commands within 14 only. test_sim
+  `test_walk_in_fetch_pet` replays the geometry (before: the same abort with GraveRobber at (5582, 684); after:
+  through the first teleporter with both pets).
+- **Simulator, before and after** (60 runs of 60 min, seed 101, `--others --eerie --prior harness/data/harness.db`;
+  before = b96bf10, after = the runner fix and the 14-tile command range): deaths 10 and 10, pet deaths 18 and 17,
+  5,560 and 5,566 kills, 112.5k and 113.7k gp banked an hour, over 52.8 and 52.5 hunting hours. No change beyond the
+  noise.
+
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
 For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`

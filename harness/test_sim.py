@@ -2858,6 +2858,56 @@ def test_walk_in():
           f"max {max(lag) if lag else None}")
 
 
+def test_walk_in_fetch_pet():
+    print("== a pet fighting beyond a command's reach on the walk in: go within reach, 'All Follow Me', on through ==")
+    # live 2026-10-24 18:26:46-18:27:50 (hunt-20261024-173530-0ca1): 'All Guard Me' on the first level sent GraveRobber
+    # 17 tiles off to (5582, 684) after a reanimator apprentice, then a corpse eater; three 'All Follow Me' from
+    # (5570, 701) didn't reach him, the walk aborted ("the pets aren't within 3 tiles of us after 20 s") and the escape
+    # home left him there
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    from sim import world as simworld
+    start, fight_at, first = (5570, 701), (5582, 684), (5554, 700)
+    w = world_with([{"key": "corpse eater", "at": [fight_at[0], fight_at[1] - 1, 0]}], seed=7, start=start)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.spec = {**gb.spec, "leash": 30}        # live he fought on 18 from us; the simulator's leash (14) calls him back
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs"], 10)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    err, buf = None, io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())                 # both pets beside us: the roster
+            gb.x, gb.y, gb.z = fight_at[0], fight_at[1], w.stand_z(*fight_at, 0)
+            m.target, m.threat = gb.serial, {gb.serial: 1e9}
+            gb.mode, gb.target = "guard", m.serial
+            w._warm(m, True)
+            w._warm(gb, True)
+            clock.advance(1.0)
+            try:
+                loop.walk_in([first])
+            except Exception as e:  # noqa: BLE001
+                err = e
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("the setup: GraveRobber beyond a command's reach", sim_cheb(fight_at, start) > simworld.COMMAND_R, "")
+    check("through the first teleporter with both pets, no abort", err is None and sim_cheb(w.player.pos, first) > 3
+          and all(sim_cheb(p.pos, w.player.pos) <= tamer.FOLLOW_R + 1 for p in w.pets()),
+          f"{err} at {w.player.pos}, pets {[(p.name, p.pos) for p in w.pets()]}")
+    check("...after going back within reach of him", "beyond a command's reach" in out,
+          " | ".join(ln for ln in out.splitlines() if "GraveRobber" in ln or "pets" in ln)[-600:])
+
+
 def test_tele_dash():
     print("== attacked on the walk-in within TELE_DASH_R of the teleporter: on and through it, no stand ==")
     import tempfile
@@ -3666,7 +3716,7 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_tele_dash, test_walk_in_red_first_level,
+              test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_tele_dash, test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
