@@ -1268,6 +1268,84 @@ flowchart LR
 - **Live, the Tidal rune is in the runebook "Bad Places II".** It is not in Logan's tome, which is what the
   simulator's tome row stands for.
 
+## Player armor (findings and plan, 2026-10-24; not built yet)
+
+User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
+value ("full verite plate with tier 14 Command aspect, Logan has 133 AR").
+
+**The rule (wiki rows in the memory store).** Armor & Weapons > Armor Values (#11677): the suit's *total* AR counts,
+and a physical hit loses a uniform random fraction between AR × 0.333 % and AR × 0.666 % (mean AR/200). Physical =
+melee from monsters and players, also breath and some boss effects. Bleed or disease derived from a hit takes no
+reduction (Damage Resolution, #11670). Bonuses add on the suit base: platemail 50, bone 35, leather 25 (#11692);
+exceptional +40 % (#11677, #13811); ingot verite +35 %, agapite +30 % (#13811); aspect armor 20 % + 5 % per tier
+(Command #13891; the same line on the Harvest gump, `testdata/aspect_gumps.json`); broken armor −50 % (#11682).
+
+- Check: 50 × (1 + 0.40 + 0.35 + 0.20 + 0.05 × 14) = 132.5 → 133 (T14); T13 → 130; aspect off → 87.5 → 88.
+  All three are the values the server sent.
+- 148 = 133 + 15: the Armor Rating Increase buff's value is 15.0 (docs/WORLDMODEL.md). The buff's source is
+  unknown [INFERENCE].
+
+**The captures carry the AR.** S2C 0x11 `physical_resist` is the status AR (parsers `_p_character_status`; the
+runtime keeps it in `state.self.stats["physical_resist"]`). Logan's own values, all captures since 2026-10-10:
+
+| Period | AR | Suit worn |
+|---|---|---|
+| to 2026-10-17 15:54 | 86 | exceptional verehide bone (5 pieces), exceptional kasa, Command aspect |
+| 2026-10-17 ~16:00-21:00 | 118 | exceptional agapite plate, kasa, Command |
+| 2026-10-17 21:05 to 2026-10-21 08:51 | 130 | exceptional verite plate, Command T13 |
+| from 2026-10-21 08:51 | 133 (148 with the buff) | exceptional verite plate, Command T14 |
+
+- 88 shows after deaths: re-dressed gear has lost its aspect (hue 2207 instead of 1782) until it is activated again.
+- 0 = ghost. Lower values are re-dressing piece by piece.
+- The ruby smallshell's Pierce Claw ("temporarily reduces your armor", 20261024_102346) never shows in the status:
+  no AR other than 133/148/88/0 in that capture.
+
+**What the simulator does instead.** `World._taken_x`: Logan takes `melee_to_player_x` 1.2 of a gravebug-referenced
+melee number and `damage_to_player_x` 1.6 of a spell. Each is a constant.
+- The 1.2 comes from the 41 parity visits (2026-10-15 21:10 to 10-20), a blend of AR 86 and 130.
+- Tidal Tomb inherits it although its capture is all 133.
+- Every monster ranged attack lands as `"spell"` (`_impact`), so archers ignore armor.
+- The measured `damage_player` numbers of specials (charge, burst, wail, ooze) hold whatever AR the capture had.
+- Size of the error: the mean fraction taken is 1 − AR/200, so 0.57 at 86 and 0.335 at 133. The same raw hit is
+  41 % smaller now than in the bone era.
+
+**Plan.**
+1. **Validate before adopting (gate).** In `calibrate.py`, give every '-N' on us the AR at that instant (the runtime's
+   `physical_resist`) and the song state, and write a per-capture AR timeline (`player_armor`) into the observed
+   JSON. Per monster type, test hits at AR 86 against hits at 130/133:
+   - Two predictions: Logan / (wiki `melee_damage` × (1 − discord)) against 1 − U(AR/300, AR/150), and the
+     between-era ratio of medians (0.59). Example: tormented soul, wiki 40-50 raw, live 12-19 on Logan (n=8).
+   - Pass: the medians and the p10-p90 width match. Fail: fit an empirical curve on the same table instead.
+2. **Player armor in the scenario.** Add `player.armor`: the literal `ar` (ground truth from 0x11), the suit it comes
+   from (`base`, `quality`, `material`, `aspect`, `tier`) and a note.
+   - A small function derives the AR from the suit and is tested on 88/130/133.
+   - `run.py --armor N` and `--aspect-tier T` override it for what-ifs.
+   - The tier is not passive: `ctl act aspect` reads it, or derive it from AR plus a known suit.
+3. **Apply it per hit.** On the player, physical kinds take × (1 − U(min(1, AR/300), min(1, AR/150))): melee, physical
+   ranged (`ai: ranged` shooters [INFERENCE: physical]), charge, and reds' melee.
+   - Unchanged: spells (magic resist), poison, bleed, disease, drain, oxygen, wail.
+   - The damage reference, picked by step 1:
+     - (a) raw: the wiki melee for Logan, which removes the gravebug coupling;
+     - (b) normalized: the gravebug number × k × (1 − r), with k refit on AR-tagged hits.
+   - Physical specials' `damage_player` become raw = observed / (1 − AR/200) at their capture's AR, stored with
+     `measured_ar`.
+   - `melee_to_player_x` goes.
+4. **Tier also moves the pets.** Command armor gives followers 5 % + 1.5 % per tier damage resistance (#13891): 24.5 %
+   at T13, 26 % at T14. The gravebug reference was measured across tiers. With (a), a pet takes raw × (1 − that) ×
+   its own factor, so one `tier` drives both. With (b), leave it as is and note it.
+5. **AR changes during a run.**
+   - The player Mob holds `ar`. A resurrection drops the aspect (88 until reactivated, as live).
+   - Optional: the +15 buff, broken armor −50 %, Pierce Claw once its size is measured from hit numbers.
+6. **Tests and parity.**
+   - `test_sim`: AR 0 leaves a hit unchanged; AR 133 keeps it within raw × [0.113, 0.557]; spells are untouched;
+     the derivation gives 88/130/133.
+   - Re-run parity by AR era.
+   - Tidal Tomb level 1 already gets a quarter of live damage (threat rules, above). Armor alone lowers it further,
+     so that fix ships with it.
+
+**Open:** `hurt()` floors a hit at 1. Above AR 150 a hit can be fully absorbed, and whether the live server then shows
+0, 1 or nothing is unseen.
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
