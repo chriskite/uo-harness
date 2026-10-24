@@ -670,6 +670,17 @@ class Crawl:
                 reach = tamer.CASTER_R if aggro.caster(type_key(name)) else tamer.RANGED_R
                 self.danger[s] = (tile, now, "awake", reach)
                 continue
+            area = tamer.AREA_R.get(type_key(name))
+            if war and area and getattr(self.h, "skip", {}).get(s, 0) > now:
+                # an awake area hitter the fight passed over (pinned, or out of our sight on another player): its hit's
+                # reach is no-go for the patrol and the routes while it is skipped (live 2026-10-23 23:29:34-23:30:19,
+                # hunt-20261023-220741-f118: the patrol went on to (5243, 698), 3 tiles from a dropped reanimated daemon,
+                # its bone burst came (-34, -41) and the stand-off took Logan back out: six rounds between the two)
+                awake.add(s)
+                if self.danger.get(s, (None, 0, None))[2] != "area":
+                    log(f"crawl: keeping out of the reach of the passed-over {type_key(name)} at {tile}")
+                self.danger[s] = (tile, now, "area", area)
+                continue
             why = self.model.avoid(name, hits_max, self.a.crawl_max_hits, self.a.crawl_max_fight_s) \
                 if getattr(self.a, "crawl_avoid_types", True) is not False else None
             if why:
@@ -686,7 +697,7 @@ class Crawl:
                 self.target_t[i] = now
         for s, (tile, t, name, r) in list(self.danger.items()):
             if now - t > DANGER_S or (name == "kept" and (getattr(self.h.team, "kept_off", None) or {}).get(s, 0) <= now) \
-                    or (name == "awake" and s not in awake):
+                    or (name in ("awake", "area") and s not in awake):
                 del self.danger[s]
                 continue
             danger_zones[f"crawl:{s:08X}"] = (tile, r)

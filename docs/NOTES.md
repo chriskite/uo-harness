@@ -4758,6 +4758,29 @@ session_20261022_163222.
 - **Ranged reds** (user: rope from casters and bows even while they hit us): built, docs/HUNT_LOOP.md "From ranged
   reds". `sim/fight2203.py` replays this death: 3 of 24 dead before and after.
 
+## 'All Kill' at an unseen reanimated daemon, the patrol/stand-off ping-pong (live 2026-10-23 23:29-23:30, hunt-20261023-220741-f118)
+
+User, in this shift: "The runner keeps trying to 'All Kill' a reanimated demon that is not in line of sight, and
+doesn't seem to notice the 'target cannot be seen' system message." Capture session_20261023_201849 (0x6C cursors,
+0xC1 clilocs) and the task log:
+- A reanimated daemon 0x0055B64F stood at (5240, 700) the whole time (no 0x77 for it), fighting LiquidElsa. The crawl
+  sought it ("patrolling toward it ((5243, 698))"). From (5242, 694) three "All Kill"s (23:29:07, :19, :32) were
+  answered with no cliloc (seen), but the pets never took it [INFERENCE: no way for them to reach it]. At 23:29:34 it was
+  dropped (`PIN_S`, skipped 60 s).
+- The patrol went on to the same waypoint, 3 tiles from it. Its bone burst (0xC0 from it to six mobiles, Logan -34 at
+  23:29:36 and -41 at 23:29:51) put it among his attackers, which overrides the skip. The stand-off then took him to
+  (5241, 693), 7 tiles off and behind a wall. "All Kill" there at 23:29:47 and 23:29:59 got 500237 "Target cannot be
+  seen." both times. The runner logged the first and blocked it for `LOS_BLOCK_S` 10 s, then sent it again from the same
+  tile. From 23:30:02 to 23:30:19 the patrol (to (5243, 697)) and the stand-off (back to (5241, 693)) alternated five
+  times. A blightmare then came up, and Logan died at 23:30:37 (the death has its own section).
+- The simulator's map agrees that (5241, 693) doesn't see (5240, 700) while (5242, 694) does. It reproduced both loops:
+  `Team.fight` sent 6 refused "All Kill"s in 60 s from (5241, 693), and the scene with the HEAD crawl stood 19 of 80
+  half-seconds inside the bone burst's reach with 17 stand-offs in 40 s.
+- Fixed: a "cannot be seen" answer blocks "All Kill" at that monster while we and it stay on those tiles
+  (`Team.kill_unseen`: 6 -> 1; another tile that sees it sends again). An awake area hitter that is passed over is a
+  crawl danger zone of its `AREA_R` while skipped (`Crawl.observe`): 19 -> 0 half-seconds in reach and 17 -> 0
+  stand-offs. Tests: test_sim `test_kill_unseen_once`, `test_patrol_off_passed_over_area_hitter`.
+
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
 For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`

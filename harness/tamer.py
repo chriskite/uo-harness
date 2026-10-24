@@ -2006,7 +2006,7 @@ class Team:
         if engaged or on_us:
             self.fought[serial] = (mob, now)
         if engaged and (idle := self.idle_pet(st, mob, now)) \
-                and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S and self.effects.get(serial, {}).get("los", 0) < now:
+                and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S and not self.kill_unseen(st, serial, now):
             log(f"{idle} stands idle beside the fight with {name}: 'All Kill' at it")
             self.all_kill(serial)
             return
@@ -2022,7 +2022,7 @@ class Team:
         wait = 0.0 if shy_on else KILL_AFTER_S
         if on_us and not engaged and now - self.attack_t[serial] >= wait \
                 and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
-                and self.effects.get(serial, {}).get("los", 0) < now:
+                and not self.kill_unseen(st, serial, now):
             self.all_kill(serial)
             return
         if not on_us and serial not in self.pet_attackers(st) and (who := self.elsewhere(st, mob)) is not None \
@@ -2034,7 +2034,7 @@ class Team:
             # our side 7 tiles from a tormented soul on Lord Phaze, read as "on it" within PET_REACH: two 15 s waits)
             if cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE and self.bard_sees(st, serial):
                 if now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
-                        and self.effects.get(serial, {}).get("los", 0) < now:
+                        and not self.kill_unseen(st, serial, now):
                     log(f"{name} 0x{serial:08X} is fighting {who}: 'All Kill' at it")
                     self.all_kill(serial)
                     return
@@ -2531,6 +2531,25 @@ class Team:
             return
         h.wait_for(lambda s: any(e.get("ev") == "cliloc" for e in h.link.events[mark:]), 0.6)
         if any(e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS for e in h.link.events[mark:]):
-            self.effects.setdefault(serial, {})["los"] = time.monotonic() + LOS_BLOCK_S
-            log(f"'All Kill' at 0x{serial:08X}: cannot be seen")
+            fx = self.effects.setdefault(serial, {})
+            fx["los"] = time.monotonic() + LOS_BLOCK_S
+            fx["los_at"] = self.sight_pair(h.link.last, serial)
+            log(f"'All Kill' at 0x{serial:08X}: cannot be seen; not again from here while it stays put")
         self.count("kill_commands")
+
+    def sight_pair(self, st, serial: int):
+        """(our tile, `serial`'s tile): what a "cannot be seen" answer holds for (kill_unseen)."""
+        mob = st["world"]["mobiles"].get(f"0x{serial:08X}") or {}
+        return tuple(self.h.pos(st)[:2]), (mob.get("x"), mob.get("y"))
+
+    def kill_unseen(self, st, serial: int, now: float) -> bool:
+        """'All Kill' at `serial` would be answered "Target cannot be seen." again: within LOS_BLOCK_S of that answer,
+        and after it while neither we nor it have moved off the tiles the server refused it from. Live 2026-10-23
+        23:29:47 and 23:29:59 (hunt-20261023-220741-f118): a reanimated daemon at (5240, 700) on Logan at (5241, 693)
+        behind a wall, refused twice, the second as soon as LOS_BLOCK_S ran out (user: "keeps trying to 'All Kill' a
+        reanimated demon that is not in line of sight")."""
+        fx = self.effects.get(serial, {})
+        if fx.get("los", 0) >= now:
+            return True
+        at = fx.get("los_at")
+        return at is not None and at == self.sight_pair(st, serial)

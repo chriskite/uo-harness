@@ -2154,6 +2154,16 @@ than being a few tiles away"). It lands along the way to the goal, the tile fewe
 "out of their sight first" over every tile in reach; the dead-end replay lost 7 of 24 with it, so the landing stays on
 the way. Magic resist potions were the user's other idea: the wiki says they don't work against player spells.
 
+## The server's "cannot be seen" holds until someone moves (user 2026-10-23)
+
+User: "The runner keeps trying to 'All Kill' a reanimated demon that is not in line of sight, and doesn't seem to
+notice the 'target cannot be seen' system message". The runner did read the message, but its block was only 10 s.
+Decision: a refused "All Kill" isn't sent again until we or the target move off the tiles it was refused from.
+Rejected: gating it on the sight model (`los.Sight`). The server's answer is the ground truth, and a model false
+negative would hold back the pets from a monster really hitting us. The same evening the crawl was found walking back
+into a passed-over daemon's bone burst after each stand-off. A passed-over awake area hitter's reach is now a crawl
+danger zone, like an awake blightmare's (docs/NOTES.md "'All Kill' at an unseen reanimated daemon").
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

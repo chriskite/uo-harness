@@ -1213,6 +1213,76 @@ def test_on_another_player():
               f"after {took} s from {start} (now {w.player.pos[:2]}), kill commands at it {w.metrics['kill_on_others']}")
 
 
+def daemon_on_elsa(start):
+    """Live 2026-10-23 23:29 (hunt-20261023-220741-f118): a reanimated daemon at (5240, 700) fighting LiquidElsa, Logan
+    at `start`, the pets beside him held out of it (live they never engaged it)."""
+    w = world_with([{"key": "reanimated daemon", "at": [5240, 700, 0]}], seed=7, start=start, others=True)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    elsa = w.add_other(5239, 701, w.stand_z(5239, 701, w.player.z), name="LiquidElsa", stay=1e6, dps=1.0)
+    m.target, m.threat, elsa.target = elsa.serial, {elsa.serial: 1e9}, m.serial
+    w._warm(m, True)
+    return w, m
+
+
+def test_kill_unseen_once():
+    print("== 'All Kill' answered 'Target cannot be seen.': not again while we and it stand where it was refused ==")
+    # live 23:29:47 and 23:29:59 from (5241, 693): the daemon on us behind a wall, refused twice 12 s apart (LOS_BLOCK_S
+    # then KILL_REPEAT_S); the user: "keeps trying to 'All Kill' a reanimated demon that is not in line of sight"
+    w, m = daemon_on_elsa((5241, 693))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    loop.attackers = lambda st: [{"serial": f"0x{m.serial:08X}"}]
+    sent = {}
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            for phase, xy in (("behind the wall", None), ("a tile that sees it", (5242, 694))):
+                if xy is not None:
+                    w.player.x, w.player.y = xy
+                mark = w.metrics["kill_commands"]
+                for _ in range(80):
+                    clock.advance(0.5)
+                    for p in w.pets():
+                        p.mode, p.target = "stay", None
+                    loop.team.fight(m.serial)
+                sent[phase] = w.metrics["kill_commands"] - mark
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("one refused 'All Kill' in 40 s behind the wall; sent again once a step sees it",
+          sent["behind the wall"] == 1 and sent["a tile that sees it"] >= 1, str(sent))
+
+
+def test_patrol_off_passed_over_area_hitter():
+    print("== the patrol stays out of a passed-over reanimated daemon's bone burst: no patrol/stand-off ping-pong ==")
+    # live 23:29:34-23:30:19: dropped (pinned 15 s), the patrol went on to (5243, 698) 3 tiles from it, the bone burst
+    # (-34, -41) and the stand-off back to (5241, 693): six rounds
+    import crawl
+    import time
+    w, m = daemon_on_elsa((5241, 693))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    inside = standoffs = 0
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            c.unlocked = 99
+            c.wp = min(range(len(c.wps)), key=lambda i: sim_cheb(c.wps[i], (5243, 698)))
+            c.seek_for = m.serial
+            loop.skip[m.serial] = time.monotonic() + 60
+            for _ in range(80):
+                clock.advance(0.5)
+                for p in w.pets():
+                    p.mode, p.target = "stay", None
+                loop.tick()
+                inside += sim_cheb(w.player.pos, m.pos) <= tamer.AREA_R["reanimated daemon"]
+            standoffs = out.getvalue().count("stand-off to")
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("40 s: never in its reach, no stand-off", inside == 0 and standoffs == 0,
+          f"half-seconds in reach {inside}, stand-offs {standoffs}")
+
+
 def test_others_corpse_not_looted():
     print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
     # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
@@ -3208,7 +3278,8 @@ def main():
               test_instrument,
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_loot_off_area_hitter, test_on_another_player,
+              test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once,
+              test_patrol_off_passed_over_area_hitter,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,

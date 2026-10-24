@@ -433,7 +433,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    after a success (wiki Peacemaking); "You must wait a few moments to use another skill."
    (cliloc 500118) moves the clock; "beyond your skill" stops that skill on that creature type;
    a Barding Break or "That target is currently under a barding break effect." makes it immune to
-   peace/provoke for 20 s [INFERENCE: difficulty / 10 s]; "Target cannot be seen." blocks it 10 s.
+   peace/provoke for 20 s [INFERENCE: difficulty / 10 s]; "Target cannot be seen." blocks it 10 s. An "All Kill"
+   answered so isn't sent at that monster again while we and it stay on the tiles it was refused from, past the 10 s
+   too ("'All Kill' at 0x…: cannot be seen; not again from here while it stays put"; `Team.kill_unseen`; live
+   2026-10-23 23:29:47 and 23:29:59 a reanimated daemon behind a wall on Logan was refused twice from (5241, 693);
+   user: "keeps trying to 'All Kill' a reanimated demon that is not in line of sight"; test_sim `test_kill_unseen_once`).
    **In sight first** (user 2026-10-17: "A lot of times it tries to bard a mob that cannot be seen and
    fails"): a skill goes only at a target we see by the server's rule (`Team.bard_sees`, `aggro.View.we_see`:
    from us to it, within 10), a provoked pair both seen. One due but unseen: a step (up to 2, at most every
@@ -619,7 +623,11 @@ purger four times, then its barrage). **Awake**, its reach is a crawl danger zon
 the blightmare, `tamer.CASTER_R`; 13 for the purger, `RANGED_R`): no waypoint within 2 of it, routes bend round, a
 patrol toward a waypoint there picks another ("crawl: keeping out of the reach of the awake blightmare at …", "… is
 near a creature we avoid now; choosing another"; live 2026-10-21 18:21:09 the patrol went on toward a blightmare that
-had cast at Logan from 12 two seconds before, 12 -> 10 tiles, dead). An approach stopped by such a monster ("would
+had cast at Logan from 12 two seconds before, 12 -> 10 tiles, dead). The same for an **area hitter passed over**
+(`tamer.AREA_R`: a reanimated daemon 6, an apparition 3) while it is awake and skipped: its reach is a crawl danger zone
+("crawl: keeping out of the reach of the passed-over reanimated daemon at …"; live 2026-10-23 23:29:34-23:30:19 the
+patrol went on to a waypoint 3 tiles from a dropped daemon, its bone burst came and the stand-off took Logan back out,
+six rounds; test_sim `test_patrol_off_passed_over_area_hitter`). An approach stopped by such a monster ("would
 see us": a shy one before the pets, a never-aggro one) passes its target over for 60 s (`Team.approach`; the
 simulator's runner backed off, approached the same way and held again within 1-3 s, 7 times an hour); one that comes
 on is fought. Never an approach to an idle shy monster, no bard skill on one the pets haven't hurt and that isn't on
