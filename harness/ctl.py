@@ -108,6 +108,8 @@ HEARTBEAT_KEY = "overseer_heartbeat"
 JUNCTURE_CURSOR_KEY = "overseer_juncture_cursor"
 CHAT_CURSOR_KEY = "overseer_chat_cursor"
 BREAK_NOTIFIED_KEY = "gate_break_due_notified"   # break_due_at of the last announced break
+DEATH_NOTIFIED_KEY = "dead_notified"               # meta (per character): a death check_dead already posted
+DEATH_RECENT_S = 600.0                           # check_dead: a death juncture this recent is the same death
 GATE_CHECK_S = 5.0                               # ctl wait: gate poll period
 SEVERITY_RANK = {"info": 0, "attention": 1, "urgent": 2}
 WAIT_MAX_EVENTS = 20
@@ -796,6 +798,36 @@ def check_break_due(mem, port: int):
     tw.meta_set(mem, BREAK_NOTIFIED_KEY, f"{due:.3f}")
 
 
+def check_dead(mem, port: int, char):
+    """Post one `death` juncture (urgent) when our character is dead and no task of its runs (a running runner
+    posts its own). Live 2026-10-24: Logan stood alive on Maus 2 after a failed walk in, a calamity killed him at
+    01:10:48, and the Seer's `ctl wait` saw nothing until it looked at status 11 minutes later."""
+    key = charsel.meta_key(DEATH_NOTIFIED_KEY, mem.char_serial)
+    try:
+        stc = StateConn(port, char=char)
+        try:
+            st = stc.state()
+        finally:
+            stc.close()
+    except (OSError, ValueError, CtlError):
+        return                                       # proxy down or no session: nothing to tell
+    me = st["world"].get("self") or {}
+    if not me.get("dead"):
+        if tw.meta_get(mem, key, ""):
+            tw.meta_set(mem, key, "")
+        return
+    if tw.meta_get(mem, key, "") or running_tasks(mem):
+        return
+    if any(j["kind"] == "death" and j["t"] > time.time() - DEATH_RECENT_S for j in mem.junctures(limit=50, newest=True)):
+        tw.meta_set(mem, key, "1")                   # the runner posted this death before it ended
+        return
+    pos = st["movement"].get("pos")
+    mem.juncture("ctl", "death", f"{me.get('name') or 'The character'} is dead at {pos[:3] if pos else '?'} "
+                                 "with no task running", severity="urgent",
+                 data={"pos": pos, "facet": me.get("map"), "no_task": True})
+    tw.meta_set(mem, key, "1")
+
+
 def cmd_break(a, mem):
     heartbeat(mem)
     try:
@@ -846,6 +878,7 @@ def cmd_wait(a, mem):
         heartbeat(mem)
         if time.monotonic() >= next_gate:
             check_break_due(mem, a.state_port)
+            check_dead(mem, a.state_port, a.char)
             next_gate = time.monotonic() + GATE_CHECK_S
         alerts.staff_alarm_due(mem)                  # repeats while a gm_suspected juncture is open
         js = _open_junctures(mem, jcur, min_rank, WAIT_MAX_EVENTS)

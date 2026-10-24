@@ -693,6 +693,23 @@ def test_wait(proxy):
     check("`ctl break` starts the break through the gate", code == 0 and out.get("ok")
           and proxy.gate_actions == ["break"] and out["gate"]["state"] == "break", str(out))
 
+    print("== dead with no task running: wait wakes once with an urgent death juncture ==")
+    # live 2026-10-24 01:10:48: Logan, left on Maus 2 after a failed walk in, died to a calamity; no runner, no juncture
+    proxy.gate = {"state": "running", "blocked": False, "reason": None, "break_due_at": None,
+                  "break_starts_in_s": None, "break_until": None}
+    proxy.dead = True
+    try:
+        code, out = c("wait", "--timeout", "3", "--poll", "0.1")
+        ev = out.get("event") or {}
+        check("dead, no task: a death juncture (urgent) wakes `wait`",
+              ev.get("type") == "juncture" and ev.get("kind") == "death" and ev.get("severity") == "urgent", str(out))
+        code, out = c("wait", "--timeout", "1", "--poll", "0.1")
+        check("the same death is announced once", out.get("event") is None, str(out))
+    finally:
+        proxy.dead = False
+    code, out = c("wait", "--timeout", "1", "--poll", "0.1")
+    check("alive again: nothing", out.get("event") is None, str(out))
+
     print("== alert: the overseer suspects staff ==")
     code, out = c("alert", "asked", "if", "I'm", "at", "my", "keyboard", "--serial", "0xBEEF")
     g = m.junctures(after_id=out.get("id", 1) - 1, limit=1)[0] if out.get("id") else {}
