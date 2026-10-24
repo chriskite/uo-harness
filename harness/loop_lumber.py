@@ -4980,7 +4980,8 @@ class LumberLoop:
             raise Abort("the proxy doesn't know the character's name yet (it keys the home: harness/data/homes.json)")
         self.home = self.find_home(st)          # before the first threat check: at home it ignores creatures outside
         self.guarded(lambda: self.check_guards(self.link.state()))
-        self.hatchet(st, self.want_hatchet)
+        if not self.at_home(st):                # at home resupply_home's hatchets_ready tops up from the shelf/chest first
+            self.hatchet(st, self.want_hatchet)
         self.books = self.read_books(st)
         self.recall_book = self.prepare_recall(self.link.state())
         self.guarded(lambda: self.track_ensure("start"))   # its human pauses watch for threats (pause)

@@ -2057,6 +2057,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
     so the dashboard shows the model for a store whose legs name no character.
   - Draws stay at `mining_opt.DRAWS` (2000): the dashboard plan took 0.19 s on the live store. Lumber's
     `PLAN_DRAWS` cut was not needed.
+- *No tool at the start isn't a stop at home* (2026-10-23, shift DanMiningSeer): `run()` checked for a pickaxe
+  (`hatchet()`) before the first trip's `resupply_home`, so with none carried it aborted ("no pickaxe worn, in the
+  backpack or in a bag in it") before `hatchets_ready` could take one from the house chest (live: 4 runs that day,
+  the last mining-20261023-172637-05d6). The start check now runs only away from home; at home the trip's
+  `hatchets_ready` tops up (pickaxes from the chest, lumber's hatchets from the shelf and chest) and posts
+  `low_supplies` and stops when there are none. Same fix for the lumber runner (shared `run()`).
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 
