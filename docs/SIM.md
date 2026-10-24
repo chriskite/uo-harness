@@ -36,10 +36,13 @@ python harness/sim/run.py --runs 24 --minutes 30 --compare -- [loop_hunt argumen
 python harness/sim/run.py --runs 24 --set tamer.FALLBACK_S=0          # an experiment on a constant
 python harness/sim/run.py --log run.log --seed 7                       # one run, with the runner's log
 python harness/sim/run.py --seed 5 --at-hunt --trace [DIR]             # ... and its trace for the viz Sim page ("Traces")
+python harness/sim/run.py --runs 24 --armor 86                          # Logan in another suit's AR ("Player armor")
+python harness/sim/run.py --runs 24 --aspect-tier 10                    # ... or his Command tier: its AR and the pets' resistance
 # or from the viz: Sim page, `run…` (run.py or a fight script with its options; docs/VISUALIZER.md §2.20)
 python harness/sim/cast_scan.py [--since 20261010] && python harness/sim/cast_scan.py --summary   # cast/flight times
 python harness/test_sim.py                                             # the tests (~50 s)
 python harness/sim/calibrate.py [--scenario tidal_tomb] --logs <logs dir> [--scan 20261010] [TAG...]   # refresh the observations
+python harness/sim/armor_scan.py [--since 20261012] [--out rows.json]   # monster melee on Logan against his AR, by era
 python harness/sim/kb_scan.py --location "Tidal Tomb" --out harness/data/sim/tidal_tomb_kb.json \
     --observed harness/data/sim/tidal_tomb_observed.json --mechanic 4641 ...   # a dungeon's wiki stats from the store
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal Tomb's level 1 ("Tidal Tomb" below)
@@ -117,6 +120,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/kb_scan.py` | A dungeon's wiki stats from the memory store's wiki rows (Creatures List rows at a location, the tameables' follower abilities, chosen patch notes): `tidal_tomb_kb.json`. |
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
+| `sim/armor.py`, `sim/armor_scan.py` | The player's armor ("Player armor"): the Outlands rule and a suit's AR; the scan of Logan's captures that tests the rule and fitted `player_melee_k`. |
 | `sim/shove_scan.py` | Shoves and stamina in the live captures (the walking rules of "Shoving and stamina"). |
 | `sim/cast_scan.py` | Cast and flight times of the monsters' and pets' ranged attacks in the live captures (0x6E -> 0xC0 -> '-N'), per type ("Cast and flight times"). |
 | `sim/trace.py` | A run's trace (`run.py --trace`, `fight*.py --trace DIR`): every mobile's record each tick and the combat events, read by the viz Sim page ("Traces"). |
@@ -958,7 +962,8 @@ What was off, and the changes:
 - **Melee on Logan** (`defaults.melee_to_player_x` 1.2): a melee hit on him was the gravebug's x 1.6 (from four types
   and 30 hits, spells among them); by type over the 41 visits his medians were 0.88-1.41x the gravebug's (the bat
   1.30, shadowguard 1.19, shade wolf 1.41, tormented soul 0.97, countess 1.13, bound soul 0.88; 1.18 weighted).
-  Spells keep 1.6 (the banshee's 1.74).
+  Spells keep 1.6 (the banshee's 1.74). Superseded 2026-10-24 by his armor ("Player armor"): his melee is the wiki
+  melee x 1.27 less his AR; the 1.2 stays only on the vampires' feed ticks (`feed_to_player_x`).
 - **The level's box** (`area` north to y 610, `World._on_level`): it ended at y 640, so the time in the north-east room
   and the elder vampires' hall (10 % of live Logan's time on the level) fell out of the simulated hours while the
   damage there and on the walk in still counted. Now the hours, the damage on us and the pets and the monsters met
@@ -1254,9 +1259,10 @@ flowchart LR
 
 **Open on Tidal Tomb:**
 
-- **Damage to Logan on level 1 is a quarter of live.** Live, his 11 hits of 22-32 came from monsters on him, not
-  on the pets: flying mantas 3 times, a ruby smallshell's Pierce Claw twice, and a singing noughtilus. The
-  Mausoleum's threat rules (inherited) send fewer here.
+- **Damage to Logan on level 1 is a third of live** (520/h with his armor since 2026-10-24, "Player armor"; a
+  quarter before). Live, his 11 hits of 22-32 came from monsters on him, not on the pets: flying mantas 3 times, a
+  ruby smallshell's Pierce Claw twice, and a singing noughtilus. The Mausoleum's threat rules (inherited) send
+  fewer here.
 - **Not modelled**, all listed in the scenario's `specials.note`:
   - armor pierce;
   - the scavenger's large swing;
@@ -1268,7 +1274,7 @@ flowchart LR
 - **Live, the Tidal rune is in the runebook "Bad Places II".** It is not in Logan's tome, which is what the
   simulator's tome row stands for.
 
-## Player armor (findings and plan, 2026-10-24; not built yet)
+## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
 value ("full verite plate with tier 14 Command aspect, Logan has 133 AR").
@@ -1300,48 +1306,80 @@ runtime keeps it in `state.self.stats["physical_resist"]`). Logan's own values, 
 - The ruby smallshell's Pierce Claw ("temporarily reduces your armor", 20261024_102346) never shows in the status:
   no AR other than 133/148/88/0 in that capture.
 
-**What the simulator does instead.** `World._taken_x`: Logan takes `melee_to_player_x` 1.2 of a gravebug-referenced
-melee number and `damage_to_player_x` 1.6 of a spell. Each is a constant.
-- The 1.2 comes from the 41 parity visits (2026-10-15 21:10 to 10-20), a blend of AR 86 and 130.
-- Tidal Tomb inherits it although its capture is all 133.
-- Every monster ranged attack lands as `"spell"` (`_impact`), so archers ignore armor.
-- The measured `damage_player` numbers of specials (charge, burst, wail, ooze) hold whatever AR the capture had.
-- Size of the error: the mean fraction taken is 1 − AR/200, so 0.57 at 86 and 0.335 at 133. The same raw hit is
-  41 % smaller now than in the bone era.
+**Before this change.** `World._taken_x` gave Logan a constant 1.2 of the gravebug-referenced melee number
+(`melee_to_player_x`). That 1.2 came from the 41 parity visits, a blend of AR 86 and 130, and Tidal Tomb inherited it
+though its capture is all 133.
 
-**Plan.**
-1. **Validate before adopting (gate).** In `calibrate.py`, give every '-N' on us the AR at that instant (the runtime's
-   `physical_resist`) and the song state, and write a per-capture AR timeline (`player_armor`) into the observed
-   JSON. Per monster type, test hits at AR 86 against hits at 130/133:
-   - Two predictions: Logan / (wiki `melee_damage` × (1 − discord)) against 1 − U(AR/300, AR/150), and the
-     between-era ratio of medians (0.59). Example: tormented soul, wiki 40-50 raw, live 12-19 on Logan (n=8).
-   - Pass: the medians and the p10-p90 width match. Fail: fit an empirical curve on the same table instead.
-2. **Player armor in the scenario.** Add `player.armor`: the literal `ar` (ground truth from 0x11), the suit it comes
-   from (`base`, `quality`, `material`, `aspect`, `tier`) and a note.
-   - A small function derives the AR from the suit and is tested on 88/130/133.
-   - `run.py --armor N` and `--aspect-tier T` override it for what-ifs.
-   - The tier is not passive: `ctl act aspect` reads it, or derive it from AR plus a known suit.
-3. **Apply it per hit.** On the player, physical kinds take × (1 − U(min(1, AR/300), min(1, AR/150))): melee, physical
-   ranged (`ai: ranged` shooters [INFERENCE: physical]), charge, and reds' melee.
-   - Unchanged: spells (magic resist), poison, bleed, disease, drain, oxygen, wail.
-   - The damage reference, picked by step 1:
-     - (a) raw: the wiki melee for Logan, which removes the gravebug coupling;
-     - (b) normalized: the gravebug number × k × (1 − r), with k refit on AR-tagged hits.
-   - Physical specials' `damage_player` become raw = observed / (1 − AR/200) at their capture's AR, stored with
-     `measured_ar`.
-   - `melee_to_player_x` goes.
-4. **Tier also moves the pets.** Command armor gives followers 5 % + 1.5 % per tier damage resistance (#13891): 24.5 %
-   at T13, 26 % at T14. The gravebug reference was measured across tiers. With (a), a pet takes raw × (1 − that) ×
-   its own factor, so one `tier` drives both. With (b), leave it as is and note it.
-5. **AR changes during a run.**
-   - The player Mob holds `ar`. A resurrection drops the aspect (88 until reactivated, as live).
-   - Optional: the +15 buff, broken armor −50 %, Pierce Claw once its size is measured from hit numbers.
-6. **Tests and parity.**
-   - `test_sim`: AR 0 leaves a hit unchanged; AR 133 keeps it within raw × [0.113, 0.557]; spells are untouched;
-     the derivation gives 88/130/133.
-   - Re-run parity by AR era.
-   - Tidal Tomb level 1 already gets a quarter of live damage (threat rules, above). Armor alone lowers it further,
-     so that fix ships with it.
+**Validation** (`sim/armor_scan.py`, every Logan capture since 2026-10-12, both regions).
+
+What it keeps:
+- each '-N' on him with exactly one war-mode monster within a tile, with his AR at that instant;
+- bleed, poison and disease ticks are dropped;
+- every number is corrected for the Song of Discordance and a Discordance on the attacker.
+
+On the types whose numbers on him are plain melee (no area or spell hits; 164 hits), measured against the wiki melee:
+
+| AR | n | live p10 / median / p90 | modelled (k 1.27) |
+|---|---|---|---|
+| 86 | 34 | 0.47 / 0.69 / 0.92 | 0.55 / 0.71 / 0.91 |
+| 130-148 | 122 | 0.24 / 0.45 / 0.62 | 0.20 / 0.42 / 0.67 |
+
+- The rule holds. From AR 86 to 130-148 the live median fell to 0.67x (bootstrap 95 % 0.56-0.75). The rule says
+  0.59, and the spread matches the uniform reduction.
+- Live is 1.27x the wiki melee x (1 − AR/200) (95 % 1.15-1.37). That is `player_melee_k` [INFERENCE: the creatures'
+  tactics/strength bonus].
+- These types' numbers on Logan stayed flat across AR, so they keep their measured numbers with no armor:
+  - the corpsebride's (its wail): 26 at AR 86, 25 at 130-148;
+  - the vampire countess's (spells, drain): 30 at both;
+  - the calamity's: 28 at both, n=3/6, so ranged attacks stay unarmored too.
+- Two types mix a special with melee and have too few hits to split: the apparition's (56 vs 45) and the
+  nightstalker's (50 vs 39).
+
+**The model.**
+- **Logan's AR.** `player.armor` in `mausoleum.json`, inherited by Tidal Tomb:
+  - the suit (`platemail`, `exceptional`, `verite`, `command`, tier 14) gives AR 133 (`sim/armor.suit_ar`);
+  - an explicit `ar` wins over the suit (`run.py --armor N`);
+  - `run.py --aspect-tier T` changes the tier, which moves both the AR and the pets' follower resistance.
+  - `World.player.ar` holds the value; run summaries carry `player_ar`, and the aggregate adds `player_ar` and
+    `player_damage_per_h`.
+- **A monster's melee on Logan** (`World._melee_on`): its `melee_player` (the wiki melee x `player_melee_k`, uniform)
+  x (1 − U(AR/300, AR/150)), capped at all of it.
+  - Transfixed copies have their own `melee_player` [44, 64]: Logan's 32 hits from copies, corrected and divided
+    by (1 − AR/200).
+  - Pets keep the gravebug-referenced `melee`.
+- **Unchanged:**
+  - spells (`damage_to_player_x` 1.6);
+  - feed ticks (`feed_to_player_x` 1.2, the old multiplier);
+  - the specials' measured `damage_player`;
+  - bleed, poison, disease, oxygen;
+  - reds' hits, which are numbers measured live at AR 130/133.
+- **Pets and the tier.** Every hit on a pet takes `pet_taken_x` = (1 − follower resistance at the run's tier) /
+  (1 − at `pets_tier` 14), which is 1.0 at the scenario's own tier. The tier's effect on the pets is under the noise
+  in the data: the GraveRobber's corrected hits over the wiki mid held 0.40-0.58 by day, 10-12 to 10-24.
+- **Run-time changes.** None are modelled; the World has no resurrection, so a run keeps one AR. Live:
+  - 88 after a death until the aspect is activated again;
+  - the +15 buff;
+  - the ruby smallshell's pierce (its size is unmeasured; the status never showed it).
+- **Tests** (`test_sim.test_armor`): the 88/130/133/148 suits; hit bounds at AR 0 and 133; the AR 133 / AR 86
+  ratio of mean hits; pets untouched by Logan's AR; the tier's AR and pet share; `--armor` precedence.
+
+**Effect on the batches** (2026-10-24):
+
+| Batch | Damage on Logan / h | Melee sources | Deaths / h |
+|---|---|---|---|
+| Mausoleum, 48 runs, seeds 17-64, AR 133 | 2,302 | shade wolf 98, copies 176 | 0.26 |
+| same, `--armor 86` | 2,322 | shade wolf 143, copies 222 | 0.75 |
+| same, old model | 2,374 | shade wolf 186, copies 153 | 0.37 |
+
+- Most of his damage at the Mausoleum is spells and specials.
+- **Parity** (144 runs, `--others --eerie --prior`; the live visits since 2026-10-17 23:08 are AR 130/133):
+  - damage on us 1,763/h against the old model's 1,795 (live 2,265, 95 % 2,002-2,554);
+  - deaths to monsters 0.2 against 0.3 (live 0.4);
+  - the rest within the noise of the old batch.
+  - The remaining shortfall is elsewhere: the reanimated daemon's share is 0.05 simulated against 0.13 live.
+- **Tidal Tomb level 1** (16 runs, seeds 3-18): damage on us 520/h against 442 for the old model (live 1,515 in 8.1
+  min). The Tidal creatures' wiki melee x 1.27 beats the old gravebug numbers x 1.2, so armor did not widen the gap
+  the plan feared. Its cause, too few monsters on Logan (above), remains open.
 
 **Open:** `hurt()` floors a hit at 1. Above AR 150 a hit can be fully absorbed, and whether the live server then shows
 0, 1 or nothing is unseen.

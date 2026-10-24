@@ -2701,12 +2701,13 @@ def test_audit_mechanics():
         woke[d] = when
     check("aggro 10: seen at 11 tiles, no wake in 6 s; at 9, war 1.5-3 s after (+ the 0.5 s think; live n=211)",
           woke.get(11) is None and isinstance(woke.get(9), float) and 1.4 <= woke[9] <= 4.1, str(woke))
-    # the victims: the numbers are the gravebug's; Logan x1.6, the phoenix x1.7 on melee
+    # the victims: the spell, feed and pet-melee numbers are the gravebug's; Logan x1.6 on spells, x1.2 on a feed tick,
+    # the phoenix x1.7 on melee (Logan's melee: test_armor)
     w = world_with([])
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     af = next(p for p in w.pets() if p.name == "AlaFlambe")
-    check("a monster's hit: the gravebug x1, Logan x1.2 on melee and x1.6 on spells, the phoenix x1.7 on melee only",
-          (w._taken_x(gb, "melee"), w._taken_x(w.player, "melee"), w._taken_x(w.player, "spell"),
+    check("a monster's hit: the gravebug x1, Logan x1.2 on a feed tick and x1.6 on spells, the phoenix x1.7 on melee only",
+          (w._taken_x(gb, "melee"), w._taken_x(w.player, "feed"), w._taken_x(w.player, "spell"),
            w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.2, 1.6, 1.7, 1.0))
     # apparition: a blink every ~8 s though its target stands beside it, onto the target's tile, the area hit
     # only at the landing; the song cuts Logan's share, not the pets'
@@ -3370,6 +3371,51 @@ def _trace_to_tmp(w, label="test"):
     return trace.Tracer(w, p, label=label, seed=0), p
 
 
+def test_armor():
+    print("== Logan's armor (docs/SIM.md 'Player armor'): a melee hit loses AR/300-AR/150 of the wiki melee x k; the suit's AR "
+          "and the Command tier ==")
+    from sim import armor
+    from sim.scenario import player_armor
+    s = {"base": "platemail", "quality": "exceptional", "material": "verite", "aspect": "command"}
+    check("Logan's live suits: no aspect 88, Command tier 13 130, tier 14 133, with the +15 buff 148 (0x11 status)",
+          [armor.suit_ar({**s, "aspect_tier": t}) for t in (None, 13, 14)] == [88, 130, 133]
+          and armor.suit_ar({**s, "aspect_tier": 14, "extra": 15}) == 148)
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 1, FLOOR[1], 0]}])
+    spec, k = w.sc["creatures"]["shade wolf"], w.sc["defaults"]["player_melee_k"]
+    lo, hi = 40 * k, 50 * k                          # the wiki's shade wolf: 40-50
+    check("the scenario's suit: AR 133", w.player.ar == 133, str(w.player.ar))
+    hits = {}
+    for ar in (0, 86, 133):
+        w.player.ar = ar
+        hits[ar] = [w._melee_on(w.player, spec) for _ in range(4000)]
+    check("no armor: the wiki melee x k as it is", all(lo <= h <= hi for h in hits[0]),
+          f"{min(hits[0]):.1f}-{max(hits[0]):.1f}")
+    check("AR 133: between x(1 - 133/150) of the least and x(1 - 133/300) of the most",
+          all(lo * (1 - 133 / 150) - 1e-9 <= h <= hi * (1 - 133 / 300) + 1e-9 for h in hits[133]),
+          f"{min(hits[133]):.1f}-{max(hits[133]):.1f}")
+    ratio = (sum(hits[133]) / len(hits[133])) / (sum(hits[86]) / len(hits[86]))
+    check("the mean hit at AR 133 over AR 86 is the rule's (1 - 133/200) / (1 - 86/200) = 0.59",
+          abs(ratio - 0.588) < 0.03, f"{ratio:.3f}")
+    w.player.ar = 133
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    check("a pet's melee doesn't meet Logan's armor: the gravebug-referenced numbers",
+          all(spec["melee"][0] <= w._melee_on(gb, spec) <= spec["melee"][1] for _ in range(200)))
+    sc = load()
+    sc["player"]["armor"]["suit"]["aspect_tier"] = 10
+    a10 = player_armor(sc)
+    sc["player"]["armor"]["ar"] = 60
+    check("Command tier 10 instead of 14: AR 50 x 2.45 = 123; the pets take (1 - 0.20) / (1 - 0.26) of their numbers; "
+          "an explicit `ar` (run.py --armor) wins over the suit's",
+          a10["ar"] == 123 and abs(a10["pet_taken_x"] - 0.8 / 0.74) < 1e-9 and player_armor(sc)["ar"] == 60, str(a10))
+    sc["spawns"] = []
+    sc["player"]["start"] = [FLOOR[0], FLOOR[1], 0]
+    w10 = World(sc, seed=1)
+    gb = next(p for p in w10.pets() if p.name == "GraveRobber")
+    before = gb.hits
+    w10.hurt(gb, 100, None, "melee")
+    check("at tier 10 a 100 on the gravebug takes 108", before - gb.hits == 108, str(before - gb.hits))
+
+
 def test_cast_then_flight():
     print("== a monster's spell: its cast animation, cast_s standing, the 0xC0 effect, the hit flight_s later ==")
     w, b, pl, casts = _banshee_on_us()
@@ -3623,7 +3669,7 @@ def main():
               test_rest_hurt_pet, test_walk_in, test_tele_dash, test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
-              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures,
+              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_ooze_and_brood,
               test_tidal_recall_rule, test_tidal_hunt):

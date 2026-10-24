@@ -93,7 +93,7 @@ def seed_prior(db: str, prior: str, serial: int) -> int:
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
              at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
              eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
-             trace: str | None = None, area: tuple | None = None) -> dict:
+             trace: str | None = None, area: tuple | None = None, armor: dict | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
@@ -102,7 +102,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     level (the scenario's `others`, off by default so earlier batches stay comparable); `eerie`: the Field of
     Souls' eerie corpses (the scenario's `eerie`, off by default too); `reds`: red players (the scenario's `reds`, off
     by default). `epoch`: the game time it starts at. `trace`: record the run's trace (sim/trace.py) to this path.
-    `area`: the hunting level's box (x0, y0, x1, y1) for the per-hour numbers instead of the scenario's."""
+    `area`: the hunting level's box (x0, y0, x1, y1) for the per-hour numbers instead of the scenario's. `armor`:
+    {aspect_tier, ar} over the scenario's `player.armor` (--aspect-tier: the suit's Command tier, so its AR and the
+    pets' follower resistance; --armor: the AR itself)."""
     import ast
     import importlib
     import loop_hunt
@@ -131,6 +133,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             if flag not in sc:
                 raise ValueError(f"--{flag}: scenario {scenario} has no `{flag}` block")
             sc[flag]["enabled"] = True
+    for k, v in (armor or {}).items():
+        if v is not None:
+            (sc["player"]["armor"]["suit"] if k == "aspect_tier" else sc["player"]["armor"])[k] = v
     if area:
         sc["area"] = list(area)
     if "--vet-range" in extra:
@@ -196,7 +201,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "gold_banked": m["gold_banked"], "gold_lost": m["gold_looted"] - m["gold_banked"] if m["deaths"] else 0,
             "hunt_s": round(m["hunt_s"], 1), "place_s": {k: round(v, 1) for k, v in m.get("place_s", {}).items()},
             "kills_per_min": round(m["kills"] / max(clock.elapsed / 60, 1e-9), 2),
-            "player_damage_taken": round(m["player_damage_taken"]), "player_hits_end": int(pl.hits),
+            "player_damage_taken": round(m["player_damage_taken"]), "player_hits_end": int(pl.hits), "player_ar": pl.ar,
             "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
             "pets_end": {p.name: p.pct() for p in world.pets()},
             "pet_damage_taken": m["pet_damage_taken"], "player_damage_by": m.get("player_damage_by", {}),
@@ -246,7 +251,8 @@ def _pool_run(job):
     db = os.path.join(tempfile.mkdtemp(prefix="sim_career_"), "harness.db")
     out_all = []
     epoch = EPOCH
-    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace, area) in enumerate(runs):
+    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace, area,
+            armor) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -256,7 +262,7 @@ def _pool_run(job):
         try:
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
-                         prior=prior if career is None else None, reds=reds, trace=trace, area=area)
+                         prior=prior if career is None else None, reds=reds, trace=trace, area=area, armor=armor)
         finally:
             sys.stdout = old
             out.close()
@@ -307,6 +313,12 @@ def main(argv=None):
     ap.add_argument("--area", type=int, nargs=4, default=None, metavar=("X0", "Y0", "X1", "Y1"),
                     help="the hunting level's box the per-hour numbers count on (default the scenario's `area`; Tidal "
                          "Tomb's level 2: 6815 1907 6969 2100)")
+    ap.add_argument("--armor", type=int, default=None, metavar="AR",
+                    help="the player's armor rating instead of the scenario's suit (docs/SIM.md 'Player armor'; Logan's "
+                         "eras: 86, 118, 130, 133)")
+    ap.add_argument("--aspect-tier", type=int, default=None, metavar="T",
+                    help="the suit's Command aspect tier instead of the scenario's: its AR (20 %% + 5 %% a tier) and the "
+                         "pets' follower resistance (5 %% + 1.5 %% a tier)")
     a = ap.parse_args(argv)
     if a.runs > 1:
         cpu_budget.limit()
@@ -317,7 +329,8 @@ def main(argv=None):
     st = simtrace.stamp()
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
              tuple(a.set), a.others, a.eerie, a.prior, a.reds,
-             simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None, tuple(a.area) if a.area else None)
+             simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None, tuple(a.area) if a.area else None,
+             {"ar": a.armor, "aspect_tier": a.aspect_tier})
             for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
@@ -355,7 +368,8 @@ def main(argv=None):
 def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
     """Across runs: game hours, kills per game hour, deaths per game hour, the share of runs with a death, a pet
     death, a pet left behind, a crash or a rule violation; gold looted and gold banked (what reached home) per game
-    hour, and banked per hour with `downtime_s` of game time added for each death (banked_per_h_net)."""
+    hour, and banked per hour with `downtime_s` of game time added for each death (banked_per_h_net); the player's ARs
+    and his damage taken on the level per game hour."""
     ok = [r for r in results if "sim_s" in r]
     hours = sum(r["sim_s"] for r in ok) / 3600 or 1e-9
     deaths = sum(r["deaths"] for r in ok)
@@ -371,6 +385,8 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
                                      / (sum(r["hunt_s"] for r in ok) or 1e-9), 3)
                             for k in sorted({k for r in ok for k in (r.get("place_s") or {})})},
             "deaths_per_h": round(deaths / hours, 2),
+            "player_ar": sorted({r.get("player_ar") for r in ok}),
+            "player_damage_per_h": round(sum(r["player_damage_taken"] for r in ok) / hours),
             "runs_with_death": sum(1 for r in ok if r["deaths"]),
             "runs_with_pet_death": sum(1 for r in ok if r["pet_deaths"]),
             "runs_with_pet_left_behind": left,

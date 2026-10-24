@@ -24,7 +24,18 @@
   "hits": 100,
   "stam": 25,
   "mana": 100,
-  "note": "100 str / 25 dex / 100 int, hits 100 (capture status); start: where the level's teleporter lands (calibration levels.teleports)"
+  "note": "100 str / 25 dex / 100 int, hits 100 (capture status); start: where the level's teleporter lands (calibration levels.teleports)",
+  "armor": {
+   "suit": {
+    "base": "platemail",
+    "quality": "exceptional",
+    "material": "verite",
+    "aspect": "command",
+    "aspect_tier": 14
+   },
+   "pets_tier": 14,
+   "note": "Logan's suit since 2026-10-21 08:51: exceptional verite plate, Command aspect tier 14 = AR 133 (sim/armor.suit_ar; the 0x11 status said 133, the user too). Earlier eras (sim/armor_scan.py): AR 86 (exceptional verehide bone and a kasa) to 2026-10-17 15:54, 118 (exceptional agapite plate and a kasa) that afternoon, 130 (verite plate, tier 13) from 21:05 to 10-21; 88 after a death until the aspect is activated again; 148 with the +15 Armor Rating Increase buff. run.py --armor N / --aspect-tier T change it. pets_tier: the Command tier the pets' damage numbers stand for (their follower resistance, 5 % + 1.5 % a tier, knowledge #13891) [INFERENCE: the GraveRobber's song-corrected hits over the wiki mid held 0.40-0.58 by day from 10-12 to 10-24, so the tier's change is under the noise]"
+  }
  },
  "home": [
   4134,
@@ -314,9 +325,11 @@
   "ranged_effect": {"graphic": 14036, "speed": 10, "duration": 0, "hue": 1165, "render": 0, "explode": 0},
   "ranged_cast_note": "a ranged type without its own cast_s in ranged_observed (scenario.creature_spec): cast_scan 2026-10-23 '*monsters*' row, every monster moving 0xC0 in the Mausoleum on 31 of 103 captures since 2026-10-10: 0x6E to 0xC0 n=1059, 0xC0 to '-N' n=866 (q10, q90, median), action and effect fields each their mode. 618 of the 1060 are the calamity's quick shots (cast median 0.05 s), so the pool sits far below the spellcasters' ~1.2 s; only the fleshweaver and the muddled vampire hunter use it",
   "damage_to_player_x": 1.6,
-  "melee_to_player_x": 1.2,
-  "melee_to_player_note": "a melee hit's number on Logan / the gravebug's, medians of the hits attributed to one animating monster on all 41 live visits (2026-10-20; the -21 disease ticks left out): the vampire bat 1.30 (14 Logan / 79 GR), shadowguard 1.19 (12/52), shade wolf 1.41 (10/314), tormented soul 0.97 (10/135), vampire countess 1.13 (7/74), bound soul 0.88 (5/122): 1.18 weighted by Logan's hits (the apparition's 2.2 and the corpsebride's 1.5 are their area hits, with their own numbers). damage_to_player_x 1.6 stays for spells (the banshee's 1.74). With 1.6 on melee a simulated tormented soul hit him 32-40 (live 12-19, n=8)",
-  "victim_note": "a monster's melee and spell numbers are the gravebug's (they come from the attributed hits, mostly on it); Logan takes damage_to_player_x of them (World._taken_x): medians Logan/gravebug, same monster type and attack, today's captures, song-corrected: banshee spells 1.74 (n=11 Logan / 17 GR), corpsebride 1.70 (9/45), vampire countess 1.95 (7/28), shade wolf 1.40 (3/130); the specials 1.25-1.65 (wail 1.4, charges 1.6, burst 1.25) have their own numbers. 1.0 before. Every observed number is divided by (1 - the Song of Discordance up then: 15.8-18.4 %), as the sim cuts it again",
+  "player_melee_k": 1.27,
+  "player_melee_note": "a monster's melee hit on Logan is the wiki melee x player_melee_k, uniform, before his armor (World._melee_on, sim/armor.py; docs/SIM.md 'Player armor'). Fitted by sim/armor_scan.py (2026-10-24) over Logan's captures 2026-10-12..10-24 (AR 86, 118, 130, 133, 145, 148 from 0x11): '-N' on him with exactly one war-mode monster within a tile, bleed, poison and disease ticks out, song- and discord-corrected; the wiki-'melee' types without area or spell numbers on him (abomination, newly reanimated, raw flesh, shade wolf, tormented soul, vampire bat, spare parts, corpse eater, vampiric consort; n=164): live / (wiki mid x (1 - AR/200)) median 1.27 (bootstrap 95 % 1.15-1.37) [INFERENCE: the creatures' tactics/strength bonus]. Between the eras the live median over wiki mid fell 0.67x from AR 86 to 130-148 (95 % 0.56-0.75; the rule 0.59); p10/median/p90 0.47/0.69/0.92 live vs 0.55/0.71/0.91 modelled at AR 86, 0.24/0.45/0.62 vs 0.20/0.42/0.67 at 130-148. Before: melee_to_player_x 1.2 of the gravebug-referenced number, from the 41 parity visits (a blend of AR 86 and 130)",
+  "feed_to_player_x": 1.2,
+  "feed_to_player_note": "a vampire's feed tick on Logan / the gravebug's: the old melee_to_player_x (1.2, medians Logan/gravebug by type over the 41 parity visits) kept for the feed ticks, which the armor doesn't touch [INFERENCE: a life drain; the vampire countess's numbers on Logan had median 30 at AR 86 and at 130-148, n=5 each]",
+  "victim_note": "a monster's spell and feed numbers, and its melee on the pets, are the gravebug's (they come from the attributed hits, mostly on it); Logan takes damage_to_player_x of a spell (World._taken_x): medians Logan/gravebug, same monster type and attack, today's captures, song-corrected: banshee spells 1.74 (n=11 Logan / 17 GR), corpsebride 1.70 (9/45), vampire countess 1.95 (7/28), shade wolf 1.40 (3/130); the specials 1.25-1.65 (wail 1.4, charges 1.6, burst 1.25) have their own numbers, kept as measured, without armor: sim/armor_scan.py found the corpsebride's (its wail) flat across AR (median 26 at AR 86, 25 at 130-148, n=20/14); the apparition's (burst and melee mixed) 56 vs 45 (n=27/18) and the nightstalker's (charge and melee) 50 vs 39 (n=6/11) too few to split. 1.0 before. Every observed number is divided by (1 - the Song of Discordance up then: 15.8-18.4 %), as the sim cuts it again. Logan's melee: player_melee_k",
   "respawn_s": [
    120,
    300
@@ -400,6 +413,8 @@
     "pet_damage": [40, 55],
     "hits": 2000,
     "melee": [15, 21, 18],
+    "melee_player": [44, 64],
+    "melee_player_note": "a copy's hit on Logan before his armor (World._melee_on): sim/armor_scan.py's corrected '-N' on him from a copy (n=32: 27 GraveRobber, 5 AlaFlambe copies; AR 86 and 130-148) / (1 - AR/200) had median 54, quartiles 47-64",
     "swing_s": 3.38,
     "copy_step_s": 0.4,
     "player_share": 0.018,

@@ -6,6 +6,8 @@ Per creature type, in this order of evidence:
 - hits, difficulty, gold value, AI, speed category, spell damage: the wiki (knowledge ids in _kb);
 - melee damage per hit: the capture's attributed hits (`swing.damage_per_swing`, else
   `damage_to_pets`) when n >= MIN_N, as (p10, p90, median); else the wiki melee x `kb_melee_to_pet`;
+  that is what a pet takes. On the player: `melee_player`, the wiki melee x `player_melee_k`, before his
+  armor (World._melee_on; docs/SIM.md "Player armor");
 - swing period: the capture's median when n >= MIN_N and >= MIN_SWING_S (shorter periods there are
   poison/bleed ticks, the calibration notes), else `defaults.swing_s`;
 - chase step: the wiki speed category -> `defaults.speed_step_s`;
@@ -20,13 +22,16 @@ Per creature type, in this order of evidence:
   over all of the above; `aggro_observed.<type>.range`: the type's measured aggro range (else
   `defaults.aggro_range`).
 
-`fit_bard(observed, kb)` re-derives the effective barding skill from the capture's outcomes.
+`fit_bard(observed, kb)` re-derives the effective barding skill from the capture's outcomes;
+`player_armor(sc)` resolves the player's AR and the pets' damage share from `player.armor`.
 """
 from __future__ import annotations
 
 import json
 import math
 import os
+
+from sim import armor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.path.dirname(HERE), "data", "sim")
@@ -78,6 +83,8 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     return {"key": key, "name": kb.get("name") or f"a {key}", "body": graphics[0] if graphics and graphics[0] else 400,
             "notoriety": noto, "hits": kb.get("hits") or 1000, "difficulty": kb.get("difficulty"),
             "melee": melee if ai != "mage" else None, "swing_s": swing, "hit_chance": df["hit_chance"],
+            "melee_player": [kb["melee_damage"][0] * df["player_melee_k"], kb["melee_damage"][1] * df["player_melee_k"]]
+            if ai != "mage" and kb.get("melee_damage") else None,
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
             "aggro_range": (sc.get("aggro_observed", {}).get(key) or {}).get("range", df["aggro_range"]),
             "ranged": ranged, "gold": [round(gold * 0.9), round(gold * 1.15)],
@@ -122,6 +129,19 @@ def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
         sp.setdefault("respawn_s", sc["defaults"]["respawn_s"])
     sc["bard"]["chance"] = None          # per target: bard_chance()
     return sc
+
+
+def player_armor(sc: dict) -> dict:
+    """The player's armor from `player.armor` (docs/SIM.md "Player armor"): {ar, aspect, tier, pet_taken_x}.
+    `ar`: the block's own `ar` when set (run.py --armor), else the suit's (armor.suit_ar). `pet_taken_x`: the share
+    of damage the pets take against the numbers they were measured with, at the Command tier `pets_tier`
+    (armor.follower_resist); 1.0 unless the suit's aspect or tier differs from it (run.py --aspect-tier)."""
+    a = sc["player"]["armor"]
+    suit = a["suit"]
+    aspect, tier = suit.get("aspect"), suit.get("aspect_tier")
+    ar = a["ar"] if a.get("ar") is not None else armor.suit_ar(suit)
+    x = (1 - armor.follower_resist(aspect, tier)) / (1 - armor.follower_resist("command", a["pets_tier"]))
+    return {"ar": ar, "aspect": aspect, "tier": tier, "pet_taken_x": x}
 
 
 def bard_chance(sc: dict, difficulty: float | None) -> float:

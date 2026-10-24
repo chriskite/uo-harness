@@ -14,7 +14,11 @@
      "GraveRobber": "0x000DDEFE",
      "AlaFlambe": "0x0026EF56"
     },
-    "other_players_seen": 6
+    "other_players_seen": 6,
+    "red_players_seen": 0,
+    "player_armor_s": {
+     "86": 873.7
+    }
    }
   ],
   "scan": [
@@ -95,11 +99,12 @@
  },
  "rules": {
   "region": "facet 0, x 5150-5650, y 600-760; only packets while our player stood inside count.",
-  "monster": "a mobile seen at notoriety [3, 4, 5, 6] that is not one of our pets (ours: notoriety 2 and tame/bonded).",
+  "monster": "a mobile seen at notoriety [3, 4, 5, 6] that is not one of our pets (ours: notoriety 2 and tame/bonded) nor a red player (notoriety 6 with flag 0x20 or a human body: source.captures[].red_players_seen).",
   "type_key": "lowercase name without a leading article; mobiles named like our pets but not ours are 'transfixed copy of <pet>' (they appear right after a vampire countess's '*attempts to transfix*' and '*transfixed*' over them: [INFERENCE] a countess ability).",
   "war_mode": "flag 0x40 of the latest 0x20 MobileUpdate (Outlands 0x77 carries no flags).",
   "movement": "intervals between consecutive 0x77 updates that changed the tile, gaps > 2.0s dropped (pauses); war/peace by the flag at the earlier update; tiles/s = tiles moved / time over those pairs.",
   "damage_to_pets/us": "a '-N' (speech type 0) over a pet / us counts for a creature type when exactly one war-mode monster stood within 1 tile of the victim; '_victim_not_poisoned' drops numbers within 10.0s after '*looks violently ill*' over the victim (poison ticks); 'damage_ranged_sole' = no war-mode monster within 1 and exactly one within 12.",
+  "player_armor": "source.captures[].player_armor_s: seconds in the region at each of our status ARs (0x11 physical_resist; 0 = a ghost); a creature's damage_to_us_by_ar: its damage_to_us numbers by our AR when they landed (sim/armor_scan.py tests the armor rule on them, docs/SIM.md 'Player armor').",
   "swing": "attributed numbers from one creature within 0.25s are one swing (summed); period = gap between its successive swings when <= 6.0s. Numbers include poison/bleed ticks the rule can't separate.",
   "kill_s": "first '-N' over the creature (any hue) to its mobile_death.",
   "hurt_rate": "sum of '-N' in hue 89 over the creature / (death or last such number - first such number), creatures with >= 2 numbers.",
@@ -279,6 +284,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -399,6 +405,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -516,6 +523,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -681,6 +689,17 @@
     "min": 8,
     "max": 32,
     "mean": 16.2
+   },
+   "damage_to_us_by_ar": {
+    "86": {
+     "n": 5,
+     "median": 10,
+     "p10": 8,
+     "p90": 32,
+     "min": 8,
+     "max": 32,
+     "mean": 16.2
+    }
    },
    "damage_ranged_sole": {
     "n": 4,
@@ -899,6 +918,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1021,6 +1041,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1138,6 +1159,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1352,6 +1374,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 4,
     "median": 8.0,
@@ -1562,6 +1585,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1655,6 +1679,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1754,6 +1779,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1847,6 +1873,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -1950,6 +1977,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2049,6 +2077,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2155,6 +2184,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2263,6 +2293,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2367,6 +2398,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2489,6 +2521,17 @@
     "min": 42,
     "max": 42,
     "mean": 42.0
+   },
+   "damage_to_us_by_ar": {
+    "86": {
+     "n": 1,
+     "median": 42,
+     "p10": 42,
+     "p90": 42,
+     "min": 42,
+     "max": 42,
+     "mean": 42.0
+    }
    },
    "damage_ranged_sole": {
     "n": 0
@@ -2673,6 +2716,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2772,6 +2816,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -2865,6 +2910,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -3013,6 +3059,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -3231,6 +3278,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -3445,6 +3493,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 3,
     "median": 18,
@@ -3684,6 +3733,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -3876,6 +3926,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -3976,6 +4027,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -4119,6 +4171,17 @@
     "min": 28,
     "max": 37,
     "mean": 32.3
+   },
+   "damage_to_us_by_ar": {
+    "86": {
+     "n": 3,
+     "median": 32,
+     "p10": 28,
+     "p90": 37,
+     "min": 28,
+     "max": 37,
+     "mean": 32.3
+    }
    },
    "damage_ranged_sole": {
     "n": 0
@@ -4290,6 +4353,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },
@@ -4492,6 +4556,17 @@
     "min": 22,
     "max": 22,
     "mean": 22.0
+   },
+   "damage_to_us_by_ar": {
+    "86": {
+     "n": 1,
+     "median": 22,
+     "p10": 22,
+     "p90": 22,
+     "min": 22,
+     "max": 22,
+     "mean": 22.0
+    }
    },
    "damage_ranged_sole": {
     "n": 0
@@ -4702,6 +4777,7 @@
    "damage_to_us": {
     "n": 0
    },
+   "damage_to_us_by_ar": {},
    "damage_ranged_sole": {
     "n": 0
    },

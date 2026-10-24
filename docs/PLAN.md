@@ -2304,10 +2304,36 @@ Built from Logan Wolf's first visit (capture 20261024_102346; docs/SIM.md "Tidal
 - **New mechanics only where the capture showed them and the wiki or patch notes named them:** oxygen (patch notes),
   the ooze aura (capture + the follower ability), the nest crab's broodlings (capture; [INFERENCE] as to the cause),
   the bottomfeeder's feed.
-  - Seen but not modelled: armor pierce, large swing, poison and pressure. There is no armor model, and the
-    evidence is 1-2 samples.
+  - Seen but not modelled: armor pierce, large swing, poison and pressure. The evidence is 1-2 samples (and armor
+    pierce's size is unmeasured; the player's armor itself came later, below).
   - No retuning toward the visit's numbers. Logan's damage taken on level 1, a quarter of live in the simulator,
     is left as a named gap (one visit, 8 minutes).
+
+## The player's armor in the simulator (user 2026-10-24; built 2026-10-24)
+
+User: the simulator ignored Logan's armor; his suits differed between captures, and the aspect tier changes the AR
+(133 in exceptional verite plate with Command tier 14). Docs: docs/SIM.md "Player armor".
+
+- **The wiki's rule, checked against the captures before adoption.** The rule: a physical hit loses U(AR/300, AR/150)
+  of the suit's total AR; the suit's AR is base x (1 + quality + material + aspect).
+  - The AR formula gives the server's 88/130/133 exactly.
+  - `sim/armor_scan.py` read Logan's hits at AR 86 against 130-148: the live drop was 0.67x (95 % 0.56-0.75), the
+    rule's 0.59.
+  - Rejected: an empirical curve. It was only the fallback if the rule failed.
+- **Logan's melee is now wiki-referenced** (the plan's option a): the wiki melee x 1.27, fitted on 164 hits.
+  - Rejected (option b): the gravebug-referenced number x a refit factor. That keeps Logan's damage tied to the
+    pets' numbers, which carry their own armor and the Command tier.
+  - Pets keep their measured numbers.
+  - The aspect tier moves them only as a what-if (`--aspect-tier`), relative to tier 14. The data show no tier
+    effect on them.
+- **Specials, spells and ranged attacks keep their measured numbers with no armor.** The corpsebride's, the
+  countess's and the calamity's numbers on Logan stayed flat across AR. The plan's guess that ranged attacks and
+  charges are physical was dropped for that evidence.
+- **No retuning.** Parity moved within noise (damage on us 1,763/h against 1,795; live 2,265). Tidal Tomb level 1
+  rose 442 → 520/h, so the threat fix the plan tied to a further drop was not needed for this change; that gap stays
+  open.
+- **Not modelled:** AR changes inside a run (the aspect lost on death, the +15 buff, pierce). The World has no
+  resurrection, and pierce's size is unmeasured.
 
 ## Risks
 

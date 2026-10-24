@@ -63,7 +63,9 @@ import soul_jar
 import tamer
 from agent_link import HELD_END_TEXT, HELD_SILENCED_TEXT, HELD_TEXT
 from sim import packets as P
+from sim import armor
 from sim.reds import Reds
+from sim.scenario import player_armor
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
 TICK_S = 0.1              # world step
@@ -202,6 +204,7 @@ class Mob:
     bleed: tuple = ((8, 10), 3.0)  # (tick damage range, seconds between ticks) of the bleed running
     expires: float | None = None  # a summoned monster (transfixed copy) vanishes then
     held_until: float = 0.0       # a transfixed pet stands still and doesn't fight until then
+    ar: float = 0.0               # the player's armor rating (scenario `player.armor`, sim/armor.py)
     hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
     blink_to: int | None = None   # an apparition's blink: back on this mobile's tile when hidden_until ends
     relocate: tuple | None = None  # a banshee's dematerialize: (min, max) tiles from here when hidden_until ends
@@ -341,6 +344,8 @@ class World:
                           hits=p["hits"], hits_max=p["hits"], noto=1, spec=p)
         self.player.stam, self.player.stam_max = p.get("stam", 25), p.get("stam", 25)
         self.player.mana, self.player.mana_max = p.get("mana", 100), p.get("mana", 100)
+        arm = player_armor(sc)
+        self.player.ar, self.pet_taken_x = arm["ar"], arm["pet_taken_x"]
         self.mobs[self.player.serial] = self.player
         for i, pet in enumerate(sc["pets"]):
             px, py = x + (1 if i == 0 else 0), y + (0 if i == 0 else 1)
@@ -851,7 +856,9 @@ class World:
         if victim.kind in ("player", "pet") and (by is None or by.kind == "monster") \
                 and (song_pets or victim.kind == "player") and kind not in UNPREVENTABLE:
             amount *= 1 - self.song("discord")      # also on bleeds and area hits (patch 2022-08-26)
-        elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
+        if victim.kind == "pet" and kind not in UNPREVENTABLE:
+            amount *= self.pet_taken_x              # the Command aspect's follower resistance at another tier
+        if victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
             amount *= 1 + self.song("provoke")
         n = max(1, int(round(amount)))
         victim.hits -= n
@@ -1395,21 +1402,29 @@ class World:
                 hit = self.rng.random() < spec.get("hit_chance", 0.8)
                 self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
                 if hit:
-                    self.hurt(tgt, self.roll(spec["melee"]) * self._taken_x(tgt, "melee"), m)
+                    self.hurt(tgt, self._melee_on(tgt, spec), m)
                     self._specials(m, tgt, spec)
             return
         if t >= m.next_step:
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
 
+    def _melee_on(self, tgt: Mob, spec: dict) -> float:
+        """One monster melee hit on `tgt`. On the player: `melee_player` (the wiki melee x `player_melee_k`, uniform)
+        less his armor, a uniform share of AR/300 to AR/150 (sim/armor.py; docs/SIM.md "Player armor"). Elsewhere the
+        type's `melee` numbers (the gravebug's), x `_taken_x`."""
+        if tgt.kind == "player":
+            return self.rng.uniform(*spec["melee_player"]) * armor.taken(tgt.ar, self.rng)
+        return self.roll(spec["melee"]) * self._taken_x(tgt, "melee")
+
     def _taken_x(self, tgt: Mob, kind: str) -> float:
-        """A monster's melee and spell numbers are the gravebug's (it takes most hits); the others take more:
-        Logan `damage_to_player_x` of a spell and `melee_to_player_x` of a melee hit, the phoenix its
-        `melee_taken_x` of a melee hit (scenario notes)."""
+        """A monster's spell, feed and (on a pet) melee numbers are the gravebug's (it takes most hits); the others
+        take more: Logan `damage_to_player_x` of a spell and `feed_to_player_x` of a feed tick, the phoenix its
+        `melee_taken_x` of a melee hit or feed tick (scenario notes). His melee: `_melee_on`."""
         if tgt.kind == "player":
             d = self.sc["defaults"]
-            return d.get("melee_to_player_x", d["damage_to_player_x"]) if kind == "melee" else d["damage_to_player_x"]
-        if tgt.kind == "pet" and kind == "melee":
+            return d["feed_to_player_x"] if kind == "feed" else d["damage_to_player_x"]
+        if tgt.kind == "pet" and kind in ("melee", "feed"):
             return tgt.spec.get("melee_taken_x", 1.0)
         return 1.0
 
@@ -1731,7 +1746,7 @@ class World:
             self._overhead(m, "*feeds*")
             m.feed = [t + sp.get("first_tick_s", 0.7), self.rng.randint(*sp["ticks"]), s, sp]
             return
-        self.hurt(tgt, self.roll(sp["tick"]) * self._taken_x(tgt, "melee"), m, "feed")
+        self.hurt(tgt, self.roll(sp["tick"]) * self._taken_x(tgt, "feed"), m, "feed")
         m.feed = [self._due(when, sp.get("tick_s", 0.5)), left - 1, s, sp] if left > 1 else None
 
     def _charge(self, m: Mob, tgt: Mob, sp: dict):
@@ -1771,6 +1786,7 @@ class World:
         spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
                 "hit_chance": sp.get("hit_chance", 0.9), "step_s": sp.get("copy_step_s", pet.spec.get("step_s", 0.21)),
                 "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
+                "melee_player": sp["melee_player"],
                 "specials": [], "random_target": True, "copy_of": pet.serial, "summoner": by.serial}
         x, y, z = pet.pos
         hp = sp["hits"]

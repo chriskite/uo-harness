@@ -172,6 +172,8 @@ class Session:
         self.players_seen = set()  # other players in the region (reds too)
         self.reds = set()          # red players in the region (red_player): no creature type
         self.packets_in_region = 0
+        self.armor = collections.Counter()   # our status AR (0x11 physical_resist) -> seconds in the region
+        self._ar = None
 
     # -- helpers on the live state -----------------------------------------
     def _monster(self, s, m):
@@ -234,6 +236,10 @@ class Session:
             self.packets_in_region += 1
             if self.t0 is None:
                 self.t0 = t
+            ar = st.self.stats.get("physical_resist")
+            if self.t1 is not None and self._ar is not None:
+                self.armor[self._ar] += t - self.t1
+            self._ar = ar
             self.t1 = t
             if self.self_name is None:
                 self.self_name = st.self.name
@@ -298,6 +304,7 @@ class Session:
                             continue
                         self.victim_hits.append({
                             "t": t, "victim": s, "amount": amount, "hue": e["hue"],
+                            "ar": st.self.stats.get("physical_resist") if s == self.self_serial else None,
                             "melee": self._war_monsters_near(rt, vx, vy, MELEE_R),
                             "ranged": self._war_monsters_near(rt, vx, vy, RANGED_R)})
                     elif m is not None and self._monster(s, m) and m.x is not None:
@@ -485,7 +492,8 @@ def creatures(sessions):
     per = collections.defaultdict(lambda: {
         "graphics": set(), "notorieties": set(), "serials": [], "first_seen": [],
         "steps": {"war": [], "peace": []}, "tiles": {"war": [0, 0.0], "peace": [0, 0.0]},
-        "dmg_pets": [], "dmg_pets_clean": [], "dmg_us": [], "dmg_ranged": [], "swing_melee": [], "swing_amounts": [],
+        "dmg_pets": [], "dmg_pets_clean": [], "dmg_us": [], "dmg_us_ar": collections.defaultdict(list), "dmg_ranged": [],
+        "swing_melee": [], "swing_amounts": [],
         "kill_s": [], "hurt_rate": [], "hurt_total_killed": [], "hurt_other_total": [],
         "gold": [], "aggro": [], "deaths": 0})
     for sess in sessions:
@@ -554,6 +562,8 @@ def creatures(sessions):
                 a = h["melee"][0]
                 k = creature_type(sess, a)
                 (per[k]["dmg_us"] if h["victim"] == sess.self_serial else per[k]["dmg_pets"]).append(h["amount"])
+                if h["victim"] == sess.self_serial and h["ar"]:
+                    per[k]["dmg_us_ar"][h["ar"]].append(h["amount"])
                 if h["victim"] != sess.self_serial and not nearest_within(ill[h["victim"]], h["t"], tamer.POISON_S, after=False):
                     per[k]["dmg_pets_clean"].append(h["amount"])
                 by_attacker[a].append((h["t"], h["amount"]))
@@ -584,6 +594,7 @@ def creatures(sessions):
             "damage_to_pets": stats(c["dmg_pets"], 1),
             "damage_to_pets_victim_not_poisoned": stats(c["dmg_pets_clean"], 1),
             "damage_to_us": stats(c["dmg_us"], 1),
+            "damage_to_us_by_ar": {str(a): stats(v, 1) for a, v in sorted(c["dmg_us_ar"].items())},
             "damage_ranged_sole": stats(c["dmg_ranged"], 1),
             "swing": {"period_s": stats(c["swing_melee"], 2), "damage_per_swing": stats(c["swing_amounts"], 1)},
             "kill_s": stats(c["kill_s"], 1),
@@ -882,6 +893,7 @@ RULES = {    # with "region" first (build: the region configure() read)
     "war_mode": "flag 0x40 of the latest 0x20 MobileUpdate (Outlands 0x77 carries no flags).",
     "movement": f"intervals between consecutive 0x77 updates that changed the tile, gaps > {STEP_GAP_S}s dropped (pauses); war/peace by the flag at the earlier update; tiles/s = tiles moved / time over those pairs.",
     "damage_to_pets/us": f"a '-N' (speech type 0) over a pet / us counts for a creature type when exactly one war-mode monster stood within {MELEE_R} tile of the victim; '_victim_not_poisoned' drops numbers within {tamer.POISON_S}s after '*looks violently ill*' over the victim (poison ticks); 'damage_ranged_sole' = no war-mode monster within {MELEE_R} and exactly one within {RANGED_R}.",
+    "player_armor": "source.captures[].player_armor_s: seconds in the region at each of our status ARs (0x11 physical_resist; 0 = a ghost); a creature's damage_to_us_by_ar: its damage_to_us numbers by our AR when they landed (sim/armor_scan.py tests the armor rule on them, docs/SIM.md 'Player armor').",
     "swing": f"attributed numbers from one creature within {SAME_SWING_S}s are one swing (summed); period = gap between its successive swings when <= {SWING_GAP_S}s. Numbers include poison/bleed ticks the rule can't separate.",
     "kill_s": "first '-N' over the creature (any hue) to its mobile_death.",
     "hurt_rate": f"sum of '-N' in hue {OUR_HUE} over the creature / (death or last such number - first such number), creatures with >= 2 numbers.",
@@ -934,7 +946,9 @@ def build(tags, logs, scanned=None):
                           "packets_in_region": s.packets_in_region,
                           "pets": {n: f"0x{p:08X}" for p, n in sorted(s.pets.items())},
                           "other_players_seen": len(s.players_seen),
-                          "red_players_seen": len(s.reds)} for s in sessions],
+                          "red_players_seen": len(s.reds),
+                          "player_armor_s": {str(a): round(v, 1) for a, v in sorted(s.armor.items())}}
+                         for s in sessions],
             "scan": scanned,
             "generator": "harness/sim/calibrate.py",
         },
