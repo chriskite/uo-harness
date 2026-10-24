@@ -1,9 +1,9 @@
-// The Sim page's top-down map: the sim map's floor/wall chunks, mobiles with hits bars and status tags,
-// casts, projectiles, swings, floating damage, items, and for the selected mobile its range squares and
-// line of sight. Camera math and constants are MapGrid's (projection.ts).
+// The Sim page's map, top-down or UO's isometric view (the Live map's `iso`, projection.ts): the sim map's floor/wall
+// chunks, mobiles with hits bars and status tags, casts, projectiles, swings, floating damage, items, and for the
+// selected mobile its range squares and line of sight. Camera math and constants are MapGrid's (projection.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
-import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Camera } from "../projection.ts";
+import { screenDeltaToWorld, toScreen, toWorld, worldBounds, type Camera, type Projection } from "../projection.ts";
 import { los, mapChunkUrl, type Point3 } from "../sim/api.ts";
 import { statusTags } from "../sim/status.ts";
 import { FLOAT_S, SAY_S, type Effects, type Trace } from "../sim/trace.ts";
@@ -11,6 +11,7 @@ import type { Frame, MobRec } from "../sim/types.ts";
 import { CLICK_SLOP_PX, DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM, healthbar } from "./MapGrid.tsx";
 
 const CHUNK = 64;
+const PROJECTION_KEY = "viz.simMapProjection";
 const LOS_EVERY_MS = 250;
 const LOS_CACHE_MAX = 400;
 const LOS_MAX_TARGETS = 64;
@@ -61,6 +62,7 @@ interface View {
   drag: { x: number; y: number; moved: boolean } | null;
   w: number;
   h: number;
+  proj: Projection;
 }
 
 type LosEntry = boolean[] | "error";
@@ -68,7 +70,9 @@ type LosEntry = boolean[] | "error";
 export function SimMap(props: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const view = useRef<View>({ camX: 0.5, camY: 0.5, zoom: DEFAULT_ZOOM, drag: null, w: 0, h: 0 });
+  const initialProj: Projection = localStorage.getItem(PROJECTION_KEY) === "iso" ? "iso" : "topdown";
+  const view = useRef<View>({ camX: 0.5, camY: 0.5, zoom: DEFAULT_ZOOM, drag: null, w: 0, h: 0, proj: initialProj });
+  const [proj, setProj] = useState<Projection>(initialProj);
   const propsRef = useRef(props);
   propsRef.current = props;
   /** Map chunk images by "cx,cy"; null = none there (outside the map, or no geometry). */
@@ -153,9 +157,18 @@ export function SimMap(props: Props) {
     }
     const cam: Camera = { camX: v.camX, camY: v.camY, zoom: v.zoom, w: W, h: H };
     const z = v.zoom;
-    const P = (x: number, y: number) => toScreen("topdown", cam, x, y);
+    const P = (x: number, y: number) => toScreen(v.proj, cam, x, y);
     const C = (x: number, y: number) => P(x + 0.5, y + 0.5);
-    const { x0, x1, y0, y1 } = worldBounds("topdown", cam);
+    const { x0, x1, y0, y1 } = worldBounds(v.proj, cam);
+    /** Path the tile rectangle [ax, bx) x [ay, by) (a diamond in iso). */
+    const quad = (ax: number, ay: number, bx: number, by: number) => {
+      ctx.beginPath();
+      ctx.moveTo(...P(ax, ay));
+      ctx.lineTo(...P(bx, ay));
+      ctx.lineTo(...P(bx, by));
+      ctx.lineTo(...P(ax, by));
+      ctx.closePath();
+    };
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalAlpha = 1;
@@ -169,35 +182,40 @@ export function SimMap(props: Props) {
       for (let cx = Math.max(0, Math.floor(x0 / CHUNK)); cx <= Math.floor(x1 / CHUNK); cx++) {
         const img = chunk(cx, cy);
         if (!img || !img.complete || !img.naturalWidth) continue;
-        const [sx, sy] = P(cx * CHUNK, cy * CHUNK);
-        ctx.drawImage(img, sx, sy, CHUNK * z + 0.5, CHUNK * z + 0.5);
+        ctx.save();
+        ctx.translate(...P(cx * CHUNK, cy * CHUNK));
+        if (v.proj === "iso") ctx.rotate(Math.PI / 4); // same 45° clockwise as toScreen
+        // +0.5 px hides hairline seams between neighbouring chunks
+        ctx.drawImage(img, 0, 0, CHUNK * z + 0.5, CHUNK * z + 0.5);
+        ctx.restore();
       }
     }
     if (z >= 10) {
+      // top-down lines snap to the pixel grid; rotated lines can't
+      const snap = (n: number) => (v.proj === "topdown" ? Math.round(n) + 0.5 : n);
       ctx.strokeStyle = "rgba(30, 21, 12, 0.6)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = x0; x <= x1; x++) {
         const [ax, ay] = P(x, y0);
-        const [, by] = P(x, y1 + 1);
-        ctx.moveTo(Math.round(ax) + 0.5, ay);
-        ctx.lineTo(Math.round(ax) + 0.5, by);
+        const [bx, by] = P(x, y1 + 1);
+        ctx.moveTo(snap(ax), snap(ay));
+        ctx.lineTo(snap(bx), snap(by));
       }
       for (let y = y0; y <= y1; y++) {
         const [ax, ay] = P(x0, y);
-        const [bx] = P(x1 + 1, y);
-        ctx.moveTo(ax, Math.round(ay) + 0.5);
-        ctx.lineTo(bx, Math.round(ay) + 0.5);
+        const [bx, by] = P(x1 + 1, y);
+        ctx.moveTo(snap(ax), snap(ay));
+        ctx.lineTo(snap(bx), snap(by));
       }
       ctx.stroke();
     }
     const area = trace.head?.area;
     if (area && area.length >= 4) {
-      const [ax, ay] = P(area[0]!, area[1]!);
-      const [bx, by] = P(area[2]! + 1, area[3]! + 1);
+      quad(area[0]!, area[1]!, area[2]! + 1, area[3]! + 1);
       ctx.strokeStyle = "rgba(226, 182, 90, 0.35)";
       ctx.setLineDash([8, 6]);
-      ctx.strokeRect(ax, ay, bx - ax, by - ay);
+      ctx.stroke();
       ctx.setLineDash([]);
     }
 
@@ -205,7 +223,6 @@ export function SimMap(props: Props) {
     for (const it of frame.items.values()) {
       if (it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
       const [cx, cy] = C(it.x, it.y);
-      const [tx, ty] = P(it.x, it.y);
       if (it.kind === "corpse") {
         const d = z * 0.3;
         ctx.strokeStyle = "#9ca3af";
@@ -218,7 +235,8 @@ export function SimMap(props: Props) {
         ctx.stroke();
       } else if (it.kind === "fire") {
         ctx.fillStyle = "rgba(249, 115, 22, 0.4)";
-        ctx.fillRect(tx, ty, z, z);
+        quad(it.x, it.y, it.x + 1, it.y + 1);
+        ctx.fill();
       } else if (it.kind === "eerie") {
         const d = z * 0.32;
         ctx.fillStyle = "#a855f7";
@@ -243,11 +261,11 @@ export function SimMap(props: Props) {
     if (sel) {
       const spec = sel.key ? trace.head?.specs[sel.key] : undefined;
       const square = (n: number, color: string, dash: number[], width = 1.5) => {
-        const [ax, ay] = P(sel.x - n, sel.y - n);
+        quad(sel.x - n, sel.y - n, sel.x + n + 1, sel.y + n + 1);
         ctx.strokeStyle = color;
         ctx.lineWidth = width;
         ctx.setLineDash(dash);
-        ctx.strokeRect(ax, ay, (2 * n + 1) * z, (2 * n + 1) * z);
+        ctx.stroke();
       };
       if (!spec || spec.melee) square(1, "rgba(248, 250, 252, 0.8)", []);
       if (spec?.ranged) {
@@ -512,11 +530,11 @@ export function SimMap(props: Props) {
       const follow = propsRef.current.follow;
       const ox = follow ? 0 : clientX - rect.left - rect.width / 2;
       const oy = follow ? 0 : clientY - rect.top - rect.height / 2;
-      const [ax, ay] = screenDeltaToWorld("topdown", v.zoom, ox, oy);
+      const [ax, ay] = screenDeltaToWorld(v.proj, v.zoom, ox, oy);
       const px = v.camX + ax;
       const py = v.camY + ay;
       v.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * factor));
-      const [bx, by] = screenDeltaToWorld("topdown", v.zoom, ox, oy);
+      const [bx, by] = screenDeltaToWorld(v.proj, v.zoom, ox, oy);
       v.camX = px - bx;
       v.camY = py - by;
       draw();
@@ -552,7 +570,7 @@ export function SimMap(props: Props) {
           if (v.drag.moved || Math.abs(dx) + Math.abs(dy) > CLICK_SLOP_PX) {
             if (propsRef.current.follow) propsRef.current.onFollow(false);
             v.drag.moved = true;
-            const [wdx, wdy] = screenDeltaToWorld("topdown", v.zoom, dx, dy);
+            const [wdx, wdy] = screenDeltaToWorld(v.proj, v.zoom, dx, dy);
             v.camX -= wdx;
             v.camY -= wdy;
             v.drag.x = e.clientX;
@@ -566,7 +584,7 @@ export function SimMap(props: Props) {
           v.drag = null;
           if (!wasClick) return;
           const rect = e.currentTarget.getBoundingClientRect();
-          const [wx, wy] = toWorld("topdown", { camX: v.camX, camY: v.camY, zoom: v.zoom, w: v.w, h: v.h }, e.clientX - rect.left, e.clientY - rect.top);
+          const [wx, wy] = toWorld(v.proj, { camX: v.camX, camY: v.camY, zoom: v.zoom, w: v.w, h: v.h }, e.clientX - rect.left, e.clientY - rect.top);
           let best: number | null = null;
           let bestD = 0.6;
           for (const m of propsRef.current.frame.mobs.values()) {
@@ -594,6 +612,20 @@ export function SimMap(props: Props) {
           }}
         >
           reset zoom
+        </button>
+        <button
+          type="button"
+          className={proj === "iso" ? "active" : ""}
+          title="rotate 45° clockwise to UO's own isometric view (north up-right), as the Live map's iso"
+          onClick={() => {
+            const next: Projection = view.current.proj === "iso" ? "topdown" : "iso";
+            view.current.proj = next;
+            localStorage.setItem(PROJECTION_KEY, next);
+            setProj(next);
+            draw();
+          }}
+        >
+          iso
         </button>
       </div>
       <div className="map-legend">

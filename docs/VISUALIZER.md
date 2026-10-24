@@ -1193,6 +1193,9 @@ alone, as §2.11.
   vets, recalls, abilities and the runner's leave lines; the selected mobile's inspector (threat, damage by, cooldowns,
   cast, statuses, its last events); the runner's intents and log around the cursor; damage taken by the player (or the
   selected pet) and dealt by the team per 5 s by source.
+- The map's `iso` button (added 2026-10-23, user request) turns it 45° clockwise into UO's own view, as the Live
+  map's `iso` (`projection.ts`): the floor chunks rotate with it and the range squares become diamonds. The choice is
+  kept in `localStorage` `viz.simMapProjection`, apart from the Live map's.
 
 ## 3. Parity principle
 
