@@ -763,26 +763,38 @@ class Mover:
         """After a teleport the walk didn't aim at: a known teleporter within STEP_BACK_R of where it put us
         whose destination is within STEP_BACK_R of where we were, stepped onto at once (live 20261015_115604:
         a Stationary Penalty walk took Logan up the Mausoleum stairs; the walk found no route on level 2,
-        the run stopped there and an abomination killed him). True when we are back."""
+        the run stopped there and an abomination killed him). None known: the tile it put us on is tried, a step
+        off it and back on, as a player finds a room's way out (live 2026-10-24 12:22:36: a step off the tank
+        onto (5242, 612) put Logan in Maus 3's mini-boss room at (5242, 587), "no known way back", and he stood
+        there under the custodian until the user stepped him off and back onto it, out at (5243, 612)). A tile
+        we stand on is stepped off and back onto. True when we are back."""
         st = self.link.state()
         here, facet = self.link.pos(st), st["world"]["self"].get("map")
         if facet == before_facet and cheb(here, before) < STEP_BACK_MIN:
             return False
-        self.teleporter_tiles(facet)
+        tiles = self.teleporter_tiles(facet)
         back = [t for t, to in self._tele_to.get(0 if facet is None else facet, {}).items()
                 if cheb(t, here) <= STEP_BACK_R and to[0] == (before_facet or 0) and cheb(to[1:3], before) <= STEP_BACK_R]
-        if not back:
-            log(f"{label}: teleported to {tuple(here[:2])}; no known way back")
-            return False
-        t = min(back, key=lambda t: cheb(t, here))
-        log(f"{label}: an unplanned teleport to {tuple(here[:2])}; stepping back through {t}")
+        probe = not back
+        if probe:
+            t = tuple(here[:2])
+            log(f"{label}: teleported to {t}; no known way back: stepping off it and back on")
+            tiles.add(t)                        # the walk onto it means to go through: no step back from there
+        else:
+            t = min(back, key=lambda t: cheb(t, here))
+            log(f"{label}: an unplanned teleport to {tuple(here[:2])}; stepping back through {t}")
         sticky, walled = self.sticky, self.walled
         try:
+            if tuple(here[:2]) == t:
+                self.walk_to(None, 0, f"{label}: off {t}", goal_fn=lambda p: cheb(p, t) == 1, max_moves=2,
+                             urgent=True)
             self.walk_to(lambda: t, 0, f"{label}: back", max_moves=2 * STEP_BACK_R, urgent=True)
         except Abort as e:
             log(f"{label}: stepping back: {e}")
         finally:
             self.sticky, self.walled = sticky, walled
+            if probe and t not in self._tele_to.get(0 if facet is None else facet, {}):
+                tiles.discard(t)                # it didn't teleport us: an ordinary tile
         now = self.link.pos(self.link.state())
         return cheb(now, before) <= STEP_BACK_R
 
@@ -1233,6 +1245,7 @@ class Mover:
                 if urgent:
                     run = stamina_ok(st)
                 self.pace(run, st)
+                tele_known = nxt in self.teleporter_tiles(st["world"]["self"].get("map"))
                 outcome = self.step(d, run, st)
                 if outcome == "turned":      # facing it now: the client's auto-open fires on the turn
                     self._open_ahead(nxt, z, opened, label)
@@ -1258,10 +1271,18 @@ class Mover:
                                             else "still denies the step after opening it")
                             walled = True
                 if outcome == "teleported":
-                    aimed = goal_fn is None and radius == 0 and center_fn is not None \
+                    # the walk's goal was a teleporter it knew (a walk-in, a step back): no undo. A goal tile that
+                    # only turned out to be one (live 2026-10-24 12:22:36: an off-the-tank tile on a door) is undone
+                    aimed = tele_known and goal_fn is None and radius == 0 and center_fn is not None \
                         and tuple(center_fn()[:2]) == tuple(nxt)
-                    if not aimed:                       # the teleporter was the goal (a walk-in): no undo
-                        self.step_back(cur, st["world"]["self"].get("map"), label)
+                    if aimed:
+                        log(f"{label}: through the teleporter at {tuple(nxt)}")
+                        return                          # replanning would aim back onto it from its far side
+                    self.step_back(cur, st["world"]["self"].get("map"), label)
+                    if goal_fn is None and center_fn is not None and tuple(center_fn()[:2]) == tuple(nxt):
+                        # a replan would take us onto it again, now as a teleporter it knows
+                        raise WalkFailed(f"{label}: {tuple(nxt)} is a teleporter (it put us at "
+                                         f"{tuple(self.link.pos(self.link.state())[:2])})")
                     replan = True
                     break
                 if outcome == "moved":

@@ -688,6 +688,52 @@ def test_stairs():
           went_up[-1] >= 2 and abs(back[0] - 5199) <= 6 and abs(back[1] - 738) <= 6, f"at {back} {went_up}")
 
 
+def test_boss_room_door():
+    print("== Maus 3's mini-boss room door: a walk onto it as a stand tile steps back out and ends, the way out known "
+          "or not ==")
+    # live 2026-10-24 12:22:36 (hunt-20261024-112241-b911): "keeping off the tank: (5242, 612)", the step onto it put
+    # Logan in the mini-boss room at (5242, 587); the walk took the tile as its goal (aimed), so no step back, and he
+    # stood in the room under the custodian until the user stepped him off the arrival and back on, out at (5243, 612)
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    door, room = (5242, 612), (5242, 587)
+    for known_out in (True, False):
+        w = world_with([], seed=7, start=(5242, 615))
+        link, clock = link_for(w)
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1", "--human", "off"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        err, out = None, io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                mv = loop.mover
+                seeded = {door, room} <= mv.teleporter_tiles(0)
+                mv.teleporter_tiles(0).discard(door)                # as before the seed: the door unknown
+                mv._tele_to[0].pop(door, None)
+                if not known_out:
+                    mv.teleporter_tiles(0).discard(room)
+                    mv._tele_to[0].pop(room, None)
+                n0 = mv.teleports
+                try:
+                    mv.walk_to(lambda: door, 0, "off the tank", max_moves=12)
+                except Exception as e:                             # noqa: BLE001 - the end position is the check
+                    err = str(e)
+                n = mv.teleports - n0
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        how = "known" if known_out else "unknown (stepped off the arrival and back on)"
+        check(f"way out {how}: in and straight back out to Maus 3, the walk ended at the door", seeded and n == 2
+              and sim_cheb(w.player.pos, door) <= 2 and err is not None and "is a teleporter" in err,
+              f"at {w.player.pos}, {n} teleports, {err!r}; "
+              + " | ".join(ln for ln in out.getvalue().splitlines() if "teleport" in ln or "back" in ln)[-500:])
+
+
 def test_backspawn():
     print("== backspawn: a tile in the open near a stealther's spawn scores worse than one with the pets between ==")
     import tempfile
@@ -3553,7 +3599,7 @@ def main():
     for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials,
               test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_vet_tile_off_tank,
-              test_stairs, test_backspawn,
+              test_stairs, test_boss_room_door, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,

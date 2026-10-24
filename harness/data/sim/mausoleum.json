@@ -1130,7 +1130,9 @@
   {"from": [5522, 637], "to": [5199, 737, 17]},
   {"from": [5512, 669], "to": [5515, 659, -10]},
   {"from": [5253, 736], "to": [5697, 713, 0]},
-  {"from": [5700, 627], "to": [5266, 627, 0]}
+  {"from": [5700, 627], "to": [5266, 627, 0]},
+  {"from": [5242, 612], "to": [5242, 587, 0]},
+  {"from": [5242, 587], "to": [5243, 612, 0]}
  ],
  "teleporters_note": "the ones Logan stepped onto on the way in (capture): 21:17:19 to the second level, 21:17:37 two short hops on it (a deny at (5506, 701) then a self move to (5507, 698), and (5507, 697) -> (5507, 693); the map has no walk across: A* takes 468 steps round, Logan ~150), 21:17:57 to the fight level. 20261014_210020: a hop on the second level at 21:02:19.6; Maus 4 (the 4th level) in by a step E at (5253, 736) (21:09:31.5) and out at (5700, 627) walking W, back on the fight level at (5266, 627) (21:10:54.9). 'from' is where the deny reported us, as for the others. The door he came into Maus 4 by leads back too (user 2026-10-14), tile not known",
  "area": [

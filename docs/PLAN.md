@@ -2214,6 +2214,21 @@ escape from the dungeon and return home when there is an erroneous stoppage like
 - **`--go-home` for the Seer**: the same way out, or the recall from outside, then the drop-off, exit 0 at home.
   `ctl run` passes every argument through (`nargs=REMAINDER`, task_wrap's `argv`), so it needs no ctl change.
 
+## A teleport onto an unknown tile is never "meant" (2026-10-24)
+
+User: "Logan went into the Maus mini boss room and stood there while the custodian was killing him" (docs/NOTES.md
+"Into the mini-boss room off the tank"). An off-the-tank tile was the room's door, and the Mover's rule "the walk's
+goal tile teleported us, so it was meant" skipped the step back. Decisions:
+- **Meant means known**: a teleport counts as meant only when the tile was a known teleporter before the step. The
+  walks that go through teleporters on purpose step onto known ones or use `HuntLoop.teleport` directly, so they are
+  unchanged. A walk through a known one ends there; replanning would aim back onto it from its far side.
+- **No known way back: try the arrival tile.** Step off where it put us and back on. The user did that to get out:
+  this room's arrival tile is its way back [INFERENCE: other rooms' doors may work the same]. Rejected: aborting into
+  `HuntLoop.on_error`'s escape. The planner has no route out of a room it can't leave, so the escape would fail too
+  and leave him there. The two steps cost nothing when they don't work.
+- **The door's tiles are seeds** (`harness/data/teleporters.json`, the simulator's scenario), so no stand tile or
+  route picks (5242, 612) again. Only the tile he stepped on is seeded: the other door-row tiles aren't proven.
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

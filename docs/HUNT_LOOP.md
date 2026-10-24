@@ -145,6 +145,17 @@ takes the exit step there.
   else, plus, for the session, the tile one `--exit-dir` step from `--spot` (the exit, known
   from the arguments). The NPD arrival tile (5536,530) is an exit teleporter too (Live below)
   and in the table since 2026-10-02, with (5535,530) and (5537,530).
+- **A teleport the walk didn't mean** (`Mover.step_back`): a step onto a tile not known as a teleporter that moves
+  us anyway, the walk's goal tile included (since 2026-10-24; before, a goal tile counted as meant), steps straight
+  back through a known teleporter within 4 tiles leading within 4 of where we were; none known, it steps off the
+  tile it landed on and back onto it ("teleported to (x, y); no known way back: stepping off it and back on"), as
+  the user got out of the room below [INFERENCE: other doors may lead back the same way]. A walk whose goal was that
+  tile then ends ("<label>: (x, y) is a teleporter (it put us at
+  …)") rather than replanning onto it; a walk through a teleporter it knew ends there ("through the teleporter
+  at …"). Live 2026-10-24 12:22:36: the step off the tank onto (5242, 612), Maus 3's mini-boss room door, put Logan
+  in the room at (5242, 587) under its custodian; the walk took the tile as meant, found "no route", and he stood
+  there until the user stepped him off the arrival and back on (out at (5243, 612)). Both tiles are seeds now
+  (`harness/data/teleporters.json`); test_sim `test_boss_room_door`.
 - **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
   fight spot the runner plans the route back to `--spot` and leaves below
   `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that

@@ -4873,6 +4873,30 @@ Visit 2's walk back in. Capture session_20261023_201849 and the task log:
   recall), and the Seer has `--go-home` for a run that ended anyway. test_sim `test_escape_after_walk_in_error`
   replays the abort (before: "ABORTED", Logan still at (5507, 691); after: home with both pets).
 
+## Into the mini-boss room off the tank (live 2026-10-24 12:22:36, hunt-20261024-112241-b911)
+
+Visit 3 on Maus 3, the north end of the north-east hall. Capture session_20261024_102346 and the task log:
+- 12:22:35 "keeping off the tank: (5242, 612)". The tile was the door of the mini-boss room (the user's "Cistern
+  Gorgon's", NOTES "Red players met live"), not yet known as a teleporter. The step N from (5242, 613) at 12:22:36.6
+  put Logan at (5242, 587, 0) inside, the pets with him ("teleported: … remembered"). The patrol had walked to
+  (5243, 614) and stood on (5242, 613) before without trouble.
+- The walk had the tile as its goal, so the Mover counted the teleport as meant (a walk-in's) and didn't step back.
+  "off the tank: no route within 8 steps from (5242, 587)", then more off-the-tank steps N to (5242, 578), toward
+  "a custodian" (0x005BA2E2, first in view at (5240, 566) at 12:22:49). The room's guard: no loot (DISCORD_KB
+  "ossuary custodian", "boss room mini-boss"). Hits fell to 57 by 12:22:56 (a heal potion: 57 -> 100), the pets to
+  93 and 96.
+- The user walked him out: S from (5242, 578) to (5242, 586) at 12:22:59-23:00.7, then the step S onto (5242, 587),
+  the room's arrival tile (0x21 deny at (5242, 586), 0x77 to (5243, 612) at 12:23:00.9). The run went on, and the
+  Seer ended it at the next trip home (`stop --after-trip`, task_done 12:24:46, 59,024 gp over 3 visits, 0 deaths).
+- Players vanish next to that door: across the last 60 captures (sim/entry_scan.py), last seen at (5243, 613) 10
+  times, (5243, 614) 9, (5243, 612) 7, (5242, 613) 4. They arrive at (5243, 612) 46 times. Which other tiles of the
+  door row teleport is unknown [INFERENCE: the doorway is wider than (5242, 612)].
+- Fixed: a teleport counts as meant only when the tile was a known teleporter before the step. Else the Mover steps
+  back, and with no known way back it steps off the arrival and back on (what the user did). A walk whose goal was
+  that tile ends there. Both tiles are seeds in `harness/data/teleporters.json` and in the simulator's scenario.
+  test_sim `test_boss_room_door` (before: left in the room, "no route from (5242, 587)"; after: out at (5243, 612)
+  with the way out known or not).
+
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
 For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`
