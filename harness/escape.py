@@ -37,13 +37,12 @@ poll). LinkIO wraps a runner's agent_link.Link; ctl has its own.
 
 from __future__ import annotations
 
-import json
 import math
-import os
 import re
 import time
 
 import actions
+import aggro
 import combat
 import uomap
 from agent_link import Deadline, cheb, serial_of
@@ -115,20 +114,15 @@ FAIL_TEXTS = {
 
 
 # Dungeons where a recall is only allowed beside a gold moongate (user 2026-10-13: "never near a red one"):
-# the Mausoleum's box and gold gates, shared with the simulator (World.recall_allowed).
-DUNGEON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
+# every simulator scenario's `dungeon` (the Mausoleum's, Tidal Tomb's box and gold gates), shared with the simulator
+# (World.recall_allowed).
 _DUNGEONS = None
 
 
 def _dungeons() -> list[dict]:
     global _DUNGEONS
     if _DUNGEONS is None:
-        try:
-            with open(DUNGEON_PATH, encoding="utf-8") as f:
-                d = json.load(f).get("dungeon")
-            _DUNGEONS = [d] if d else []
-        except (OSError, ValueError):
-            _DUNGEONS = []
+        _DUNGEONS = [sc["dungeon"] for sc in aggro.scenarios() if sc.get("dungeon")]
     return _DUNGEONS
 
 

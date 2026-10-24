@@ -1,4 +1,4 @@
-# Mausoleum simulator (`harness/sim/`)
+# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb
 
 An offline game world for the hunt runner (user request 2026-10-13: "train our combat runner in the
 emulated game world ... run tests much faster"). It is not an Outlands server: it is the one dungeon
@@ -6,7 +6,8 @@ level Logan Wolf fought on (2026-10-12, capture `20261012_210013`), on the real 
 pets and mechanics the `--pets` runner meets there, each number calibrated from that capture or the
 wiki. The runner under test is the unmodified `loop_hunt.HuntLoop` (`tamer.Team`), on virtual time:
 a 30-minute hunt takes 2–5 s of wall time (260–670× real time), and 24 runs take under 20 s on 7
-processes.
+processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
+Logan's first visit there; everything below that names no dungeon is the Mausoleum's.
 
 ```mermaid
 flowchart LR
@@ -37,8 +38,13 @@ python harness/sim/run.py --log run.log --seed 7                       # one run
 python harness/sim/run.py --seed 5 --at-hunt --trace [DIR]             # ... and its trace for the viz Sim page ("Traces")
 # or from the viz: Sim page, `run…` (run.py or a fight script with its options; docs/VISUALIZER.md §2.20)
 python harness/sim/cast_scan.py [--since 20261010] && python harness/sim/cast_scan.py --summary   # cast/flight times
-python harness/test_sim.py                                             # the tests (~20 s)
-python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   # refresh the observations
+python harness/test_sim.py                                             # the tests (~50 s)
+python harness/sim/calibrate.py [--scenario tidal_tomb] --logs <logs dir> [--scan 20261010] [TAG...]   # refresh the observations
+python harness/sim/kb_scan.py --location "Tidal Tomb" --out harness/data/sim/tidal_tomb_kb.json \
+    --observed harness/data/sim/tidal_tomb_observed.json --mechanic 4641 ...   # a dungeon's wiki stats from the store
+python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal Tomb's level 1 ("Tidal Tomb" below)
+python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071
+                                                                       # ... its level 2, under water
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
@@ -106,8 +112,9 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/link.py` | `SimLink`: `act`/`send` (walks get their sequence number, as the proxy stamps them), `state`/`movement` (the server's position as movement truth, the client model's snapshot, events), `wait`/`pos`/`open_containers` from `agent_link.Link`. A state read costs 20 ms of game time, a packet 2 ms. |
 | `sim/world.py` | The server (module docstring): walking by `pathfind.Walk.can_walk` on the install's map (z from the map), line of sight by `los.Sight`, monster and pet AI, other players (`--others`), bard skills, vet supplies, potions, Stationary Penalty, corpses and loot, the rune tome (escape.py's gump layout), our death. |
 | `sim/packets.py` | The S2C packets in the Outlands V10/V12 shapes the world model reads. |
-| `sim/scenario.py` | Loads `harness/data/sim/mausoleum.json` and builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence); `fit_bard` re-derives the barding skill. |
-| `sim/calibrate.py` | The capture extractor that wrote `mausoleum_observed.json` (its rules are in the file's `rules`). |
+| `sim/scenario.py` | Loads `harness/data/sim/<name>.json` (its `inherit` takes the named blocks of another scenario: Tidal Tomb has Logan's pets, pack, bard, vet, potions and the engine defaults from the Mausoleum's) and builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence); `fit_bard` re-derives the barding skill. |
+| `sim/calibrate.py` | The capture extractor that writes `<name>_observed.json` for the region and captures of the scenario's `calibration` block (`--scenario`; its rules are in the file's `rules`). Red players are no creature type. |
+| `sim/kb_scan.py` | A dungeon's wiki stats from the memory store's wiki rows (Creatures List rows at a location, the tameables' follower abilities, chosen patch notes): `tidal_tomb_kb.json`. |
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
 | `sim/shove_scan.py` | Shoves and stamina in the live captures (the walking rules of "Shoving and stamina"). |
@@ -121,6 +128,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
+| `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the capture 20261024_102346's observations (calibrate). |
 
 ## Calibration (2026-10-13)
 
@@ -1163,6 +1171,103 @@ last a first-sighting count the cast model doesn't touch [INFERENCE: draw noise]
 the live rate, fell a further 6 % [INFERENCE: casts now lost when he steps out of range or sight first]. Time-to-kill
 medians moved under 2 s per type (tormented soul 18.3 -> 18.8, blightmare 20.4 -> 19.3).
 
+## Tidal Tomb (2026-10-24)
+
+The second scenario, `harness/data/sim/tidal_tomb.json`, is built from Logan Wolf's first visit. The user played it
+on 2026-10-24 from 10:59:55 to 11:14:06 (capture `20261024_102346`).
+
+It is the start of a Tidal Tomb crawler like the Mausoleum's. Every number carries its evidence in the scenario's
+notes. docs/NOTES.md "Tidal Tomb" has the operational facts.
+
+```mermaid
+flowchart LR
+  Home -- "recall: row 'Tidal Tomb Inside'" --> A["level 1 arrival (6653, 2097)<br/>golden gate (6652, 2095)"]
+  A -. "(6656, 2109) exit" .-> Out["outside (3861, 3585)"]
+  A -- "(6718, 1984)" --> L2["level 2, under water<br/>arrival (6943, 2004)"]
+  L2 -- "(6834, 2079)" --> W["level 1 west end (6609, 2060)"]
+  L2 -- "crimson gate (6913, 2071)" --> Totem
+  A -- "golden gate: the runner's leave" --> Totem
+  Totem -- recall --> Home
+```
+
+**What was built from the capture and the store:**
+
+- **Levels, by a map flood fill** (`pathfind.Walk` from each arrival):
+  - Level 1: x 6608-6738, y 1932-2109, 7,701 tiles.
+  - Level 2: x 6817-6967, y 1909-2098, z down to -127, 7,278 tiles.
+  - All 1,153 of Logan's steps there walk on the map.
+  - Level 1 is the hunting level by default (`area`). Logan spent 485 s there and 320 s on level 2.
+  - Level 3 and the boss rooms weren't reached.
+- **Six teleporters**, with the gates and the recall rule. The recall rule now covers both dungeons:
+  `escape.recall_forbidden` and `aggro`'s wiki stats read every scenario.
+- **68 spawns** from the first sightings, both levels. This is one visit, not the Mausoleum's 41-visit check.
+- **`tidal_tomb_kb.json`** (`sim/kb_scan.py`): 41 creatures, including the bosses, and the tameables' follower
+  abilities.
+- **`tidal_tomb_observed.json`** (`calibrate.py --scenario tidal_tomb`): 21 creature types.
+  - A red player, *BUL SA PA oOo*, is left out of the creature types since this change.
+  - Hits: the wiki's + 1 in numbers for 13 of the 15 types killed in view. The exceptions are a bottomfeeder, which
+    took 3,921 against 3,500 hits (its feed heals it), and a `[Paragon]` giant pincer crab at 15,001.
+  - Gold lifted per corpse: within 10 % of the wiki's value for 10 of the 14 types. Above it: the clearwater
+    grouper (+61 %, n=2), the giant pincer crab (+44 %, n=2, one a paragon), the ruby smallshell (+46 %, n=2) and
+    the soulcatcher (+14 %, n=1). The simulator keeps the wiki x 0.9-1.15.
+  - Melee overrides where calibrate's one-monster-in-reach rule took a noughtilus's ooze ticks for a neighbour's
+    hits (`melee_observed`).
+  - Shot damage for the drowned mariner and the soulcatcher (`ranged_observed`).
+- **The character's blocks are the Mausoleum's** (`inherit`). Barding takes the game's own Guide "Barding Chance"
+  Logan opened on 5 types (`bard.guide`, used before the wiki formula). Songs are 16.9 % here. The live durations
+  were discord 68 s, peace 34 s and provoke 42 s.
+
+**New mechanics** (world.py, scenario-driven, so a Mausoleum run is unchanged):
+
+- **Oxygen** (scenario `oxygen`, patch notes #4641-4645).
+  - Under water, the player's time adds up. It refills on leaving level 2.
+  - After 10 minutes: -5 every 5 s while above 66 %, and each pet -5 % of its max.
+  - After 20 minutes: -10 / -10 % while above 33 %.
+  - No song cuts this damage (`UNPREVENTABLE`).
+  - Live: the 'Oxygen' gump came every 6 s, its bar a step every 30 s. The simulator doesn't send it.
+- **Ooze aura** (oozing noughtilus, special `ooze`): 4 bursts 0.3 s apart on everyone within 2 tiles, every 7-12 s.
+  The capture had 9 bursts, and the wiki's Ooze Aura matches.
+- **Brood** (dungeon-nest crab, special `brood`): '*digs*', then a pincer crab '*emerges*' beside it 0.5 s later,
+  every ~15 s while it fights, at most 2 of its own up. Live, 8 crabs emerged beside fights.
+- **Feed** (bottomfeeder): the vampire's mechanism with the capture's ticks.
+
+**Runs** (2026-10-24, from home, 30 game minutes):
+
+- **Level 1**: 8 runs, seeds 3-10, `--compare`, 4.05 h on the level. None died, no pet died, and each banked
+  ~42-46k gold.
+
+  | per hour on level 1 | sim | Logan's visit (8.1 min) |
+  |---|---|---|
+  | kills | 207 | 245 |
+  | damage to us | 370 | 1515 |
+  | vet supplies | 103 | 156 |
+  | heal potions | 4.2 | 7.4 |
+  | discord success | 0.88 | 0.94 |
+  | gravebug : phoenix damage taken | 16.6 | 10.6 |
+  | gold looted | 85,074 | 115,600 |
+
+- **Level 2**: 8 runs, seeds 4-11, `--area` level 2.
+  - Command: `-- --enter-via 6718 1984 --leave-gate 6913 2071`.
+  - 3 of 8 died. Two died within 2 minutes of the arrival, to drowned mariners' and soulcatchers' shots.
+  - The oxygen bit in every run past 10 minutes.
+  - Level 2 needs crawler rules (oxygen, the shooters at the arrival) before a live try.
+
+**Open on Tidal Tomb:**
+
+- **Damage to Logan on level 1 is a quarter of live.** Live, his 11 hits of 22-32 came from monsters on him, not
+  on the pets: flying mantas 3 times, a ruby smallshell's Pierce Claw twice, and a singing noughtilus. The
+  Mausoleum's threat rules (inherited) send fewer here.
+- **Not modelled**, all listed in the scenario's `specials.note`:
+  - armor pierce;
+  - the scavenger's large swing;
+  - Pressure;
+  - the ooze's greater poison;
+  - Recovery Dolphins.
+- **The arrival tile holds a golden and a crimson moongate.** The runner's default leave double-clicks that tile,
+  and which menu opens there live is untested.
+- **Live, the Tidal rune is in the runebook "Bad Places II".** It is not in Logan's tome, which is what the
+  simulator's tome row stands for.
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
@@ -1261,3 +1366,15 @@ Each is a normal play session with the proxy capturing as always; tell the codin
    levels since; the fight level's checked against 37 live visits' sightings on 2026-10-20).
 8. If it happens anyway (don't force it): a full stable/claim at home (the pet death and its vet
    resurrection came in 20261014_221341, one try).
+
+Tidal Tomb (since 2026-10-24; one visit so far):
+
+9. **More level 1 visits, barding as usual.** The 68 spawns are from one visit. Logan's damage there came from
+   monsters on him, not on the pets, and the simulator gives him a quarter of it.
+10. **The golden moongate at the arrival (6652, 2095).** A crimson gate stands on the same tile. Double-click it
+    and note which menu opens and its rows. This is the simulated runner's way out.
+11. **A step back onto level 2's arrival (6943, 2004).** Does it lead up to (6718, 1984), as the other pairs do?
+12. **The oxygen past 10 minutes on level 2**, if a safe spot allows it: the deprivation's texts, buff icons and hits.
+    The simulator has the patch notes' numbers only.
+13. **A dungeon-nest crab fighting alone.** Do pincer crabs emerge from it, and how often? The 8 seen came during
+    digs and large swings with several monsters fighting.

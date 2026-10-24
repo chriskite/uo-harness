@@ -1,0 +1,1729 @@
+{
+ "creatures": {
+  "aquamarine smallshell": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x9ab"
+    ],
+    "serials": 7,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 41.6,
+   "gold_value": 417,
+   "graphic": 2475,
+   "hits": 3000,
+   "knowledge_ids": [
+    10529,
+    10811,
+    12659,
+    14472
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an aquamarine smallshell",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14472; that the wild creature uses it is [INFERENCE]] Water Claw (Cooldown): Strikes up to 3 targets within 1 tile. Inflicts (DamageMax *0.75) damage, with the first target hit taking +50% damage. Applies a cripple effect of (Control Slots * 4%) for 15 seconds."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "astral zoa": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 179.5,
+   "gold_value": 1795,
+   "hits": 10000,
+   "knowledge_ids": [
+    10752,
+    12665
+   ],
+   "location": "Tidal Tomb",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an astral zoa",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 110
+  },
+  "biolumen shellpod": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x9aa"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 112.1,
+   "gold_value": 1121,
+   "graphic": 2474,
+   "hits": 8000,
+   "knowledge_ids": [
+    10529,
+    10789,
+    12666,
+    14478
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a biolumen shellpod",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14478; that the wild creature uses it is [INFERENCE]] Biolumen Barrage (Cooldown): Fires 2 projectiles at target up to 8 tiles away, each inflicting (DamageMax * 1.0) damage, with target taking +50% damage if they are a minion, boss-spawn, or summon of another creature"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 100
+  },
+  "bottomfeeder": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x4f6"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 63.9,
+   "gold_value": 640,
+   "graphic": 1270,
+   "hits": 3500,
+   "knowledge_ids": [
+    10732,
+    12669
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a bottomfeeder",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "clearwater grouper": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x9b4"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 152.6,
+   "gold_value": 1527,
+   "graphic": 2484,
+   "hits": 10000,
+   "knowledge_ids": [
+    10793,
+    12672
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a clearwater grouper",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 100
+  },
+  "colossal pincer crab": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 271.5,
+   "gold_value": 2716,
+   "hits": 18000,
+   "knowledge_ids": [
+    10529,
+    10811,
+    12673,
+    14472
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal pincer crab",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14472; that the wild creature uses it is [INFERENCE]] Pinch (Passive): Has a (5% + (Control Slots * 5%)) chance on melee hit to entangle creature for 5 seconds and applying a pierce effect of (Control Slots * 10) for 15 seconds. Also applies a (DamageMax * 0.8) Pressure effect with 15 second duration."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 130
+  },
+  "colossal scourgeon": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 261.9,
+   "gold_value": 2620,
+   "hits": 20000,
+   "knowledge_ids": [
+    10781,
+    12676
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal scourgeon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "combustive zoa": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x9a9"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 179.5,
+   "gold_value": 1795,
+   "graphic": 2473,
+   "hits": 10000,
+   "knowledge_ids": [
+    10739,
+    12677
+   ],
+   "location": "Tidal Tomb",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a combustive zoa",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 110
+  },
+  "drowned buccaneer": {
+   "ai": "ranged",
+   "armor": 0,
+   "attack_speed": 25,
+   "difficulty": 159.6,
+   "gold_value": 1597,
+   "hits": 14000,
+   "knowledge_ids": [
+    10848,
+    12681
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [],
+   "name": "a drowned buccaneer",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 130
+  },
+  "drowned mariner": {
+   "ai": "ranged",
+   "armor": 0,
+   "attack_speed": 25,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 66.7,
+   "gold_value": 667,
+   "graphic": 400,
+   "hits": 6000,
+   "knowledge_ids": [
+    10816,
+    12682
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [],
+   "name": "a drowned mariner",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 120
+  },
+  "drowned swashbuckler": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": 45,
+   "difficulty": 170.9,
+   "gold_value": 1710,
+   "hits": 14000,
+   "knowledge_ids": [
+    10846,
+    12683
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [],
+   "name": "a drowned swashbuckler",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 130
+  },
+  "dungeon-nest crab": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x1fd"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 53.5,
+   "gold_value": 536,
+   "graphic": 509,
+   "hits": 4000,
+   "knowledge_ids": [
+    10530,
+    10810,
+    12684,
+    14468
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a dungeon-nest crab",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Dig (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 2 tiles. Inflicts (DamageMax * 0.9) damage, with the first target hit taking +50% damage"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 90
+  },
+  "flying manta": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x9a6"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 55.9,
+   "gold_value": 560,
+   "graphic": 2470,
+   "hits": 3500,
+   "knowledge_ids": [
+    10791,
+    12689
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a flying manta",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 95
+  },
+  "frenzyfin": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 149.1,
+   "gold_value": 1491,
+   "hits": 8000,
+   "knowledge_ids": [
+    10778,
+    12690
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frenzyfin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 120
+  },
+  "giant astral zoa": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 287.9,
+   "gold_value": 2879,
+   "hits": 18000,
+   "knowledge_ids": [
+    10770,
+    12691
+   ],
+   "location": "Tidal Tomb",
+   "magery": 225,
+   "magic_resist": 250,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant astral zoa",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    45,
+    55
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 120
+  },
+  "giant combustive zoa": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 287.9,
+   "gold_value": 2879,
+   "hits": 18000,
+   "knowledge_ids": [
+    10770,
+    12692
+   ],
+   "location": "Tidal Tomb",
+   "magery": 225,
+   "magic_resist": 250,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant combustive zoa",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    45,
+    55
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 120
+  },
+  "giant kelpdweller": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 287.8,
+   "gold_value": 2878,
+   "hits": 16000,
+   "knowledge_ids": [
+    10795,
+    12693
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant kelpdweller",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.7,
+   "wrestling": 120
+  },
+  "giant pincer crab": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x152"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 151.0,
+   "gold_value": 1511,
+   "graphic": 338,
+   "hits": 10000,
+   "knowledge_ids": [
+    10530,
+    10793,
+    12694,
+    14472
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant pincer crab",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14472; that the wild creature uses it is [INFERENCE]] Pinch (Passive): Has a (5% + (Control Slots * 5%)) chance on melee hit to entangle creature for 5 seconds and applying a pierce effect of (Control Slots * 10) for 15 seconds. Also applies a (DamageMax * 0.8) Pressure effect with 15 second duration."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "giant toxic zoa": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 289.2,
+   "gold_value": 2892,
+   "hits": 18000,
+   "knowledge_ids": [
+    10733,
+    12696
+   ],
+   "location": "Tidal Tomb",
+   "magery": 225,
+   "magic_resist": 250,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant toxic zoa",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "80%",
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    45,
+    55
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 120
+  },
+  "greater frenzyfin": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 306.2,
+   "gold_value": 3062,
+   "hits": 20000,
+   "knowledge_ids": [
+    10801,
+    12697
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a greater frenzyfin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 130
+  },
+  "greater razorfin": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 295.3,
+   "gold_value": 2953,
+   "hits": 20000,
+   "knowledge_ids": [
+    10810,
+    12698
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a greater razorfin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 130
+  },
+  "greater voidfin": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 328.1,
+   "gold_value": 3281,
+   "hits": 20000,
+   "knowledge_ids": [
+    10777,
+    12699
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a greater voidfin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.5,
+   "wrestling": 130
+  },
+  "ironscale grouper": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x9b4"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 143.4,
+   "gold_value": 1435,
+   "graphic": 2484,
+   "hits": 10000,
+   "knowledge_ids": [
+    10802,
+    12702
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ironscale grouper",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 100
+  },
+  "kelpdweller": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 130.1,
+   "gold_value": 1302,
+   "hits": 6000,
+   "knowledge_ids": [
+    10795,
+    12703
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a kelpdweller",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.7,
+   "wrestling": 110
+  },
+  "lighthouse shellpod": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x9aa"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 112.1,
+   "gold_value": 1121,
+   "graphic": 2474,
+   "hits": 8000,
+   "knowledge_ids": [
+    10530,
+    10792,
+    12708,
+    14478
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lighthouse shellpod",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14478; that the wild creature uses it is [INFERENCE]] Light Barrage (Cooldown): Fires 2 projectiles at target up to 8 tiles away, each inflicting (DamageMax * 1.0) damage. Target has their damage taken from provoked, uncontrolled creatures increased by 20% for the next 15 seconds"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 100
+  },
+  "lowtide scavenger": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 44.6,
+   "gold_value": 446,
+   "graphic": 400,
+   "hits": 4000,
+   "knowledge_ids": [
+    10725,
+    12711
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lowtide scavenger",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 100
+  },
+  "marinerbane": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 655.7,
+   "gold_value": 50000,
+   "hits": 100000,
+   "knowledge_ids": [
+    10815
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed",
+    "speed"
+   ],
+   "name": "a marinerbane",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": null,
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.8,
+   "wrestling": 110
+  },
+  "mermadon": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x4f"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 61.5,
+   "gold_value": 615,
+   "graphic": 79,
+   "hits": 4000,
+   "knowledge_ids": [
+    10758,
+    12713
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a mermadon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 110
+  },
+  "ocean bedrock": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0xb3"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 134.3,
+   "gold_value": 1343,
+   "graphic": 179,
+   "hits": 8000,
+   "knowledge_ids": [
+    10595,
+    12726
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ocean bedrock",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 110
+  },
+  "oozing noughtilus": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 6,
+    "graphics": [
+     "0xb1"
+    ],
+    "serials": 7,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 45.5,
+   "gold_value": 455,
+   "graphic": 177,
+   "hits": 3000,
+   "knowledge_ids": [
+    10530,
+    10810,
+    12728,
+    14467,
+    14480
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an oozing noughtilus",
+   "parry": 50,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14467; that the wild creature uses it is [INFERENCE]] Ooze Aura (Cooldown): Fires 4 staggered bursts, each hitting up to to 3 targets within 2 tiles. Each burst inflicts (DamageMax * 0.20) damage to all targets, with the first target hit taking +10% damage. Has a poisoning skill % chance to apply greater poison to any target hit at least once.",
+    "[tamed-version follower ability, knowledge #14480; that the wild creature uses it is [INFERENCE]] Shell (Innate): Creature has an innate 50 parry skill against melee attacks."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "pincer crab": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 11,
+    "graphics": [
+     "0x153"
+    ],
+    "serials": 11,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 6.3,
+   "gold_value": 64,
+   "graphic": 339,
+   "hits": 500,
+   "knowledge_ids": [
+    10782,
+    12732
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a pincer crab",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 100
+  },
+  "razorfin": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x9b0"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 143.7,
+   "gold_value": 1438,
+   "graphic": 2480,
+   "hits": 8000,
+   "knowledge_ids": [
+    10791,
+    12733
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a razorfin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 120
+  },
+  "ruby smallshell": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x9ab"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 41.6,
+   "gold_value": 417,
+   "graphic": 2475,
+   "hits": 3000,
+   "knowledge_ids": [
+    10531,
+    10807,
+    12735,
+    14469
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a ruby smallshell",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14469; that the wild creature uses it is [INFERENCE]] Pierce Claw (Cooldown): Strikes up to 3 targets within 1 tile. Inflicts (DamageMax * 0.75) damage, with the first target hit taking +50% damage. Applies a pierce effect of (Control Slots * 10) for 15 seconds, with damage increased by 50% if target reduced to 0 armor."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "scourgeon": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x9b3"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 127.8,
+   "gold_value": 1279,
+   "graphic": 2483,
+   "hits": 8000,
+   "knowledge_ids": [
+    10809,
+    12740
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a scourgeon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 110
+  },
+  "singing noughtilus": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0xb1"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 40.9,
+   "gold_value": 409,
+   "graphic": 177,
+   "hits": 3000,
+   "knowledge_ids": [
+    10531,
+    10779,
+    12741,
+    14469,
+    14480
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a singing noughtilus",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14469; that the wild creature uses it is [INFERENCE]] Sing (Cooldown): For next 8 seconds, creature's melee attacks against discorded targets inflict an additional 33% damage that ignores half of target's armor",
+    "[tamed-version follower ability, knowledge #14480; that the wild creature uses it is [INFERENCE]] Shell (Innate): Creature has an innate 50 parry skill against melee attacks."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "soulcatcher": {
+   "ai": "ranged",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261024_102346"
+    ]
+   },
+   "difficulty": 84.9,
+   "gold_value": 850,
+   "graphic": 400,
+   "hits": 6000,
+   "knowledge_ids": [
+    10844,
+    12744
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a soulcatcher",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 100
+  },
+  "the undermind": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 1760.2,
+   "gold_value": 100000,
+   "hits": 200000,
+   "knowledge_ids": [
+    10755
+   ],
+   "location": "Tidal Tomb",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed",
+    "speed"
+   ],
+   "name": "a the undermind",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": null,
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 120
+  },
+  "tidal krait": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 203.1,
+   "gold_value": 2032,
+   "hits": 14000,
+   "knowledge_ids": [
+    10531,
+    10547,
+    12751,
+    14469
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a tidal krait",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14469; that the wild creature uses it is [INFERENCE]] Choke (Passive): Has a (5% + (Control Slots * 5%)) chance on melee hit to entangle creature for 4 seconds and inflict (DamageMax * 1.5) which ignores half of target's armor and also applies a (DamageMax * 1.0) Pressure effect with 15 second duration. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 130
+  },
+  "tidal sea serpent": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 259.2,
+   "gold_value": 2593,
+   "hits": 20000,
+   "knowledge_ids": [
+    10541,
+    12754
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a tidal sea serpent",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 130
+  },
+  "toxic zoa": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 180.1,
+   "gold_value": 1801,
+   "hits": 10000,
+   "knowledge_ids": [
+    10763,
+    12755
+   ],
+   "location": "Tidal Tomb",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a toxic zoa",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "60%",
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 110
+  },
+  "voidfin": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 159.7,
+   "gold_value": 1598,
+   "hits": 8000,
+   "knowledge_ids": [
+    10794,
+    12757
+   ],
+   "location": "Tidal Tomb",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a voidfin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.5,
+   "wrestling": 120
+  }
+ },
+ "mechanics": {
+  "bouncing_air_bubble": {
+   "knowledge_id": 4648,
+   "text": "- Players in Underwater levels of Tidal Tomb (level 2 and onward) have an extremely rare chance to discover a Bouncing Air Bubble as a decorative loot item on creature corpses or dungeon chests\nTidal Tomb Dungeon Plants\nTidal Tomb Redline Trophies",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Bouncing Air Bubble"
+  },
+  "major_oxygen_deprivation": {
+   "knowledge_id": 4644,
+   "text": "- If a player has been Underwater for a total of 20 minutes without refilling their Oxygen, they will enter Major Oxygen Deprivation\n- While in Major Oxygen Deprivation, the Player will lose 10 Health (unpreventable) every 5 seconds while they are above 33% health (no impact if they are below 33% health)\n- While in Major Oxygen Deprivation, the player\u2019s Followers will each lose 10% of their Health (unpreventable) every 5 seconds while they are above 33% health (no impact if they are below 33% health)\n- Players suffering from Major Oxygen Deprivation will have a Buff Icon explaining the mechanic",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Major Oxygen Deprivation"
+  },
+  "minor_oxygen_deprivation": {
+   "knowledge_id": 4643,
+   "text": "- If a player has been Underwater for a total of 10 minutes without refilling their Oxygen, they will enter Minor Oxygen Deprivation\n- While in Minor Oxygen Deprivation, the Player will lose 5 Health (unpreventable) every 5 seconds while they are above 66% health (no impact if they are below 66% health)\n- While in Minor Oxygen Deprivation, the player\u2019s Followers will each lose 5% of their Health (unpreventable) every 5 seconds while they are above 66% health (no impact if they are below 66% health)\n- Players suffering from Minor Oxygen Deprivation will have a Buff Icon explaining the mechanic",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Minor Oxygen Deprivation"
+  },
+  "oxygen": {
+   "knowledge_id": 4642,
+   "text": "- While in an Underwater level, players will slowly lose Oxygen over time\n- Leaving the Underwater level, by returning to Level 1 or exiting the Dungeon, will fully refill a player\u2019s Oxygen\n- Players can also fully refill their Oxygen from a Recovery Dolphin (explained later)\n- A player\u2019s remaining Oxygen amount is displayed in an Oxygen Hotbar displayed for the player\n- Players in an Underwater level will also have an Underwater Buff Icon explaining the mechanic",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Oxygen"
+  },
+  "oxygen_and_underwater_levels": {
+   "knowledge_id": 4641,
+   "text": "- Levels 2 and beyond of Tidal Tomb are considered Underwater levels\n- Gold drop amounts and Experience Earned are increased by 5% in Underwater levels\n- While inside an Underwater level, Players (and their Followers) are subject to the Tidal Tomb\u2019s Oxygen mechanic",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Oxygen and Underwater Levels"
+  },
+  "pressure_effect": {
+   "knowledge_id": 4646,
+   "text": "- Pressure is a new effect type that certain creatures (including Tamables) will now inflict\n- When a Pressure effect is applied, it will not immediately inflict any damage\n- Instead, when any Pressure effect on a target expires, all existing Pressure effects on the target will resolve simultaneously, inflicting their listed Damage amount as raw damage (ignoring armor)\n- Afterwards, all Pressure effects are removed from the target\nExample\nThe following happens to a player:\n- Player is hit with a 5 Damage Pressure effect with 15 second duration\n- Player is hit with a 10 Damage Pressure effect with 30 second duration\n- Player is hit with a 15 Damage Pressure effect with 60 second duration\nWhen the 15 second duration Pressure effect expires on the player, all three Pressure effects will resolve on the player, resulting in the player taking 5 + 10 + 15 = 30 Raw Damage (and then all pressure effects are cleared from the player)",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Pressure Effect"
+  },
+  "recovery_dolphins": {
+   "knowledge_id": 4645,
+   "text": "- Players will find good natured Recovery Dolphins at the entrances to Level 3 and Boss/Mini-Boss Rooms\n- Every 5 seconds, Recovery Dolphins will fully refill the Oxygen levels for all nearby players",
+   "topic": "2025-11-16 Tidal Tomb Expansion Released! > Recovery Dolphins"
+  }
+ },
+ "source": "harness/sim/kb_scan.py --location 'Tidal Tomb' (wiki rows of the memory store)"
+}

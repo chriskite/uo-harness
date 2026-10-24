@@ -1,15 +1,17 @@
-"""Observed Mausoleum facts from proxy captures, for the offline simulator (harness/sim).
+"""Observed dungeon facts from proxy captures, for the offline simulator (harness/sim).
 
-    python harness/sim/calibrate.py [--logs DIR] [--out PATH] [--scan YYYYMMDD] [TAG ...]
+    python harness/sim/calibrate.py [--scenario NAME] [--logs DIR] [--out PATH] [--scan YYYYMMDD] [TAG ...]
 
-Replays each capture (logs/session_<TAG>.*, default TAG 20261012_210013) through
+Replays each capture (logs/session_<TAG>.*, default the scenario's `calibration.tags`) through
 world.runtime.WorldRuntime with replay.timed_packets and writes what happened while our
-player stood in the Mausoleum region (facet 0, x 5150-5650, y 600-760) to
-harness/data/sim/mausoleum_observed.json: levels and teleporter jumps, per creature type
+player stood in the scenario's region (`calibration.facet` / `.box`: the Mausoleum's facet 0,
+x 5150-5650, y 600-760; Tidal Tomb's x 6600-6975, y 1900-2115) to
+harness/data/sim/<NAME>_observed.json: levels and teleporter jumps, per creature type
 (bodies, notoriety, first-seen spots, movement cadence, damage dealt to the pets / us,
 swing period, time to kill, damage the pets dealt, gold, aggro), per pet, the player,
 the bard skills and respawns. `--scan 20261010` also replays every session in the logs
 dir from that date on and adds the ones whose player was ever inside the region.
+Red players (notoriety 6 with a player's body or flag) are no creature type: `source` counts them.
 
 Every number comes with `n` (sample size). Attribution rules are spelled out in the
 output's `rules` object; anything not directly counted is marked [INFERENCE] there.
@@ -36,15 +38,35 @@ if HARNESS not in sys.path:
 
 import replay  # noqa: E402
 import tamer  # noqa: E402
+import threats  # noqa: E402
 from world.runtime import WorldRuntime  # noqa: E402
 
-DEFAULT_TAG = "20261012_210013"
+DEFAULT_SCENARIO = "mausoleum"
 DEFAULT_LOGS = os.path.join(REPO, "logs")
-DEFAULT_OUT = os.path.join(HARNESS, "data", "sim", "mausoleum_observed.json")
+SCENARIO_DIR = os.path.join(HARNESS, "data", "sim")
 
+# The region of the scenario configure() last read (the Mausoleum's until then: sim/cast_scan.py's in_region)
 FACET = 0
 X_RANGE = (5150, 5650)
 Y_RANGE = (600, 760)
+
+
+def configure(name: str) -> list[str]:
+    """Read scenario `name`'s `calibration` block (facet, box, tags): the region in_region tests from now on;
+    its default capture tags."""
+    global FACET, X_RANGE, Y_RANGE
+    with open(os.path.join(SCENARIO_DIR, f"{name}.json"), encoding="utf-8") as f:
+        cal = json.load(f)["calibration"]
+    x0, y0, x1, y1 = cal["box"]
+    FACET, X_RANGE, Y_RANGE = cal.get("facet", 0), (x0, x1), (y0, y1)
+    return list(cal["tags"])
+
+
+def red_player(m) -> bool:
+    """A red player (sim/red_scan.py's rule): notoriety 6 and flag 0x20 or a human body, not a ghost."""
+    return (m.notoriety == 6 and m.graphic not in threats.GHOST_BODIES
+            and (bool((m.flags or 0) & 0x20) or m.graphic in threats.HUMAN_BODIES))
+
 
 MONSTER_NOTORIETY = (3, 4, 5, 6)   # attackable, criminal, enemy, murderer (1 = other players and their pets)
 WAR = 0x40                         # 0x20 MobileUpdate flags: war mode
@@ -147,12 +169,14 @@ class Session:
         self.pet_samples = []      # (t, pet, distance, war, last pet command)
         self.commands = []         # (t, phrase) pet commands we said
         self.bard = []             # one dict per skill use
-        self.players_seen = set()  # other players in the region
+        self.players_seen = set()  # other players in the region (reds too)
+        self.reds = set()          # red players in the region (red_player): no creature type
         self.packets_in_region = 0
 
     # -- helpers on the live state -----------------------------------------
     def _monster(self, s, m):
-        return (s != self.self_serial and s not in self.pets and m.notoriety in MONSTER_NOTORIETY)
+        return (s != self.self_serial and s not in self.pets and s not in self.reds
+                and m.notoriety in MONSTER_NOTORIETY)
 
     def _war_monsters_near(self, rt, x, y, r):
         out = []
@@ -224,6 +248,9 @@ class Session:
                 if m is not None and m.x is not None and s != self.self_serial:
                     i = self._note_mobile(s, m, t)
                     if m.notoriety == 1 and m.graphic in (400, 401, 605, 606):
+                        self.players_seen.add(s)
+                    elif red_player(m):
+                        self.reds.add(s)
                         self.players_seen.add(s)
                     if i["first"] is None:
                         i["first"] = {"t": t, "pos": [m.x, m.y, m.z], "d_self": cheb(m.x, m.y, me.x, me.y)}
@@ -465,7 +492,8 @@ def creatures(sessions):
         pets = set(sess.pets)
         # monsters: any serial ever seen at a monster notoriety
         monsters = [s for s, i in sess.info.items()
-                    if s not in pets and i["first"] is not None and i["notorieties"] & set(MONSTER_NOTORIETY)]
+                    if s not in pets and s not in sess.reds and i["first"] is not None
+                    and i["notorieties"] & set(MONSTER_NOTORIETY)]
         death_by_serial = {d["serial"]: d for d in sess.deaths}
         for s in sorted(monsters):
             k = creature_type(sess, s)
@@ -820,7 +848,7 @@ def respawn_section(sessions):
     for sess in sessions:
         deaths = [(d["t"], creature_type(sess, d["serial"]), d["pos"]) for d in sess.deaths if d["pos"]]
         for s, i in sess.info.items():
-            if s in sess.pets or i["first"] is None or not i["notorieties"] & set(MONSTER_NOTORIETY):
+            if s in sess.pets or s in sess.reds or i["first"] is None or not i["notorieties"] & set(MONSTER_NOTORIETY):
                 continue
             f = i["first"]
             if f["d_self"] > SPAWN_IN_VIEW:
@@ -846,9 +874,9 @@ def damage_hues(sessions):
     return {f"{k[0]}:{k[1]}": v for k, v in sorted(c.items())}
 
 
-RULES = {
-    "region": f"facet {FACET}, x {X_RANGE[0]}-{X_RANGE[1]}, y {Y_RANGE[0]}-{Y_RANGE[1]}; only packets while our player stood inside count.",
-    "monster": f"a mobile seen at notoriety {list(MONSTER_NOTORIETY)} that is not one of our pets (ours: notoriety 2 and tame/bonded).",
+RULES = {    # with "region" first (build: the region configure() read)
+    "monster": f"a mobile seen at notoriety {list(MONSTER_NOTORIETY)} that is not one of our pets (ours: notoriety 2 and tame/bonded) "
+               "nor a red player (notoriety 6 with flag 0x20 or a human body: source.captures[].red_players_seen).",
     "type_key": "lowercase name without a leading article; mobiles named like our pets but not ours are 'transfixed copy of <pet>' "
                 "(they appear right after a vampire countess's '*attempts to transfix*' and '*transfixed*' over them: [INFERENCE] a countess ability).",
     "war_mode": "flag 0x40 of the latest 0x20 MobileUpdate (Outlands 0x77 carries no flags).",
@@ -905,11 +933,13 @@ def build(tags, logs, scanned=None):
                           "in_region": [clock(s.t0), clock(s.t1)],
                           "packets_in_region": s.packets_in_region,
                           "pets": {n: f"0x{p:08X}" for p, n in sorted(s.pets.items())},
-                          "other_players_seen": len(s.players_seen)} for s in sessions],
+                          "other_players_seen": len(s.players_seen),
+                          "red_players_seen": len(s.reds)} for s in sessions],
             "scan": scanned,
             "generator": "harness/sim/calibrate.py",
         },
-        "rules": RULES,
+        "rules": {"region": f"facet {FACET}, x {X_RANGE[0]}-{X_RANGE[1]}, y {Y_RANGE[0]}-{Y_RANGE[1]}; only packets while "
+                            "our player stood inside count.", **RULES},
         "damage_number_hues": damage_hues(sessions),
         "levels": levels(sessions),
         "creatures": creatures(sessions),
@@ -922,12 +952,15 @@ def build(tags, logs, scanned=None):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("tags", nargs="*", default=[DEFAULT_TAG])
+    ap.add_argument("tags", nargs="*", help="capture tags (default: the scenario's calibration.tags)")
+    ap.add_argument("--scenario", default=DEFAULT_SCENARIO, help="its calibration block gives the region and tags")
     ap.add_argument("--logs", default=DEFAULT_LOGS)
-    ap.add_argument("--out", default=DEFAULT_OUT)
+    ap.add_argument("--out", help="default harness/data/sim/<scenario>_observed.json")
     ap.add_argument("--scan", metavar="YYYYMMDD", help="also include every session from this date on that visited the region")
     a = ap.parse_args(argv)
-    tags = list(a.tags)
+    default_tags = configure(a.scenario)
+    a.out = a.out or os.path.join(SCENARIO_DIR, f"{a.scenario}_observed.json")
+    tags = list(a.tags or default_tags)
     scanned = None
     if a.scan:
         scanned = scan(a.logs, a.scan)

@@ -14,6 +14,18 @@
     {"facet": 0, "from": [5254, 736], "to": [0, 5697, 713, 0],
      "note": "Maus 3 -> Maus 4: a step E from (5253, 736) (20261014_210020 21:09:31.5) [INFERENCE: the tile E of the deny]"},
     {"facet": 0, "from": [5699, 627], "to": [0, 5266, 627, 0],
-     "note": "Maus 4 -> Maus 3: walking W along y 627, denied at (5700, 627) (20261014_210020 21:10:54.9) [INFERENCE: the tile W of the deny]"}
+     "note": "Maus 4 -> Maus 3: walking W along y 627, denied at (5700, 627) (20261014_210020 21:10:54.9) [INFERENCE: the tile W of the deny]"},
+    {"facet": 0, "from": [6656, 2109], "to": [0, 3861, 3585, -59],
+     "note": "Tidal Tomb level 1, S of the recall arrival (6653, 2097): out of the dungeon to the entrance outside (20261024_102346 11:00:06, a step S from (6656, 2108))"},
+    {"facet": 0, "from": [3861, 3585], "to": [0, 6656, 2109, -14],
+     "note": "Tidal Tomb's entrance outside: in to level 1 (20261024_102346 11:00:51, a step N from (3861, 3586))"},
+    {"facet": 0, "from": [6718, 1984], "to": [0, 6943, 2004, -38],
+     "note": "Tidal Tomb level 1 -> level 2, the underwater one (20261024_102346 11:08:37, a step S from (6718, 1983))"},
+    {"facet": 0, "from": [6943, 2004], "to": [0, 6718, 1984, -18],
+     "note": "Tidal Tomb level 2 -> level 1 [INFERENCE: the level 2 arrival tile; Tidal's pairs land on each other's tile, 2 of 2 seen both ways]"},
+    {"facet": 0, "from": [6834, 2079], "to": [0, 6609, 2060, 0],
+     "note": "Tidal Tomb level 2 -> level 1's west end (20261024_102346 11:13:31, a step N from (6834, 2080))"},
+    {"facet": 0, "from": [6609, 2060], "to": [0, 6834, 2079, -10],
+     "note": "Tidal Tomb level 1's west end -> level 2 (20261024_102346 11:13:39, a step S from (6609, 2059))"}
   ]
 }

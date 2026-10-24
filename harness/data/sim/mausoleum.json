@@ -6,6 +6,12 @@
   "kb": "mausoleum_kb.json",
   "observed": "mausoleum_observed.json"
  },
+ "calibration": {
+  "facet": 0,
+  "box": [5150, 600, 5650, 760],
+  "tags": ["20261012_210013"],
+  "note": "sim/calibrate.py's region (only packets while we stood inside count) and default capture for mausoleum_observed.json: the first three levels and the trip"
+ },
  "player": {
   "serial": 1067616,
   "name": "Logan Wolf",

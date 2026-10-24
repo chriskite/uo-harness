@@ -5354,6 +5354,79 @@ docs/SIM.md "Cast and flight times; traces"). Protocol facts it rests on:
 - Our pets aren't always flagged `pet` in the model: the "(tame)" line comes only after a click, so AlaFlambe and
   GraveRobber showed up under their names as monsters in some captures (a scan keyed on `m.pet` misses them).
 
+## Tidal Tomb: Logan's first visit (2026-10-24 10:59:55-11:14:06, capture 20261024_102346)
+
+The user played it. It is the evidence behind the simulator's `tidal_tomb` scenario (docs/SIM.md "Tidal Tomb").
+
+**Getting in and out:**
+
+- **The rune.** "Tidal Tomb Inside" is in the runebook **"Bad Places II"**: the 11th rune of its gump 0x09F5976B,
+  button 110 at 10:59:53. Logan's own "A Rune Tome" has no Tidal row (its gump at 11:14:07). The rune libraries
+  also list "Tidal Tomb Inside" (6653, 2097) and the outside entrance, Witcher 346 (3826, 3591).
+- **The arrival** is (6653, 2097, -16) on level 1, 2 tiles from the hue-2822 **golden moongate 0x4003D7B5** at
+  (6652, 2095). A **crimson moongate 0x4001AA04** stands on the same tile. A second golden gate 0x4003D7B7 is at
+  (6642, 2062).
+- **The exit is a teleporter south of the arrival.** A step S from (6656, 2108) put Logan outside at
+  (3861, 3585, -59) at 11:00:06. Just outside, Oswald the Archeologist gives the "Tidal Tomb Collectable Card"
+  quest: slay 10,000 gold worth of creatures "Inside of Tidal Tomb Dungeon Underwater Areas". The quest's progress
+  still counted on level 1, though. A step N from (3861, 3586) put him back in at (6656, 2109) at 11:00:51.
+- **Level 1 -> level 2:** a step S from (6718, 1983) at 11:08:37, landing at (6943, 2004, -38).
+- **Level 2 -> level 1's west end:** a step N from (6834, 2080) at 11:13:31, landing at (6609, 2060). A step S from
+  (6609, 2059) at 11:13:39 put him back on level 2 at (6834, 2079).
+- **Teleporter pairs land on each other's 'from' tile.** 2 of 2 pairs were seen both ways. All six tiles are in
+  `harness/data/teleporters.json`; the way up from level 2's arrival is [INFERENCE].
+- **Out:** Logan double-clicked the crimson moongate 0x4003D7B8 at (6913, 2071, -100) on level 2. Its
+  "Moongate Destinations" rows are the Mausoleum crimson gate's, Anchor's Rest .. Corpse Creek. Travel with Totem
+  selected landed him at (3867, 2900, -40), not the (3859, 2890) of the Mausoleum's gate. From there the tome took
+  him home.
+- **No recall was tried inside.** The scenario applies the user's dungeon rule: recall only near a gold gate.
+
+**The levels**, from a map flood fill with pathfind.Walk from each arrival:
+
+- Level 1: x 6608-6738, y 1932-2109, z -24..85.
+- Level 2: x 6817-6967, y 1909-2098, z -127..-10.
+- Every one of Logan's 1,153 steps there is walkable on the install's map.
+
+**Oxygen.** Patch notes 2025-11-16 (knowledge #4641-4645): levels 2+ are underwater. After 10 minutes without a
+refill comes minor deprivation, after 20 major. Level 1 or the outside refills it, and so do Recovery Dolphins at
+level 3's entrance. Live on level 2:
+
+- The server sent the gump **0xEC5F8754 "Oxygen"** every 6 s, closing the old one.
+- Its layout holds two `tilepichue` bars at (58, 50) and (58, 64). The second's art stepped from 28135 down one
+  every 30 s, reaching 28125 at 11:13:14.
+- It was back at 28135 on level 1's west end (11:13:39).
+- [INFERENCE] 28135 -> 28115 is the 10 minutes. The first bar stayed 28135.
+
+**Monsters on level 1 and their specials:**
+
+- **Oozing noughtilus: Ooze Aura.** 4 numbers 0.3 s apart on everyone within 2 tiles, 0.5 s after its animation 10,
+  every 7-12 s.
+  - The gravebug took 2-5, Logan 4-7.
+  - Twice Logan had "*stumbles around in confusion and pain*" over him, then "You receive a free cure potion
+    consumption": the aura's greater poison, cured at once.
+- **Ruby smallshell: Pierce Claw.** "A ruby-sharp strike temporarily reduces your armor!" with a 22-23 on Logan,
+  then "Your armor is no longer pierced." 30 s later. This happened twice.
+- **Pincer crabs emerge.** 8 new crabs, each with "*emerges*" beside a fight. Each came 0.5 s after a dungeon-nest
+  crab's "*digs*" or a lowtide scavenger's "*takes large swing*". All 11 pincer crabs died; they have 500 hits.
+- **Bottomfeeder: "*feeds*".** 4 ticks 0.5 s apart on the gravebug.
+- **Who hit Logan:** 11 hits of 22-32, from monsters on him: flying mantas, ruby smallshells, a singing noughtilus,
+  and on level 2 a soulcatcher and a clearwater grouper. None of it was area damage beside a pet.
+- **Barding.**
+  - The creature Guide gump 0xC38EC76C shows "Barding Chance" per creature, e.g. a flying manta 74.1 %. The wiki
+    formula says 93 % for it.
+  - Discord lasted 68 s in 21 of 23 successes, peace 34 s, provoke 42 s.
+  - Songs were 16.9 %.
+
+**Other players.**
+
+- Four blue players with pets were seen on level 2.
+- **A red, "BUL SA PA oOo"** (notoriety 6, human body), appeared on level 1's west end at 11:13:34, 18 tiles from
+  Logan. It followed him down the teleporter 3 s after him and stayed within 1-3 tiles for ~10 s
+  (11:13:42-11:13:53), but it never hit him (no damage, no harmful act on the wire). It left north at 11:13:57.
+  Logan said "All Follow Me" at 11:14:01 and took the crimson gate out at 11:14:05.
+  - `logs/red_scan/20261024_102346.json` has the packets.
+  - `sim/calibrate.py` now keeps reds out of the creature types.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -84,9 +84,26 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
             "specials": sc.get("specials", {}).get(key, []), "source": src}
 
 
-def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
+def _read(name: str, data_dir: str) -> dict:
     with open(os.path.join(data_dir, f"{name}.json"), encoding="utf-8") as f:
         sc = json.load(f)
+    inh = sc.get("inherit")
+    if inh:
+        # the character's blocks another scenario holds (Logan's pets, pack, bard, vet, potions, engine defaults):
+        # a key the scenario lacks is the base's; a dict both have is the base's updated by the scenario's
+        base = _read(inh["from"], data_dir)
+        for k in inh["keys"]:
+            if k not in base:
+                raise ValueError(f"scenario {name}: inherit key {k!r} not in {inh['from']}")
+            if k not in sc:
+                sc[k] = base[k]
+            elif isinstance(sc[k], dict) and isinstance(base[k], dict):
+                sc[k] = {**base[k], **sc[k]}
+    return sc
+
+
+def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
+    sc = _read(name, data_dir)
     with open(os.path.join(data_dir, sc["evidence"]["kb"]), encoding="utf-8") as f:
         kb = json.load(f)
     obs_path = os.path.join(data_dir, sc["evidence"]["observed"])
@@ -94,7 +111,9 @@ def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
     if os.path.exists(obs_path):
         with open(obs_path, encoding="utf-8") as f:
             obs = json.load(f)
-    keys = sorted({s["key"] for s in sc["spawns"]})
+    # the spawns' types and the ones a special brings in (a nest crab's broodling)
+    keys = sorted({s["key"] for s in sc["spawns"]} | {sp["key"] for sps in (sc.get("specials") or {}).values()
+                                                       if isinstance(sps, list) for sp in sps if sp.get("key")})
     missing = [k for k in keys if k not in kb["creatures"]]
     if missing:
         raise ValueError(f"scenario {name}: no wiki stats for {missing}")

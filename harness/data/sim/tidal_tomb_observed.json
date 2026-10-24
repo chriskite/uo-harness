@@ -1,0 +1,5085 @@
+{
+ "source": {
+  "captures": [
+   {
+    "tag": "20261024_102346",
+    "character": "Logan Wolf",
+    "serial": "0x00104A60",
+    "in_region": [
+     "10:59:55",
+     "11:14:06"
+    ],
+    "packets_in_region": 49742,
+    "pets": {
+     "GraveRobber": "0x000DDEFE",
+     "AlaFlambe": "0x0026EF56"
+    },
+    "other_players_seen": 5,
+    "red_players_seen": 1
+   }
+  ],
+  "scan": null,
+  "generator": "harness/sim/calibrate.py"
+ },
+ "rules": {
+  "region": "facet 0, x 6600-6975, y 1900-2115; only packets while our player stood inside count.",
+  "monster": "a mobile seen at notoriety [3, 4, 5, 6] that is not one of our pets (ours: notoriety 2 and tame/bonded) nor a red player (notoriety 6 with flag 0x20 or a human body: source.captures[].red_players_seen).",
+  "type_key": "lowercase name without a leading article; mobiles named like our pets but not ours are 'transfixed copy of <pet>' (they appear right after a vampire countess's '*attempts to transfix*' and '*transfixed*' over them: [INFERENCE] a countess ability).",
+  "war_mode": "flag 0x40 of the latest 0x20 MobileUpdate (Outlands 0x77 carries no flags).",
+  "movement": "intervals between consecutive 0x77 updates that changed the tile, gaps > 2.0s dropped (pauses); war/peace by the flag at the earlier update; tiles/s = tiles moved / time over those pairs.",
+  "damage_to_pets/us": "a '-N' (speech type 0) over a pet / us counts for a creature type when exactly one war-mode monster stood within 1 tile of the victim; '_victim_not_poisoned' drops numbers within 10.0s after '*looks violently ill*' over the victim (poison ticks); 'damage_ranged_sole' = no war-mode monster within 1 and exactly one within 12.",
+  "swing": "attributed numbers from one creature within 0.25s are one swing (summed); period = gap between its successive swings when <= 6.0s. Numbers include poison/bleed ticks the rule can't separate.",
+  "kill_s": "first '-N' over the creature (any hue) to its mobile_death.",
+  "hurt_rate": "sum of '-N' in hue 89 over the creature / (death or last such number - first such number), creatures with >= 2 numbers.",
+  "damage_hues": "'-N' over creatures came in hue 89 (our pets' hits) and 2417 (only during a successful Provocation between two provoked creatures, and poison ticks after '*looks violently ill*'): [INFERENCE] the hue marks damage from our side; pets/us take damage in 946.",
+  "damage_taken_total_killed": "sum of every '-N' over a creature that died in view: a lower bound on its hit points (numbers sent while it was out of view or before we arrived are missed) [INFERENCE].",
+  "gold": "lifts of graphic 0x0EED out of the corpse (mobile_death.corpse, up to 4 container levels) of that creature, summed per corpse.",
+  "aggro": "the first 0x20 that showed the creature in war mode: distances to us and the nearest pet then; 'toward' compares how much those distances shrank by the last update within 4.0s. 'first_seen_in_war' = already in war mode when it came into view (distances then are not aggro ranges). 'hit_before' = a '-N' over it came earlier (the pets opened).",
+  "pet_heals": "'+N' over a pet within 0.6s of 'You finish using veterinary supplies.' = vet; within 1.6s after its '*devours corpse*' = devour; else other.",
+  "pet_damage_dealt": "[INFERENCE] the gravebug melees, so a hue-89 '-N' over a monster while the gravebug stood > 1 tile away is the phoenix's (we never fought); for the gravebug only numbers while adjacent within 0.15 s after its attack animation. Numbers with another player within 18 tiles are skipped.",
+  "pet_distance": "Chebyshev distance pet-us sampled every 0.5s; fighting = pet in war mode; not fighting split by the last pet command we said.",
+  "potion": "'+N' over us within 0.6s of 'You drink a healing potion.'",
+  "engagement": "damage numbers (creatures, pets, us) clustered with gaps <= 15.0s; kills = mobile_death of a creature that took a number, within the engagement + 2 s.",
+  "walk": "confirmed own steps grouped into runs (gap <= 0.6s, >= 4 steps); rate = steps / run time.",
+  "bard": "a skill use (0x12 type 0x24 for 9/15/22) owns the next bard prompt's target response (the first target; provocation's second is ignored) and the first answer within 10 s: ok (ANSWER_OK), fail / beyond (ANSWER_FAIL, 'beyond your skill'), refused_calm_wait, refused_barding_break, refused_skill_wait (cliloc 500118 before any target), refused_cannot_see / refused_too_far (cliloc 500237 / 500446); no_target = no answer and no target; distances are us to the target at the answer.",
+  "respawn": "a monster first seen <= 12 tiles from us (it appeared rather than walked into view) within 3 tiles of where one of its type died earlier."
+ },
+ "damage_number_hues": {
+  "creature:89": 545,
+  "creature:2417": 18,
+  "pet:946": 165,
+  "us:946": 23
+ },
+ "levels": {
+  "clusters": [
+   {
+    "level": 0,
+    "x": [
+     6641,
+     6736
+    ],
+    "y": [
+     1937,
+     2109
+    ],
+    "z": [
+     -18,
+     51
+    ],
+    "seconds": 475.9,
+    "distinct_tiles_stood": 449
+   },
+   {
+    "level": 1,
+    "x": [
+     6834,
+     6967
+    ],
+    "y": [
+     1987,
+     2093
+    ],
+    "z": [
+     -126,
+     -10
+    ],
+    "seconds": 319.5,
+    "distinct_tiles_stood": 513
+   },
+   {
+    "level": 2,
+    "x": [
+     6609,
+     6626
+    ],
+    "y": [
+     2056,
+     2060
+    ],
+    "z": [
+     0,
+     3
+    ],
+    "seconds": 8.7,
+    "distinct_tiles_stood": 25
+   }
+  ],
+  "teleports": [
+   {
+    "tag": "20261024_102346",
+    "clock": "11:08:37",
+    "from": [
+     6718,
+     1983,
+     -18
+    ],
+    "to": [
+     6943,
+     2004,
+     -38
+    ],
+    "from_level": 0,
+    "to_level": 1
+   },
+   {
+    "tag": "20261024_102346",
+    "clock": "11:13:31",
+    "from": [
+     6834,
+     2080,
+     -16
+    ],
+    "to": [
+     6609,
+     2060,
+     0
+    ],
+    "from_level": 1,
+    "to_level": 2
+   },
+   {
+    "tag": "20261024_102346",
+    "clock": "11:13:39",
+    "from": [
+     6609,
+     2059,
+     3
+    ],
+    "to": [
+     6834,
+     2079,
+     -10
+    ],
+    "to_level": 1,
+    "from_level": 2
+   }
+  ],
+  "note": "Bounding boxes of the tiles our player stood on, split at self position jumps > 5 tiles inside the region (teleporters), merged when boxes touch (2 tiles, z within 5). Only where the player walked: the rooms are larger [INFERENCE]."
+ },
+ "creatures": {
+  "aquamarine smallshell": {
+   "graphics": [
+    2475
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 7,
+   "deaths_seen": 4,
+   "first_seen": {
+    "n": 7,
+    "positions": [
+     [
+      6734,
+      1961,
+      0
+     ],
+     [
+      6685,
+      2003,
+      0
+     ],
+     [
+      6688,
+      2000,
+      0
+     ],
+     [
+      6647,
+      1993,
+      39
+     ],
+     [
+      6644,
+      2042,
+      7
+     ],
+     [
+      6656,
+      2081,
+      -18
+     ],
+     [
+      6637,
+      2039,
+      20
+     ]
+    ],
+    "distance_from_us": {
+     "n": 7,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 16,
+     "max": 18,
+     "mean": 17.7
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 5,
+     "median": 0.441,
+     "p10": 0.415,
+     "p90": 0.455,
+     "min": 0.415,
+     "max": 0.455,
+     "mean": 0.44
+    },
+    "step_interval_s_peace": {
+     "n": 9,
+     "median": 0.872,
+     "p10": 0.454,
+     "p90": 1.695,
+     "min": 0.427,
+     "max": 1.736,
+     "mean": 0.963
+    },
+    "tiles_per_s_war": {
+     "n": 5,
+     "value": 2.27
+    },
+    "tiles_per_s_peace": {
+     "n": 9,
+     "value": 1.04
+    }
+   },
+   "damage_to_pets": {
+    "n": 5,
+    "median": 13,
+    "p10": 7,
+    "p90": 21,
+    "min": 7,
+    "max": 21,
+    "mean": 14.0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 5,
+    "median": 13,
+    "p10": 7,
+    "p90": 21,
+    "min": 7,
+    "max": 21,
+    "mean": 14.0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 1,
+     "median": 1.04,
+     "p10": 1.04,
+     "p90": 1.04,
+     "min": 1.04,
+     "max": 1.04,
+     "mean": 1.04
+    },
+    "damage_per_swing": {
+     "n": 5,
+     "median": 13,
+     "p10": 7,
+     "p90": 21,
+     "min": 7,
+     "max": 21,
+     "mean": 14.0
+    }
+   },
+   "kill_s": {
+    "n": 4,
+    "median": 6.8,
+    "p10": 5.4,
+    "p90": 8.5,
+    "min": 5.4,
+    "max": 8.5,
+    "mean": 6.9
+   },
+   "damage_taken_total_killed": {
+    "n": 4,
+    "median": 3001.0,
+    "p10": 2960,
+    "p90": 3001,
+    "min": 2960,
+    "max": 3001,
+    "mean": 2991.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 4,
+    "median": 0.0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 4,
+    "median": 441.9,
+    "p10": 355.1,
+    "p90": 552.8,
+    "min": 355.1,
+    "max": 552.8,
+    "mean": 447.9
+   },
+   "gold": {
+    "n": 4,
+    "median": 434.0,
+    "p10": 400,
+    "p90": 439,
+    "min": 400,
+    "max": 439,
+    "mean": 426.0
+   },
+   "aggro": {
+    "n": 4,
+    "n_switched_in_view": 4,
+    "d_self_at_switch": {
+     "n": 4,
+     "median": 6.0,
+     "p10": 3,
+     "p90": 7,
+     "min": 3,
+     "max": 7,
+     "mean": 5.5
+    },
+    "d_pet_at_switch": {
+     "n": 4,
+     "median": 7.0,
+     "p10": 2,
+     "p90": 11,
+     "min": 2,
+     "max": 11,
+     "mean": 6.8
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "pet": 4
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A1DCF",
+      "clock": "11:06:40",
+      "d_self": 3,
+      "d_pet": 2,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 0,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A84F5",
+      "clock": "11:02:53",
+      "d_self": 7,
+      "d_pet": 11,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 2,
+      "closed_pet": 10
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AE67A",
+      "clock": "11:01:29",
+      "d_self": 5,
+      "d_pet": 6,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 5
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AF103",
+      "clock": "11:00:56",
+      "d_self": 7,
+      "d_pet": 8,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 2,
+      "closed_pet": 7
+     }
+    ]
+   }
+  },
+  "biolumen shellpod": {
+   "graphics": [
+    2474
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 2,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 2,
+    "positions": [
+     [
+      6936,
+      2056,
+      -100
+     ],
+     [
+      6910,
+      2046,
+      -100
+     ]
+    ],
+    "distance_from_us": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 0
+    }
+   },
+   "kill_s": {
+    "n": 0
+   },
+   "damage_taken_total_killed": {
+    "n": 0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 0
+   },
+   "hurt_rate": {
+    "n": 0
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 1,
+    "n_switched_in_view": 0,
+    "d_self_at_switch": {
+     "n": 0
+    },
+    "d_pet_at_switch": {
+     "n": 0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "no_update": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B221F",
+      "clock": "11:14:01",
+      "d_self": 18,
+      "d_pet": 20,
+      "first_seen_in_war": true,
+      "hit_before": false,
+      "toward": "no_update"
+     }
+    ]
+   }
+  },
+  "bottomfeeder": {
+   "graphics": [
+    1270
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 4,
+   "deaths_seen": 2,
+   "first_seen": {
+    "n": 4,
+    "positions": [
+     [
+      6629,
+      2001,
+      80
+     ],
+     [
+      6662,
+      2055,
+      19
+     ],
+     [
+      6644,
+      2036,
+      19
+     ],
+     [
+      6711,
+      1980,
+      0
+     ]
+    ],
+    "distance_from_us": {
+     "n": 4,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 4,
+     "median": 0.457,
+     "p10": 0.444,
+     "p90": 0.47,
+     "min": 0.444,
+     "max": 0.47,
+     "mean": 0.457
+    },
+    "step_interval_s_peace": {
+     "n": 2,
+     "median": 0.462,
+     "p10": 0.458,
+     "p90": 0.466,
+     "min": 0.458,
+     "max": 0.466,
+     "mean": 0.462
+    },
+    "tiles_per_s_war": {
+     "n": 4,
+     "value": 2.19
+    },
+    "tiles_per_s_peace": {
+     "n": 2,
+     "value": 2.16
+    }
+   },
+   "damage_to_pets": {
+    "n": 6,
+    "median": 6.5,
+    "p10": 6,
+    "p90": 13,
+    "min": 5,
+    "max": 13,
+    "mean": 7.8
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 6,
+    "median": 6.5,
+    "p10": 6,
+    "p90": 13,
+    "min": 5,
+    "max": 13,
+    "mean": 7.8
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 4,
+     "median": 0.51,
+     "p10": 0.5,
+     "p90": 1.18,
+     "min": 0.5,
+     "max": 1.18,
+     "mean": 0.68
+    },
+    "damage_per_swing": {
+     "n": 6,
+     "median": 6.5,
+     "p10": 6,
+     "p90": 13,
+     "min": 5,
+     "max": 13,
+     "mean": 7.8
+    }
+   },
+   "kill_s": {
+    "n": 2,
+    "median": 8.0,
+    "p10": 6.8,
+    "p90": 9.2,
+    "min": 6.8,
+    "max": 9.2,
+    "mean": 8.0
+   },
+   "damage_taken_total_killed": {
+    "n": 2,
+    "median": 3196.0,
+    "p10": 2471,
+    "p90": 3921,
+    "min": 2471,
+    "max": 3921,
+    "mean": 3196.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 2,
+    "median": 0.0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 395.1,
+    "p10": 365.7,
+    "p90": 424.4,
+    "min": 365.7,
+    "max": 424.4,
+    "mean": 395.1
+   },
+   "gold": {
+    "n": 2,
+    "median": 612.0,
+    "p10": 590,
+    "p90": 634,
+    "min": 590,
+    "max": 634,
+    "mean": 612.0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 6.0,
+     "p10": 3,
+     "p90": 9,
+     "min": 3,
+     "max": 9,
+     "mean": 6.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 5.0,
+     "p10": 4,
+     "p90": 6,
+     "min": 4,
+     "max": 6,
+     "mean": 5.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 1,
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AB123",
+      "clock": "11:01:31",
+      "d_self": 9,
+      "d_pet": 6,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 5,
+      "closed_pet": 5
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AEF95",
+      "clock": "11:07:32",
+      "d_self": 3,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 3
+     }
+    ]
+   }
+  },
+  "clearwater grouper": {
+   "graphics": [
+    2484
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 3,
+   "deaths_seen": 3,
+   "first_seen": {
+    "n": 3,
+    "positions": [
+     [
+      6959,
+      1994,
+      -126
+     ],
+     [
+      6957,
+      2027,
+      -127
+     ],
+     [
+      6935,
+      2076,
+      -126
+     ]
+    ],
+    "distance_from_us": {
+     "n": 3,
+     "median": 18,
+     "p10": 16,
+     "p90": 18,
+     "min": 16,
+     "max": 18,
+     "mean": 17.3
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 9,
+     "median": 0.379,
+     "p10": 0.355,
+     "p90": 0.404,
+     "min": 0.343,
+     "max": 0.414,
+     "mean": 0.381
+    },
+    "step_interval_s_peace": {
+     "n": 5,
+     "median": 0.382,
+     "p10": 0.36,
+     "p90": 1.106,
+     "min": 0.36,
+     "max": 1.106,
+     "mean": 0.665
+    },
+    "tiles_per_s_war": {
+     "n": 9,
+     "value": 2.63
+    },
+    "tiles_per_s_peace": {
+     "n": 5,
+     "value": 1.5
+    }
+   },
+   "damage_to_pets": {
+    "n": 7,
+    "median": 37,
+    "p10": 21,
+    "p90": 40,
+    "min": 19,
+    "max": 45,
+    "mean": 32.6
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 7,
+    "median": 37,
+    "p10": 21,
+    "p90": 40,
+    "min": 19,
+    "max": 45,
+    "mean": 32.6
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 2,
+    "median": 24.0,
+    "p10": 22,
+    "p90": 26,
+    "min": 22,
+    "max": 26,
+    "mean": 24.0
+   },
+   "swing": {
+    "period_s": {
+     "n": 3,
+     "median": 0.98,
+     "p10": 0.96,
+     "p90": 3.39,
+     "min": 0.96,
+     "max": 3.39,
+     "mean": 1.78
+    },
+    "damage_per_swing": {
+     "n": 6,
+     "median": 32.0,
+     "p10": 21,
+     "p90": 85,
+     "min": 19,
+     "max": 85,
+     "mean": 38.0
+    }
+   },
+   "kill_s": {
+    "n": 2,
+    "median": 27.8,
+    "p10": 16.2,
+    "p90": 39.5,
+    "min": 16.2,
+    "max": 39.5,
+    "mean": 27.8
+   },
+   "damage_taken_total_killed": {
+    "n": 2,
+    "median": 9862.0,
+    "p10": 9722,
+    "p90": 10001,
+    "min": 9722,
+    "max": 10001,
+    "mean": 9862.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 2,
+    "median": 808.0,
+    "p10": 260,
+    "p90": 1357,
+    "min": 260,
+    "max": 1357,
+    "mean": 808.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 572.6,
+    "p10": 543.6,
+    "p90": 601.6,
+    "min": 543.6,
+    "max": 601.6,
+    "mean": 572.6
+   },
+   "gold": {
+    "n": 2,
+    "median": 2462.0,
+    "p10": 1750,
+    "p90": 3174,
+    "min": 1750,
+    "max": 3174,
+    "mean": 2462.0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 8.0,
+     "p10": 6,
+     "p90": 10,
+     "min": 6,
+     "max": 10,
+     "mean": 8.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 8.0,
+     "p10": 6,
+     "p90": 10,
+     "min": 6,
+     "max": 10,
+     "mean": 8.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "pet": 2
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B077E",
+      "clock": "11:11:05",
+      "d_self": 6,
+      "d_pet": 6,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 5
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0DF2",
+      "clock": "11:09:18",
+      "d_self": 10,
+      "d_pet": 10,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 3,
+      "closed_pet": 8
+     }
+    ]
+   }
+  },
+  "combustive zoa": {
+   "graphics": [
+    2473
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 2,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 2,
+    "positions": [
+     [
+      6850,
+      2053,
+      -71
+     ],
+     [
+      6887,
+      2068,
+      -100
+     ]
+    ],
+    "distance_from_us": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 2,
+     "median": 0.432,
+     "p10": 0.401,
+     "p90": 0.462,
+     "min": 0.401,
+     "max": 0.462,
+     "mean": 0.432
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 2,
+     "value": 2.32
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 0
+    }
+   },
+   "kill_s": {
+    "n": 0
+   },
+   "damage_taken_total_killed": {
+    "n": 0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 0
+   },
+   "hurt_rate": {
+    "n": 0
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 6.0,
+     "p10": 3,
+     "p90": 9,
+     "min": 3,
+     "max": 9,
+     "mean": 6.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 6.5,
+     "p10": 3,
+     "p90": 10,
+     "min": 3,
+     "max": 10,
+     "mean": 6.5
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "neither": 1,
+     "no_update": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B15F3",
+      "clock": "11:13:09",
+      "d_self": 9,
+      "d_pet": 10,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B231B",
+      "clock": "11:14:00",
+      "d_self": 3,
+      "d_pet": 3,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "neither",
+      "closed_self": -11,
+      "closed_pet": -9
+     }
+    ]
+   }
+  },
+  "drowned mariner": {
+   "graphics": [
+    400,
+    401
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 3,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 3,
+    "positions": [
+     [
+      6944,
+      2016,
+      -80
+     ],
+     [
+      6943,
+      2015,
+      -80
+     ],
+     [
+      6900,
+      2068,
+      -100
+     ]
+    ],
+    "distance_from_us": {
+     "n": 3,
+     "median": 18,
+     "p10": 12,
+     "p90": 18,
+     "min": 12,
+     "max": 18,
+     "mean": 16.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 1,
+    "median": 24,
+    "p10": 24,
+    "p90": 24,
+    "min": 24,
+    "max": 24,
+    "mean": 24.0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 1,
+    "median": 24,
+    "p10": 24,
+    "p90": 24,
+    "min": 24,
+    "max": 24,
+    "mean": 24.0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 2,
+    "median": 25.5,
+    "p10": 20,
+    "p90": 31,
+    "min": 20,
+    "max": 31,
+    "mean": 25.5
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 1,
+     "median": 24,
+     "p10": 24,
+     "p90": 24,
+     "min": 24,
+     "max": 24,
+     "mean": 24.0
+    }
+   },
+   "kill_s": {
+    "n": 1,
+    "median": 13.3,
+    "p10": 13.3,
+    "p90": 13.3,
+    "min": 13.3,
+    "max": 13.3,
+    "mean": 13.3
+   },
+   "damage_taken_total_killed": {
+    "n": 1,
+    "median": 6001,
+    "p10": 6001,
+    "p90": 6001,
+    "min": 6001,
+    "max": 6001,
+    "mean": 6001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 1,
+    "median": 0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 1,
+    "median": 450.8,
+    "p10": 450.8,
+    "p90": 450.8,
+    "min": 450.8,
+    "max": 450.8,
+    "mean": 450.8
+   },
+   "gold": {
+    "n": 1,
+    "median": 648,
+    "p10": 648,
+    "p90": 648,
+    "min": 648,
+    "max": 648,
+    "mean": 648.0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 7.0,
+     "p10": 5,
+     "p90": 9,
+     "min": 5,
+     "max": 9,
+     "mean": 7.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 6.5,
+     "p10": 6,
+     "p90": 7,
+     "min": 6,
+     "max": 7,
+     "mean": 6.5
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "neither": 1,
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B10BF",
+      "clock": "11:08:40",
+      "d_self": 5,
+      "d_pet": 6,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 0,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B22B0",
+      "clock": "11:14:04",
+      "d_self": 9,
+      "d_pet": 7,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "neither",
+      "closed_self": 0,
+      "closed_pet": 0
+     }
+    ]
+   }
+  },
+  "dungeon-nest crab": {
+   "graphics": [
+    509
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 5,
+   "deaths_seen": 5,
+   "first_seen": {
+    "n": 5,
+    "positions": [
+     [
+      6647,
+      1941,
+      51
+     ],
+     [
+      6695,
+      1963,
+      0
+     ],
+     [
+      6648,
+      1970,
+      39
+     ],
+     [
+      6645,
+      2002,
+      39
+     ],
+     [
+      6645,
+      2036,
+      19
+     ]
+    ],
+    "distance_from_us": {
+     "n": 5,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 4,
+     "median": 0.442,
+     "p10": 0.404,
+     "p90": 0.452,
+     "min": 0.404,
+     "max": 0.452,
+     "mean": 0.435
+    },
+    "step_interval_s_peace": {
+     "n": 4,
+     "median": 1.527,
+     "p10": 0.418,
+     "p90": 1.766,
+     "min": 0.418,
+     "max": 1.766,
+     "mean": 1.309
+    },
+    "tiles_per_s_war": {
+     "n": 4,
+     "value": 2.3
+    },
+    "tiles_per_s_peace": {
+     "n": 4,
+     "value": 0.76
+    }
+   },
+   "damage_to_pets": {
+    "n": 2,
+    "median": 18.0,
+    "p10": 14,
+    "p90": 22,
+    "min": 14,
+    "max": 22,
+    "mean": 18.0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 2,
+    "median": 18.0,
+    "p10": 14,
+    "p90": 22,
+    "min": 14,
+    "max": 22,
+    "mean": 18.0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 1,
+     "median": 2.45,
+     "p10": 2.45,
+     "p90": 2.45,
+     "min": 2.45,
+     "max": 2.45,
+     "mean": 2.45
+    },
+    "damage_per_swing": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 14,
+     "p90": 22,
+     "min": 14,
+     "max": 22,
+     "mean": 18.0
+    }
+   },
+   "kill_s": {
+    "n": 5,
+    "median": 12.3,
+    "p10": 1.9,
+    "p90": 26.4,
+    "min": 1.9,
+    "max": 26.4,
+    "mean": 11.2
+   },
+   "damage_taken_total_killed": {
+    "n": 5,
+    "median": 3351,
+    "p10": 670,
+    "p90": 4001,
+    "min": 670,
+    "max": 4001,
+    "mean": 2875.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 5,
+    "median": 0,
+    "p10": 0,
+    "p90": 145,
+    "min": 0,
+    "max": 145,
+    "mean": 29.0
+   },
+   "hurt_rate": {
+    "n": 5,
+    "median": 325.4,
+    "p10": 121.2,
+    "p90": 930.4,
+    "min": 121.2,
+    "max": 930.4,
+    "mean": 407.7
+   },
+   "gold": {
+    "n": 5,
+    "median": 527,
+    "p10": 518,
+    "p90": 579,
+    "min": 518,
+    "max": 579,
+    "mean": 537.0
+   },
+   "aggro": {
+    "n": 5,
+    "n_switched_in_view": 5,
+    "d_self_at_switch": {
+     "n": 5,
+     "median": 4,
+     "p10": 3,
+     "p90": 11,
+     "min": 3,
+     "max": 11,
+     "mean": 6.2
+    },
+    "d_pet_at_switch": {
+     "n": 5,
+     "median": 5,
+     "p10": 3,
+     "p90": 8,
+     "min": 3,
+     "max": 8,
+     "mean": 5.6
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 1,
+     "pet": 4
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x0059FCCD",
+      "clock": "11:04:14",
+      "d_self": 4,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": -1,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A3693",
+      "clock": "11:05:40",
+      "d_self": 9,
+      "d_pet": 8,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 6,
+      "closed_pet": 7
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A8711",
+      "clock": "11:03:38",
+      "d_self": 3,
+      "d_pet": 3,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 0,
+      "closed_pet": 2
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A8B49",
+      "clock": "11:02:40",
+      "d_self": 4,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 2,
+      "closed_pet": 3
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AB2CD",
+      "clock": "11:01:32",
+      "d_self": 11,
+      "d_pet": 8,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 4,
+      "closed_pet": 4
+     }
+    ]
+   }
+  },
+  "flying manta": {
+   "graphics": [
+    2470
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 5,
+   "deaths_seen": 4,
+   "first_seen": {
+    "n": 5,
+    "positions": [
+     [
+      6646,
+      1950,
+      51
+     ],
+     [
+      6687,
+      1981,
+      0
+     ],
+     [
+      6722,
+      1964,
+      0
+     ],
+     [
+      6669,
+      1963,
+      15
+     ],
+     [
+      6701,
+      1993,
+      22
+     ]
+    ],
+    "distance_from_us": {
+     "n": 5,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 6,
+     "median": 0.392,
+     "p10": 0.378,
+     "p90": 0.426,
+     "min": 0.326,
+     "max": 0.426,
+     "mean": 0.385
+    },
+    "step_interval_s_peace": {
+     "n": 11,
+     "median": 0.765,
+     "p10": 0.389,
+     "p90": 1.902,
+     "min": 0.387,
+     "max": 1.935,
+     "mean": 1.023
+    },
+    "tiles_per_s_war": {
+     "n": 6,
+     "value": 2.6
+    },
+    "tiles_per_s_peace": {
+     "n": 11,
+     "value": 0.98
+    }
+   },
+   "damage_to_pets": {
+    "n": 6,
+    "median": 17.0,
+    "p10": 15,
+    "p90": 19,
+    "min": 13,
+    "max": 19,
+    "mean": 16.3
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 6,
+    "median": 17.0,
+    "p10": 15,
+    "p90": 19,
+    "min": 13,
+    "max": 19,
+    "mean": 16.3
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 7,
+    "median": 21,
+    "p10": 20,
+    "p90": 23,
+    "min": 20,
+    "max": 23,
+    "mean": 21.3
+   },
+   "swing": {
+    "period_s": {
+     "n": 1,
+     "median": 0.99,
+     "p10": 0.99,
+     "p90": 0.99,
+     "min": 0.99,
+     "max": 0.99,
+     "mean": 0.99
+    },
+    "damage_per_swing": {
+     "n": 6,
+     "median": 17.0,
+     "p10": 15,
+     "p90": 19,
+     "min": 13,
+     "max": 19,
+     "mean": 16.3
+    }
+   },
+   "kill_s": {
+    "n": 4,
+    "median": 8.5,
+    "p10": 6.3,
+    "p90": 11.3,
+    "min": 6.3,
+    "max": 11.3,
+    "mean": 8.6
+   },
+   "damage_taken_total_killed": {
+    "n": 4,
+    "median": 3501.0,
+    "p10": 3501,
+    "p90": 3501,
+    "min": 3501,
+    "max": 3501,
+    "mean": 3501.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 4,
+    "median": 0.0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 4,
+    "median": 414.2,
+    "p10": 309.1,
+    "p90": 558.4,
+    "min": 309.1,
+    "max": 558.4,
+    "mean": 424.0
+   },
+   "gold": {
+    "n": 4,
+    "median": 548.0,
+    "p10": 507,
+    "p90": 633,
+    "min": 507,
+    "max": 633,
+    "mean": 559.0
+   },
+   "aggro": {
+    "n": 4,
+    "n_switched_in_view": 4,
+    "d_self_at_switch": {
+     "n": 4,
+     "median": 5.0,
+     "p10": 3,
+     "p90": 9,
+     "min": 3,
+     "max": 9,
+     "mean": 5.5
+    },
+    "d_pet_at_switch": {
+     "n": 4,
+     "median": 5.5,
+     "p10": 4,
+     "p90": 9,
+     "min": 4,
+     "max": 9,
+     "mean": 6.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "pet": 4
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x0059FAF8",
+      "clock": "11:04:00",
+      "d_self": 3,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 3
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A199A",
+      "clock": "11:06:26",
+      "d_self": 6,
+      "d_pet": 7,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 2,
+      "closed_pet": 6
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A8B9B",
+      "clock": "11:05:00",
+      "d_self": 9,
+      "d_pet": 9,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 6,
+      "closed_pet": 8
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AF37B",
+      "clock": "11:07:49",
+      "d_self": 4,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 3
+     }
+    ]
+   }
+  },
+  "giant pincer crab": {
+   "graphics": [
+    338
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 4,
+   "deaths_seen": 3,
+   "first_seen": {
+    "n": 4,
+    "positions": [
+     [
+      6945,
+      1989,
+      -127
+     ],
+     [
+      6950,
+      2041,
+      -126
+     ],
+     [
+      6950,
+      2041,
+      -126
+     ],
+     [
+      6920,
+      2066,
+      -100
+     ]
+    ],
+    "distance_from_us": {
+     "n": 4,
+     "median": 18.0,
+     "p10": 15,
+     "p90": 18,
+     "min": 15,
+     "max": 18,
+     "mean": 17.2
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 14,
+     "median": 0.424,
+     "p10": 0.402,
+     "p90": 0.446,
+     "min": 0.396,
+     "max": 0.47,
+     "mean": 0.426
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 14,
+     "value": 2.35
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 3,
+    "median": 29,
+    "p10": 24,
+    "p90": 43,
+    "min": 24,
+    "max": 43,
+    "mean": 32.0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 3,
+    "median": 29,
+    "p10": 24,
+    "p90": 43,
+    "min": 24,
+    "max": 43,
+    "mean": 32.0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 7,
+    "median": 37,
+    "p10": 22,
+    "p90": 40,
+    "min": 20,
+    "max": 43,
+    "mean": 31.7
+   },
+   "swing": {
+    "period_s": {
+     "n": 2,
+     "median": 2.77,
+     "p10": 2.21,
+     "p90": 3.33,
+     "min": 2.21,
+     "max": 3.33,
+     "mean": 2.77
+    },
+    "damage_per_swing": {
+     "n": 3,
+     "median": 29,
+     "p10": 24,
+     "p90": 43,
+     "min": 24,
+     "max": 43,
+     "mean": 32.0
+    }
+   },
+   "kill_s": {
+    "n": 2,
+    "median": 29.3,
+    "p10": 24.8,
+    "p90": 33.8,
+    "min": 24.8,
+    "max": 33.8,
+    "mean": 29.3
+   },
+   "damage_taken_total_killed": {
+    "n": 2,
+    "median": 12501.0,
+    "p10": 10001,
+    "p90": 15001,
+    "min": 10001,
+    "max": 15001,
+    "mean": 12501.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 2,
+    "median": 614.0,
+    "p10": 546,
+    "p90": 682,
+    "min": 546,
+    "max": 682,
+    "mean": 614.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 497.8,
+    "p10": 427.3,
+    "p90": 568.3,
+    "min": 427.3,
+    "max": 568.3,
+    "mean": 497.8
+   },
+   "gold": {
+    "n": 2,
+    "median": 2174.0,
+    "p10": 1481,
+    "p90": 2868,
+    "min": 1481,
+    "max": 2868,
+    "mean": 2174.0
+   },
+   "aggro": {
+    "n": 4,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 9.0,
+     "p10": 7,
+     "p90": 11,
+     "min": 7,
+     "max": 11,
+     "mean": 9.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 9.0,
+     "p10": 8,
+     "p90": 10,
+     "min": 8,
+     "max": 10,
+     "mean": 9.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 1,
+     "no_update": 2,
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B07D8",
+      "clock": "11:11:06",
+      "d_self": 11,
+      "d_pet": 10,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 8,
+      "closed_pet": 8
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0DC5",
+      "clock": "11:09:18",
+      "d_self": 7,
+      "d_pet": 8,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B1D7C",
+      "clock": "11:12:14",
+      "d_self": 18,
+      "d_pet": 21,
+      "first_seen_in_war": true,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B1ECF",
+      "clock": "11:12:32",
+      "d_self": 18,
+      "d_pet": 21,
+      "first_seen_in_war": true,
+      "hit_before": false,
+      "toward": "no_update"
+     }
+    ]
+   }
+  },
+  "ironscale grouper": {
+   "graphics": [
+    2484
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 1,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 1,
+    "positions": [
+     [
+      6950,
+      2008,
+      -127
+     ]
+    ],
+    "distance_from_us": {
+     "n": 1,
+     "median": 7,
+     "p10": 7,
+     "p90": 7,
+     "min": 7,
+     "max": 7,
+     "mean": 7.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 8,
+     "median": 1.12,
+     "p10": 0.417,
+     "p90": 1.571,
+     "min": 0.382,
+     "max": 1.911,
+     "mean": 1.093
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 8,
+     "value": 0.91
+    }
+   },
+   "damage_to_pets": {
+    "n": 4,
+    "median": 29.5,
+    "p10": 23,
+    "p90": 35,
+    "min": 23,
+    "max": 35,
+    "mean": 29.2
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 4,
+    "median": 29.5,
+    "p10": 23,
+    "p90": 35,
+    "min": 23,
+    "max": 35,
+    "mean": 29.2
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 2,
+     "median": 3.32,
+     "p10": 3.28,
+     "p90": 3.35,
+     "min": 3.28,
+     "max": 3.35,
+     "mean": 3.32
+    },
+    "damage_per_swing": {
+     "n": 4,
+     "median": 29.5,
+     "p10": 23,
+     "p90": 35,
+     "min": 23,
+     "max": 35,
+     "mean": 29.2
+    }
+   },
+   "kill_s": {
+    "n": 1,
+    "median": 22.8,
+    "p10": 22.8,
+    "p90": 22.8,
+    "min": 22.8,
+    "max": 22.8,
+    "mean": 22.8
+   },
+   "damage_taken_total_killed": {
+    "n": 1,
+    "median": 10001,
+    "p10": 10001,
+    "p90": 10001,
+    "min": 10001,
+    "max": 10001,
+    "mean": 10001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 1,
+    "median": 0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 1,
+    "median": 438.5,
+    "p10": 438.5,
+    "p90": 438.5,
+    "min": 438.5,
+    "max": 438.5,
+    "mean": 438.5
+   },
+   "gold": {
+    "n": 1,
+    "median": 1438,
+    "p10": 1438,
+    "p90": 1438,
+    "min": 1438,
+    "max": 1438,
+    "mean": 1438.0
+   },
+   "aggro": {
+    "n": 1,
+    "n_switched_in_view": 1,
+    "d_self_at_switch": {
+     "n": 1,
+     "median": 5,
+     "p10": 5,
+     "p90": 5,
+     "min": 5,
+     "max": 5,
+     "mean": 5.0
+    },
+    "d_pet_at_switch": {
+     "n": 1,
+     "median": 4,
+     "p10": 4,
+     "p90": 4,
+     "min": 4,
+     "max": 4,
+     "mean": 4.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0258",
+      "clock": "11:10:34",
+      "d_self": 5,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 0,
+      "closed_pet": 1
+     }
+    ]
+   }
+  },
+  "lighthouse shellpod": {
+   "graphics": [
+    2474
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 2,
+   "deaths_seen": 2,
+   "first_seen": {
+    "n": 2,
+    "positions": [
+     [
+      6921,
+      2067,
+      -100
+     ],
+     [
+      6861,
+      2062,
+      -70
+     ]
+    ],
+    "distance_from_us": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 0
+    }
+   },
+   "kill_s": {
+    "n": 0
+   },
+   "damage_taken_total_killed": {
+    "n": 0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 0
+   },
+   "hurt_rate": {
+    "n": 0
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 0,
+    "d_self_at_switch": {
+     "n": 0
+    },
+    "d_pet_at_switch": {
+     "n": 0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "no_update": 1,
+     "player": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B1876",
+      "clock": "11:12:32",
+      "d_self": 18,
+      "d_pet": 21,
+      "first_seen_in_war": true,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B1F82",
+      "clock": "11:12:59",
+      "d_self": 18,
+      "d_pet": 19,
+      "first_seen_in_war": true,
+      "hit_before": false,
+      "toward": "player",
+      "closed_self": 5,
+      "closed_pet": 4
+     }
+    ]
+   }
+  },
+  "lowtide scavenger": {
+   "graphics": [
+    400,
+    401
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 5,
+   "deaths_seen": 2,
+   "first_seen": {
+    "n": 5,
+    "positions": [
+     [
+      6697,
+      1955,
+      0
+     ],
+     [
+      6666,
+      1998,
+      19
+     ],
+     [
+      6664,
+      2024,
+      19
+     ],
+     [
+      6669,
+      2012,
+      19
+     ],
+     [
+      6706,
+      1968,
+      0
+     ]
+    ],
+    "distance_from_us": {
+     "n": 5,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 6,
+     "median": 0.456,
+     "p10": 0.451,
+     "p90": 0.47,
+     "min": 0.432,
+     "max": 0.47,
+     "mean": 0.454
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 6,
+     "value": 2.2
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 2,
+    "median": 18.0,
+    "p10": 15,
+    "p90": 21,
+    "min": 15,
+    "max": 21,
+    "mean": 18.0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 2,
+    "median": 18.0,
+    "p10": 15,
+    "p90": 21,
+    "min": 15,
+    "max": 21,
+    "mean": 18.0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 15,
+     "p90": 21,
+     "min": 15,
+     "max": 21,
+     "mean": 18.0
+    }
+   },
+   "kill_s": {
+    "n": 2,
+    "median": 9.1,
+    "p10": 7.3,
+    "p90": 11.0,
+    "min": 7.3,
+    "max": 11.0,
+    "mean": 9.1
+   },
+   "damage_taken_total_killed": {
+    "n": 2,
+    "median": 4001.0,
+    "p10": 4001,
+    "p90": 4001,
+    "min": 4001,
+    "max": 4001,
+    "mean": 4001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 2,
+    "median": 0.0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 457.3,
+    "p10": 364.9,
+    "p90": 549.7,
+    "min": 364.9,
+    "max": 549.7,
+    "mean": 457.3
+   },
+   "gold": {
+    "n": 2,
+    "median": 460.0,
+    "p10": 408,
+    "p90": 512,
+    "min": 408,
+    "max": 512,
+    "mean": 460.0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 9.0,
+     "p10": 6,
+     "p90": 12,
+     "min": 6,
+     "max": 12,
+     "mean": 9.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 8.5,
+     "p10": 7,
+     "p90": 10,
+     "min": 7,
+     "max": 10,
+     "mean": 8.5
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "pet": 2
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A38E4",
+      "clock": "11:05:42",
+      "d_self": 12,
+      "d_pet": 10,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 5,
+      "closed_pet": 9
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005ACD4F",
+      "clock": "11:06:10",
+      "d_self": 6,
+      "d_pet": 7,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 6
+     }
+    ]
+   }
+  },
+  "mermadon": {
+   "graphics": [
+    79
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 4,
+   "deaths_seen": 3,
+   "first_seen": {
+    "n": 4,
+    "positions": [
+     [
+      6648,
+      1937,
+      51
+     ],
+     [
+      6736,
+      1964,
+      0
+     ],
+     [
+      6643,
+      2030,
+      19
+     ],
+     [
+      6702,
+      2015,
+      24
+     ]
+    ],
+    "distance_from_us": {
+     "n": 4,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 5,
+     "median": 0.41,
+     "p10": 0.394,
+     "p90": 0.468,
+     "min": 0.394,
+     "max": 0.468,
+     "mean": 0.427
+    },
+    "step_interval_s_peace": {
+     "n": 17,
+     "median": 0.454,
+     "p10": 0.413,
+     "p90": 1.346,
+     "min": 0.395,
+     "max": 1.766,
+     "mean": 0.765
+    },
+    "tiles_per_s_war": {
+     "n": 5,
+     "value": 2.34
+    },
+    "tiles_per_s_peace": {
+     "n": 17,
+     "value": 1.31
+    }
+   },
+   "damage_to_pets": {
+    "n": 8,
+    "median": 10.5,
+    "p10": 7,
+    "p90": 13,
+    "min": 3,
+    "max": 15,
+    "mean": 9.8
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 8,
+    "median": 10.5,
+    "p10": 7,
+    "p90": 13,
+    "min": 3,
+    "max": 15,
+    "mean": 9.8
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 5,
+     "median": 1.72,
+     "p10": 0.28,
+     "p90": 3.37,
+     "min": 0.28,
+     "max": 3.37,
+     "mean": 2.01
+    },
+    "damage_per_swing": {
+     "n": 8,
+     "median": 10.5,
+     "p10": 7,
+     "p90": 13,
+     "min": 3,
+     "max": 15,
+     "mean": 9.8
+    }
+   },
+   "kill_s": {
+    "n": 3,
+    "median": 13.6,
+    "p10": 8.5,
+    "p90": 18.6,
+    "min": 8.5,
+    "max": 18.6,
+    "mean": 13.6
+   },
+   "damage_taken_total_killed": {
+    "n": 3,
+    "median": 4001,
+    "p10": 4001,
+    "p90": 4001,
+    "min": 4001,
+    "max": 4001,
+    "mean": 4001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 3,
+    "median": 0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 3,
+    "median": 294.1,
+    "p10": 214.9,
+    "p90": 470.7,
+    "min": 214.9,
+    "max": 470.7,
+    "mean": 326.5
+   },
+   "gold": {
+    "n": 3,
+    "median": 639,
+    "p10": 596,
+    "p90": 690,
+    "min": 596,
+    "max": 690,
+    "mean": 642.0
+   },
+   "aggro": {
+    "n": 3,
+    "n_switched_in_view": 3,
+    "d_self_at_switch": {
+     "n": 3,
+     "median": 8,
+     "p10": 5,
+     "p90": 11,
+     "min": 5,
+     "max": 11,
+     "mean": 8.0
+    },
+    "d_pet_at_switch": {
+     "n": 3,
+     "median": 5,
+     "p10": 5,
+     "p90": 9,
+     "min": 5,
+     "max": 9,
+     "mean": 6.3
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 2,
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x0059B11B",
+      "clock": "11:04:15",
+      "d_self": 8,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A1B4C",
+      "clock": "11:06:41",
+      "d_self": 5,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 1,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A88F9",
+      "clock": "11:01:47",
+      "d_self": 11,
+      "d_pet": 9,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 5,
+      "closed_pet": 5
+     }
+    ]
+   }
+  },
+  "ocean bedrock": {
+   "graphics": [
+    179
+   ],
+   "notorieties": [
+    3
+   ],
+   "n_serials": 1,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 1,
+    "positions": [
+     [
+      6953,
+      2056,
+      -126
+     ]
+    ],
+    "distance_from_us": {
+     "n": 1,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 1,
+     "median": 0.453,
+     "p10": 0.453,
+     "p90": 0.453,
+     "min": 0.453,
+     "max": 0.453,
+     "mean": 0.453
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 1,
+     "value": 2.21
+    }
+   },
+   "damage_to_pets": {
+    "n": 0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 0
+    }
+   },
+   "kill_s": {
+    "n": 0
+   },
+   "damage_taken_total_killed": {
+    "n": 0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 0
+   },
+   "hurt_rate": {
+    "n": 0
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 0,
+    "n_switched_in_view": 0,
+    "d_self_at_switch": {
+     "n": 0
+    },
+    "d_pet_at_switch": {
+     "n": 0
+    },
+    "hit_before_switch": 0,
+    "toward": {},
+    "records": []
+   }
+  },
+  "oozing noughtilus": {
+   "graphics": [
+    177
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 7,
+   "deaths_seen": 6,
+   "first_seen": {
+    "n": 7,
+    "positions": [
+     [
+      6641,
+      2034,
+      19
+     ],
+     [
+      6645,
+      1982,
+      39
+     ],
+     [
+      6650,
+      1981,
+      39
+     ],
+     [
+      6675,
+      1963,
+      15
+     ],
+     [
+      6646,
+      2031,
+      19
+     ],
+     [
+      6706,
+      1988,
+      8
+     ],
+     [
+      6643,
+      2052,
+      -18
+     ]
+    ],
+    "distance_from_us": {
+     "n": 7,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 15,
+     "median": 0.522,
+     "p10": 0.492,
+     "p90": 0.57,
+     "min": 0.491,
+     "max": 0.576,
+     "mean": 0.526
+    },
+    "step_interval_s_peace": {
+     "n": 52,
+     "median": 0.546,
+     "p10": 0.508,
+     "p90": 1.569,
+     "min": 0.477,
+     "max": 1.634,
+     "mean": 0.766
+    },
+    "tiles_per_s_war": {
+     "n": 15,
+     "value": 1.9
+    },
+    "tiles_per_s_peace": {
+     "n": 52,
+     "value": 1.78
+    }
+   },
+   "damage_to_pets": {
+    "n": 25,
+    "median": 4,
+    "p10": 3,
+    "p90": 10,
+    "min": 2,
+    "max": 19,
+    "mean": 5.1
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 25,
+    "median": 4,
+    "p10": 3,
+    "p90": 10,
+    "min": 2,
+    "max": 19,
+    "mean": 5.1
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 4,
+    "median": 5.5,
+    "p10": 4,
+    "p90": 6,
+    "min": 4,
+    "max": 6,
+    "mean": 5.2
+   },
+   "swing": {
+    "period_s": {
+     "n": 18,
+     "median": 0.31,
+     "p10": 0.29,
+     "p90": 1.57,
+     "min": 0.26,
+     "max": 2.77,
+     "mean": 0.69
+    },
+    "damage_per_swing": {
+     "n": 23,
+     "median": 4,
+     "p10": 3,
+     "p90": 10,
+     "min": 2,
+     "max": 19,
+     "mean": 5.5
+    }
+   },
+   "kill_s": {
+    "n": 6,
+    "median": 5.5,
+    "p10": 4.8,
+    "p90": 16.8,
+    "min": 4.6,
+    "max": 16.8,
+    "mean": 7.4
+   },
+   "damage_taken_total_killed": {
+    "n": 6,
+    "median": 3001.0,
+    "p10": 3001,
+    "p90": 3001,
+    "min": 1166,
+    "max": 3001,
+    "mean": 2695.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 6,
+    "median": 0.0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 6,
+    "median": 474.0,
+    "p10": 252.8,
+    "p90": 621.3,
+    "min": 179.2,
+    "max": 621.3,
+    "mean": 429.7
+   },
+   "gold": {
+    "n": 6,
+    "median": 479.0,
+    "p10": 461,
+    "p90": 496,
+    "min": 429,
+    "max": 496,
+    "mean": 472.0
+   },
+   "aggro": {
+    "n": 6,
+    "n_switched_in_view": 6,
+    "d_self_at_switch": {
+     "n": 6,
+     "median": 4.0,
+     "p10": 4,
+     "p90": 12,
+     "min": 4,
+     "max": 12,
+     "mean": 5.5
+    },
+    "d_pet_at_switch": {
+     "n": 6,
+     "median": 5.0,
+     "p10": 3,
+     "p90": 9,
+     "min": 3,
+     "max": 9,
+     "mean": 5.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 2,
+     "pet": 3,
+     "player": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A8892",
+      "clock": "11:01:32",
+      "d_self": 12,
+      "d_pet": 9,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 7,
+      "closed_pet": 7
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A890B",
+      "clock": "11:03:10",
+      "d_self": 4,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A891E",
+      "clock": "11:03:10",
+      "d_self": 4,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 2,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A8A7E",
+      "clock": "11:05:27",
+      "d_self": 4,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AB487",
+      "clock": "11:01:59",
+      "d_self": 5,
+      "d_pet": 3,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "player",
+      "closed_self": 3,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AC7A6",
+      "clock": "11:08:07",
+      "d_self": 4,
+      "d_pet": 3,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 2,
+      "closed_pet": 2
+     }
+    ]
+   }
+  },
+  "pincer crab": {
+   "graphics": [
+    339
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 11,
+   "deaths_seen": 11,
+   "first_seen": {
+    "n": 11,
+    "positions": [
+     [
+      6691,
+      1961,
+      0
+     ],
+     [
+      6698,
+      1969,
+      0
+     ],
+     [
+      6645,
+      2034,
+      19
+     ],
+     [
+      6645,
+      2041,
+      13
+     ],
+     [
+      6646,
+      2003,
+      39
+     ],
+     [
+      6647,
+      1971,
+      39
+     ],
+     [
+      6647,
+      1941,
+      51
+     ],
+     [
+      6648,
+      1940,
+      51
+     ],
+     [
+      6693,
+      1960,
+      0
+     ],
+     [
+      6691,
+      1960,
+      0
+     ],
+     [
+      6705,
+      1968,
+      0
+     ]
+    ],
+    "distance_from_us": {
+     "n": 11,
+     "median": 5,
+     "p10": 3,
+     "p90": 18,
+     "min": 2,
+     "max": 18,
+     "mean": 8.3
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 5,
+     "median": 0.451,
+     "p10": 0.439,
+     "p90": 0.461,
+     "min": 0.439,
+     "max": 0.461,
+     "mean": 0.451
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 5,
+     "value": 2.22
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 1,
+    "median": 4,
+    "p10": 4,
+    "p90": 4,
+    "min": 4,
+    "max": 4,
+    "mean": 4.0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 1,
+    "median": 4,
+    "p10": 4,
+    "p90": 4,
+    "min": 4,
+    "max": 4,
+    "mean": 4.0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 1,
+     "median": 4,
+     "p10": 4,
+     "p90": 4,
+     "min": 4,
+     "max": 4,
+     "mean": 4.0
+    }
+   },
+   "kill_s": {
+    "n": 2,
+    "median": 2.4,
+    "p10": 1.5,
+    "p90": 3.2,
+    "min": 1.5,
+    "max": 3.2,
+    "mean": 2.4
+   },
+   "damage_taken_total_killed": {
+    "n": 2,
+    "median": 501.0,
+    "p10": 501,
+    "p90": 501,
+    "min": 501,
+    "max": 501,
+    "mean": 501.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 2,
+    "median": 19.0,
+    "p10": 0,
+    "p90": 38,
+    "min": 0,
+    "max": 38,
+    "mean": 19.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 263.9,
+    "p10": 195.3,
+    "p90": 332.4,
+    "min": 195.3,
+    "max": 332.4,
+    "mean": 263.9
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 10,
+    "n_switched_in_view": 10,
+    "d_self_at_switch": {
+     "n": 10,
+     "median": 4.5,
+     "p10": 3,
+     "p90": 7,
+     "min": 2,
+     "max": 11,
+     "mean": 4.9
+    },
+    "d_pet_at_switch": {
+     "n": 10,
+     "median": 2.0,
+     "p10": 1,
+     "p90": 6,
+     "min": 1,
+     "max": 9,
+     "mean": 2.9
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 4,
+     "no_update": 4,
+     "pet": 2
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A7782",
+      "clock": "11:05:39",
+      "d_self": 5,
+      "d_pet": 6,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 1,
+      "closed_pet": 3
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A8524",
+      "clock": "11:05:42",
+      "d_self": 11,
+      "d_pet": 9,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 4,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B05C9",
+      "clock": "11:01:37",
+      "d_self": 7,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 3,
+      "closed_pet": 3
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0857",
+      "clock": "11:02:44",
+      "d_self": 3,
+      "d_pet": 2,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 1,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0A52",
+      "clock": "11:03:42",
+      "d_self": 4,
+      "d_pet": 2,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 1,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0C18",
+      "clock": "11:04:18",
+      "d_self": 4,
+      "d_pet": 2,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": -1,
+      "closed_pet": 1
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0C77",
+      "clock": "11:04:33",
+      "d_self": 5,
+      "d_pet": 1,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0F34",
+      "clock": "11:05:49",
+      "d_self": 3,
+      "d_pet": 1,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0F74",
+      "clock": "11:05:57",
+      "d_self": 2,
+      "d_pet": 1,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0FC9",
+      "clock": "11:06:14",
+      "d_self": 5,
+      "d_pet": 1,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     }
+    ]
+   }
+  },
+  "razorfin": {
+   "graphics": [
+    2480
+   ],
+   "notorieties": [
+    3
+   ],
+   "n_serials": 1,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 1,
+    "positions": [
+     [
+      6931,
+      2048,
+      -100
+     ]
+    ],
+    "distance_from_us": {
+     "n": 1,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 6,
+     "median": 0.985,
+     "p10": 0.387,
+     "p90": 1.545,
+     "min": 0.385,
+     "max": 1.545,
+     "mean": 0.971
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 6,
+     "value": 1.03
+    }
+   },
+   "damage_to_pets": {
+    "n": 0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 0
+    }
+   },
+   "kill_s": {
+    "n": 0
+   },
+   "damage_taken_total_killed": {
+    "n": 0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 0
+   },
+   "hurt_rate": {
+    "n": 0
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 0,
+    "n_switched_in_view": 0,
+    "d_self_at_switch": {
+     "n": 0
+    },
+    "d_pet_at_switch": {
+     "n": 0
+    },
+    "hit_before_switch": 0,
+    "toward": {},
+    "records": []
+   }
+  },
+  "ruby smallshell": {
+   "graphics": [
+    2475
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 6,
+   "deaths_seen": 3,
+   "first_seen": {
+    "n": 6,
+    "positions": [
+     [
+      6623,
+      2031,
+      24
+     ],
+     [
+      6627,
+      2013,
+      80
+     ],
+     [
+      6660,
+      2032,
+      18
+     ],
+     [
+      6643,
+      1974,
+      39
+     ],
+     [
+      6698,
+      1984,
+      42
+     ],
+     [
+      6655,
+      2077,
+      -18
+     ]
+    ],
+    "distance_from_us": {
+     "n": 6,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 12,
+     "median": 0.442,
+     "p10": 0.416,
+     "p90": 0.464,
+     "min": 0.409,
+     "max": 0.472,
+     "mean": 0.442
+    },
+    "step_interval_s_peace": {
+     "n": 9,
+     "median": 0.867,
+     "p10": 0.408,
+     "p90": 0.907,
+     "min": 0.404,
+     "max": 1.696,
+     "mean": 0.815
+    },
+    "tiles_per_s_war": {
+     "n": 12,
+     "value": 2.26
+    },
+    "tiles_per_s_peace": {
+     "n": 9,
+     "value": 1.23
+    }
+   },
+   "damage_to_pets": {
+    "n": 12,
+    "median": 4.5,
+    "p10": 4,
+    "p90": 20,
+    "min": 4,
+    "max": 21,
+    "mean": 7.8
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 12,
+    "median": 4.5,
+    "p10": 4,
+    "p90": 20,
+    "min": 4,
+    "max": 21,
+    "mean": 7.8
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 8,
+     "median": 0.3,
+     "p10": 0.3,
+     "p90": 0.46,
+     "min": 0.3,
+     "max": 1.46,
+     "mean": 0.47
+    },
+    "damage_per_swing": {
+     "n": 12,
+     "median": 4.5,
+     "p10": 4,
+     "p90": 20,
+     "min": 4,
+     "max": 21,
+     "mean": 7.8
+    }
+   },
+   "kill_s": {
+    "n": 3,
+    "median": 7.4,
+    "p10": 5.7,
+    "p90": 7.8,
+    "min": 5.7,
+    "max": 7.8,
+    "mean": 7.0
+   },
+   "damage_taken_total_killed": {
+    "n": 3,
+    "median": 3001,
+    "p10": 3001,
+    "p90": 3001,
+    "min": 3001,
+    "max": 3001,
+    "mean": 3001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 3,
+    "median": 0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 3,
+    "median": 405.0,
+    "p10": 384.9,
+    "p90": 529.4,
+    "min": 384.9,
+    "max": 529.4,
+    "mean": 439.8
+   },
+   "gold": {
+    "n": 2,
+    "median": 610.0,
+    "p10": 379,
+    "p90": 842,
+    "min": 379,
+    "max": 842,
+    "mean": 610.0
+   },
+   "aggro": {
+    "n": 3,
+    "n_switched_in_view": 3,
+    "d_self_at_switch": {
+     "n": 3,
+     "median": 11,
+     "p10": 4,
+     "p90": 11,
+     "min": 4,
+     "max": 11,
+     "mean": 8.7
+    },
+    "d_pet_at_switch": {
+     "n": 3,
+     "median": 7,
+     "p10": 5,
+     "p90": 9,
+     "min": 5,
+     "max": 9,
+     "mean": 7.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "both": 2,
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A87B8",
+      "clock": "11:03:12",
+      "d_self": 11,
+      "d_pet": 9,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 8,
+      "closed_pet": 8
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AC99C",
+      "clock": "11:08:06",
+      "d_self": 4,
+      "d_pet": 5,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 2,
+      "closed_pet": 4
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005AF195",
+      "clock": "11:00:59",
+      "d_self": 11,
+      "d_pet": 7,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "both",
+      "closed_self": 6,
+      "closed_pet": 6
+     }
+    ]
+   }
+  },
+  "scourgeon": {
+   "graphics": [
+    2483
+   ],
+   "notorieties": [
+    3
+   ],
+   "n_serials": 2,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 2,
+    "positions": [
+     [
+      6854,
+      2053,
+      -71
+     ],
+     [
+      6905,
+      2048,
+      -100
+     ]
+    ],
+    "distance_from_us": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 0
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 0
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 0
+    },
+    "damage_per_swing": {
+     "n": 0
+    }
+   },
+   "kill_s": {
+    "n": 0
+   },
+   "damage_taken_total_killed": {
+    "n": 0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 0
+   },
+   "hurt_rate": {
+    "n": 0
+   },
+   "gold": {
+    "n": 0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 1,
+    "d_self_at_switch": {
+     "n": 1,
+     "median": 12,
+     "p10": 12,
+     "p90": 12,
+     "min": 12,
+     "max": 12,
+     "mean": 12.0
+    },
+    "d_pet_at_switch": {
+     "n": 1,
+     "median": 12,
+     "p10": 12,
+     "p90": 12,
+     "min": 12,
+     "max": 12,
+     "mean": 12.0
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "no_update": 2
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B15B0",
+      "clock": "11:13:08",
+      "d_self": 12,
+      "d_pet": 12,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B2205",
+      "clock": "11:13:59",
+      "d_self": 18,
+      "d_pet": 21,
+      "first_seen_in_war": true,
+      "hit_before": false,
+      "toward": "no_update"
+     }
+    ]
+   }
+  },
+  "singing noughtilus": {
+   "graphics": [
+    177
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 5,
+   "deaths_seen": 2,
+   "first_seen": {
+    "n": 5,
+    "positions": [
+     [
+      6629,
+      2030,
+      24
+     ],
+     [
+      6729,
+      1970,
+      0
+     ],
+     [
+      6662,
+      2047,
+      19
+     ],
+     [
+      6660,
+      2008,
+      24
+     ],
+     [
+      6664,
+      1960,
+      15
+     ]
+    ],
+    "distance_from_us": {
+     "n": 5,
+     "median": 18,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 6,
+     "median": 0.514,
+     "p10": 0.508,
+     "p90": 0.564,
+     "min": 0.506,
+     "max": 0.564,
+     "mean": 0.526
+    },
+    "step_interval_s_peace": {
+     "n": 16,
+     "median": 1.043,
+     "p10": 0.505,
+     "p90": 1.64,
+     "min": 0.491,
+     "max": 1.661,
+     "mean": 0.995
+    },
+    "tiles_per_s_war": {
+     "n": 6,
+     "value": 1.9
+    },
+    "tiles_per_s_peace": {
+     "n": 16,
+     "value": 1.0
+    }
+   },
+   "damage_to_pets": {
+    "n": 3,
+    "median": 13,
+    "p10": 8,
+    "p90": 17,
+    "min": 8,
+    "max": 17,
+    "mean": 12.7
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 3,
+    "median": 13,
+    "p10": 8,
+    "p90": 17,
+    "min": 8,
+    "max": 17,
+    "mean": 12.7
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 0
+   },
+   "swing": {
+    "period_s": {
+     "n": 2,
+     "median": 1.91,
+     "p10": 0.43,
+     "p90": 3.38,
+     "min": 0.43,
+     "max": 3.38,
+     "mean": 1.91
+    },
+    "damage_per_swing": {
+     "n": 3,
+     "median": 13,
+     "p10": 8,
+     "p90": 17,
+     "min": 8,
+     "max": 17,
+     "mean": 12.7
+    }
+   },
+   "kill_s": {
+    "n": 2,
+    "median": 5.9,
+    "p10": 5.0,
+    "p90": 6.7,
+    "min": 5.0,
+    "max": 6.7,
+    "mean": 5.9
+   },
+   "damage_taken_total_killed": {
+    "n": 2,
+    "median": 3001.0,
+    "p10": 3001,
+    "p90": 3001,
+    "min": 3001,
+    "max": 3001,
+    "mean": 3001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 2,
+    "median": 0.0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 523.6,
+    "p10": 447.8,
+    "p90": 599.4,
+    "min": 447.8,
+    "max": 599.4,
+    "mean": 523.6
+   },
+   "gold": {
+    "n": 2,
+    "median": 414.0,
+    "p10": 394,
+    "p90": 434,
+    "min": 394,
+    "max": 434,
+    "mean": 414.0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 4.0,
+     "p10": 3,
+     "p90": 5,
+     "min": 3,
+     "max": 5,
+     "mean": 4.0
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 5.5,
+     "p10": 4,
+     "p90": 7,
+     "min": 4,
+     "max": 7,
+     "mean": 5.5
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "pet": 2
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A1DB8",
+      "clock": "11:06:40",
+      "d_self": 5,
+      "d_pet": 7,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 3,
+      "closed_pet": 6
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005A89BF",
+      "clock": "11:05:00",
+      "d_self": 3,
+      "d_pet": 4,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": 0,
+      "closed_pet": 3
+     }
+    ]
+   }
+  },
+  "soulcatcher": {
+   "graphics": [
+    400,
+    401
+   ],
+   "notorieties": [
+    3,
+    4
+   ],
+   "n_serials": 2,
+   "deaths_seen": 1,
+   "first_seen": {
+    "n": 2,
+    "positions": [
+     [
+      6943,
+      2023,
+      -111
+     ],
+     [
+      6944,
+      2024,
+      -111
+     ]
+    ],
+    "distance_from_us": {
+     "n": 2,
+     "median": 18.0,
+     "p10": 18,
+     "p90": 18,
+     "min": 18,
+     "max": 18,
+     "mean": 18.0
+    }
+   },
+   "movement": {
+    "step_interval_s_war": {
+     "n": 0
+    },
+    "step_interval_s_peace": {
+     "n": 0
+    },
+    "tiles_per_s_war": {
+     "n": 0,
+     "value": null
+    },
+    "tiles_per_s_peace": {
+     "n": 0,
+     "value": null
+    }
+   },
+   "damage_to_pets": {
+    "n": 2,
+    "median": 24.5,
+    "p10": 23,
+    "p90": 26,
+    "min": 23,
+    "max": 26,
+    "mean": 24.5
+   },
+   "damage_to_pets_victim_not_poisoned": {
+    "n": 2,
+    "median": 24.5,
+    "p10": 23,
+    "p90": 26,
+    "min": 23,
+    "max": 26,
+    "mean": 24.5
+   },
+   "damage_to_us": {
+    "n": 0
+   },
+   "damage_ranged_sole": {
+    "n": 2,
+    "median": 30.0,
+    "p10": 30,
+    "p90": 30,
+    "min": 30,
+    "max": 30,
+    "mean": 30.0
+   },
+   "swing": {
+    "period_s": {
+     "n": 1,
+     "median": 5.9,
+     "p10": 5.9,
+     "p90": 5.9,
+     "min": 5.9,
+     "max": 5.9,
+     "mean": 5.9
+    },
+    "damage_per_swing": {
+     "n": 2,
+     "median": 24.5,
+     "p10": 23,
+     "p90": 26,
+     "min": 23,
+     "max": 26,
+     "mean": 24.5
+    }
+   },
+   "kill_s": {
+    "n": 1,
+    "median": 11.8,
+    "p10": 11.8,
+    "p90": 11.8,
+    "min": 11.8,
+    "max": 11.8,
+    "mean": 11.8
+   },
+   "damage_taken_total_killed": {
+    "n": 1,
+    "median": 6001,
+    "p10": 6001,
+    "p90": 6001,
+    "min": 6001,
+    "max": 6001,
+    "mean": 6001.0
+   },
+   "damage_taken_other_hue_killed": {
+    "n": 1,
+    "median": 0,
+    "p10": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "mean": 0.0
+   },
+   "hurt_rate": {
+    "n": 2,
+    "median": 535.3,
+    "p10": 508.5,
+    "p90": 562.1,
+    "min": 508.5,
+    "max": 562.1,
+    "mean": 535.3
+   },
+   "gold": {
+    "n": 1,
+    "median": 973,
+    "p10": 973,
+    "p90": 973,
+    "min": 973,
+    "max": 973,
+    "mean": 973.0
+   },
+   "aggro": {
+    "n": 2,
+    "n_switched_in_view": 2,
+    "d_self_at_switch": {
+     "n": 2,
+     "median": 8.5,
+     "p10": 6,
+     "p90": 11,
+     "min": 6,
+     "max": 11,
+     "mean": 8.5
+    },
+    "d_pet_at_switch": {
+     "n": 2,
+     "median": 6.5,
+     "p10": 6,
+     "p90": 7,
+     "min": 6,
+     "max": 7,
+     "mean": 6.5
+    },
+    "hit_before_switch": 0,
+    "toward": {
+     "no_update": 1,
+     "pet": 1
+    },
+    "records": [
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B0E11",
+      "clock": "11:08:42",
+      "d_self": 11,
+      "d_pet": 7,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "no_update"
+     },
+     {
+      "tag": "20261024_102346",
+      "serial": "0x005B1CFB",
+      "clock": "11:12:15",
+      "d_self": 6,
+      "d_pet": 6,
+      "first_seen_in_war": false,
+      "hit_before": false,
+      "toward": "pet",
+      "closed_self": -4,
+      "closed_pet": 4
+     }
+    ]
+   }
+  }
+ },
+ "pets": {
+  "GraveRobber": {
+   "serials": [
+    "0x000DDEFE"
+   ],
+   "body": [
+    387
+   ],
+   "seconds_in_war_mode": 519.7,
+   "damage_taken": {
+    "n": 148,
+    "median": 9.0,
+    "p10": 3,
+    "p90": 23,
+    "min": 2,
+    "max": 43,
+    "mean": 11.4
+   },
+   "damage_taken_per_war_minute": {
+    "n": 148,
+    "value": 195.4
+   },
+   "heals": {
+    "devour": {
+     "n": 73,
+     "median": 9,
+     "p10": 0,
+     "p90": 22,
+     "min": 0,
+     "max": 22,
+     "mean": 10.0,
+     "total": 729
+    },
+    "other": {
+     "n": 58,
+     "median": 0.0,
+     "p10": 0,
+     "p90": 9,
+     "min": 0,
+     "max": 35,
+     "mean": 2.7,
+     "total": 156
+    },
+    "vet": {
+     "n": 24,
+     "median": 23.5,
+     "p10": 4,
+     "p90": 48,
+     "min": 0,
+     "max": 140,
+     "mean": 29.2,
+     "total": 702
+    }
+   },
+   "distance_from_us_fighting": {
+    "n": 1147,
+    "counts": {
+     "0": 9,
+     "1": 299,
+     "2": 309,
+     "3": 192,
+     "4": 133,
+     "5": 30,
+     "6": 150,
+     "7": 14,
+     "8": 9,
+     "9": 2
+    }
+   },
+   "distance_from_us_not_fighting": {
+    "n": 462,
+    "counts": {
+     "0": 13,
+     "1": 272,
+     "2": 127,
+     "3": 25,
+     "4": 7,
+     "5": 4,
+     "6": 6,
+     "7": 1,
+     "8": 2,
+     "9": 2,
+     "11": 3
+    }
+   },
+   "distance_not_fighting_by_last_command": {
+    "All Follow Me": {
+     "n": 70,
+     "counts": {
+      "1": 36,
+      "2": 24,
+      "3": 5,
+      "5": 1,
+      "6": 1,
+      "9": 1,
+      "11": 2
+     }
+    },
+    "All Guard Me": {
+     "n": 385,
+     "counts": {
+      "0": 11,
+      "1": 235,
+      "2": 103,
+      "3": 20,
+      "4": 7,
+      "5": 2,
+      "6": 3,
+      "7": 1,
+      "8": 1,
+      "9": 1,
+      "11": 1
+     }
+    },
+    "All Kill": {
+     "n": 5,
+     "counts": {
+      "1": 1,
+      "5": 1,
+      "6": 2,
+      "8": 1
+     }
+    },
+    "none": {
+     "n": 2,
+     "counts": {
+      "0": 2
+     }
+    }
+   },
+   "step_interval_s_not_fighting": {
+    "n": 515,
+    "median": 0.211,
+    "p10": 0.186,
+    "p90": 0.409,
+    "min": 0.11,
+    "max": 1.893,
+    "mean": 0.275
+   },
+   "attack_animation": {
+    "action": 5,
+    "n_total": 237,
+    "period_s": {
+     "n": 215,
+     "median": 1.7,
+     "p10": 1.67,
+     "p90": 2.03,
+     "min": 1.63,
+     "max": 4.41,
+     "mean": 1.82
+    }
+   },
+   "damage_dealt_attributed": {
+    "n": 198,
+    "median": 91.0,
+    "p10": 56,
+    "p90": 302,
+    "min": 23,
+    "max": 1043,
+    "mean": 147.1
+   }
+  },
+  "AlaFlambe": {
+   "serials": [
+    "0x0026EF56"
+   ],
+   "body": [
+    832
+   ],
+   "seconds_in_war_mode": 448.2,
+   "damage_taken": {
+    "n": 17,
+    "median": 22,
+    "p10": 20,
+    "p90": 40,
+    "min": 18,
+    "max": 45,
+    "mean": 28.8
+   },
+   "damage_taken_per_war_minute": {
+    "n": 17,
+    "value": 65.6
+   },
+   "heals": {
+    "other": {
+     "n": 24,
+     "median": 0.0,
+     "p10": 0,
+     "p90": 27,
+     "min": 0,
+     "max": 27,
+     "mean": 4.9,
+     "total": 118
+    },
+    "vet": {
+     "n": 8,
+     "median": 30.5,
+     "p10": 17,
+     "p90": 62,
+     "min": 16,
+     "max": 117,
+     "mean": 41.5,
+     "total": 332
+    }
+   },
+   "distance_from_us_fighting": {
+    "n": 1143,
+    "counts": {
+     "0": 6,
+     "1": 732,
+     "2": 170,
+     "3": 108,
+     "4": 21,
+     "5": 46,
+     "6": 13,
+     "7": 2,
+     "8": 37,
+     "10": 2,
+     "11": 2,
+     "12": 2,
+     "13": 2
+    }
+   },
+   "distance_from_us_not_fighting": {
+    "n": 466,
+    "counts": {
+     "0": 7,
+     "1": 233,
+     "2": 162,
+     "3": 41,
+     "4": 7,
+     "5": 6,
+     "6": 4,
+     "7": 1,
+     "8": 2,
+     "9": 1,
+     "13": 1,
+     "14": 1
+    }
+   },
+   "distance_not_fighting_by_last_command": {
+    "All Follow Me": {
+     "n": 70,
+     "counts": {
+      "1": 30,
+      "2": 23,
+      "3": 12,
+      "4": 2,
+      "9": 1,
+      "13": 1,
+      "14": 1
+     }
+    },
+    "All Guard Me": {
+     "n": 389,
+     "counts": {
+      "0": 5,
+      "1": 198,
+      "2": 139,
+      "3": 29,
+      "4": 5,
+      "5": 6,
+      "6": 4,
+      "7": 1,
+      "8": 2
+     }
+    },
+    "All Kill": {
+     "n": 5,
+     "counts": {
+      "1": 5
+     }
+    },
+    "none": {
+     "n": 2,
+     "counts": {
+      "0": 2
+     }
+    }
+   },
+   "step_interval_s_not_fighting": {
+    "n": 540,
+    "median": 0.212,
+    "p10": 0.185,
+    "p90": 0.418,
+    "min": 0.114,
+    "max": 1.894,
+    "mean": 0.283
+   },
+   "attack_animation": {
+    "action": 4,
+    "n_total": 262,
+    "period_s": {
+     "n": 241,
+     "median": 1.59,
+     "p10": 1.55,
+     "p90": 2.04,
+     "min": 1.51,
+     "max": 5.16,
+     "mean": 1.7
+    }
+   },
+   "damage_dealt_attributed": {
+    "n": 14,
+    "median": 182.0,
+    "p10": 94,
+    "p90": 267,
+    "min": 36,
+    "max": 283,
+    "mean": 164.1
+   }
+  }
+ },
+ "party_damage_dealt": {
+  "gravebug_adjacent_after_its_attack_anim": {
+   "n": 198,
+   "median": 91.0,
+   "p10": 56,
+   "p90": 302,
+   "min": 23,
+   "max": 1043,
+   "mean": 147.1,
+   "total": 29123
+  },
+  "other_hue": {
+   "n": 18,
+   "median": 183.0,
+   "p10": 37,
+   "p90": 300,
+   "min": 36,
+   "max": 349,
+   "mean": 168.2,
+   "total": 3028
+  },
+  "phoenix_gravebug_not_adjacent": {
+   "n": 14,
+   "median": 182.0,
+   "p10": 94,
+   "p90": 267,
+   "min": 36,
+   "max": 283,
+   "mean": 164.1,
+   "total": 2297
+  },
+  "skipped_other_player_near": {
+   "n": 8,
+   "median": 254.0,
+   "p10": 219,
+   "p90": 782,
+   "min": 106,
+   "max": 919,
+   "mean": 387.0,
+   "total": 3096
+  },
+  "unattributed_gravebug_adjacent_no_anim": {
+   "n": 325,
+   "median": 319,
+   "p10": 173,
+   "p90": 777,
+   "min": 14,
+   "max": 1400,
+   "mean": 403.7,
+   "total": 131196
+  },
+  "our_hue_total": 165712
+ },
+ "player": {
+  "engagements": {
+   "n": 9,
+   "duration_s": {
+    "n": 9,
+    "median": 46.3,
+    "p10": 1.6,
+    "p90": 132.1,
+    "min": 0.0,
+    "max": 158.3,
+    "mean": 60.8
+   },
+   "kills": {
+    "n": 9,
+    "median": 3,
+    "p10": 0,
+    "p90": 10,
+    "min": 0,
+    "max": 11,
+    "mean": 4.4
+   },
+   "damage_to_us_per_engagement": {
+    "n": 9,
+    "median": 20,
+    "p10": 0,
+    "p90": 67,
+    "min": 0,
+    "max": 198,
+    "mean": 38.0
+   }
+  },
+  "damage_to_us_hits": {
+   "n": 23,
+   "median": 7,
+   "p10": 4,
+   "p90": 30,
+   "min": 4,
+   "max": 32,
+   "mean": 15.0
+  },
+  "potions": {
+   "drunk": 3,
+   "satchel_used": 0,
+   "heal_amount": {
+    "n": 3,
+    "median": 30,
+    "p10": 27,
+    "p90": 32,
+    "min": 27,
+    "max": 32,
+    "mean": 29.7
+   }
+  },
+  "vet_supplies_heal_on_us": {
+   "n": 10,
+   "median": 22.0,
+   "p10": 16,
+   "p90": 29,
+   "min": 12,
+   "max": 30,
+   "mean": 21.8
+  },
+  "other_heals_on_us": {
+   "n": 30,
+   "median": 0.0,
+   "p10": 0,
+   "p90": 4,
+   "min": 0,
+   "max": 5,
+   "mean": 0.9
+  },
+  "walk_steps_per_s": {
+   "n": 67,
+   "median": 4.56,
+   "p10": 4.05,
+   "p90": 5.0,
+   "min": 3.67,
+   "max": 5.15,
+   "mean": 4.57
+  },
+  "damage_to_us_per_minute_in_region": {
+   "n": 23,
+   "minutes": 14.17,
+   "value": 24.3
+  }
+ },
+ "bard": {
+  "Discordance": {
+   "n": 31,
+   "outcomes": {
+    "fail": 3,
+    "no_answer": 2,
+    "ok": 23,
+    "refused_too_far": 3
+   },
+   "by_type": {
+    "bottomfeeder": {
+     "fail": 1,
+     "ok": 1
+    },
+    "clearwater grouper": {
+     "fail": 1,
+     "ok": 3
+    },
+    "drowned mariner": {
+     "ok": 1
+    },
+    "dungeon-nest crab": {
+     "ok": 3
+    },
+    "flying manta": {
+     "ok": 2
+    },
+    "giant pincer crab": {
+     "ok": 2
+    },
+    "ground": {
+     "no_answer": 2
+    },
+    "ironscale grouper": {
+     "fail": 1
+    },
+    "lowtide scavenger": {
+     "ok": 2
+    },
+    "mermadon": {
+     "refused_too_far": 1
+    },
+    "oozing noughtilus": {
+     "ok": 4,
+     "refused_too_far": 2
+    },
+    "pincer crab": {
+     "ok": 1
+    },
+    "ruby smallshell": {
+     "ok": 1
+    },
+    "singing noughtilus": {
+     "ok": 2
+    },
+    "soulcatcher": {
+     "ok": 1
+    }
+   },
+   "target_distance_by_outcome": {
+    "fail": {
+     "n": 3,
+     "median": 7,
+     "p10": 3,
+     "p90": 8,
+     "min": 3,
+     "max": 8,
+     "mean": 6.0
+    },
+    "ok": {
+     "n": 23,
+     "median": 4,
+     "p10": 2,
+     "p90": 5,
+     "min": 2,
+     "max": 7,
+     "mean": 3.7
+    },
+    "refused_too_far": {
+     "n": 3,
+     "median": 16,
+     "p10": 15,
+     "p90": 16,
+     "min": 15,
+     "max": 16,
+     "mean": 15.7
+    }
+   },
+   "answer_after_target_s": {
+    "n": 29,
+    "median": 0.046,
+    "p10": 0.044,
+    "p90": 0.065,
+    "min": 0.043,
+    "max": 0.068,
+    "mean": 0.051
+   },
+   "success_durations_s": {
+    "68.0": 21,
+    "83.0": 2
+   },
+   "fail_estimates": {
+    "easy": 2,
+    "fairly reasonable": 1
+   },
+   "barding_break_avoided": 0
+  },
+  "Peacemaking": {
+   "n": 3,
+   "outcomes": {
+    "no_answer": 1,
+    "ok": 2
+   },
+   "by_type": {
+    "flying manta": {
+     "ok": 1
+    },
+    "ground": {
+     "no_answer": 1
+    },
+    "oozing noughtilus": {
+     "ok": 1
+    }
+   },
+   "target_distance_by_outcome": {
+    "ok": {
+     "n": 2,
+     "median": 3.0,
+     "p10": 2,
+     "p90": 4,
+     "min": 2,
+     "max": 4,
+     "mean": 3.0
+    }
+   },
+   "answer_after_target_s": {
+    "n": 2,
+    "median": 0.044,
+    "p10": 0.044,
+    "p90": 0.044,
+    "min": 0.044,
+    "max": 0.044,
+    "mean": 0.044
+   },
+   "success_durations_s": {
+    "34.0": 2
+   },
+   "fail_estimates": {},
+   "barding_break_avoided": 0
+  },
+  "Provocation": {
+   "n": 7,
+   "outcomes": {
+    "no_answer": 1,
+    "ok": 3,
+    "refused_skill_wait": 1,
+    "refused_too_far": 2
+   },
+   "by_type": {
+    "clearwater grouper": {
+     "ok": 1
+    },
+    "giant pincer crab": {
+     "ok": 1
+    },
+    "ground": {
+     "no_answer": 1
+    },
+    "oozing noughtilus": {
+     "refused_too_far": 1
+    },
+    "pincer crab": {
+     "ok": 1
+    },
+    "razorfin": {
+     "refused_too_far": 1
+    }
+   },
+   "target_distance_by_outcome": {
+    "ok": {
+     "n": 3,
+     "median": 5,
+     "p10": 3,
+     "p90": 7,
+     "min": 3,
+     "max": 7,
+     "mean": 5.0
+    },
+    "refused_too_far": {
+     "n": 2,
+     "median": 15.5,
+     "p10": 15,
+     "p90": 16,
+     "min": 15,
+     "max": 16,
+     "mean": 15.5
+    }
+   },
+   "answer_after_target_s": {
+    "n": 5,
+    "median": 0.046,
+    "p10": 0.045,
+    "p90": 0.064,
+    "min": 0.045,
+    "max": 0.064,
+    "mean": 0.051
+   },
+   "success_durations_s": {
+    "42.0": 3
+   },
+   "fail_estimates": {},
+   "barding_break_avoided": 0
+  }
+ },
+ "respawn": {
+  "first_seen_within_view": 10,
+  "candidates": [
+   {
+    "tag": "20261024_102346",
+    "type": "pincer crab",
+    "serial": 5967668,
+    "delay_s": 4.8,
+    "death_pos": [
+     6690,
+     1961,
+     0
+    ],
+    "appeared_pos": [
+     6693,
+     1960,
+     0
+    ],
+    "d_self": 7
+   },
+   {
+    "tag": "20261024_102346",
+    "type": "pincer crab",
+    "serial": 5967732,
+    "delay_s": 12.6,
+    "death_pos": [
+     6690,
+     1961,
+     0
+    ],
+    "appeared_pos": [
+     6691,
+     1960,
+     0
+    ],
+    "d_self": 2
+   }
+  ],
+  "delay_s": {
+   "n": 2,
+   "median": 8.7,
+   "p10": 4.8,
+   "p90": 12.6,
+   "min": 4.8,
+   "max": 12.6,
+   "mean": 8.7
+  }
+ }
+}

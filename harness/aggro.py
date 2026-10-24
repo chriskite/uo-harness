@@ -29,6 +29,7 @@ z from the map surface (the world model's own mobile z is often stale). AGGRO_R 
 """
 from __future__ import annotations
 
+import glob
 import json
 import os
 import re
@@ -37,27 +38,37 @@ import combat
 import los
 from agent_link import cheb, serial_of
 
-# The aggro range, per creature type, as the captures measured it (harness/data/sim/mausoleum.json `aggro_observed`,
+# The aggro range, per creature type, as the captures measured it (each harness/data/sim scenario's `aggro_observed`,
 # docs/SIM.md "Monster mechanics audit"): 210 of 211 war-mode flips came with the nearest of us 1-10 tiles off, and
 # 102 idle monsters had one of us in our line of sight at 11-13 tiles for over 5 s without waking (none within
 # 10); the shadow minion and the calamity wake at 13. The user first put it at "12 or 13", then (2026-10-15,
 # a shadowguard at 14 and a reanimated knight idle at 7-13 tiles): "aggro range smaller than 14 tiles".
 AGGRO_R = 10                  # a type the captures don't list
 AGGRO_MAX = 13                # the farthest measured (shadow minion, calamity): --never-aggro sight is kept beyond it
-SCENARIO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
+SCENARIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim")
 _RANGES = None
+
+
+def scenarios() -> list[dict]:
+    """Every simulator scenario (harness/data/sim/<name>.json, not its _kb / _observed files): the dungeons known."""
+    out = []
+    for path in sorted(glob.glob(os.path.join(SCENARIO_DIR, "*.json"))):
+        if path.endswith(("_kb.json", "_observed.json")):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                out.append(json.load(f))
+        except (OSError, ValueError):
+            continue
+    return out
 
 
 def aggro_range(kind: str) -> int:
     """Tiles within which an idle monster of `kind` wakes to one of us it sees (`aggro_observed`), else AGGRO_R."""
     global _RANGES
     if _RANGES is None:
-        try:
-            with open(SCENARIO_PATH, encoding="utf-8") as f:
-                obs = json.load(f).get("aggro_observed") or {}
-            _RANGES = {k: int(v["range"]) for k, v in obs.items() if isinstance(v, dict) and v.get("range")}
-        except (OSError, ValueError):
-            _RANGES = {}
+        _RANGES = {k: int(v["range"]) for sc in scenarios() for k, v in (sc.get("aggro_observed") or {}).items()
+                   if isinstance(v, dict) and v.get("range")}
     return _RANGES.get(kind, AGGRO_R)
 
 
@@ -69,7 +80,6 @@ WAR = 0x40
 # ("we don't need to avoid any mob specifically", 2026-10-15)
 NEVER_AGGRO = ("elder vampire", "elder vampire countess")
 CASTER_AI = frozenset(("mage", "meleemage"))
-KB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum_kb.json")
 _KB = None
 
 
@@ -78,14 +88,20 @@ def type_key(name: str | None) -> str:
 
 
 def creatures() -> dict:
-    """The wiki's creature stats (harness/data/sim/mausoleum_kb.json), {} without the file."""
+    """The wiki's creature stats of every scenario's dungeon (each one's evidence.kb file: mausoleum_kb.json,
+    tidal_tomb_kb.json, ...), {} without them."""
     global _KB
     if _KB is None:
-        try:
-            with open(KB_PATH, encoding="utf-8") as f:
-                _KB = json.load(f).get("creatures") or {}
-        except OSError:
-            _KB = {}
+        _KB = {}
+        for sc in scenarios():
+            kb = (sc.get("evidence") or {}).get("kb")
+            if not kb:
+                continue
+            try:
+                with open(os.path.join(SCENARIO_DIR, kb), encoding="utf-8") as f:
+                    _KB.update(json.load(f).get("creatures") or {})
+            except OSError:
+                continue
     return _KB
 
 

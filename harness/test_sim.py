@@ -3415,6 +3415,136 @@ def test_trace_no_side_effects():
           f"{ {k: a[k] for k in keys} } vs { {k: b[k] for k in keys} }")
 
 
+TIDAL_L1 = (6653, 2097)       # Tidal Tomb: the recall arrival on level 1, 2 tiles from the golden moongate
+TIDAL_L2 = (6943, 2004)       # ...level 2's arrival (under water: the scenario's `oxygen`)
+
+
+def tidal_world(start, spawns=(), seed=1):
+    sc = load("tidal_tomb")
+    sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
+    sc["player"]["start"] = [start[0], start[1], -16 if start == TIDAL_L1 else -38]
+    return World(sc, seed=seed)
+
+
+def test_scenario_inherit():
+    print("== a scenario's `inherit`: the base's blocks it lacks, a dict it has updated by its own, a missing key refused ==")
+    import json
+    import tempfile
+    d = tempfile.mkdtemp(prefix="sim_inherit_")
+    kb = {"creatures": {"rat": {"name": "a rat", "hits": 10, "melee_damage": [1, 2], "ai": "melee"}}}
+    base = {"evidence": {"kb": "kb.json", "observed": "none.json"}, "player": {"name": "Logan", "start": [1, 1, 0]},
+            "pets": [{"name": "Rex"}], "defaults": {"a": 1, "b": 2}, "bard": {"skill": 149}, "spawns": []}
+    child = {"evidence": {"kb": "kb.json", "observed": "none.json"}, "player": {"start": [9, 9, 0]},
+             "defaults": {"b": 3}, "spawns": [],
+             "inherit": {"from": "base", "keys": ["player", "pets", "defaults", "bard"]}}
+    bad = {**child, "inherit": {"from": "base", "keys": ["vet"]}}
+    for name, data in (("kb", kb), ("base", base), ("child", child), ("bad", bad)):
+        with open(os.path.join(d, f"{name}.json"), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    sc = load("child", d)
+    check("the base's player name with the child's start; the base's pets; defaults merged child over base",
+          sc["player"] == {"name": "Logan", "start": [9, 9, 0]} and sc["pets"] == [{"name": "Rex"}]
+          and sc["defaults"] == {"a": 1, "b": 3} and sc["bard"]["skill"] == 149, str(sc["player"]))
+    try:
+        load("bad", d)
+        refused = False
+    except ValueError:
+        refused = True
+    check("a key the base doesn't have is refused", refused)
+
+
+def test_tidal_oxygen():
+    print("== Tidal Tomb: 10 minutes under water, then -5 every 5 s while above 66 % (pets 5 %); level 1 refills ==")
+    w = tidal_world(TIDAL_L2)
+    hurts = _log_hurts(w)
+    pl = w.player
+    w.run_until(599.0)
+    check("no oxygen damage in the first 10 minutes", not any(k == "oxygen" for _, _, k, _ in hurts))
+    w.run_until(641.0)
+    on_us = [(t, n) for t, v, k, n in hurts if k == "oxygen" and v is pl]
+    gaps = [round(b[0] - a[0], 2) for a, b in zip(on_us, on_us[1:])]
+    check("from 605 s, 5 every 5 s (no song cuts it) until we are at 66 % or below: 100 -> 65",
+          bool(on_us) and 604.9 <= on_us[0][0] <= 605.2 and all(n == 5 for _, n in on_us)
+          and all(g == 5.0 for g in gaps) and pl.hits == 65, f"{on_us} hits {pl.hits}")
+    pets = {v.name for t, v, k, n in hurts if k == "oxygen" and v.kind == "pet" and abs(n - round(0.05 * v.hits_max)) <= 1}
+    check("each pet loses 5 % of its hits too", pets == {p.name for p in w.pets()}, str(pets))
+    pl.x, pl.y, pl.z = TIDAL_L1[0], TIDAL_L1[1], -16
+    w.run_until(645.0)
+    n = len(hurts)
+    w.run_until(700.0)
+    check("on level 1 the oxygen is refilled: no more deprivation hits", w.under_s == 0.0
+          and not any(k == "oxygen" for _, _, k, _ in hurts[n:]), f"under_s {w.under_s}")
+
+
+def test_tidal_ooze_and_brood():
+    print("== Tidal Tomb specials: a noughtilus' ooze aura (4 bursts 0.3 s apart within 2), a nest crab's broodlings ==")
+    x, y = TIDAL_L1
+    w = tidal_world(TIDAL_L1, [{"key": "oozing noughtilus", "at": [x + 2, y, -16]}])
+    hurts = _log_hurts(w)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 100000
+    m.spec = {**m.spec, "melee": None}
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    m.target, m.threat = gb.serial, {gb.serial: 1e6}
+    w.run_until(30.0)
+    ooze = [(t, v, n) for t, v, k, n in hurts if k == "ooze"]
+    groups = []
+    for t in sorted({t for t, _, _ in ooze}):
+        if groups and t - groups[-1][-1] <= 0.35:
+            groups[-1].append(t)
+        else:
+            groups.append([t])
+    check("in 30 s: 2+ auras of 4 bursts 0.3 s apart, every hit on one of us within 2 tiles",
+          len(groups) >= 2 and all(len(g) == 4 for g in groups[:-1])
+          and all(abs(b - a - 0.3) < 0.051 for g in groups for a, b in zip(g, g[1:]))
+          and all(sim_cheb(v.pos, m.pos) <= 2 for _, v, _ in ooze), f"{[[round(t, 1) for t in g] for g in groups]}")
+    gaps = [round(b[0] - a[0], 1) for a, b in zip(groups, groups[1:])]
+    check("...7-12 s apart", bool(gaps) and all(6.9 <= g <= 12.2 for g in gaps), str(gaps))
+    w = tidal_world(TIDAL_L1, [{"key": "dungeon-nest crab", "at": [x + 2, y, -16]}])
+    said = _log_overhead(w)
+    crab = next(m for m in w.mobs.values() if m.kind == "monster")
+    crab.hits = crab.hits_max = 100000
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    crab.target, crab.threat = gb.serial, {gb.serial: 1e6}
+    most, first = 0, None
+    for _ in range(900):                                    # 90 s
+        w.run_until(w.t + 0.1)
+        brood = [o for o in w.mobs.values() if o.alive and o.spec.get("summoner") == crab.serial]
+        most = max(most, len(brood))
+        if brood and first is None:
+            first, first_d, first_tgt = brood[0], sim_cheb(brood[0].pos, crab.pos), brood[0].target
+    digs = [t for t, s, text in said if s == crab.serial and text == "*digs*"]
+    emerge = [t for t, s, text in said if first is not None and s == first.serial and text == "*emerges*"]
+    check("a pincer crab '*emerges*' beside the nest crab 0.5 s (a tick) after its '*digs*', on its target",
+          first is not None and first.key == "pincer crab" and first_d <= 1 and first_tgt == gb.serial
+          and bool(digs) and bool(emerge) and 0.45 < emerge[0] - digs[0] < 0.65,
+          f"{first and first.pos} digs {digs[:2]} emerges {emerge}")
+    check("...at most 2 of its own up at once", 1 <= most <= 2, str(most))
+
+
+def test_tidal_recall_rule():
+    print("== the recall rule knows both dungeons: Tidal Tomb's gold gates, the Mausoleum's still ==")
+    import escape
+    check("a recall at the Tidal Tomb arrival, 2 tiles from the golden moongate, is allowed",
+          escape.recall_forbidden((*TIDAL_L1, -16), 0) is None)
+    why = escape.recall_forbidden((6650, 1990, 39), 0)
+    check("...deep in level 1 it is refused", why is not None and "Tidal Tomb" in why, str(why))
+    check("...on level 2 too", escape.recall_forbidden((*TIDAL_L2, -38), 0) is not None)
+    check("...and on the Mausoleum's fight level as before", escape.recall_forbidden((5261, 652, 0), 0) is not None)
+
+
+def test_tidal_hunt():
+    print("== a Tidal Tomb hunt from home: recall in, kills on level 1, out by the golden moongate to Totem, home ==")
+    from sim import run as simrun
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        r = simrun.run_once(3, [], scenario="tidal_tomb", minutes=5)
+    check("done, kills, the gold banked at home", r["outcome"] == "done" and r["kills"] > 0 and r["gold_banked"] > 0
+          and r["hunt_s"] > 200, f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
+
+
 
 def main():
     if pathfind.Walkers().get(0) is None:
@@ -3449,7 +3579,8 @@ def main():
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
-              test_trace_no_side_effects):
+              test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_ooze_and_brood,
+              test_tidal_recall_rule, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

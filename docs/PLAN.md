@@ -2263,6 +2263,37 @@ decisions built on them:
 - **No retuning to compensate**: the parity batch before and after is reported to the user, who decides (docs/SIM.md
   "Cast and flight times; traces").
 
+## Tidal Tomb in the simulator (user 2026-10-24: "start building a dungeon crawler for Tidal Tomb like we have for Mausoleum")
+
+Built from Logan Wolf's first visit (capture 20261024_102346; docs/SIM.md "Tidal Tomb", docs/NOTES.md "Tidal Tomb").
+
+- **A second scenario, not a second simulator.** `World` was already scenario-driven, and `tidal_tomb.json` drives
+  it like the Mausoleum's. The tools that assumed the Mausoleum now take the scenario:
+  - `calibrate.py --scenario`, with its region and captures in the scenario's `calibration`.
+  - `run.py --scenario` and `--area`.
+  - `aggro` and `escape` read every scenario's `dungeon` and kb, so the live runner knows Tidal Tomb's recall
+    rule and creatures too.
+  - The Mausoleum's observations regenerate unchanged, apart from the new red count and rule text.
+- **`inherit` instead of copies.** Logan's blocks (pets, pack, bard, vet, potions, the engine defaults) are the
+  Mausoleum scenario's, updated key by key where Tidal Tomb measured its own: songs 16.9 %, durations, the Guide's
+  barding chances. Rejected: copying ~10 KB of calibrated, annotated blocks that would drift apart.
+- **The wiki rows come from a script** (`sim/kb_scan.py`), not a hand-made kb as the Mausoleum's was. The labelled
+  Creatures List rows are unambiguous where a creature page's second table row isn't.
+- **Level 1 is the default hunt.**
+  - It is the recall arrival and has no oxygen.
+  - Logan spent most of his time there.
+  - The runner leaves by the golden moongate at the arrival to Totem. Its leave by recall casts where it stands,
+    and the dungeon rule refuses that away from a gold gate.
+  - Level 2 runs by arguments (docs/SIM.md). In the simulator they die far more often (3 of 8) and meet the oxygen,
+    so a level 2 crawl needs its own rules first.
+- **New mechanics only where the capture showed them and the wiki or patch notes named them:** oxygen (patch notes),
+  the ooze aura (capture + the follower ability), the nest crab's broodlings (capture; [INFERENCE] as to the cause),
+  the bottomfeeder's feed.
+  - Seen but not modelled: armor pierce, large swing, poison and pressure. There is no armor model, and the
+    evidence is 1-2 samples.
+  - No retuning toward the visit's numbers. Logan's damage taken on level 1, a quarter of live in the simulator,
+    is left as a named gap (one visit, 8 minutes).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

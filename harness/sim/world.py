@@ -110,8 +110,9 @@ TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's l
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed"}   # ...used on a cooldown while it fights
+TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
+UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
@@ -206,6 +207,8 @@ class Mob:
     relocate: tuple | None = None  # a banshee's dematerialize: (min, max) tiles from here when hidden_until ends
     charge_at: tuple | None = None  # a Charge called ('*charges*'): (landing time, target serial, the special)
     feed: list | None = None      # a vampire's feed: [next time, ticks left (None: still attempting), target, special]
+    pulse: list | None = None     # an ooze aura under way: [next burst time, bursts left, special]
+    brood_at: tuple | None = None  # a nest crab's dig: (time its broodling emerges, special)
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -301,6 +304,8 @@ class World:
         self.steps_taken = 0                  # our confirmed steps: a stamina point every STEP_STAM_EVERY of them
         self.stam_next = None                 # when our stamina regains its next point (STAM_REGEN_S), below max
         self.penalty = 0
+        self.under_s = 0.0                    # scenario `oxygen`: seconds under water since it was last refilled
+        self.oxygen_due = None                # ... the next deprivation hit, once deprived
         self.gump_n = 0x7700
         self.gate_n = 0x7800                  # moongate menus' serials
         self.gate_gump = None                 # (serial, gate, picked destination) of the menu up
@@ -844,7 +849,7 @@ class World:
         if by is not None and by.discord_until > self.t:
             amount *= 1 - self.sc["bard"]["discord_dealt"]
         if victim.kind in ("player", "pet") and (by is None or by.kind == "monster") \
-                and (song_pets or victim.kind == "player"):
+                and (song_pets or victim.kind == "player") and kind not in UNPREVENTABLE:
             amount *= 1 - self.song("discord")      # also on bleeds and area hits (patch 2022-08-26)
         elif victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
             amount *= 1 + self.song("provoke")
@@ -1074,6 +1079,7 @@ class World:
         if self.paralyzed_until and t >= self.paralyzed_until:
             self._unparalyze()
         self.reds.tick()
+        self._oxygen()
         pl = self.player
         near_others = []
         if self.others_on:
@@ -1133,6 +1139,39 @@ class World:
             self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
         if self.trace is not None:
             self.trace.tick(self)
+
+    def _underwater(self, m: Mob) -> bool:
+        return any(b[0] <= m.x <= b[2] and b[1] <= m.y <= b[3] for b in (self.sc.get("oxygen") or {}).get("underwater", ()))
+
+    def _oxygen(self):
+        """Tidal Tomb's oxygen (scenario `oxygen`, knowledge #4641-4644): our time under water (its levels 2+) adds
+        up and a step out of it refills it; past a stage's `after_s` every `every_s` we lose `player` hits while above
+        `above` of our max, and each pet `pet_pct` of its max while above `above` of its own (unpreventable: no song
+        cuts it). The live oxygen bar and buff icons aren't sent (the runner reads neither)."""
+        ox = self.sc.get("oxygen")
+        if not ox:
+            return
+        pl = self.player
+        if pl.ghost or not self._underwater(pl):
+            self.under_s, self.oxygen_due = 0.0, None
+            return
+        self.under_s += TICK_S
+        self.count("underwater_s", n=TICK_S)
+        stage = next((s for s in reversed(ox["stages"]) if self.under_s >= s["after_s"]), None)
+        if stage is None:
+            return
+        if self.oxygen_due is None:
+            self.oxygen_due = self.t + ox["every_s"]
+        if self.t < self.oxygen_due:
+            return
+        self.oxygen_due = self._due(self.oxygen_due, ox["every_s"])
+        if pl.hits > stage["above"] * pl.hits_max:
+            self.hurt(pl, stage["player"], None, "oxygen")
+            self.count("oxygen_damage", "player", stage["player"])
+        for p in self.pets():
+            if p.alive and not p.ghost and p.hits > stage["above"] * p.hits_max:
+                self.hurt(p, stage["pet_pct"] * p.hits_max, None, "oxygen")
+                self.count("oxygen_damage", p.name, round(stage["pet_pct"] * p.hits_max))
 
     def _on_level(self) -> bool:
         """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,
@@ -1200,6 +1239,10 @@ class World:
                 self._charge(m, to, sp)
         if m.feed is not None and t >= m.feed[0]:
             self._feed_step(m)
+        if m.pulse is not None and t >= m.pulse[0]:
+            self._pulse_step(m)
+        if m.brood_at is not None and t >= m.brood_at[0]:
+            self._emerge(m)
         if m.calm_until > t:
             self._cancel_cast(m, "peace")
             self._warm(m, False)
@@ -1496,7 +1539,8 @@ class World:
 
     def _abilities(self, m: Mob, tgt: Mob, spec: dict):
         """Timed specials while fighting (scenario `specials`, each with its evidence): the Charge, the
-        transfix, the wail, the bursts, the Vanish, the apparition's blink, the vampires' feed."""
+        transfix, the wail, the bursts, the Vanish, the apparition's blink, the vampires' feed; Tidal Tomb's ooze aura
+        and the nest crab's brood."""
         t = self.t
         for sp in spec.get("specials", []):
             kind = sp["kind"]
@@ -1579,6 +1623,60 @@ class World:
                 self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*attempts to feed*")
                 m.feed = [t + self.rng.uniform(*sp["delay_s"]), None, tgt.serial, sp]
+            elif kind == "ooze":
+                # an oozing noughtilus (Tidal Tomb scenario note): its Ooze Aura, 4 bursts 0.3 s apart on
+                # everyone within 2 tiles, every ~7-12 s from a while into the fight
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                if m.pulse is not None or not any(cheb(o.pos, m.pos) <= sp["radius"] for o in self.team()):
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=None)
+                m.pulse = [t + sp.get("delay_s", 0.0), sp["bursts"], sp]
+            elif kind == "brood":
+                # a dungeon-nest crab (Tidal Tomb scenario note): '*digs*', and a pincer crab '*emerges*'
+                # beside it 0.5 s later and joins the fight
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                if m.brood_at is not None or sum(1 for o in self.mobs.values() if o.alive and o.kind == "monster"
+                                                 and o.spec.get("summoner") == m.serial) >= sp.get("max", 1):
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=None)
+                self._overhead(m, "*digs*")
+                m.brood_at = (t + sp.get("delay_s", 0.5), sp)
+
+    def _pulse_step(self, m: Mob):
+        """One burst of an ooze aura under way: a hit on each of us within `radius` (the song cuts it as any
+        creature damage), the next `burst_s` later."""
+        when, left, sp = m.pulse
+        for o in self.team():
+            if cheb(o.pos, m.pos) <= sp["radius"]:
+                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "ooze")
+        m.pulse = [self._due(when, sp["burst_s"]), left - 1, sp] if left > 1 and m.serial in self.mobs else None
+
+    def _emerge(self, m: Mob):
+        """A nest crab's broodling: a `key` monster on a free tile beside it, on its target at once; no spawn of
+        its own (no respawn), a kill as any monster's."""
+        _, sp = m.brood_at
+        m.brood_at = None
+        spec = {**self.sc["creatures"][sp["key"]], "summoner": m.serial}
+        free = [(m.x + dx, m.y + dy) for dx, dy in nav.DIR_DELTA if not self._occupied(m.x + dx, m.y + dy)]
+        tiles = [(x, y, self.stand_z(x, y, m.z)) for x, y in free]
+        tiles = [p for p in tiles if abs(p[2] - m.z) <= 10 and any(self.walk.can_walk(*p, d) for d in range(8))]
+        if not tiles:
+            return
+        x, y, z = self.rng.choice(tiles)
+        hp = int(spec["hits"][0] if isinstance(spec["hits"], list) else spec["hits"])
+        c = Mob(self._serial(), "monster", sp["key"], spec["name"], spec["body"], x, y, z, hits=hp, hits_max=hp,
+                noto=spec.get("notoriety", 3), spec=spec, home=(x, y, z))
+        c.target, c.next_think = m.target, self.t + THINK_S
+        self.mobs[c.serial] = c
+        self._view()
+        self._overhead(c, "*emerges*")
+        self.count("broodlings", sp["key"])
 
     def _burst(self, m: Mob, sp: dict):
         """One area hit on each of us within `radius` (`song_pets` false: the pets' share isn't cut by the
@@ -2123,6 +2221,8 @@ class World:
         seen = (b.get("observed") or {}).get(kind, {}).get(target.key)
         if seen:
             p = seen[0] / seen[1]          # the live rate at this type (scenario bard.observed_note)
+        elif (shown := (b.get("guide") or {}).get(target.key)) is not None:
+            p = shown                      # the game's Guide showed it to Logan (scenario bard.guide_note)
         self.skill_ready = t + tamer.SKILL_GAP_S
         word = {"discord": "discord your opponent", "peace": "pacify your opponent",
                 "provoke": "incite anger amongst your opponents"}[kind]
