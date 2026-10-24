@@ -390,7 +390,15 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    copy named as the pet, the pet free when the copy leaves the view, at most 12 s): "<pet> free of the transfix
    after N s, <who> on us: 'All Guard Me'" (user 2026-10-21: "once the tank is transfixed and the countess
    aggros on our character ... 'All Guard Me' to get the aggro back on the tank once it is un-transfixed"; live
-   hunt-20261021-091743-38b6 09:48:53-09:49:53 none in six releases). The
+   hunt-20261021-091743-38b6 09:48:53-09:49:53 none in six releases). And once the target of an "All Kill" the
+   pets took (no "Target cannot be seen.") is dropped, passed over, out of view or dead (`Team.kill_order_over`,
+   since 2026-10-24): "All Kill" ends guarding (guarding pets keep war mode on, live; after an "All Kill" at a
+   monster they can't reach they went out of it within 1 s and followed), so "'All Kill' target 0x… dropped: the
+   pets off guard since; 'All Guard Me' due", then the guard in care's order. Live 2026-10-23 23:29:07-32 three
+   "All Kill"s at a reanimated daemon, dropped 23:29:34, no "All Guard Me" after; at 23:30:22.5 a blightmare woke on
+   Logan and cast at him with both pets beside him out of war mode until 2.4 s after the next "All Kill" (23:30:30.6),
+   dead at 36.96 (docs/NOTES.md "Dead with the pets off guard"; `sim/fight2330.py` 3 of 96 seeds dead before, 0
+   after). The
    user (2026-10-12): a mob aggroes on what comes into its aggro range and line of sight; pets on
    guard engage it before it engages the character, while an aggressive act of ours (Discordance,
    "All Kill") makes the mob aggro on the character. So a target the pets haven't engaged is only

@@ -2187,6 +2187,42 @@ def test_blightmare_awake_patrol():
           f"nearest {near[0]}, waypoint {wp} -> {now}; {said}")
 
 
+def test_guard_after_dropped_kill():
+    print("== 'All Kill' at a target later dropped: 'All Guard Me' again (the kill order ended the guarding) ==")
+    # live 2026-10-23 (hunt-20261023-220741-f118): 'All Kill' at a reanimated daemon 23:29:07-32, dropped 23:29:34, no
+    # 'All Guard Me' after; a blightmare woke on Logan at 23:30:22.5 and cast at him with both pets beside him out of
+    # war mode until 2.4 s after the next 'All Kill' (30.6); dead at 36.96 (sim/fight2330.py: 3 deaths in 96 before)
+    import loop_hunt
+    w = world_with([{"key": "tormented soul", "at": [5272, 652, 0]}], seed=7, start=(5266, 651))
+    soul = next(m for m in w.mobs.values() if m.key == "tormented soul")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    team = loop.team
+    team.guard_needed, team.guard_t = False, loop_hunt.time.monotonic() - 90.0   # guarding, said long ago
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            g0 = w.metrics["guard_commands"]
+            team.all_kill(soul.serial)
+            for _ in range(4):                 # the kill on: no 'All Guard Me' calling them off it
+                clock.advance(0.5)
+                team.care(loop.state())
+            during = w.metrics["guard_commands"] - g0
+            loop.skip[soul.serial] = loop_hunt.time.monotonic() + 60.0   # dropped (fight's PIN_S rule)
+            for _ in range(6):
+                clock.advance(0.5)
+                team.care(loop.state())
+                if w.metrics["guard_commands"] > g0:
+                    break
+            after = w.metrics["guard_commands"] - g0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    modes = sorted({p.mode for p in w.pets()})
+    check("none while it is the target, then 'All Guard Me' once dropped, the pets guarding",
+          during == 0 and after == 1 and modes == ["guard"],
+          f"during {during} after {after} modes {modes} {[ln for ln in out.getvalue().splitlines() if 'guard' in ln.lower()]}")
+
+
 def test_rope_sight():
     print("== --rope from (5207, 689) toward the gate: no landing out of our sight as a ground target ==")
     # live 2026-10-19 10:29:20.1-21.3 fleeing the red Malito: "[Rope" at (5208, 698) from (5207, 689), "Target cannot be
@@ -3272,7 +3308,7 @@ def main():
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot, test_blightmare_first_sight,
-              test_blightmare_awake_patrol,
+              test_blightmare_awake_patrol, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,

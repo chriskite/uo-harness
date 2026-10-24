@@ -2164,6 +2164,18 @@ negative would hold back the pets from a monster really hitting us. The same eve
 into a passed-over daemon's bone burst after each stand-off. A passed-over awake area hitter's reach is now a crawl
 danger zone, like an awake blightmare's (docs/NOTES.md "'All Kill' at an unseen reanimated daemon").
 
+## 'All Kill' ends guarding: guard again once its target is dropped (2026-10-24)
+
+Logan died at 23:30:37 to a blightmare that woke on him while both pets followed him out of war mode: the runner's
+"All Kill"s at a reanimated daemon they couldn't reach had ended their guarding, and dropping the daemon set nothing to
+guard again (docs/NOTES.md "Dead with the pets off guard"). Decision: the target of an "All Kill" the pets took is
+tracked; once it is dropped, passed over, out of view or dead, "All Guard Me" is due (`Team.kill_order_over`).
+`sim/fight2330.py`: 3 of 96 seeds dead before, 0 after; the 20-minute batch no worse (deaths an hour 0.19 -> 0.15,
+gold an hour +1 %). Rejected on the replay's numbers: cover never stepping nearer an awake shy monster (7 deaths in 48
+against 3: no tile qualified and Logan stood in its shot), and "All Kill" at a shy monster on us ahead of care's other
+actions (2-26 deaths in 48; our "All Kill" keeps its aggro on us). Open: cover near an awake blightmare, which live
+followed him out of its sight at once.
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

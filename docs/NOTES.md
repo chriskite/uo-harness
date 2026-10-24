@@ -4781,6 +4781,72 @@ doesn't seem to notice the 'target cannot be seen' system message." Capture sess
   crawl danger zone of its `AREA_R` while skipped (`Crawl.observe`): 19 -> 0 half-seconds in reach and 17 -> 0
   stand-offs. Tests: test_sim `test_kill_unseen_once`, `test_patrol_off_passed_over_area_hitter`.
 
+## Dead with the pets off guard (live 2026-10-23 23:30:37, hunt-20261023-220741-f118)
+
+Visit 4 of the run, 16 kills and 12,021 gp on him (lost). Capture session_20261023_201849 (0x20 flags, 0x77, 0xA1,
+0xC0, 0xAD speech, overhead numbers), the task log (lines ~3920-3996), the Seer's report (the pets at 92 % and 97 %
+beside him, no attacker listed at the death). Many players about; none near the blightmare until 23:30:30.
+
+- **The pets weren't guarding.** Guarding pets keep war mode on: "All Guard Me" 23:28:52.4, both in war mode 52.5.
+  "All Kill" at the reanimated daemon (previous section) 23:29:07.2: both out of war mode at 08.2; 19.8: war 20.5,
+  out 20.6; 32.4: war 33.1, out 33.2 [INFERENCE: the order failed, they couldn't reach it, and they went back to
+  following]. The runner dropped the daemon at 23:29:34 and set nothing to guard again (only kills, arrivals and a
+  few special cases did); the "All Kill"s of 23:29:46.9 and 59.2 were refused ("cannot be seen"). From 23:29:08 to
+  23:30:32.9 the pets were out of war mode, following him.
+- **The blightmare.** 0x0055BE2F and the tormented soul 0x0055BE54 first came into view at 23:30:18.0, 13 and 11
+  tiles off, mid-ping-pong [INFERENCE: spawned then]. 23:30:19 at (5241, 693) the runner logged "would see us before
+  the pets at 8 tiles" and backed off to (5241, 692); 23:30:20 "passing over a blightmare: it can't see us from 7
+  tiles" (los.Sight). Its war mode came at 23:30:22.51 with nobody but us within 9 tiles; its first cast effect
+  landed on Logan at 25.15, so it woke on him [INFERENCE: it saw him at (5241, 693) 23:30:19-20, or the sight model is
+  wrong for (5241, 692)].
+- **The fight.** 23:30:23 cover: to (5247, 687), 8 steps. The south tiles out of its reach ((5240, 698), 7 steps)
+  lost on `stand_score` to the reanimated daemon in war mode at (5240, 700), 8 % hits, fought by a party (it died
+  23:30:30). The walk passed 4 tiles from the blightmare in its sight: -27 and "The creature's spell blights you with
+  a foul disease!" at 25.66, at (5243, 689). Out of its sight at (5247, 687) he had it after him at once: (5245,
+  686) 26.49, (5246, 687) 26.83, beside him, a cast 26.86. Heal potion 26.71 (+27, 100). Cover 23:30:27 to (5247,
+  689); it stepped to 2 tiles. A song (Provocation 29.5), then "target a blightmare at 2 tiles", "All Kill" 30.61:
+  5 s after its first spell on him. Pets in war mode 32.94, their first damage on it 33.88 (-205: ~8,000 hits).
+  Hits: -21 30.73 (79), -26 and a disease 31.79 (53), area peace failed 34.44, cover 34 to (5245, 686) through its
+  tile, "shove into (5247, 687) denied (stamina 23/25)" and a refresh potion at ~36, -24 and a disease 35.42, -21
+  35.79 (9), its bolt to seven mobiles 36.52, -10 36.96: dead. The heal potion's 10 s (`healing.POTION_COOLDOWN_S`)
+  from 26.71 ended at 36.71, 0.25 s before; he was inside the cover walk then. Its cast animations came every 0.7-2.3
+  s throughout.
+- **Cause** [INFERENCE: the order of weight]: the pets off guard (a dropped "All Kill" ended their guarding, and the
+  runner didn't know); with them guarding the blightmare's first spell on him puts them on it at once (as in the
+  simulator; not seen live with a caster). Then the cover walks: past it in its sight and to 2-3 tiles from it, which
+  it followed (docs/SIM.md "Limits": the follow seen live), and the 5 s before "All Kill" while care walked and sang.
+- **Replayed** (`sim/fight2330.py`, from 23:30:22.5: the live tiles, the blightmare awake on Logan, the daemon at 8 %
+  with two other players on it, the runner's state as live: pets following, taken for guarding, the daemon dropped).
+  On 17fdc54 the runner logged what it did live: cover to (5247, 687) 8 steps, cover to (5248, 689), "All Kill" at 2
+  tiles, cover through its tile and "shove ... denied (stamina 24/25)", "drank for stamina to shove". Seeds 1-96:
+
+  | | deaths | its hits on him | lowest hits median | damage on him, mean | kills |
+  |---|---|---|---|---|---|
+  | 17fdc54 | 3 | 185 | 46 | 134 | 177 |
+  | guard after a dropped "All Kill" | 0 | 102 | 66 | 79 | 188 |
+
+  The simulator's blightmare casts every 3.4 s against live's 0.7-2.3 s, so it kills fewer than live.
+- **Tried and not kept** (seeds 1-48; 17fdc54: 3 deaths, lowest hits median 61, damage mean 125):
+  - cover never nearer a shooter than here, the way there too (`tiles_within` limited, the route bent round it) and
+    clear of area hits' reach (cover kept only the hitters' own tiles out): 7 deaths, median 32, damage 187. From
+    (5241, 692) no tile within 8 steps qualified; he stood in its shot 4-6 tiles off while the pets went at it;
+  - "All Kill" at a shy monster on us before cover (in care): 26 deaths alone (sent from behind cover: "cannot be
+    seen", which then held fight's own "All Kill" by `kill_unseen`); with a sight check 2 deaths but median 35,
+    damage 146 (our "All Kill" keeps its aggro on us);
+  - with the guard rule: all three, 2 deaths, damage 118; the kill-first (with the sight check) and the guard rule, 0
+    deaths, damage 117; the guard rule alone, 0 deaths, damage 72 (shipped).
+- **Fixed.** `Team.all_kill` records the order the pets took (`kill_order`; not on "cannot be seen"); `Team.care`
+  sets `guard_needed` once that target is skipped (dropped, passed over), out of view or dead (`kill_order_over`,
+  logged "'All Kill' target 0x0055B64F dropped: the pets off guard since; 'All Guard Me' due"), and the guard goes
+  out in care's order; `guard` and `on_kill` clear it. Live that would have been 23:29:34-35. Test: test_sim
+  `test_guard_after_dropped_kill` (no "All Guard Me" while the target is on; once dropped one, the pets guarding;
+  fails on 17fdc54: none, the pets left on the kill). Simulator batch (96 runs of 20 min, seed 17, `--others --eerie`,
+  `--vet-range 5 --crawl-learn-s 180`), 17fdc54 / after: deaths an hour 0.19 / 0.15 (runs with a death 6 / 5),
+  kills an hour 97.5 / 98.8, gold an hour 103,211 / 104,175, banked an hour net 94,889 / 97,313, no pet deaths.
+- **Not changed**: cover's tiles near an awake blightmare (the replay rejects the "never nearer" rule; the follow is
+  real live, so a cover tile 2-3 tiles off out of its sight buys a second or two); no heal potion inside a cover walk;
+  the wake at (5241, 692) the sight model said it couldn't see.
+
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
 For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`

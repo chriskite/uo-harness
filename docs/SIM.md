@@ -49,6 +49,7 @@ python harness/sim/fight2227.py 1,2,...,12 [--log] [--trace DIR] [--harness DIR]
 python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 18:53 red on the walk in
 python harness/sim/fight2001.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
 python harness/sim/fight2203.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
+python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
 # with red players (docs below, "Red players"): gold banked an hour with them, their numbers against the live ones
 python harness/sim/run.py --runs 98 --jobs 16 --careers 14 --seed 17 --reds --others --eerie --prior <main checkout>/harness/data/harness.db \
     -- --vet-range 5 --crawl-learn-s 180
@@ -115,7 +116,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/viewmap.py` | The Sim page's map underlay (floor/wall PNG chunks) and line of sight, for viz_server's `/api/sim/map` and `/api/sim/los`. |
 | `sim/reds.py` | Red players (`--reds`, `World.add_red`): arrivals, Tracking, the walk graph across levels, the kits, the PvP rules ("Red players"). |
 | `sim/red_scan.py`, `sim/entry_scan.py` | Every red-player encounter in the live captures, and where players appear and leave on Maus 3 (the evidence of "Red players", docs/NOTES.md "Red players met live"). |
-| `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
+| `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py`, `sim/fight2330.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. `fight2330` also sets the runner's state as live (the pets on a dropped 'All Kill', following, taken for guarding) and places another player's party on a reanimated daemon. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
 | `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
@@ -1216,7 +1217,13 @@ medians moved under 2 s per type (tormented soul 18.3 -> 18.8, blightmare 20.4 -
   2026-10-22 goal run (docs/NOTES.md "Half the deaths in the simulator") saw it again with `Team.cover`: in seed 2014
   of the holdout block, after Logan's cover steps out of its shot, it stood 2 tiles from him on the tile he had just
   looted from, so the cover reads worse here than it may be live. Wanted: a live blightmare fight where Logan leaves
-  its sight and stays near (does it step after him, and how far).
+  its sight and stays near (does it step after him, and how far). **Seen live 2026-10-23 23:30:26-30** (docs/NOTES.md
+  "Dead with the pets off guard"): a blightmare awake on Logan, his cover walk ending out of its sight 3 tiles off; it
+  stepped after him at once, (5244, 685) -> (5246, 687) in 1.7 s (beside him), then to 2 tiles after his next step,
+  and cast from there. So the follow is right at short range; out of reach (10-21 18:21:12.7) it still didn't.
+- **The blightmare casts less often here than live at short range**: its `every_s` 3.4; live 2026-10-23 23:30:23-36
+  its cast animations (0x6E action 7) came every 0.7-2.3 s with Logan 1-7 tiles off (ten in 13 s; six hits on him and
+  three diseases). `sim/fight2330.py` kills fewer than live for it: 3 of 96 seeds before the fix.
 - **Blightmares reach Logan 2.7 times an hour here against 0.9 live** ("Parity with the live runs", "Still apart"),
   and per engagement they kill about as live: the simulator's blightmare deaths (14 of 84 in the goal run's baseline,
   9-17 of 38-53 in its batches after the runner's fixes) are likely too many. Unexplained; the follow above is one

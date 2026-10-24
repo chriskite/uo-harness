@@ -18,7 +18,8 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   wiki Animal Taming, Pet Commands) and after every kill (26 times for 25 kills on the trip; pets
   told "All Kill" go back to the owner after the kill, knowledge #2073); at once (past GUARD_REPEAT_S)
   when a pet comes out of a vampire countess' transfix with something on us (`held_pets`, user 2026-10-21:
-  the aggro back on the tank) and when a leave is called off (loop_hunt: the pets on "All Follow Me" since).
+  the aggro back on the tank), when a leave is called off (loop_hunt: the pets on "All Follow Me" since), and
+  once an 'All Kill' target is dropped, passed over or gone (`kill_order_over`: 'All Kill' ended their guarding).
   "All Follow Me" before every recall or walk out (user directive 2026-10-11, knowledge #17043: a pet was
   left behind), waiting up to FOLLOW_WAIT_S for the pets to come within FOLLOW_R. Transfixed ourselves,
   we are silenced: a command waits the hold out (`say`).
@@ -414,6 +415,7 @@ class Team:
         self.effects = {}                # serial -> {"discord": until, "calm": until, "immune": until, "los": until}
         self.beyond = set()              # (skill, creature type) failed "beyond your skill"
         self.kill_t = {}                 # serial -> our last "All Kill" at it
+        self.kill_order = None           # the target of an 'All Kill' the pets took: off guard till 'All Guard Me'
         self.attack_t = {}               # serial -> first seen attacking us (this engagement)
         self.blinks = {}                 # apparition serial -> (monotonic time of its "*phases*", target serial)
         self.poisoned_t = {}             # pet serial -> "*looks violently ill*" over it
@@ -760,7 +762,26 @@ class Team:
             return False
         self.h.doing("pets", "Telling the pets to guard me")
         self.say("all guard me")
-        self.guard_t, self.guard_needed = time.monotonic(), False
+        self.guard_t, self.guard_needed, self.kill_order = time.monotonic(), False, None
+        return True
+
+    def kill_order_over(self, st) -> bool:
+        """The pets took 'All Kill' at a target we fight no more: dropped or passed over (HuntLoop.skip), out of view
+        or dead. 'All Kill' ends their guarding (they go back to following once it's done, knowledge #2073), so they
+        need 'All Guard Me' again: guard_needed. Live 2026-10-23 (hunt-20261023-220741-f118): 'All Kill' at a
+        reanimated daemon 23:29:07-32, dropped 23:29:34, and no 'All Guard Me' after; from 23:30:22.5 a blightmare
+        cast at Logan with both pets beside him out of war mode until 2.4 s after the next 'All Kill' (30.6), dead at
+        36.96 (docs/NOTES.md "Dead with the pets off guard")."""
+        s = self.kill_order
+        if s is None:
+            return False
+        mob = st["world"]["mobiles"].get(f"0x{s:08X}")
+        if mob is not None and mob.get("x") is not None and s not in self.h.dead \
+                and self.h.skip.get(s, 0) <= time.monotonic():
+            return False
+        why = "dropped" if mob is not None and mob.get("x") is not None and s not in self.h.dead else "gone"
+        log(f"'All Kill' target 0x{s:08X} {why}: the pets off guard since; 'All Guard Me' due")
+        self.kill_order = None
         return True
 
     def arrived(self):
@@ -771,6 +792,8 @@ class Team:
 
     def on_kill(self, serial: int):
         self.guard_needed = True
+        if self.kill_order == serial:
+            self.kill_order = None        # guard_needed already
         self.effects.pop(serial, None)
         self.attack_t.pop(serial, None)
         self.fought.pop(serial, None)
@@ -858,10 +881,12 @@ class Team:
     def care(self, st) -> bool:
         """One care action, True when something was done: evade a --never-aggro monster, "All Follow Me" after
         a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, vet supplies on us
-        when we are below --heal-at, keep off the tank, vet supplies, guard, walk to a hurt pet or a ghost, a
-        better tile for line of sight, a barding song. Standing off an area hitter comes before this and the
-        potion (HuntLoop.tick)."""
+        when we are below --heal-at, keep off the tank, vet supplies, guard (also once an 'All Kill' target is
+        dropped: kill_order_over), walk to a hurt pet or a ghost, a better tile for line of sight, a barding song.
+        Standing off an area hitter comes before this and the potion (HuntLoop.tick)."""
         self.update(st)
+        if self.kill_order_over(st):
+            self.guard_needed = True
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         return self.evade(st) or (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
@@ -2535,6 +2560,8 @@ class Team:
             fx["los"] = time.monotonic() + LOS_BLOCK_S
             fx["los_at"] = self.sight_pair(h.link.last, serial)
             log(f"'All Kill' at 0x{serial:08X}: cannot be seen; not again from here while it stays put")
+        else:
+            self.kill_order = serial      # the pets on it, guarding no more (kill_order_over)
         self.count("kill_commands")
 
     def sight_pair(self, st, serial: int):
