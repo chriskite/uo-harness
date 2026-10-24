@@ -684,10 +684,24 @@ Paste this (or point the session at this section) to start an overseer.
 >    failed at home with N gp carried: …"** (since 2026-10-21 the run ends there rather than going back in with
 >    the load): `act dropoff` by hand, read its `reply`, tell the parent session (or the user) the runner's
 >    error, and start the next run only once the gold is in.
-> 7. **`task_failed` with Logan still in the Mausoleum** (a walk-in that couldn't go on, a runner error),
->    **`death`**, **`pet_left_behind`** or **`pet_down`**: `ctl say "@user …"` at once with the position and
->    the log line, and start nothing until the user answers. A ghost can't recall out, and walking out of
->    the Mausoleum by hand is the user's call. After a death, decline every Report Murder gump (button
+> 7. **An erroneous stop with Logan alive in the Mausoleum** (a `task_failed` from a walk-in that couldn't go
+>    on, a runner error; not a user pause, not a death): **get him home at once; never leave him standing
+>    in the dungeon waiting for an answer** (user 2026-10-24, after Logan died idle on Maus 2 thirty minutes after
+>    such a stop: "From now on Overseers should escape from the dungeon and return home when there is an erroneous
+>    stoppage like that"). Since b3d6e53 the runner escapes by itself first: its log says "ERROR inside the
+>    dungeon at …; escaping home", then "escaped home after: … (by <way>)" (an `escape` juncture, attention) or
+>    "escape failed: …" (urgent, "Logan still inside at …"). Check `status`:
+>    - Home: `ctl say "@user …"` with the error line, report it to the parent session, then step 2 (drop-off,
+>      loadout) and start the next run.
+>    - Still inside (the escape failed, or a run you stopped with plain `ctl stop`): start the go-home run at
+>      once, the §5 command verbatim plus `--go-home`. It takes the way out from where he stands (the first
+>      level's gold moongate, or on through the teleporters to the crimson gate, then the tome home), drops off
+>      and exits 0 at home ("--go-home: home at …"). Tell the user what happened while it runs. If it fails too,
+>      `ctl say "@user …"` urgently with his position: walking him out by hand is then the user's.
+>
+>    **`death`** (the runner's, or `ctl wait`'s own when no task runs: `data.no_task`), **`pet_left_behind`**
+>    or **`pet_down`**: `ctl say "@user …"` at once with the position and the log line, and start nothing
+>    until the user answers. A ghost can't recall out. After a death, decline every Report Murder gump (button
 >    3). Pets left in the dungeon are fine (user): the stablemaster PizzaParty in the DTF guild hall
 >    (4134, 1435) brings them back with "Retrieve Lost Followers". That isn't automated yet, so ask the
 >    user; never go back in without both pets.
@@ -696,7 +710,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    Totem and the tome home with the pets, drops off and exits 0 at home. Wait for its `task_done`
 >    (a minute or two). Plain `ctl stop` stops Logan wherever he stands, in the dungeon too (since 2026-10-17
 >    its visit row is still written). Use it only for a possible GM, a server restriction, or a run that
->    already ended up somewhere wrong, and then call the user.
+>    already ended up somewhere wrong, and then call the user. Logan alive in the dungeon after it and no GM
+>    in view: the go-home run (step 7).
 > 9. **The user's play rules** (docs/HUNT_LOOP.md "Pets"; the runner keeps them, don't overrule them):
 >    - Pets on guard and between Logan and the monsters; Logan never next to the tank.
 >    - Heal in place with vet supplies and potions, and vet while fleeing.

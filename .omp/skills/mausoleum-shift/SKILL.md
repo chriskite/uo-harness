@@ -23,8 +23,10 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
 3. **One Seer per character.** `read history://`: a `SeerLoganWolf*` agent `running` (or a heartbeat under 90 s
    old from another session) already owns Logan; message it (`write agent://<id>`) instead of starting another.
    A parked one may be revived the same way when its context is still small; otherwise dispatch fresh.
-4. Anything off (dead, inside the dungeon with no run, pets missing, gate paused, a task running): tell the user
-   and dispatch only once they say how to proceed. §5 step 1: start at home in Logan Wolf's house (the "Logan's House" landing).
+4. Anything off (dead, pets missing, gate paused, a task running): tell the user and dispatch only once they say
+   how to proceed. Alive inside the dungeon with no run: the Seer's first act is the go-home run (§5 step 7: the
+   §5 command plus `--go-home`); say so in the dispatch. §5 step 1: start at home in Logan Wolf's house (the
+   "Logan's House" landing).
 
 ## 2. Dispatch
 
@@ -49,10 +51,12 @@ Reporting contract (the parent session fixes code; you never do):
   (quote it with its chat id). Include: time, task id, log path, the exact log lines, Logan's pos/hits/pets,
   where he is now and what you did.
 - Then keep the shift: get Logan safe by §5 (steps 7 and 8: `ctl stop --after-trip` unless it's an emergency),
-  start no new run while the issue is open, and keep `ctl wait` going. A parent message wakes you; it says
+  start no new hunt while the issue is open, and keep `ctl wait` going. A parent message wakes you; it says
   when the fix is in and what changed, and whether to resume.
-- §5 step 7 still applies: deaths, pets lost and task_failed in the dungeon go to the user too (`ctl say
-  "@user …"`); start nothing until they answer.
+- §5 step 7: an erroneous stop (task_failed) with Logan alive in the dungeon: get him home at once (the
+  runner's own escape, else the go-home run: the §5 command plus `--go-home`); never leave him standing
+  there waiting for an answer (user 2026-10-24). Deaths and pets lost go to the user too (`ctl say "@user …"`);
+  start nothing until they answer.
 - Yield your final report (what .omp/agents/overseer.md asks for) only when the shift ends.
 ```
 
@@ -79,7 +83,9 @@ User reports are ground truth; don't re-verify them in game.
 
 1. **Safety first.** Logan in danger or a run doing harm: tell the Seer what to do (`stop --after-trip`, or plain
    `stop` only for a GM, a server restriction or a run already somewhere wrong; §5 step 8). Anything needing
-   hands in the client (a ghost, a walk out of the dungeon, fetching pets) is the user's: ask them.
+   hands in the client (a ghost, fetching pets, a walk out the go-home run couldn't make) is the user's: ask
+   them. Logan alive in the dungeon after an erroneous stop: have the Seer start the go-home run at once (§5
+   step 7), don't wait for an answer.
 2. **Find the cause from evidence:** the task log, the session capture (`logs/session_*.jsonl`, `jq.exe -c
    'select(…)'`), the store's events, the Seer's transcript (`history://<id>`). Write `[INFERENCE]` on anything
    unobserved.
