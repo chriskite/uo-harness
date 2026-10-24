@@ -2185,6 +2185,35 @@ icons from the buff bar, the same ones the rope rule already used) are holds for
 Rejected: walling a door only after two retries. Being held explains the denial, so the extra retry would only pass
 when the hold happened to end in time.
 
+## Escape home after an error (2026-10-24)
+
+The walk in's "no route" at 00:40:32 ended a run with Logan alive on Maus 2. Nobody moved him, and a calamity killed
+him there at 01:10:48 (docs/NOTES.md "Entangled beside a door on the walk in"). User: "From now on Overseers should
+escape from the dungeon and return home when there is an erroneous stoppage like that." Decisions:
+- **The runner escapes before it exits** (`HuntLoop.on_error`). Every error that reaches the top (an Abort, a
+  WalkFailed, a crash) with Logan alive inside a no-recall dungeon gets him home first. The exit stays 1, and the last
+  `ABORTED:` line names the error and the escape, so the wrapper's task_failed shows both. An `escape` juncture says
+  how it went: attention once home, urgent when he is still inside. No escape after a death, a server restriction
+  (its rule is stop), a paused gate (the user has him) or `ctl stop` (asked to stop). None either for an error of the
+  escape itself: a second escape could loop. Rejected: leaving it to the Seer alone. The runner holds the state, the
+  Mover and the pets' roster at the moment of the error; a Seer acts minutes later at best, and nobody acted for 30.
+- **The way out by evidence, reusing the leaves.** The planner never routes over a teleporter, so each level has only
+  the ways it can walk. The first level has its gold moongates (the walk-in leave's flight, `gold_gate_way`, then the
+  recall). The hunt level has the crimson leave gate (`leave_by_gate`, then the tome from Totem).
+- **The middle level (Maus 2) goes on, not back.** Of the two choices there, going on through the remaining
+  `--enter-via` teleporters to the leave gate is the one the code can route. In the simulator, from (5507, 691) it is
+  57 steps to 5522,637, then 38 from the Maus 3 arrival to the gate. There is no route back to a gold moongate: no
+  teleporter from Maus 2 to the first level is known (not in the live store's 18 Mausoleum teleporters, not in the
+  scenario), and the planner can't take one anyway. It is also the safer choice by the record: it is the walk in's own
+  way, walked on every visit, and the way the user chose for a red met on Maus 2 ("Dash on to Maus 3, crimson gate",
+  `walk_in_threat`). Walking back would need an unmapped teleporter search on a level where Logan stood alone. The
+  pets get "All Follow Me" and no wait on the teleporters (`walk_in_rush`); the gate's walk then waits for them.
+- **A failed way is tried again** from where it left him, 3 tries, 5 s apart. The live failure was a door walled for
+  one walk, and the next walk plans afresh. Each try picks the level's way anew, so a rush that reached Maus 3 goes on
+  by the gate.
+- **`--go-home` for the Seer**: the same way out, or the recall from outside, then the drop-off, exit 0 at home.
+  `ctl run` passes every argument through (`nargs=REMAINDER`, task_wrap's `argv`), so it needs no ctl change.
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

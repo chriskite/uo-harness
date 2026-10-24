@@ -41,6 +41,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
 | `--return-at` | `auto` | Recall mode: take the loot home once this visit's carried value reaches V\* = r·sqrt(2T/h) (`auto`), a fixed gold value, or never (`off`); a full pack always ("Taking the loot home"). |
 | `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; a drop-off that can't run (not at home, an item out of reach) ends the run at home. |
+| `--go-home` | off | No hunting: from wherever the character stands, home, then the drop-off; exit 0 at home. Inside a dungeon that allows no recall, the escape's way out ("Guards": an error inside escapes home); elsewhere the recall with `--leave-recall`; at home already, the drop-off only. Give it the hunt's own arguments (the Seer: docs/OVERSEER.md §5's command plus `--go-home`). No pet in view: it goes without them. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` (`--pets` 0.50) | Leave below this share of max hits (plus the fight spot's route margin). |
@@ -1144,6 +1145,40 @@ own failures (the retreat: "retreat cut short") see it. Before, any of these end
 live 2026-10-20 19:23:30 Logan was left on Maus 3, and he and both pets died standing by 19:30. test_sim
 `test_walk_failed_carries_on`.
 
+**An error inside the dungeon escapes home** (`HuntLoop.on_error`, `escape_home`, since 2026-10-24). User, after Logan
+was left alive on Maus 2 by the walk in's "no route" (00:40:32) and a calamity killed him there 30 minutes later
+(docs/NOTES.md "Entangled beside a door on the walk in"): "Overseers should escape from the dungeon and return home
+when there is an erroneous stoppage like that." Any error that ends the run (an `Abort`, a `WalkFailed`, a crash)
+while Logan is alive inside a dungeon where recall is forbidden (`escape.recall_forbidden`) and `--leave-recall` is
+given now gets him home first, and the run still exits 1:
+- `ERROR inside the dungeon at (x, y, z): <error>; escaping home`
+- `escape: …` names the way out it takes (below); a way that fails is looked for again from where it left him,
+  `ESCAPE_TRIES` 3 ways at most, `ESCAPE_RETRY_S` 5 s apart (`escape: <way>: <why>`).
+- Home: `recalled home to …`, the bank and the drop-off as after a leave, `escaped home after: <error> (by <way>)`,
+  then `ABORTED: <error> (escaped home by <way>)`, the line the wrapper's task_failed quotes. An `escape` juncture
+  (severity attention) and an `escape` job event.
+- Not home: `escape failed: <why>`, then `ABORTED: <error> (escape failed: <why>)`; the `escape` juncture is
+  urgent ("… Logan still inside at (x, y, z)").
+
+The way out by level (the planner never routes over a teleporter, so each level has the ways it can walk; docs/PLAN.md
+"Escape home after an error"):
+- **First level** (a gold moongate within `GOLD_GATE_STEPS` 120 route steps, `gold_gate_way`): the walk-in leave's
+  flight to it (`flee_out`: a red's danger zones and ropes if one shows up), "All Follow Me" again beside it, the
+  recall home.
+- **Hunt level** (a route to `--leave-gate`): the leave by the crimson gate as on time up (`leave_by_gate` planned:
+  the pets on "All Follow Me" waited for, attackers fought; a red's flight if one is in view), to `--gate-dest`, the
+  recall home from there.
+- **Middle level** (Maus 2: no route to a gold moongate, none to the leave gate): the `--enter-via` teleporters still
+  ahead, the nearest by route first, at flight pace (`walk_in_rush`), then the leave gate as above.
+- A recall allowed where he stands (a try before got him out): the recall.
+
+No escape after a death (`death` juncture) or a server restriction message (stop, ANTICHEAT.md §8 rule 4), on a
+paused agent gate (`GatePaused`: the user took over) or `ctl stop`, outside a no-recall dungeon, or when the error came
+from the escape itself. The overall timeout no longer aborts once the escape began. `--go-home` takes the same way out
+on its own. test_sim `test_escape_after_walk_in_error` (the live walk in's failure at (5507, 691): home by the
+teleporters and the leave gate, both pets along), `test_go_home` (from the first level, Maus 2 and Maus 3),
+`test_no_escape_on_death_or_stop`.
+
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
 stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech
 or invulnerable players in view: no `speech_nearby`, no `gm_suspected` from the runner, no Laya
@@ -1159,7 +1194,8 @@ rights), `gold`, `xp`, `hits_lost`, `casts`, `heals`, `leaves`,
 `stationary_clears`, `repositions` (Stationary Penalty walks), `ended` (the leave reason, `done`,
 `time is up` or `stopped`). Job events `kill`, `loot` (`mob`, `name`, `gold`, `xp`, items,
 `lift_rejects`; `refused` = `blue` or the server's refusal text for a corpse not ours), `leave`, `soul_jar`
-("Soul jars"),
+("Soul jars"), `escape` (`why`, `ok`, `way`, `from`, `to`, `failure`, `ways` tried, `escape_s`: "An error inside the
+dungeon escapes home", and `--go-home`),
 `death`, `speech_hold`, `speech_clear` (until 2026-10-15), and **`fight`** per engagement, both modes (`serial`, `name`,
 `body`, `fight_s` from the first attack, `hits_lost` meanwhile, `outcome` kill / fled / dropped /
 lost / switched / ended, `mode`, crawling also `zone`); `leave` has `route_steps`. Crawling:

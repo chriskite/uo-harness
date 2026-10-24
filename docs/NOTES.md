@@ -4863,6 +4863,15 @@ Visit 2's walk back in. Capture session_20261023_201849 and the task log:
   waits the hold out and plans again. A door retry that only turned him steps once more. test_mover
   `test_held_at_door` (before: "too many blocked moves (13 in this walk)"; after: through the door). The
   `HOLD_ICONS` constant moved from loop_hunt to agent_link; `HuntLoop.held_now` is `Mover.held(st)`.
+- **Then the second death: left there, idle.** Nobody moved Logan after the abort: no runner, no overseer command.
+  He stood at (5507, 691, -8) on Maus 2, between the first level's teleporters and Maus 3. 30 minutes later a calamity
+  (0x00566A3B) attacked at 01:10:32. His hits went 100 -> 78 -> 54 -> 29 -> 10 -> 0, and he was dead at 01:10:48. The
+  pets died at 01:11:51 and 01:13:02. No `death` juncture: only task_failed 1842 at 00:40:33 says anything. The user:
+  "From now on Overseers should escape from the dungeon and return home when there is an erroneous stoppage like
+  that." Since then an error inside a no-recall dungeon gets him home before the run exits (docs/HUNT_LOOP.md "An
+  error inside the dungeon escapes home"; from (5507, 691): on through 5522,637 and the leave gate, Totem, the
+  recall), and the Seer has `--go-home` for a run that ended anyway. test_sim `test_escape_after_walk_in_error`
+  replays the abort (before: "ABORTED", Logan still at (5507, 691); after: home with both pets).
 
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 

@@ -80,7 +80,10 @@ hold (user 2026-10-15: "GMs don't check attendance for dungeon crawling and stop
 because a player speaks will definitely get us killed"). Junctures: `threat` when leaving,
 `low_supplies` when neither a potion nor a castable heal spell (mana, reagents) is
 there, `death`. Job events and one episode row per visit (kills, gold, xp, hits
-lost) go to the memory store.
+lost) go to the memory store. An error that ends the run while we stand alive inside a dungeon that allows no recall
+escapes home first (on_error, escape_home: the first level's gold moongate, the hunt level's --leave-gate, a middle
+level's remaining --enter-via teleporters and the gate; an `escape` juncture), then exits 1; --go-home takes the same
+way out and nothing else (docs/HUNT_LOOP.md "An error inside the dungeon escapes home").
 
 Crawl (--crawl, crawl.py; docs/HUNT_LOOP.md "Crawl"): instead of one fight spot, patrol
 the floor's waypoints (the pull range, corpse range and Stationary Penalty walks are
@@ -132,6 +135,7 @@ import signal
 import sys
 import threading
 import time
+import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -255,6 +259,14 @@ GOLD_GATE_STEPS = 120        # --enter-via: a hostile player on the walk in: fle
 #                               off at most and recall home (walk_in_threat; user 2026-10-22 after Botan's kill: "Flee to a
 #                               gold gate, recall home"); none that near (past the first teleporter: gold gates are on a
 #                               dungeon's first level only): on through the teleporters at flight pace, then the leave gate
+# An error that would end the run with us alive inside a dungeon that allows no recall (on_error; user 2026-10-24, after
+# hunt-20261024-000844-30b5 aborted on Maus 2 at 00:40:32 and a calamity killed Logan standing there at 01:10:48: "Overseers
+# should escape from the dungeon and return home when there is an erroneous stoppage like that"): the way out first
+# (escape_home). A way that fails (a walk's no route, the gate's menu, a recall) is looked for again from where it left
+# us this often, ESCAPE_RETRY_S apart: a mobile or door that cut the route has moved by then, a level further on has its
+# own way
+ESCAPE_TRIES = 3
+ESCAPE_RETRY_S = 5.0
 PET_BUSY_R = 2                # a pet in war mode this close to a monster in war mode is fighting it (patrol_hold)
 JAR_DEFER_S = tamer.AT_ONCE_S  # --pets: an eerie corpse whose walk stopped on the pull budget waits this long (past the
 #                               "no other way on" memory, so the retry stops at the same place again); a hold ("letting
@@ -336,6 +348,9 @@ class HuntLoop:
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
         self.walking_in = False                  # on the walk in (walk_in): the hostile-player checks are on (look)
         self.walk_in_red = None                  # why a hostile player on the walk in sent us on to the leave gate
+        self.escaping = False                    # the escape home after an error or --go-home: no overall timeout
+        self.escape_tried = False                # escape_home ran: an error after it ends the run where it stands
+        self.halt = None                         # why an error ends the run without the escape (a death, a restriction)
         self.rope_next = 0.0                     # --rope: the next rope jump not before
         self.rope_refused = set()                # --rope: (x, y) landings the server refused this run
         self.hostile_seen = {}                   # serial -> ((x, y), monotonic time, name) of hostile players (hostile_spots)
@@ -425,7 +440,8 @@ class HuntLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        if self.args.timeout > 0 and time.monotonic() - self.t0 > self.args.timeout + HARD_TIMEOUT_GRACE_S:
+        if self.args.timeout > 0 and not self.escaping \
+                and time.monotonic() - self.t0 > self.args.timeout + HARD_TIMEOUT_GRACE_S:
             raise Abort(f"overall timeout ({self.args.timeout:.0f}s + {HARD_TIMEOUT_GRACE_S:.0f}s to leave)")
         mv = st["movement"]
         if mv["stalled"]:
@@ -632,6 +648,7 @@ class HuntLoop:
             if ev.get("ev") == "speech_heard" and ev.get("serial") in (None, 0, 0xFFFFFFFF, "0xFFFFFFFF"):
                 text = (ev.get("text") or "").lower()
                 if any(w in text for w in GATING_WORDS):
+                    self.halt = "a server restriction message"
                     self.memory.juncture("hunt", "server_restriction",
                                          f"Server restriction: {ev.get('text')!r}"[:300], "urgent",
                                          {"text": ev.get("text")})
@@ -650,6 +667,7 @@ class HuntLoop:
         cause = "pk" if players or recent else ("mob" if self.attackers(st) or a.under_attack else "unknown")
         data = {"reason": reason, "cause": cause, "attackers": self.attackers(st), "threats": a.to_dict(),
                 "players_recent": sorted(set(recent))}
+        self.halt = "dead"
         self.memory.juncture("hunt", "death", f"Died ({cause}): {reason}", "urgent", data)
         self.memory.job_event("hunt", "death", data, **self._where(st))
         raise Abort(f"died ({cause}): {reason}")
@@ -2362,10 +2380,16 @@ class HuntLoop:
             if threats.is_dead(st) or st["world"]["self"].get("dead"):
                 self.died(st, f"ghost body (leaving: {why})")
             raise Abort(f"recall home failed ({res['failure']}) after: {why}")
-        log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
-        self.rearm(self.state())            # a recall knocks an arcane staff into the pack
-        if self.team is not None:
-            self.team.landed(self.state(), "home")
+        self.home_landed(res)
+
+    def home_landed(self, res: dict | None):
+        """Home after a recall (`res`: its result; None: we were home already, --go-home): the weapon back in hand,
+        the pets' landing check, then the bank (--bank-gold) and the drop-off (--drop-off)."""
+        if res is not None:
+            log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
+            self.rearm(self.state())            # a recall knocks an arcane staff into the pack
+            if self.team is not None:
+                self.team.landed(self.state(), "home")
         if self.args.bank_gold:
             self.bank()
         if self.args.drop_off:
@@ -2610,21 +2634,14 @@ class HuntLoop:
         self.pk_left_t = time.monotonic()
         if not res["ok"]:
             raise Abort(f"recall home from the gold moongates' level failed ({res['failure']}) after: {why}")
-        log(f"recalled home to {tuple(res['to'])} ({res['method']}, {res['elapsed_s']} s)")
-        self.rearm(self.state())
-        if self.team is not None:
-            self.team.landed(self.state(), "home")
-        if self.args.bank_gold:
-            self.bank()
-        if self.args.drop_off:
-            self.drop_off()
+        self.home_landed(res)
         raise WalkInFled(why)
 
-    def walk_in_rush(self, tiles):
+    def walk_in_rush(self, tiles, what: str = "From a hostile player"):
         """From a hostile player past the walk in's first level (no gold moongate there; the user 2026-10-22: "Dash
         on to Maus 3, crimson gate"): the rest of the --enter-via teleporters at flight pace, "All Follow Me" with
         no wait for the pets, no stop for attackers, potions and vet supplies on the run (drink_on_the_run), no bard
-        skill; the threat checks off meanwhile (fleeing)."""
+        skill; the threat checks off meanwhile (fleeing). `what`: why, for the visualizer (escape_home's way out)."""
         self.fleeing = self.walking_out = self.pk_flight = True
         try:
             self.drop_cursor()
@@ -2635,7 +2652,7 @@ class HuntLoop:
             while (i := self.walk_in_through(tiles, i)) < len(tiles):
                 tile = tiles[i]
                 label = f"to the teleporter at {tile[0]},{tile[1]}"
-                self.doing("leave", f"From a hostile player: through the teleporter at {tile[0]},{tile[1]}", tile)
+                self.doing("leave", f"{what}: through the teleporter at {tile[0]},{tile[1]}", tile)
                 path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
                 if near is None:
@@ -2648,6 +2665,229 @@ class HuntLoop:
                 i += 1
         finally:
             self.fleeing = self.walking_out = self.pk_flight = False
+
+    # ------------------------------------------------------------ the escape home (an error inside, --go-home)
+    def no_escape(self) -> str | None:
+        """Why an error ends the run where we stand (on_error) instead of after the escape home, else None: the escape
+        ran already (the error is its own), a death or a server restriction message (halt; the restriction's rule is
+        stop, ANTICHEAT.md §8 rule 4), no --leave-recall to recall home with, dead, or not inside a dungeon that
+        allows no recall where we stand (escape.recall_forbidden)."""
+        if self.escape_tried:
+            return "the escape home ran already"
+        if self.halt is not None:
+            return self.halt
+        if self.args.leave_recall is None:
+            return "no --leave-recall"
+        try:
+            st = self.link.state()
+        except Exception as e:  # noqa: BLE001 - the proxy gone: nothing to escape with
+            return f"no state ({e})"
+        if threats.is_dead(st) or st["world"]["self"].get("dead"):
+            return "dead"
+        pos = st["movement"]["pos"]
+        if pos is None or not escape_mod.recall_forbidden(pos, st["world"]["self"].get("map")):
+            return "not inside a dungeon that forbids recall"
+        return None
+
+    def on_error(self, e: Exception) -> int:
+        """The run ends on an error (an Abort or WalkFailed reaching the top, or a crash): exit code 1. Alive inside a
+        dungeon that allows no recall (no_escape), the way out and home first (escape_home, then home_landed: the
+        drop-off as after a leave): live 2026-10-24 the walk in's "no route from (5507, 691)" at 00:40:32 left Logan
+        alive on Maus 2 with no runner, and a calamity killed him there at 01:10:48. An `escape` juncture says how it
+        went (attention once home, urgent when he is still inside); the wrapper's task_failed follows with the last
+        'ABORTED:' line, which names the error and the escape. A death, a pause of the agent gate (GatePaused) and
+        `ctl stop` (KeyboardInterrupt) never escape (halt; main). A crash with no escape is raised again, as before."""
+        what = str(e) if isinstance(e, Abort) else f"{type(e).__name__}: {e}"
+        if self.no_escape() is not None:
+            if not isinstance(e, Abort):
+                raise e
+            log(f"ABORTED: {what}")
+            stop_intent(self, f"Stopped: {what}")
+            return 1
+        if not isinstance(e, Abort):
+            traceback.print_exc(file=sys.stdout)
+        here = tuple(self.pos(self.link.state())[:3])
+        log(f"ERROR inside the dungeon at {here}: {what}; escaping home")
+        try:
+            res = self.escape_home(what)
+        except Exception as x:  # noqa: BLE001 - the escape's own crash: reported, not escaped again
+            traceback.print_exc(file=sys.stdout)
+            res = {"ok": False, "failure": f"{type(x).__name__}: {x}", "from": list(here)}
+        if res["ok"]:
+            note = ""
+            try:
+                self.home_landed(res)
+            except Abort as x:
+                note = f"; at home: {x}"
+            end = f"escaped home by {res['way']}{note}"
+            log(f"escaped home after: {what} (by {res['way']}{note})")
+            self.memory.juncture("hunt", "escape", f"Escaped home after an error inside the dungeon: {what} "
+                                 f"(by {res['way']}{note})"[:300], "attention",
+                                 {"error": what, "ok": True, "way": res["way"], "from": res["from"],
+                                  "to": res.get("to"), "at_home": note[len("; at home: "):] or None})
+        else:
+            try:
+                at = list(self.pos(self.link.state())[:3])
+            except Exception:  # noqa: BLE001 - the proxy gone
+                at = None
+            end = f"escape failed: {res['failure']}"
+            log(f"escape failed: {res['failure']}")
+            self.memory.juncture("hunt", "escape", f"Escape home failed after an error inside the dungeon: {what}; "
+                                 f"{res['failure']}; Logan still inside at {at}"[:300], "urgent",
+                                 {"error": what, "ok": False, "failure": res["failure"], "from": res.get("from"),
+                                  "at": at, "way": res.get("way")})
+        log(f"ABORTED: {what} ({end})")
+        stop_intent(self, f"Stopped: {what} ({end})")
+        return 1
+
+    def escape_home(self, why: str) -> dict:
+        """Out of a dungeon that allows no recall where we stand, and the recall home (on_error, --go-home): the way out
+        the level has (escape_once), looked for again from where a failed one left us, ESCAPE_TRIES ways at most. The
+        threat checks off (fleeing) and the overall timeout too (escaping); a red on the way: the flights of the leaves
+        (flee_out). An `escape` job event. -> the recall's result with `way`, `from`, `ways` (each try) and
+        `escape_s`; `ok` False with `failure` when we are still inside."""
+        self.escape_tried = self.escaping = True
+        t0 = time.monotonic()
+        st = self.link.state()
+        start = list(self.pos(st)[:3])
+        self.walking_in = False
+        res, way, ways = {"ok": False, "failure": "not tried"}, None, []
+        self.fleeing = True
+        try:
+            self.drop_cursor()
+            self.disengage("ended")
+            for n in range(ESCAPE_TRIES):
+                if n:
+                    log(f"escape: looking for the way out again in {ESCAPE_RETRY_S:g} s (try {n + 1} of {ESCAPE_TRIES})")
+                    time.sleep(ESCAPE_RETRY_S)
+                way, res = self.escape_once()
+                ways.append({"way": way, "ok": res["ok"], "failure": res.get("failure")})
+                if res["ok"] or self.halt is not None:
+                    break
+                log(f"escape: {way or 'no way out'}: {res.get('failure')}")
+        finally:
+            self.fleeing = False
+        out = {**res, "why": why, "way": way, "from": start, "ways": ways,
+               "escape_s": round(time.monotonic() - t0, 1)}
+        st = self.link.state()
+        self.memory.job_event("hunt", "escape", {k: out.get(k) for k in ("why", "ok", "way", "from", "to", "method",
+                                                                          "failure", "ways", "escape_s")},
+                              **self._where(st))
+        return out
+
+    def escape_once(self):
+        """One way out from where we stand -> (way, the recall home's result). By evidence (docs/PLAN.md "Escape home
+        after an error"): the planner never routes over a teleporter, so each level has the ways it can walk:
+        - a recall allowed here (a try before got us out, or beside a gold moongate): the recall;
+        - the first level, a gold moongate within GOLD_GATE_STEPS (gold_gate_way): the walk-in leave's flight to it,
+          the pets' wait beside it, the recall home (escape_by_gold_gate);
+        - the hunt level (a route to --leave-gate): the leave by the gate to --gate-dest, the recall from there
+          (escape_by_leave_gate);
+        - a middle level (Maus 2): no route to a gold moongate (no teleporter back to the first level is known) but one
+          to an --enter-via teleporter still ahead: on through them at flight pace (walk_in_rush, the nearest by route
+          first), then the leave gate. That is the walk in's own way, the one walk_in_threat takes from a red there.
+        An Abort on the way (no route, a teleporter that didn't take us, a death) is this try's failure."""
+        way = None
+        self.fleeing = True                          # a walk_in_rush of a try before turned the threat checks on again
+        try:
+            st = self.state()
+            here, facet = tuple(self.pos(st)[:2]), st["world"]["self"].get("map")
+            gate = tuple(self.args.leave_gate) if self.args.leave_gate else None
+            if not escape_mod.recall_forbidden(here, facet):
+                way = f"the recall from {here}"
+                log(f"escape: a recall is allowed at {here}: home")
+                if self.team is not None:
+                    self.team.follow()
+                return way, self.recall_home(True)
+            if (g := self.gold_gate_way(st, quiet=True)) is not None:
+                way = f"the gold moongate at {g[0][0]},{g[0][1]}"
+                log(f"escape: {way} is within {GOLD_GATE_STEPS} steps: there, and the recall home")
+                return way, self.escape_by_gold_gate(g[0], g[1])
+            if gate is not None and self.mover.plan(st, nav.within(gate, 0), mobiles=False)[0]:
+                way = f"the leave gate at {gate[0]},{gate[1]}"
+                log(f"escape: {way} is in reach: through it to {self.args.gate_dest}, and the recall home")
+                return way, self.escape_by_leave_gate()
+            tiles = [tuple(t) for t in self.args.enter_via or []]
+            k = self.escape_teleporter(st, tiles)
+            if k is not None and gate is not None:
+                way = f"the teleporters from {tiles[k][0]},{tiles[k][1]} and the leave gate"
+                log(f"escape: no gold moongate within {GOLD_GATE_STEPS} steps of {here} and no route to the leave "
+                    f"gate: on through {way}, and the recall home")
+                self.walk_in_rush(tiles[k:], "Escaping home")
+                self.fleeing = True                  # walk_in_rush turns the threat checks back on at its end
+                return way, self.escape_by_leave_gate()
+            return None, {"ok": False, "failure": f"no way out from {here}: no gold moongate within {GOLD_GATE_STEPS} "
+                                                  f"steps, " + ("no route to the leave gate or an --enter-via "
+                                                                "teleporter" if gate else "no --leave-gate")}
+        except Abort as e:
+            return way, {"ok": False, "failure": str(e)}
+
+    def escape_teleporter(self, st, tiles) -> int | None:
+        """The index of the --enter-via teleporter still ahead (walk_in_through: past the ones whose known arrival we
+        stand at) that the walk rules reach by the shortest route from here, else None. From (5507, 691) on Maus 2 the
+        simulator routes 57 steps to 5522,637 and 417 round to 5507,701 (whose teleporters lead back to here)."""
+        best = None
+        for k in range(self.walk_in_through(tiles, 0), len(tiles)):
+            path, _ = self.mover.plan(st, nav.within(tiles[k][:2], 0), mobiles=False)
+            if path and (best is None or len(path) < best[1]):
+                best = (k, len(path))
+        return None if best is None else best[0]
+
+    def escape_by_gold_gate(self, gate, near) -> dict:
+        """The escape from the first level: "All Follow Me", the walk-in leave's flight to beside the gold moongate
+        `gate` (flee_out: a red's danger zones and ropes when one shows up; another gold gate when his way passes it),
+        'All Follow Me' again beside it so the pets come along, the recall home (allowed only there)."""
+        self.doing("leave", f"Escaping home: to the gold moongate at {gate[0]},{gate[1]}", gate)
+        if self.team is not None:
+            self.team.follow(wait=False)
+        self.walking_out = True
+        try:
+            self.flee_out(gate, near, lambda s: False, choose=lambda s: self.gold_gate_way(s, quiet=True))
+        finally:
+            self.walking_out = False
+        if self.team is not None:
+            self.team.follow()
+        return self.recall(self.args.leave_recall, None, True, "home")
+
+    def escape_by_leave_gate(self) -> dict:
+        """The escape from the hunt level: the leave by --leave-gate (leave_by_gate: planned, the pets on 'All Follow
+        Me' waited for and the attackers fought as on the time-up walk out; a red's flight when one is in view), then
+        the recall home from --gate-dest."""
+        severity = "urgent" if self.player_threat(self.state()) else "info"
+        gate = self.leave_by_gate(severity)
+        if not gate["ok"]:
+            return {"ok": False, "failure": f"moongate: {gate.get('error') or gate.get('called_off') or 'not through'}"}
+        if self.team is not None:
+            self.team.landed(self.state(), "gate")
+        return self.recall_home(True)
+
+    def go_home(self):
+        """--go-home (the Seer, after a run left Logan somewhere): no hunting. Inside a dungeon that allows no recall,
+        the escape's way out and the recall home (escape_home); elsewhere the recall home with --leave-recall; at home
+        already, neither. Then home as after a leave (home_landed: the bank, the drop-off). Abort when he isn't home."""
+        st = self.setup(pets_required=False)
+        here, facet = tuple(self.pos(st)[:2]), st["world"]["self"].get("map")
+        house = home_mod.for_character(st["world"]["self"].get("name"))
+        self.doing("leave", "Going home (--go-home)")
+        if escape_mod.recall_forbidden(here, facet):
+            log(f"--go-home: inside the dungeon at {here}: the way out, then home")
+            res = self.escape_home("--go-home")
+            if not res["ok"]:
+                raise Abort(f"--go-home: escape failed: {res['failure']}")
+        elif house and home_mod.at_home(here, facet, house):
+            log(f"--go-home: at home already ({here})")
+            res = None
+        else:
+            log(f"--go-home: at {here}: the recall home")
+            if self.team is not None:
+                self.team.follow()
+            res = self.recall_home(True)
+            if not res["ok"]:
+                raise Abort(f"--go-home: recall home failed ({res['failure']})")
+        self.escaping = True                         # no overall timeout at home either
+        self.home_landed(res)
+        log(f"--go-home: home at {tuple(self.pos(self.link.state())[:3])}")
+        self.doing("done", "Home (--go-home)")
 
     def walk_in_legs(self, tiles):
         """walk_in's legs, one --enter-via teleporter each."""
@@ -3263,7 +3503,9 @@ class HuntLoop:
         time.sleep(POLL_S)
         return False
 
-    def run(self):
+    def setup(self, pets_required: bool = True):
+        """The run's start: our position and serial from the proxy, the weapon kept in hand, the pet roster (--pets;
+        without `pets_required`, --go-home, no pet in view goes on without the team). -> the state."""
         st = self.link.wait(lambda s: s["movement"]["pos"] is not None
                             and s["movement"]["self_serial"] is not None, 5.0)
         if st is None:
@@ -3277,7 +3519,17 @@ class HuntLoop:
             log(f"weapon: {w.get('name') or 'graphic ' + str(w.get('graphic'))} 0x{self.weapon:08X}"
                 + (f"; {d}: no attack spell, potions before heal spells inside" if d else ""))
         if self.team is not None:
-            self.team.setup(st)
+            try:
+                self.team.setup(st)
+            except Abort as e:
+                if pets_required:
+                    raise
+                log(f"{e}; going on without the pets")
+                self.team = None
+        return st
+
+    def run(self):
+        st = self.setup()
         entered = True                          # False: a hostile player on the walk in sent us home, the run is over
         if self.args.enter_recall is not None and not self.at_hunt(st) \
                 and escape_mod.recall_forbidden(self.pos(st), st["world"]["self"].get("map")):
@@ -3549,6 +3801,12 @@ def arg_parser() -> argparse.ArgumentParser:
                          "characters are logged in")
     ap.add_argument("--memory", default=DEFAULT_DB,
                     help="harness memory (SQLite, docs/MEMORY.md): walk memory, junctures, episodes")
+    ap.add_argument("--go-home", action="store_true",
+                    help="no hunting: from wherever we stand, home (the Seer after a run left the character out). "
+                         "Inside a dungeon that allows no recall, the way out an error's escape takes (the first "
+                         "level's gold moongate, the hunt level's --leave-gate, a middle level's remaining --enter-via "
+                         "teleporters, then the gate); elsewhere the recall with --leave-recall; then the drop-off. "
+                         "Give it the hunt's own arguments")
     return ap
 
 
@@ -3573,19 +3831,17 @@ def main():
         ap.error("--leave-gate travels to --gate-dest, then recalls home with --leave-recall: give both")
     if args.enter_via and args.enter_recall is None:
         ap.error("--enter-via walks the teleporters after --enter-recall's arrival")
+    if args.go_home and args.leave_recall is None:
+        ap.error("--go-home recalls home with --leave-recall: give it")
 
     memory = Memory(args.memory)
     link = Link(args.control_port, args.state_port, char=args.char)
     link.end_on_pause = True                 # the user took over: the run ends (agent_link.GatePaused)
     loop = HuntLoop(link, memory, args)
     watch_stop(args.memory)
-    code = 0
+    code = 1
     try:
-        loop.run()
-    except Abort as e:
-        log(f"ABORTED: {e}")
-        code = 1
-        stop_intent(loop, f"Stopped: {e}")
+        code = run_loop(loop)
     except GatePaused as e:
         log(f"stopped: {e}")
         code = 1
@@ -3601,6 +3857,17 @@ def main():
         loop.end_visit("stopped")
         memory.close()
     sys.exit(code)
+
+
+def run_loop(loop) -> int:
+    """The run (--go-home: HuntLoop.go_home) and its exit code: 0 when it ended as planned; an error (Abort, WalkFailed,
+    a crash) goes to HuntLoop.on_error, which escapes home first when it left us alive inside a dungeon that allows no
+    recall. GatePaused (the user took over) and KeyboardInterrupt (`ctl stop`) are BaseExceptions: main ends on them."""
+    try:
+        (loop.go_home if loop.args.go_home else loop.run)()
+        return 0
+    except Exception as e:  # noqa: BLE001 - every error ends the run; on_error decides about the escape
+        return loop.on_error(e)
 
 
 def watch_stop(db):

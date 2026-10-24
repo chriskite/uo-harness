@@ -2932,6 +2932,128 @@ def test_walk_in_red_second_level():
           and "area peace" not in out, "")
 
 
+MAUS2_STUCK = (5507, 691, -8)    # live 2026-10-24 00:40:32 (hunt-20261024-000844-30b5): Logan left alive here on Maus 2
+SIM_HOME = (4134, 1429)         # the scenario tome's first row, the default rune: home
+
+
+def main_in_sim(start, extra=(), walk_to=None, seed=7):
+    """loop_hunt.main() as `ctl run hunt` starts it, with the scenario's arguments (run.runner_args: --pets --crawl
+    --leave-recall --leave-gate --gate-dest --enter-recall --enter-rune --enter-via, as docs/OVERSEER.md §5's) and
+    `extra`, on the simulator: Logan at `start` (x, y, z), both pets beside him, the store knowing the scenario's
+    teleporters (as the live one does from the walks in). `walk_to(orig, mover, *a, **k)` stands in for
+    Mover.walk_to (a failure injected). -> (exit code, the runner's log, world, the store's `escape` junctures, its
+    `escape` job events)."""
+    import tempfile
+    import agent_link
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    sc = load()
+    sc["spawns"] = []
+    sc["player"]["start"] = list(start)
+    w = World(sc, seed=seed)
+    for p, d in zip(w.pets(), ((-1, 1), (1, 1))):
+        w._teleport(p, (start[0] + d[0], start[1] + d[1], start[2]))
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    store = memory.Memory(db)
+    for tp in sc["teleporters"]:
+        store.teleporter_record(0, tp["from"][0], tp["from"][1], 0, *tp["to"])
+    store.close()
+    argv = simrun.runner_args(sc, ["--no-songs", *extra], 10) + ["--memory", db, "--seed", "1", "--human", "off"]
+    saved = loop_hunt.Link, sys.argv, agent_link.Mover.walk_to
+    orig = saved[2]
+    loop_hunt.Link = lambda *a, **k: link
+    sys.argv = ["loop_hunt.py", *argv]
+    if walk_to is not None:
+        agent_link.Mover.walk_to = lambda mover, *a, **k: walk_to(orig, mover, *a, **k)
+    patched = simclock.install(clock)
+    buf, code = io.StringIO(), None
+    try:
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            try:
+                loop_hunt.main()
+            except SystemExit as e:
+                code = e.code
+    finally:
+        loop_hunt.Link, sys.argv, agent_link.Mover.walk_to = saved
+        simclock.uninstall(patched)
+    store = memory.Memory(db)
+    js = [j for j in store.junctures(limit=1000) if j["kind"] == "escape"]
+    evs = store.job_events("hunt")
+    store.close()
+    return code, buf.getvalue(), w, js, [e for e in evs if e["kind"] == "escape"]
+
+
+def no_route_once(label):
+    """A Mover.walk_to stand-in whose first walk labelled `label` fails as the live walk in did at 00:40:32 (its door
+    walled: "<label>: no route from (5507, 691)"); every other walk, and that one again, goes on."""
+    from agent_link import WalkFailed
+    failed = []
+
+    def walk_to(orig, mover, *a, **k):
+        if (a[2] if len(a) > 2 else k.get("label")) == label and not failed:
+            failed.append(1)
+            here = mover.link.pos(mover.link.state())
+            raise WalkFailed(f"{label}: no route from {tuple(here[:2])}")
+        return orig(mover, *a, **k)
+    return walk_to
+
+
+def test_escape_after_walk_in_error():
+    print("== the walk in fails on Maus 2 (live 00:40:32, 'no route'): on through the teleporters, the leave gate, "
+          "home; not left inside ==")
+    # live 2026-10-24 (hunt-20261024-000844-30b5): "ABORTED: to the teleporter at 5522,637: no route from (5507, 691)",
+    # Logan alive at (5507, 691, -8), nobody moved him; a calamity attacked at 01:10:32 and killed him at 01:10:48
+    code, out, w, js, evs = main_in_sim(MAUS2_STUCK, walk_to=no_route_once("to the teleporter at 5522,637"))
+    err = "to the teleporter at 5522,637: no route from (5507, 691)"
+    check("home and alive, the run's exit non-zero", code == 1 and not w.player.ghost
+          and sim_cheb(w.player.pos, SIM_HOME) <= 5, f"exit {code} at {w.player.pos} ghost {w.player.ghost}")
+    check("...the log: the error inside, the escape, the ending naming both",
+          f"ERROR inside the dungeon at (5507, 691, -8): {err}; escaping home" in out
+          and f"escaped home after: {err}" in out
+          and f"ABORTED: {err} (escaped home by the teleporters from 5522,637 and the leave gate)" in out,
+          "\n".join(ln for ln in out.splitlines() if "ERROR" in ln or "escape" in ln or "ABORTED" in ln)[-600:])
+    check("...an `escape` juncture (attention) and job event", len(js) == 1 and js[0]["severity"] == "attention"
+          and len(evs) == 1 and evs[0]["data"]["ok"], f"{[(j['severity'], j['summary']) for j in js]}")
+    check("...both pets came home with him", all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets()),
+          str([(p.name, p.pos) for p in w.pets()]))
+
+
+def test_go_home():
+    print("== --go-home: from the first level, Maus 2 where Logan was left, and Maus 3: home, exit 0, no hunting ==")
+    for where, start, way in (("the first level", (5600, 689, 0), "the gold moongate at"),
+                              ("Maus 2", MAUS2_STUCK, "the teleporters from 5522,637"),
+                              ("Maus 3", (5243, 726, 0), "the leave gate at 5203,703")):
+        code, out, w, js, evs = main_in_sim(start, ["--go-home"])
+        check(f"from {where} {start[:2]}: home, exit 0, by {way}", code == 0 and not w.player.ghost
+              and sim_cheb(w.player.pos, SIM_HOME) <= 5 and "--go-home: home at" in out
+              and bool(evs) and evs[-1]["data"]["way"].startswith(way),
+              f"exit {code} at {w.player.pos} way {evs[-1]['data']['way'] if evs else None}: "
+              + " | ".join(ln for ln in out.splitlines() if "go-home" in ln or "escape" in ln or "ABORTED" in ln)[-500:])
+        check(f"...no kill, no `escape` juncture (the Seer asked for it)", w.metrics.get("kills", 0) == 0 and not js,
+              f"kills {w.metrics.get('kills')} junctures {len(js)}")
+
+
+def test_no_escape_on_death_or_stop():
+    print("== no escape after a death or a `ctl stop`: the run ends where it stands ==")
+    from agent_link import WalkFailed
+
+    def dies(orig, mover, *a, **k):
+        w = mover.link.world
+        w.hurt(w.player, 1000, None, kind="bleed")
+        raise WalkFailed("no route")
+
+    def stopped(orig, mover, *a, **k):
+        raise KeyboardInterrupt
+    for name, fake in (("a death", dies), ("ctl stop", stopped)):
+        code, out, w, js, evs = main_in_sim(MAUS2_STUCK, walk_to=fake)
+        check(f"{name}: exit 1, no escape, no recall", code == 1 and "escaping home" not in out
+              and w.metrics["recalls"] == 0 and not js and not evs,
+              f"exit {code} recalls {w.metrics['recalls']}: "
+              + " | ".join(ln for ln in out.splitlines() if "ABORTED" in ln or "stopped" in ln)[-300:])
+
+
 def w_enter_via():
     from sim.scenario import load
     return load()["runner"]["enter_via"]
@@ -3323,7 +3445,8 @@ def main():
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_tele_dash, test_walk_in_red_first_level,
-              test_walk_in_red_second_level, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
+              test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home,
+              test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects):
