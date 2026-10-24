@@ -95,6 +95,14 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       that profile's <hotkeys> block (backup in logs/razor_backups) -> {"ok": true,
                       version, backup}; 400 bad bindings, 404 unknown, 409 locked/stale, 403 not
                       writable (grant_razor_profiles.ps1)
+  GET  /api/sim/traces  {dir, traces: [{name, size, mtime, head}]}: the simulator's traces in --sim-dir
+                      (sim/trace.py; default logs/sim_traces), newest first, head = each one's first line
+  GET  /api/sim/trace/<name>  a trace file's bytes as stored (Content-Encoding: gzip, the browser unpacks
+                      it); 400 a name not `*.trace.jsonl.gz`, 404 not in --sim-dir
+  GET  /api/sim/map/<cx>/<cy>.png  64x64 tiles of facet 0 at one pixel a tile: floor grey by height, walls
+                      brown, else transparent (sim/viewmap.py); 404 outside the map, 503 no map files
+  GET  /api/sim/los?from=x,y,z&to=x,y,z;x,y,z...  {"see": [bool]}: line of sight from one point to each of
+                      at most SIM_LOS_MAX others (los.Sight.can_see); 400 a bad query
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -108,13 +116,16 @@ Nystul runs headless `omp` subprocesses whose only tools are read-only lookups
 store's knowledge only when the operator approves one of its proposals (POST
 /api/nystul/approve), with a `system` memory row in the chat. The Razor page rewrites the
 <hotkeys> block of Razor profiles the game client hasn't loaded (user-approved exception to
-AGENTS.md Constraint 1, Profiles/*.xml only).
+AGENTS.md Constraint 1, Profiles/*.xml only). The Sim routes only read simulator trace files and the map:
+they never touch the feed, so the Sim page works in live and replay mode alike.
 Everything else is observation.
 """
 import argparse
+import gzip
 import json
 import math
 import os
+import re
 import socket
 import struct
 import sys
@@ -135,6 +146,7 @@ import nystul as nystul_mod  # noqa: E402
 import nystul_memory  # noqa: E402
 from uo import cliloc  # noqa: E402
 import razor  # noqa: E402
+from sim import trace as sim_trace  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
@@ -150,6 +162,8 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javasc
 MAX_BODY = 64 * 1024
 CHAT_MAX_CHARS = 2000
 CLILOC_MAX = 200   # numbers per /api/cliloc request
+SIM_LOS_MAX = 64    # targets per /api/sim/los request
+SIM_TRACE_NAME = re.compile(r"^[\w.-]+\.trace\.jsonl\.gz$")
 STOREY_Z = 20       # a house piece this high above the house's tile is on an upper floor
 HEARTBEAT_KEY = "overseer_heartbeat"   # ctl.HEARTBEAT_KEY; per character charsel.meta_key(HEARTBEAT_KEY, s)
 SERIAL_ONLY = "char must be a serial (0x...)"
@@ -513,6 +527,81 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, body)
 
+    def _sim_traces(self):
+        d = self.server.sim_dir
+        out = []
+        try:
+            names = [n for n in os.listdir(d) if SIM_TRACE_NAME.match(n)]
+        except OSError:
+            names = []
+        for n in names:
+            p = os.path.join(d, n)
+            try:
+                st = os.stat(p)
+                with gzip.open(p, "rt", encoding="utf-8") as f:
+                    head = json.loads(f.readline() or "null")
+            except (OSError, EOFError, ValueError):
+                head = None
+                try:
+                    st = os.stat(p)
+                except OSError:
+                    continue
+            out.append({"name": n, "size": st.st_size, "mtime": st.st_mtime, "head": head})
+        out.sort(key=lambda r: -r["mtime"])
+        self._json(200, {"dir": d, "traces": out})
+
+    def _sim_trace(self, name: str):
+        if not SIM_TRACE_NAME.match(name):
+            self._json(400, {"error": f"bad trace name {name!r}"})
+            return
+        p = os.path.join(self.server.sim_dir, name)
+        try:
+            with open(p, "rb") as f:
+                body = f.read()
+        except OSError:
+            self._json(404, {"error": f"no trace {name} in {self.server.sim_dir}"})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson")
+        self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _sim_map(self, spec: str):
+        from sim import viewmap
+        try:
+            cx, cy = (int(v) for v in spec.split("/"))
+        except ValueError:
+            self._json(400, {"error": f"bad chunk {spec!r}"})
+            return
+        try:
+            png = viewmap.chunk_png(cx, cy)
+        except RuntimeError as e:
+            self._json(503, {"error": str(e)})
+            return
+        if png is None:
+            self._json(404, {"error": f"chunk {cx},{cy} is outside the map"})
+        else:
+            self._send(200, png, "image/png")
+
+    def _sim_los(self, q):
+        from sim import viewmap
+        try:
+            frm = [int(v) for v in q["from"][0].split(",")]
+            tos = [[int(v) for v in s.split(",")] for s in q["to"][0].split(";") if s]
+            if len(frm) != 3 or any(len(t) != 3 for t in tos) or len(tos) > SIM_LOS_MAX:
+                raise ValueError
+        except (KeyError, ValueError):
+            self._json(400, {"error": f"from=x,y,z&to=x,y,z;... (at most {SIM_LOS_MAX})"})
+            return
+        try:
+            self._json(200, {"see": viewmap.los_many(frm, tos)})
+        except RuntimeError as e:
+            self._json(503, {"error": str(e)})
+
     # -- helpers
     def log_message(self, fmt, *args):  # quiet; errors still go through log_error
         pass
@@ -565,6 +654,14 @@ class Handler(BaseHTTPRequestHandler):
             self._skillnames()
         elif url.path == "/api/cliloc":
             self._cliloc(parse_qs(url.query))
+        elif url.path == "/api/sim/traces":
+            self._sim_traces()
+        elif url.path.startswith("/api/sim/trace/"):
+            self._sim_trace(url.path[len("/api/sim/trace/"):])
+        elif url.path.startswith("/api/sim/map/") and url.path.endswith(".png"):
+            self._sim_map(url.path[len("/api/sim/map/"):-len(".png")])
+        elif url.path == "/api/sim/los":
+            self._sim_los(parse_qs(url.query))
         elif url.path == "/api/health":
             self._json(200, self._feed(url).health())
         elif url.path == "/api/gate":
@@ -1103,12 +1200,13 @@ class VizServer(ThreadingHTTPServer):
                  live_factory=None, *, state_port: int = 25942, nystul_db: str = nystul_mod.DEFAULT_DB,
                  nystul_model: str = "sonnet", nystul_thinking: str = "medium",
                  razor_dir: str = razor.ASSISTANT_DIR, razor_backups: str = razor.BACKUP_DIR,
-                 razor_clients=razor.client_count):
+                 razor_clients=razor.client_count, sim_dir: str = sim_trace.DEFAULT_DIR):
         super().__init__(addr, Handler)
         self.feed = feed
         self.char_feeds: dict = {}       # charsel.parse(char) -> StatePortPoller for ?char=
         self.char_feeds_lock = threading.Lock()
         self.dist = dist
+        self.sim_dir = sim_dir
         self.walkmem = WalkMemDB(memory_db)
         self.paperdoll = None            # paperdoll.Paperdoll, created on first use
         self.paperdoll_lock = threading.Lock()
@@ -1227,6 +1325,7 @@ def main():
     p.add_argument("--nystul-thinking", default="medium", help="omp thinking level for Nystul the Wizard")
     p.add_argument("--razor-dir", default=razor.ASSISTANT_DIR,
                    help="Razor Assistant data dir (the Razor page reads its profiles and writes their hotkeys)")
+    p.add_argument("--sim-dir", default=sim_trace.DEFAULT_DIR, help="simulator traces for the Sim page (sim/trace.py)")
     args = p.parse_args()
 
     feed = build_feed(args)
@@ -1238,7 +1337,7 @@ def main():
     srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.memory_db,
                     None if args.no_facet else args.facet, live_factory=live_factory, state_port=args.state_port,
                     nystul_db=args.nystul_db, nystul_model=args.nystul_model, nystul_thinking=args.nystul_thinking,
-                    razor_dir=args.razor_dir)
+                    razor_dir=args.razor_dir, sim_dir=args.sim_dir)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")
     print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)

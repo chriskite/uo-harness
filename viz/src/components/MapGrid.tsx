@@ -26,10 +26,10 @@ import { vizStore, type VizSnapshot } from "../store.ts";
 import type { HexSerial, Tile } from "../types.ts";
 import { DIR_DELTAS, buildWalkLayer, divergence, truePosition, type WalkLayer } from "../walk.ts";
 
-const MIN_ZOOM = 3;
-const MAX_ZOOM = 64;
-const DEFAULT_ZOOM = 16;
-const CLICK_SLOP_PX = 4;
+export const MIN_ZOOM = 3;
+export const MAX_ZOOM = 64;
+export const DEFAULT_ZOOM = 16;
+export const CLICK_SLOP_PX = 4;
 const PROJECTION_KEY = "viz.mapProjection";
 const TERRAIN_KEY = "viz.mapTerrain";
 const GROVE_KEY = "viz.mapGrove";
@@ -1084,7 +1084,7 @@ function GroveLegend({ grove, error, loaded }: { grove: GroveResponse | null; er
 }
 
 /** A small game-style healthbar centred under a dot of radius r at (x, y). */
-function healthbar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, hp: number) {
+export function healthbar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, hp: number) {
   const w = Math.max(10, r * 2.6);
   const h = Math.max(2.5, r * 0.35);
   const left = x - w / 2;

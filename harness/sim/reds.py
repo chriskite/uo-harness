@@ -753,7 +753,10 @@ class Reds:
                 s["cast_ready"] = t + self.roll(sp.get("recover_s", [0.2, 0.6]))
             elif d <= sp.get("spell_r", 12) and sees:
                 s["held"] = None
-                m.casts.append([t + self.roll(spl.get("delay", 0.0)), c["key"]])   # wherever we go by then
+                land = t + self.roll(spl.get("delay", 0.0))
+                m.casts.append([land, c["key"]])        # wherever we go by then
+                self.w._ev("release", by=m.serial, v=self.w.player.serial, land=round(land, 2), g=None,
+                           x=m.x, y=m.y, z=m.z, spell=c["key"])
                 s["cast_ready"] = t + self.roll(sp.get("recover_s", [0.2, 0.6]))
         elif m.target is not None and t >= s["cast_ready"] and d <= sp.get("cast_from_r", 8):
             key = self._choose_spell(m)
@@ -763,6 +766,7 @@ class Reds:
                 self.w._overhead(m, spl["words"], kind=10)
                 stand = self.roll(spl["stand"])
                 s["cast"] = {"key": key, "words_t": t, "target_t": t + stand}
+                self.w._ev("cast", by=m.serial, v=self.w.player.serial, end=round(t + stand, 2), action=None, spell=key)
                 m.next_step = max(m.next_step, t + stand)
                 self.m["spells"][key] = self.m["spells"].get(key, 0) + 1
                 return
@@ -844,7 +848,9 @@ class Reds:
             if t >= m.next_swing:
                 mel = sp.get("melee") or {}
                 m.next_swing = w._due(m.next_swing, self.roll(mel.get("swing_s", [1.34, 1.51])))
-                if self.rng.random() < mel.get("hit", 0.59):
+                hit = self.rng.random() < mel.get("hit", 0.59)
+                w._ev("swing", by=m.serial, v=pl.serial, hit=hit)
+                if hit:
                     self._hit(m, self.roll(mel.get("damage", [10, 28, 13])), "melee")
                     hs = mel.get("hamstring")
                     if hs and t >= s["hamstring_ready"] \
@@ -870,7 +876,9 @@ class Reds:
             if t - s["aim_since"] >= s.setdefault("aim_s", self.roll(a.get("aim_s", [0.5, 1.0]))) and t >= m.next_swing:
                 m.next_swing = t + self.roll(a.get("swing_s", [1.45, 1.55]))
                 m.next_step = max(m.next_step, t + a.get("move_delay_s", 0.5))
-                if self.rng.random() < a.get("hit", 0.6):
+                hit = self.rng.random() < a.get("hit", 0.6)
+                self.w._ev("swing", by=m.serial, v=self.w.player.serial, hit=hit)
+                if hit:
                     self._hit(m, self.roll(a.get("damage", [10, 26, 13])), "melee")
             return
         s["aim_since"] = None

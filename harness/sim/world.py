@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import math
 import random
+import re
 from dataclasses import dataclass, field
 
 import combat
@@ -66,6 +67,7 @@ from sim.reds import Reds
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
 TICK_S = 0.1              # world step
+_NUMBER = re.compile(r"^[+-]\d+$")  # an overhead damage/heal number: the trace has it as hurt/heal, not as a `say`
 THINK_S = 0.5             # a monster/pet re-decides its target this often (RunUO AI ~0.5-1 s) [INFERENCE]
 LEASH = 24                # a monster chasing beyond this from home gives up [INFERENCE]
 LOST_S = 8.0              # ...or after its target was out of sight this long [INFERENCE]
@@ -221,6 +223,7 @@ class Mob:
     linger_until: float = 0.0     # ... stands about it until then
     casts: list = field(default_factory=list)   # a red player's spells on their way to us: [landing time, spell]
     rs: dict = field(default_factory=dict)      # a red player's state (sim/reds.py)
+    cast: list | None = None      # a ranged cast under way (monster or pet): [release time, target serial, start time]
 
     @property
     def pos(self):
@@ -305,6 +308,8 @@ class World:
         self.recall_at = None                 # (arrival time, destination row)
         self.spawn_due = []                   # (time, spawn index)
         self.player_log = []                  # (time, source, damage, hits after): the last 15 s
+        self.flights = []                     # ranged attacks released, on their way: (land time, attacker Mob, victim serial)
+        self.trace = None                     # the sim/trace.Tracer recording this run, or None
         self.reds = Reds(self, seed, TICK_S)  # red players (sim/reds.py; arrivals only with the scenario's `reds` on)
         self._build()
         self.reds.start()
@@ -387,6 +392,7 @@ class World:
         m.next_think = self.t + self.rng.uniform(0, THINK_S)
         self.mobs[m.serial] = m
         sp["mob"] = m.serial
+        self._ev("spawn", m=m.serial, key=sp["key"])
 
     def _spawn_tiles(self, i, at) -> list:
         """The tiles a spawn puts its monster on: walkable, within `defaults.spawn_spread` of its point and in sight
@@ -784,11 +790,19 @@ class World:
                 self.send(P.mobile(m.serial, m.body, m.x, m.y, m.z, noto=m.noto, flags=self._flags(m, on), d=m.d))
 
     def _overhead(self, m: Mob, text: str, kind=0):
+        if self.trace is not None and not _NUMBER.match(text):
+            self._ev("say", m=m.serial, text=text, sk=kind)
         if m.serial == self.player.serial or m.serial in self.viewing:
             self.send(P.says(m.serial, m.name, text, kind=kind, body=m.body))
 
     def _sys(self, text):
+        self._ev("sys", text=text)
         self.send(P.system_text(text))
+
+    def _ev(self, ev: str, /, **f):
+        """A trace event (sim/trace.py) when a tracer records this run."""
+        if self.trace is not None:
+            self.trace.event(self.t, ev, f)
 
     def can_see(self, a: Mob, b: Mob) -> bool:
         return self.sight.can_see(a.pos, b.pos)
@@ -836,6 +850,7 @@ class World:
             amount *= 1 + self.song("provoke")
         n = max(1, int(round(amount)))
         victim.hits -= n
+        self._ev("hurt", v=victim.serial, by=by.serial if by is not None else None, n=n, kind=kind, h=int(victim.hits))
         victim.last_hurt_t = self.t
         if by is not None:
             victim.damage_by[by.serial] = victim.damage_by.get(by.serial, 0) + n
@@ -888,6 +903,7 @@ class World:
             amount *= 1 + self.song("peace")
         n = int(round(min(amount, m.hits_max - m.hits)))
         m.hits += n
+        self._ev("heal", m=m.serial, n=n, h=int(m.hits))
         self._overhead(m, f"+{n}")
         if m.kind == "player":
             self.send(P.hits(m.serial, int(m.hits), int(m.hits_max)))
@@ -895,6 +911,8 @@ class World:
             self.send(P.hits(m.serial, m.pct(), 100))
 
     def die(self, m: Mob, by: Mob | None):
+        self._ev("die", m=m.serial, by=by.serial if by is not None else None)
+        self._cancel_cast(m, "gone")
         m.diseases = []
         if m.kind == "player":
             m.hits, m.ghost = 0, True
@@ -1064,6 +1082,12 @@ class World:
                 self.next_other_t = t + self.orng.expovariate(self.sc["others"]["arrive_per_h"] / 3600.0)
             near_others = [(o.x, o.y) for o in self.mobs.values() if o.kind in OTHERS]
         near_others += [(o.x, o.y) for o in self.mobs.values() if o.kind == "red" and not o.hidden_until]
+        if self.flights:
+            landed = [f for f in self.flights if f[0] <= t]
+            if landed:
+                self.flights = [f for f in self.flights if f[0] > t]
+                for f in landed:
+                    self._impact(f)
         for m in list(self.mobs.values()):
             if m.serial not in self.mobs:
                 continue
@@ -1107,6 +1131,8 @@ class World:
             pl.stam += 1
             self.stam_next = None if pl.stam >= pl.stam_max else self.stam_next + STAM_REGEN_S
             self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
+        if self.trace is not None:
+            self.trace.tick(self)
 
     def _on_level(self) -> bool:
         """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,
@@ -1175,6 +1201,7 @@ class World:
         if m.feed is not None and t >= m.feed[0]:
             self._feed_step(m)
         if m.calm_until > t:
+            self._cancel_cast(m, "peace")
             self._warm(m, False)
             return
         if t >= m.next_think:
@@ -1183,6 +1210,7 @@ class World:
         tgt = self.mobs.get(m.target) if m.target is not None else None
         if tgt is None or not tgt.alive or tgt.ghost:
             m.target = None
+            self._cancel_cast(m, "target")
             self._warm(m, False)
             if cheb(m.pos, m.home) > 2 and t >= m.next_step:
                 m.next_step = self._due(m.next_step, m.spec["step_s"] * 2)
@@ -1198,7 +1226,8 @@ class World:
                         break
             return
         self._warm(m, True)
-        self._abilities(m, tgt, m.spec)
+        if m.cast is None:
+            self._abilities(m, tgt, m.spec)
         if m.serial in self.mobs and tgt.alive and not tgt.ghost:
             self._attack(m, tgt, m.spec)
 
@@ -1303,27 +1332,26 @@ class World:
     def _attack(self, m: Mob, tgt: Mob, spec: dict):
         """Swing or cast at `tgt` when in reach and sight, else close in."""
         t = self.t
+        if m.cast is not None:                   # standing to cast: no step, no swing until it is let go
+            if t >= m.cast[0]:
+                self._release(m, spec["ranged"])
+            return
         ranged = spec.get("ranged")
         d = cheb(m.pos, tgt.pos)
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
-                victim, pl = tgt, self.player
-                if SHOT_AT_PLAYER_P and tgt.kind == "pet" and pl.alive and not pl.ghost \
-                        and cheb(m.pos, pl.pos) <= ranged["range"] and self.can_see(m, pl) \
-                        and self.rng.random() < SHOT_AT_PLAYER_P:
-                    victim = pl
-                self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell")
-                self._specials(m, victim, spec)
-                for sp in spec.get("specials", []):
-                    if sp["kind"] == "fire_mark":
-                        self._fire_mark(victim, sp)
+                self._cast(m, tgt, ranged)
+                if m.cast is not None:
+                    return
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= 1 and abs(m.z - tgt.z) <= 15:
             if t >= m.next_swing and spec.get("melee"):
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
-                if self.rng.random() < spec.get("hit_chance", 0.8):
+                hit = self.rng.random() < spec.get("hit_chance", 0.8)
+                self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
+                if hit:
                     self.hurt(tgt, self.roll(spec["melee"]) * self._taken_x(tgt, "melee"), m)
                     self._specials(m, tgt, spec)
             return
@@ -1341,6 +1369,75 @@ class World:
         if tgt.kind == "pet" and kind == "melee":
             return tgt.spec.get("melee_taken_x", 1.0)
         return 1.0
+
+    def _cast(self, m: Mob, tgt: Mob, ranged: dict):
+        """A ranged attack begins: its animation, then `cast_s` standing (scenario `cast_s`, measured by
+        sim/cast_scan.py) before `_release`; at once when the type has no cast time."""
+        t = self.t
+        cs = ranged.get("cast_s")
+        end = t + (self.roll(cs) if cs and cs[1] > 0 else 0.0)
+        m.cast = [end, tgt.serial, t]
+        if m.serial in self.viewing:
+            self.send(P.animation(m.serial, ranged.get("cast_action") or 0))
+        self._ev("cast", by=m.serial, v=tgt.serial, end=round(end, 2), action=ranged.get("cast_action"), spell=None)
+        if end <= t:
+            self._release(m, ranged)
+
+    def _release(self, m: Mob, ranged: dict):
+        """A cast's end: lost when its target is gone, out of `range` or out of sight then (the next one
+        `every_s` later), else on its way: the 0xC0 effect, landing `flight_s` later (`_impact`). Damage taken
+        while casting never breaks it."""
+        t, s = self.t, m.cast[1]
+        m.cast = None
+        victim = self.mobs.get(s)
+        why = ("gone" if victim is None or not victim.alive or victim.ghost
+               else "range" if cheb(m.pos, victim.pos) > ranged["range"]
+               else "sight" if not self.can_see(m, victim) else None)
+        if why is not None:
+            self._ev("cast_lost", by=m.serial, v=s, why=why)
+            m.next_swing = t + ranged["every_s"] * self.rng.uniform(0.85, 1.15)
+            return
+        pl = self.player
+        if m.kind == "monster" and SHOT_AT_PLAYER_P and victim.kind == "pet" and pl.alive and not pl.ghost \
+                and cheb(m.pos, pl.pos) <= ranged["range"] and self.can_see(m, pl) \
+                and self.rng.random() < SHOT_AT_PLAYER_P:
+            victim = pl
+        fl = ranged.get("flight_s")
+        land = t + (self.roll(fl) if fl and fl[1] > 0 else 0.0)
+        e = ranged.get("effect")
+        if e and (m.serial in self.viewing or victim.serial in self.viewing or victim is pl or m is pl):
+            # [INFERENCE] the live server's broadcast range; the runner reacts only to effects on us
+            self.send(P.effect(0, m.serial, victim.serial, e["graphic"], m.x, m.y, m.z, victim.x, victim.y, victim.z,
+                               e["speed"], e["duration"], 0, e["explode"], e["hue"], e["render"]))
+        self._ev("release", by=m.serial, v=victim.serial, land=round(land, 2), g=e["graphic"] if e else None,
+                 x=m.x, y=m.y, z=m.z, spell=None)
+        if land <= t:
+            self._impact((land, m, victim.serial))
+        else:
+            self.flights.append((land, m, victim.serial))
+
+    def _impact(self, f):
+        """A released ranged attack lands (its attacker may have died since): the spell's damage, and a
+        monster's on-hit specials and fire."""
+        _, m, s = f
+        victim = self.mobs.get(s)
+        if victim is None or not victim.alive or victim.ghost:
+            return
+        ranged = m.spec["ranged"]
+        if m.kind == "pet":
+            self.hurt(victim, self.roll(ranged["damage"]), m, "spell")
+            return
+        self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell")
+        self._specials(m, victim, m.spec)
+        for sp in m.spec.get("specials", []):
+            if sp["kind"] == "fire_mark":
+                self._fire_mark(victim, sp)
+
+    def _cancel_cast(self, m: Mob, why: str):
+        """A cast under way stops (pacified, no target, hidden, transfixed, dead): nothing is let go."""
+        if m.cast is not None:
+            self._ev("cast_lost", by=m.serial, v=m.cast[1], why=why)
+            m.cast = None
 
     def _specials(self, m: Mob, tgt: Mob, spec: dict):
         """On-hit specials (scenario `specials`; the timed ones are `_abilities`)."""
@@ -1410,10 +1507,12 @@ class World:
                     continue
                 # live: '*charges*', then the jump and its hit 0.8-1.1 s later (scenario note)
                 m.cd[kind] = t + sp["cooldown_s"] * self.rng.uniform(0.9, 1.1)
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*charges*")
                 m.charge_at = (t + self.rng.uniform(*sp.get("delay_s", (0.0, 0.0))), tgt.serial, sp)
             elif kind == "transfix":
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*attempts to transfix*")
                 pets = [p for p in self.pets() if p.alive and not p.ghost and p.held_until <= t
                         and cheb(p.pos, m.pos) <= sp.get("range", 12)]
@@ -1427,6 +1526,7 @@ class World:
             elif kind == "wail":
                 # corpsebride: an area hit 0.4 s after the emote (scenario note)
                 m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.99, 1.01)
+                self._ev("ability", by=m.serial, kind=kind, v=None)
                 self._overhead(m, "*wails*")
                 near, far = sp.get("radius", 1), sp.get("far_r", 0)
                 for o in self.team():
@@ -1449,6 +1549,7 @@ class World:
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
                     continue
                 m.cd[kind] = t + self.rng.uniform(*sp["cooldown_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=None)
                 m.hidden_until = t + self.rng.uniform(*sp["hidden_s"])
                 if m.serial in self.viewing:
                     self.send(P.delete(m.serial))
@@ -1463,6 +1564,7 @@ class World:
                 if cheb(m.pos, tgt.pos) > sp.get("range", 12):
                     continue
                 m.cd[kind] = t + self.rng.uniform(*sp["cooldown_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*phases*")
                 m.hidden_until, m.blink_to = t + self.rng.uniform(*sp["hidden_s"]), tgt.serial
                 if m.serial in self.viewing:
@@ -1474,12 +1576,14 @@ class World:
                 if m.feed is not None or cheb(m.pos, tgt.pos) > 1:
                     continue
                 m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*attempts to feed*")
                 m.feed = [t + self.rng.uniform(*sp["delay_s"]), None, tgt.serial, sp]
 
     def _burst(self, m: Mob, sp: dict):
         """One area hit on each of us within `radius` (`song_pets` false: the pets' share isn't cut by the
         Song of Discordance, as the apparition's live)."""
+        self._ev("ability", by=m.serial, kind="burst", v=None)
         for o in self.team():
             if cheb(o.pos, m.pos) <= sp["radius"]:
                 self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
@@ -1489,6 +1593,8 @@ class World:
         """A banshee hurt with the ability ready: '*dematerializes*', gone for a moment, back `jump` tiles
         from where it was, its target kept (scenario note)."""
         t = self.t
+        self._cancel_cast(m, "hidden")
+        self._ev("ability", by=m.serial, kind="dematerialize", v=m.target)
         m.cd["dematerialize"] = t + self.rng.uniform(*sp["cooldown_s"])
         self._overhead(m, "*dematerializes*")
         m.hidden_until, m.relocate = t + self.rng.uniform(*sp["hidden_s"]), tuple(sp["jump"])
@@ -1533,6 +1639,7 @@ class World:
     def _charge(self, m: Mob, tgt: Mob, sp: dict):
         """Charge (knowledge #14625: teleports up to 12 tiles, hits up to 3 targets within 1 tile; live the
         jump onto or beside its target 1.0 s after '*charges*', each of us within a tile hit at once)."""
+        self._ev("ability", by=m.serial, kind="charge_land", v=tgt.serial)
         if cheb(m.pos, tgt.pos) > 1:
             spots = [(tgt.x + dx, tgt.y + dy) for dx, dy in nav.DIR_DELTA
                      if not self._occupied(tgt.x + dx, tgt.y + dy)
@@ -1551,6 +1658,7 @@ class World:
     def transfix_player(self, seconds: float):
         """The vampire countess' transfix on us (live 2026-10-17 15:27:03 and 2026-10-20 19:23:23.04, Logan): the
         system line HELD_TEXT, every step denied and no item use for 11.1 s (both), then HELD_END_TEXT."""
+        self._ev("ability", by=None, kind="transfix_hit", v=self.player.serial)
         self.player.held_until = self.t + seconds
         self._sys(HELD_TEXT)
         self.count("transfixed", self.player.name)
@@ -1561,6 +1669,7 @@ class World:
         hit on it at once. Live (scenario note): 9.9-11.0 s each; a copy walks and swings at the monsters'
         pace (`copy_step_s`, `swing_s`), not its pet's; a second one can come while the first is up (on
         the other pet)."""
+        self._ev("ability", by=by.serial, kind="transfix_hit", v=pet.serial)
         spec = {"name": pet.name, "body": pet.body, "melee": sp["melee"], "swing_s": sp["swing_s"],
                 "hit_chance": sp.get("hit_chance", 0.9), "step_s": sp.get("copy_step_s", pet.spec.get("step_s", 0.21)),
                 "aggro_range": 12, "gold": [0, 0], "difficulty": sp.get("difficulty", 100.0),
@@ -1591,6 +1700,7 @@ class World:
             return
         if m.held_until > t and any(o.spec.get("copy_of") == m.serial for o in self.mobs.values()):
             m.target = None                      # transfixed: live, no step and no attack animation
+            self._cancel_cast(m, "held")
             return
         dv = m.spec.get("devour")
         if dv and m.hits < m.hits_max and t >= m.devour_t:
@@ -1615,6 +1725,7 @@ class World:
             self._pet_attack(m, tgt)
         else:
             m.target = None
+            self._cancel_cast(m, "target")
             self._warm(m, False)
             if m.mode == "patrol" and m.patrol is not None:
                 # live: they run to the spot and stay about it until called back (17:57:37-45)
@@ -1658,13 +1769,17 @@ class World:
 
     def _pet_attack(self, m: Mob, tgt: Mob):
         t = self.t
+        if m.cast is not None:                   # standing to cast
+            if t >= m.cast[0]:
+                self._release(m, m.spec["ranged"])
+            return
         spec = m.spec
         ranged = spec.get("ranged")
         d = cheb(m.pos, tgt.pos)
         if ranged and d <= ranged["range"] and self.can_see(m, tgt):
             if t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, ranged["every_s"] * self.rng.uniform(0.85, 1.15))
-                self.hurt(tgt, self.roll(ranged["damage"]), m, "spell")
+                self._cast(m, tgt, ranged)
             # it holds where it has the shot: live in fights the phoenix stood 3+ tiles from Logan 57 % of the time
             # (one-second samples, 41 visits, 2026-10-20); kept within follow + 1 of him it was 11 %, and a charge
             # at it landed beside him (Logan within a tile of a charge's landing 17 % against the live 8 %)
@@ -1677,7 +1792,9 @@ class World:
         if d <= 1:
             if spec.get("melee") and t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
-                if self.rng.random() < spec.get("hit_chance", 0.85):
+                hit = self.rng.random() < spec.get("hit_chance", 0.85)
+                self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
+                if hit:
                     self.hurt(tgt, self.roll(spec["melee"]), m)
                     for sp in spec.get("specials", []):
                         if sp["kind"] == "poison" and self.rng.random() < sp.get("chance", 0):
@@ -1807,6 +1924,7 @@ class World:
     def _speech(self, p):
         from world.parsers import parse_packet
         text = (parse_packet("c2s", p).get("text") or "").strip().lower()
+        self._ev("speech", text=text)
         if tamer.irreversible(text):
             self.metrics["violations"].append({"t": round(self.t, 1), "what": "release/transfer speech",
                                                "text": text})
@@ -1879,6 +1997,7 @@ class World:
             return
         self.song_ready = t + b.get("song_gap_s", 10.0)
         self.songs[kind] = t + b.get("song_s", 900.0)
+        self._ev("song", kind=kind, until=round(self.songs[kind], 2))
         self.count("songs", kind)
         x = round(100 * b.get("song_x", 0.15), 1)
         self._sys("You are now under the effect of a Song of " + {
@@ -1981,6 +2100,7 @@ class World:
                 m.calm_until = max(m.calm_until, t + 2.0)
                 hit += 1
         self.count("bard", "area_peace_ok" if hit else "area_peace_fail")
+        self._ev("bard", skill="area_peace", v=None, ok=hit)
         if hit:
             self.calm_ready = t + tamer.CALM_SUCCESS_S
             self._sys(tamer.TEXT_AREA_PEACE_OK)
@@ -2009,14 +2129,17 @@ class World:
         if diff >= b.get("beyond_difficulty", 1e9):
             self._sys(f"You fail to {word}. You estimate the task to be beyond your skill.")
             self.count("bard", f"{kind}_beyond")
+            self._ev("bard", skill=kind, v=target.serial, ok=False)
             return
         if self.rng.random() >= p:
             self._sys(f"You fail to {word}. You estimate the task to be fairly reasonable.")
             self.count("bard", f"{kind}_fail")
+            self._ev("bard", skill=kind, v=target.serial, ok=False)
             if kind == "provoke":
                 target.target = pl.serial          # a failed incite turns it on the bard [INFERENCE]
             return
         self.count("bard", f"{kind}_ok")
+        self._ev("bard", skill=kind, v=target.serial, ok=True)
         secs = (b["seconds_easy"] if diff < b["easy_below_difficulty"] else b["seconds"])[kind]
         if kind == "discord":
             target.discord_until = t + secs
@@ -2196,6 +2319,7 @@ class World:
         self.metrics["vet_uses"] += 1
         self._consume(s)
         self.vet_end = self.t + self.rng.uniform(*v["channel_s"])
+        self._ev("vet", phase="start", end=round(self.vet_end, 2))
 
     def _vet_finish(self):
         """A channel's end: heals every hurt pet within range of us then (and us), or 'too far' with none in range.
@@ -2207,6 +2331,7 @@ class World:
         of its 111 in 1,417 channels)."""
         pl, v = self.player, self.sc["vet"]
         self.vet_end = None
+        self._ev("vet", phase="end", end=round(self.t, 2))
         rng = v["range"]
         ghosts = [m for m in self.pets() if m.ghost and cheb(m.pos, pl.pos) <= rng]
         near = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng]
@@ -2240,15 +2365,18 @@ class World:
             wait = max(1, int(math.ceil(self.potion_ready - self.t)))
             self._overhead(pl, f"You must wait {wait} second{'s' if wait > 1 else ''} before using another "
                                f"healing potion.")
+            self._ev("potion", kind="heal", ok=False, n=0)
             return
         if pl.hits >= pl.hits_max:
             self.send(P.cliloc(1049547))
+            self._ev("potion", kind="heal", ok=False, n=0)
             return
         self.potion_ready = self.t + pot["cooldown_s"]
         self.metrics["potions"] += 1
         self._sys("You drink a healing potion.")
         # flagged in PvP a heal potion heals 15-25 (patch 2025-06-06, knowledge #4909); Logan's: 21-29, median 24 (n 10)
         n = int(round(self.roll(pot["heal_pvp"]))) if self.flagged() and pot.get("heal_pvp") else self.rng.randint(*pot["heal"])
+        self._ev("potion", kind="heal", ok=True, n=n)
         self.send(P.cliloc(1008158, str(n).encode("utf-16-le")))
         self.heal(pl, n)
         if self.rng.random() < pot.get("satchel_save", 0.0):
@@ -2262,11 +2390,13 @@ class World:
         pl = self.player
         if pl.stam >= pl.stam_max:
             self.send(P.cliloc(500767))
+            self._ev("potion", kind="refresh", ok=False, n=0)
             return
         self.metrics["refresh_potions"] += 1
         pl.stam = pl.stam_max
         self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
         self._consume(s)
+        self._ev("potion", kind="refresh", ok=True, n=pl.stam_max)
 
     def _lift(self, s, amount):
         it = self.items.get(s)
@@ -2330,6 +2460,7 @@ class World:
             return
         self.recall_at = (self.t + RECALL_S, rows[row])
         self.recall_start_t = self.t
+        self._ev("recall", phase="cast", dest=rows[row].get("name"))
 
     def recall_allowed(self, pos) -> bool:
         """Outside the dungeon, or within `recall_r` of one of its gold moongates (user 2026-10-13: a
@@ -2438,6 +2569,7 @@ class World:
         self.metrics["recalls"] += 1
         self._move_party(dest["at"])
         self._apply_penalty()
+        self._ev("recall", phase="land", dest=dest.get("name"))
         if dest is self.sc["recall"]["rows"][0] and not self.player.ghost:
             # home: what we carried is banked (live the drop-off takes it; run.py adds --no-drop-off, the simulator
             # has no house), so a later death loses only what came after (docs/SIM.md "Red players": Gold banked)

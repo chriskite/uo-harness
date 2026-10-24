@@ -5221,6 +5221,24 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       The legs from 14:38 to 16:04 (skill 68.5–72, the planner's best spots) already read 93.5k: the choice of spot
       and the failed legs weigh as much as skill.
 
+## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
+
+`harness/sim/cast_scan.py` over 103 captures since 2026-10-10 (33 with samples in the Mausoleum; table and rules in
+docs/SIM.md "Cast and flight times; traces"). Protocol facts it rests on:
+- **The runtime keeps only effects that involve us** (`world/runtime.py` `_h_effect`): a monster's bolt at a pet never
+  becomes an event, so scans of other mobiles' casts read the raw S2C 0xC0 (52 B Outlands form, layouts 0xC0).
+- **A Mausoleum spellcaster's spell is three packets:** its 0x6E cast animation (the action per type: blightmare 7,
+  banshee and shadowguard 6, shadow minion 5, countess 4, reanimators and forgotten soul 233, reanimated daemon 12,
+  familiar 16, vampire 13), the moving 0xC0 ~1.2 s later (graphic 14036 = 0x36D4, speed 7, explode 1; the blightmare's
+  hue 2821, the reanimated daemon's 2850), and the '-N' over the target 0.50 s after the effect at any distance
+  (median 0.51 / 0.51 / 0.50 s at 1-3 / 4-7 / 8+ tiles, n=119 / 127 / 82).
+- **The calamity's shot** is different: graphic 7816, speed 10, hue 1165, its 0xC0 0.05 s after its animation (10), the
+  number 0.33 s later (q10-q90 0.08-0.88).
+- **No 0xC0 at all** from the corpse purger, elder vampire, eldritch experiment and reanimator zealot (their hits come
+  0.8-1.7 s after an animation), nor from our phoenix AlaFlambe (2551638): its fire carries no moving effect.
+- Our pets aren't always flagged `pet` in the model: the "(tame)" line comes only after a click, so AlaFlambe and
+  GraveRobber showed up under their names as monsters in some captures (a scan keyed on `m.pet` misses them).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

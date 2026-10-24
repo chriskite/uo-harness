@@ -7,7 +7,7 @@ killed a soul (the reposition never stepped out of its reach), the patrol went o
 died on the walk out (docs/NOTES.md "Dead in a blightmare's reach again"). Per seed: death, Logan's lowest hits, his
 damage by source, the blightmare's casts at him, kills, leaves; then the totals.
 
-    python harness/sim/fight1820.py <seeds> [--log] [--harness DIR]
+    python harness/sim/fight1820.py <seeds> [--log] [--trace DIR] [--harness DIR]
 
 --harness runs another checkout's runner (a snapshot, with this simulator copied in) for a before/after comparison.
 """
@@ -32,9 +32,12 @@ import escape  # noqa: E402,F401
 from agent_link import Abort  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim import run as simrun  # noqa: E402
+from sim import trace  # noqa: E402
 from sim.link import SimLink  # noqa: E402
 from sim.scenario import load  # noqa: E402
 from sim.world import World, cheb  # noqa: E402
+TRACE = ARGS[ARGS.index("--trace") + 1] if "--trace" in ARGS else None   # record each run's trace (sim/trace.py) here
+STAMP = trace.stamp()
 
 # the capture's positions at 18:20:44 (the 0x77/0x78 of each serial; the blightmare stood at (5242, 685) all fight)
 SPAWNS = [("blightmare", (5242, 685, 0)), ("tormented soul", (5248, 674, 0)), ("tormented soul", (5251, 681, 0)),
@@ -71,6 +74,8 @@ def one(seed):
         w._warm(bm, True)
         w._warm(soul, True)
     link = SimLink(w, clock)
+    tracer = trace.Tracer(w, trace.path_for(TRACE, STAMP, "fight1820", seed), label="fight1820", seed=seed,
+                          epoch=simrun.EPOCH) if TRACE else None
     db = os.path.join(tempfile.mkdtemp(prefix="fight_"), "harness.db")
     args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, EXTRA, MINUTES, at_hunt=True)
                                              + ["--memory", db, "--seed", str(seed)])
@@ -96,7 +101,7 @@ def one(seed):
     out = io.StringIO()
     outcome = "done"
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(tracer.tee(out) if tracer else out):
             loop = loop_hunt.HuntLoop(link, store, args)
             try:
                 loop.run()
@@ -109,10 +114,13 @@ def one(seed):
     by = {}
     for _, src, n, _ in hits:
         by[src] = by.get(src, 0) + n
-    return {"seed": seed, "dead": w.metrics["deaths"], "low": round(low[0]), "taken": sum(h[2] for h in hits),
+    res = {"seed": seed, "dead": w.metrics["deaths"], "low": round(low[0]), "taken": sum(h[2] for h in hits),
             "by": by, "blightmare_hits": sum(1 for h in hits if h[1] == "blightmare"), "kills": w.metrics["kills"],
             "leaves": sum("LEAVING" in line for line in logl), "sim_s": round(clock.elapsed), "outcome": outcome,
             "log": logl, "hits": hits}
+    if tracer is not None:
+        tracer.close({k: v for k, v in res.items() if k not in ("log", "hits")})
+    return res
 
 
 if __name__ == "__main__":

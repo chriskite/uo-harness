@@ -10,7 +10,10 @@ Per creature type, in this order of evidence:
   poison/bleed ticks, the calibration notes), else `defaults.swing_s`;
 - chase step: the wiki speed category -> `defaults.speed_step_s`;
 - spells (AI mage/meleemage, or ranged): the wiki spell damage x `ranged_kb_factor` every
-  `ranged_every_s` within `ranged_range` [INFERENCE: none attributable on the trip];
+  `ranged_every_s` within `ranged_range` [INFERENCE: none attributable on the trip]; each cast stands
+  `cast_s` (its 0x6E animation `cast_action` first), flies `flight_s` (the 0xC0 `effect`, or none) and is
+  lost when the target is out of range or sight at its release: `ranged_observed.<type>` from
+  sim/cast_scan.py, else `defaults.ranged_cast_s` / `ranged_flight_s` / `ranged_cast_action` / `ranged_effect`;
 - gold: the wiki gold value x 0.9-1.15 (the trip's lifted medians sat within that);
 - specials: the scenario's `specials` table;
 - `melee_observed` / `ranged_observed`: the scenario's own measured overrides (each with its note),
@@ -62,7 +65,13 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     elif ai == "ranged" and melee:
         ranged = {"range": df["ranged_range"] - 2, "damage": melee[:2], "every_s": swing, "keep": 4}
     if (seen := sc.get("ranged_observed", {}).get(key)) is not None:
-        ranged = {**(ranged or {"range": df["ranged_range"], "keep": 1}), **{k: v for k, v in seen.items() if k != "note"}}
+        ranged = {**(ranged or {"range": df["ranged_range"], "keep": 1}),
+                  **{k: v for k, v in seen.items() if k not in ("note", "cast_note")}}
+    if ranged is not None:
+        ranged.setdefault("cast_s", df["ranged_cast_s"])
+        ranged.setdefault("flight_s", df["ranged_flight_s"])
+        ranged.setdefault("cast_action", df["ranged_cast_action"])
+        ranged.setdefault("effect", df["ranged_effect"])
     gold = kb.get("gold_value") or 0
     noto = 3
     graphics = (obs.get("graphics") or [kb.get("graphic")])

@@ -2182,6 +2182,27 @@ PvP restrictions apply to them once they attack someone". Decisions:
 - Result: reds take 18 % of the banked gold an hour (25 % net of downtime); keeping the crawl out of the east wing
   changed nothing (deaths moved elsewhere). docs/SIM.md "Red players".
 
+## Simulator casts and the Sim page (user 2026-10-23; built 2026-10-23)
+
+User: see everything in a simulator run (mobiles, statuses, projectiles and casts, swings, damage) to devise new
+strategies; the monsters' and pets' ranged attacks with their real cast and flight times. The user's choices and the
+decisions built on them:
+
+- **Record, then replay** (not a live sim feed): runs stay as fast as untraced (a 30-min run 1.5x the wall time), any
+  run can be looked at later, scrubbing is free. `run.py --trace` and every `fight*.py --trace DIR`; the viewer is a new
+  watch-only **Sim** page in the viz app. The trace is gzipped JSON lines (a key every 10 s, per-tick deltas, events):
+  stdlib only, readable with `jq.exe`, a few hundred KB per run. The tracer only reads the world, so traced and untraced
+  runs are the same run (tested).
+- **Cast and flight times measured from the captures** (`sim/cast_scan.py`), not the wiki: the 0x6E -> 0xC0 -> '-N'
+  gaps per type; types with no moving 0xC0 get their animation-to-hit time as the cast and no effect; types without
+  samples the pooled default. The sim sends the live server's 0x6E/0xC0 to the runner.
+- **Rules (user):** damage doesn't interrupt a monster's cast; a target out of range or sight at the release loses the
+  cast; the phoenix gets the same model (its captures show no 0xC0, so its cast and flight stay 0). Rejected: a hit
+  interrupting (as for players' spells, SPELL_INTERRUPTS.md): not what the monsters do live.
+- **Unchanged on purpose:** the area specials (wail, burst, charge, transfix, feed) and the reds' own cast model.
+- **No retuning to compensate**: the parity batch before and after is reported to the user, who decides (docs/SIM.md
+  "Cast and flight times; traces").
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

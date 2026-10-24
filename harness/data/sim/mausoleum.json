@@ -73,7 +73,12 @@
      776,
      327
     ],
-    "every_s": 1.8
+    "every_s": 1.8,
+    "cast_s": [0, 0, 0],
+    "flight_s": [0, 0, 0],
+    "cast_action": 4,
+    "effect": null,
+    "cast_note": "cast_scan 2026-10-23 (103 captures since 2026-10-10): no 0xC0 from the phoenix (2551638) and no '-N' sample of its own (n=0 < 5), so no cast or flight time: its hit lands with its attack animation (4, mausoleum_observed AlaFlambe), no effect sent [INFERENCE: instant, as before]"
    },
    "step_s": 0.21,
    "follow": 1,
@@ -297,6 +302,11 @@
   "ranged_range": 12,
   "ranged_range_note": "spells landed at 11-14 tiles: banshee 5 of 25 attributed hits, shadow minion 6 of 19, the countess 1 of 21 at 12 (today's captures); 10 before [INFERENCE]",
   "ranged_kb_factor": 0.5,
+  "ranged_cast_s": [0.04, 1.23, 0.15],
+  "ranged_flight_s": [0.08, 0.76, 0.49],
+  "ranged_cast_action": 10,
+  "ranged_effect": {"graphic": 14036, "speed": 10, "duration": 0, "hue": 1165, "render": 0, "explode": 0},
+  "ranged_cast_note": "a ranged type without its own cast_s in ranged_observed (scenario.creature_spec): cast_scan 2026-10-23 '*monsters*' row, every monster moving 0xC0 in the Mausoleum on 31 of 103 captures since 2026-10-10: 0x6E to 0xC0 n=1059, 0xC0 to '-N' n=866 (q10, q90, median), action and effect fields each their mode. 618 of the 1060 are the calamity's quick shots (cast median 0.05 s), so the pool sits far below the spellcasters' ~1.2 s; only the fleshweaver and the muddled vampire hunter use it",
   "damage_to_player_x": 1.6,
   "melee_to_player_x": 1.2,
   "melee_to_player_note": "a melee hit's number on Logan / the gravebug's, medians of the hits attributed to one animating monster on all 41 live visits (2026-10-20; the -21 disease ticks left out): the vampire bat 1.30 (14 Logan / 79 GR), shadowguard 1.19 (12/52), shade wolf 1.41 (10/314), tormented soul 0.97 (10/135), vampire countess 1.13 (7/74), bound soul 0.88 (5/122): 1.18 weighted by Logan's hits (the apparition's 2.2 and the corpsebride's 1.5 are their area hits, with their own numbers). damage_to_player_x 1.6 stays for spells (the banshee's 1.74). With 1.6 on melee a simulated tormented soul hit him 32-40 (live 12-19, n=8)",
@@ -538,26 +548,137 @@
    "range": 12,
    "damage": [15, 17.5, 16],
    "every_s": 3.4,
-   "note": "live 2026-10-19 19:54:40-57 (capture 20261019_192054, docs/NOTES.md 'Dead in a blightmare's sight'): one blightmare in war mode 12 tiles from Logan, its cast animation (7) every 1.5-1.8 s, its spell hits on him -26 -28 -28 -24 -24 at 40.8, 47.5, 50.2, 53.8, 57.2 (3.3-3.6 s apart): Logan's 24-28 / 1.6 gravebug-referenced (defaults victim_note). One fight [INFERENCE: the rate]. Not in the simulator before 2026-10-20: live it was met 2.5 an hour at (5239-5245, 684-691)"
+   "note": "live 2026-10-19 19:54:40-57 (capture 20261019_192054, docs/NOTES.md 'Dead in a blightmare's sight'): one blightmare in war mode 12 tiles from Logan, its cast animation (7) every 1.5-1.8 s, its spell hits on him -26 -28 -28 -24 -24 at 40.8, 47.5, 50.2, 53.8, 57.2 (3.3-3.6 s apart): Logan's 24-28 / 1.6 gravebug-referenced (defaults victim_note). One fight [INFERENCE: the rate]. Not in the simulator before 2026-10-20: live it was met 2.5 an hour at (5239-5245, 684-691)",
+   "cast_s": [1.19, 1.24, 1.21],
+   "flight_s": [0.44, 0.51, 0.5],
+   "cast_action": 7,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 2821, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (12 of 33 captures with samples): 0x6E to 0xC0 cast_s n=57, 0xC0 to '-N' flight_s n=43 (q10, q90, median), action and effect the modes of n=57"
   },
   "corpse purger": {
    "range": 10,
    "damage": [11, 21, 15.5],
    "every_s": 2.29,
    "keep": 4,
-   "note": "gravebug-referenced (defaults victim_note): Logan's numbers with a purger the nearest monster in war mode, its disease ticks (-21) left out, 14 / 20.5 / 27 (q10 / median / q90, n=26, 41 visits 2026-10-20) / 1.6, song-corrected; the earlier [15, 38] put 24-61 on Logan (a simulated purger 3 tiles off took him 65 -> 0 in 7 s, seed 133), 8 of 24 simulated deaths"
+   "note": "gravebug-referenced (defaults victim_note): Logan's numbers with a purger the nearest monster in war mode, its disease ticks (-21) left out, 14 / 20.5 / 27 (q10 / median / q90, n=26, 41 visits 2026-10-20) / 1.6, song-corrected; the earlier [15, 38] put 24-61 on Logan (a simulated purger 3 tiles off took him 65 -> 0 in 7 s, seed 133), 8 of 24 simulated deaths",
+   "cast_s": [0.28, 2.16, 0.84],
+   "flight_s": [0, 0, 0],
+   "cast_action": 12,
+   "effect": null,
+   "cast_note": "cast_scan 2026-10-23 (19 of 33 captures with samples): no moving 0xC0 seen often enough (n_effect=0, n_flight=0); its 0x6E to the first '-N' on us or a pet 2+ tiles away, n=96 (q10, q90, median), action the mode; no effect sent"
   },
   "banshee": {
    "range": 12,
    "damage": [16, 23, 19],
    "every_s": 3.4,
-   "note": "gravebug-referenced (defaults victim_note): its spells on the gravebug song-corrected 16-23 (median 19, n=17, today's captures; Logan 1.74x that); every 3.4 s: live 20261015_171928 19:49:58-19:50:22, one banshee in war mode 5 tiles from Logan, nothing else on him: -22 -25 -28 -22 -27 -28 -21 -24 under an 18.4 % Song of Discordance, 2.7-4.1 s apart (median 3.3, n=8); hits at 2-14 tiles (n=25). [21, 28] on everyone before"
+   "note": "gravebug-referenced (defaults victim_note): its spells on the gravebug song-corrected 16-23 (median 19, n=17, today's captures; Logan 1.74x that); every 3.4 s: live 20261015_171928 19:49:58-19:50:22, one banshee in war mode 5 tiles from Logan, nothing else on him: -22 -25 -28 -22 -27 -28 -21 -24 under an 18.4 % Song of Discordance, 2.7-4.1 s apart (median 3.3, n=8); hits at 2-14 tiles (n=25). [21, 28] on everyone before",
+   "cast_s": [0.37, 2.03, 1.22],
+   "flight_s": [0.48, 0.52, 0.51],
+   "cast_action": 6,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (25 of 33 captures with samples): 0x6E to 0xC0 cast_s n=77, 0xC0 to '-N' flight_s n=61 (q10, q90, median), action and effect the modes of n=77"
   },
   "shadow minion": {
    "range": 12,
    "damage": [11, 23, 15],
    "every_s": 3.4,
-   "note": "today's captures: its hits on the gravebug at 1-13 tiles (action 5), song-corrected 11-23 (median 15, n=32), 3.2-6.7 s apart at the shortest (median 3.34 at range, n=10); the wiki's spell x 0.5 every 6 s (10-15) before"
+   "note": "today's captures: its hits on the gravebug at 1-13 tiles (action 5), song-corrected 11-23 (median 15, n=32), 3.2-6.7 s apart at the shortest (median 3.34 at range, n=10); the wiki's spell x 0.5 every 6 s (10-15) before",
+   "cast_s": [0.42, 1.23, 1.18],
+   "flight_s": [0.5, 0.52, 0.51],
+   "cast_action": 5,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (24 of 33 captures with samples): 0x6E to 0xC0 cast_s n=37, 0xC0 to '-N' flight_s n=30 (q10, q90, median), action and effect the modes of n=37"
+  },
+  "calamity": {
+   "cast_s": [0.03, 0.2, 0.05],
+   "flight_s": [0.08, 0.88, 0.33],
+   "cast_action": 10,
+   "effect": {"graphic": 7816, "speed": 10, "duration": 0, "hue": 1165, "render": 0, "explode": 0},
+   "cast_note": "cast_scan 2026-10-23 (28 of 33 captures with samples): 0x6E to 0xC0 cast_s n=618, 0xC0 to '-N' flight_s n=531 (q10, q90, median), action and effect the modes of n=618"
+  },
+  "elder vampire": {
+   "cast_s": [0.43, 2.08, 1.6],
+   "flight_s": [0, 0, 0],
+   "cast_action": 239,
+   "effect": null,
+   "cast_note": "cast_scan 2026-10-23 (15 of 33 captures with samples): no moving 0xC0 seen often enough (n_effect=5, n_flight=3); its 0x6E to the first '-N' on us or a pet 2+ tiles away, n=37 (q10, q90, median), action the mode; no effect sent"
+  },
+  "elder vampire countess": {
+   "cast_s": [1.21, 1.24, 1.23],
+   "flight_s": [0.47, 0.51, 0.5],
+   "cast_action": 233,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (8 of 33 captures with samples): 0x6E to 0xC0 cast_s n=10, 0xC0 to '-N' flight_s n=7 (q10, q90, median), action and effect the modes of n=10"
+  },
+  "eldritch experiment": {
+   "cast_s": [0.58, 2.22, 1.57],
+   "flight_s": [0, 0, 0],
+   "cast_action": 17,
+   "effect": null,
+   "cast_note": "cast_scan 2026-10-23 (6 of 33 captures with samples): no moving 0xC0 seen often enough (n_effect=2, n_flight=0); its 0x6E to the first '-N' on us or a pet 2+ tiles away, n=8 (q10, q90, median), action the mode; no effect sent"
+  },
+  "familiar": {
+   "cast_s": [1.33, 1.39, 1.35],
+   "flight_s": [0.49, 0.52, 0.5],
+   "cast_action": 16,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (11 of 33 captures with samples): 0x6E to 0xC0 cast_s n=5, 0xC0 to '-N' flight_s n=5 (q10, q90, median), action and effect the modes of n=5"
+  },
+  "forgotten soul": {
+   "cast_s": [0.06, 1.23, 1.22],
+   "flight_s": [0.48, 0.51, 0.5],
+   "cast_action": 233,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (13 of 33 captures with samples): 0x6E to 0xC0 cast_s n=29, 0xC0 to '-N' flight_s n=20 (q10, q90, median), action and effect the modes of n=29"
+  },
+  "insane reanimator": {
+   "cast_s": [0.98, 1.27, 1.2],
+   "flight_s": [0.48, 0.51, 0.5],
+   "cast_action": 233,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (18 of 33 captures with samples): 0x6E to 0xC0 cast_s n=25, 0xC0 to '-N' flight_s n=20 (q10, q90, median), action and effect the modes of n=25"
+  },
+  "master reanimator": {
+   "cast_s": [1.16, 1.27, 1.21],
+   "flight_s": [0.5, 0.54, 0.5],
+   "cast_action": 233,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (10 of 33 captures with samples): 0x6E to 0xC0 cast_s n=22, 0xC0 to '-N' flight_s n=20 (q10, q90, median), action and effect the modes of n=22"
+  },
+  "reanimated daemon": {
+   "cast_s": [0.69, 1.24, 1.22],
+   "flight_s": [0.49, 0.52, 0.51],
+   "cast_action": 12,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 2850, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (11 of 33 captures with samples): 0x6E to 0xC0 cast_s n=32, 0xC0 to '-N' flight_s n=27 (q10, q90, median), action and effect the modes of n=32"
+  },
+  "reanimator zealot": {
+   "cast_s": [0.41, 2.4, 1.74],
+   "flight_s": [0, 0, 0],
+   "cast_action": 6,
+   "effect": null,
+   "cast_note": "cast_scan 2026-10-23 (6 of 33 captures with samples): no moving 0xC0 seen often enough (n_effect=0, n_flight=0); its 0x6E to the first '-N' on us or a pet 2+ tiles away, n=9 (q10, q90, median), action the mode; no effect sent"
+  },
+  "shadowguard": {
+   "cast_s": [0.37, 1.25, 1.19],
+   "flight_s": [0.47, 0.53, 0.51],
+   "cast_action": 6,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (24 of 33 captures with samples): 0x6E to 0xC0 cast_s n=56, 0xC0 to '-N' flight_s n=34 (q10, q90, median), action and effect the modes of n=56"
+  },
+  "vampire": {
+   "cast_s": [0.94, 1.37, 1.34],
+   "flight_s": [0.25, 0.51, 0.5],
+   "cast_action": 13,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (19 of 33 captures with samples): 0x6E to 0xC0 cast_s n=15, 0xC0 to '-N' flight_s n=7 (q10, q90, median), action and effect the modes of n=15"
+  },
+  "vampire countess": {
+   "cast_s": [0.49, 1.23, 1.2],
+   "flight_s": [0.49, 0.53, 0.51],
+   "cast_action": 4,
+   "effect": {"graphic": 14036, "speed": 7, "duration": 0, "hue": 0, "render": 0, "explode": 1},
+   "cast_note": "cast_scan 2026-10-23 (20 of 33 captures with samples): 0x6E to 0xC0 cast_s n=50, 0xC0 to '-N' flight_s n=39 (q10, q90, median), action and effect the modes of n=50"
   }
  },
  "melee_observed": {

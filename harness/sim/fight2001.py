@@ -9,7 +9,7 @@ Per seed, from the leave (HuntLoop.leave_by_gate "urgent", the runner's own flig
 flight's first decision ("away from them first" or "a dead end: past them at once"), the nearest any red came in the
 first 6 s. Their tiles and step times are the capture's (0x77/0x20), then they come at us (sim.world.add_red).
 
-    python harness/sim/fight2001.py <seeds> [--log] [--harness DIR]
+    python harness/sim/fight2001.py <seeds> [--log] [--trace DIR] [--harness DIR]
 
 --harness runs another checkout's runner (a snapshot, with this simulator copied in) for a before/after comparison.
 """
@@ -31,9 +31,12 @@ import memory  # noqa: E402
 from agent_link import Abort  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim import run as simrun  # noqa: E402
+from sim import trace  # noqa: E402
 from sim.link import SimLink  # noqa: E402
 from sim.scenario import load  # noqa: E402
 from sim.world import World, cheb  # noqa: E402
+TRACE = ARGS[ARGS.index("--trace") + 1] if "--trace" in ARGS else None   # record each run's trace (sim/trace.py) here
+STAMP = trace.stamp()
 
 START = (5244, 685)
 PETS = ((5243, 689), (5246, 687))           # GraveRobber "at 4" when the leave fired; AlaFlambe near
@@ -57,6 +60,8 @@ def one(seed):
     for p, xy in zip(w.pets(), PETS):
         p.x, p.y = xy
     link = SimLink(w, clock)
+    tracer = trace.Tracer(w, trace.path_for(TRACE, STAMP, "fight2001", seed), label="fight2001", seed=seed,
+                          epoch=simrun.EPOCH) if TRACE else None
     db = os.path.join(tempfile.mkdtemp(prefix="fight_"), "harness.db")
     args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, EXTRA, 10, at_hunt=True)
                                              + ["--memory", db, "--seed", str(seed)])
@@ -83,7 +88,7 @@ def one(seed):
     out = io.StringIO()
     outcome = "?"
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(tracer.tee(out) if tracer else out):
             loop = loop_hunt.HuntLoop(link, store, args)
             loop.team.setup(loop.state())
             try:
@@ -97,10 +102,13 @@ def one(seed):
         simclock.uninstall(patched)
     logl = out.getvalue().splitlines()
     first = next((ln for ln in logl if "to the moongate: the way passes" in ln), "")
-    return {"seed": seed, "dead": w.metrics["deaths"], "outcome": outcome,
+    result = {"seed": seed, "dead": w.metrics["deaths"], "outcome": outcome,
             "first": "dead end: past" if "a dead end" in first else ("away first" if "away from them" in first
                                                                       else first[9:60]),
             "nearest_6s": near[0], "sim_s": round(clock.elapsed, 1), "log": logl}
+    if tracer is not None:
+        tracer.close({k: v for k, v in result.items() if k not in ("log", "hits")})
+    return result
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ import { OverseerPanel, useOverseer } from "./components/OverseerPanel.tsx";
 import { PaperdollPanel } from "./components/PaperdollPanel.tsx";
 import { RazorPage } from "./components/RazorPage.tsx";
 import { SelfPanel } from "./components/SelfPanel.tsx";
+import { SimPage } from "./components/SimPage.tsx";
 import { TrafficPanel } from "./components/TrafficPanel.tsx";
 import { runningHunt } from "./huntjob.ts";
 import { localDay, parseRange, rangeQuery, routeQuery, routeRange, type DateRange } from "./jobs.ts";
@@ -59,8 +60,8 @@ function SideRail({ side, hidden, label, onToggle }: { side: "left" | "right"; h
   );
 }
 
-/** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #jobs/mining, #nystul, #razor, with
- *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all), so they survive reloads and can be linked. No dates = today. */
+/** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #jobs/mining, #nystul, #razor, #sim, with
+ *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all; #sim?trace=…&t=…), so they survive reloads and can be linked. No dates = today. */
 function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
   const [path = "", query = ""] = location.hash.split("?", 2);
   const range = routeRange(query, localDay(Date.now() / 1000));
@@ -68,6 +69,7 @@ function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
   if (path === "#jobs/mining") return { page: "Jobs", job: "mining", range };
   if (path === "#nystul") return { page: "Nystul", job: "lumber", range };
   if (path === "#razor") return { page: "Razor", job: "lumber", range };
+  if (path === "#sim") return { page: "Sim", job: "lumber", range };
   return { page: path === "#jobs" ? "Jobs" : "Live", job: "lumber", range };
 }
 
@@ -128,7 +130,9 @@ export function App() {
           ? "nystul"
           : p === "Razor"
             ? "razor"
-            : (job === "lumber" ? "jobs" : `jobs/${job}`) + (q ? `?${q}` : "");
+            : p === "Sim"
+              ? "sim"
+              : (job === "lumber" ? "jobs" : `jobs/${job}`) + (q ? `?${q}` : "");
     setRoute({ page: p, job, range });
   };
 
@@ -155,6 +159,15 @@ export function App() {
       <div className="app-razor">
         <Header viz={viz} page={page} onPage={(p) => go(p)} />
         <RazorPage />
+      </div>
+    );
+  }
+
+  if (page === "Sim") {
+    return (
+      <div className="app-sim">
+        <Header viz={viz} page={page} onPage={(p) => go(p)} />
+        <SimPage />
       </div>
     );
   }

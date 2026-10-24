@@ -35,6 +35,8 @@
   where the runner's Memory reads it, bad modes -> 400); a missing memory
   store is not created by GETs; live mode serves the same routes with the
   proxy down
+- /api/sim/*: the trace list from --sim-dir with each head, a trace's bytes as stored (gzip encoding),
+  bad / escaping names 400, a missing one 404, a bad line-of-sight query 400
 """
 import collections
 import json
@@ -76,7 +78,7 @@ def _free_ports(n):
 
 
 (SERVER_PORT, SSE_PORT, BURST_PORT, OVERSEER_PORT, OVERSEER_PORT2, OVERSEER_PORT3,
- PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT, VIZ_PORT) = _free_ports(11)
+ PROXY_PORT, UPSTREAM_PORT, CONTROL_PORT, STATE_PORT, VIZ_PORT, SIM_PORT) = _free_ports(12)
 C2S_KEY, S2C_KEY = 0x0F, 0x5A
 PRELUDE = bytes([0xFF, 0x00, 0x0D] + [0] * 7 + [0x0C, S2C_KEY, C2S_KEY])
 SELF = 0x00094375
@@ -872,6 +874,43 @@ def test_overseer_routes(logdir):
         srv.server_close()
 
 
+def test_sim_routes(logdir):
+    print("== /api/sim/traces, /api/sim/trace/<name>, /api/sim/los ==")
+    import gzip
+    sim_dir = tempfile.mkdtemp(prefix="viz_sim_")
+    name = "20261023_120000_mausoleum_s5.trace.jsonl.gz"
+    path = os.path.join(sim_dir, name)
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write(json.dumps({"k": "head", "v": 1, "label": "mausoleum", "seed": 5}) + "\n")
+        f.write(json.dumps({"k": "key", "t": 0.0, "mobs": [], "w": {}, "items": []}) + "\n")
+    with open(path, "rb") as f:
+        raw = f.read()
+    d = viz_feed.ReplayDriver(TAG, logdir)
+    srv = viz_server.VizServer(("127.0.0.1", SIM_PORT), d, os.path.join(ROOT, "viz", "dist"), MEMORY_DB,
+                               sim_dir=sim_dir)
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+    base = f"http://127.0.0.1:{SIM_PORT}"
+    try:
+        got = get(base + "/api/sim/traces")
+        check("GET /api/sim/traces lists the dir's trace with its head",
+              got["dir"] == sim_dir and [t["name"] for t in got["traces"]] == [name]
+              and got["traces"][0]["head"]["seed"] == 5 and got["traces"][0]["size"] == len(raw), str(got)[:200])
+        with urllib.request.urlopen(base + f"/api/sim/trace/{name}", timeout=5) as r:
+            body, enc = r.read(), r.headers.get("Content-Encoding")
+        check("GET /api/sim/trace/<name>: the file's bytes, Content-Encoding gzip", body == raw and enc == "gzip",
+              f"{enc} {len(body)} vs {len(raw)}")
+        codes = [get_status(base + p)[0] for p in ("/api/sim/trace/..%2Fx.trace.jsonl.gz", "/api/sim/trace/x.txt",
+                                                   "/api/sim/trace/missing.trace.jsonl.gz",
+                                                   "/api/sim/los?from=1,2&to=3,4,5")]
+        check("an escaping or bad name 400, a missing trace 404, a bad los query 400", codes == [400, 400, 404, 400],
+              str(codes))
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        d.stop()
+        shutil.rmtree(sim_dir, ignore_errors=True)
+
+
 def parse_frame(raw: str) -> dict:
     """One SSE frame (without its blank-line terminator) as {id, event, data}."""
     f = {}
@@ -1491,6 +1530,7 @@ def main():
         test_hunt_jobs()
         test_mining_jobs()
         test_overseer_routes(logdir)
+        test_sim_routes(logdir)
         test_live()
     finally:
         shutil.rmtree(logdir, ignore_errors=True)

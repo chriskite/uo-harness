@@ -2019,7 +2019,7 @@ def test_to_pet_not_into_shot():
     out = io.StringIO()
     try:
         with contextlib.redirect_stdout(out):
-            clock.advance(0.5)
+            clock.advance(2.5)                 # its first shot landed (cast_s up to 2.16 s): GR's bar sent hurt
             st = loop.state()
             v = aggro.View(loop, st)
             before = tamer.Team.shot_at(v, tamer.Team.shy_awake(v), loop.pos(st))
@@ -3066,6 +3066,127 @@ def test_walk_failed_carries_on():
           res == "returned" and fails == loop_hunt.WALK_FAIL_MAX + 1 and "LEAVING by the moongate" in buf.getvalue()
           and sim_cheb(w.player.pos, (5197, 682)) > 100, f"{res}; {fails} failed walks; at {w.player.pos}")
 
+def _banshee_on_us(seed=3):
+    """A banshee 6 tiles south of FLOOR in war mode on the player, standing where it is; the pets on Follow."""
+    w = world_with([{"key": "banshee", "at": [FLOOR[0], FLOOR[1] + 6, 0]}], seed=seed)
+    b = next(m for m in w.mobs.values() if m.key == "banshee")
+    pl = w.player
+    b.target, b.threat, b.next_step = pl.serial, {pl.serial: 50}, 1e9
+    w._warm(b, True)
+    casts = []
+    orig = w._cast
+
+    def cast(m, tgt, ranged):
+        casts.append((round(w.t, 2), m.serial))
+        orig(m, tgt, ranged)
+    w._cast = cast
+    return w, b, pl, casts
+
+
+def _run_to_cast(w, b, limit=10.0):
+    while b.cast is None and w.t < limit:
+        w.run_until(w.t + 0.1)
+    return b.cast is not None
+
+
+def _trace_to_tmp(w, label="test"):
+    import tempfile
+    from sim import trace
+    p = os.path.join(tempfile.mkdtemp(prefix="sim_trace_"), f"{label}.trace.jsonl.gz")
+    return trace.Tracer(w, p, label=label, seed=0), p
+
+
+def test_cast_then_flight():
+    print("== a monster's spell: its cast animation, cast_s standing, the 0xC0 effect, the hit flight_s later ==")
+    w, b, pl, casts = _banshee_on_us()
+    hurts = _log_hurts(w)
+    link, clock = link_for(w)
+    clock.advance(8.0)
+    link._pump()
+    r = b.spec["ranged"]
+    first = next((h[0] for h in hurts if h[1] is pl and h[2] == "spell"), None)
+    start = casts[0][0] if casts else None
+    anim = [e for e in link.events if e["ev"] == "animation" and e["serial"] == b.serial]
+    eff = [e for e in link.events if e["ev"] == "effect" and e["source"] == b.serial and e["target"] == pl.serial]
+    check("the first spell hit comes cast_s + flight_s after the cast began",
+          first is not None and start is not None and first - start >= r["cast_s"][0] + r["flight_s"][0] - 1e-9,
+          f"cast {start} hit {first} (cast_s {r['cast_s']}, flight_s {r['flight_s']})")
+    check("...its cast animation and (with an effect) the moving effect from it to us reached the client",
+          anim and anim[0]["action"] == r["cast_action"] and (bool(eff) if r.get("effect") else not eff),
+          f"{len(anim)} animations, {len(eff)} effects, effect {r.get('effect')}")
+
+
+def test_cast_lost_out_of_range():
+    print("== a cast whose target is out of range at its release is lost; the next one every_s later ==")
+    from sim import trace
+    w, b, pl, casts = _banshee_on_us()
+    hurts = _log_hurts(w)
+    tracer, p = _trace_to_tmp(w)
+    ok = _run_to_cast(w, b)
+    t0 = w.t
+    w._teleport(pl, w.sc["recall"]["rows"][0]["at"])
+    w.run_until(w.t + 6.0)
+    tracer.close({})
+    lost = [e for e in trace.read(p) if e["k"] == "e" and e["e"] == "cast_lost" and e["by"] == b.serial]
+    spells = [h for h in hurts if h[1] is pl and h[2] == "spell" and h[0] >= t0]
+    every = b.spec["ranged"]["every_s"]
+    check("no spell hit after the teleport, the cast lost as out of range, the next one >= 0.85 every_s later",
+          ok and not spells and lost and lost[0]["why"] == "range"
+          and b.next_swing >= lost[0]["t"] + 0.85 * every - 0.01,
+          f"cast {ok} at {t0}, hits after {spells}, lost {lost[:1]}, next swing {b.next_swing:.2f}")
+
+
+def test_cast_not_interrupted():
+    print("== damage on a caster doesn't break its cast: the spell still lands ==")
+    w, b, pl, casts = _banshee_on_us()
+    b.cd["dematerialize"] = 1e9                # its own reply to a hit is another matter (a cancel as 'hidden')
+    hurts = _log_hurts(w)
+    ok = _run_to_cast(w, b)
+    end = b.cast[0] if ok else None
+    w.hurt(b, 1, pl)
+    still = b.cast is not None
+    w.run_until(w.t + 4.0)
+    spells = [h for h in hurts if h[1] is pl and h[2] == "spell"]
+    check("the cast runs on through the hit and its spell lands on us", ok and still and spells and spells[0][0] >= end,
+          f"cast until {end}, still casting after the hit {still}, spell hits {[(h[0], h[3]) for h in spells]}")
+
+
+def test_trace_roundtrip():
+    print("== a trace rebuilds the world's records at its end; a key every 10 s; its hurt events are the world's ==")
+    from sim import trace
+    w, b, pl, casts = _banshee_on_us()
+    b.spec = {**b.spec, "ranged": {**b.spec["ranged"], "damage": [1, 2]}}   # no death in 30 s
+    hurts = _log_hurts(w)
+    tracer, p = _trace_to_tmp(w)
+    w.run_until(30.0)
+    last = (tracer.mobs, tracer.w, tracer.items)
+    tracer.close({})
+    lines = trace.read(p)
+    st = trace.state_at(lines, w.t)
+    keys = [ln["t"] for ln in lines if ln["k"] == "key"]
+    gaps = [round(b2 - a, 2) for a, b2 in zip(keys, keys[1:])]
+    evs = [(e["t"], e["v"], e["kind"], e["n"]) for e in lines if e["k"] == "e" and e["e"] == "hurt"]
+    world = [(t, v.serial, kind, n) for t, v, kind, n in hurts if n > 0]
+    check("state_at(end) is the tracer's last records", (st["mobs"], st["w"], st["items"]) == last,
+          f"{len(st['mobs'])} mobiles, {len(st['items'])} items")
+    check("...a key line every 10 s", len(keys) >= 4 and all(abs(g - 10.0) <= 0.11 for g in gaps), f"keys at {keys}")
+    check("...its hurt events are the world's hurts", evs == world and len(evs) > 0, f"{len(evs)} vs {len(world)}")
+
+
+def test_trace_no_side_effects():
+    print("== a traced run is the untraced one (the tracer draws nothing, sees nothing, sends nothing) ==")
+    import tempfile
+    from sim import run as simrun
+    p = os.path.join(tempfile.mkdtemp(prefix="sim_trace_"), "t.trace.jsonl.gz")
+    keys = ("kills", "player_damage_taken", "deaths", "sim_s")
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        a = simrun.run_once(3, [], minutes=3, at_hunt=True)
+        b = simrun.run_once(3, [], minutes=3, at_hunt=True, trace=p)
+    check("same kills, damage on us, deaths and game time with and without the trace",
+          {k: a[k] for k in keys} == {k: b[k] for k in keys} and os.path.getsize(p) > 0,
+          f"{ {k: a[k] for k in keys} } vs { {k: b[k] for k in keys} }")
+
+
 
 def main():
     if pathfind.Walkers().get(0) is None:
@@ -3096,7 +3217,9 @@ def main():
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_tele_dash, test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
-              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures):
+              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures,
+              test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
+              test_trace_no_side_effects):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

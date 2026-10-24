@@ -126,6 +126,20 @@ def pet_dead(serial, dead=True):
     return var(0xBF, u16(0x19) + b"\x00" + u32(serial) + (b"\x01" if dead else b"\x00"))
 
 
+def animation(serial, action, frames=5, repeat=1, backward=False, repeat_flag=False, delay=0):
+    """0x6E CharacterAnimation (14 B): a mobile's action (a monster's cast, layouts 0x6E)."""
+    return (b"\x6e" + u32(serial) + u16(action) + u16(frames) + u16(repeat)
+            + bytes([int(backward), int(repeat_flag), delay & 0xFF]))
+
+
+def effect(kind, source, target, graphic, x, y, z, tx, ty, tz, speed=10, duration=0, fixed_dir=0, explode=0, hue=0,
+           render=0):
+    """0xC0 HuedEffect, Outlands V10 form (52 B, layouts 0xC0): kind 0 a moving effect from source to target."""
+    return (b"\xc0" + bytes([kind]) + u32(source) + u32(target) + u32(graphic) + u32(x) + u32(y) + i32(z)
+            + u32(tx) + u32(ty) + i32(tz) + bytes([speed & 0xFF, duration & 0xFF]) + bytes(2)
+            + bytes([fixed_dir & 0xFF, explode & 0xFF]) + u32(hue) + u32(render))
+
+
 def penalty_buff(self_serial, steps):
     """Outlands 0xFF sub 8 "Stationary Penalty" (capture 20261003_123614 byte for byte)."""
     return var(0xFF, u32(8) + u32(self_serial) + u16(277) + u16(4620) + u16(1) + u16(0) + u16(0) + u16(1)

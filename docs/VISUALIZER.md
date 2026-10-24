@@ -1178,13 +1178,30 @@ alone, as §2.11.
   ingots/hr (80% 2658–3452), 1524 ore, 180 net, P(best) 0%, P(death)/run 19.7%; now 1472 ore/hr "· expected
   1524"; History here 1 leg, 94 ore, its row "threat"; no page errors.
 
+### 2.20 Sim page: simulator traces (added 2026-10-23, user request)
+
+`#sim[?trace=<name>&t=<s>]`: a simulator run played back from its trace (docs/SIM.md "Cast and flight times; traces";
+`harness/sim/trace.py`), to see a fight whole and devise strategies. Watch-only.
+- Routes: `/api/sim/traces` (the `--sim-dir` list, default `logs/sim_traces`), `/api/sim/trace/<name>` (the gzipped
+  file as stored, `Content-Encoding: gzip`), `/api/sim/map/<cx>/<cy>.png` (64-tile floor/wall chunks from the map files,
+  `harness/sim/viewmap.py`), `/api/sim/los` (line of sight, `los.Sight`).
+- Page (`viz/src/components/Sim*.tsx`, `viz/src/sim/`): a trace picker; play/pause, rates 0.25-60x, scrubbing (Space,
+  arrows with Shift/Ctrl, `[`/`]` to the previous/next timeline marker, Esc); the map with every mobile (colour by kind,
+  hits bar, status tags PO/BL/DS/DC/PC/PV/HD/HI/IM, our PZ/HS), cast arcs, projectiles between release and land, swings,
+  floating numbers, speech, corpses/fire/eerie corpses, and for the selected mobile its range squares (melee, spell
+  range and keep, aggro, specials) and line-of-sight lines; a timeline of deaths, big hits on us, casts at us, potions,
+  vets, recalls, abilities and the runner's leave lines; the selected mobile's inspector (threat, damage by, cooldowns,
+  cast, statuses, its last events); the runner's intents and log around the cursor; damage taken by the player (or the
+  selected pet) and dealt by the team per 5 s by source.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
 something, neither can the agent, and vice versa. Server-side enrichment is limited to transport
 (`seq`, `t`, which are part of the contract after §1.4) and replay bookkeeping. `diagnostics` is
 labeled meta-information. The int-vs-hex serial wart is normalized only in the frontend
-(`serial.ts`), not hidden server-side.
+(`serial.ts`), not hidden server-side. The Sim page (§2.20) is a file-serving exception: it reads simulator traces and
+the map files, never the feed, so it works the same under `--live` and `--replay`.
 
 Uses: audit agent decisions against exactly what was observable (replay + scrub to the event);
 spot coverage gaps ("the gump opened in game but nothing changed here"); reproducible eval

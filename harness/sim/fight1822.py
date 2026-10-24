@@ -8,7 +8,7 @@ corpse while the pets took the shadowguard, the room woke on Logan, and he died 
 after a soul-jar walk"). Per seed: death, Logan's lowest hits, his damage by source, the jar filled or not, the seconds a
 monster was on him with no pet within 5 tiles, leaves; then the totals.
 
-    python harness/sim/fight1822.py <seeds> [--log] [--harness DIR]
+    python harness/sim/fight1822.py <seeds> [--log] [--trace DIR] [--harness DIR]
 
 --harness runs another checkout's runner (a snapshot, with this simulator copied in) for a before/after comparison.
 """
@@ -34,9 +34,12 @@ import soul_jar  # noqa: E402
 from agent_link import Abort  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim import run as simrun  # noqa: E402
+from sim import trace  # noqa: E402
 from sim.link import SimLink  # noqa: E402
 from sim.scenario import load  # noqa: E402
 from sim.world import World, cheb  # noqa: E402
+TRACE = ARGS[ARGS.index("--trace") + 1] if "--trace" in ARGS else None   # record each run's trace (sim/trace.py) here
+STAMP = trace.stamp()
 
 # the capture's positions at 18:22:00-09 (z from the scenario's spawns there)
 SPAWNS = [("shadowguard", (5192, 682, 25)), ("vampire countess", (5177, 682, 25)), ("corpsebride", (5176, 678, 25)),
@@ -61,6 +64,8 @@ def one(seed):
     w = World(sc, seed=seed)
     w.eerie_corpse(*EERIE[:2], spirit="Gilles Styles", z=EERIE[2])
     link = SimLink(w, clock)
+    tracer = trace.Tracer(w, trace.path_for(TRACE, STAMP, "fight1822", seed), label="fight1822", seed=seed,
+                          epoch=simrun.EPOCH) if TRACE else None
     db = os.path.join(tempfile.mkdtemp(prefix="fight_"), "harness.db")
     args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, EXTRA, MINUTES, at_hunt=True)
                                              + ["--memory", db, "--seed", str(seed)])
@@ -92,7 +97,7 @@ def one(seed):
     out = io.StringIO()
     outcome = "done"
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(tracer.tee(out) if tracer else out):
             loop = loop_hunt.HuntLoop(link, store, args)
             try:
                 loop.run()
@@ -105,11 +110,14 @@ def one(seed):
     by = {}
     for _, src, n in hits:
         by[src] = by.get(src, 0) + n
-    return {"seed": seed, "dead": w.metrics["deaths"], "low": round(low[0]), "taken": sum(n for _, _, n in hits),
+    res = {"seed": seed, "dead": w.metrics["deaths"], "low": round(low[0]), "taken": sum(n for _, _, n in hits),
             "by": by, "jar": w.metrics.get("soul_jars", 0), "kills": w.metrics["kills"],
             "on_us_pets_off_s": round(alone[0], 1), "on_us_pets_max_off": alone[1],
             "leaves": sum("LEAVING" in line for line in logl), "sim_s": round(clock.elapsed), "outcome": outcome,
             "log": logl, "hits": hits}
+    if tracer is not None:
+        tracer.close({k: v for k, v in res.items() if k not in ("log", "hits")})
+    return res
 
 
 if __name__ == "__main__":

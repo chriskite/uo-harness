@@ -34,18 +34,20 @@ flowchart LR
 python harness/sim/run.py --runs 24 --minutes 30 --compare -- [loop_hunt arguments]
 python harness/sim/run.py --runs 24 --set tamer.FALLBACK_S=0          # an experiment on a constant
 python harness/sim/run.py --log run.log --seed 7                       # one run, with the runner's log
+python harness/sim/run.py --seed 5 --at-hunt --trace [DIR]             # ... and its trace for the viz Sim page ("Traces")
+python harness/sim/cast_scan.py [--since 20261010] && python harness/sim/cast_scan.py --summary   # cast/flight times
 python harness/test_sim.py                                             # the tests (~20 s)
 python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   # refresh the observations
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
 python harness/sim/parity.py sim.jsonl --db <main checkout>/harness/data/harness.db --logs <main checkout>/logs
-python harness/sim/fight1822.py 1,2,...,24 [--log] [--harness DIR]   # the 18:22 live death replayed
-python harness/sim/fight1820.py 1,2,...,48 [--awake] [--log] [--harness DIR]   # the 2026-10-21 18:21 blightmare death
-python harness/sim/fight2227.py 1,2,...,12 [--log] [--harness DIR]   # the 2026-10-21 22:27 ping-pong at a ledge
-python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--harness DIR]   # the 2026-10-22 18:53 red on the walk in
-python harness/sim/fight2001.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
-python harness/sim/fight2203.py 1,2,...,24 [--log] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
+python harness/sim/fight1822.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 18:22 live death replayed
+python harness/sim/fight1820.py 1,2,...,48 [--awake] [--log] [--trace DIR] [--harness DIR]   # the 2026-10-21 18:21 blightmare death
+python harness/sim/fight2227.py 1,2,...,12 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-21 22:27 ping-pong at a ledge
+python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 18:53 red on the walk in
+python harness/sim/fight2001.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
+python harness/sim/fight2203.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
 # with red players (docs below, "Red players"): gold banked an hour with them, their numbers against the live ones
 python harness/sim/run.py --runs 98 --jobs 16 --careers 14 --seed 17 --reds --others --eerie --prior <main checkout>/harness/data/harness.db \
     -- --vet-range 5 --crawl-learn-s 180
@@ -107,6 +109,9 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
 | `sim/shove_scan.py` | Shoves and stamina in the live captures (the walking rules of "Shoving and stamina"). |
+| `sim/cast_scan.py` | Cast and flight times of the monsters' and pets' ranged attacks in the live captures (0x6E -> 0xC0 -> '-N'), per type ("Cast and flight times"). |
+| `sim/trace.py` | A run's trace (`run.py --trace`, `fight*.py --trace DIR`): every mobile's record each tick and the combat events, read by the viz Sim page ("Traces"). |
+| `sim/viewmap.py` | The Sim page's map underlay (floor/wall PNG chunks) and line of sight, for viz_server's `/api/sim/map` and `/api/sim/los`. |
 | `sim/reds.py` | Red players (`--reds`, `World.add_red`): arrivals, Tracking, the walk graph across levels, the kits, the PvP rules ("Red players"). |
 | `sim/red_scan.py`, `sim/entry_scan.py` | Every red-player encounter in the live captures, and where players appear and leave on Maus 3 (the evidence of "Red players", docs/NOTES.md "Red players met live"). |
 | `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. |
@@ -1088,6 +1093,73 @@ With the older runner the deaths in the countess corridor around (5192, 672, 25)
 it "cut by mobiles … waiting", went 12 -> 1, and it is near the live yardstick (deaths to monsters and on the walk out
 1.0 an hour live, "Parity with the live runs"). The current runner's pet-death runs rose 5 -> 11 (open). test_sim
 `test_shove`.
+
+## Cast and flight times; traces (2026-10-23)
+
+User 2026-10-23: see everything in a simulator run (mobiles, statuses, projectiles and casts, swings, damage) to devise
+new strategies, and give the monsters' and pets' ranged attacks their real cast and flight times.
+
+**Measured** (`sim/cast_scan.py`, 103 captures since 2026-10-10, 33 with samples; raw rows in `logs/cast_scan/`, not
+committed). An `effect` sample is a moving 0xC0 from a monster (or our pet) to another mobile: cast = the source's last
+0x6E within 3 s before it, flight = the effect to the first '-N' over the target within 2 s (dropped when another mobile
+within a tile of the target animated within 0.15 s before the number: the melee attribution rule above). Types that
+send no 0xC0 get `anim_hit` samples: a monster 0x6E with no 0xC0 from it within 3 s, then the first '-N' on us or a pet
+2+ tiles from it. Medians (q10-q90):
+
+| type | samples | cast s | flight s | effect |
+|---|---|---|---|---|
+| blightmare | 57 effects / 43 flights | 1.21 (1.19-1.24) | 0.50 (0.44-0.51) | 0x36D4 (14036) speed 7, hue 2821 |
+| banshee | 77 / 61 | 1.22 (0.37-2.03) | 0.51 (0.48-0.52) | 14036 speed 7 |
+| shadowguard, shadow minion, countesses, reanimators, reanimated daemon, forgotten soul, familiar, vampire | 5-56 each | 1.18-1.35 | 0.50-0.51 | 14036 speed 7 |
+| calamity | 618 / 531 | 0.05 (0.03-0.20) | 0.33 (0.08-0.88) | 7816 speed 10, hue 1165 |
+| corpse purger, elder vampire, eldritch experiment, reanimator zealot | 96 / 37 / 8 / 9 anim-to-hit | 0.84 / 1.60 / 1.57 / 1.74 | none | no 0xC0 seen |
+| the phoenix (AlaFlambe) | no 0xC0, no sample | - | - | none: its hit stays at its animation [INFERENCE] |
+
+The spellcasters cast ~1.2 s and fly ~0.5 s at every distance (the 14036 fireball's flight median 0.51 / 0.51 / 0.50 s
+at 1-3 / 4-7 / 8+ tiles, n=119 / 127 / 82). The `*monsters*` pool (`defaults.ranged_cast_s`, used by the fleshweaver and
+the muddled vampire hunter only) is 618 of 1060 calamity shots, so it sits at a 0.15 s cast: a known skew, kept as the
+plan's rule. Each number is in `mausoleum.json` (`ranged_observed.<type>` / the phoenix's `ranged` / `defaults`) with its
+`cast_note`.
+
+**Model** (`World._cast` / `_release` / `_impact`): at its attack time a monster (or pet) starts a cast: the 0x6E
+(`cast_action`) to the client, `cast_s` standing (no step, no melee, no timed special), then the release: lost when its
+target is gone, beyond `range` or out of sight then (the next cast `every_s` x 0.85-1.15 later), else the 0xC0 (`effect`;
+sent when the caster or its victim is in our view or us [INFERENCE: the live server's broadcast range]) and the hit
+`flight_s` later, wherever the victim stands by then; the attacker's death meanwhile doesn't stop a hit on its way.
+Damage never breaks a cast; pacifying, losing the target, a banshee's dematerialize, a transfix on a casting pet and death
+do. The 20 % shot at the player instead of a pet (`SHOT_AT_PLAYER_P`) is drawn at the release. The reds' own cast model
+(sim/reds.py) is unchanged. The runner now sees the casts as live: an animation, then the effect on us before the hit
+(`threats.py` reads the effect).
+
+**Traces** (`sim/trace.py`): `run.py --trace [DIR]` (default `logs/sim_traces`, gitignored) and `fight*.py --trace DIR`
+write `<stamp>_<label>_s<seed>.trace.jsonl.gz`: a head (seed, runner args, per-type ranges), every mobile's record at a
+key line every 10 s and the changed fields each tick, the world's timers, the ground items, and events (hurt, heal, die,
+swing, cast, release, cast_lost, ability, bard, song, potion, vet, recall, spawn, say, sys, speech, the runner's intents
+and log lines). The tracer only reads the world (`test_trace_no_side_effects`: a traced run is the untraced one). A
+30-min `--at-hunt` run (seed 5, 12.5 game minutes to its first leave): 250 KB, 9.1 s wall against 6.0 s untraced. The
+viz's Sim page plays a trace back (docs/VISUALIZER.md).
+
+**Parity before and after** (the "Parity with the live runs" batch: 144 runs, seed 17, `--others --eerie --prior`, live
+53 visits / 6.81 h; `parity.py` rows per hour on the level; nothing retuned, the user decides):
+
+| row | live (95 %) | before | after |
+|---|---|---|---|
+| us (damage on Logan) | 2552 (2237-2881) | 1968 << | 1843 << |
+| pet:AlaFlambe | 2430 (1957-2900) | 2565 | 2423 |
+| pet:GraveRobber | 11587 (10394-12824) | 10944 | 10826 |
+| hits_lost | 2416 (2122-2716) | 1890 << | 1779 << |
+| potions | 52.3 (46.3-58.7) | 48.9 | **45.8 <<** |
+| vet | 145.7 (134.6-157.4) | 162.1 >> | 158.6 >> |
+| lost_kills | 10.6 (7.2-14.0) | 7.6 | **6.6 <<** |
+| discord_fail | 35.0 (30.7-39.5) | 39.6 >> | 38.2 |
+| deaths_mob | 0.4 (0.0-1.3) | 0.7 | 0.5 |
+| met:shade wolf | 26.6 (22.2-31.2) | 22.3 | **20.7 <<** |
+| banshee's share of the damage on us | 0.03 | 0.12 | 0.09 |
+
+Deaths in the batch 28 -> 17, pet deaths 4 -> 8. Left the live interval: potions, lost_kills and met:shade wolf (the
+last a first-sighting count the cast model doesn't touch [INFERENCE: draw noise]). The damage on Logan, already under
+the live rate, fell a further 6 % [INFERENCE: casts now lost when he steps out of range or sight first]. Time-to-kill
+medians moved under 2 s per type (tormented soul 18.3 -> 18.8, blightmare 20.4 -> 19.3).
 
 ## Limits
 

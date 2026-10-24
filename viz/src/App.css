@@ -606,7 +606,8 @@ button.side-rail {
   .header,
   .app-jobs > header.header,
   .app-nystul > header.header,
-  .app-razor > header.header {
+  .app-razor > header.header,
+  .app-sim > header.header {
     height: auto;
     min-height: 44px;
     flex-wrap: wrap;
@@ -2533,7 +2534,8 @@ tr.spot-out td {
     padding: 0 6px 16px;
   }
   .app-jobs,
-  .app-nystul {
+  .app-nystul,
+  .app-sim {
     height: auto;
   }
   .nystul-page {
@@ -2551,7 +2553,8 @@ tr.spot-out td {
   }
   .header,
   .app-jobs > .header,
-  .app-nystul > .header {
+  .app-nystul > .header,
+  .app-sim > .header {
     flex: none;
     height: auto;
     flex-wrap: wrap;
@@ -2674,6 +2677,8 @@ tr.spot-out td {
 /* Razor hotkeys page */
 .app-razor { display: flex; flex-direction: column; height: 100vh; }
 .app-razor > .header { flex: none; height: 44px; }
+.app-sim { display: flex; flex-direction: column; height: 100vh; }
+.app-sim > .header { flex: none; height: 44px; }
 .razor {
   flex: 1; min-height: 0; overflow-y: auto; display: grid;
   grid-template-columns: minmax(0, 1fr) 360px; gap: 10px; padding: 10px; align-content: start;
@@ -2774,4 +2779,54 @@ tr.spot-out td {
 .rz-cat-unknown { --rz-c: var(--dim); }
 @media (max-width: 900px) {
   .razor { grid-template-columns: 1fr; }
+}
+
+/* Sim page: a recorded simulator run (harness/sim/trace.py) replayed with scrubbing */
+.sim {
+  flex: 1; min-height: 0; display: grid; gap: 6px; padding: 6px;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.sim-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; }
+.sim-bar select { min-width: 320px; max-width: 60vw; }
+.sim-map { grid-column: 1; grid-row: 2; min-height: 0; overflow: hidden; }
+.sim-side { grid-column: 2; grid-row: 2; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.sim-side > .panel { min-height: 0; display: flex; flex-direction: column; }
+.sim-side > .panel > .panel-body { min-height: 0; overflow-y: auto; }
+.sim-inspector { flex: 3; }
+.sim-runner { flex: 2; }
+.sim-bottom { grid-column: 1 / -1; grid-row: 3; display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; }
+.sim-empty { grid-column: 1 / -1; grid-row: 2; padding: 20px; }
+.sim-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sim-controls .sim-time { font-family: var(--mono); min-width: 9ch; }
+.sim-rows { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.sim-rows label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.sim-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.sim-svg-wrap { position: relative; width: 100%; }
+.sim-svg-wrap svg { display: block; width: 100%; user-select: none; }
+.sim-svg-wrap svg text { fill: var(--dim); font-size: 10px; font-family: var(--mono); }
+.sim-tip {
+  position: absolute; pointer-events: none; z-index: 5; max-width: 480px; padding: 4px 8px;
+  background: rgba(10, 7, 5, 0.94); border: 1px solid var(--frame); border-radius: 3px; font-size: 12px; white-space: pre-wrap;
+}
+.sim-charts { display: flex; flex-direction: column; gap: 2px; }
+.sim-chart h3 { margin: 0 0 2px; font-size: 12px; font-weight: 600; color: var(--gold); }
+.sim-legend { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11px; }
+.sim-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.sim-kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; font-size: 12px; margin: 0 0 8px; }
+.sim-kv dt { color: var(--dim); }
+.sim-kv dd { margin: 0; font-family: var(--mono); }
+.sim-sub { margin: 8px 0 2px; font-size: 12px; color: var(--gold); }
+.sim-list { list-style: none; margin: 0; padding: 0; font-size: 12px; font-family: var(--mono); }
+.sim-list li { padding: 1px 4px; border-radius: 2px; cursor: pointer; }
+.sim-list li:hover { background: rgba(226, 182, 90, 0.12); }
+.sim-list li.now { background: rgba(226, 182, 90, 0.25); color: var(--gold-hi); }
+.sim-list li.future { opacity: 0.5; }
+.sim-list .t { color: var(--dim); margin-right: 6px; }
+.sim-list .intent { color: var(--link); }
+.sim-bar-meter { height: 6px; background: #2a1d12; border-radius: 2px; overflow: hidden; margin-top: 2px; }
+.sim-bar-meter > div { height: 100%; background: #a78bfa; }
+@media (max-width: 900px) {
+  .sim { display: flex; flex-direction: column; }
+  .sim-map { height: 70vh; }
 }

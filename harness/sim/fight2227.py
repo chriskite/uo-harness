@@ -8,7 +8,7 @@ patrol's next step back to (5180, 684) made it a target again (11 steps against 
 bumping into a wall trying to approach a shade wolf" (docs/NOTES.md "Ping-pong at the ledge"). Per seed: the
 approaches, the targets picked, the approaches that ended off the wolf's floor, kills, deaths; then the totals.
 
-    python harness/sim/fight2227.py <seeds> [--log] [--harness DIR]
+    python harness/sim/fight2227.py <seeds> [--log] [--trace DIR] [--harness DIR]
 
 --harness runs another checkout's runner (a snapshot, with this simulator copied in) for a before/after comparison.
 """
@@ -35,9 +35,12 @@ import escape  # noqa: E402,F401
 from agent_link import Abort  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim import run as simrun  # noqa: E402
+from sim import trace  # noqa: E402
 from sim.link import SimLink  # noqa: E402
 from sim.scenario import load  # noqa: E402
 from sim.world import World  # noqa: E402
+TRACE = ARGS[ARGS.index("--trace") + 1] if "--trace" in ARGS else None   # record each run's trace (sim/trace.py) here
+STAMP = trace.stamp()
 
 # the capture's positions at 22:27:28 (0x20/0x77 of each serial; Logan's from the task log)
 SPAWNS = [("shade wolf", (5178, 691, -3)), ("shade wolf", (5178, 694, -5))]
@@ -56,6 +59,8 @@ def one(seed):
     clock = simclock.SimClock(epoch=simrun.EPOCH)
     w = World(sc, seed=seed)
     link = SimLink(w, clock)
+    tracer = trace.Tracer(w, trace.path_for(TRACE, STAMP, "fight2227", seed), label="fight2227", seed=seed,
+                          epoch=simrun.EPOCH) if TRACE else None
     db = os.path.join(tempfile.mkdtemp(prefix="fight_"), "harness.db")
     args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, EXTRA, MINUTES, at_hunt=True)
                                              + ["--memory", db, "--seed", str(seed)])
@@ -64,7 +69,7 @@ def one(seed):
     out = io.StringIO()
     outcome = "done"
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(tracer.tee(out) if tracer else out):
             loop = loop_hunt.HuntLoop(link, store, args)
             try:
                 loop.run()
@@ -79,10 +84,13 @@ def one(seed):
     for line in logl:
         if (m := APPROACH.search(line)) is not None and los.surface_z(w.walk, int(m.group(1)), int(m.group(2)), 25) > 10:
             ledge += 1
-    return {"seed": seed, "approaches": sum("toward a target: arrived" in line for line in logl),
+    res = {"seed": seed, "approaches": sum("toward a target: arrived" in line for line in logl),
             "ledge_approaches": ledge, "targets": sum(" target a shade wolf" in line for line in logl),
             "kills": w.metrics["kills"], "dead": w.metrics["deaths"], "sim_s": round(clock.elapsed),
             "outcome": outcome, "log": logl}
+    if tracer is not None:
+        tracer.close({k: v for k, v in res.items() if k not in ("log", "hits")})
+    return res
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Run the hunt runner against the simulator (docs/SIM.md "Running").
 
     python harness/sim/run.py [--scenario mausoleum] [--seed 1] [--minutes 30] [--runs 1] [--jobs 4]
-                              [--log FILE] [--json] -- <loop_hunt arguments>
+                              [--log FILE] [--json] [--trace [DIR]] -- <loop_hunt arguments>
 
 The runner is the real `loop_hunt.HuntLoop` (with `--pets`, `tamer.Team`) in this process, its
 `time` replaced by the simulator's virtual clock (sim.clock), its Link by `SimLink`, its memory store
@@ -10,7 +10,8 @@ row) and recalls in, as a live trip does; `--at-hunt` starts on the hunting leve
 ends at the first leave). Defaults added to the runner's arguments unless given: `--pets
 --leave-recall <the scenario's tome> --enter-recall <it> --enter-rune <the hunting row> --crawl
 --timeout <minutes x 60> --no-drop-off`. Several runs (`--runs N`, seeds seed..seed+N-1) go to
-a pool of `--jobs` processes; the table (or `--json` lines) lists one summary per run.
+a pool of `--jobs` processes; the table (or `--json` lines) lists one summary per run. `--trace` records each run's
+trace (sim/trace.py) to DIR (default logs/sim_traces) for the viz Sim page.
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 import cpu_budget  # noqa: E402
+from sim import trace as simtrace  # noqa: E402
 
 # game time: after the live-server cut (hunt_return.LIVE_SINCE), so the return rule reads a career's own visits as it
 # reads the live store's (from 2026-10-12 21:16:30, the trip's start, it read none: "a death every 80 min", its prior,
@@ -90,7 +92,8 @@ def seed_prior(db: str, prior: str, serial: int) -> int:
 
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
              at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
-             eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False) -> dict:
+             eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
+             trace: str | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
@@ -98,7 +101,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     teleporters), else a fresh one (with `prior`'s hunt history: seed_prior). `others`: other players on the
     level (the scenario's `others`, off by default so earlier batches stay comparable); `eerie`: the Field of
     Souls' eerie corpses (the scenario's `eerie`, off by default too); `reds`: red players (the scenario's `reds`, off
-    by default). `epoch`: the game time it starts at."""
+    by default). `epoch`: the game time it starts at. `trace`: record the run's trace (sim/trace.py) to this path."""
     import ast
     import importlib
     import loop_hunt
@@ -135,6 +138,11 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     clock = simclock.SimClock(epoch=epoch)
     world = World(sc, seed=seed)
     link = SimLink(world, clock)
+    tracer, stdout = None, sys.stdout
+    if trace:
+        tracer = simtrace.Tracer(world, trace, label=scenario, seed=seed,
+                                 runner_args=runner_args(sc, extra, minutes, at_hunt), epoch=epoch)
+        sys.stdout = tracer.tee(sys.stdout)
     if db is None:
         db = os.path.join(tempfile.mkdtemp(prefix="sim_"), "harness.db")
         if prior:
@@ -166,6 +174,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             except Exception:  # noqa: BLE001
                 pass
         simclock.uninstall(patched)
+        sys.stdout = stdout
     wall = _wall.perf_counter() - wall0
     juncs = [{"kind": j["kind"], "severity": j["severity"], "summary": j["summary"][:160]}
              for j in store.junctures(after_id=first_j, limit=200)]
@@ -178,7 +187,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     store.close()
     m = world.metrics
     pl = world.player
-    return {"seed": seed, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
+    r = {"seed": seed, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
             "wall_s": round(wall, 2), "speed_x": round(clock.elapsed / wall, 1) if wall else None,
             "kills": m["kills"], "kills_by": m["kills_by"], "gold_looted": m["gold_looted"],
             # banked: what reached home (World._land); lost: what a death left on the corpse
@@ -215,6 +224,11 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "death_events": [{k: r.get(k) for k in ("x", "y", "cause")} for r in records if r["kind"] == "death"],
             "leave_events": [{k: r.get(k) for k in ("x", "y", "why", "hits")} | {"died": "died" in str(r.get("gate"))}
                              for r in records if r["kind"] == "leave"]}
+    if tracer is not None:
+        tracer.close({k: r[k] for k in ("outcome", "kills", "deaths", "player_damage_taken")}
+                     | {"pet_deaths": len(r["pet_deaths"])})
+        print(f"trace: {trace}", file=sys.stderr)
+    return r
 
 
 def _pool_run(job):
@@ -226,7 +240,7 @@ def _pool_run(job):
     db = os.path.join(tempfile.mkdtemp(prefix="sim_career_"), "harness.db")
     out_all = []
     epoch = EPOCH
-    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds) in enumerate(runs):
+    for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -236,7 +250,7 @@ def _pool_run(job):
         try:
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
-                         prior=prior if career is None else None, reds=reds)
+                         prior=prior if career is None else None, reds=reds, trace=trace)
         finally:
             sys.stdout = old
             out.close()
@@ -282,6 +296,8 @@ def main(argv=None):
     ap.add_argument("--prior", default=None, metavar="DB",
                     help="start every career's memory with this store's hunt history for the scenario's character (the "
                          "live store: the crawl's zone knowledge, the return rule's visits; docs/SIM.md 'Parity')")
+    ap.add_argument("--trace", nargs="?", const=simtrace.DEFAULT_DIR, default=None, metavar="DIR",
+                    help="record each run's trace for the viz Sim page (sim/trace.py) to DIR (default logs/sim_traces)")
     a = ap.parse_args(argv)
     if a.runs > 1:
         cpu_budget.limit()
@@ -289,8 +305,10 @@ def main(argv=None):
     logdir = a.log if a.runs > 1 else None
     if logdir:
         os.makedirs(logdir, exist_ok=True)
+    st = simtrace.stamp()
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
-             tuple(a.set), a.others, a.eerie, a.prior, a.reds) for s in seeds]
+             tuple(a.set), a.others, a.eerie, a.prior, a.reds,
+             simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None) for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
     if len(careers) == 1 or a.jobs <= 1:
