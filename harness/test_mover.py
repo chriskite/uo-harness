@@ -634,6 +634,49 @@ def test_locked_door():
           not any(m[:2] == (2, 0) for m in mv.denied), f"{mv.walled} {mv.denied}")
 
 
+class HeldLink(FakeLink):
+    """FakeLink with an Entangle sprung on stepping onto `trap`: for `polls` state polls every walk is denied with the
+    facing unchanged (the server's 0x21 keeps it) and buff icon 20 shows on us until then."""
+
+    def __init__(self, *a, trap, polls, **kw):
+        super().__init__(*a, **kw)
+        self.trap, self.polls_left, self.sprung = trap, polls, False
+
+    def send(self, pkt):
+        if pkt[0] == 0x02 and self.sprung and self.polls_left > 0:
+            self.denies.append(nav.step(tuple(self.here), pkt[1] & 7))
+            return "OK"
+        out = super().send(pkt)
+        if tuple(self.here) == self.trap and not self.sprung:
+            self.sprung = True
+        return out
+
+    def state(self):
+        st = super().state()
+        if self.sprung and self.polls_left > 0:
+            self.polls_left -= 1
+            st["world"]["buffs"] = {"0x00000001": {"20": {"icon_id": 20, "ends_t": time.time() + 5}}}
+        return st
+
+
+def test_held_at_door():
+    print("== held (Entangle) beside a door: the denial isn't the door's; through it once free ==")
+    # live 2026-10-24 00:40:29.17-32 (hunt-20261024-000844-30b5): "Your feet stick to a strange substance!" (icon 20)
+    # on the step NW to (5507, 691), the step N into the door at (5507, 690) denied; the open-door retry went out
+    # facing NW still and only turned Logan; the door walled, "no route", the walk in aborted on Maus 2
+    link = HeldLink((2, 1), facing=7, walls={(x, -1) for x in range(-30, 31)} - {(1, -1)}, doors=[(1, -1)],
+                    trap=(1, 0), polls=3)
+    mv = Mover(link, nav.WalkMemory(), Human("off"), doors=True, use_map=False)
+    try:
+        mv.walk_to(lambda: (1, -2), 0, "t", max_moves=12)
+        err = None
+    except Exception as e:                       # noqa: BLE001 - the failure is what the check reports
+        err = e
+    check("arrived through the door, nothing walled", tuple(link.here) == (1, -2) and mv.walled == set(),
+          f"at {link.here}, walled {mv.walled}, error {err}")
+
+
+
 FIELD = 0x40002000
 
 
@@ -716,6 +759,7 @@ def main():
     test_no_walk_into_known_wall()
     test_door()
     test_locked_door()
+    test_held_at_door()
     test_fields()
     test_shove_through()
     test_go_around_when_cheap()

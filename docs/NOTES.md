@@ -4708,7 +4708,8 @@ usually lets a buff expire without a sub 9, so only `ends_t` (state.py `buff_end
 - **Entangle** (icon 20, "Unable to Move", 115 times, 1-5 s, ends "You are no longer entangled.") and **Paralyze**
   (icon 135, "You cannot move!", self flags 0x21, "You are frozen and cannot move." on steps, broke with damage after
   3.5 s; once, from Ticket Tongje 2026-10-21 10:35:06.66) also refuse every step. Items worked during an Entangle.
-  [INFERENCE from `Mover.held`, which starts only on the transfix line] those denials count toward `--max-blocked`.
+  Their denials counted toward `--max-blocked` (`Mover.held` started only on the transfix line) until 2026-10-24:
+  `Mover.held(st)` now reads these icons too (docs/HUNT_LOOP.md "Transfixed: walks wait it out").
 - **The rope's combat cooldown.** A rope used while a player is attacking us starts a 2-minute cooldown: "You must
   wait another 2m before you may use this again while in combat." (2026-10-19 19:59:10.12, a jump 2.4 s after "Chaos
   Agent is attacking you!"), "… another 1m 50s …" (2026-10-22 20:00:58.9, 9.8 s after a jump made 6.2 s after
@@ -4846,6 +4847,22 @@ beside him, no attacker listed at the death). Many players about; none near the 
 - **Not changed**: cover's tiles near an awake blightmare (the replay rejects the "never nearer" rule; the follow is
   real live, so a cover tile 2-3 tiles off out of its sight buys a second or two); no heal potion inside a cover walk;
   the wake at (5241, 692) the sight model said it couldn't see.
+
+## Entangled beside a door on the walk in: the door walled, the run aborted (live 2026-10-24 00:40, hunt-20261024-000844-30b5)
+
+Visit 2's walk back in. Capture session_20261023_201849 and the task log:
+- 00:40:25 the third teleporter put Logan at (5507, 693, -5) on Maus 2, beside a fight of other players (Drekk, two
+  summoned ancient mummies, a ghoul). 00:40:29.17 a step NW to (5507, 691) shoved through a mobile (cliloc 1019042).
+  "Your feet stick to a strange substance!" came with it, and the 0xFF sub 8 buff icon 20 (Entangle) on him.
+- 00:40:29.31 a step N into the door at (5507, 690) was denied (the server's 0x21 still faced NW). The Mover took it for
+  the door's denial, and "You are no longer entangled." followed at 30.24. 00:40:30.63 brought the open-door request,
+  then the step N at 30.78. The server confirmed it as a turn: no move, its 0x20 put him at (5507, 691) facing N.
+  `_try_door` read that as "still denies the step after opening it" and walled the door. "no route from (5507, 691)"
+  followed, and the run aborted at 00:40:32 with Logan alive on Maus 2 (task_failed 1842).
+- Fixed: `Mover.held(st)` also counts HOLD_ICONS buffs (19/20/135; it was transfix-only), so a step denied while held
+  waits the hold out and plans again. A door retry that only turned him steps once more. test_mover
+  `test_held_at_door` (before: "too many blocked moves (13 in this walk)"; after: through the door). The
+  `HOLD_ICONS` constant moved from loop_hunt to agent_link; `HuntLoop.held_now` is `Mover.held(st)`.
 
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 

@@ -131,6 +131,11 @@ HELD_END_TEXT = "You are no longer hindered."
 HELD_SILENCED_TEXT = "You have been silenced and cannot speak."   # speech while held (live 2026-10-17 15:27:06.20,
 #                                                                  2026-10-21 09:49:20.89: the pet command lost)
 HELD_MAX_S = 13.0
+# Hinder, Entangle, Paralyze buff icons: every step refused while they last (62 captures; docs/NOTES.md "Hinder, Hamstring
+# and the rope"). Live 2026-10-24 00:40:29.17 (hunt-20261024-000844-30b5): "Your feet stick to a strange substance!" and
+# icon 20 with the step's confirm, the next step denied 0.2 s later beside a door; read as the door's denial, the door
+# was walled and the walk in aborted ("no route") with Logan on the Mausoleum's second level.
+HOLD_ICONS = (19, 20, 135)
 SYSTEM_SERIALS = (None, 0, 0xFFFFFFFF, "0xFFFFFFFF")
 
 
@@ -595,8 +600,9 @@ class Mover:
     def in_danger(self, tile) -> bool:
         return tile in self.danger_tiles or any(cheb(tile, c) <= r for c, r in self.danger.values())
 
-    def held(self) -> bool:
-        """A monster holds us in place now (HELD_TEXT seen and neither HELD_END_TEXT nor HELD_MAX_S since)."""
+    def held(self, st=None) -> bool:
+        """A hold on us now: a transfix (HELD_TEXT seen and neither HELD_END_TEXT nor HELD_MAX_S since), or, given the
+        state `st`, a HOLD_ICONS buff on us before the end the server gave it."""
         evs = self.link.events
         for ev in evs[self._held_upto:]:
             if ev.get("ev") != "speech_heard" or ev.get("serial") not in SYSTEM_SERIALS:
@@ -607,14 +613,22 @@ class Mover:
             elif text == HELD_END_TEXT:
                 self.held_until = 0.0
         self._held_upto = len(evs)
-        return time.monotonic() < self.held_until
+        if time.monotonic() < self.held_until:
+            return True
+        me = (st or {}).get("movement", {}).get("self_serial")
+        if me is None:
+            return False
+        buffs = (st.get("world", {}).get("buffs") or {}).get(f"0x{me:08X}") or {}
+        now = time.time()
+        return any((b := buffs.get(str(i)) or buffs.get(i)) is not None and b.get("ends_t") is not None
+                   and b["ends_t"] > now for i in HOLD_ICONS)
 
     def wait_held(self, label: str, stop=None) -> str | None:
         """While held: no steps (each would be denied), the guard and `stop` still checked; `stop`'s reason if it
         fires."""
-        log(f"{label}: held in place (transfixed); waiting it out")
+        log(f"{label}: held in place; waiting it out")
         t0 = time.monotonic()
-        while self.held():
+        while self.held(self.link.state()):
             st = self.link.state()
             self.guard(st)
             if stop is not None and (why := stop(st)):
@@ -924,14 +938,20 @@ class Mover:
     def _try_door(self, cur, d, run, urgent: bool = False) -> bool:
         """A door still denied the step (closed again, or unseen): after a player's
         reaction time (none in an urgent walk), send the open-door request once more and
-        retry the move. True if the retry moved."""
+        retry the move. True if the retry moved. A retry that only turned us (the denial
+        left us facing elsewhere: live 2026-10-24 00:40:30.78, the server's 0x21 kept the
+        old facing) is sent once more."""
         log(f"move {d} from {cur} blocked by a door; opening it")
         if not urgent:
             self.human.wait("read")
         self.link.act(actions.open_door())
         self.doors_opened += 1
         self.pace(run)
-        return self.step(d, run) == "moved"
+        outcome = self.step(d, run)
+        if outcome == "turned":
+            self.pace(run)
+            outcome = self.step(d, run)
+        return outcome == "moved"
 
     def _sidestep(self, cur, avoid, run, walk=None, z=0) -> bool:
         """Human wander: one step onto a walkable neighbour off the route."""
@@ -1205,7 +1225,7 @@ class Mover:
                     break
                 if pos[3] == d:              # already facing it (e.g. at the start of a route)
                     self._open_ahead(nxt, z, opened, label, st)
-                if self.held():              # transfixed: the step would be denied; wait, then plan again
+                if self.held(st):            # held in place: the step would be denied; wait, then plan again
                     if why := self.wait_held(label, stop):
                         return why
                     replan = True
@@ -1219,6 +1239,12 @@ class Mover:
                     self.pace(run, st)
                     outcome = self.step(d, run)
                 walled = False               # the step was denied by a door we may not use
+                if outcome == "blocked" and self.held(self.link.state()):
+                    # the hold came with this step's denial: not a blocked tile or door (no deny memory, no count)
+                    if why := self.wait_held(label, stop):
+                        return why
+                    replan = True
+                    break
                 if outcome == "blocked" and self.doors and self.door_at(nxt):
                     if nxt in opened and self.door_refused(opened[nxt]):
                         self._wall_door(nxt, label, "refused to open (cliloc 1061637)")
@@ -1280,12 +1306,6 @@ class Mover:
                             log(f"{label}: sidestepped at {new}; replanning")
                             break
                     continue
-                if outcome == "blocked" and self.held():
-                    # the hold came with this step's denial: not a blocked tile (no deny memory, no count)
-                    if why := self.wait_held(label, stop):
-                        return why
-                    replan = True
-                    break
                 self.blocked_count += 1
                 if nxt in occupied_at_step:
                     self.shove_denied[nxt] = time.monotonic()

@@ -1115,14 +1115,21 @@ out. test_loop_hunt `pause`.
 transfixes Logan himself, not a pet: "The creature overpowers your will and transfixes you!", every step denied
 and items refused ("You cannot use items while in this state.") until "You are no longer hindered." 11.1 s later
 (live twice). Every walk (retreat, gate, patrol, back to the pets) stops stepping while that holds, still
-runs its guard and `stop`, logs "<label>: held in place (transfixed); waiting it out" and "free to move again
+runs its guard and `stop`, logs "<label>: held in place; waiting it out" and "free to move again
 after N s", and plans again. The denied steps don't count toward `--max-blocked` and aren't remembered as
 blocked tiles. At most `HELD_MAX_S` 13 s if the end line is missed. Before, a retreat at 19:23:23 counted 21
 denials in 7 s and the run aborted ("too many blocked moves"), leaving Logan on Maus 3. test_sim
-`test_transfixed_walk`. Transfixed, Logan is silenced too: a pet command then gets "You have been silenced and
-cannot speak." and the pets never take it (live 2026-10-17 15:27:06 an "All Guard Me", 2026-10-21 09:49:20.84
-the leave's "All Follow Me"), so `Team.say` waits the hold out first ('saying "All Guard Me": held in place
-(transfixed); waiting it out'): nothing else can be done meanwhile (steps denied, items and skills refused).
+`test_transfixed_walk`. **The buff holds too** (since 2026-10-24): Hinder, Entangle or Paralyze on us
+(`agent_link.HOLD_ICONS` 19/20/135 before their `ends_t`) is a hold for the walk's checks, and a step denied
+while one holds is never taken for a door's denial. Live 2026-10-24 00:40:29 on the walk in, "Your feet
+stick to a strange substance!" (Entangle) came as Logan stepped beside a door on Maus 2. The next step was denied
+and read as the door's. The door's retry then only turned him: the denial had kept his facing. The door was
+walled and the run aborted ("no route"), leaving him there. Now an open-door retry that only turns him steps
+once more (`Mover._try_door`). test_mover `test_held_at_door`. Transfixed, Logan is silenced too: a pet command
+then gets "You have been silenced and cannot speak." and the pets never take it (live 2026-10-17 15:27:06 an "All
+Guard Me", 2026-10-21 09:49:20.84 the leave's "All Follow Me"), so `Team.say` waits the transfix out first ('saying
+"All Guard Me": held in place; waiting it out'): nothing else can be done meanwhile (steps denied, items and skills
+refused).
 test_sim `test_countess_reguard`.
 
 **A failed walk doesn't end the run** (`agent_link.WalkFailed`, `HuntLoop.walk_failed`, since 2026-10-20). A

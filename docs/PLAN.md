@@ -2176,6 +2176,15 @@ against 3: no tile qualified and Logan stood in its shot), and "All Kill" at a s
 actions (2-26 deaths in 48; our "All Kill" keeps its aggro on us). Open: cover near an awake blightmare, which live
 followed him out of its sight at once.
 
+## Every hold is a hold for the walk (2026-10-24)
+
+An Entangle beside a door on the walk in aborted a run with Logan on Maus 2 (docs/NOTES.md "Entangled beside a
+door"). The Mover knew only the transfix (a text line). Decision: the buff holds (Hinder, Entangle, Paralyze;
+icons from the buff bar, the same ones the rope rule already used) are holds for the walk too: one source,
+`Mover.held(st)`, which `HuntLoop.held_now` now calls. A door retry that the server took as a turn steps once more.
+Rejected: walling a door only after two retries. Being held explains the denial, so the extra retry would only pass
+when the hold happened to end in time.
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

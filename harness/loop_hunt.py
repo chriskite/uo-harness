@@ -180,7 +180,6 @@ ROPE_COMBAT_RE = re.compile(r"You must wait another (?:(\d+)m)?\s*(?:(\d+)s)? be
 ROPE_COMBAT_AFTER_S = 20.0    # ...a player's "... is attacking you!" this recent counts as that combat [INFERENCE]
 HAMSTRING_ICON = 53           # "Can Only Walk and Cannot Regain Stamina", 3 s from a player's hit, stamina 0: the rope
 #                               went out and jumped during one (live 2026-10-19 19:59:09.2, docs/NOTES.md "Hinder")
-HOLD_ICONS = (19, 20, 135)    # Hinder, Entangle, Paralyze: every step refused while they last (62 captures); no rope
 # A red who hurts from afar (user 2026-10-22: "expand caster to include ranged weapons like the bow, since being near
 # them for a second while roping is no worse than being a few tiles away"): harmful spell words from him this recent
 # (live 22:03 Flat Lander "Corp Por" x3 and "Por Ort Grav", nothing in his hands), or a bow or crossbow in his hands
@@ -1771,15 +1770,10 @@ class HuntLoop:
             and bool(healing.in_pack(st["world"], self.me(st), ROPE_GRAPHIC)) and not self.held_now(st)
 
     def held_now(self, st) -> bool:
-        """A hold on us: Hinder, Entangle or Paralyze (HOLD_ICONS) before the end the server gave it, or a transfix
-        (Mover.held). No rope then (user 2026-10-22: "I'm sure the 'hold' conditions don't let us rope"; docs/NOTES.md
-        "Hinder, Hamstring and the rope")."""
-        if self.mover.held():
-            return True
-        buffs = (st["world"].get("buffs") or {}).get(f"0x{self.me(st):08X}") or {}
-        now = time.time()
-        return any((b := buffs.get(str(i)) or buffs.get(i)) is not None and b.get("ends_t") is not None
-                   and b["ends_t"] > now for i in HOLD_ICONS)
+        """A hold on us: Hinder, Entangle or Paralyze (agent_link.HOLD_ICONS) before the end the server gave it, or a
+        transfix (Mover.held). No rope then (user 2026-10-22: "I'm sure the 'hold' conditions don't let us rope";
+        docs/NOTES.md "Hinder, Hamstring and the rope")."""
+        return self.mover.held(st)
 
     def rope_worth(self, st) -> bool:
         """A flight's rope (rope_ready_now) only while no player is on us (player_calm); or hamstrung (user
