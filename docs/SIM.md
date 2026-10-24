@@ -35,6 +35,7 @@ python harness/sim/run.py --runs 24 --minutes 30 --compare -- [loop_hunt argumen
 python harness/sim/run.py --runs 24 --set tamer.FALLBACK_S=0          # an experiment on a constant
 python harness/sim/run.py --log run.log --seed 7                       # one run, with the runner's log
 python harness/sim/run.py --seed 5 --at-hunt --trace [DIR]             # ... and its trace for the viz Sim page ("Traces")
+# or from the viz: Sim page, `run…` (run.py or a fight script with its options; docs/VISUALIZER.md §2.20)
 python harness/sim/cast_scan.py [--since 20261010] && python harness/sim/cast_scan.py --summary   # cast/flight times
 python harness/test_sim.py                                             # the tests (~20 s)
 python harness/sim/calibrate.py --logs <logs dir> [--scan 20261010] [TAG...]   # refresh the observations

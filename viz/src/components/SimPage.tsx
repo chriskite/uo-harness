@@ -1,15 +1,16 @@
 // The Sim page (#sim?trace=<name>&t=<s>): replays a recorded simulator run (harness/sim/run.py or a
 // fight*.py with --trace) with scrubbing: the map in the centre, the inspector and runner panel on the
-// right, the timeline and damage charts below. Watch-only.
+// right, the timeline and damage charts below. The `run…` drawer starts sim jobs and loads their traces.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchTrace, listTraces, type TraceList } from "../sim/api.ts";
 import { MARKER_ROWS, markers as buildMarkers, type MarkerRow } from "../sim/markers.ts";
 import { effectsAt, parseTrace, type Trace } from "../sim/trace.ts";
-import { Panel } from "./common.tsx";
+import { Badge, Panel } from "./common.tsx";
 import { SimDamageCharts } from "./SimDamageCharts.tsx";
 import { SimInspector } from "./SimInspector.tsx";
 import { SimMap } from "./SimMap.tsx";
 import { SimRunnerPanel } from "./SimRunnerPanel.tsx";
+import { SimRunPanel, useSimJobs } from "./SimRunPanel.tsx";
 import { SimTimeline } from "./SimTimeline.tsx";
 
 /** The hash's trace= and t= (the page's own part of #sim?…). */
@@ -53,6 +54,20 @@ export function SimPage() {
     );
   }, []);
   useEffect(refresh, [refresh]);
+
+  // Sim jobs: a job's end refreshes the trace list; a run started here that wrote one trace loads it.
+  const [runOpen, setRunOpen] = useState(false);
+  const sim = useSimJobs(runOpen, {
+    ended: (job, mine) => {
+      const only = job.traces.length === 1 ? job.traces[0] : undefined;
+      if (mine && job.status === "done" && only) setName(only);
+    },
+    traces: refresh,
+  });
+  const loadJobTrace = useCallback((n: string) => {
+    setName(n);
+    setRunOpen(false);
+  }, []);
 
   // Load the picked trace; the hash's t= applies to the first one only.
   useEffect(() => {
@@ -161,10 +176,24 @@ export function SimPage() {
         <button type="button" onClick={refresh} title="re-read the trace directory">
           ↻
         </button>
+        <button
+          type="button"
+          className={runOpen ? "active" : undefined}
+          onClick={() => setRunOpen((o) => !o)}
+          title="start run.py or a fight script; recent sim jobs and their traces"
+        >
+          run…
+        </button>
+        {sim.running && (
+          <Badge kind="info" title={sim.running.argv.join(" ")}>
+            running: {sim.running.label}
+          </Badge>
+        )}
         {listError && <span className="error">{listError}</span>}
         {list && !list.traces.length && (
           <span className="dim">
-            No traces in {list.dir}: run <code>python harness/sim/run.py --trace</code> or a fight script with <code>--trace DIR</code>.
+            No traces in {list.dir}: start one with run… (record traces), or run <code>python harness/sim/run.py --trace</code> or a fight script with{" "}
+            <code>--trace DIR</code>.
           </span>
         )}
         <span className="dim">{status}</span>
@@ -175,6 +204,7 @@ export function SimPage() {
           </span>
         )}
       </div>
+      <SimRunPanel open={runOpen} onClose={() => setRunOpen(false)} sim={sim} current={name} onLoad={loadJobTrace} />
       {trace && frame && fx ? (
         <>
           <main className="sim-map panel">

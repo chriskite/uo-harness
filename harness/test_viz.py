@@ -875,7 +875,7 @@ def test_overseer_routes(logdir):
 
 
 def test_sim_routes(logdir):
-    print("== /api/sim/traces, /api/sim/trace/<name>, /api/sim/los ==")
+    print("== /api/sim/traces, /api/sim/trace/<name>, /api/sim/los, /api/sim/options, /api/sim/jobs ==")
     import gzip
     sim_dir = tempfile.mkdtemp(prefix="viz_sim_")
     name = "20261023_120000_mausoleum_s5.trace.jsonl.gz"
@@ -904,6 +904,35 @@ def test_sim_routes(logdir):
                                                    "/api/sim/los?from=1,2&to=3,4,5")]
         check("an escaping or bad name 400, a missing trace 404, a bad los query 400", codes == [400, 400, 404, 400],
               str(codes))
+        opts = get(base + "/api/sim/options")
+        f1820 = next((f for f in opts["fights"] if f["name"] == "fight1820"), {})
+        f1853 = next((f for f in opts["fights"] if f["name"] == "fight1853"), {})
+        check("GET /api/sim/options: the scenario, run.py's defaults, each fight's options from its usage line",
+              "mausoleum" in opts["scenarios"] and opts["run"]["defaults"]["runs"] == 1
+              and {"type": "flag", "arg": "--awake"} in f1820.get("options", [])
+              and {"type": "choice", "args": ["level1", "level2"]} in f1853.get("options", []), str(opts)[:300])
+        bad = [post(base + "/api/sim/jobs", b)[0] for b in (
+            {"kind": "run", "options": {"runs": 0}}, {"kind": "run", "options": {"nope": 1}},
+            {"kind": "run", "options": {"sets": ["rm -rf"]}}, {"kind": "fight", "fight": "fight2227", "seeds": "1;2"},
+            {"kind": "fight", "fight": "fight2227", "args": ["--harness"]}, {"kind": "fight", "fight": "x"},
+            {"kind": "shell"})]
+        check("POST /api/sim/jobs: an out-of-range, unknown or unlisted option 400", bad == [400] * 7, str(bad))
+        code, started = post(base + "/api/sim/jobs", {"kind": "fight", "fight": "fight2227", "seeds": "1", "trace": True})
+        busy = post(base + "/api/sim/jobs", {"kind": "fight", "fight": "fight2227", "seeds": "2"})[0]
+        job = started.get("job") or {}
+        end = time.monotonic() + 120
+        while time.monotonic() < end:
+            job = next((j for j in get(base + "/api/sim/jobs")["jobs"] if j["id"] == job.get("id")), job)
+            if job.get("status") != "running":
+                break
+            time.sleep(0.5)
+        check("a fight started: 409 for a second one while it runs, then done with its output and its trace in the "
+              "trace dir", code == 200 and busy == 409 and job.get("status") == "done"
+              and any(ln.startswith("{'seed': 1") for ln in job.get("out", []))
+              and len(job.get("traces", [])) == 1 and job["traces"][0] in os.listdir(sim_dir),
+              f"{code} {busy} {job.get('status')} {job.get('traces')} {job.get('out', [])[-3:]}")
+        cancels = [post(base + "/api/sim/jobs/cancel", {"id": i})[0] for i in (job.get("id"), 999)]
+        check("cancel: a finished job 409, an unknown one 404", cancels == [409, 404], str(cancels))
     finally:
         srv.shutdown()
         srv.server_close()

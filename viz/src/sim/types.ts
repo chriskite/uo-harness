@@ -186,3 +186,73 @@ export interface TraceListing {
   mtime: number;
   head: TraceHead | null;
 }
+
+// viz_server's sim job routes (/api/sim/options, /api/sim/jobs): run.py or a fight*.py started from the Sim page.
+
+/** run.py's options as /api/sim/jobs takes them (`careers` 0 = run.py's default). */
+export interface SimRunOptions {
+  scenario: string;
+  seed: number;
+  runs: number;
+  minutes: number;
+  at_hunt: boolean;
+  others: boolean;
+  eerie: boolean;
+  reds: boolean;
+  prior: boolean;
+  fresh: boolean;
+  careers: number;
+  trace: boolean;
+  /** run.py --set lines, `module.NAME=value`. */
+  sets: string[];
+  /** Free text after `--` (split shell-style by the server). */
+  runner_args: string;
+}
+
+/** Inclusive [min, max] of each numeric run option. */
+export interface SimRunLimits {
+  seed: [number, number];
+  runs: [number, number];
+  minutes: [number, number];
+  careers: [number, number];
+}
+
+export type SimFightOption = { type: "flag"; arg: string } | { type: "choice"; args: string[] };
+
+export interface SimFight {
+  name: string;
+  /** The script docstring's first line. */
+  title: string;
+  usage: string;
+  options: SimFightOption[];
+}
+
+export interface SimOptions {
+  scenarios: string[];
+  /** The live store's hunt history for --prior. */
+  prior: { available: boolean; path: string };
+  run: { defaults: SimRunOptions; limits: SimRunLimits };
+  fights: SimFight[];
+}
+
+export type SimJobRequest =
+  | { kind: "run"; options: SimRunOptions }
+  | { kind: "fight"; fight: string; seeds: string; args: string[]; trace: boolean };
+
+export type SimJobStatus = "running" | "done" | "failed" | "cancelled";
+
+export interface SimJob {
+  id: number;
+  kind: "run" | "fight";
+  label: string;
+  argv: string[];
+  status: SimJobStatus;
+  /** Unix seconds. */
+  started: number;
+  ended: number | null;
+  exit: number | null;
+  /** Trace file names the job wrote, newest first. */
+  traces: string[];
+  /** The last ≤200 output lines (stdout + stderr). */
+  out: string[];
+}

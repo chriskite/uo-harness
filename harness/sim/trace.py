@@ -14,7 +14,9 @@ One gzipped JSON object per line; every line but the head has `t` (world.t, 0.01
 `state_at(read(path), t)` rebuilds the records at `t` from the key at or before it and the deltas after.
 
 The tracer only reads the world: it never draws from its random generators, asks its sight or touches its packet
-queue, so a traced run is the untraced one (test_sim test_trace_no_side_effects).
+queue, so a traced run is the untraced one (test_sim test_trace_no_side_effects). It writes `<path>.part` and renames
+it to `<path>` at `close`, so a trace under way is never listed (the Sim page would load half a gzip stream); a run that
+dies before closing leaves the `.part` (`read` takes what was written).
 """
 from __future__ import annotations
 
@@ -123,7 +125,7 @@ class _Tee:
 class Tracer:
     def __init__(self, world, path: str, *, label: str, seed, runner_args=(), epoch: float | None = None):
         self.world, self.path = world, path
-        self.f = gzip.open(path, "wt", compresslevel=6, encoding="utf-8", newline="\n")
+        self.f = gzip.open(path + ".part", "wt", compresslevel=6, encoding="utf-8", newline="\n")
         self.tees = []
         sc = world.sc
         specs = {k: _spec(c) for k, c in (sc.get("creatures") or {}).items()}
@@ -195,6 +197,7 @@ class Tracer:
             t.finish()
         self._line({"k": "end", "t": round(self.world.t, 2), "summary": summary})
         self.f.close()
+        os.replace(self.path + ".part", self.path)
         self.world.trace = None
 
 

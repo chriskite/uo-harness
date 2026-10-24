@@ -7,9 +7,10 @@ killed a soul (the reposition never stepped out of its reach), the patrol went o
 died on the walk out (docs/NOTES.md "Dead in a blightmare's reach again"). Per seed: death, Logan's lowest hits, his
 damage by source, the blightmare's casts at him, kills, leaves; then the totals.
 
-    python harness/sim/fight1820.py <seeds> [--log] [--trace DIR] [--harness DIR]
+    python harness/sim/fight1820.py <seeds> [--awake] [--log] [--trace DIR] [--harness DIR]
 
---harness runs another checkout's runner (a snapshot, with this simulator copied in) for a before/after comparison.
+--awake starts at 18:20:49.5 with the blightmare already in war mode on Logan (AWAKE_SPAWNS). --harness runs another
+checkout's runner (a snapshot, with this simulator copied in) for a before/after comparison.
 """
 import contextlib
 import io

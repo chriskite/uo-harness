@@ -103,6 +103,15 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       brown, else transparent (sim/viewmap.py); 404 outside the map, 503 no map files
   GET  /api/sim/los?from=x,y,z&to=x,y,z;x,y,z...  {"see": [bool]}: line of sight from one point to each of
                       at most SIM_LOS_MAX others (los.Sight.can_see); 400 a bad query
+  GET  /api/sim/options  what a simulator run can be started with (sim/simjobs.py): scenarios, run.py's
+                      option defaults and limits, the scripted fights (sim/fight*.py) with their options, whether
+                      the live store is there for --prior (--memory-db)
+  GET  /api/sim/jobs  {jobs: [{id, kind, label, argv, status, started, ended, exit, traces, out}]}: the runs
+                      started here, newest first; `out` the last 200 output lines, `traces` the files written
+  POST /api/sim/jobs  {"kind": "run", "options": {...}} or {"kind": "fight", "fight", "seeds", "args", "trace"}
+                      -> {"ok": true, job}: run.py / a fight script as a child process, one at a time; 400 a bad
+                      option (named), 409 one already running
+  POST /api/sim/jobs/cancel  {"id": N} -> {"ok": true}: stops it and its workers; 404 unknown, 409 not running
   GET  /, /assets/*   the built frontend (viz/dist)
 
 Live mode only ever opens the proxy's state port (JSON lines). It never connects
@@ -116,7 +125,8 @@ Nystul runs headless `omp` subprocesses whose only tools are read-only lookups
 store's knowledge only when the operator approves one of its proposals (POST
 /api/nystul/approve), with a `system` memory row in the chat. The Razor page rewrites the
 <hotkeys> block of Razor profiles the game client hasn't loaded (user-approved exception to
-AGENTS.md Constraint 1, Profiles/*.xml only). The Sim routes only read simulator trace files and the map:
+AGENTS.md Constraint 1, Profiles/*.xml only). The Sim routes read simulator trace files and the map, and start
+offline simulator runs (the simulator and the runner against it in a child process; nothing reaches the game):
 they never touch the feed, so the Sim page works in live and replay mode alike.
 Everything else is observation.
 """
@@ -147,6 +157,7 @@ import nystul_memory  # noqa: E402
 from uo import cliloc  # noqa: E402
 import razor  # noqa: E402
 from sim import trace as sim_trace  # noqa: E402
+from sim import simjobs as sim_jobs_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SSE_KEEPALIVE_S = 15.0
@@ -687,6 +698,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, self.server.overseer.fos_reapers())
         elif url.path == "/api/overseer":
             self._overseer(parse_qs(url.query))
+        elif url.path == "/api/sim/options":
+            self._json(200, self.server.sim_jobs.options())
+        elif url.path == "/api/sim/jobs":
+            self._json(200, self.server.sim_jobs.listing())
         elif url.path == "/api/captcha":
             self._json(200, self.server.overseer.captcha_mode())
         elif url.path == "/api/nystul":
@@ -876,7 +891,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         if url.path not in ("/api/playback", "/api/gate", "/api/chat", "/api/captcha", "/api/nystul/ask",
                             "/api/nystul/cancel", "/api/nystul/approve", "/api/nystul/settings",
-                            "/api/nystul/delete", "/api/razor/profile"):
+                            "/api/nystul/delete", "/api/razor/profile", "/api/sim/jobs", "/api/sim/jobs/cancel"):
             self._json(404, {"error": f"unknown route {url.path}"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -910,6 +925,10 @@ class Handler(BaseHTTPRequestHandler):
             self._nystul_delete(req)
         elif url.path == "/api/razor/profile":
             self._razor_save(req)
+        elif url.path == "/api/sim/jobs":
+            self._sim_start(req)
+        elif url.path == "/api/sim/jobs/cancel":
+            self._sim_cancel(req)
         else:
             self._playback(req)
 
@@ -935,6 +954,30 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(e)})
             return
         self._json(200, {"ok": True, **feed.viz()})
+
+    def _sim_start(self, req: dict):
+        try:
+            job = self.server.sim_jobs.start(req)
+        except sim_jobs_mod.BadRequest as e:
+            self._json(400, {"error": str(e)})
+            return
+        except RuntimeError as e:
+            self._json(409, {"error": str(e)})
+            return
+        self._json(200, {"ok": True, "job": job})
+
+    def _sim_cancel(self, req: dict):
+        job_id = req.get("id")
+        if not isinstance(job_id, int) or isinstance(job_id, bool):
+            self._json(400, {"error": "id must be a job number"})
+            return
+        done = self.server.sim_jobs.cancel(job_id)
+        if done is None:
+            self._json(404, {"error": f"no job {job_id}"})
+        elif not done:
+            self._json(409, {"error": f"job {job_id} isn't running"})
+        else:
+            self._json(200, {"ok": True})
 
     def _gate(self, action):
         """GET (action None) or POST /api/gate: one gate op on a short-lived state-port
@@ -1207,6 +1250,7 @@ class VizServer(ThreadingHTTPServer):
         self.char_feeds_lock = threading.Lock()
         self.dist = dist
         self.sim_dir = sim_dir
+        self.sim_jobs = sim_jobs_mod.SimJobs(sim_dir, os.path.abspath(memory_db))
         self.walkmem = WalkMemDB(memory_db)
         self.paperdoll = None            # paperdoll.Paperdoll, created on first use
         self.paperdoll_lock = threading.Lock()
@@ -1283,6 +1327,7 @@ class VizServer(ThreadingHTTPServer):
             for f in self.char_feeds.values():
                 f.stop()
         self.overseer.close()
+        self.sim_jobs.stop_all()
         self.nystul.close()
         with self.live_lock:
             if self.live is not None:

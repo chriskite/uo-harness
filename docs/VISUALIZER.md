@@ -1196,6 +1196,16 @@ alone, as §2.11.
 - The map's `iso` button (added 2026-10-23, user request) turns it 45° clockwise into UO's own view, as the Live
   map's `iso` (`projection.ts`): the floor chunks rotate with it and the range squares become diamonds. The choice is
   kept in `localStorage` `viz.simMapProjection`, apart from the Live map's.
+- **Runs from the page** (added 2026-10-23, user request): the `run…` drawer starts `run.py` (scenario, seed, runs,
+  minutes, careers, at hunt, other players, eerie corpses, reds, the live store's history as `--prior`, fresh memory,
+  `--set` lines, runner args, record traces; a "parity batch" preset) or a scripted fight (`sim/fight*.py`: seeds and
+  ranges, the options its usage line lists, record traces). `harness/sim/simjobs.py` runs it as a child process of
+  viz_server, one job at a time (409 while one runs), every option checked (400 names a bad one; argv, never a shell);
+  a batch keeps itself off the game's CPUs (run.py's `cpu_budget.limit`), Cancel kills the process tree. The drawer
+  shows each job's argv, status, output and the traces it wrote (a click loads one; a finished single-trace run loads
+  itself). Routes `/api/sim/options`, `/api/sim/jobs` (GET list, POST start), `/api/sim/jobs/cancel`. Jobs are kept
+  in memory (the newest 20); their traces stay in the trace dir. Traces are written as `<name>.part` and renamed at
+  the end of the run, so the picker never offers one still being written.
 
 ## 3. Parity principle
 
