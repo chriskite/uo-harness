@@ -516,7 +516,9 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
   - Compose: Enter sends, Shift+Enter adds a new line, with an `n/2000` counter. It uses the same
     validation as the server.
 - **Jobs page:** one dashboard per job, switched in its head (`Lumber` / `Hunting` / `Mining`). All
-  refresh every 15 s or with ↻.
+  refresh every 15 s or with ↻. The header's `Jobs` button opens the job last shown (2026-10-25, user request;
+  `localStorage["uo-viz-job"]`, saved whenever the Jobs page shows a job; lumber when none). An explicit hash still
+  wins: `#jobs` is lumber.
   - **Date range** (2026-10-05, user request), a row under the head shared by all jobs: presets
     `All`, `Today`, `7 days`, `30 days` (the last N local days including today, open-ended so new
     trips keep showing) and a `from`/`to` pair of local dates, both inclusive (`to`'s `min` is

@@ -39,6 +39,13 @@ const MAIN_VIEW_KEY = "uo-viz-main";
 const NYSTUL_OPEN_KEY = "uo-viz-nystul-open";
 const LEFT_HIDDEN_KEY = "uo-viz-left-hidden";
 const RIGHT_HIDDEN_KEY = "uo-viz-right-hidden";
+const JOB_KEY = "uo-viz-job";
+
+/** The Jobs tab last shown (lumber when none): the job the Jobs page opens on from another page. */
+function storedJob(): JobKind {
+  const v = localStorage.getItem(JOB_KEY);
+  return v === "hunt" || v === "mining" ? v : "lumber";
+}
 
 /** The strip beside a side column that hides and shows it. On a desktop it is a thin
  *  full-height bar (the label shows only while the column is hidden); on a phone it is a
@@ -61,16 +68,17 @@ function SideRail({ side, hidden, label, onToggle }: { side: "left" | "right"; h
 }
 
 /** The page and the Jobs date range live in the URL hash (#jobs, #jobs/hunt, #jobs/mining, #nystul, #razor, #sim, with
- *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all; #sim?trace=…&t=…), so they survive reloads and can be linked. No dates = today. */
+ *  ?from=YYYY-MM-DD&to=YYYY-MM-DD, or ?all; #sim?trace=…&t=…), so they survive reloads and can be linked. No dates = today.
+ *  Off the Jobs page the job is the last one shown (storedJob), so the header's Jobs button returns to it. */
 function routeFromHash(): { page: Page; job: JobKind; range: DateRange } {
   const [path = "", query = ""] = location.hash.split("?", 2);
   const range = routeRange(query, localDay(Date.now() / 1000));
   if (path === "#jobs/hunt") return { page: "Jobs", job: "hunt", range };
   if (path === "#jobs/mining") return { page: "Jobs", job: "mining", range };
-  if (path === "#nystul") return { page: "Nystul", job: "lumber", range };
-  if (path === "#razor") return { page: "Razor", job: "lumber", range };
-  if (path === "#sim") return { page: "Sim", job: "lumber", range };
-  return { page: path === "#jobs" ? "Jobs" : "Live", job: "lumber", range };
+  if (path === "#nystul") return { page: "Nystul", job: storedJob(), range };
+  if (path === "#razor") return { page: "Razor", job: storedJob(), range };
+  if (path === "#sim") return { page: "Sim", job: storedJob(), range };
+  return path === "#jobs" ? { page: "Jobs", job: "lumber", range } : { page: "Live", job: storedJob(), range };
 }
 
 export function App() {
@@ -120,6 +128,10 @@ export function App() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    if (route.page === "Jobs") localStorage.setItem(JOB_KEY, route.job);
+  }, [route.page, route.job]);
 
   const go = (p: Page, job: JobKind = route.job, range: DateRange = route.range) => {
     const q = routeQuery(range);
