@@ -223,9 +223,12 @@ PULL_STEPS = 3                # a pull spot within this many steps
 # Patrol"): the pets run to a ground tile and attack an idle monster 1-3 tiles from it; the purger then shoots them
 PATROL_R = 14                 # a purger this close to us
 PATROL_MAX_R = 11             # a spot this close to us (live: accepted at 4-11; nothing farther tried)
-PATROL_SPOT_R = 2             # ...and this close to the purger (live: they took monsters 1-3 off the spot)
+PATROL_SPOT_R = 3             # ...and this close to the purger (live: they took monsters 1-3 off the spot, the demo's
+                              # purger 3 off with Logan 14 from it; 2 until 2026-10-25: then a back-off to 14 left no
+                              # spot in reach)
 PATROL_CLEAR_R = 4            # ...with no other monster this close to it
 PATROL_WAIT_S = 10.0          # the pets on it by then (live: 3.5 s for 11 tiles), else called back and passed over
+PATROL_NOTE_S = 30.0          # patrol_note: the same reason for no patrol logged again after this long
 # A forgotten soul's spell leaves fire (0x6D70, hue 0x08D8) on the tile it hit, 5.4-5.7 s (7 in capture
 # 20261014_210020: 6 under the gravebug it tanked, 1 under the phoenix, at the instant of a 13-20 hit).
 # None of them hurt anyone standing on or beside it (the phoenix 5.7 s on one, Logan beside it), but the
@@ -483,6 +486,7 @@ class Team:
         self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
         self.patrol_failed = {}           # serial -> monotonic: no patrol at it until then (refused, timed out)
+        self.patrol_why = {}              # serial -> (why no patrol at it, monotonic): patrol_pull's log, once a change
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.see_walk_t = {}              # serial -> the last walk_to_see at it
         self.spacing_t = -1e9
@@ -1161,6 +1165,11 @@ class Team:
         here = cheb(m["pos"], v.pos)
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        # with --patrol-pull, out of its sight but near enough to send the pets at it from there (patrol_spot: a spot
+        # within PATROL_MAX_R of us and PATROL_SPOT_R of it). Live 2026-10-25 15:57:40 the farthest tile out of its
+        # sight, 14 off, left no spot in reach, and the crawl walked away (30 of 38 such back-offs 10-22..25: no patrol)
+        spots = self.patrol_spots(v, m) if getattr(self.a, "patrol_pull", False) and self.patrol is None \
+            and self.patrol_failed.get(m["serial"], 0) <= now else None
         best, best_k = None, None
         for t, k in self.tiles_within(v, PULL_STEPS).items():
             if k == 0 or t[:2] in zone or t[:2] in fire or v.never_near(t) \
@@ -1169,7 +1178,8 @@ class Team:
             seen, d = v.sees(m, t, m["r"] + 1, strict=True), cheb(m["pos"], t)
             if seen and d <= here:
                 continue
-            key = (seen, -d, v.stand_score(t), k)
+            no_spot = spots is not None and not seen and self.patrol_spot(v, m, t, spots) is None
+            key = (seen, no_spot, -d, v.stand_score(t), k)
             if best_k is None or key < best_k:
                 best, best_k = t, key
         if best is None:
@@ -1178,7 +1188,8 @@ class Team:
         h.doing("hold", f"Stepping back to {best[0]},{best[1]}: the pets first in the {m['kind']}'s sight", best[:2])
         self.count("back_offs")
         log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
-            f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else ""))
+            f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else "")
+            + (", in reach to send the pets at it" if spots is not None and not best_k[0] and not best_k[1] else ""))
         try:
             h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS,
                             mobile_wait=0)
@@ -1195,27 +1206,55 @@ class Team:
         "All Patrol": both purgers woken that way shot the pets, Logan 100/100). Only with nothing fighting, nothing
         on us, every pet alive in view within --vet-range, and the purger not seeing us before the pets (back_off
         goes first). The spot: patrol_spot. `serial`: only that purger. True when the command went out (patrol_watch
-        takes it from there) or its cursor failed."""
+        takes it from there) or its cursor failed. An idle one within PATROL_R not patrolled at gets why in the log
+        (patrol_note). A pass-over (HuntLoop.skip: it can't see us, pinned, blocked on the way) doesn't stop it: those
+        are about fighting or approaching it, and a refused or timed-out patrol has patrol_failed (live 2026-10-25
+        15:52:21-29: passed over for "it can't see us", then 4 tiles off and backed off from, never patrolled at; 11 of
+        11 such back-offs 10-22..25)."""
         if not getattr(self.a, "patrol_pull", False) or self.patrol is not None:
             return False
         h, now = self.h, time.monotonic()
         v = self.view(st)
-        if v.walk is None or v.engaged() or h.attackers(st) or self.shy_first(v, v.pos):
+        if v.walk is None:
             return False
-        pets = [p for p in self.pets(st) if not p["dead"]]
-        if len(pets) < len(self.roster) or any(p["dist"] > self.a.vet_range for p in pets):
+        near = [m for m in sorted(v.mobs, key=lambda m: cheb(m["pos"], v.pos))
+                if m["shy"] and not m["war"] and (serial is None or m["serial"] == serial)
+                and cheb(m["pos"], v.pos) <= PATROL_R]
+        if not near:
             return False
+        why = None
+        if v.engaged():
+            why = "something is fighting"
+        elif h.attackers(st):
+            why = "something is on us"
+        elif self.shy_first(v, v.pos):
+            why = "it would see us before the pets"
+        else:
+            pets = [p for p in self.pets(st) if not p["dead"]]
+            far = [p for p in pets if p["dist"] > self.a.vet_range]
+            if len(pets) < len(self.roster):
+                why = f"{len(self.roster) - len(pets)} pet(s) not in view"
+            elif far:
+                why = f"{far[0]['name']} at {far[0]['dist']} (--vet-range {self.a.vet_range})"
         best = None
-        for m in sorted(v.mobs, key=lambda m: cheb(m["pos"], v.pos)):
-            if not m["shy"] or m["war"] or (serial is not None and m["serial"] != serial) \
-                    or cheb(m["pos"], v.pos) > PATROL_R or self.patrol_failed.get(m["serial"], 0) > now \
-                    or h.skip.get(m["serial"], 0) > now:
-                continue
-            if (spot := self.patrol_spot(v, m)) is not None:
-                best = (m, spot)
-                break
+        if why is None:
+            for m in near:
+                if self.patrol_failed.get(m["serial"], 0) > now:
+                    continue
+                if (spot := self.patrol_spot(v, m)) is not None:
+                    best = (m, spot)
+                    break
+            if best is None:
+                m = near[0]
+                d = cheb(m["pos"], v.pos)
+                why = ("a patrol at it refused or timed out lately" if self.patrol_failed.get(m["serial"], 0) > now
+                       else f"no spot within {PATROL_MAX_R} of us and {PATROL_SPOT_R} of it"
+                       if d > PATROL_MAX_R + PATROL_SPOT_R
+                       else "no spot beside it in our sight, clear of other monsters and their sight of the fight")
         if best is None:
+            self.patrol_note(near[0], cheb(near[0]["pos"], v.pos), why, now)
             return False
+        self.patrol_why.pop(best[0]["serial"], None)
         m, (tx, ty, tz) = best
         s = m["serial"]
         h.doing("pets", f"Sending the pets to patrol by the {m['kind']}", (tx, ty), s)
@@ -1244,34 +1283,48 @@ class Team:
             f"{cheb(m['pos'], v.pos)} tiles: the pets wake it, not us")
         return True
 
-    def patrol_spot(self, v, m) -> tuple | None:
-        """Where to send the pets for idle monster `m` (patrol_pull): a standable tile within PATROL_SPOT_R of it and
-        PATROL_MAX_R of us, in our sight (eye to the ground: the server answers a tile out of it with 500237 "Target
-        cannot be seen."; los.Sight agreed on all 8 of the demo's clicks), no other monster within PATROL_CLEAR_R
-        (the pets take on what they find there) or seeing where we'll stand to vet them (sees_fight), and no
-        --never-aggro one seeing it. The nearest to it, then to us. (x, y, z) or None."""
+    def patrol_note(self, m, d: int, why: str, now: float):
+        """Log why no "All Patrol" goes out at idle shy monster `m`, `d` tiles off (patrol_pull): on a new reason, else
+        every PATROL_NOTE_S. Before this the log went from "back behind the pets" straight to the next patrol leg."""
+        last = self.patrol_why.get(m["serial"])
+        if last is not None and last[0] == why and now - last[1] < PATROL_NOTE_S:
+            return
+        self.patrol_why[m["serial"]] = (why, now)
+        log(f"no 'All Patrol' at the {m['kind']} 0x{m['serial']:08X} {d} tiles off: {why}")
+
+    def patrol_spots(self, v, m) -> list:
+        """The tiles to send the pets to for idle monster `m` (patrol_pull), whoever sends them: standable within
+        PATROL_SPOT_R of it, no other monster within PATROL_CLEAR_R (the pets take on what they find there) or
+        seeing where we'll stand to vet them (sees_fight), and no --never-aggro one seeing it. [(x, y, z)]."""
         mx, my, mz = m["pos"]
-        x, y, z = v.pos
-        best, best_k = None, None
+        out = []
         for dx in range(-PATROL_SPOT_R, PATROL_SPOT_R + 1):
             for dy in range(-PATROL_SPOT_R, PATROL_SPOT_R + 1):
                 t = (mx + dx, my + dy)
-                if t == (mx, my) or cheb(t, v.pos) > PATROL_MAX_R:
-                    continue
-                k = (max(abs(dx), abs(dy)), cheb(t, v.pos))
-                if best_k is not None and k >= best_k:
-                    continue
-                tz = v.walk.new_z(t[0], t[1], mz, 0)
-                if tz is None or (v.sight is not None
-                                  and v.sight.point_blocked((x, y, z + los.EYE), (t[0], t[1], tz)) is not None):
+                if t == (mx, my) or (tz := v.walk.new_z(t[0], t[1], mz, 0)) is None:
                     continue
                 spot = (t[0], t[1], tz)
                 if any(o["serial"] != m["serial"] and (cheb(o["pos"], t) <= PATROL_CLEAR_R
                                                        or self.sees_fight(v, o, spot)) for o in v.mobs) \
                         or v.never_near(spot):
                     continue
-                best, best_k = (t[0], t[1], tz), k
-        return best
+                out.append(spot)
+        return out
+
+    def patrol_spot(self, v, m, origin=None, spots=None) -> tuple | None:
+        """Where to send the pets for idle monster `m` from `origin` (default where we stand): one of `spots`
+        (patrol_spots) within PATROL_MAX_R of `origin` and in sight from it (eye to the ground: the server answers a
+        tile out of it with 500237 "Target cannot be seen."; los.Sight agreed on all 8 of the demo's clicks). The
+        nearest to `m`, then to `origin`. (x, y, z) or None."""
+        x, y, z = origin if origin is not None else v.pos
+        mx, my = m["pos"][:2]
+        for t in sorted(spots if spots is not None else self.patrol_spots(v, m),
+                        key=lambda t: (cheb(t, (mx, my)), cheb(t, (x, y)))):
+            if cheb(t, (x, y)) > PATROL_MAX_R:
+                continue
+            if v.sight is None or v.sight.point_blocked((x, y, z + los.EYE), t) is None:
+                return t
+        return None
 
     def sees_fight(self, v, o, spot) -> bool:
         """Whether idle monster `o` would wake to us vetting the pets at `spot`: in sight of it within its aggro range

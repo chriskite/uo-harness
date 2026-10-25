@@ -650,7 +650,11 @@ at its spawn (5243, 687), docs/NOTES.md "Dead in a blightmare's reach again"): t
 first sight takes whoever they see first and their barrage or spells reach us wherever the pets stand. Neither is
 held for (it doesn't come on). An advance (patrol, approach) stops on a step into an idle one's sight before the
 pets ("a corpse purger would see us", "a blightmare would see us"; the crawl then patrols elsewhere), and the runner
-steps back (up to 3, out of its sight first, else farther from it, the pets within vet range; `Team.back_off`). One
+steps back (up to 3, out of its sight first, then, with `--patrol-pull`, to a tile from which a patrol spot is in
+reach, else farther from it, the pets within vet range; `Team.back_off`: "back to … out of its sight, in reach to send
+the pets at it"). Until 2026-10-25 a back-off from a purger seeing us at 11 went to 14, where no spot 1-2 from it was
+within 11 of us, so no patrol went out and the crawl walked away (live 15:57:40; 30 of 38 such back-offs 10-22..25 had
+none); spots 3 off (the demo's) now reach from 14 (docs/NOTES.md "Backed off from a purger, never patrolled at"). One
 backed off from is kept off for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight is a crawl danger zone (no waypoint
 near it, routes bend round, not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into a
 purger four times, then its barrage). **Awake**, its reach is a crawl danger zone while it stays in war mode (12 for
@@ -725,10 +729,17 @@ user 2026-10-18 "We can send our pets to a spot away from us, e.g. to within agg
 not in aggro range"; the demo in docs/NOTES.md "All Patrol"; since 2026-10-21 at an idle blightmare too, as a shy
 monster: untried live). Nothing fighting, nothing on us, both pets within vet range, and the purger (within 14)
 not seeing us before the pets: the runner says "All Patrol" (his Razor macro's bytes, hue 0x0239) and clicks a tile
-1-2 from it, within 11 of us and in our sight (los.Sight, as the server's 500237 check), with no other monster within
-4 of it nor seeing where we'd stand to vet the pets there. It stands; once the purger is awake with a pet on it,
+1-3 from it (3 since 2026-10-25, the demo's spot), within 11 of us and in our sight (los.Sight, as the server's 500237
+check), with no other monster within 4 of it nor seeing where we'd stand to vet the pets there. It stands; once the
+purger is awake with a pet on it,
 "All Guard Me" (they fight on: live), at once if something comes onto us, and after 10 s without it (the purger then
-passed over for 60 s). Off by default from 2026-10-18 to 10-22: then the simulator's loop crawl (144 runs) lost 71
+passed over for 60 s). A pass-over of the fight (`HuntLoop.skip`: "it can't see us", pinned, blocked on the way)
+doesn't stop it; only its own refusal or timeout does (`patrol_failed`; live 2026-10-25 15:52:21-29 the "can't see
+us" pass-over kept a purger 4 tiles off from ever being patrolled at). A purger or blightmare within 14 not patrolled
+at logs why, on a new reason and every 30 s: "no 'All Patrol' at the corpse purger 0x… N tiles off: <why>" (something
+is fighting / on us, it would see us before the pets, a pet out of view or beyond `--vet-range`, refused or timed out
+lately, no spot within 11 of us and 3 of it, no spot beside it in our sight clear of other monsters). Off by default
+from 2026-10-18 to 10-22: then the simulator's loop crawl (144 runs) lost 71
 runs to a death against 54 keeping off purgers (the second purger of the pair took Logan as the fight drew him in).
 With the cover above it pays: deaths an hour 1.05 -> 0.41 and gold an hour +4 % in 200 runs as live (docs/NOTES.md
 "Half the deaths in the simulator"). The §5 command doesn't name it, so live runs went without it until the default

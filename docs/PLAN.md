@@ -2473,6 +2473,21 @@ no further runner knob screened moved it beyond the screens' ±2 % noise. Reject
 purgers' and blightmares' sight (more kills, less gold); opening with "All Kill". *Live*: untried; the §5 command is
 unchanged.
 
+## A purger backed off from gets the pets patrolled at it (2026-10-25)
+
+User 2026-10-25: the runner says "the pets first in the corpse purger's sight", then doesn't patrol the pets in and
+walks away (docs/NOTES.md "Backed off from a purger, never patrolled at"). Decisions:
+- **`tamer.PATROL_SPOT_R` 2 -> 3**, the live demo's spot (3 from the purger, Logan 14 from it), so the back-off's
+  14 tiles, out of an awake purger's and blightmare's reach, still has a spot within `PATROL_MAX_R` 11.
+- **`Team.back_off` prefers, out of sight, a tile with a patrol spot in reach**; else as before, the farthest.
+- **`Team.patrol_pull` ignores `HuntLoop.skip`**: the fight's pass-overs are about fighting or approaching it; a
+  refused or timed-out patrol has its own `patrol_failed`. Why none goes out is logged now.
+- Simulator, 144 runs a side: deaths an hour 0.22 -> 0.11, gold banked an hour +4.7 %, purgers killed +16 %,
+  patrols 247 -> 497, the shy monsters' damage on Logan per shy kill unchanged; pet deaths 4 -> 7.
+- **Rejected: keep radius 2 and back off to 12-13.** Fewer deaths too (0.09) but 17 % more shy damage per kill: an
+  awake blightmare reaches 12 and a purger 13. **Rejected: `PATROL_MAX_R` 12**: no click past 11 seen live.
+  *Live*: untried; the §5 command is unchanged.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

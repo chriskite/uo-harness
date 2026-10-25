@@ -1926,6 +1926,57 @@ def test_patrol_pull():
           f"targets {targets} pets {pets} on Logan {hit} guards {w.metrics['guard_commands']}")
 
 
+def test_patrol_after_back_off():
+    print("== an idle corpse purger seeing us first at 11: back off within reach of a patrol spot, then 'All Patrol' ==")
+    # live 2026-10-25 15:57:40 (hunt-20261025-152542-5ab5): back off from 11 to (5251, 654), 14 off, where no spot is
+    # within PATROL_MAX_R of us and PATROL_SPOT_R of it; no patrol, and the crawl walked away (30 of 38 such back-offs
+    # 10-22..25 had none)
+    import crawl
+    w = world_with([{"key": "corpse purger", "at": [5265, 653, 0]}], seed=7, start=(5254, 653))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    targets = set()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.crawl = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            loop.crawl.setup(loop.state())
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 120 and m.alive:
+                loop.tick()
+                if m.target is not None:
+                    targets.add(m.target)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    pets = {p.serial for p in w.pets()}
+    c = loop.team.counts
+    check("backed off, then one patrol; the purger killed on the pets alone",
+          c.get("back_offs", 0) >= 1 and c.get("patrols", 0) == 1 and not m.alive and targets and targets <= pets,
+          f"back_offs {c.get('back_offs', 0)} patrols {c.get('patrols', 0)} purger alive {m.alive} targets {targets} "
+          f"pets {pets} at {w.player.pos}")
+
+
+def test_patrol_after_pass_over():
+    print("== an idle corpse purger passed over ('it can't see us'): still patrolled at ==")
+    # live 2026-10-25 15:52:21-29: "passing over a corpse purger ...: it can't see us from 8 tiles; skipping it for 60
+    # s", then backed off from at 4 tiles and never patrolled at (HuntLoop.skip stopped patrol_pull; 11 of 11 such
+    # back-offs 10-22..25)
+    w = world_with([{"key": "corpse purger", "at": [5265, 655, 0]}], seed=7, start=(5253, 653))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.skip[m.serial] = tamer.time.monotonic() + 60.0
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 20 and not loop.team.counts.get("patrols", 0):
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("one patrol at it within 20 s", loop.team.counts.get("patrols", 0) == 1,
+          f"patrols {loop.team.counts.get('patrols', 0)} at {w.player.pos}")
+
+
 def test_vet_channel_not_ours():
     print("== a vet channel begun by his own Razor loop: the runner's try neither goes out nor waits for a reply ==")
     # live 2026-10-18 21:14:29.1 his loop began a channel mid-flight; the runner's tries at 30.8 and 33.8 got "You must
@@ -4310,7 +4361,8 @@ def main():
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_guard_after_dropped_kill,
-              test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
+              test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_patrol_after_back_off,
+              test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument,
               test_standoff_sight,

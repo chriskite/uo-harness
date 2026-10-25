@@ -5896,6 +5896,45 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   proxy restart. A runner started before the fix still loses its tally at the 33rd counter. The pane's message
   now names a rejected tally as a cause too.
 
+## Backed off from a purger, never patrolled at (live 2026-10-25 15:52-15:57, hunt-20261025-152542-5ab5)
+
+- **Symptom (user):** "It says something like 'pets first in the corpse purger room' but then doesn't actually patrol
+  the pets in, it just walks away." (the doing line of `Team.back_off`: "Stepping back to …: the pets first in the
+  corpse purger's sight").
+- **Cause 1, the back-off's tile:** 15:57:40 "corpse purger 0x0069D3DA would see us before the pets at 11 tiles …;
+  back to (5251, 654) out of its sight", the purger at (5265, 653), 14 off (capture 20261024_225113 replayed to
+  15:57:40.5: that purger idle, a bound soul at (5266, 647), the three pets beside Logan). `back_off` took the
+  farthest tile out of its sight; `patrol_spot` wanted a tile within `PATROL_SPOT_R` 2 of the purger and
+  `PATROL_MAX_R` 11 of us, so 13 at most: none. No line said so, and the crawl, keeping off its sight for 60 s
+  (`KEEP_OFF_S`), patrolled elsewhere. Task logs 10-22..10-25, first back-offs: 30 of 38 that ended 14 or more from
+  it had no "All Patrol" after (the other 8 came after something else moved Logan within 13, e.g. 13:07:39 an
+  off-the-tank step); 13 of 21 that ended within 13 had none either (why not logged then).
+- **Cause 2, a pass-over:** 15:52:21 "passing over a corpse purger 0x0069C406: it can't see us from 8 tiles; skipping
+  it for 60 s", 15:52:29 backed off from at 4 tiles, no patrol: `patrol_pull` skipped anything in `HuntLoop.skip`.
+  11 of 11 back-offs from a monster passed over in the 200 lines before had no patrol.
+- **Reproduced in the simulator** (that layout: purger at (5265, 653), Logan at (5254, 653), HEAD dce6461): back to
+  (5251, 654), 0 patrols, Logan off to (5244, 658); from 13 tiles the patrol goes at once.
+- **Fix (tamer):** `PATROL_SPOT_R` 2 -> 3 (the 2026-10-18 demo's spot was 3 from the purger with Logan 14 from it; the
+  pets took monsters 1-3 off the spot in 5 of 5); `back_off` prefers, out of sight, a tile with a patrol spot in reach
+  ("…, in reach to send the pets at it"); `patrol_pull` no longer checks `HuntLoop.skip` (its own `patrol_failed`
+  keeps a refused or timed-out patrol off); it logs why none goes out at an idle purger or blightmare within 14 ("no
+  'All Patrol' at the corpse purger 0x… N tiles off: <why>"). Tests: test_sim `test_patrol_after_back_off`,
+  `test_patrol_after_pass_over` (both fail on dce6461).
+- **Simulator, 144 runs a side** (seeds 17-160, `--others --eerie --prior <main store>`, `-- --vet-range 5
+  --crawl-learn-s 180`, on dce6461's simulator; "radius 3" = `--set tamer.PATROL_SPOT_R=3`):
+
+  | Variant | Runs with a death | Deaths/h | Pet deaths | Gold banked/h | Kills/h | Purgers killed | Patrols | Back-offs | Shy dmg on Logan per shy kill |
+  |---|---|---|---|---|---|---|---|---|---|
+  | HEAD | 14 | 0.22 | 4 | 119.8k | 110.4 | 1,152 | 247 | 1,164 | 4.35 |
+  | HEAD, radius 3 only | 10 | 0.15 | 6 | 121.6k | 111.5 | 1,269 | 416 | 699 | 5.37 |
+  | back-off + pass-over fix, radius 2 | 6 | 0.09 | 9 | 124.3k | 113.1 | 1,284 | 401 | 570 | 5.10 |
+  | **back-off + pass-over fix, radius 3 (shipped)** | 7 | 0.11 | 7 | 125.4k | 113.0 | 1,334 | 497 | 517 | 4.27 |
+
+  With radius 2 the back-off drew Logan to 12-13 from the shy monster, inside an awake blightmare's 12 and a purger's
+  13 (`CASTER_R`, `RANGED_R`): more of their damage per kill (seed 25: 0 -> 291 from the blightmares and disease).
+  Radius 3 keeps him at 14 and the damage per kill at HEAD's. Pet deaths 4 -> 7 in 66 h [INFERENCE: noise at these
+  counts; watch live].
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
