@@ -2427,6 +2427,19 @@ all of us, sight or not, and a potion click answered "You are already at full he
   reach, sight or not) is in `sim/fight0038.py` only, its radius [INFERENCE] from one fight. The scenario's caster
   types would need it measured over the captures before batches use it.
 
+## Less time not fighting (user 2026-10-24: gold an hour +10 %, deaths per gold no worse)
+
+Simulator goal on the efficient-crawl branch (docs/NOTES.md "Less time not fighting in the simulator"). Kept: no
+spacing once a fight is over; out of a fight the vet supplies and the wait before moving on only for a pet below
+`tamer.CALM_HEAL_AT` 0.80; waypoints in sight within 7 count as visited and end a patrol leg; `HOLD_S` 5; the blink
+wait ends when the monster is back; the eerie corpse walk bounded like a loot walk; no seek toward a monster the fight
+passed over; no "All Kill" at a monster another player already has below 80 % of its hits (its corpse is theirs: the
+user's 2026-10-17 "all kill if it's aggro'd on something else" narrowed). Gold an hour +5.5 % / +5.9 % on the two seed
+blocks, deaths per gold 0.88x / 0.68x, short of the +10 %: with the other players on, the level is supply-bound, and
+no further runner knob screened moved it beyond the screens' ±2 % noise. Rejected: routing the patrol round idle
+purgers' and blightmares' sight (more kills, less gold); opening with "All Kill". *Live*: untried; the §5 command is
+unchanged.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -87,6 +87,9 @@ VET_RANGE = 2                 # tiles (wiki Veterinary Supplies, measured on the
 VET_BUSY_S = 6.5              # a channel the finish line never closed is over after this (measured 5.0-5.3 s)
 VET_IDLE_S = 3.0              # "do not require healing": don't press again for this long
 USE_RETRY_S = 0.6             # cliloc 500119 "You must wait to perform another action."
+CALM_HEAL_AT = 0.80           # no fight on (aggro.View.engaged): a pet above this share is no reason to vet or wait before
+                              # moving on; the next fight's vets (--pet-heal-at) top it up (user 2026-10-24: "waiting to
+                              # heal before moving on when a pet is just missing a few HP")
 TEXT_VET_BEGIN = "You begin using veterinary supplies."
 TEXT_VET_FINISH = "You finish using veterinary supplies."
 TEXT_VET_NEEDLESS = "You or your nearby followers do not require healing."
@@ -120,6 +123,7 @@ PET_REACH = 12                # the phoenix's Epic Barrage reaches 12 tiles (pat
 PET_NEAR = 1                  # a war-mode monster this close to a pet that took damage is fighting it
 KILL_AFTER_S = 4.0            # a mob attacking us that the pets haven't hurt for this long: "All Kill"
 ELSEWHERE_R = 2               # a monster in war mode this close to another player or a pet not ours fights them (elsewhere)
+THEIRS_BELOW = 0.8            # a monster on someone else below this share of hits: their kill (the most damage loots)
 KILL_REPEAT_S = 12.0
 IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
 PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the pets nor us this long is dropped...
@@ -208,7 +212,9 @@ COVER_STEPS = 8               # cover: out of an awake purger's or blightmare's 
 COVER_S = 2.0                 # ...at most this often
 BACK_OFF_S = 2.0              # back_off at most this often
 KEEP_OFF_S = 60.0             # ...and the purger it backed off from isn't sought this long (loop_hunt.SKIP_S)
-HOLD_S = 10.0                 # hold this long for an idle monster that sees us (live: 5-10 s to war mode)
+HOLD_S = 5.0                  # hold this long for an idle monster that sees us (live 16:12 run 2026-10-17: 11 of 13 within
+                              # 10 tiles woke in 0.5-3.5 s; captures: a 10-tile crossing to war mode in 1.4-2.6 s, median
+                              # 2.2, n=188, docs/SIM.md; 10 s until 2026-10-24: one that never woke cost the full 10 s)
 HOLD_R = 10                   # ...for one within this many tiles (the 16:12 run: none at 12-13 came)
 AT_ONCE_NEAR = 6              # an "at once" stop within this of one in the last AT_ONCE_S: the way on, go
 AT_ONCE_S = 120.0
@@ -480,7 +486,6 @@ class Team:
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.see_walk_t = {}              # serial -> the last walk_to_see at it
         self.spacing_t = -1e9
-        self.fight_t = -1e9               # the last time the pets were seen fighting (spacing)
         self.tank_t = {}                 # pet serial -> the last time it stood next to a monster in war mode
         self.dead_since = {}             # pet serial -> monotonic time its ghost was first seen
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
@@ -795,13 +800,13 @@ class Team:
                 log(f"{name} free of the transfix after {now - t0:.1f} s")
 
     def busy_healing(self, st) -> bool:
-        """Don't walk on yet: a vet channel runs (a step shortens its reach to 1, wiki Veterinary), a pet in
-        reach still needs one (vet_needed) or a pet's ghost waits for one, and supplies are there. Moving on at
-        once from a cleared area (--crawl-depleted-s 5) otherwise left with a hurt gravebug and broke channels
-        mid-way."""
-        if time.monotonic() < self.vet_busy_until:
-            return True
-        return (self.vet_needed(st, self.pets(st)) is not None or bool(self.dead_since)) \
+        """Don't walk on yet: a pet in reach below CALM_HEAL_AT or poisoned, a pet's ghost waiting for a channel, or us
+        below --heal-at (vet_needed, calm), and supplies are there; while one of those holds, a channel running is
+        waited out too (a step shortens its reach to 1, wiki Veterinary). Moving on at once from a cleared area
+        (--crawl-depleted-s 5) otherwise left with a hurt gravebug and broke channels mid-way. A pet only a few hits
+        short doesn't hold the patrol, nor its channel (until 2026-10-24 any pet below --pet-heal-at 0.95 did; user:
+        "waiting to heal before moving on when a pet is just missing a few HP")."""
+        return (self.vet_needed(st, self.pets(st), calm=True) is not None or bool(self.dead_since)) \
             and bool(healing.in_pack(st["world"], self.h.me(st), VET_SUPPLIES_GRAPHIC))
 
     def guard(self) -> bool:
@@ -942,10 +947,11 @@ class Team:
             self.follow_called, self.guard_needed = False, True
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
+        calm = not self.view(st).engaged()
         return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st)) or self.spacing(st) \
-            or self.vet(st) or (self.guard_needed and self.guard()) or self.to_pet(st) or self.reposition(st) \
-            or self.song(st)
+            or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st, calm=calm)) \
+            or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
+            or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
 
     def cover(self, st) -> bool:
         """An awake corpse purger or blightmare (aggro.SHY) that sees us within its reach: walk (up to COVER_STEPS) to
@@ -989,21 +995,19 @@ class Team:
         return True
 
     def spacing(self, st) -> bool:
-        """In a fight (aggro.View.engaged, or one within FIGHT_LINGER_S) with --vet-range SPACING_R + 1 or
-        more: when a pet or a monster in war mode is within SPACING_R - 1 of us, step (up to SPACING_STEPS)
-        to the tile the fewest idle monsters see that is SPACING_R from every pet and every monster in war
-        mode and within --vet-range - 1 of every pet, out of area hits and fire; never mid-channel."""
+        """In a fight (aggro.View.engaged) with --vet-range SPACING_R + 1 or more: when a pet or a monster in war mode
+        is within SPACING_R - 1 of us, step (up to SPACING_STEPS) to the tile the fewest idle monsters see that is
+        SPACING_R from every pet and every monster in war mode and within --vet-range - 1 of every pet, out of area
+        hits and fire; never mid-channel. Not once the fight is over: until 2026-10-24 it went on for FIGHT_LINGER_S
+        after the last monster left, so after each kill Logan stepped off the idle pets every 1.5 s before looting
+        (user: "stepping off the tank repeatedly when there are no monsters around")."""
         h, now = self.h, time.monotonic()
         if self.a.vet_range < SPACING_R + 1 or now < self.vet_busy_until or now - self.spacing_t < SPACING_REPEAT_S:
             return False
         v = self.view(st)
-        if v.walk is None:
+        if v.walk is None or not v.engaged():
             return False
         war = [m["pos"][:2] for m in v.mobs if m["war"]]
-        if v.engaged():
-            self.fight_t = now
-        if now - self.fight_t > FIGHT_LINGER_S:
-            return False
         pets = [p for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 2]
         for p in pets:                                  # a tank: next to a monster in war mode lately
             if any(cheb((p["x"], p["y"]), w) <= PET_NEAR + 1 for w in war):
@@ -1568,14 +1572,15 @@ class Team:
         """The tiles of area_zone: where an area hit lands; no tile to step to."""
         return set(self.area_zone(st))
 
-    def heal_at(self, p: dict, zone: set) -> float:
+    def heal_at(self, p: dict, zone: set, calm: bool = False) -> float:
         """The hits share below which pet `p` gets the vet supplies: --pet-heal-at, but only
         --standoff-vet-at for a pet a charger fights while our supplies don't reach CHARGE_SAFE_R
         (stepping in to heal it puts us in the Charge's reach: user 2026-10-13). --vet-range 3+ (the
-        Healer's Codex 'Without Borders') heals it from outside."""
+        Healer's Codex 'Without Borders') heals it from outside. `calm` (no fight on): CALM_HEAL_AT at most."""
+        at = self.a.pet_heal_at
         if self.a.vet_range < CHARGE_SAFE_R and (p["x"], p["y"]) in zone:
-            return min(self.a.pet_heal_at, self.a.standoff_vet_at)
-        return self.a.pet_heal_at
+            at = min(at, self.a.standoff_vet_at)
+        return min(at, CALM_HEAL_AT) if calm else at
 
     def stand_off(self, st) -> bool:
         """A charger or another area hitter in the fight (area_zone): keep its distance from it and the pet
@@ -1856,14 +1861,14 @@ class Team:
                 best, best_c = t, c
         return best
 
-    def vet_needed(self, st, pets, us_below: float | None = None) -> str | None:
+    def vet_needed(self, st, pets, us_below: float | None = None, calm: bool = False) -> str | None:
         me = st["world"]["self"]
         zone = self.charge_zone(st)
         ghosts = [p for p in pets if p["dead"] and p["dist"] <= self.a.vet_range]
         if ghosts:
             return f"{ghosts[0]['name']} is dead (a channel resurrects it)"
         hurt = [p for p in pets if not p["dead"] and p["dist"] <= self.a.vet_range
-                and (p["frac"] < self.heal_at(p, zone) or p["poisoned"])]
+                and (p["frac"] < self.heal_at(p, zone, calm) or p["poisoned"])]
         if hurt:
             p = min(hurt, key=lambda p: p["frac"])
             return f"{p['name']} at {p['frac']:.0%}" + (" (poisoned)" if p["poisoned"] else "")
@@ -1875,15 +1880,16 @@ class Team:
             return f"us at {me.get('hits')}/{me.get('hits_max')}"
         return None
 
-    def vet(self, st, us_below: float | None = None) -> bool:
+    def vet(self, st, us_below: float | None = None, calm: bool = False) -> bool:
         """Veterinary supplies when vet_needed and no channel runs: the stock double-click on the
         smallest stack (healing.in_pack: any bag depth, no bag opened), its answer read. `us_below`: our
-        own share of hits that calls for it instead of --heal-at (on the run: 1.0, any damage)."""
+        own share of hits that calls for it instead of --heal-at (on the run: 1.0, any damage). `calm`: no fight on,
+        the pets' threshold is CALM_HEAL_AT (heal_at)."""
         self.update(st)                   # a channel begun or finished since the last look (his own vet loop too)
         h, now = self.h, time.monotonic()
         if now < self.vet_busy_until:
             return False
-        why = self.vet_needed(st, self.pets(st), us_below)
+        why = self.vet_needed(st, self.pets(st), us_below, calm)
         if why is None:
             return False
         stacks = healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC)
@@ -1923,8 +1929,9 @@ class Team:
             return "wait"
         return None
 
-    def to_pet(self, st) -> bool:
-        """A pet below --pet-heal-at beyond --vet-range: walk into the vet supplies' reach of it when nothing is on us,
+    def to_pet(self, st, calm: bool = False) -> bool:
+        """A pet below --pet-heal-at (CALM_HEAL_AT with no fight on: `calm`) beyond --vet-range: walk into the vet
+        supplies' reach of it when nothing is on us,
         no channel runs and supplies are there. With --vet-range SPACING_R + 1 or more (the Healer's Codex "Without
         Borders") to vet_tile (off the tank, out of area hits as far as reach allows, within --vet-range - 1), else (or
         no such tile) to --vet-range - 1 of it, and without the perk next to it (bandaging range is 1 after a step).
@@ -1936,7 +1943,7 @@ class Team:
         zone = self.charge_zone(st)
         busy = bool(h.attackers(st))
         far = [p for p in self.pets(st) if p["dist"] > self.a.vet_range and p["dist"] <= combat.VIEW_RANGE
-               and (p["dead"] or ((p["frac"] < self.heal_at(p, zone) or p["poisoned"])
+               and (p["dead"] or ((p["frac"] < self.heal_at(p, zone, calm) or p["poisoned"])
                                   and (not busy or (self.a.heal_in_place and p["frac"] < self.a.pet_leave_at))))]
         if not far:
             return False
@@ -2129,6 +2136,14 @@ class Team:
             # 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The pets'
             # war flag alone isn't a fight: guarding, they keep it between fights (live 2026-10-19 10:10:57-10:11:28 at
             # our side 7 tiles from a tormented soul on Lord Phaze, read as "on it" within PET_REACH: two 15 s waits)
+            if h.frac(mob) < THEIRS_BELOW:
+                # they have done the most damage already and the loot right goes with it (loop_hunt BLUE, captures):
+                # finishing it is a fight for their corpse (simulator 2026-10-24: 63 of 63 such kills were blue)
+                log(f"passing over {name} 0x{serial:08X}: {who} has it at {h.frac(mob):.0%}, its loot is theirs; "
+                    f"skipping it for {SKIP_S:.0f} s")
+                h.skip[serial] = now + SKIP_S
+                h.disengage("dropped")
+                return
             if cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE and self.bard_sees(st, serial):
                 if now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
                         and not self.kill_unseen(st, serial, now):

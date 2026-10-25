@@ -593,6 +593,86 @@ def test_spacing():
           out[2][0] is False and out[5][0] and min(out[5][1:3]) >= tamer.SPACING_R and out[5][3] <= 4, str(out))
 
 
+def test_no_spacing_after_fight():
+    print("== --vet-range 5, the fight over (the wolf dead): no step off the pets coming back to us ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # user 2026-10-24: "stepping off the tank repeatedly when there are no monsters around"; until then spacing went on
+    # for FIGHT_LINGER_S 8 s after the last monster, a step every SPACING_REPEAT_S as the guarding pets followed
+    w = world_with([{"key": "shade wolf", "at": [5212, 726, 0]}], seed=7, start=(5211, 724))
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "specials": [], "melee": [1, 1], "step_s": 999.0}
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    link, clock = link_for(w)
+    link.send(tamer.command("all guard me"))
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off", "--vet-range", "5"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    steps, nearest = 0, 99
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            for _ in range(10):
+                clock.advance(0.5)
+            during = loop.team.spacing(loop.state())
+            w.die(m, gb)
+            for _ in range(12):                       # 6 s: within the old FIGHT_LINGER_S, the pets back beside us
+                clock.advance(0.5)
+                nearest = min(nearest, min(cheb_(w.player, p) for p in w.pets()))
+                steps += bool(loop.team.spacing(loop.state()))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("a step off the tank in the fight; none once it is over, with a pet within 2 of us",
+          during and steps == 0 and nearest <= tamer.SPACING_R - 1, f"during {during} steps after {steps} "
+                                                                     f"nearest pet {nearest}")
+
+
+def test_calm_heal():
+    print("== no fight on: a pet a few hits short doesn't hold the patrol nor get the vet supplies; one below "
+          "CALM_HEAL_AT does ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # user 2026-10-24: "waiting to heal before moving on when a pet is just missing a few HP"; until then any pet below
+    # --pet-heal-at 0.95 started a channel after the fight and busy_healing held the patrol through it
+    w = world_with([], seed=7, start=(5211, 724))
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off", "--vet-range", "5"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    out = {}
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            for frac in (0.9, 0.7):
+                gb.hits = gb.hits_max
+                w.hurt(gb, gb.hits_max * (1 - frac), None)
+                clock.advance(1.0)
+                st = loop.state()
+                out[frac] = (gb.pct(), loop.team.busy_healing(st), loop.team.vet_needed(st, loop.team.pets(st)) is not None,
+                             loop.team.vet_needed(st, loop.team.pets(st), calm=True) is not None)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    a, b = out[0.9], out[0.7]
+    check("at ~90 %: no hold, no vet when calm (a fight's threshold still calls for it); at ~70 %: hold and vet",
+          a[0] > tamer.CALM_HEAL_AT * 100 and not a[1] and a[2] and not a[3]
+          and b[0] < tamer.CALM_HEAL_AT * 100 and b[1] and b[3], str(out))
+
+
 def test_vet_tile_off_tank():
     print("== --vet-range 5, the gravebug hurt beside a reanimated daemon: vet it from out of the bone burst, not "
           "from beside it ==")
@@ -1298,6 +1378,31 @@ def test_kill_unseen_once():
           sent["behind the wall"] == 1 and sent["a tile that sees it"] >= 1, str(sent))
 
 
+def test_theirs_passed_over():
+    print("== a monster on another player: 'All Kill' while it is near full hits; passed over once they have it below "
+          "THEIRS_BELOW (the most damage takes the loot) ==")
+    # simulator 2026-10-24: 63 of 63 kills after "is fighting <player>: 'All Kill' at it" left a blue corpse; live 12 % of
+    # the credited kills were blue (docs/SIM.md "Other players")
+    from sim import packets as P
+    out = {}
+    for frac in (1.0, 0.5):
+        w, m = daemon_on_elsa((5242, 694))
+        m.hits = m.hits_max * frac
+        loop, clock, store, patched = hurt_loop(w, 100)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                w.send(P.hits(m.serial, m.pct(), 100))
+                for _ in range(10):
+                    clock.advance(0.5)
+                    loop.team.fight(m.serial)
+                out[frac] = (w.metrics["kill_on_others"], loop.skip.get(m.serial, 0) > tamer.time.monotonic())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("full hits: 'All Kill' at it; at half: passed over, no 'All Kill'",
+          out[1.0][0] >= 1 and not out[1.0][1] and out[0.5] == (0, True), str(out))
+
+
 def test_patrol_off_passed_over_area_hitter():
     print("== the patrol stays out of a passed-over reanimated daemon's bone burst: no patrol/stand-off ping-pong ==")
     # live 23:29:34-23:30:19: dropped (pinned 15 s), the patrol went on to (5243, 698) 3 tiles from it, the bone burst
@@ -1420,7 +1525,9 @@ def test_pets_stuck_off_fight():
             follows = w.metrics["follow_commands"] - f0
             guards = w.metrics["guard_commands"] - g0
             rejoins = out.getvalue().count("back to the pets: route")
-            on = "patrol to (5231, 722): arrived" in out.getvalue()
+            # the patrol reaches its waypoint: on its tile, or in sight within crawl.SEEN_R (Crawl.interrupt's stop)
+            on = any(s in out.getvalue() for s in ("patrol to (5231, 722): arrived",
+                                                   "patrol to (5231, 722): stopped (looked at it from"))
     finally:
         store.close()
         simclock.uninstall(patched)
@@ -1444,6 +1551,8 @@ def test_others_corpse_not_looted():
     w._warm(m, True)
     loop, clock, store, patched = hurt_loop(w, 100)
     gold0 = w.metrics["gold_looted"]
+    keep = tamer.THEIRS_BELOW
+    tamer.THEIRS_BELOW = 0.0       # the pets go at it however hurt (test_theirs_passed_over has the pass-over)
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             after = 0
@@ -1454,6 +1563,7 @@ def test_others_corpse_not_looted():
                 if after > 20 and not loop.corpses:      # 10 s after the death: the runner's loot pass is over
                     break
     finally:
+        tamer.THEIRS_BELOW = keep
         store.close()
         simclock.uninstall(patched)
     corpse = next((it for it in w.items.values() if it.get("kind") == "corpse" and it["owner"] == m.serial), None)
@@ -3845,7 +3955,8 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials,
               test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_vet_tile_off_tank,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
+              test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
@@ -3860,7 +3971,7 @@ def main():
               test_instrument,
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once,
+              test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once, test_theirs_passed_over,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
