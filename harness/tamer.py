@@ -72,6 +72,7 @@ import re
 import time
 
 import actions
+import agent_link
 import aggro
 import combat
 import healing
@@ -148,6 +149,8 @@ RETREAT_R = 7
 RETREAT_REPEAT_S = 15.0
 POISON_S = 10.0               # "*looks violently ill*" over a pet: poisoned for this long (vet supplies cure)
 OWN_PETS_KEY = "own_pets"     # memory-store meta: {character: [{serial, name}], ...}
+LOOK_MAX = 6                  # setup: untagged mobiles beside us single-clicked for their pet line, at most
+LOOK_WAIT_S = 2.0             # and how long their lines may take (a click label came in 0.04-0.06 s live)
 FOUGHT_S = 60.0              # a mob the pets fought that dies within this is our kill (its corpse looted)
 # Monsters with an area Charge (knowledge #14625: it teleports up to 12 tiles next to its target and hits
 # up to 3 within 1 tile; live 21:21:14 a nightstalker's Charge hit the gravebug -37 and Logan -42 at once).
@@ -340,10 +343,30 @@ def remember(mem, character: str | None, roster: dict):
     task_wrap.meta_set(mem, OWN_PETS_KEY, json.dumps(pets))
 
 
+def untagged_near(world: dict, pos) -> list[int]:
+    """Serials within FOLLOW_R of us that may be our pet but whose "(tame)" / "(bonded)" line hasn't come: a
+    non-human body, not attackable (ours are notoriety 2 to us), no pet tag, alive. The server sends that line only
+    when the client clicks the mobile (live 2026-10-24 21:11: GirthyEarthy, fireminion and a searing imp, claimed 216 s
+    before, stood on Logan's tile with no tag)."""
+    import mount
+    me = serial_of((world.get("self") or {}).get("serial") or 0)
+    out = []
+    for key, m in (world.get("mobiles") or {}).items():
+        s = serial_of(key)
+        if s == me or m.get("x") is None or m.get("pet") or m.get("dead") or m.get("graphic") in mount.HUMAN_BODIES \
+                or m.get("notoriety") in combat.ATTACKABLE_NOTORIETY or not pos:
+            continue
+        if cheb((m["x"], m["y"]), tuple(pos[:2])) <= FOLLOW_R:
+            out.append(s)
+    return out
+
+
 def resolve(world: dict, pos, wanted, known) -> tuple[dict, str]:
     """({serial: name}, how) of our pets: `wanted` (--pet: serials or names, any case) among the
-    mobiles in view; else the `known` serials (remembered) in view; else the tamed pets (a
-    "(bonded)" / "(tame)" line) within FOLLOW_R of us. Never a human body."""
+    mobiles in view; else the tamed pets (a "(bonded)" / "(tame)" line) within FOLLOW_R of us together with
+    the `known` serials (remembered from earlier runs) in view: whatever pets the user brought, standing
+    beside us at the start (user 2026-10-24: "so I can bring whatever pets I want"), and on a start inside
+    the dungeon the remembered ones spread out in the fight. Never a human body."""
     import mount
     mobs = world.get("mobiles") or {}
     me = serial_of((world.get("self") or {}).get("serial") or 0)
@@ -369,11 +392,11 @@ def resolve(world: dict, pos, wanted, known) -> tuple[dict, str]:
         if missing:
             raise Abort(f"--pet {', '.join(missing)}: not in view")
         return out, "--pet"
-    seen = {s: name(s) for s in known if f"0x{s:08X}" in mobs}
-    if seen:
-        return seen, "remembered"
-    near = mount.pets_near({"movement": {"pos": pos, "self_serial": me}, "world": world}, FOLLOW_R)
-    return {s: name(s) for _, s, _ in near}, f"tamed pets within {FOLLOW_R} tiles"
+    near = {s: name(s) for _, s, _ in mount.pets_near({"movement": {"pos": pos, "self_serial": me}, "world": world},
+                                                       FOLLOW_R)}
+    seen = {s: name(s) for s in known if f"0x{s:08X}" in mobs and s not in near}
+    how = " and ".join(h for h, got in ((f"tamed pets within {FOLLOW_R} tiles", near), ("remembered", seen)) if got)
+    return {**near, **seen}, how or "none"
 
 
 class ClearOf:
@@ -463,9 +486,21 @@ class Team:
         return {"pets": {f"0x{s:08X}": n for s, n in self.roster.items()}, **self.counts}
 
     def setup(self, st):
-        """The roster (resolve), logged and remembered for this character; Abort without a pet."""
+        """The roster (resolve), logged and remembered for this character; Abort without a pet. A mobile beside us
+        that may be a pet but whose "(tame)" / "(bonded)" line hasn't come is single-clicked first, as the stock client
+        does (agent_link.look_at), so its line comes."""
         world = st["world"]
         character = world["self"].get("name")
+        if not self.a.pet and (look := untagged_near(world, self.h.pos(st))):
+            h = self.h
+            for s in look[:LOOK_MAX]:
+                h.human.wait("use")
+                agent_link.look_at(h.link, s, known_name=bool((world["mobiles"].get(f"0x{s:08X}") or {}).get("name")))
+            st = h.link.wait(lambda s2: not untagged_near(s2["world"], h.pos(s2)), LOOK_WAIT_S) or h.state()
+            world = st["world"]
+            seen = [world["mobiles"].get(f"0x{s:08X}") or {} for s in look[:LOOK_MAX]]
+            log(f"looked at {len(seen)} untagged mobile(s) beside us: "
+                + ", ".join(f"{m.get('name') or '?'} {m.get('pet') or 'no pet line'}" for m in seen))
         self.roster, how = resolve(world, self.h.pos(st), self.a.pet or [], remembered(self.h.memory, character))
         if not self.roster:
             raise Abort("--pets: no pet of ours in view (claim them first, or name them with --pet)")

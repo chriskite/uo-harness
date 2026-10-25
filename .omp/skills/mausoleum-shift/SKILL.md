@@ -18,8 +18,8 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
 1. Stack up and current: `python harness/stack.py status`. An `external … not ours` service is still old code
    (NOTES "Stack supervisor"); tell the user rather than restarting it.
 2. `./ctl.cmd --char "Logan Wolf" status > /tmp/s.json`, then with `jq.exe … < /tmp/s.json`: `ok`, `pos`, `facet`,
-   `hits`, `gate`, `tasks`, `open_junctures`, `overseer_heartbeat`, the pets (GraveRobber `0x000DDEFE`,
-   AlaFlambe `0x0026EF56`) in `mobiles` within 3 tiles, `gumps_open`.
+   `hits`, `gate`, `tasks`, `open_junctures`, `overseer_heartbeat`, Logan's pets in `mobiles` within 3 tiles
+   (whichever the user brought; usually GraveRobber `0x000DDEFE` and AlaFlambe `0x0026EF56`), `gumps_open`.
 3. **One Seer per character.** `read history://`: a `SeerLoganWolf*` agent `running` (or a heartbeat under 90 s
    old from another session) already owns Logan; message it (`write agent://<id>`) instead of starting another.
    A parked one may be revived the same way when its context is still small; otherwise dispatch fresh.

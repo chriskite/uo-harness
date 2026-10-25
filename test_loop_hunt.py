@@ -1844,6 +1844,76 @@ def elsewhere_run():
           out["busy"] == [W4] and out["busy, pets in war mode"] == [W4] and out["idle"] == [], str(out))
 
 
+class RosterLink(RightsLink):
+    """Answers a single click on one of `tags` with the server's pet line under its label (type 0, hue 946)."""
+
+    def __init__(self, tags):
+        super().__init__()
+        self.tags, self.clicked = tags, []
+
+    def act(self, p):
+        super().act(p)
+        if p[0] == 0x09:
+            s = int.from_bytes(p[1:5], "big")
+            self.clicked.append(s)
+            if s in self.tags:
+                self.feed(says(s, self.tags[s][0], self.tags[s][1], kind=0, hue=946))
+
+
+def roster_run():
+    print("\n== pets: the roster is whatever tamed pets stand beside us, whichever were remembered ==")
+    # live 2026-10-24 21:11: the user brought GirthyEarthy, fireminion and a searing imp instead of GraveRobber and
+    # AlaFlambe; no "(tame)" line had come for them (the server sends it on a click), so the remembered pair, not in
+    # view, left no roster: "--pets: no pet of ours in view" (user: "so I can bring whatever pets I want")
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(RosterLink, name, getattr(Link, name))
+    GIRTHY, FIRE, IMP, OTHERS = 0x000E820F, 0x001D17E6, 0x006C15F9, 0x00731001
+    out = {}
+    for case in ("new pets, untagged", "a remembered pet in view and a new one beside us"):
+        db = os.path.join(tempfile.mkdtemp(), "harness.db")
+        store = memory.Memory(db)
+        if case.startswith("new"):
+            link = RosterLink({GIRTHY: ("GirthyEarthy", "(bonded)"), FIRE: ("fireminion", "(tame)"),
+                               IMP: ("a searing imp", "(tame)")})
+            link.feed(login_pkt(), name_pkt(SELF, "Logan Wolf"), hits_pkt(SELF, 100, 100), equip(BACKPACK, 0x0E75, 0x15),
+                      mobile20(GIRTHY, SPOT[0], SPOT[1], 12, noto=2), name_pkt(GIRTHY, "GirthyEarthy"),
+                      mobile20(FIRE, SPOT[0] + 1, SPOT[1], 776, noto=2), name_pkt(FIRE, "fireminion"),
+                      mobile20(IMP, SPOT[0], SPOT[1] + 2, 74, noto=2), name_pkt(IMP, "a searing imp"),
+                      mobile20(W1, SPOT[0] + 2, SPOT[1], SHADE_WOLF), name_pkt(W1, "a shade wolf"),
+                      mobile20(OTHERS, SPOT[0] + 6, SPOT[1], 387, noto=1), name_pkt(OTHERS, "a gravebug"),
+                      says(OTHERS, "a gravebug", "(bonded)", kind=0, hue=946))
+        else:
+            link = RosterLink({})
+            link.feed(login_pkt(), name_pkt(SELF, "Logan Wolf"), hits_pkt(SELF, 100, 100), equip(BACKPACK, 0x0E75, 0x15),
+                      mobile20(GRAVEBUG, SPOT[0] + 8, SPOT[1], 387, noto=2), name_pkt(GRAVEBUG, "GraveRobber"),
+                      mobile20(GIRTHY, SPOT[0] + 1, SPOT[1], 12, noto=2), name_pkt(GIRTHY, "GirthyEarthy"),
+                      says(GIRTHY, "GirthyEarthy", "(bonded)", kind=0, hue=946))
+        args = loop_hunt.arg_parser().parse_args(["--pets", "--no-loot", "--no-songs", "--human", "off", "--no-map",
+                                                  "--spot", str(SPOT[0]), str(SPOT[1]), "--memory", db])
+        loop = loop_hunt.HuntLoop(link, store, args)
+        try:
+            character = loop.state()["world"]["self"].get("name")
+            tamer.remember(store, character, {GRAVEBUG: "GraveRobber", PHOENIX: "AlaFlambe"})
+            try:
+                loop.team.setup(loop.state())
+                roster = sorted(loop.team.roster)
+            except Exception as e:                      # the old resolve: Abort, no pet of ours in view
+                roster = repr(e)
+            out[case] = (character, roster, sorted(link.clicked), sorted(tamer.remembered(store, character)))
+        finally:
+            store.close()
+    check("new pets beside us, no pet line yet: each clicked once (not the shade wolf, not another's pet), all three "
+          "the roster, and remembered for the next run",
+          out["new pets, untagged"] == ("Logan Wolf", sorted([GIRTHY, FIRE, IMP]), sorted([GIRTHY, FIRE, IMP]),
+                                        sorted([GIRTHY, FIRE, IMP])), str(out["new pets, untagged"]))
+    check("a remembered pet in view 8 tiles off and a new tamed one beside us: both, no click",
+          out["a remembered pet in view and a new one beside us"]
+          == ("Logan Wolf", sorted([GRAVEBUG, GIRTHY]), [], sorted([GRAVEBUG, GIRTHY])),
+          str(out["a remembered pet in view and a new one beside us"]))
+
+
 SCENARIOS = {"default": {}, "staff": {"staff": True}, "fight": {"fight": FIGHT}, "crawl": {"crawl": True},
              "recall": {"recall": True}, "pause": {"pause": True}}
 
@@ -1915,6 +1985,7 @@ if __name__ == "__main__":
         if not only or "pets" in only:
             pets_run()
             elsewhere_run()
+            roster_run()
     except BaseException:                             # serial: the runs after it never started
         reap(kids, tmp)
         raise

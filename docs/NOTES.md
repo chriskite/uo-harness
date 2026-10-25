@@ -5545,6 +5545,23 @@ level 3's entrance. Live on level 2:
   - `logs/red_scan/20261024_102346.json` has the packets.
   - `sim/calibrate.py` now keeps reds out of the creature types.
 
+## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
+
+- The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp
+  0x006C15F9 (body 74): all on Logan's tile at the house landing, notoriety 2, followers 5/5, claimed 216 s before.
+- None had a pet tag in the proxy's state (`Mobile.pet` unset; the viz state shows no `pet` field). The "(tame)" /
+  "(bonded)" line comes only when the client single-clicks the mobile; the client hadn't clicked these.
+- So the runner's roster (`tamer.resolve`) had nothing: the remembered serials (GraveRobber, AlaFlambe) weren't in
+  view and `mount.pets_near` needs the tag. Reproduced in `test_loop_hunt.py` `roster_run` on the old code: "--pets: no
+  pet of ours in view". The Seer ran its first run with `--pet` for the three meanwhile.
+- Also, before: when any remembered pet was in view, only the remembered ones were taken, so a new pet brought
+  beside an old one was left out.
+- Fixed (`Team.setup`, `tamer.untagged_near`): an untagged non-human, non-attackable mobile within 3 tiles is
+  single-clicked first (`agent_link.look_at`, the stock client's 0x09 + 0x34), and the roster is the tagged pets
+  within 3 tiles plus the remembered ones in view. Nothing else in the runner is tied to the pets' kind: the tank is
+  whichever pet stands next to a monster in war mode (`Team.tank_t`). The simulator still models only the gravebug
+  and the phoenix (data/sim/mausoleum.json `pets`), so its numbers are for those two.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

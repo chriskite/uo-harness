@@ -2378,6 +2378,18 @@ User: the simulator ignored Logan's armor; his suits differed between captures, 
 - **Not modelled:** AR changes inside a run (the aspect lost on death, the +15 buff, pierce). The World has no
   resurrection, and pierce's size is unmeasured.
 
+## Any pets on the hunt (user 2026-10-24: "so I can bring whatever pets I want")
+
+- **The roster is the tamed pets beside Logan at the start, plus the remembered ones in view** (`tamer.resolve`).
+  An untagged mobile there that may be a pet is single-clicked first, so its "(tame)" / "(bonded)" line comes
+  (docs/NOTES.md "Other pets than GraveRobber and AlaFlambe"). `--pet` still overrides.
+- Rejected: taking every notoriety-2 non-human within 3 tiles without the tag. A guild mate's pet or a
+  summon would join the roster, and the runner would then wait for it or leave over it.
+- Rejected: the stock right-click "Release" check (`mount.is_own`). It opens a context menu in the user's client
+  for each pet. The tag plus "within 3 tiles at the start" is enough at the house.
+- **Not done: the simulator's pets.** It models the gravebug and the phoenix only, so batches for other pets
+  stand for those two.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

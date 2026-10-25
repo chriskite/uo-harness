@@ -575,14 +575,17 @@ Paste this (or point the session at this section) to start an overseer.
 > the user before activating a candidate spot to fill the gap.
 >
 > **Mausoleum crawl shifts (Logan Wolf, a bard tamer; docs/HUNT_LOOP.md "Pets", "Recall in, recall
-> out", "Crawl", "Taking the loot home", "Soul jars").** The pets (GraveRobber `0x000DDEFE`, a gravebug, and
-> AlaFlambe `0x0026EF56`, a phoenix) fight; the runner never does by hand what it does itself. **Shifts are
-> continuous** (user 2026-10-15): run after run until the user says stop.
+> out", "Crawl", "Taking the loot home", "Soul jars").** The pets fight; the runner never does by hand what it does
+> itself. **The pets are whichever the user brought** (user 2026-10-24: "so I can bring whatever pets I want"; usually
+> GraveRobber `0x000DDEFE`, a gravebug, and AlaFlambe `0x0026EF56`, a phoenix; that evening GirthyEarthy, the tank,
+> fireminion and a searing imp): the runner claims the tamed pets beside him at the start, and its first lines
+> name them ("pets (tamed pets within 3 tiles…): …"). **Shifts are continuous** (user 2026-10-15): run after run
+> until the user says stop.
 > 0. **Run ctl from the main checkout** (`python "<main checkout>/harness/ctl.py" …`, or `./ctl.cmd` with the
 >    shell's working directory in the main checkout): a worktree's ctl runs the worktree's code against its own
 >    store (docs/NOTES.md "The fourth live run"). Task logs are in `<main checkout>/logs/tasks/<task_id>.log`.
 > 1. **Start at home in Logan Wolf's house** (facet 0, the "Logan's House" landing (3575, 3251), his tome's
->    default rune; the inn room until 2026-10-21), **with both pets beside thee** (`status.mobiles`,
+>    default rune; the inn room until 2026-10-21), **with all his pets beside thee** (`status.mobiles`,
 >    within 3 tiles). Not inside the Mausoleum: a recall works there only beside a gold moongate. **After a
 >    proxy restart** `status.mobiles` is empty, so the pets look gone: wait until they show again, or ask the
 >    user (they may need fetching).
@@ -705,7 +708,7 @@ Paste this (or point the session at this section) to start an overseer.
 >    until the user answers. A ghost can't recall out. After a death, decline every Report Murder gump (button
 >    3). Pets left in the dungeon are fine (user): the stablemaster PizzaParty in the DTF guild hall
 >    (4134, 1435) brings them back with "Retrieve Lost Followers". That isn't automated yet, so ask the
->    user; never go back in without both pets.
+>    user; never go back in without every pet the run started with.
 > 8. **Ending the shift or stopping a run** (the user says so, a server patch coming): **`ctl stop
 >    --after-trip`**: the run finishes the fight on Logan and its loot, goes out by the crimson gate to
 >    Totem and the tome home with the pets, drops off and exits 0 at home. Wait for its `task_done`

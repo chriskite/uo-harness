@@ -384,7 +384,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 | Argument | Default | Meaning |
 |---|---|---|
 | `--pets` | off | The pet team fights; never war mode, an attack or a spell (not even a heal spell without Magery). |
-| `--pet NAME\|SERIAL` | remembered, else the tamed pets within 3 tiles | One of our pets (repeat). The roster is remembered per character (memory meta `own_pets`). The run won't start without one. |
+| `--pet NAME\|SERIAL` | the tamed pets within 3 tiles, plus the remembered ones in view | One of our pets (repeat). Without it the roster is whatever pets the user brought (since 2026-10-24): every pet within 3 tiles with a "(tame)" / "(bonded)" line (a non-human, non-attackable mobile there without one yet is single-clicked first, as the client does, so its line comes: "looked at N untagged mobile(s) beside us: …"), and the pets remembered from earlier runs in view anywhere (a start inside the dungeon). Remembered per character (memory meta `own_pets`). The run won't start without one. A pet of ours standing out in view that shouldn't hunt: stable it. |
 | `--pet-heal-at` | `0.95` | Veterinary supplies when a pet within `--vet-range` is below this share of hits (or poisoned). |
 | `--pet-leave-at` | `0.20` | Leave when a pet is below this. |
 | `--vet-range` | `2` | Tiles the supplies reach. The Healer's Codex perk "Without Borders" adds 1/2/3 tiles (knowledge #11343); the user is levelling it (2026-10-12), so raise this with its tier. |
