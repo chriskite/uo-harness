@@ -2253,14 +2253,18 @@ left on the first level"). Three "All Follow Me" from 17 tiles never reached him
   25 captures (in reach up to 13, out from 15). The simulator's pets used to hear every command at any distance, which
   hid the failure.
 
-## An awake purger's shot is a wall for the patrol (2026-10-24)
+## An awake purger's shot is a wall for the patrol, unless it fights someone else (2026-10-24)
 
 User: "Logan keeps getting stuck in a loop 'Out of the <mob>'s shot' when a purger or blightmare is fighting someone
-else" (docs/NOTES.md "Cover loops at a purger or blightmare on someone else"). Decisions:
-- **Wait out of the shot rather than pass through it.** That is the user's rule of 2026-10-21 ("stay out of their aggro
-  range"). The patrol picks only waypoints reachable without stepping into an awake purger's or blightmare's shot, and
-  holds when there are none. Rejected: walking past at a distance. The loop's purger was on Gix's pets, but the shot
-  reaches whoever it sees, and the disease stacks. In the simulator the holds were short (median 5 s, at most 32 s).
+else" (docs/NOTES.md "Cover loops at a purger or blightmare on someone else"), then, on the first fix's wait: "We can
+just walk past when one is fighting someone else". Decisions:
+- **Walk past one on someone else** (user). A purger or blightmare in war mode with another player or his pets beside
+  it, and not on us or our pets, gets no cover, no stop at its shot's edge and no place in the waypoint filter
+  (`Team.shy_threats`). Superseded: the first fix waited out of its shot (6b4f926, the 2026-10-21 rule "stay out of
+  their aggro range"). In the simulator the walk past did no worse than the wait: 24 deaths in 98.2 h against 27 in
+  98.7 h.
+- **Every other awake one: wait out of the shot rather than pass through it.** The patrol picks only waypoints reachable
+  without stepping into its shot, and holds when there are none (median 5 s, at most 32 s in the simulator).
 - **The waypoint filter is a BFS on the crawl floor with the shot tiles blocked**, not a hard zone in the Mover. A
   hard zone would turn every waypoint beyond it into "no route" and rest it for `RESPAWN_S` (10 min) long after the
   monster is dead. Advances still stop at the shot's edge (`Team.pull_check`), so a waypoint chosen before it woke

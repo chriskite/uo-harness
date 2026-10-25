@@ -904,7 +904,7 @@ class Team:
         if now - self.cover_t < COVER_S:
             return False
         v = self.view(st)
-        shy = self.shy_awake(v)
+        shy = self.shy_threats(st, v)
         if v.walk is None or not shy or not self.shot_at(v, shy, v.pos):
             return False
         self.cover_t = now
@@ -999,10 +999,10 @@ class Team:
     def pull_check(self, st) -> str | None:
         """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, a --never-aggro
         monster or an idle corpse purger or blightmare (aggro.SHY) that would see us before a pet (back_off steps out),
-        an awake one whose shot reaches this tile ("an awake … would see us"; cover steps out: live 2026-10-24
-        19:01:21-19:02:07 a purger on another player's pets in the corridor, the patrol walked into its shot nine
-        times and cover walked out again; 19:02:36-55 the approach to a tormented soul behind a blightmare, five
-        times), or hold_reason. Its "at once" (more than the budget idle in sight together) only on a step that adds
+        an awake one whose shot reaches this tile, not one on someone else (shy_threats: walked past; "an awake …
+        would see us"; cover steps out, and without this stop the walk went straight back in: live 2026-10-24
+        19:01:21-19:02:55, nine and five rounds), or hold_reason. Its "at once" (more than the budget idle in sight
+        together) only on a step that adds
         to what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
         budget = self.a.pull_budget
         v = self.view(st)
@@ -1011,7 +1011,7 @@ class Team:
         shy = self.shy_first(v, v.pos)
         if not why and shy:
             why = f"a {shy[0]['kind']} would see us"
-        awake = [m for m in self.shy_awake(v) if self.shot_at(v, [m], v.pos)]
+        awake = [m for m in self.shy_threats(st, v) if self.shot_at(v, [m], v.pos)]
         if not why and awake:
             why = f"an awake {awake[0]['kind']} would see us"
         w = sum(m["weight"] for m in v.wakes(v.pos))
@@ -1678,6 +1678,19 @@ class Team:
         """Corpse purgers and blightmares (aggro.SHY) in war mode in view: they shoot from where they stand."""
         return [m for m in v.mobs if m["war"] and m["shy"]]
 
+    def shy_threats(self, st, v) -> list[dict]:
+        """shy_awake less one fighting someone else (another player or his pets, `elsewhere`) and not us or a pet of
+        ours (attackers, pet_attackers): its shot isn't ours to keep out of (user 2026-10-24: "We can just walk past when
+        one is fighting someone else"). The cover, an advance's stop (pull_check) and the patrol's waypoints
+        (crawl.Crawl.shot_tiles) go by these."""
+        shy = self.shy_awake(v)
+        if not shy:
+            return shy
+        mobiles = st["world"]["mobiles"]
+        ours = {serial_of(a["serial"]) for a in self.h.attackers(st)} | self.pet_attackers(st)
+        return [m for m in shy if m["serial"] in ours
+                or self.elsewhere(st, mobiles.get(f"0x{m['serial']:08X}") or {}) is None]
+
     @staticmethod
     def shot_at(v, shy: list, tile) -> int:
         """How many of the `shy` monsters see `tile` within their reach (CASTER_R, RANGED_R)."""
@@ -2030,14 +2043,6 @@ class Team:
                     self.all_kill(serial)
                     return
             elif cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE:
-                if aggro.shy(type_key(mob.get("name"))):
-                    # a purger or blightmare: any tile that sees it is in its shot (live 2026-10-24 19:01:55, the walk to
-                    # see one on another player's pets, then cover back out; once a minute as its skip ran out)
-                    log(f"passing over {name} 0x{serial:08X}: fighting {who} out of our sight, and a tile that sees it "
-                        f"is in its shot; skipping it for {SKIP_S:.0f} s")
-                    h.skip[serial] = now + SKIP_S
-                    h.disengage("dropped")
-                    return
                 if self.bard_step(st, serial):        # in range, out of our sight: a step that sees it
                     return
                 if not engaged and self.walk_to_see(st, serial, mob, who):

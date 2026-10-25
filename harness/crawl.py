@@ -861,15 +861,15 @@ class Crawl:
         return None
 
     def shot_tiles(self, st) -> tuple[frozenset, list]:
-        """(the floor tiles an awake corpse purger or blightmare in view shoots: tamer.Team.shot_at, their kinds). The
-        patrol chooses only waypoints it reaches without stepping on one (user 2026-10-21: "stay out of their aggro
-        range"; live 2026-10-24 19:01:21-19:02:07 a purger on another player's pets in the corridor south of Logan,
-        nine rounds of a patrol into its shot and the cover back out)."""
+        """(the floor tiles an awake corpse purger or blightmare in view shoots, tamer.Team.shot_at, their kinds): not
+        one fighting someone else (Team.shy_threats; user 2026-10-24: "We can just walk past when one is fighting
+        someone else"). The patrol chooses only waypoints it reaches without stepping on one (user 2026-10-21: "stay
+        out of their aggro range")."""
         team = getattr(self.h, "team", None)
         if team is None:
             return frozenset(), []
         v = team.view(st)
-        shy = team.shy_awake(v)
+        shy = team.shy_threats(st, v)
         out = set()
         for m in shy:
             r = tamer.CASTER_R if m["caster"] else tamer.RANGED_R

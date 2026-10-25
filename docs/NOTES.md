@@ -4977,15 +4977,19 @@ else". Task log, and capture session_20261024_102346:
 - Why: an awake shy monster's reach was only a soft danger zone (`Mover.danger_cost`), and the corridor had no way
   round, so the route crossed it. Guarding pets keep war mode on between fights, so `pets_busy` read a pet within 2 of
   another player's fight as fighting. Nothing stopped an advance at the edge of its shot.
-- Fixed (docs/HUNT_LOOP.md "An awake one on someone else"): the patrol chooses only waypoints it reaches without
-  stepping into such a shot, and waits out of it when there are none. An advance stops at the shot's edge (waypoint rest
-  60 s, target passed over). No walk to see one on someone else. `pets_busy` skips a monster another player's side
-  fights unless a pet of ours swings at it. test_sim `test_patrol_off_awake_purger_shot` (before: 8 half-seconds in its
-  shot walking past, and "GraveRobber is fighting" beside it; after: 1, waiting out of it, not fighting).
-- **Simulator, before and after** (120 runs of 60 min, seeds 101 and 201, `--others --eerie --prior
-  harness/data/harness.db`; before = 4ea4fbe): covers 3,247 and 2,785; deaths 26 in 103.8 h and 27 in 98.7 h, 11 and
-  8 of them with a purger or blightmare in the last 15 s; pet deaths 44 and 45; 110.8k and 113.7k gp banked an hour.
-  The waits out of a shot: 77 in seed 101's after batch, median 5 s, longest 32 s.
+- First fix (6b4f926): the patrol chose only waypoints it reached without stepping into an awake shy monster's shot
+  and waited out of it when none was left; advances stopped at the shot's edge; no walk to see one on someone else.
+  `pets_busy` skips a monster another player's side fights unless a pet of ours swings at it. Simulator, 120 runs of 60
+  min, seeds 101 and 201, `--others --eerie --prior harness/data/harness.db`, before = 4ea4fbe: covers 3,247 and 2,785;
+  deaths 26 in 103.8 h and 27 in 98.7 h (11 and 8 with a purger or blightmare in the last 15 s); pet deaths 44 and 45;
+  110.8k and 113.7k gp banked an hour. The waits out of a shot in seed 101's batch: 77, median 5 s, longest 32 s.
+- Then the user: "We can just walk past when one is fighting someone else". One on another player's side and not on us
+  or our pets (`Team.shy_threats`) is out of all three rules: no cover, no edge stop, not in the waypoint filter; the
+  walk to see it and "All Kill" are back. The waiting and the edge stop stay for every other awake one. test_sim
+  `test_walk_past_purger_on_another` (at 6b4f926: a cover and no step south of y 649 in 40 s; now: no cover, on to
+  y 737; the pet beside the fight not "fighting"). The same 120 runs against 6b4f926: deaths 27 in 98.7 h and 24 in
+  98.2 h (8 and 7 with a purger or blightmare), pet deaths 45 and 48, covers 2,785 and 2,795, 113.7k and 116.4k gp
+  banked an hour.
 
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
