@@ -14,6 +14,9 @@ import { fetchHunt, useJobPoll } from "./JobsCommon.tsx";
 
 const ALL_TIME: DateRange = { from: null, to: null };
 const HISTORY_ROWS = 5;
+// The intent came without `tally`: an older proxy or runner sends none, and the proxy drops a malformed one whole
+// (proxy.set_intent: more than 32 counters, a non-int)
+const NO_TALLY = "no run tally in the intent (an older proxy or runner, or one the proxy rejected)";
 
 const ACTIVITY_TONE: Record<HuntActivity, Tone> = {
   fighting: "bad",
@@ -47,7 +50,7 @@ export function HuntJobPanel({ intent, viz }: { intent: AgentIntent; viz: VizSna
   const runKillsH = tally && runS !== null && runS >= RATE_MIN_S ? ((tally.kills ?? 0) / runS) * 3600 : null;
   const visits = data ? [...data.visits].reverse().slice(0, HISTORY_ROWS) : [];
   const sameDay = oneLocalDay(visits.flatMap((v) => (v.t_start === null ? [] : [v.t_start])));
-  const measuring = tally ? `— measuring (needs ${RATE_MIN_S} s)` : "— no run tally (the proxy or runner predates it)";
+  const measuring = tally ? `— measuring (needs ${RATE_MIN_S} s)` : `— ${NO_TALLY}`;
 
   return (
     <Panel
@@ -147,7 +150,7 @@ export function HuntJobPanel({ intent, viz }: { intent: AgentIntent; viz: VizSna
             </span>
           </div>
         ) : (
-          <span className="dim">no run tally (the proxy or runner predates it)</span>
+          <span className="dim">{NO_TALLY}</span>
         )}
 
         <h3>Past visits</h3>

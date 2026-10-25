@@ -288,9 +288,13 @@ The runners report what they are trying to do right now on the proxy's state por
 - **`tally` and `started`** (hunt runs, 2026-10-17): the run's counters so far (`{name: int}`, ≤ 32
   entries, names ≤ 40 chars, any int; all or nothing like `woods`) and when the run began (epoch s,
   a positive finite number). Neither is part of the same-step key.
-  - The hunt runner (`HuntLoop.doing`) sends its `totals` (kills, lost_kills, gold, xp, hits_lost,
-    casts, heals, potions, leaves, visits, banked, …) and `started` with every intent, and the
-    visit number as `trip`. Every intent update therefore carries the tally (§2.16 relies on it).
+  - The hunt runner (`HuntLoop.doing`) sends the pane's counters from its `totals`
+    (`loop_hunt.INTENT_TALLY`: kills, lost_kills, gold, banked, xp, hits_lost, heals, potions,
+    visits, leaves) and `started` with every intent, and the visit number as `trip`. Every intent
+    update therefore carries the tally (§2.16 relies on it). Not the whole `totals` (until
+    2026-10-25 it was): `tamer.Team` counts open-ended names into it (`bard_*`, `<effect>_ok`, `song`,
+    `vet`, …), and a live Mausoleum pet run reached 33 counters 15 min in; from then on the proxy
+    dropped every tally and the pane lost its rates and This run.
   - Older proxies drop both fields; older runners don't send them.
 - **Healthbars:** under TestWorth and under every mobile whose hits are known (other mobiles'
   hits arrive as percentages). Hurt mobiles always show one; full ones from 8 px/tile zoom up.
@@ -1052,8 +1056,9 @@ shows while a hunt run is going: the current intent has `loop: "hunt"` and a kin
   (and banked), XP (est.), hits lost, heals · potions, visits · leaves, all from `tally`.
 - **Past visits:** the newest 5 visit rows of all-time `/api/jobs?job=hunt` (when, time, kills,
   gold/hr, how it ended) and the all-hunts gold/hr, kills/hr and gold/kill (all characters).
-- Without `tally` (a proxy or runner older than §2.3's `tally`/`started`) the rates other than
-  dmg/s and This run say so. Running is decided from the intent alone, as §2.11.
+- Without `tally` (a proxy or runner older than §2.3's `tally`/`started`, or a tally the proxy
+  rejected as malformed) the rates other than dmg/s and This run say so. Running is decided from
+  the intent alone, as §2.11.
 - `viz/src/huntjob.ts` is the pure model (bun tests); `components/HuntJobPanel.tsx` draws it.
 - Verified in headless Chromium against a second viz server (port 8099) replaying
   20261017_110506 (Logan Wolf's Mausoleum crawl) with each hunt intent given the tally the store's
@@ -1473,7 +1478,8 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
     (negative, string, empty name, bool, list, 33 entries) and a 65-char `spot` dropped (§2.3);
     a hunt `tally` (negatives allowed) and `started` kept, a tally update stays one step, a
     malformed `tally` (float, bool, empty name, 33 entries) and a bad `started` (bool, 0,
-    negative, NaN, inf, string) dropped.
+    negative, NaN, inf, string) dropped; `HuntLoop.doing` with 42 counters in `totals` sends a
+    tally the proxy keeps, with only `INTENT_TALLY`'s names.
   - `/api/lumber/grove` (§2.12): the area, every runner tree inside it, harvest-memory states
     (a fresh depleted mark with its window end, not_tree, an old unreachable ready again), trees
     past the edge only up to the margin, lookup by position (else `spot` null), 400s.

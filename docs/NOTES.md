@@ -5747,6 +5747,19 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   about ±3 % a batch, or some overlap with main's to_pet rule]. Pet-death runs 5 -> 10 on seeds 1001-1200 only (6 vs 5
   on the holdout): watch for it live.
 
+## Hunt job pane lost its tally mid-run (live 2026-10-25; fixed in the runner)
+
+- **Symptom (user):** the Live page's Hunt job pane said "kills/hr — no run tally (the proxy or runner predates
+  it)" during a Mausoleum pet run whose proxy and runner both send `tally`.
+- **Cause:** `/api/state` `.intents`: every step up to 1792952242.8 carried `tally`, the last with exactly 32
+  keys; every step from 1792952243.8 ("Back to NightmareA", 15 min into the run) had none. The runner sent its
+  whole `totals`, which `tamer.Team.count` grows with open-ended names (`bard_*`, `<effect>_ok/_fail`, `song`,
+  `vet`, `spacing`, `los_moves`, ...); the proxy's `set_intent` keeps a tally of at most `INTENT_WOODS_MAX` (32)
+  entries, all or nothing, and drops a bigger one without a log line.
+- **Fix:** `HuntLoop.doing` sends only `loop_hunt.INTENT_TALLY` (the pane's ten counters); no proxy change, so no
+  proxy restart. A runner started before the fix still loses its tally at the 33rd counter. The pane's message
+  now names a rejected tally as a cause too.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

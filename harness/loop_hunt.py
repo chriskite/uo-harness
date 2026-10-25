@@ -301,6 +301,11 @@ BANK_RANGE = 3                # say "bank" this close to the banker (RunUO speec
 BANKER_SEARCH = 18            # tiles around us whose human NPCs are clicked to find a banker
 BANKER_CLICKS = 12
 NO_WALK_FAILURES = ("dead", "mana", "reagents")   # a refused recall the walk to --recall-spot can't help
+# The run counters each intent carries as `tally` (doing): the ones the viz's Hunt job pane shows. Not all of
+# `totals`: tamer.Team counts open-ended names into it (bard_*, <effect>_ok/_fail, song, vet, ...), and the proxy
+# drops a tally of more than proxy.INTENT_WOODS_MAX (32) entries whole (live 2026-10-25: the pane lost its rates
+# and "This run" when a Mausoleum pet run reached 33 counters)
+INTENT_TALLY = ("kills", "lost_kills", "gold", "banked", "xp", "hits_lost", "heals", "potions", "visits", "leaves")
 
 
 class PlayerThreat(Exception):
@@ -424,10 +429,11 @@ class HuntLoop:
     # ------------------------------------------------------------ reporting
     def doing(self, kind: str, text: str, target=None, serial=None):
         """Tell the visualizer what the agent is trying to do (proxy-side only), with the visit
-        number as the trip, the run's totals so far (`tally`) and when the run began."""
+        number as the trip, the run's headline totals so far (`tally`, INTENT_TALLY) and when the run began."""
         self.link.intent(text, kind, target, loop="hunt",
                          target_serial=key_of(serial) if serial is not None else None,
-                         trip=self.visit_n or None, tally={k: int(v) for k, v in self.totals.items()},
+                         trip=self.visit_n or None,
+                         tally={k: int(self.totals.get(k, 0)) for k in INTENT_TALLY},
                          started=self.started)
 
     def _where(self, st):

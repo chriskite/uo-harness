@@ -20,7 +20,8 @@
   (proxy reports paused, control-port injection gets ERR ...paused), resume,
   kill, resume-while-killed 409
 - agent intent: lumber spot + per-wood tally kept, malformed ones dropped, a
-  tally update stays one step
+  tally update stays one step; the hunt runner's tally passes the proxy's cap
+  however many counters the run keeps
 - GET /api/lumber/grove: a spot's area and trees with their harvest-memory
   states, by spot id or by a position inside it; bad params 400
 - job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
@@ -236,6 +237,19 @@ def test_intent_fields():
     for started in (True, 0, -5, float("nan"), float("inf"), "1792250000"):
         tap.set_intent({**fight, "started": started})
         check(f"bad started dropped: {started!r}", "started" not in tap.intent, str(tap.intent))
+    import loop_hunt                                     # the hunt runner's intent through the proxy
+
+    class Sent:
+        def intent(self, text, kind=None, target=None, **extra):
+            tap.set_intent({"text": text, "kind": kind, **{k: v for k, v in extra.items() if v is not None}})
+    h = object.__new__(loop_hunt.HuntLoop)
+    h.link, h.visit_n, h.started = Sent(), 1, 1792250000.5
+    h.totals = {"kills": 19, "gold": 12757, **{f"bard_c{i}": i for i in range(40)}}   # a pet run's open-ended counters
+    h.doing("fight", "The pets are fighting a corpse purger")
+    t = tap.intent.get("tally") or {}
+    check("a hunt run's tally survives however many counters it keeps (only the pane's go out)",
+          t.get("kills") == 19 and t.get("gold") == 12757 and t.get("banked") == 0
+          and set(t) == set(loop_hunt.INTENT_TALLY), str(tap.intent))
 
 
 def test_jobs():
