@@ -2531,6 +2531,7 @@ class HuntLoop:
         The first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
         self.check_instrument()
+        self.check_charges()
         if self.team is not None:
             self.team.follow()
         self.doing("enter", f"Recalling to {rune or 'the default rune'}")
@@ -2567,6 +2568,33 @@ class HuntLoop:
                              {"item": "instrument"})
         raise Abort("no instrument in the pack: not going in (the bard skills and songs need one; "
                     "--no-discord --no-peace --no-provoke --no-songs to go without)")
+
+    def check_charges(self):
+        """No recall in without the way home: --enter-recall's and --leave-recall's books read (escape.check_ready, one
+        glance each) and a charge for every recall the visit needs (in, and home from the leave), unless Recall can
+        be cast (mana and reagents). Short: a low_supplies juncture (item `recall charges`), the run ends at home.
+        Live 2026-10-25 17:53:38 the recall home took the tome's last charge and the recall in failed on the spell
+        ("reagents") at home; one charge fewer and the home recall would have failed at Totem with the loot."""
+        need = {}
+        for book in (self.args.enter_recall, self.args.leave_recall):
+            if book is not None:
+                need[book] = need.get(book, 0) + 1
+        for book, n in need.items():
+            self.human.wait("read")
+            try:
+                info = escape_mod.check_ready(escape_mod.LinkIO(self.link), book)
+            except escape_mod.RecallError as e:
+                raise Abort(f"the book 0x{book:08X} can't be read: {e}; not going in")
+            if info["can_cast"] or info["charges"] >= n:
+                log(f"{info['kind']} 0x{book:08X}: {info['charges']} recall charge(s)"
+                    + (", Recall castable" if info["can_cast"] else ""))
+                continue
+            self.memory.juncture("hunt", "low_supplies",
+                                 f"{info['charges']} recall charge(s) on 0x{book:08X}, {n} needed: not going in",
+                                 "attention", {"item": "recall charges", "book": key_of(book),
+                                               "charges": info["charges"], "needed": n})
+            raise Abort(f"{info['kind']} 0x{book:08X} has {info['charges']} recall charge(s) and Recall can't be "
+                        f"cast (mana/reagents): not going in (the way in and home need {n})")
 
     def resume_inside(self, st):
         """Started inside the dungeon (no recall from here: escape.recall_forbidden) and away from --spot. Live

@@ -223,6 +223,13 @@ tome "New Player Locations", 0x57C3DEB6; its default rune is Cambria, by the ban
   a tome charge, put Shackleworth's prismatic staff in the pack like a cast; the runner notes it
   as a cast that disarms) before any walk or attack, and the visit starts as in the NPD (walk to
   the fight spot, Stationary Penalty, fight).
+  **Not without the way home** (since 2026-10-25, `HuntLoop.check_charges`, before every recall in): the
+  `--enter-recall` and `--leave-recall` books are glanced at (`escape.check_ready`) and each needs a charge per
+  recall of the visit (one tome for both: 2), unless Recall can be cast (mana and reagents). Short: a `low_supplies`
+  juncture (item `recall charges`) and the run ends at home ("… has N recall charge(s) and Recall can't be cast
+  (mana/reagents): not going in"). Else "runetome 0x…: N recall charge(s)". Live 2026-10-25 17:53 the recall home
+  took Logan's tome's last charge and the recall in failed ("reagents"); one fewer and he'd have stood at Totem
+  with the loot. With --pets and a bard skill on, no instrument in the pack ends the run there too (`check_instrument`).
 - **Out** (`--leave-recall BOOK`): every leave rule (hits, two attackers, hostile player, time up,
   done) recalls to the book's default rune instead of walking to an exit. A survival leave
   recalls at once from where it stands: no war-mode toggle, no walk, a spell cursor that is up is

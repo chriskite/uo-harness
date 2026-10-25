@@ -1709,6 +1709,35 @@ def test_instrument():
           str(out))
 
 
+def test_recall_charges():
+    print("== no recall in without a charge for the way in and the way home (no Recall to cast) ==")
+    # live 2026-10-25 17:53:38-49 (hunt-20261025-172927-2bc3): the recall home took the tome's last charge, the recall
+    # in failed on the spell ("reagents"); at 1 charge the home recall would have failed at Totem with the loot
+    import loop_hunt
+    out = {}
+    for charges in (36, 2, 1):
+        w = world_with([{"key": "shade wolf", "at": [5268, 648, 0]}], seed=7)
+        w.items[0x444AB1F3]["charges"] = charges
+        loop, clock, store, patched = hurt_loop(w, 100)
+        loop.args.enter_recall = 0x444AB1F3            # §5's command: in and home by the same tome
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                clock.advance(0.5)
+                try:
+                    loop.check_charges()
+                    refused = None
+                except loop_hunt.Abort as e:
+                    refused = str(e)
+                low = [j for j in store.con.execute("SELECT kind, data FROM junctures").fetchall()
+                       if j[0] == "low_supplies" and "recall charges" in (j[1] or "")]
+                out[charges] = (refused is not None and "not going in" in refused, len(low))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("36 or 2 charges (in and home, one tome): in; 1: not going in, one low_supplies",
+          out == {36: (False, 0), 2: (False, 0), 1: (True, 1)}, str(out))
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -4406,7 +4435,7 @@ def main():
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_patrol_after_back_off,
               test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
-              test_instrument,
+              test_instrument, test_recall_charges,
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once, test_theirs_passed_over,

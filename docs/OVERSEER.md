@@ -594,7 +594,10 @@ Paste this (or point the session at this section) to start an overseer.
 >    Read its `reply`. Not at home: `act recall 0x444AB1F3` (its default rune is the house) first.
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"
 >    and the like): heal potions `0x0F0C`, vet supplies `0x6496`, Total Refresh `0x0F0B`, adventurer's rope,
->    the rune tome `0x444AB1F3`, and **an instrument to play** (a lute, harp, psaltery, flute, drum or tambourine
+>    the rune tome `0x444AB1F3` **with recall charges** (`act recall 0x444AB1F3 --check`: 2 at least, in and home;
+>    since 2026-10-25 the runner won't recall in with fewer and no Recall to cast: "… recall charge(s) … not going in",
+>    a `low_supplies` juncture with item `recall charges`; that day the tome ran dry, the shelf's Resupply not
+>    refilling it: tell the user), and **an instrument to play** (a lute, harp, psaltery, flute, drum or tambourine
 >    in the pack; since 2026-10-25 the runner won't recall in without one: "no instrument in the pack: not going in",
 >    a `low_supplies` juncture with item `instrument`; that day his durable psaltery wore out mid-run and the user
 >    put in a bamboo flute). None: tell the user. The shelf's "Unable to resupply: no items available." also comes with

@@ -5982,6 +5982,19 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   (`HuntLoop.check_instrument`, `low_supplies` item `instrument`). test_sim `test_instrument` (a lap harp, a psaltery,
   none; fails before on the psaltery).
 
+## The rune tome ran out of charges at home (live 2026-10-25 17:53, hunt-20261025-172927-2bc3)
+
+- 17:53:38 "recall try 1 (cast 1): arrived (runetome, charge, rune Logan's House, 2.51 s)", the drop-off (32,106 gp ->
+  0), then 17:53:49 "recall try 1 (cast 1): reagents (runetome, spell, rune Maus Near 2, …)" and "ABORTED: recall to
+  Maus Near 2 failed: reagents". The Seer's `act recall 0x444AB1F3 --check`: 0 charges (26 entries); Logan carries no
+  reagents. The drop-off's shelf reply listed no recharge [INFERENCE, the Seer: no recall scrolls on the shelf].
+- The home recall happened to take the last charge. The runner had no look at the charges before going in: at 1
+  charge it would have recalled in and stood at Totem after the crimson gate with no way home and the loot.
+- **Runner now** (`HuntLoop.check_charges`, before every recall in): the in and home books glanced at
+  (`escape.check_ready`), a charge per recall of the visit (2 for §5's one tome) unless Recall can be cast; else a
+  `low_supplies` juncture (item `recall charges`) and the run ends at home. Log "runetome 0x444AB1F3: N recall
+  charge(s)" each time. test_sim `test_recall_charges` (36, 2, 1 charges).
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
