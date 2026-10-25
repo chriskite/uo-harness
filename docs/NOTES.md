@@ -5935,6 +5935,35 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   Radius 3 keeps him at 14 and the damage per kill at HEAD's. Pet deaths 4 -> 7 in 66 h [INFERENCE: noise at these
   counts; watch live].
 
+## "All Kill" then "passing over" a few seconds later (live 2026-10-25 13:02-16:36, two runs)
+
+- **Symptom (the Seer):** a monster on another player got "<it> is fighting <who>: 'All Kill' at it", then 1-5 s later
+  "passing over <it>: <who> has it at N %, its loot is theirs" and "'All Kill' target … dropped: the pets off guard
+  since; 'All Guard Me' due". E.g. 16:33:38-43 a nightstalker 0x006A240B (A, 52 %), 16:34:32-38 a tormented soul
+  0x006A1F78 (A, 66 %), hunt-20261025-152542-5ab5.
+- **Not a stale hits read** (the Seer's guess). Capture session_20261024_225113, 0xA1 for 0x006A240B: 86 -> 81 % at
+  the "All Kill" (its intent at 1792964018.98), 52 % at 1792964022.34, dead at 1792964029.97 (about 5 % a second);
+  0x006A1F78 had no 0xA1 before the "All Kill" (full hits) and was at 99 -> 66 % over the next 3 s. Both were above
+  `THEIRS_BELOW` 0.8 when the pets were sent; the share is read again on every fight tick while they run there
+  (the branch only runs while no pet of ours is beside it), and the hits lost meanwhile are partly the pets' own.
+- **Count** (both runs' task logs): 34 such "All Kill"s, 25 dropped by a pass-over 1-5 s later at 52-79 %; of those
+  killed in view, 11 corpses were looted by us all the same and 10 were blue, 4 died out of view.
+- **Fix:** no pass-over while our "All Kill" at it is under `KILL_REPEAT_S` 12 s old (`Team.fight`); after that, with
+  no pet beside it, the share counts again. test_sim `test_theirs_after_kill_sent` (fails before: passed over at 50 %
+  3 s after the "All Kill").
+- **Simulator, 200 runs a side** (`--runs 200 --careers 20 --others --eerie --team nightmare_fire --prior <main store>
+  -- --vet-range 5 --crawl-learn-s 180`; before = 392fafd):
+
+  | 200 runs | gold banked/h before / after | deaths | pet-death runs | kills/h | "All Kill" at one on others | lost kills |
+  |---|---|---|---|---|---|---|
+  | seeds 1001-1200 | 116,336 / 117,472 | 9 / 6 | 8 / 6 | 112.0 / 112.5 | 230 / 216 | 238 / 224 |
+  | seeds 2001-2200 | 115,385 / 115,223 | 11 / 11 | 7 / 5 | 111.7 / 111.5 | 260 / 310 | 231 / 271 |
+  | pooled | 115,867 / 116,361 | 20 / 17 | 15 / 11 | 111.9 / 112.0 | 490 / 526 | 469 / 495 |
+
+  Neutral in the simulator (gold +0.4 %, per-run SE about 2 %); its other players out-damage the pets more than live
+  [INFERENCE: 63 of 63 sim kills after such an "All Kill" were blue, live 10 of 21], so the live gain is the corpses
+  that were ours yet left by the call-off and the "All Guard Me" round trip.
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,

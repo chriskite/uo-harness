@@ -453,7 +453,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    `test_on_another_player`). **Only while it is near full hits** (since 2026-10-24): one they already have below
    `tamer.THEIRS_BELOW` 0.8 of its hits is passed over for 60 s instead ("passing over <it>: <who> has it at N %, its
    loot is theirs"): the most damage takes the corpse (live 12 % of the credited kills were blue; in the simulator 63
-   of 63 kills after such an "All Kill" were). test_sim `test_theirs_passed_over`.
+   of 63 kills after such an "All Kill" were). test_sim `test_theirs_passed_over`. **Not while our "All Kill" at it is
+   under `KILL_REPEAT_S` 12 s old** (since 2026-10-25): it was near full hits then, and the hits it loses while the
+   pets run there are partly theirs; once 12 s pass with no pet beside it, the share counts again (live: 25 of 34 such
+   "All Kill"s were dropped 1-5 s later at 52-79 %, and 11 of the 21 corpses seen were ours all the same).
+   test_sim `test_theirs_after_kill_sent`.
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
    (the other onto a second other, or onto our target), then Peacemaking on the target (it stops

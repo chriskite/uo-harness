@@ -1408,6 +1408,35 @@ def test_theirs_passed_over():
           out[1.0][0] >= 1 and not out[1.0][1] and out[0.5] == (0, True), str(out))
 
 
+def test_theirs_after_kill_sent():
+    print("== a monster on another player sent at near full hits: it falls below THEIRS_BELOW as the pets go; they stay "
+          "on it ==")
+    # live 2026-10-25 16:33:38-43 (hunt-20261025-152542-5ab5): "a nightstalker 0x006A240B is fighting A: 'All Kill' at
+    # it" at 86 % (capture 0xA1), "passing over ... A has it at 52 %" 4 s later, the pets called off; 25 of 34 such
+    # "All Kill"s dropped that way in two runs, 11 of the 21 corpses seen ours all the same
+    from sim import packets as P
+    w, m = daemon_on_elsa((5242, 694))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            w.send(P.hits(m.serial, m.pct(), 100))
+            clock.advance(0.5)
+            loop.team.fight(m.serial)
+            sent = w.metrics["kill_on_others"]
+            m.hits = m.hits_max * 0.5                     # Elsa's (and the pets') blows on the way
+            w.send(P.hits(m.serial, m.pct(), 100))
+            for _ in range(6):                            # 3 s, inside KILL_REPEAT_S
+                clock.advance(0.5)
+                loop.team.fight(m.serial)
+            held = loop.skip.get(m.serial, 0) <= tamer.time.monotonic() and "passing over" not in out.getvalue()
+            on_it = all(p.mode == "kill" and p.target == m.serial for p in w.pets() if p.alive)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("'All Kill' at full hits; at half 3 s later: not passed over, the pets still on it",
+          sent >= 1 and held and on_it, f"sent {sent}, held {held}, pets on it {on_it}")
+
+
 def test_patrol_off_passed_over_area_hitter():
     print("== the patrol stays out of a passed-over reanimated daemon's bone burst: no patrol/stand-off ping-pong ==")
     # live 23:29:34-23:30:19: dropped (pinned 15 s), the patrol went on to (5243, 698) 3 tiles from it, the bone burst
@@ -4368,6 +4397,7 @@ def main():
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once, test_theirs_passed_over,
+              test_theirs_after_kill_sent,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,

@@ -2488,6 +2488,15 @@ walks away (docs/NOTES.md "Backed off from a purger, never patrolled at"). Decis
   awake blightmare reaches 12 and a purger 13. **Rejected: `PATROL_MAX_R` 12**: no click past 11 seen live.
   *Live*: untried; the §5 command is unchanged.
 
+## A monster the pets were sent at isn't passed over on its way down (2026-10-25)
+
+The Seer: "All Kill" at a monster on another player, then "passing over … its loot is theirs" 1-5 s later (docs/NOTES.md
+"'All Kill' then 'passing over' a few seconds later"). Decision: `THEIRS_BELOW` decides before the pets are sent, not
+while they run there: no pass-over within `KILL_REPEAT_S` of our "All Kill" at it. Live 11 of 21 such dropped corpses
+were ours anyway; the simulator is neutral (200 runs a side on two blocks: gold +0.4 %, deaths 20 -> 17). Rejected: a
+higher `THEIRS_BELOW` or a damage-rate rule; the hits read was right at the "All Kill", and the pets' share of the drop
+can't be told from the other player's. *Live*: from the next `ctl run`; the §5 command is unchanged.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

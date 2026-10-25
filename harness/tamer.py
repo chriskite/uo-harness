@@ -2189,7 +2189,11 @@ class Team:
             # 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The pets'
             # war flag alone isn't a fight: guarding, they keep it between fights (live 2026-10-19 10:10:57-10:11:28 at
             # our side 7 tiles from a tormented soul on Lord Phaze, read as "on it" within PET_REACH: two 15 s waits)
-            if h.frac(mob) < THEIRS_BELOW:
+            # Not while our "All Kill" at it, sent at THEIRS_BELOW or more, is under KILL_REPEAT_S old: the pets are on
+            # their way and the hits it loses meanwhile are partly theirs (live 2026-10-25 13:02-16:36, two runs: 25 of
+            # 34 such "All Kill"s were dropped 1-5 s later at 52-79 %; of the 21 killed in view 11 corpses were ours
+            # all the same, 10 blue). Past KILL_REPEAT_S with no pet beside it, the race is lost: passed over then.
+            if h.frac(mob) < THEIRS_BELOW and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S:
                 # they have done the most damage already and the loot right goes with it (loop_hunt BLUE, captures):
                 # finishing it is a fight for their corpse (simulator 2026-10-24: 63 of 63 such kills were blue)
                 log(f"passing over {name} 0x{serial:08X}: {who} has it at {h.frac(mob):.0%}, its loot is theirs; "
