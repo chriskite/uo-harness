@@ -5734,6 +5734,18 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   in reach (within 8 or 5; "guard, never open" loosened): no gain. Passing over the cheap types (raw flesh, reanimated
   knight, calamity, vampire bat, shadow minion): no gain. No hold for a passed-over monster: -3.6 %. A kill resetting
   its area's staleness, looting after a target in reach, the nearest corpse first: no change.
+- **After the merge into main** (692c875 against 6c86097, main just before it, which had the stuck-pets "All Follow
+  Me" and the caster-reach rule for walks to a hurt pet; the same batch, frozen prior):
+
+  | 200 runs | gold/h before | after | x | deaths before / after | d/100k gold x | pet-death runs | pet left behind |
+  |---|---|---|---|---|---|---|---|
+  | 1001-1200 | 106,087 | 110,437 | 1.041 | 22 / 16 | 0.68 | 5 -> 10 | 8 -> 1 |
+  | 2001-2200 | 105,724 | 110,624 | 1.046 | 17 / 18 | 1.02 | 5 -> 6 | 7 -> 7 |
+  | pooled | 105,904 | 110,529 | 1.044 | 39 / 34 | 0.83 | 10 -> 16 | 15 -> 8 |
+
+  +4.4 % gold an hour on the merged code, a little under the branch's +5.7 % against 4fe805e [INFERENCE: noise of
+  about ±3 % a batch, or some overlap with main's to_pet rule]. Pet-death runs 5 -> 10 on seeds 1001-1200 only (6 vs 5
+  on the holdout): watch for it live.
 
 ## Network observations
 
