@@ -5562,6 +5562,57 @@ level 3's entrance. Live on level 2:
   whichever pet stands next to a monster in war mode (`Team.tank_t`). The simulator still models only the gravebug
   and the phoenix (data/sim/mausoleum.json `pets`), so its numbers are for those two.
 
+## Less time not fighting in the simulator (2026-10-24/25, goal run on the efficient-crawl branch)
+
+Goal (user 2026-10-24): gold banked an hour in the simulator +10 % with deaths per 100k gold banked at most 1.1x the
+current runner's and pet-death / pet-left-behind runs at most +2, on both seed blocks; runner code only. The user's
+three observations: stepping off the tank repeatedly with no monsters around, patrolling to the ends of hallways
+already cleared, waiting to heal before moving on when a pet misses a few hits.
+
+- **The batch**: as "Half the deaths in the simulator" (200 runs, 20 careers, `--others --eerie --prior <frozen>`,
+  `-- --vet-range 5 --crawl-learn-s 180`); frozen prior: the main store's 90 episodes and 4,446 hunt events older
+  than `EPOCH` (the same counts as that goal's copy). Seeds 1001-1200 tuning, 2001-2200 holdout. 13-17 min a batch.
+- **Where the game time went** (a throwaway profiler: `SimLink.intent` time by kind, and the sim world sampled every
+  second on the level; 80-128 runs as careers): base runner fight 31 %, patrol 20 %, bard 10 %, loot 9.5 %, hold
+  5.8 %, step off the tank 3.8 %, vet 4.3 % (1.2 % "Healing up before moving on"). On the level the pets fought 64 %
+  of the time (both attacking 57 %); 25 % had an idle monster within 18 tiles not fighting anyone (most beyond the
+  pull range or passed over as unseen: tormented and bound souls in their cells first), 9.5 % none in view.
+- **Fixed** (all three user observations were real):
+  - `Team.spacing` ran for `FIGHT_LINGER_S` 8 s after the last monster: after every kill Logan stepped off the
+    guarding pets as they came back, every 1.5 s, before looting. Now only while `aggro.View.engaged`. Spacing
+    steps 16,479 -> 8,983 in 97 game hours. test_sim `test_no_spacing_after_fight` (fails before: 3 steps after the kill).
+  - Out of a fight a pet below `--pet-heal-at` 0.95 got a channel and `busy_healing` held the patrol through it; now
+    only below `CALM_HEAL_AT` 0.80 (or poisoned, a ghost, us below `--heal-at`). test_sim `test_calm_heal`.
+  - Only a waypoint stood on counted as visited: `Crawl.glimpse` marks every waypoint in sight within `SEEN_R` 7, and a
+    patrol leg stops once its waypoint is in sight within 7 ("looked at it from N tiles").
+  - `HOLD_S` 10 -> 5 (wakes take 1.4-2.6 s); the blink wait ends when the monster is back in view (it was 2.3 % of
+    the time once the spacing no longer filled it); the eerie corpse walk is bounded like a loot walk (one corpse
+    18 tiles off by a 143-step route was walked to every 3 s for 2 minutes).
+- **Result** (this branch against 4fe805e, the batch command unchanged):
+
+  | 200 runs | gold/h | x | deaths | d/100k gold | x | pet-death runs | pet left behind | kills/h |
+  |---|---|---|---|---|---|---|---|---|
+  | 1001-1200 base | 106,143 | | 17 | 0.165 | | 4 | 9 | 97.5 |
+  | 1001-1200 this | 110,045 | 1.037 | 17 | 0.159 | 0.96 | 2 | 6 | 101.0 |
+  | 2001-2200 base | 105,949 | | 18 | 0.176 | | 4 | 7 | 97.6 |
+  | 2001-2200 this | 110,594 | 1.044 | 23 | 0.218 | 1.24 | 7 | 3 | 101.4 |
+
+  The goal's +10 % is not met. The first cut (spacing, the calm heal, the glimpse, `HOLD_S`) gave 1.047 on seeds
+  1001-1200; the deaths on the holdout (23 against 18) and its pet-death runs (7 against 4) are within the batch's
+  noise [INFERENCE: about ±5 deaths between equivalent arms] but miss the criteria as written.
+- **Why no more**: the level is supply-bound with the other players on. They kill ~230 monsters a game hour on
+  the level to our ~100; without them (`--others` off) the base runner makes 120k an hour and this one 123k (+2.8 %),
+  with them 105k and 111k (+5.9 %): the time saved turns into kills only as far as there are monsters to reach
+  first. Every further knob screened at 128 runs landed within ±2 % of 111.6k: the pull budget 4, `--crawl-dwell`
+  0.5 / `--crawl-depleted-s` 3, `KILL_AFTER_S` 0 or 2, `PIN_S` 8, `IDLE_PET_S` 2, `SPACING_REPEAT_S` 3 or no in-fight
+  spacing at all, `SEEN_R` 10, `RESPAWN_S` / `STALE_CAP_S` 300, `--crawl-deep-x` 3, `CALM_HEAL_AT` 0.7,
+  `FIGHT_LINGER_S` 3, `HOLD_S` 3, `HOLD_R` 8, `--no-hold-first-sight` (-2.8 %), `--pull-range` 10,
+  `--no-reposition`, `CROWD_FACTOR` 0.1 or 1, `SKIP_S` 20, `D0` 10 or 40, even `--return-at off` (+1.6 %).
+- **Tried, not kept**: routing the patrol round the sight of idle purgers, blightmares and --never-aggro monsters
+  (it ended the stop / back off / next waypoint rounds at one blightmare, 100 in 16 runs) gave kills +4 % but gold
+  -2 %: the gold a kill fell 1,092 -> 1,028, the rich rooms are behind them. A kill resetting its area's staleness
+  and looting after a target in reach (pets idle): no change.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

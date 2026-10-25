@@ -1588,8 +1588,11 @@ class HuntLoop:
                     return f"{why}; the corpse waits {JAR_DEFER_S:.0f} s"
                 return None
             try:
+                # bounded like a loot walk: the corpse 18 tiles off by a 143-step way round left the view on the way,
+                # "the eerie corpse is gone", and was walked to again every 3 s for 2 minutes (simulator 2026-10-24)
                 why = self.mover.walk_to(lambda: spot, soul_jar.FILL_WALK_R, "to the eerie corpse",
-                                         z_ok=same_floor(it.get("z") or 0), stop=stop)
+                                         z_ok=same_floor(it.get("z") or 0), stop=stop,
+                                         max_route=2 * cheb(self.pos(st), spot) + LOOT_DETOUR_STEPS)
             except Abort as e:
                 if not str(e).startswith("to the eerie corpse"):
                     raise
@@ -3528,9 +3531,12 @@ class HuntLoop:
             time.sleep(POLL_S)
             return False
         if self.team is not None and self.crawl is not None \
-                and any(time.monotonic() - t < tamer.FIGHT_LINGER_S for _, t in self.lost_alive.values()):
+                and any(time.monotonic() - t < tamer.FIGHT_LINGER_S and key_of(s) not in st["world"]["mobiles"]
+                        for s, (_, t) in self.lost_alive.items()):
             # live 20261015_115604 12:08:53: the patrol walked on toward the gravebug the moment an apparition
-            # blinked out; it came back on the gravebug's tile 0.6 s later and hit Logan
+            # blinked out; it came back on the gravebug's tile 0.6 s later and hit Logan. Once it is back in view the
+            # fight takes it up (pick_target) and there's nothing left to wait for (simulator 2026-10-24: the full
+            # FIGHT_LINGER_S after every blink, 2.3 % of the game time once the step off the tank no longer filled it)
             self.doing("hold", "Waiting for a monster that blinked out to come back")
             time.sleep(POLL_S)
             return False
@@ -3800,7 +3806,7 @@ def arg_parser() -> argparse.ArgumentParser:
                          "docs/NOTES.md 'Half the deaths in the simulator')")
     ap.add_argument("--hold-first-sight", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets, nothing fighting: stop where an idle monster first sees us within its aggro "
-                         "range and let it come (up to 10 s each), as Logan at the nightstalker room's edge")
+                         "range and let it come (up to tamer.HOLD_S 5 s each), as Logan at the nightstalker room's edge")
     ap.add_argument("--reposition", action=argparse.BooleanOptionalAction, default=True,
                     help="--pets: in a fight, step to a nearby tile that keeps the pets in vet range with fewer "
                          "idle monsters and casters able to see us (aggro.View.stand_score)")

@@ -2390,6 +2390,16 @@ User: the simulator ignored Logan's armor; his suits differed between captures, 
 - **Not done: the simulator's pets.** It models the gravebug and the phoenix only, so batches for other pets
   stand for those two.
 
+## Less time not fighting (user 2026-10-24: gold an hour +10 %, deaths per gold no worse)
+
+Simulator goal on the efficient-crawl branch (docs/NOTES.md "Less time not fighting in the simulator"). Kept: no
+spacing once a fight is over; out of a fight the vet supplies and the wait before moving on only for a pet below
+`tamer.CALM_HEAL_AT` 0.80; waypoints in sight within 7 count as visited and end a patrol leg; `HOLD_S` 5; the blink
+wait ends when the monster is back; the eerie corpse walk bounded like a loot walk. Gold an hour +3.7 % / +4.4 % on
+the two seed blocks, short of the +10 %: with the other players on, the level is supply-bound, and no runner knob
+screened moved it more than ±2 %. Rejected: routing the patrol round idle purgers' and blightmares' sight (more kills,
+less gold). *Live*: untried; the §5 command is unchanged.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -348,7 +348,10 @@ in the Mausoleum area and he used 2 (the store's `item_seen`). The user:
   one to hold for stops and waits again). A deferred corpse within 2 tiles is tried at once: no step, nothing to
   pull. Live 2026-10-20 23:02:03-23:04:10 the bat held for died 12 s after the stop, Logan later looted one tile
   from the corpse, and the user filled the jar by hand. The next tick
-  decides again; a walk that can't get there gives the corpse up. Live 2026-10-20 18:22 the unguarded walk went
+  decides again; a walk that can't get there gives the corpse up, and so does one whose route is longer than twice
+  the distance plus 8 steps, like a loot walk (since 2026-10-24: in the simulator a corpse 18 tiles off by a 143-step
+  way round left the view on the way, "the eerie corpse is gone", and was walked to again every 3 s for 2 minutes).
+  Live 2026-10-20 18:22 the unguarded walk went
   16 steps alone into an idle vampire countess, corpsebride and vampire bat by the corpse and Logan died
   (docs/NOTES.md "Field of Souls"). Then the jar's bags are opened like a player
   (`containers_to_open`), the jar double-clicked, and the runner waits up to 3 s for a filled jar (`0xA9A3`) in
@@ -385,7 +388,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 |---|---|---|
 | `--pets` | off | The pet team fights; never war mode, an attack or a spell (not even a heal spell without Magery). |
 | `--pet NAME\|SERIAL` | the tamed pets within 3 tiles, plus the remembered ones in view | One of our pets (repeat). Without it the roster is whatever pets the user brought (since 2026-10-24): every pet within 3 tiles with a "(tame)" / "(bonded)" line (a non-human, non-attackable mobile there without one yet is single-clicked first, as the client does, so its line comes: "looked at N untagged mobile(s) beside us: …"), and the pets remembered from earlier runs in view anywhere (a start inside the dungeon). Remembered per character (memory meta `own_pets`). The run won't start without one. A pet of ours standing out in view that shouldn't hunt: stable it. |
-| `--pet-heal-at` | `0.95` | Veterinary supplies when a pet within `--vet-range` is below this share of hits (or poisoned). |
+| `--pet-heal-at` | `0.95` | Veterinary supplies when a pet within `--vet-range` is below this share of hits (or poisoned), in a fight (`aggro.View.engaged`). With no fight on only below `tamer.CALM_HEAL_AT` 0.80, and only that (or a ghost, or us below `--heal-at`) holds the crawl's patrol, a channel included (`Team.busy_healing`; since 2026-10-24, user: "waiting to heal before moving on when a pet is just missing a few HP"; the next fight's vets top it up; test_sim `test_calm_heal`). Resting outside still waits for this share. |
 | `--pet-leave-at` | `0.20` | Leave when a pet is below this. |
 | `--vet-range` | `2` | Tiles the supplies reach. The Healer's Codex perk "Without Borders" adds 1/2/3 tiles (knowledge #11343); the user is levelling it (2026-10-12), so raise this with its tier. |
 | `--retreat-at` | `0.55` | Below this share of hits with a mob next to us: run 7 tiles from every attacker and let the pets hold it. |
@@ -561,12 +564,16 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    a swing); with no pet within `--vet-range` + 2 the runner goes back to the pets (`Team.rejoin`), and
    the reposition out of a war caster's sight runs mid-channel too, up to 4 steps.
    **Off the tank** (user 2026-10-15: "Since our healing distance is 5 now I don't see a good reason to be
-   standing next to the tank while it's fighting"): with `--vet-range` 4+, in a fight and for 8 s after
-   (`FIGHT_LINGER_S`: an apparition blinks out and comes back on the tank's tile), a pet that stood next
-   to a monster in war mode, or the monster, within 2 of us sends us up to 4 steps to a tile 3 from both
+   standing next to the tank while it's fighting"): with `--vet-range` 4+, in a fight (`aggro.View.engaged`: a
+   monster in war mode on us or the pets, or within 8), a pet that stood next to a monster in war mode within the
+   last 8 s (`FIGHT_LINGER_S`), or the monster, within 2 of us sends us up to 4 steps to a tile 3 from both
    and within `--vet-range` - 1 of every pet, the one the fewest idle monsters see (`Team.spacing`,
-   before the vet supplies, never mid-channel). The crawl doesn't walk on meanwhile after a target left
-   the view alive.
+   before the vet supplies, never mid-channel). Not once the fight is over: until 2026-10-24 it went on for
+   `FIGHT_LINGER_S` after the last monster, so after every kill Logan stepped off the guarding pets as they came back
+   to him, every 1.5 s, before looting (user: "stepping off the tank repeatedly when there are no monsters around";
+   simulator 170 such steps a game hour, now 92, all in fights; test_sim `test_no_spacing_after_fight`). The crawl
+   doesn't walk on meanwhile after a target left the view alive, until it is back in view or `FIGHT_LINGER_S` is up
+   (until 2026-10-24 always the full 8 s).
    - It steps in only to heal that pet: below `--standoff-vet-at` (0.7) instead of `--pet-heal-at`.
    - `--vet-range` 3+ (the Healer's Codex "Without Borders") heals from outside, so no step-in is
      needed.
@@ -724,8 +731,9 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   the countess 2.4.
 - **Hold at first sight** (Logan at the nightstalker room's north edge: the wolves and the stalker came
   to him 5-10 s after first sight, the knight only when he moved on): with nothing fighting, the patrol,
-  an approach and the idle tick stop as soon as an idle monster within 10 tiles would see us, for up to 10 s per
-  monster; one that hasn't come by then is passed over. For the hold, a Wall-flagged static blocks its sight too:
+  an approach and the idle tick stop as soon as an idle monster within 10 tiles would see us, for up to `HOLD_S` 5 s
+  per monster (10 s until 2026-10-24: wakes take 1.4-2.6 s, median 2.2, n=188, and 11 of 13 holds in the 16:12 run
+  woke within 3.5 s); one that hasn't come by then is passed over. For the hold, a Wall-flagged static blocks its sight too:
   the Mausoleum's 0x00D1/0x00D9/0x00DA wall pieces carry Wall alone, no NoShoot (user 2026-10-17: "Logan is
   waiting for mobs that can't see him through walls to 'come on'"; NOTES "16:12 run's holds"). Targeting, the
   pull budget and the stand-off keep the server's rule.
@@ -1079,6 +1087,12 @@ Everything hunted before the crawl is zone 1: all 386 floor tiles of the box the
 - **At a waypoint.** Nothing showed up: a glance of about `--crawl-dwell` s, then on. Targets
   came (met on the way there or at it): stay while they keep coming; `--crawl-depleted-s` without
   one and the area is depleted, skipped for 10 min.
+  - **Looked at counts** (`Crawl.glimpse`, `SEEN_R` 7; user 2026-10-24: "patrolling to the ends of hallways when
+    we've already killed the monsters there"): every waypoint in our line of sight within 7 tiles counts as visited
+    (its staleness starts over), wherever we stand; a patrol leg (not one toward a monster in view) stops as soon as
+    its waypoint is in sight within 7 ("patrol to (x, y): stopped (looked at it from N tiles)") and that counts as
+    arriving there. Before, only a waypoint stood on was visited, so a hallway walked past or looked down was walked
+    to its end later.
   - **Monsters in view first** (`Crawl.seek`, user 2026-10-17): a monster we'd fight within 18 tiles beyond the
     pull range (or passed over) sets the next waypoint (its area, open zones only, not near an avoided creature, the
     best by gold a fighting minute over the route), stops a patrol elsewhere and ends a waypoint's dwell. Live
