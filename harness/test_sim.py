@@ -1376,6 +1376,62 @@ def test_walk_past_purger_on_another():
     check("...a guarding pet beside it isn't 'fighting' it (it is on Gix's)", busy is None, str(busy))
 
 
+def test_pets_stuck_off_fight():
+    print("== the pets standing locked on a monster on someone else's side, out of their reach: 'All Follow Me', not a "
+          "rejoin/patrol ping-pong ==")
+    # live 2026-10-24 21:40:53-21:41:31 (hunt-20261024-211218-bab0): 'All Kill' at a reanimated daemon at (5237, 701) on
+    # another player's giant swamp beetle, the target dropped, 'All Guard Me'; the three pets stood 34 s in war mode at
+    # (5243, 692), 9-10 off it, with no attack of their own (capture replay), and the patrol (stopped "GirthyEarthy at
+    # 9"), the reposition out of its reach and "back to GirthyEarthy" went round seven times in 45 s. 'All Guard Me'
+    # mid-fight doesn't call them off (docs/NOTES.md); 'All Follow Me' does (the simulator's command rules)
+    import crawl
+    w = world_with([{"key": "reanimated daemon", "at": [5237, 701, 0]}], seed=7, start=(5243, 691), others=True)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    other = w.add_other(5236, 702, w.stand_z(5236, 702, w.player.z), name="Gix of Phyrexia", stay=1e6, dps=1.0)
+    m.target, m.threat, other.target = other.serial, {other.serial: 1e9}, m.serial
+    w._warm(m, True)
+    loop, clock, store, patched = hurt_loop(w, 100)
+    stuck = {p.serial for p in w.pets()}          # standing locked on it, out of their reach, until a command calls
+    pet_step = w._pet                             # them off: in war mode, no step, no attack (the capture replay)
+
+    def locked(p):
+        if p.mode == "follow":
+            stuck.discard(p.serial)
+        if p.serial not in stuck:
+            return pet_step(p)
+        p.target = None
+        w._warm(p, True)
+    w._pet = locked
+    rejoins = follows = 0
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            c.unlocked = 99
+            c.wp = min(range(len(c.wps)), key=lambda i: sim_cheb(c.wps[i], (5231, 722)))
+            now = tamer.time.monotonic()                          # the simulator's clock
+            loop.skip[m.serial] = now + 1e6                       # passed over, as live
+            loop.team.guard_needed, loop.team.guard_t = False, now   # 'All Guard Me' just said
+            f0, g0 = w.metrics["follow_commands"], w.metrics["guard_commands"]
+            for _ in range(120):                                  # 60 s
+                clock.advance(0.5)
+                loop.tick()
+            follows = w.metrics["follow_commands"] - f0
+            guards = w.metrics["guard_commands"] - g0
+            rejoins = out.getvalue().count("back to the pets: route")
+            on = "patrol to (5231, 722): arrived" in out.getvalue()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    far = max(sim_cheb(p.pos, w.player.pos) for p in w.pets())
+    modes = sorted({p.mode for p in w.pets()})
+    check("60 s: one walk back to the stuck pets, then 'All Follow Me'; they come, the patrol goes on, 'All Guard Me'",
+          rejoins <= 1 and follows == 1 and not stuck and on and far <= 8 and guards >= 1 and modes == ["guard"],
+          f"walks back {rejoins}, 'All Follow Me' {follows}, still stuck {len(stuck)}, patrol on {on}, pets {far} off, "
+          f"'All Guard Me' {guards}, modes {modes}")
+
+
 def test_others_corpse_not_looted():
     print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
     # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
@@ -3756,7 +3812,7 @@ def main():
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once,
-              test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another,
+              test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,

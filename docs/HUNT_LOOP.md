@@ -736,6 +736,16 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   off or out of view. Before a patrol leg the crawl waits while they fight, or walks back to a pet left behind
   (`Team.rejoin`). During a leg the walk stops on either. Simulator, 48 seeds: deaths 32 to 29, pet deaths 35 to
   30, damage on Logan 40957 to 35624. Holds: 31 for a pet fighting, 18 for a pet 9-12 tiles off.
+  **Pets standing locked off a fight** (since 2026-10-24, docs/NOTES.md "Pets locked on a fight they can't reach"):
+  "All Guard Me" doesn't call pets off a monster they're on, and one on another player's side they can't reach isn't a
+  fight of ours to `pets_busy`. So `Team.rejoin` checks the pet it walks back to. If that pet is in view within
+  `tamer.COMMAND_R` (12), stands on the tile it stood on at the last walk back (within 30 s, `STUCK_REJOIN_S`), and
+  `pets_busy` is None, it says "All Follow Me" instead of walking ("AlaFlambe at (5243, 692) (11 tiles) stands where
+  it stood at our walk back 8 s ago, no fight of ours there: 'All Follow Me' instead of another walk back"). No walk back
+  for 10 s (`STUCK_FOLLOW_S`), so the crawl waits for them. "All Guard Me" comes once they're within 3, after the 10 s,
+  or at once if something attacks us ("after 'All Follow Me': the pets with us; 'All Guard Me' due"). Live
+  21:40:56-21:41:30 the patrol, the reposition out of the daemon's reach and the walk back went round seven times in 45 s.
+  Simulator (120 runs): repeat walks back 618 -> 175, no deaths added.
   **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
   fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
   near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they

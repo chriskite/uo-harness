@@ -5562,6 +5562,43 @@ level 3's entrance. Live on level 2:
   whichever pet stands next to a monster in war mode (`Team.tank_t`). The simulator still models only the gravebug
   and the phoenix (data/sim/mausoleum.json `pets`), so its numbers are for those two.
 
+## Pets locked on a fight they can't reach: walk back / patrol ping-pong (live 2026-10-24 21:40:47-21:41:31, hunt-20261024-211218-bab0)
+
+Task log lines 1116-1186, capture session_20261024_102346 (replayed through `WorldRuntime`):
+- 21:40:47 target a reanimated daemon 0x0060B7F6 at 8 tiles, fighting another player's giant swamp beetle out of our
+  sight; 21:40:48 "All Kill" at it. 21:40:53 passed over (still out of sight), its reach kept out of, the 'All Kill'
+  target dropped, 21:40:54 "All Guard Me".
+- From 21:40:56 to 21:41:30 GirthyEarthy, fireminion and a searing imp stood together at (5243, 692) in war mode, 9-10
+  tiles from the daemon at (5237, 701), with no attack animation (0x6E) of their own; the daemon's hits fell 80 -> 2
+  from the beetle. They were locked on it and couldn't reach it [INFERENCE: war mode, no step, no swing of their own].
+  "All Guard Me" didn't call them off (seen before in the "All Patrol" demo of 2026-10-18: "'All Guard Me' mid-fight
+  doesn't call them off"). They came at once when it died.
+- `pets_busy` didn't count it: a monster on another player's side that no pet of ours swings at (6b4f926). So the crawl
+  patrolled, and seven times in 45 s: "patrol to (5231, 722): stopped (GirthyEarthy at 9)", "reposition: reanimated
+  daemon 0x0060B7F6 7 tiles off can cast at us here; to (5244, 703)", "crawl: not patrolling yet: GirthyEarthy at 11",
+  "back to GirthyEarthy at (5243, 692) (11 tiles)", "reposition ... to (5242, 695)", the patrol again. Two stamina
+  potions went on shoves.
+- Fixed (`Team.rejoin`): the pet walked back to, in view within `tamer.COMMAND_R` 12 (moved there from loop_hunt), on
+  the tile it stood on at the last walk back within 30 s, with no fight of ours (`pets_busy` None), gets "All Follow Me"
+  instead (the test's log: "AlaFlambe at (5243, 692) (11 tiles) stands where it stood at our walk back 8 s ago, no fight
+  of ours there: 'All Follow Me' instead of another walk back"). No walk back for 10 s while they come; "All Guard Me" once
+  they're with us, after the 10 s, or at once with something on us ("after 'All Follow Me': the pets with us; 'All
+  Guard Me' due"). The guard waits because [INFERENCE] guarding pets may go back to the fight they stood locked on.
+- test_sim `test_pets_stuck_off_fight` replays it: the daemon at (5237, 701) on another player, both pets held in war
+  mode where they stand (no step, no attack) until a command puts them on follow. Before: 29 walks back, no "All Follow
+  Me", the pets 9 off. After: 1 walk back, then "All Follow Me", the pets come, the patrol reaches (5232, 723), then
+  "All Guard Me".
+- **Simulator, before and after** (120 runs of 60 min each, seed 101, `--others --eerie --prior harness/data/harness.db`;
+  before = 4fe805e): deaths 28 in 99.0 h and 28 in 99.7 h, pet deaths 52 and 56 (none of the 56 within 60 s after a
+  stuck "All Follow Me"), potions 42.8 and 43.4 an hour, 112.6k and 112.8k gp banked an hour. Walks back 1,267 and 823.
+  Repeat walks back (same pet, same tile, within 30 s) 618 and 175. Chains of three or more 87 and 1. Stuck "All Follow
+  Me" 220; the pets were with us within 10 s after 185 of them. The simulator's pets stand still at a walk back too,
+  not only in this scene.
+- **Rejected: no reposition out of a caster's reach when it fights someone else** (`Team.elsewhere`, not on us or our
+  pets, as `Team.shy_threats` does for purgers and blightmares). In the test it saves one reposition and ~6 s. On the
+  same 120 runs with the fix: deaths 30 in 102.2 h, pet deaths 58, potions 43.7 an hour, 108.9k gp banked an hour,
+  reposition steps 3,587 against 3,569. No gain, so it isn't in.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

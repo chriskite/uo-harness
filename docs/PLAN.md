@@ -2390,6 +2390,24 @@ User: the simulator ignored Logan's armor; his suits differed between captures, 
 - **Not done: the simulator's pets.** It models the gravebug and the phoenix only, so batches for other pets
   stand for those two.
 
+## Pets standing locked off a fight get 'All Follow Me', not another walk back (2026-10-24)
+
+Live 21:40:56-21:41:30: after "All Guard Me" the pets stayed locked on a reanimated daemon on another player's beetle,
+out of their reach. The patrol, the reposition out of its reach and the walk back went round seven times (docs/NOTES.md
+"Pets locked on a fight they can't reach"). Decisions:
+- **`Team.rejoin` calls them off.** It says "All Follow Me" instead of walking back when the pet it walks back to is
+  in view within `COMMAND_R`, on the tile it stood on at the last walk back within 30 s, and `pets_busy` is None. Then
+  it doesn't walk back for 10 s, and "All Guard Me" comes once they're with us (or after the 10 s, or at once with
+  something on us). `COMMAND_R` moved from loop_hunt to tamer, which can't import loop_hunt.
+- Why the second walk back and not the first: a pet that moved since the last walk back is coming or fighting.
+  Calling it off on the first lag would cut fights `pets_busy` can't see. Two walks back on one tile is the cheapest
+  proof we have that it isn't moving.
+- Why "All Guard Me" waits: [INFERENCE] a guarding pet may take the same unreachable target again. Following pets
+  come along, and an attacker on us brings the guard at once.
+- **Rejected: no reposition out of the reach of a caster on someone else's side** (`Team.elsewhere`, as `shy_threats`
+  does for purgers and blightmares). The same 120 simulator runs with it: deaths 30 against 28 and 108.9k against
+  112.8k gp banked an hour. It saves one reposition in the test and nothing in the batch.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

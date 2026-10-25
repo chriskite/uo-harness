@@ -141,6 +141,16 @@ FOLLOW_R = 3                  # mount.PET_RANGE: a following pet stays this clos
 # recall without waiting left a pet behind in 12 of 16. Leaving for a pet while we are fine (follow()
 # upgrades "attention" to "info" then) and planned leaves: 10 s.
 FOLLOW_WAIT_S = {"urgent": 0.0, "attention": 0.0, "info": 10.0}
+# A pet hears a command this far, with a margin [INFERENCE: 71 'All Follow Me' with a pet 7+ off in 25 captures to
+# 2026-10-24: from 11-13 tiles 9 of 15 were beside us 3 s later, from 15-17 none of 7; live 18:26:51-18:27:28 GraveRobber
+# at 17 fought on through three while AlaFlambe at 6 came; the simulator's sim.world.COMMAND_R is 14]
+COMMAND_R = 12
+# rejoin: the pet walked back to stands on the tile it stood on at our last walk back, this recently, within COMMAND_R,
+# no fight of ours there (HuntLoop.pets_busy): 'All Follow Me' instead of another walk (live 2026-10-24 21:40:56-21:41:30
+# the three pets stood locked in war mode on a reanimated daemon on another player's beetle, 9-10 off it with no attack;
+# 'All Guard Me' doesn't call them off; seven walks back in 34 s between the patrol and the reposition)
+STUCK_REJOIN_S = 30.0
+STUCK_FOLLOW_S = 10.0         # ...then no walk back while they come, and 'All Guard Me' once with us or after this long
 FALLBACK_R = 4                # run until this far from every attacker...
 FALLBACK_MOVES = 10           # ...at most this many steps...
 FALLBACK_S = 4.0              # ...or this long, stopping as soon as every pet is within FOLLOW_R
@@ -476,6 +486,9 @@ class Team:
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
         self.sighted = set()             # mobiles already looked at for a first sighting
         self.held_pets = {}              # countess copy serial -> [pet serial, monotonic of its '*transfixed*', seen]
+        self.rejoin_at = {}              # pet serial -> ((x, y), monotonic) at our last walk back (rejoin)
+        self.follow_until = 0.0          # 'All Follow Me' at pets stuck off a fight (rejoin): no walk back till then
+        self.follow_called = False       # ...and 'All Guard Me' due once they are with us or it is over (care)
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -919,6 +932,12 @@ class Team:
         self.update(st)
         if self.kill_order_over(st):
             self.guard_needed = True
+        if self.follow_called and (self.together(st) or time.monotonic() >= self.follow_until or self.h.attackers(st)):
+            # on 'All Follow Me' they guard no more (knowledge #2073); not before they're with us: guarding, they
+            # went back to the fight they stood locked on [INFERENCE: 'All Guard Me' doesn't call them off live]
+            log(f"after 'All Follow Me': {'the pets with us' if self.together(st) else 'not all with us'}; "
+                f"'All Guard Me' due")
+            self.follow_called, self.guard_needed = False, True
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
         return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
@@ -1980,8 +1999,17 @@ class Team:
         fight 20 tiles off), unless a leave rule fires on the way: after a leave called off on the way out
         (HuntLoop.leave_called_off), or a monster on us with no pet near (fight). Live 20261015_171928
         19:49:55-50:16: called off at the gate with the pets out of view in the apparition fight, Logan stood
-        there 20 s while a banshee 5 tiles off took him 100 -> 8."""
+        there 20 s while a banshee 5 tiles off took him 100 -> 8.
+        A pet in view within COMMAND_R on the tile it stood on at the last walk back (STUCK_REJOIN_S) with no fight of
+        ours (HuntLoop.pets_busy) stands locked on one it can't reach: 'All Follow Me' instead, no walk back for
+        STUCK_FOLLOW_S while they come, then 'All Guard Me' (care). Live 2026-10-24 21:40:56-21:41:30
+        (hunt-20261024-211218-bab0): after 'All Kill' at a reanimated daemon on another player's beetle and its drop,
+        the three pets stood in war mode 9-10 off it with no attack of their own until it died; the patrol stopped
+        (GirthyEarthy at 9), the reposition out of its reach and the walk back went round seven times."""
         h = self.h
+        now = time.monotonic()
+        if now < self.follow_until:
+            return False                  # 'All Follow Me' said: they come
         pos = h.pos(st)
         seen = {p["serial"]: p for p in self.pets(st)}
         spots = []
@@ -1998,6 +2026,18 @@ class Team:
         r = max(SPACING_R, self.a.vet_range - 1)
         if dist <= r:
             return False
+        stood = self.rejoin_at.get(serial)
+        self.rejoin_at = {s: ((p["x"], p["y"]), now) for s, p in seen.items() if not p["dead"]}
+        if serial in seen and dist <= COMMAND_R and stood is not None and stood[0] == at \
+                and now - stood[1] <= STUCK_REJOIN_S and h.pets_busy(st) is None:
+            self.count("stuck_follows")
+            log(f"{name} at {at} ({dist} tiles) stands where it stood at our walk back {now - stood[1]:.0f} s ago, "
+                f"no fight of ours there: 'All Follow Me' instead of another walk back")
+            h.doing("pets", f"Calling {name} off where it stands")
+            self.say("all follow me")
+            self.follow_until, self.follow_called = now + STUCK_FOLLOW_S, True
+            return True
+        self.count("rejoins")
         label = "back to the pets"
         h.doing("vet", f"Back to {name}", at)
         log(f"back to {name} at {at} ({dist} tiles{'' if serial in seen else ', last seen there'})")

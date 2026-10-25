@@ -250,10 +250,6 @@ WALK_IN_ARRIVED_R = 3         # --enter-via: this close to a teleporter's known 
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
-# A pet hears a command this far, with a margin [INFERENCE: 71 'All Follow Me' with a pet 7+ off in 25 captures to
-# 2026-10-24: from 11-13 tiles 9 of 15 were beside us 3 s later, from 15-17 none of 7; live 18:26:51-18:27:28 GraveRobber
-# at 17 fought on through three while AlaFlambe at 6 came; the simulator's sim.world.COMMAND_R is 14]
-COMMAND_R = 12
 COMMAND_R_GO = 8              # wait_pets/fetch_pet: a pet out of a command's reach is walked to this close first
 TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fewer from the teleporter walked to: on and
 #                               through it, no stand (live 2026-10-20 22:57:15: attacked again 13 steps from 5522,637, the
@@ -3047,7 +3043,7 @@ class HuntLoop:
         tiles off after a reanimator apprentice, then a corpse eater; three 'All Follow Me' from 17 tiles left him
         fighting (AlaFlambe at 6 came at once), the walk aborted and the escape home left him there."""
         st = self.link.state()
-        far = [p for p in self.team.pets(st) if not p["dead"] and p["dist"] > COMMAND_R]
+        far = [p for p in self.team.pets(st) if not p["dead"] and p["dist"] > tamer.COMMAND_R]
         if not far:
             return
         p = min(far, key=lambda p: p["dist"])
@@ -3059,7 +3055,7 @@ class HuntLoop:
             if q is not None:
                 last = (q["x"], q["y"])
             return last
-        log(f"{label}: {p['name']} at {p['dist']}, beyond a command's reach ({COMMAND_R}); going within "
+        log(f"{label}: {p['name']} at {p['dist']}, beyond a command's reach ({tamer.COMMAND_R}); going within "
             f"{COMMAND_R_GO} of it")
         self.doing("enter", f"Going back for {p['name']}", last)
         try:
