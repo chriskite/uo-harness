@@ -5642,12 +5642,31 @@ Tomb"):
   first bar started down (28134 at 20:04:23). [INFERENCE: major deprivation when the first bar runs out too, ~24 min.]
 - On 2026-10-25 the level 2 -> 3 strip at 7.6 min under and the dolphin beside level 3's arrival kept it from coming.
 
-**Barding, 2026-10-25:**
+**Barding: the instrument changed between the days** (user 2026-10-25: "Barding depends on the quality of the
+instrument").
 
-- Songs were 17.7 %, against 16.9 % on 2026-10-24 morning.
-- Discord lasted 71 s (19 of 21; 86 s twice), peace 43 s (7 of 8), provoke 36 s (6 of 6).
-- The Mastery Chain gump: 12 links, Follower Damage +16 %, Effective Barding Skill +18. After the trip: a 13-link
-  limit.
+- Which instrument Logan played shows in the captures: a double-click on an instrument plays it, and its name comes
+  from the single-click (0xAE).
+  - 2026-10-24 10:26:19 and 19:32:51: an **eminently melodious sackbut** (+15 barding skill, wiki Magic Item
+    Modifiers #13809). So the first visit and the evening's were played with it. The user remembered "maybe
+    supremely" for before; the capture says eminently.
+  - From 2026-10-24 22:17:39 a durable **exceedingly melodious tambourine**, and 2026-10-25 10:58:19 a durable
+    **exceedingly melodious psaltery** (+20).
+  - Also clicked those days, not played in the captures: surpassingly melodious harps and a lute (+10), a supremely
+    melodious bamboo flute (+25).
+- With the sackbut: songs 16.9 %, discord 68 s, peace 34 s, provoke 42 s.
+- With the psaltery: songs 17.7 %, discord 71 s (19 of 21; 86 s twice), peace 43 s (7 of 8), provoke 36 s (6 of 6).
+- The creature Guide's "Barding Chance" on an oozing noughtilus: 87.7 % with the sackbut, 94.2 % with the psaltery
+  (its "Barding Duration" 68 s -> 71 s). So +5 instrument skill moved the chance 6.5 points [INFERENCE: Item ID
+  multiplies an instrument's bonus, knowledge #3870].
+- The Mastery Chain gump on 2026-10-25: 12 links, Follower Damage +16 %, Effective Barding Skill +18. After the trip,
+  a 13-link limit.
+- The simulator's Tidal Tomb scenario keeps both sets (`bard.instruments`) and plays the quality he played last
+  (`bard.instrument`).
+
+**Leaving level 3.** The user's way out: back up the arrival strip (a step S onto (7161, 2221) at 11:35:19) and the
+crimson gate 0x4003D7B9 at (6897, 1992) on level 2 (11:36:55). The hunt runner does the same since 2026-10-25 with
+`--leave-via 7161 2221` (docs/HUNT_LOOP.md "The gate a level up").
 
 **Other players:**
 

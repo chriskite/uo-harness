@@ -3294,7 +3294,7 @@ MAUS2_STUCK = (5507, 691, -8)    # live 2026-10-24 00:40:32 (hunt-20261024-00084
 SIM_HOME = (4134, 1429)         # the scenario tome's first row, the default rune: home
 
 
-def main_in_sim(start, extra=(), walk_to=None, seed=7):
+def main_in_sim(start, extra=(), walk_to=None, seed=7, scenario="mausoleum"):
     """loop_hunt.main() as `ctl run hunt` starts it, with the scenario's arguments (run.runner_args: --pets --crawl
     --leave-recall --leave-gate --gate-dest --enter-recall --enter-rune --enter-via, as docs/OVERSEER.md §5's) and
     `extra`, on the simulator: Logan at `start` (x, y, z), both pets beside him, the store knowing the scenario's
@@ -3306,7 +3306,7 @@ def main_in_sim(start, extra=(), walk_to=None, seed=7):
     import loop_hunt
     import memory
     from sim import run as simrun
-    sc = load()
+    sc = load(scenario)
     sc["spawns"] = []
     sc["player"]["start"] = list(start)
     w = World(sc, seed=seed)
@@ -3391,6 +3391,23 @@ def test_go_home():
               + " | ".join(ln for ln in out.splitlines() if "go-home" in ln or "escape" in ln or "ABORTED" in ln)[-500:])
         check(f"...no kill, no `escape` juncture (the Seer asked for it)", w.metrics.get("kills", 0) == 0 and not js,
               f"kills {w.metrics.get('kills')} junctures {len(js)}")
+
+
+def test_go_home_tidal_level3():
+    print("== --go-home from Tidal Tomb's level 3: up the arrival strip (--leave-via), the crimson gate on level 2, "
+          "home ==")
+    # user 2026-10-25: "We can leave lvl 3 by going back to the crimson gate on lvl 2, as I did" (11:35:19 a step S onto
+    # (7161, 2221), 11:36:55 the crimson gate at (6897, 1992)); before --leave-via: "no way out from (7170, 2200)"
+    code, out, w, js, evs = main_in_sim((7170, 2200, -50), ["--go-home", "--leave-gate", "6897", "1992",
+                                                             "--leave-via", "7161", "2221"], scenario="tidal_tomb")
+    way = evs[-1]["data"]["way"] if evs else None
+    check("home, exit 0, by the --leave-via teleporter and the gate a level up", code == 0 and not w.player.ghost
+          and sim_cheb(w.player.pos, SIM_HOME) <= 5 and bool(way) and way.startswith("the --leave-via teleporters from "
+                                                                                     "7161,2221"),
+          f"exit {code} at {w.player.pos} way {way}: "
+          + " | ".join(ln for ln in out.splitlines() if "go-home" in ln or "escape" in ln or "ABORTED" in ln)[-500:])
+    check("...both pets came home with him", all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets()),
+          str([(p.name, p.pos) for p in w.pets()]))
 
 
 def test_no_escape_on_death_or_stop():
@@ -3832,7 +3849,8 @@ def tidal_world(start, spawns=(), seed=1):
 
 
 def test_scenario_inherit():
-    print("== a scenario's `inherit`: the base's blocks it lacks, a dict it has updated by its own, a missing key refused ==")
+    print("== a scenario's `inherit`: the base's blocks it lacks, a dict it has updated by its own, a missing key refused; "
+          "the instrument played picks its barding numbers ==")
     import json
     import tempfile
     d = tempfile.mkdtemp(prefix="sim_inherit_")
@@ -3843,7 +3861,10 @@ def test_scenario_inherit():
              "defaults": {"b": 3}, "spawns": [],
              "inherit": {"from": "base", "keys": ["player", "pets", "defaults", "bard"]}}
     bad = {**child, "inherit": {"from": "base", "keys": ["vet"]}}
-    for name, data in (("kb", kb), ("base", base), ("child", child), ("bad", bad)):
+    played = {**child, "bard": {"song_x": 0.1, "seconds": {"discord": 60}, "instrument": "fine",
+                                "instruments": {"fine": {"song_x": 0.2, "seconds": {"discord": 70}, "song_note": "x"},
+                                                "plain": {"song_x": 0.15}}}}
+    for name, data in (("kb", kb), ("base", base), ("child", child), ("bad", bad), ("played", played)):
         with open(os.path.join(d, f"{name}.json"), "w", encoding="utf-8") as f:
             json.dump(data, f)
     sc = load("child", d)
@@ -3856,6 +3877,9 @@ def test_scenario_inherit():
     except ValueError:
         refused = True
     check("a key the base doesn't have is refused", refused)
+    b = load("played", d)["bard"]
+    check("the instrument played: its song and durations over the bard block's, the base's skill kept, no note",
+          b["song_x"] == 0.2 and b["seconds"] == {"discord": 70} and b["skill"] == 149 and "song_note" not in b, str(b))
 
 
 def test_tidal_oxygen():
@@ -4052,7 +4076,7 @@ def main():
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_tele_dash, test_walk_in_red_first_level,
-              test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home,
+              test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,

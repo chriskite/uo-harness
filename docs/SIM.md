@@ -49,7 +49,7 @@ python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal T
 python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071
                                                                        # ... its level 2, under water
 python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
-    --leave-gate 6897 1992                                             # ... its level 3 (no way out yet: "Level 3")
+    --leave-gate 6897 1992 --leave-via 7161 2221                     # ... its level 3 ("Level 3 and the later visits")
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
@@ -1353,20 +1353,45 @@ compares there.
   - Pets died in 7 of 8 runs. Live, 7 pet deaths came in 822 s there, and Logan none.
   - On level 3 itself (6.6 min over the 8 runs) Logan took 10,876/h, 3.4x live's 3,180. Why is open: too few minutes
     to split by source.
-  - The three runs that lived couldn't leave: "recall home failed (moongate: onto the moongate: no route from
-    (7158, 2194))". The Mover plans no route through a teleporter, so a leave gate on another level is out of reach.
-    Level 3 has no gate known.
+  - Of the runs that lived, none could leave: "recall home failed (moongate: onto the moongate: no route from
+    (7158, 2194))". The Mover plans no route through a teleporter, so a leave gate on another level was out of reach.
+
+**Later the same day** (user: "We can leave lvl 3 by going back to the crimson gate on lvl 2, as I did"; "Barding
+depends on the quality of the instrument"):
+
+- **The runner's `--leave-via`** (docs/HUNT_LOOP.md "The gate a level up"): the leave steps up the arrival strip
+  first, then walks to the crimson gate. Level 3's command gains `--leave-via 7161 2221`.
+  - A first batch showed a hurt leave healed on level 2, was called off and hunted level 2 for the rest of the run.
+    Since then a leave that went up a level isn't called off.
+  - `test_go_home_tidal_level3`: `--go-home` from (7170, 2200) comes home by the strip and the gate, both pets
+    along. Without `--leave-via`: "no way out from (7170, 2200)".
+- **The instrument** (`bard.instrument`, `bard.instruments`; docs/NOTES.md "Barding: the instrument changed"): the
+  first visit was played with an eminently melodious sackbut (+15), today's with an exceedingly melodious psaltery
+  (+20). The scenario keeps both sets and plays the latter: songs 17.7 %, discord / peace / provoke 71 / 43 / 36 s,
+  the Guide's chances 6.5 points up (one type measured, the rest [INFERENCE]).
+- **Runs after both** (8 each, same seeds):
+
+  | | level 1 | level 3 |
+  |---|---|---|
+  | damage to Logan per hour on the level | 851 (604 before; live 1,413) | 11,585 (live 3,180) |
+  | runs where Logan died | 1 of 8 (0) | 8 of 8 (5) |
+  | runs that banked gold | 8 of 8 | 2 of 8 (0) |
+  | kills per hour on the level | 234 (live 257) | (whole run) |
+
+  - Level 3: 4 deaths on the walk in as before, 4 more on level 3 or its leave. Two runs got home with gold
+    through the strip and the gate before dying on a later visit.
+  - Level 1's one death and its higher damage come from runs that went differently with the new barding; 8 runs
+    don't separate that from chance.
 
 **Open:**
 
-- The runner can't leave level 3 (above). It needs a way out through the strip, or a gate found on level 3.
 - The walk in through level 2 kills Logan in the sim as the level 2 runs do. Live, the user fought through it.
+- Level 3 kills Logan in the sim; live, 822 s there cost the pets 7 deaths and him none.
 - Level 3's creatures are the first part's only; the boss rooms and their dolphins are unknown.
 - Not modelled: the combustive zoa's stacking scorch, the astral zoa's spell backlash (a casting penalty: does it
   touch the recall?), the serpent's occasional second 48-53.
 - `--compare`'s kills, vet and potion rows on a level with a long walk in (above).
-- Barding differed by day: songs 17.7 % and discord / peace / provoke 71 / 43 / 36 s on 2026-10-25, against 16.9 %
-  and 68 / 34 / 42 s on the first visit. The scenario keeps the first visit's.
+- `--compare`'s `trip` is the first visit's, played with the sackbut.
 - The Nightmares (2 control slots each, 228 hits, casters) aren't a simulator pet. Live they stood 7-10 tiles off
   the zoas, and the zoas' area hits found them there.
 

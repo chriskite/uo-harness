@@ -353,6 +353,7 @@ class HuntLoop:
         self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
         self.walking_in = False                  # on the walk in (walk_in): the hostile-player checks are on (look)
+        self.left_level = False                  # this leave went up through --leave-via teleporters (leave_up)
         self.walk_in_red = None                  # why a hostile player on the walk in sent us on to the leave gate
         self.escaping = False                    # the escape home after an error or --go-home: no overall timeout
         self.escape_tried = False                # escape_home ran: an error after it ends the run where it stands
@@ -1693,6 +1694,8 @@ class HuntLoop:
         out at 8/100, healed on the run to 98 by the gate, and then he waited there for the pets in a
         banshee's sight: "There's no point in running to the gate when he's fully healed")."""
         me = st["world"]["self"]
+        if self.left_level:
+            return None     # off the hunt level by --leave-via: on to the gate (sim 2026-10-25: else the hunt went on a level up)
         if severity != "attention" or me.get("hits") is None or self.frac(me) < self.args.heal_at:
             return None
         return None if self.leave_reason(st) else f"healed to {me['hits']}/{me['hits_max']}"
@@ -2111,6 +2114,14 @@ class HuntLoop:
         gate = tuple(self.args.leave_gate)
         urgent = severity not in PLANNED
         flee = severity == "urgent"
+        self.left_level = False
+        if self.args.leave_via:
+            try:
+                self.leave_up(severity)
+            except Abort as e:
+                self.left_level = False
+                return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
+                        "dest": self.args.gate_dest}
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out, self.pk_flight = True, flee
         t_walk = time.monotonic()
@@ -2218,7 +2229,35 @@ class HuntLoop:
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
         finally:
-            self.walking_out = self.pk_flight = False
+            self.walking_out = self.pk_flight = self.left_level = False
+
+    def leave_up(self, severity: str):
+        """--leave-via: the leave gate a level or more above the hunt's (Tidal Tomb's level 3, its crimson gate on level
+        2; user 2026-10-25: "We can leave lvl 3 by going back to the crimson gate on lvl 2, as I did"; live 11:35:19
+        Logan stepped S onto (7161, 2221) and walked to the gate at (6897, 1992)). While the walk rules reach no route
+        to the gate from here (the planner never routes over a teleporter), onto the --leave-via teleporter still ahead
+        that they reach first (escape_teleporter), and the rest in order: planned, as the walk in goes (walk_in_legs:
+        the pets on 'All Follow Me', a fight or a lagging pet stops it); a hurt leave or a hostile player, at flight
+        pace (walk_in_rush). Abort when neither the gate nor a --leave-via teleporter is in reach."""
+        gate = tuple(self.args.leave_gate)
+        st = self.link.state()
+        if self.mover.plan(st, nav.within(gate, 0), mobiles=False)[0]:
+            return
+        tiles = [tuple(t) for t in self.args.leave_via]
+        k = self.escape_teleporter(st, tiles)
+        if k is None:
+            raise Abort(f"to the moongate at {gate[0]},{gate[1]}: no route to it nor onto a --leave-via teleporter "
+                        f"from {tuple(self.pos(st)[:2])}")
+        log(f"to the moongate at {gate[0]},{gate[1]}: a level up, through the teleporters from {tiles[k][0]},{tiles[k][1]}")
+        if severity in PLANNED:
+            self.walk_in_legs(tiles[k:], kind="leave")
+        else:
+            self.walk_in_rush(tiles[k:], "Leaving")
+            self.fleeing = True                      # walk_in_rush turns the threat checks back on at its end
+        self.left_level = True                       # off the hunt level: a healed leave goes on to the gate
+        if not self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)[0]:
+            raise Abort(f"to the moongate at {gate[0]},{gate[1]}: no route to it from "
+                        f"{tuple(self.pos(self.link.state())[:2])} after the --leave-via teleporters")
 
     def flee_out(self, gate, near, through, choose=None):
         """The flight from hostile players to beside the leave gate (`near`; leave_by_gate, severity urgent): their
@@ -2803,6 +2842,8 @@ class HuntLoop:
           the pets' wait beside it, the recall home (escape_by_gold_gate);
         - the hunt level (a route to --leave-gate): the leave by the gate to --gate-dest, the recall from there
           (escape_by_leave_gate);
+        - a hunt level below the gate's (Tidal Tomb's level 3): a route onto a --leave-via teleporter, the leave by the
+          gate through them (leave_by_gate's leave_up);
         - a middle level (Maus 2): no route to a gold moongate (no teleporter back to the first level is known) but one
           to an --enter-via teleporter still ahead: on through them at flight pace (walk_in_rush, the nearest by route
           first), then the leave gate. That is the walk in's own way, the one walk_in_threat takes from a red there.
@@ -2827,6 +2868,11 @@ class HuntLoop:
                 way = f"the leave gate at {gate[0]},{gate[1]}"
                 log(f"escape: {way} is in reach: through it to {self.args.gate_dest}, and the recall home")
                 return way, self.escape_by_leave_gate()
+            up = [tuple(t) for t in self.args.leave_via or []]
+            if gate is not None and (k := self.escape_teleporter(st, up)) is not None:
+                way = f"the --leave-via teleporters from {up[k][0]},{up[k][1]} and the leave gate at {gate[0]},{gate[1]}"
+                log(f"escape: the leave gate is a level up: {way}, and the recall home")
+                return way, self.escape_by_leave_gate()          # leave_by_gate's leave_up takes the teleporters
             tiles = [tuple(t) for t in self.args.enter_via or []]
             k = self.escape_teleporter(st, tiles)
             if k is not None and gate is not None:
@@ -2909,8 +2955,9 @@ class HuntLoop:
         log(f"--go-home: home at {tuple(self.pos(self.link.state())[:3])}")
         self.doing("done", "Home (--go-home)")
 
-    def walk_in_legs(self, tiles):
-        """walk_in's legs, one --enter-via teleporter each."""
+    def walk_in_legs(self, tiles, kind: str = "enter"):
+        """walk_in's legs, one --enter-via teleporter each; `kind` "leave": the --leave-via ones up to the leave gate
+        (leave_up), no song on the way."""
         self.walk_hits, self.walk_hurt_t = None, -1e9
         if self.team is not None:
             self.team.follow()
@@ -2919,8 +2966,8 @@ class HuntLoop:
             self.walk_in_i = i                  # the leg a hostile player cut short: walk_in_rush goes on from it
             tile = tiles[i]
             label = f"to the teleporter at {tile[0]},{tile[1]}"
-            self.doing("enter", f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
-            if self.team is not None:
+            self.doing(kind, f"Walking to the teleporter at {tile[0]},{tile[1]}", tile)
+            if self.team is not None and kind == "enter":
                 self.team.song(self.state())
             try:
                 # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
@@ -3728,7 +3775,11 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
                          "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "
-                         "home from there")
+                         "home from there; on a level above the hunt's, reached by --leave-via")
+    ap.add_argument("--leave-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
+                    help="the teleporters (in order, repeat) from the hunting level up to --leave-gate's level, "
+                         "stepped onto before the walk to the gate when the gate isn't reachable from where we "
+                         "stand (Tidal Tomb's level 3: 7161 2221, its crimson gate 6897 1992 on level 2)")
     ap.add_argument("--gate-dest", default=None, metavar="NAME",
                     help="--leave-gate's destination on its 'Moongate Destinations' menu (e.g. Totem)")
     ap.add_argument("--bank-gold", type=int, default=0, metavar="N",

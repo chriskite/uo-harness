@@ -46,27 +46,44 @@
   "pets_first_note": "the Mausoleum's nightstalker rule doesn't apply here: no type of this dungeon is known to go for the pets first"
  },
  "bard": {
-  "guide": {
-   "ruby smallshell": 0.927,
-   "dungeon-nest crab": 0.773,
-   "flying manta": 0.741,
-   "singing noughtilus": 0.937,
-   "oozing noughtilus": 0.877
-  },
-  "guide_note": "'Barding Chance' in the game's creature Guide gump (0xC38EC76C) Logan opened on these types live (11:01:00 ruby smallshell 92.7 %, 11:02:42 dungeon-nest crab 77.3 %, 11:06:29 flying manta 74.1 %, 11:06:48 singing noughtilus 93.7 %, 11:08:08 oozing noughtilus 87.7 %): the server's own number for him, used before the wiki formula (World._bard) where no live counts are in `observed`. The formula with S = 149 gives the manta 93 %: it is off here. Live outcomes on the visit: discord 23 ok / 3 fail (by type in tidal_tomb_observed bard)",
-  "song_x": 0.169,
-  "song_note": "live 10:59:58 / 11:00:55 / 11:11:40: 'Song of Peacemaking (16.9% healing amounts ...)', 'Song of Provocation (+16.9% damage against creatures ...)', 'Song of Discordance (16.9% reduced damage from creatures ...)' (0.177 on the Mausoleum's trips)",
-  "seconds": {
-   "discord": 68,
-   "peace": 34,
-   "provoke": 42
-  },
-  "seconds_easy": {
-   "discord": 68,
-   "peace": 34,
-   "provoke": 42
-  },
-  "seconds_note": "live answers on this visit: discord '(1m 8s)' 21 of 23 (difficulty 6-153 alike; 83 s twice, a clearwater grouper and a giant pincer crab), peace '(34s)' 2 of 2, provoke '(42s)' 3 of 3; the Guide's 'Barding Duration' 34 s / 68 s"
+  "instrument": "exceedingly melodious",
+  "instrument_note": "the instrument's quality whose numbers the sim uses (sim/scenario.py load: its block in `instruments` over this one's). User 2026-10-25: 'Barding depends on the quality of the instrument'. The captures show which Logan played (a double-click plays an instrument, its name from the single-click): 2026-10-24 10:26:19 and 19:32:51 an 'eminently melodious sackbut' (+15 barding, wiki Magic Item Modifiers #13809), so the first visit and the evening's; from 22:17:39 a 'durable exceedingly melodious tambourine', 2026-10-25 10:58:19 a 'durable exceedingly melodious psaltery' (+20). Also looked at those days, not played in the captures: surpassingly melodious harps and a lute (+10), a supremely melodious bamboo flute (+25). The sim plays the quality he played last",
+  "instruments": {
+   "eminently melodious": {
+    "guide": {
+     "ruby smallshell": 0.927,
+     "dungeon-nest crab": 0.773,
+     "flying manta": 0.741,
+     "singing noughtilus": 0.937,
+     "oozing noughtilus": 0.877,
+     "mermadon": 0.669,
+     "colossal pincer crab": 0.485
+    },
+    "guide_note": "'Barding Chance' in the game's creature Guide gump (0xC38EC76C) Logan opened live with the sackbut: 2026-10-24 11:01:00 ruby smallshell 92.7 %, 11:02:42 dungeon-nest crab 77.3 %, 11:06:29 flying manta 74.1 %, 11:06:48 singing noughtilus 93.7 %, 11:08:08 oozing noughtilus 87.7 %, 19:51:32 mermadon 66.9 %, 21:00:22 colossal pincer crab 48.5 %: the server's own number for him, used before the wiki formula (World._bard) where no live counts are in `observed`. The formula with S = 149 gives the manta 93 %: it is off here. Live outcomes on the first visit: discord 23 ok / 3 fail (by type in tidal_tomb_observed bard)",
+    "song_x": 0.169,
+    "song_note": "live 2026-10-24 10:59:58 / 11:00:55 / 11:11:40: 'Song of Peacemaking (16.9% healing amounts ...)', 'Song of Provocation (+16.9% damage against creatures ...)', 'Song of Discordance (16.9% reduced damage from creatures ...)'",
+    "seconds": {"discord": 68, "peace": 34, "provoke": 42},
+    "seconds_easy": {"discord": 68, "peace": 34, "provoke": 42},
+    "seconds_note": "live answers on the first visit: discord '(1m 8s)' 21 of 23 (difficulty 6-153 alike; 83 s twice, a clearwater grouper and a giant pincer crab), peace '(34s)' 2 of 2, provoke '(42s)' 3 of 3; the Guide's 'Barding Duration' 34 s / 68 s"
+   },
+   "exceedingly melodious": {
+    "guide": {
+     "ruby smallshell": 0.95,
+     "dungeon-nest crab": 0.838,
+     "flying manta": 0.806,
+     "singing noughtilus": 0.95,
+     "oozing noughtilus": 0.942,
+     "mermadon": 0.734,
+     "colossal pincer crab": 0.55
+    },
+    "guide_note": "the Guide with the psaltery, 2026-10-25 11:21:49 and 11:22:24: oozing noughtilus 94.2 % (87.7 % with the sackbut), Barding Duration 71 s (68 s); 13:18:59 a blightmare 50.6 %, 35 s. The other types are the sackbut's + 6.5 points, capped at 95 % [INFERENCE: the one pair measured; +5 instrument skill moved it 6.5 points (Item ID multiplies an instrument's bonus, knowledge #3870)]",
+    "song_x": 0.177,
+    "song_note": "live 2026-10-25 11:27:38 / 11:29:41 / 11:32:30: 'Song of Discordance (17.7% reduced damage ...)', 'Song of Provocation (+17.7% ...)', 'Song of Peacemaking (17.7% ...)'; 0.177 on the Mausoleum's trips too",
+    "seconds": {"discord": 71, "peace": 43, "provoke": 36},
+    "seconds_easy": {"discord": 71, "peace": 43, "provoke": 36},
+    "seconds_note": "live answers 2026-10-25: discord '(1m 11s)' 19 of 21 ('1m 26s' twice), peace '(43s)' 7 of 8 ('36s' once), provoke '(36s)' 6 of 6"
+   }
+  }
  },
  "recall": {
   "tome": 1145745907,
@@ -342,7 +359,7 @@
   "leave_gate": [6652, 2095],
   "gate_dest": "Totem",
   "heal_in_place": true,
-  "note": "run.py's defaults: in by the recall row, the hunt on level 1, out by the golden moongate at the arrival (6652, 2095) to Totem, then the recall home: the runner's leave by recall casts where it stands (sim smoke 2026-10-24: 'recall home failed (unusable)' 138 steps from the gate, the dungeon rule), its leave by gate walks there first. Level 1 runs ~150 steps deep from the gate, so heal in place as at the Mausoleum. Live the arrival tile holds a crimson gate too (gates_note): which menu a double-click there opens is untested. Level 2 instead: --enter-via 6718 1984 --leave-gate 6913 2071 (the crimson gate Logan left by), with the oxygen's 12 minutes in mind (no runner rule for it yet). Level 3 as Logan went (2026-10-25: level 1's west strip, level 2's north strip): --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992 (the crimson gate 8 tiles from the strip back up; no gate is known on level 3); the dolphin 11 tiles from the arrival refills the oxygen"
+  "note": "run.py's defaults: in by the recall row, the hunt on level 1, out by the golden moongate at the arrival (6652, 2095) to Totem, then the recall home: the runner's leave by recall casts where it stands (sim smoke 2026-10-24: 'recall home failed (unusable)' 138 steps from the gate, the dungeon rule), its leave by gate walks there first. Level 1 runs ~150 steps deep from the gate, so heal in place as at the Mausoleum. Live the arrival tile holds a crimson gate too (gates_note): which menu a double-click there opens is untested. Level 2 instead: --enter-via 6718 1984 --leave-gate 6913 2071 (the crimson gate Logan left by), with the oxygen's 12 minutes in mind (no runner rule for it yet). Level 3 as Logan went in and out (2026-10-25: level 1's west strip, level 2's north strip; out up the arrival strip to level 2's crimson gate, user: 'We can leave lvl 3 by going back to the crimson gate on lvl 2, as I did'): --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221 (no gate is known on level 3); the dolphin 11 tiles from the arrival refills the oxygen"
  },
  "spawns": [
   {

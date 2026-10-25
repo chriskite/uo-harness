@@ -868,6 +868,15 @@ moongate, and never near a red one).
     the pets guard until it's over; a pet more than 8 tiles off or out of view, a wait for it (once it doesn't
     come in 25 s the walk goes on and waits beside the gate). Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
     item isn't in view), and picks the destination by its label.
+  - **The gate a level up: `--leave-via X Y`** (repeat, in order; since 2026-10-25). Tidal Tomb's level 3 has no
+    gate known; the user leaves it "by going back to the crimson gate on lvl 2" (live 11:35:19 a step S onto
+    (7161, 2221), 11:36:55 the gate at (6897, 1992)). While the walk rules find no route to the gate (the planner never
+    routes over a teleporter), the leave first steps onto the `--leave-via` teleporter still ahead that they reach
+    (`HuntLoop.leave_up`): a planned leave as the walk in goes (`walk_in_legs`, no song), a hurt leave or a hostile
+    player's at flight pace (`walk_in_rush`). Then the gate as below. Once through one, a hurt leave isn't called off
+    for being healed: before that, the simulator's hurt leaves healed on level 2 and hunted there for the rest of the
+    run. Level 3: `--enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221
+    --gate-dest Totem`.
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
@@ -1252,6 +1261,8 @@ The way out by level (the planner never routes over a teleporter, so each level 
   recall home from there.
 - **Middle level** (Maus 2: no route to a gold moongate, none to the leave gate): the `--enter-via` teleporters still
   ahead, the nearest by route first, at flight pace (`walk_in_rush`), then the leave gate as above.
+- **Hunt level below the gate's** (Tidal Tomb's level 3: no route to the leave gate, one onto a `--leave-via`
+  teleporter): the leave by the gate, up through them first (`leave_up`).
 - A recall allowed where he stands (a try before got him out): the recall.
 
 No escape after a death (`death` juncture) or a server restriction message (stop, ANTICHEAT.md §8 rule 4), on a
@@ -1259,6 +1270,7 @@ paused agent gate (`GatePaused`: the user took over) or `ctl stop`, outside a no
 from the escape itself. The overall timeout no longer aborts once the escape began. `--go-home` takes the same way out
 on its own. test_sim `test_escape_after_walk_in_error` (the live walk in's failure at (5507, 691): home by the
 teleporters and the leave gate, both pets along), `test_go_home` (from the first level, Maus 2 and Maus 3),
+`test_go_home_tidal_level3` (up the arrival strip to level 2's crimson gate),
 `test_no_escape_on_death_or_stop`.
 
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and

@@ -2372,6 +2372,18 @@ Docs: docs/SIM.md "Level 3 and the later visits", docs/NOTES.md "Tidal Tomb: the
   nothing it does.
 - **No retuning.** Level 3 in the sim kills Logan (5 of 8 runs, 4 on the walk in) where live he lived. Level 3
   also has no way out for the runner (the leave gate is a level up). Both are named gaps in docs/SIM.md.
+- **Leaving level 3 by `--leave-via`** (user, same day: "We can leave lvl 3 by going back to the crimson gate on lvl
+  2, as I did"). An argument naming the teleporters up, as `--enter-via` names the ones down; the leave walks them
+  with the walk in's own legs, then the gate. Rejected: teaching the Mover to plan over teleporters. Every leave,
+  flight and escape assumes a one-level route, and the walk in, its dashes and its escapes are already built on
+  named teleporters.
+  - A leave that went up a level isn't called off for being healed. Otherwise the hunt goes on on the wrong level
+    (the simulator's first batch).
+- **Barding by the instrument's quality** (user: "Barding depends on the quality of the instrument"). The captures
+  name it: an eminently melodious sackbut (+15) on 2026-10-24, an exceedingly melodious psaltery (+20) on 2026-10-25.
+  The scenario keeps each one's measured numbers (`bard.instruments`) and picks the one played last
+  (`bard.instrument`). Rejected: a formula from the instrument bonus to every number. One Guide pair is the only
+  measure of its effect on the chance.
 
 ## The player's armor in the simulator (user 2026-10-24; built 2026-10-24)
 
