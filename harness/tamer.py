@@ -106,9 +106,14 @@ RES_TRY_S = 30.0              # a ghost in view is vetted this long after the de
 CLILOC_ACTION_WAIT = 500119
 CLILOC_SKILL_WAIT = 500118    # "You must wait a few moments to use another skill."
 CLILOC_PICK_INSTRUMENT = 500617   # "What instrument shall you play?": the one last played is gone
+CLILOC_INSTRUMENT_BROKE = 502079  # "You broke your instrument trying to play it." (live 2026-10-25 17:24:23 at a
+#                                   Discordance, then the 0x1D of Logan's durable psaltery 0x672A0FE1: worn out)
 # lute, lap harp, standing harp, drum, tambourines (Logan's pack, live 20261015_171928: 0xEB3 his lute, 0xE9C,
-# 0xE9E, 0xEB2 the lap harp after the 18:40 death)
-INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E)
+# 0xE9E, 0xEB2 the lap harp after the 18:40 death), the psaltery 0x4E2A (his "durable exceedingly melodious psaltery",
+# status 2026-10-25), the bamboo flute 0x2805 ("supremely melodious bamboo flute", status 2026-10-25 17:29). Outlands
+# has more instrument art than these: Team.instrument takes an item by its name (INSTRUMENT_NAME) as well
+INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E, 0x4E2A, 0x2805)
+INSTRUMENT_NAME = re.compile(r"\b(lute|harp|drum|tambourine|psaltery|flute|bagpipes?)\b", re.I)
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 BARD_RANGE = 10               # [INFERENCE] successes seen at 1-9 tiles
 SKILL_GAP_S = 5.0             # wiki Peacemaking; live: the next cursor came 5 s after the last use
@@ -2428,7 +2433,7 @@ class Team:
         if not any(e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_PICK_INSTRUMENT for e in h.link.events[mark:]):
             return cur
         st = h.state()
-        found = next((kv for g in INSTRUMENT_GRAPHICS for kv in healing.in_pack(st["world"], h.me(st), g)), None)
+        found = self.instrument(st)
         if found is None:
             h.cancel(cur)
             self.no_instrument = True
@@ -2443,6 +2448,34 @@ class Team:
                                          it.get("graphic") or 0, cur.get("cursor_type") or 0))
         log(f"instrument: {it.get('name') or 'graphic 0x%04X' % (it.get('graphic') or 0)} 0x{serial:08X}")
         return self._cursor(mark2)
+
+    def instrument(self, st):
+        """(serial, item) of an instrument in the pack at any bag depth: by graphic (INSTRUMENT_GRAPHICS), else by
+        name (INSTRUMENT_NAME; live 2026-10-25 17:28 the bamboo flute 0x2805 the user put in, unknown by graphic,
+        kept the run from recalling in). None when there is none."""
+        world, me = st["world"], self.h.me(st)
+        found = next((kv for g in INSTRUMENT_GRAPHICS for kv in healing.in_pack(world, me, g)), None)
+        if found is not None:
+            return found
+        items = world.get("items") or {}
+        pack = combat.backpack(items, me)
+        if pack is None:
+            return None
+        return next(((combat._serial(k), it) for k, it in combat.pack_items(items, pack)
+                     if INSTRUMENT_NAME.search(it.get("name") or "")), None)
+
+    def bards(self) -> bool:
+        """A bard skill or song is on (--discord, --peace, --provoke, --songs): they need an instrument."""
+        return any(getattr(self.a, k, False) for k in ("discord", "peace", "provoke", "songs"))
+
+    def broke(self, mark: int):
+        """CLILOC_INSTRUMENT_BROKE after `mark`, logged: the server deletes the instrument, and the next skill asks
+        for another (_instrument). Live 2026-10-25 17:24:23 it went by unlogged until "no instrument in the pack"
+        24 s later."""
+        if any(e.get("ev") == "cliloc" and e.get("cliloc") == CLILOC_INSTRUMENT_BROKE for e in self.h.link.events[mark:]):
+            self.count("instrument_broke")
+            log("the instrument broke (\"You broke your instrument trying to play it.\"): the next bard skill takes "
+                "another from the pack")
 
     def _cursor(self, mark: int, not_id=None):
         """The target cursor once a `target` event follows `mark` (and isn't `not_id`), else None (a
@@ -2532,6 +2565,7 @@ class Team:
                                  if not (e.get("ev") == "speech_heard" and e.get("text") == TEXT_INCITE_SECOND)),
                    ANSWER_WAIT_S)
         self.answered(sid, serial, second, name, [bard_answer(e) for e in h.link.events[ans:] if bard_answer(e)])
+        self.broke(mark)
         h.human.wait("hotkey")
         return True
 
@@ -2618,6 +2652,7 @@ class Team:
         self.skill_ready = now + SKILL_GAP_S
         self.calm_ready = now + (CALM_SUCCESS_S if ok else SKILL_GAP_S)
         log(f"area peace ({why}): " + ("some pacified for 2 s" if ok else "none pacified"))
+        self.broke(mark)
         return True
 
     def song(self, st) -> bool:
@@ -2667,6 +2702,7 @@ class Team:
             log(f"{what}: playing for {SONG_S / 60:.0f} min")
         else:
             log(f"{what}: {got[0]}")
+        self.broke(mark)
         h.human.wait("hotkey")
         return True
 

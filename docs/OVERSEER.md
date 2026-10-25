@@ -594,7 +594,10 @@ Paste this (or point the session at this section) to start an overseer.
 >    Read its `reply`. Not at home: `act recall 0x444AB1F3` (its default rune is the house) first.
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"
 >    and the like): heal potions `0x0F0C`, vet supplies `0x6496`, Total Refresh `0x0F0B`, adventurer's rope,
->    and the rune tome `0x444AB1F3`. The shelf's "Unable to resupply: no items available." also comes with
+>    the rune tome `0x444AB1F3`, and **an instrument to play** (a lute, harp, psaltery, flute, drum or tambourine
+>    in the pack; since 2026-10-25 the runner won't recall in without one: "no instrument in the pack: not going in",
+>    a `low_supplies` juncture with item `instrument`; that day his durable psaltery wore out mid-run and the user
+>    put in a bamboo flute). None: tell the user. The shelf's "Unable to resupply: no items available." also comes with
 >    a full loadout. Full is what the shelf's loadout gives, and the user sets it: since 2026-10-22 fewer vet supplies,
 >    bandages and potions, the new normal (about 30 heal potions, 70 vet supplies, 5 Total Refresh and 15 rope; user:
 >    "I reduced our load out from the shelf so we aren't wasting so many resources when we keep dying to reds";
@@ -608,7 +611,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    one on his chain), skill mastery orbs and seeds (the drop-off moves them since 2026-10-20; one left behind is still loot),
 >    jewellery, gems, instruments ("supremely melodious") and hued valuables. **Leave Logan's
 >    kit**: gold (the next drop-off takes it), the supplies (potions, vet supplies, bandages, rope, empty bottles),
->    the rune tome and runebook, his lute and crook, the codexes, books and tomes, bags, pouches, the satchel, the
+>    the rune tome and runebook, **the instrument he plays** (one at least: since 2026-10-25 the user's "supremely
+>    melodious bamboo flute" 0x68D40079; a looted instrument beside it is loot), his crook, the codexes, books and tomes, bags, pouches, the satchel, the
 >    wooden box and its key, the wraith mask and hood, the Kasa, the spyglass, **mastery chains** (player-crafted
 >    only, never loot: user 2026-10-20), the soul jars (a filled one is the user's: step
 >    5). To tell new loot from kit, save `status` before each `ctl run` and compare serials after the drop-off.

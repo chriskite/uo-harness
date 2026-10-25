@@ -1669,31 +1669,44 @@ def test_leave_from_far():
 
 
 def test_instrument():
-    print("== the instrument last played is gone: the prompt answered with one from the pack; none: skills off ==")
+    print("== the instrument last played is gone: the prompt answered with one from the pack (a lap harp, a psaltery); "
+          "none: skills off, and no recall in ==")
     # live 20261015_171928 after the 18:40 death: 54 "What instrument shall you play?" answered with the
-    # skill's target ("That is not a musical instrument."), every bard skill and song lost for two runs
+    # skill's target ("That is not a musical instrument."), every bard skill and song lost for two runs. Live
+    # 2026-10-25 17:24:23 Logan's durable psaltery (0x4E2A, not in INSTRUMENT_GRAPHICS then) broke; the visit went on
+    # without bard skills, and nothing kept a run from recalling in without one
+    import loop_hunt
     out = {}
-    for harp in (True, False):
+    for spare in (0x0EB2, 0x4E2A, None):
         w = world_with([{"key": "shade wolf", "at": [5268, 648, 0]}], seed=7)
         m = next(m for m in w.mobs.values() if m.kind == "monster")
         lute = w.played
         del w.items[lute]
-        if harp:
-            w.items[0x416ACB89] = {"graphic": 0x0EB2, "amount": 1, "container": w.backpack, "kind": "instrument"}
+        if spare is not None:
+            w.items[0x416ACB89] = {"graphic": spare, "amount": 1, "container": w.backpack, "kind": "instrument"}
         loop, clock, store, patched = hurt_loop(w, 100)
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 clock.advance(0.5)
+                try:
+                    loop.check_instrument()
+                    refused = None
+                except loop_hunt.Abort as e:
+                    refused = str(e)
                 mark = len(loop.link.events)
                 loop.team.use(tamer.SKILL_DISCORD, m.serial)
                 answers = [tamer.bard_answer(e) for e in loop.link.events[mark:] if tamer.bard_answer(e)]
-                out[harp] = (w.played == (0x416ACB89 if harp else lute), any(a[1] in ("ok", "fail") for a in answers),
-                             loop.team.no_instrument)
+                low = [j for j in store.con.execute("SELECT kind, data FROM junctures").fetchall()
+                       if j[0] == "low_supplies" and "instrument" in (j[1] or "")]
+                out[spare] = (w.played == (0x416ACB89 if spare else lute), any(a[1] in ("ok", "fail") for a in answers),
+                              loop.team.no_instrument, refused is not None and "no instrument" in refused, len(low) > 0)
         finally:
             store.close()
             simclock.uninstall(patched)
-    check("the lap harp picked and the discord answered; with none, the bard skills off",
-          out[True] == (True, True, False) and out[False] == (True, False, True), str(out))
+    check("the lap harp or the psaltery picked and the discord answered, the recall in allowed; with none, the bard "
+          "skills off and no recall in (low_supplies)",
+          out[0x0EB2] == out[0x4E2A] == (True, True, False, False, False) and out[None] == (True, False, True, True, True),
+          str(out))
 
 
 def test_heal_in_place():

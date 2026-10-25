@@ -483,13 +483,20 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    more damage). One song every 10 s whenever nothing more urgent is due, fights included (a care
    action after the retreat, vet supplies, guard and walk to a hurt pet), each again a minute before
    it ends. The user sang them mid-fight too.
-   **The instrument**: when the one last played is gone (after a death, the lute left on the corpse) the
+   **The instrument**: when the one last played is gone (after a death, the lute left on the corpse; worn out:
+   "You broke your instrument trying to play it.", cliloc 502079, logged as "the instrument broke") the
    server asks "What instrument shall you play?" (cliloc 500617) with a cursor before every bard skill
-   and song; the runner answers it with an instrument from the pack (`tamer.INSTRUMENT_GRAPHICS`, any
-   bag depth) and then the skill's own cursor. With none in the pack it cancels, posts a
+   and song; the runner answers it with an instrument from the pack (`Team.instrument`: by graphic,
+   `tamer.INSTRUMENT_GRAPHICS`, else by name, `INSTRUMENT_NAME`; any bag depth) and then the skill's own
+   cursor. With none in the pack it cancels, posts a
    `low_supplies` juncture and stops the bard skills and songs (`Team._instrument`). Live
    20261015_171928 after the 18:40 death the runner answered the prompt with the skill's target ("That
-   is not a musical instrument.", 54 times): two runs without one bard skill or song.
+   is not a musical instrument.", 54 times): two runs without one bard skill or song. **No recall in
+   without one** (since 2026-10-25, `HuntLoop.check_instrument`): with any bard skill or song on, a run at
+   home with no instrument in the pack posts `low_supplies` (item `instrument`) and ends there ("no instrument
+   in the pack: not going in"); `--no-discord --no-peace --no-provoke --no-songs` go without. Live 2026-10-25
+   17:24:23 Logan's durable psaltery (0x4E2A, unknown by graphic then) broke at a Discordance and the visit went
+   on without bard skills; the user's replacement, a bamboo flute (0x2805), is why names count too.
    A bard skill's cursor is cancelled when Logan is below `--heal-at` with a heal potion ready
    (`Team.potion_first`; live 19:19:30.9-35.2 a Discordance answered at 42 hits, the potion 3.6 s later).
    **Area Peacemaking in a jam** (user 2026-10-15: "in a jam you can peace the area around you by

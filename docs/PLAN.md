@@ -2497,6 +2497,16 @@ were ours anyway; the simulator is neutral (200 runs a side on two blocks: gold 
 higher `THEIRS_BELOW` or a damage-rate rule; the hits read was right at the "All Kill", and the pets' share of the drop
 can't be told from the other player's. *Live*: from the next `ctl run`; the §5 command is unchanged.
 
+## No recall in without an instrument (2026-10-25)
+
+Logan's only instrument wore out mid-run and the visit went on with no bard skill, area peace in a jam included
+(docs/NOTES.md "The instrument wore out mid-run"). Decisions: the runner doesn't recall in from home without an
+instrument while any bard skill or song is on (`low_supplies`, the run ends at home, as the miner does without a
+pickaxe); the `--no-*` bard flags go without. An instrument is known by graphic or by name: graphics alone missed
+both the psaltery and the user's bamboo flute. Rejected: fetching a spare from the house chest (none is known
+there; the user supplies them). A mid-visit break doesn't end the visit: the pets fight on, and the leave rules are
+unchanged.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

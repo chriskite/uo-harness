@@ -5964,6 +5964,24 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   [INFERENCE: 63 of 63 sim kills after such an "All Kill" were blue, live 10 of 21], so the live gain is the corpses
   that were ours yet left by the call-off and the "All Guard Me" round trip.
 
+## The instrument wore out mid-run; the replacement unknown by graphic (live 2026-10-25 17:24-17:29)
+
+- **Break** (hunt-20261025-172209-8509, capture session_20261024_225113): at 17:24:23.88 a Discordance answered with
+  cliloc 502079 "You broke your instrument trying to play it." and "You fail", then the 0x1D of 0x672A0FE1, Logan's
+  only instrument, a "durable exceedingly melodious psaltery" (graphic 0x4E2A, hue 0x0973 [from its 0x25]; durable
+  ones wear out too). The runner logged nothing until the next skill's prompt, 24 s later: "no instrument in the
+  pack: the bard skills and songs are off" and a `low_supplies`. The Seer stopped the run --after-trip.
+- **0x4E2A wasn't in `tamer.INSTRUMENT_GRAPHICS`**: a spare psaltery would have been reported as none just the same.
+- **The first home check refused a valid instrument**: at 17:28:28 (hunt-20261025-172827-76de) "no instrument in the
+  pack: not going in" with the user's new "supremely melodious bamboo flute" 0x68D40079, graphic 0x2805, in the
+  main pack. Fixed the same minute: `Team.instrument` takes graphics (0x2805 added) or a name matching
+  `INSTRUMENT_NAME` (lute, harp, drum, tambourine, psaltery, flute, bagpipes); checked against Logan's live state
+  (it finds 0x68D40079).
+- **Runner now**: "the instrument broke (…)" logged after the skill that broke it (`Team.broke`, counter
+  `instrument_broke`); no recall in from home without an instrument while any bard skill or song is on
+  (`HuntLoop.check_instrument`, `low_supplies` item `instrument`). test_sim `test_instrument` (a lap harp, a psaltery,
+  none; fails before on the psaltery).
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,

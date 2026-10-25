@@ -2530,6 +2530,7 @@ class HuntLoop:
         """Recall to --enter-recall's rune --enter-rune (its default without one), then the walk in (--enter-via).
         The first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
+        self.check_instrument()
         if self.team is not None:
             self.team.follow()
         self.doing("enter", f"Recalling to {rune or 'the default rune'}")
@@ -2554,6 +2555,18 @@ class HuntLoop:
         self.rearm(self.state())            # the recall knocked an arcane staff into the pack: before any attack
         if self.team is not None:
             self.team.landed(self.state(), "in")
+
+    def check_instrument(self):
+        """--pets with a bard skill or song on: no recall in without an instrument in the pack (a low_supplies
+        juncture, the run ends at home). Live 2026-10-25 17:24:23 Logan's only one, a durable psaltery, broke at a
+        Discordance on Maus 3 and the visit went on with no bard skill, area peace in a jam included (user's play
+        rules); the Seer: "low_supplies for instrument only fires once the run is inside"."""
+        if self.team is None or not self.team.bards() or self.team.instrument(self.state()) is not None:
+            return
+        self.memory.juncture("hunt", "low_supplies", "No instrument in the pack: not going in", "attention",
+                             {"item": "instrument"})
+        raise Abort("no instrument in the pack: not going in (the bard skills and songs need one; "
+                    "--no-discord --no-peace --no-provoke --no-songs to go without)")
 
     def resume_inside(self, st):
         """Started inside the dungeon (no recall from here: escape.recall_forbidden) and away from --spot. Live
