@@ -1227,7 +1227,10 @@ class HuntLoop:
         user 2026-10-15: "I don't click potions in a satchel I use a Razor hotkey"; live 20261015_171928 the
         satchel's opening cost 3 s at 41-54 hits). True when it healed; a 'wait' refusal (healing.potion_wait:
         the wait Outlands names, or cliloc 500235) sets the potion clock to it and returns False so the caller
-        casts instead."""
+        casts instead. "You are already at full health." (healing.CLILOC_FULL_HEALTH: a heal landed between the
+        choice and the click) drinks nothing and leaves the clock where it was (ServUO BaseHealPotion: the lock is taken
+        only on a drink; live 2026-10-25 00:38:38.9 a vet finish took Logan 72 -> 100 just before the click, the clock
+        counted a drink, and at 65 and 45 hits no potion was tried until he died 6 s later)."""
         me = st["world"]["self"]
         self.doing("heal", f"Drinking a heal potion ({me.get('hits')}/{me.get('hits_max')} hits)")
         self.human.wait("hotkey")                     # the user's Razor "Drink Heal Potion" hotkey
@@ -1238,8 +1241,11 @@ class HuntLoop:
                                     or healing.potion_wait(e) is not None for e in self.link.events[mark:]), 2.0)
         heard = {e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"}
         now = time.monotonic()
-        self.potions.started(now)
         hits = self.link.last["world"]["self"].get("hits")
+        if healing.CLILOC_FULL_HEALTH in heard and healing.CLILOC_HEALED not in heard:
+            log(f"heal potion not drunk: already at full health ({me.get('hits')} -> {hits} hits before the click)")
+            return False
+        self.potions.started(now)
         wait = next((w for e in self.link.events[mark:] if (w := healing.potion_wait(e)) is not None), None)
         if wait is not None:
             self.potions.refused(now, wait)

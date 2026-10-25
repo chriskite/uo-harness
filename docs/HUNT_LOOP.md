@@ -84,6 +84,10 @@ Each tick re-reads the proxy state and decides, in this order:
      runner's own clock). If the server still refuses (cliloc 500235, e.g. after a drink in the
      client, or Outlands' "You must wait N second(s) before using another healing potion."), the clock
      is set to the wait it names (500235: a full cooldown) and a spell goes out in the same tick.
+     "You are already at full health." (cliloc 1049547: a heal, e.g. a vet finish, landed between the
+     choice and the click) is no drink: the clock stays where it was ("heal potion not drunk: already at
+     full health"; ServUO's potion lock is taken only on a drink). Before 2026-10-25 it counted as one,
+     and live 00:38:38.9 it left Logan without a potion at 65 and 45 hits for the 6 s to his death.
    - **Otherwise a spell by the missing hits**: Greater Heal ((40–50) × Magery/100 for 11 mana)
      once the missing hits reach `--gheal-min-missing`, else Heal ((10–12) × Magery/100 for 4
      mana; wiki Magery). The default threshold is the mana break-even, where Greater Heal
@@ -696,6 +700,15 @@ monster's shot isn't walked to ("to a hurt pet: GraveRobber (70%) is only in rea
 staying out of it"); it is vetted once the shooter is dead or the pet comes out. Below `--pet-leave-at`, or a
 ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and cover walked him out each time
 (docs/NOTES.md "Dead on the walk in to a red", the follow-up).
+**No walk to a hurt pet from out of an awake caster's sight into its reach** (`Team.to_pet`, since 2026-10-25): with
+an awake caster or ranged monster (not a shy one: its shot rule above) that doesn't see us here (`CASTER_R` 12,
+`RANGED_R` 13), a live pet at `tamer.TO_PET_CASTER_AT` (50 %) or more isn't walked to when the vet tile (or the pet's
+tile) is within that reach of it by distance, sight or not, and nearer it than here: "to a hurt pet: GirthyEarthy
+(92%) is only in reach 4 from the awake master reanimator, out of its sight 12 off here (50% or more); staying out of
+it". Below 50 %, or a ghost, the walk goes on; so does one with us in its sight already. Live 2026-10-25 00:38:27-45
+the reposition had taken Logan out of a master reanimator's sight 12 off, and the walk took him to 4 of it for the
+tank at 92 %; its spells and a shadowguard's landed on all of us at once, Logan behind a wall by our map, 100 -> 0 in
+6 s (docs/NOTES.md "Dead vetting a pet in two casters' reach").
 
 **"All Patrol" at a purger or a blightmare** (`--patrol-pull`, on by default since 2026-10-22; `Team.patrol_pull`,
 user 2026-10-18 "We can send our pets to a spot away from us, e.g. to within aggro distance of a purger, while we're

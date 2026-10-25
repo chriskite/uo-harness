@@ -612,7 +612,7 @@ def test_vet_tile_off_tank():
         m.hits = m.hits_max = 10 ** 6
         gb = next(p for p in w.pets() if p.name == "GraveRobber")
         af = next(p for p in w.pets() if p.name == "AlaFlambe")
-        gb.hits = int(gb.hits_max * 0.5)
+        gb.hits = int(gb.hits_max * 0.4)       # below tamer.TO_PET_CASTER_AT: the daemon is a caster out of our sight
         m.target, m.threat = gb.serial, {gb.serial: 1e9}
         w._warm(m, True)
         link, clock = link_for(w)
@@ -2254,6 +2254,54 @@ def test_to_pet_not_into_shot():
           f"before {before} walked {walked} after {after} at {w.player.pos}")
 
 
+def test_to_pet_not_into_caster_reach():
+    print("== the live 00:38:30 tiles: the tank at 92 % on an awake master reanimator 12 off: no walk to 4 of it; at "
+          "15 % the walk; a potion refused at full health starts no cooldown ==")
+    # live 2026-10-25 00:38:27-45 (hunt-20261024-230728-d7cf): the reposition out of its sight to (5243, 733), then "to a
+    # hurt pet: (5243, 722), 4 from GirthyEarthy", its and a shadowguard's spells on all of us, 100 -> 0 in 6 s; a vet
+    # finish (72 -> 100) just before a potion's click ("You are already at full health.") counted as a drink, and no
+    # potion was tried at 65 and 45 hits
+    import aggro
+    import healing
+    from agent_link import serial_of
+    out, res = io.StringIO(), {}
+    for frac in (0.92, 0.15):
+        w = world_with([{"key": "master reanimator", "at": [5239, 721, 0]}], seed=7, start=(5243, 733))
+        mr = next(m for m in w.mobs.values() if m.key == "master reanimator")
+        loop, clock, store, patched = hurt_loop(w, 100)
+        gr = next(p for p in w.pets() if p.name == "GraveRobber")
+        for p, xy in zip(w.pets(), ((5239, 722), (5241, 725))):
+            p.x, p.y = xy
+        w.hurt(gr, gr.hits_max * (1 - frac), mr, "spell")     # its bar sent hurt
+        mr.target, mr.threat = gr.serial, {gr.serial: 50}
+        w._warm(mr, True)
+        try:
+            with contextlib.redirect_stdout(out):
+                clock.advance(0.5)
+                st = loop.state()
+                v = aggro.View(loop, st)
+                awake = [m for m in v.mobs if m["war"] and m["caster"]]
+                walked = loop.team.to_pet(st)
+                res[frac] = (bool(awake), walked, sim_cheb(w.player.pos, mr.pos))
+                if frac == 0.92:
+                    last = loop.potions.last
+                    w.player.hits = w.player.hits_max
+                    potion = serial_of(healing.heal_potions(loop.state()["world"], loop.me(loop.state()))[0][0])
+                    drunk = loop.drink(loop.state(), potion)
+                    res["potion"] = (drunk, loop.potions.last == last)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("at 92 %: no walk nearer the awake reanimator, the reason logged",
+          res[0.92][0] and not res[0.92][1] and res[0.92][2] == 12 and "awake master reanimator" in out.getvalue(),
+          f"(awake, walked, from it) {res[0.92]}")
+    check(f"at 15 % (below tamer.TO_PET_CASTER_AT {tamer.TO_PET_CASTER_AT:.0%}): the walk to the pet",
+          res[0.15][1] and res[0.15][2] < 12,
+          f"(awake, walked, from it) {res[0.15]}")
+    check("at full health the potion isn't drunk and its clock stays", res["potion"] == (False, True),
+          f"(drunk, clock unchanged) {res['potion']}")
+
+
 def test_blightmare_first_sight():
     print("== the live 18:20:44 scene: the runner never takes an idle blightmare's first sight (it doesn't come on) ==")
     # live 2026-10-21 18:20:44-48: "crawl: blightmare ... in view at 13 tiles: patrolling toward it", an approach and a
@@ -3804,7 +3852,8 @@ def main():
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
-              test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot, test_blightmare_first_sight,
+              test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
+              test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,

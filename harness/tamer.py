@@ -202,6 +202,8 @@ CASTER_R = 12                 # a caster in war mode this close in sight is cast
 #                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 RANGED_R = 13                 # a ranged monster in war mode this close in sight is shooting at us (the purger's barrage: 12)
+TO_PET_CASTER_AT = 0.5        # to_pet: a pet at this share of hits or more isn't walked to nearer an awake caster or ranged
+#                              monster, within its reach (live 2026-10-25 00:38:30, the tank at 92 %)
 COVER_STEPS = 8               # cover: out of an awake purger's or blightmare's shot this far at most
 COVER_S = 2.0                 # ...at most this often
 BACK_OFF_S = 2.0              # back_off at most this often
@@ -1964,6 +1966,22 @@ class Team:
                 # are busy fighting something else just stay out of their aggro range")
                 kinds = ", ".join(sorted({m["kind"] for m in shy}))
                 log(f"{label}: {p['name']} ({p['frac']:.0%}) is only in reach from the {kinds}'s shot; staying out of it")
+                return False
+            there = (to or (p["x"], p["y"]))[:2]
+            near = sorted((cheb(m["pos"], there), cheb(m["pos"], v.pos), m["kind"]) for m in v.mobs
+                          if m["war"] and (m["caster"] or m["ranged"]) and not m["shy"]
+                          and cheb(m["pos"], there) <= (r := CASTER_R if m["caster"] else RANGED_R)
+                          and cheb(m["pos"], there) < cheb(m["pos"], v.pos) and not v.sees(m, v.pos, r))
+            if near and not p["dead"] and p["frac"] >= TO_PET_CASTER_AT:
+                # live 2026-10-25 00:38:27-45 (hunt-20261024-230728-d7cf): the reposition took Logan out of the sight of an
+                # awake master reanimator on the pets, 12 off; this walked him 11 steps to 4 of it (behind a wall by our
+                # map) for GirthyEarthy at 92 %, and its and a shadowguard's spells on all of us, sight or not, took him
+                # 100 -> 0 in 6 s. From out of an awake caster's or ranged monster's sight, no walk nearer it within its
+                # reach (by distance: the area spells needed no sight) for a pet at TO_PET_CASTER_AT or more. The shy ones
+                # have their shot rule above and cover (simulator: with them, 862 of this rule's 1,931 holds in 40 runs)
+                d_there, d_here, kind = near[0]
+                log(f"{label}: {p['name']} ({p['frac']:.0%}) is only in reach {d_there} from the awake {kind}, out of "
+                    f"its sight {d_here} off here ({TO_PET_CASTER_AT:.0%} or more); staying out of it")
                 return False
             stop = None if p["dead"] else purger_first
             if to is not None:

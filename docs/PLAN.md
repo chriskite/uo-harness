@@ -2408,6 +2408,25 @@ out of their reach. The patrol, the reposition out of its reach and the walk bac
   does for purgers and blightmares). The same 120 simulator runs with it: deaths 30 against 28 and 108.9k against
   112.8k gp banked an hour. It saves one reposition in the test and nothing in the batch.
 
+## No walk to a hurt pet from out of a caster's sight into its reach; a full-health refusal is no drink (2026-10-25)
+
+Live 2026-10-25 00:38:45 Logan died 4 tiles from an awake master reanimator: the reposition had taken him out of its
+sight, and 3 s later the walk to a hurt pet (the tank at 92 %) took him back; its and a shadowguard's spells landed on
+all of us, sight or not, and a potion click answered "You are already at full health." had started the potion clock
+(docs/NOTES.md "Dead vetting a pet in two casters' reach"). Decisions:
+- **`Team.to_pet` holds the walk** when an awake caster or ranged monster (not a shy one: its own shot rule and cover)
+  doesn't see us here and the vet tile is nearer it within its reach, by distance, for a pet at `TO_PET_CASTER_AT`
+  (50 %) or more. Below that, or a ghost, the walk goes: the pet's life comes first then (heal in place, the pets guard).
+- Why distance and not sight for the tile: every hit after the walk landed on a tile our map says neither caster sees.
+  Why only from out of its sight: a walk from inside its sight doesn't add its single-target spells, and the rule for
+  every caster cost pet deaths (0.62 an hour against 0.43 in 240 simulated runs) for fewer deaths (0.192 against 0.257).
+  The kept rule: deaths 0.245 -> 0.203 an hour, pet deaths 0.44 -> 0.46, gold even (360 runs a side).
+- **`HuntLoop.drink`: cliloc 1049547 is no drink**: the clock stays (ServUO takes the potion lock only on a drink; a
+  wrong one is set right by the server's "You must wait" refusal anyway).
+- **Not done**: the simulator's casters still cast one target at a time; `ranged.area_r` (a spell on all of us within
+  reach, sight or not) is in `sim/fight0038.py` only, its radius [INFERENCE] from one fight. The scenario's caster
+  types would need it measured over the captures before batches use it.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

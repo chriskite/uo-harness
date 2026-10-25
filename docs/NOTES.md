@@ -5599,6 +5599,81 @@ Task log lines 1116-1186, capture session_20261024_102346 (replayed through `Wor
   same 120 runs with the fix: deaths 30 in 102.2 h, pet deaths 58, potions 43.7 an hour, 108.9k gp banked an hour,
   reposition steps 3,587 against 3,569. No gain, so it isn't in.
 
+## Dead vetting a pet in two casters' reach (2026-10-25 00:38)
+
+Live 2026-10-25 00:38:45, Maus 3, hunt-20261024-230728-d7cf (task log lines ~5160-5185), visit 4: 22 kills, 16,274 gp
+on him (lost). Pets GirthyEarthy 0x000E820F (the tank), fireminion 0x001D17E6, a searing imp 0x006C15F9, all still
+levelling. Capture session_20261024_225113 replayed through `WorldRuntime` (0xC0 by `world/layouts.py`: graphic and
+tiles as u32; 0x6E actions; 0x20 war flags; the overhead numbers). No player in view; no swing on him, so the death
+juncture listed no attacker.
+
+- **00:38:15-21** the patrol went south past a master reanimator 0x006213A3 at (5239, 721) toward a void slime; the
+  reanimator woke on the pets beside it (war mode, action 245 at 18.4; the pets' fireballs at it from 19.0).
+- **21.16** a flamestrike column (0xC0 type 3, 0x3709) on Logan at (5244, 733), 12 from it: -34 (100 -> 66) at 21.67;
+  potion 22.30 -> 100. [INFERENCE: the reanimator's, the only caster awake in view; the same column on GirthyEarthy at
+  24.51, 31.20, 34.57 and 41.05 while it fought him.]
+- **27** "reposition: master reanimator 0x006213A3 12 tiles off can cast at us here; to (5243, 733)": out of its sight
+  by our map. **30** "to a hurt pet: (5243, 722), 4 from GirthyEarthy (--vet-range 5)" (below --pet-heal-at 95 %;
+  92 % at the vet at 33), 11 steps north, arrived 33.4: 4 tiles from the reanimator (78 % -> 43 % hits), behind a wall
+  by our map (`los.Sight`: it sees no tile at x 5241-5245, y 716-724), 13 from an idle shadowguard 0x006217CC at
+  (5230, 723). Vet channel on GirthyEarthy 33.8.
+- **34.96** the shadowguard's first action in war mode [INFERENCE: woken by the pets 8-11 off; Logan was 13 off].
+- **37.69** its fireball (0xC0 type 0, 0x36D4) from (5230, 723) to Logan (13 tiles) and to each pet at once; "You have
+  been ensnared and diseased!"; -28 at 38.19 (100 -> 72), the pets -17, -19, -17.
+- **38.89** the vet finish: +28 on Logan (100) and +117 on GirthyEarthy. **38.90** the runner's potion click, chosen
+  at 72: cliloc 1049547 "You are already at full health." The runner logged "heal potion: 72 -> 100 hits" and started
+  its 10 s potion clock (to 48.9): no potion could be tried before then.
+- **From 38.55** the reanimator's action 209, new since Logan came within 4 (before: 245, 20, 230), at 38.55, 40.12,
+  41.92, 43.48.
+- **41.28** a lightning (0xC0 type 1) on Logan and all three pets at once, and a burst of source-less moving effects
+  (0x688F-0x6895) from all around onto GirthyEarthy's tile: -35 at 41.54 (100 -> 65), the pets -21, -25, -22.
+  [INFERENCE: the reanimator's, its action 209 1.16 s before (cast_scan's reanimator cast_s 1.16-1.27); the
+  shadowguard's action 6 was 1.48 s before.] At 65 (35 missing) a potion was due; the clock said 7.4 s more.
+- **42.80** location effects 0x376A on Logan's tile and the imp's: -25 (70 -> 45; +5 on all four at 41.96), the imp
+  -20 [INFERENCE: the reanimator (209 at 41.92) or the shadowguard (6 at 41.65)]. **43.31** "vet supplies: a searing
+  imp at 93% (poisoned)": a 5 s channel begun at 45 hits, no potion possible.
+- **44.40** the shadowguard's fireball to Logan (11 tiles) and each pet; **44.67** a lightning on all four (the
+  reanimator's 209 at 43.48, 1.19 s before). **44.91** -21 (45 -> 24), **44.93** -25 (24 -> 0). Dead; the reanimator
+  at 4 %.
+- **By source**, the last 25 s, 168 hits: the reanimator 34 + 35 + 21 (+25 at 42.80 if its), the shadowguard 28 + 25.
+  Every hit after 33.4 landed on the tile our map says neither caster sees: their spells on all of us needed no sight.
+- **Cause** [INFERENCE: the order of weight]: the walk to a hurt pet took him from 12 off an awake caster, out of its
+  sight, to 4 of it for a tank at 92 %, into spells that hit every one of us; then the full-health refusal counted as a
+  drink cost the potions at 65 and 45. The leave (--leave-at 50 %) didn't fire at 45: --heal-in-place with vet
+  supplies in the pack is "a heal coming". The retreat needs an attacker beside him.
+- **Old gap, new scene**: walks to a hurt pet ran 14.5 an hour this run against 7-43 in the runs of 10-21..24 (not
+  more with the levelling pets); of the 17 deaths in the task logs since 10-15 this is the first with one in its last
+  30 s. The captures since 10-17 hold 27 "already at full health" refusals.
+- **Replayed** (`sim/fight0038.py`, from 00:38:25: Logan at (5245, 733), the pets on the reanimator at 78 %, the
+  shadowguard waking on the tank 10 s in, the corpse purger idle at (5229, 727); the two casters at the capture's
+  cadence, their spells on every one of us within 4 (reanimator) or 6 (shadowguard) of the victim, sight or not:
+  `ranged.area_r`, the simulator's pets the gravebug and the phoenix). Seeds 1-200:
+
+  | | deaths | lowest hits median | damage on him, mean | potions | vet channels | walks to a hurt pet |
+  |---|---|---|---|---|---|---|
+  | 63aa4ab | 5 | 56 | 159 | 618 | 1045 | 348 |
+  | after | 0 | 67 | 113 | 460 | 1025 | 276 (219 held) |
+
+  Each of the five deaths was one walk to a hurt pet, then dead 21-25 s in under the reanimator and the shadowguard.
+- **Fixed.** `Team.to_pet`: with an awake caster or ranged monster (not a shy one) that doesn't see us here, a live
+  pet at `tamer.TO_PET_CASTER_AT` (50 %) or more isn't walked to when the vet tile (or its tile) is within that
+  monster's reach by distance (`CASTER_R` 12, `RANGED_R` 13) and nearer it than here: "to a hurt pet: GirthyEarthy
+  (92%) is only in reach 4 from the awake master reanimator, out of its sight 12 off here (50% or more); staying out
+  of it". `HuntLoop.drink`: "already at full health" leaves the potion clock alone ("heal potion not drunk: already at
+  full health (72 -> 100 hits before the click)"). Test: test_sim `test_to_pet_not_into_caster_reach` (the live
+  tiles: no walk at 92 %, the walk at 15 %, the clock kept; on 63aa4ab the walk to 4 of it and the clock started).
+  `test_vet_tile_off_tank` puts its gravebug at 40 % (the daemon there is a caster out of our sight).
+- **Simulator, before and after** (3 x 120 runs of 60 min, seeds 101, 201, 301, `--others --eerie --prior` a copy of
+  harness/data/harness.db taken 2026-10-25 00:57; before = 63aa4ab): deaths 78 in 318.5 h and 66 in 325.4 h (0.245 and
+  0.203 an hour), pet deaths 140 and 150 (0.44 and 0.46), damage on Logan 2,078 and 1,980 an hour, potions 41.2 and
+  40.6, vet channels 133.4 and 127.5, gp banked 107.7k and 108.6k an hour (per-run gold an hour 98,974 and 101,485,
+  Welch t 0.95). The potion fix alone (gate off, 120 runs of 30 min, seed 101): deaths 11 against 10, pet deaths 39
+  against 34.
+- **Rejected: the rule for every awake caster, shy ones and those that see us here too** (the first version, 50 %):
+  deaths 42 in 218.6 h (0.192 an hour), but pet deaths 135 (0.62 an hour against 0.43). In 40 logged runs 862 of its
+  1,931 holds were at a corpse purger or a blightmare, whose shot rule and cover already keep us out by sight. At 70 %:
+  deaths 46 in 216.2 h, pet deaths 111.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

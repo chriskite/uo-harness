@@ -1494,6 +1494,15 @@ class World:
         for sp in m.spec.get("specials", []):
             if sp["kind"] == "fire_mark":
                 self._fire_mark(victim, sp)
+        if ranged.get("area_r"):
+            # `area_r` (no scenario type has it; harness/sim/fight0038.py): the spell lands on every one of our side within
+            # area_r of its victim and the caster's reach too, sight or not (live 2026-10-25 00:38:37.7-44.7: a shadowguard's
+            # fireball and a lightning on Logan and all three pets at once, Logan behind a wall from both by our map)
+            for o in [self.player] + self.pets():
+                if o is victim or not o.alive or o.ghost or cheb(o.pos, victim.pos) > ranged["area_r"] \
+                        or cheb(o.pos, m.pos) > ranged["range"]:
+                    continue
+                self.hurt(o, self.roll(ranged["damage"]) * self._taken_x(o, "spell"), m, "spell")
 
     def _cancel_cast(self, m: Mob, why: str):
         """A cast under way stops (pacified, no target, hidden, transfixed, dead): nothing is let go."""
