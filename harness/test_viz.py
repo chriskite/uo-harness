@@ -451,6 +451,13 @@ def test_hunt_jobs():
     m.job_event("hunt", "loot", {"mob": "0x04", "name": "a mongbat", "gold": 25, "xp": 25}, t=7010.0)
     m.job_event("hunt", "kill", {"serial": "0x05", "name": "an orc"}, t=DAY + 200)
     m.job_event("hunt", "loot", {"mob": "0x05", "name": "an orc", "gold": 110, "xp": 120}, t=DAY + 210)
+    # banked at home: a drop-off moving 60 of 70 gold, a failed drop-off (no `left`), a --bank-gold deposit
+    # on day 2; a drop-off that moved no gold isn't a deposit
+    m.job_event("hunt", "dropoff", {"ok": True, "carried": {"gold": 70, "total": 90},
+                                    "left": {"gold": 10, "total": 10}}, t=2900.0)
+    m.job_event("hunt", "dropoff", {"ok": False, "error": "x", "carried": {"gold": 40, "total": 40}}, t=6000.0)
+    m.job_event("hunt", "dropoff", {"ok": True, "carried": {"gold": 0}, "left": {"gold": 0}}, t=6100.0)
+    m.job_event("hunt", "bank", {"amount": 120, "piles": 1, "box_gold": 5000}, t=DAY + 1100)
     m.job_event("lumber", "death", {"cause": "pk"}, t=1500.0)
     a = jobs.analytics(m, "hunt", 0)
     t = a["totals"]
@@ -465,6 +472,9 @@ def test_hunt_jobs():
     check("deaths, leaves, speech holds and their wait; other jobs' events excluded",
           t["deaths"] == {"pk": 0, "mob": 1, "other": 0, "total": 1} and t["leaves"] == 1
           and (t["speech_holds"], t["speech_wait_s"]) == (1, 12.5), str(t["deaths"]))
+    check("banked: the drop-off's gold carried less left (60) + the bank deposit (120); 2 deposits; 180 gp over 1 h",
+          (t["banked"], t["deposits"], t["banked_per_active_hour"]) == (180, 2, 180.0),
+          str({k: t[k] for k in ("banked", "deposits", "banked_per_active_hour")}))
     v = a["visits"]
     check("visit rows: kills/gold/xp from the events in each visit; row counters (hits lost, casts) kept",
           [(r["n"], r["kills"], r["gold"], r["xp"], r["looted"]) for r in v] == [(1, 2, 50, 53, 2), (2, 1, 0, 0, 0),
@@ -484,20 +494,24 @@ def test_hunt_jobs():
           and (days["1970-01-01"]["visits"], days["1970-01-01"]["kills"], days["1970-01-01"]["gold"]) == (2, 4, 75)
           and (days["1970-01-02"]["kills"], days["1970-01-02"]["xp"]) == (1, 120), str(list(days)))
     check("timeline: no per-kill rows (kill/loot), the rest in time order",
-          [e["kind"] for e in a["events"]] == ["speech_hold", "speech_clear", "death", "leave"],
+          [e["kind"] for e in a["events"]] == ["dropoff", "speech_hold", "speech_clear", "death", "leave", "dropoff",
+                                               "dropoff", "bank"],
           str([e["kind"] for e in a["events"]]))
     since = jobs.analytics(m, "hunt", 4000)
-    check("since=4000: visits 2 and 3, the outside kill and the orc",
-          (since["totals"]["visits"], since["totals"]["kills"], since["totals"]["xp"]) == (2, 3, 145),
+    check("since=4000: visits 2 and 3, the outside kill and the orc; banked only the day-2 deposit",
+          (since["totals"]["visits"], since["totals"]["kills"], since["totals"]["xp"], since["totals"]["banked"])
+          == (2, 3, 145, 120),
           str(since["totals"]))
     upto = jobs.analytics(m, "hunt", 0, DAY)
     check("until=DAY: visits 1 and 2, the four day-1 kills, no orc",
-          (upto["totals"]["visits"], upto["totals"]["kills"], [r["name"] for r in upto["monsters"]])
-          == (2, 4, ["a mongbat"]), str(upto["totals"]))
+          (upto["totals"]["visits"], upto["totals"]["kills"], [r["name"] for r in upto["monsters"]],
+           upto["totals"]["banked"], upto["totals"]["banked_per_active_hour"])
+          == (2, 4, ["a mongbat"], 60, 80.0), str(upto["totals"]))
     empty = jobs.analytics(None, "hunt", 0)
     check("no store: zeros and nulls, no division errors",
           empty["totals"]["kills"] == 0 and empty["totals"]["xp_per_hour"] is None
-          and empty["totals"]["gold_per_kill"] is None and empty["visits"] == [] and empty["rolling"] == []
+          and empty["totals"]["gold_per_kill"] is None and empty["totals"]["banked"] == 0
+          and empty["totals"]["banked_per_active_hour"] is None and empty["visits"] == [] and empty["rolling"] == []
           and empty["monsters"] == [], str(empty["totals"]))
     check("loot_xp: xp wins; else gold piles (graphic as hex text or int); no items -> unknown",
           (jobs.loot_xp({"xp": 7, "items": [{"graphic": "0x0EED", "amount": 3}]}),

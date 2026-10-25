@@ -828,6 +828,12 @@ export interface HuntAgg {
   leaves: number;
   speech_holds: number;
   speech_wait_s: number;
+  /** gold put in the bank at home: `bank` events' amount plus home drop-offs' gold carried less gold left */
+  banked: number;
+  /** bank / drop-off events that moved gold */
+  deposits: number;
+  /** banked per active hour (the sum of visit durations); null with no active time */
+  banked_per_active_hour: number | null;
   deaths: { pk: number; mob: number; other: number; total: number };
 }
 
@@ -912,6 +918,23 @@ export function huntKpis(t: HuntTotals): Kpi[] {
       value: fmtInt(t.xp),
       sub: `${perHour(t.xp_per_hour)}${unknown ? ` · ${unknown} kill${unknown === 1 ? "" : "s"} not looted` : ""}`,
       tone: "info",
+    },
+    {
+      key: "banked",
+      label: "gold banked",
+      value: fmtGp(t.banked),
+      sub: `${t.deposits} deposit${t.deposits === 1 ? "" : "s"}`,
+      tone: "info",
+      hint: "Gold that reached the bank at home: the drop-off's gold into the bank deposit safe (gold carried less gold left), " +
+        "or --bank-gold's deposit at the banker. Gold lost to a death or still in the pack isn't banked.",
+    },
+    {
+      key: "bpa",
+      label: "banked / hr",
+      value: fmtGp(t.banked_per_active_hour),
+      sub: "per active hour",
+      tone: "info",
+      hint: "Gold banked per active hour (the sum of visit durations; the trips home and idle time between runs don't count).",
     },
     { key: "visits", label: "visits", value: String(t.visits), sub: t.leaves ? `${t.leaves} leave${t.leaves === 1 ? "" : "s"}` : undefined, tone: "dim" },
     { key: "active", label: "active hours", value: hours.value, sub: hours.sub, tone: "dim" },

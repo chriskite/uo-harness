@@ -605,9 +605,12 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     no page errors.
 - **Hunting dashboard** (2026-10-02):
   - KPI tiles: mobs killed (kills/hr), gold looted (gold/hr, gold/kill), XP earned (est.; XP/hr and
-    how many kills weren't looted), visits (leaves), active hours, deaths to mobs, deaths to PKs, hits
-    lost (heals, potions), speech holds (wait time). A line under them explains the XP estimate and
-    any kills outside recorded visits.
+    how many kills weren't looted), **gold banked** and **banked / hr** (2026-10-25, user request: gold banked per active hour;
+    `jobs.banked_gold`: a home `dropoff` event's `carried.gold` less `left.gold`, the drop-off putting gold into the
+    bank deposit safe, plus a `bank` event's `amount` from `--bank-gold`; sub the deposits that moved gold; per hour
+    over the visits' active time, so the trips home don't count; a manual `ctl act dropoff` writes no event and
+    isn't counted), visits (leaves), active hours, deaths to mobs, deaths to PKs, hits lost (heals, potions). A line
+    under them explains the XP estimate and any kills outside recorded visits.
   - Charts: XP/hr and gold/hr over time (rolling, plus cumulative XP/hr); XP per visit as bars with
     the gold mark, the kill count on top and death marks; the visits-and-events strip with the event
     list.

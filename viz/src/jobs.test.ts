@@ -182,6 +182,9 @@ function huntTotals(p: Partial<HuntTotals> = {}): HuntTotals {
     leaves: 0,
     speech_holds: 0,
     speech_wait_s: 0,
+    banked: 0,
+    deposits: 0,
+    banked_per_active_hour: null,
     deaths: { pk: 0, mob: 0, other: 0, total: 0 },
     kills_per_hour: null,
     gold_per_hour: null,
@@ -203,11 +206,17 @@ describe("huntKpis", () => {
     expect([by.xp!.value, by.xp!.sub]).toEqual(["1,256", "538 / hr · 1 kill not looted"]);
     expect(by.mob!.tone).toBe("ok");
   });
+  test("gold banked with its deposits; banked per active hour over the active time", () => {
+    const by = Object.fromEntries(huntKpis(huntTotals({ banked: 57349, deposits: 2, banked_per_active_hour: 41210.4, active_s: 5010 })).map((x) => [x.key, x]));
+    expect([by.banked!.value, by.banked!.sub]).toEqual(["57,349 gp", "2 deposits"]);
+    expect([by.bpa!.value, by.bpa!.sub]).toEqual(["41,210 gp", "per active hour"]);
+  });
   test("empty data: rates are dashes, safety tiles ok", () => {
     const by = Object.fromEntries(huntKpis(huntTotals()).map((x) => [x.key, x]));
     expect([by.kills!.value, by.kills!.sub]).toEqual(["0", "— / hr"]);
     expect(by.gold!.sub).toBe("— gp / hr");
     expect(by.xp!.sub).toBe("— / hr");
+    expect([by.banked!.value, by.banked!.sub, by.bpa!.value]).toEqual(["0 gp", "0 deposits", "—"]);
   });
   test("a death to a mob turns its tile red", () => {
     const by = Object.fromEntries(huntKpis(huntTotals({ deaths: { pk: 0, mob: 1, other: 0, total: 1 } })).map((x) => [x.key, x]));

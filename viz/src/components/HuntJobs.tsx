@@ -36,7 +36,7 @@ export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {
 
       <div className="kpis">
         {huntKpis(t).map((k) => (
-          <div key={k.key} className={`kpi kpi-${k.tone}`}>
+          <div key={k.key} className={`kpi kpi-${k.tone}`} title={k.hint}>
             <span className="kpi-label">{k.label}</span>
             <span className="kpi-value">{k.value}</span>
             <span className="kpi-sub">{k.sub ?? " "}</span>

@@ -587,10 +587,23 @@ def loot_xp(data: dict):
     return total
 
 
+def banked_gold(kind: str, data: dict) -> int:
+    """Gold one hunt job event put in the bank: a `bank` event's amount (--bank-gold, the banker), or a home
+    `dropoff`'s gold carried less the gold left in the pack (the drop-off puts gold into the bank deposit safe;
+    a failed one has no `left` and counts 0). Any other event: 0."""
+    if kind == "bank":
+        return int(_num(data.get("amount")))
+    if kind == "dropoff":
+        carried, left = data.get("carried"), data.get("left")
+        if isinstance(carried, dict) and isinstance(left, dict):
+            return max(0, int(_num(carried.get("gold")) - _num(left.get("gold"))))
+    return 0
+
+
 def _hunt_blank():
     return {"visits": 0, "active_s": 0.0, "kills": 0, "gold": 0, "xp": 0, "xp_kills": 0, "looted": 0,
             "hits_lost": 0, "casts": 0, "heals": 0, "potions": 0, "leaves": 0,
-            "speech_holds": 0, "speech_wait_s": 0.0, "deaths": {c: 0 for c in DEATH_CAUSES}}
+            "speech_holds": 0, "speech_wait_s": 0.0, "banked": 0, "deposits": 0, "deaths": {c: 0 for c in DEATH_CAUSES}}
 
 
 def _hunt_add_visit(agg, v):
@@ -620,6 +633,11 @@ def _hunt_add_event(agg, e):
     elif kind == "death":
         cause = data.get("cause")
         agg["deaths"][cause if cause in ("pk", "mob") else "other"] += 1
+    elif kind in ("bank", "dropoff"):
+        gold = banked_gold(kind, data)
+        if gold > 0:
+            agg["banked"] += gold
+            agg["deposits"] += 1
 
 
 def _hunt_finish(agg):
@@ -629,6 +647,7 @@ def _hunt_finish(agg):
     agg["xp_unknown_kills"] = max(0, agg["kills"] - agg["xp_kills"])
     agg["gold_per_kill"] = _ratio(agg["gold"], agg["looted"])
     agg["xp_per_kill"] = _ratio(agg["xp"], agg["xp_kills"])
+    agg["banked_per_active_hour"] = _rate(agg["banked"], agg["active_s"])
     agg["deaths"]["total"] = sum(agg["deaths"][c] for c in DEATH_CAUSES)
     return agg
 
@@ -680,7 +699,9 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
     time (the sum of visit durations). XP: loot_xp(); a kill that was never looted has
     unknown XP (xp_unknown_kills), never guessed. A loot counts for the monster its
     data.name names, else the kill whose serial is data.mob, else (loot rows before
-    2026-10-02 carry neither) the latest earlier kill no loot claimed yet."""
+    2026-10-02 carry neither) the latest earlier kill no loot claimed yet. Banked gold
+    (banked, deposits): banked_gold() of the bank/dropoff events in the range, which
+    happen at home between visits; banked_per_active_hour is it over the same active time."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
