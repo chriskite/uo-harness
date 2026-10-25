@@ -123,6 +123,7 @@ PET_REACH = 12                # the phoenix's Epic Barrage reaches 12 tiles (pat
 PET_NEAR = 1                  # a war-mode monster this close to a pet that took damage is fighting it
 KILL_AFTER_S = 4.0            # a mob attacking us that the pets haven't hurt for this long: "All Kill"
 ELSEWHERE_R = 2               # a monster in war mode this close to another player or a pet not ours fights them (elsewhere)
+THEIRS_BELOW = 0.8            # a monster on someone else below this share of hits: their kill (the most damage loots)
 KILL_REPEAT_S = 12.0
 IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
 PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the pets nor us this long is dropped...
@@ -2077,6 +2078,14 @@ class Team:
             # 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The pets'
             # war flag alone isn't a fight: guarding, they keep it between fights (live 2026-10-19 10:10:57-10:11:28 at
             # our side 7 tiles from a tormented soul on Lord Phaze, read as "on it" within PET_REACH: two 15 s waits)
+            if h.frac(mob) < THEIRS_BELOW:
+                # they have done the most damage already and the loot right goes with it (loop_hunt BLUE, captures):
+                # finishing it is a fight for their corpse (simulator 2026-10-24: 63 of 63 such kills were blue)
+                log(f"passing over {name} 0x{serial:08X}: {who} has it at {h.frac(mob):.0%}, its loot is theirs; "
+                    f"skipping it for {SKIP_S:.0f} s")
+                h.skip[serial] = now + SKIP_S
+                h.disengage("dropped")
+                return
             if cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE and self.bard_sees(st, serial):
                 if now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
                         and not self.kill_unseen(st, serial, now):

@@ -1378,6 +1378,31 @@ def test_kill_unseen_once():
           sent["behind the wall"] == 1 and sent["a tile that sees it"] >= 1, str(sent))
 
 
+def test_theirs_passed_over():
+    print("== a monster on another player: 'All Kill' while it is near full hits; passed over once they have it below "
+          "THEIRS_BELOW (the most damage takes the loot) ==")
+    # simulator 2026-10-24: 63 of 63 kills after "is fighting <player>: 'All Kill' at it" left a blue corpse; live 12 % of
+    # the credited kills were blue (docs/SIM.md "Other players")
+    from sim import packets as P
+    out = {}
+    for frac in (1.0, 0.5):
+        w, m = daemon_on_elsa((5242, 694))
+        m.hits = m.hits_max * frac
+        loop, clock, store, patched = hurt_loop(w, 100)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                w.send(P.hits(m.serial, m.pct(), 100))
+                for _ in range(10):
+                    clock.advance(0.5)
+                    loop.team.fight(m.serial)
+                out[frac] = (w.metrics["kill_on_others"], loop.skip.get(m.serial, 0) > tamer.time.monotonic())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("full hits: 'All Kill' at it; at half: passed over, no 'All Kill'",
+          out[1.0][0] >= 1 and not out[1.0][1] and out[0.5] == (0, True), str(out))
+
+
 def test_patrol_off_passed_over_area_hitter():
     print("== the patrol stays out of a passed-over reanimated daemon's bone burst: no patrol/stand-off ping-pong ==")
     # live 23:29:34-23:30:19: dropped (pinned 15 s), the patrol went on to (5243, 698) 3 tiles from it, the bone burst
@@ -1468,6 +1493,8 @@ def test_others_corpse_not_looted():
     w._warm(m, True)
     loop, clock, store, patched = hurt_loop(w, 100)
     gold0 = w.metrics["gold_looted"]
+    keep = tamer.THEIRS_BELOW
+    tamer.THEIRS_BELOW = 0.0       # the pets go at it however hurt (test_theirs_passed_over has the pass-over)
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             after = 0
@@ -1478,6 +1505,7 @@ def test_others_corpse_not_looted():
                 if after > 20 and not loop.corpses:      # 10 s after the death: the runner's loot pass is over
                     break
     finally:
+        tamer.THEIRS_BELOW = keep
         store.close()
         simclock.uninstall(patched)
     corpse = next((it for it in w.items.values() if it.get("kind") == "corpse" and it["owner"] == m.serial), None)
@@ -3836,7 +3864,7 @@ def main():
               test_instrument,
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once,
+              test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once, test_theirs_passed_over,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,

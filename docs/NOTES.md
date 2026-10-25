@@ -5588,30 +5588,40 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   - `HOLD_S` 10 -> 5 (wakes take 1.4-2.6 s); the blink wait ends when the monster is back in view (it was 2.3 % of
     the time once the spacing no longer filled it); the eerie corpse walk is bounded like a loot walk (one corpse
     18 tiles off by a 143-step route was walked to every 3 s for 2 minutes).
-- **Result** (this branch against 4fe805e, the batch command unchanged):
+  - Second round (2026-10-25): `Crawl.seek` no longer walks toward a monster the fight passed over (`HuntLoop.skip`;
+    it went back to the souls in their cells over and over); a monster on another player already below
+    `THEIRS_BELOW` 0.8 of its hits is passed over, not "All Kill"ed: 63 of 63 such kills had left a blue corpse
+    (test_sim `test_theirs_passed_over`; blue corpses 471 -> 160 in 128 runs).
+- **Result** (batch command unchanged; "first" = the first round, commit 4bc17be; "second" = both rounds):
 
   | 200 runs | gold/h | x | deaths | d/100k gold | x | pet-death runs | pet left behind | kills/h |
   |---|---|---|---|---|---|---|---|---|
-  | 1001-1200 base | 106,143 | | 17 | 0.165 | | 4 | 9 | 97.5 |
-  | 1001-1200 this | 110,045 | 1.037 | 17 | 0.159 | 0.96 | 2 | 6 | 101.0 |
-  | 2001-2200 base | 105,949 | | 18 | 0.176 | | 4 | 7 | 97.6 |
-  | 2001-2200 this | 110,594 | 1.044 | 23 | 0.218 | 1.24 | 7 | 3 | 101.4 |
+  | 1001-1200 base (4fe805e) | 106,143 | | 17 | 0.165 | | 4 | 9 | 97.5 |
+  | 1001-1200 first | 110,045 | 1.037 | 17 | 0.159 | 0.96 | 2 | 6 | 101.0 |
+  | 1001-1200 second | 111,948 | 1.055 | 16 | 0.145 | 0.88 | 5 | 7 | 103.7 |
+  | 2001-2200 base (4fe805e) | 105,949 | | 18 | 0.176 | | 4 | 7 | 97.6 |
+  | 2001-2200 first | 110,594 | 1.044 | 23 | 0.218 | 1.24 | 7 | 3 | 101.4 |
+  | 2001-2200 second | 112,179 | 1.059 | 13 | 0.119 | 0.68 | 1 | 6 | 103.0 |
 
-  The goal's +10 % is not met. The first cut (spacing, the calm heal, the glimpse, `HOLD_S`) gave 1.047 on seeds
-  1001-1200; the deaths on the holdout (23 against 18) and its pet-death runs (7 against 4) are within the batch's
-  noise [INFERENCE: about ±5 deaths between equivalent arms] but miss the criteria as written.
+  The goal's +10 % is not met; the second round passes every other criterion on both blocks. The first round's
+  holdout deaths (23 against 18) were noise [INFERENCE: about ±5 deaths between equivalent arms].
 - **Why no more**: the level is supply-bound with the other players on. They kill ~230 monsters a game hour on
-  the level to our ~100; without them (`--others` off) the base runner makes 120k an hour and this one 123k (+2.8 %),
-  with them 105k and 111k (+5.9 %): the time saved turns into kills only as far as there are monsters to reach
-  first. Every further knob screened at 128 runs landed within ±2 % of 111.6k: the pull budget 4, `--crawl-dwell`
-  0.5 / `--crawl-depleted-s` 3, `KILL_AFTER_S` 0 or 2, `PIN_S` 8, `IDLE_PET_S` 2, `SPACING_REPEAT_S` 3 or no in-fight
-  spacing at all, `SEEN_R` 10, `RESPAWN_S` / `STALE_CAP_S` 300, `--crawl-deep-x` 3, `CALM_HEAL_AT` 0.7,
-  `FIGHT_LINGER_S` 3, `HOLD_S` 3, `HOLD_R` 8, `--no-hold-first-sight` (-2.8 %), `--pull-range` 10,
-  `--no-reposition`, `CROWD_FACTOR` 0.1 or 1, `SKIP_S` 20, `D0` 10 or 40, even `--return-at off` (+1.6 %).
+  the level to our ~100; without them (`--others` off) the base runner makes 120k an hour and the first round 123k
+  (+2.8 %), with them 105k and 111k (+5.9 %): the time saved turns into kills only as far as there are monsters to
+  reach first. A 128-run screen's noise is about ±2 % (one arm 1.4 % SE), and no knob tried moved it beyond: the pull
+  budget 4, `--crawl-dwell` 0.5 / `--crawl-depleted-s` 3, `KILL_AFTER_S` 0 or 2, `PIN_S` 8, `IDLE_PET_S` 2,
+  `SPACING_REPEAT_S` 3 or no in-fight spacing at all, `SEEN_R` 10, `RESPAWN_S` / `STALE_CAP_S` 300, `--crawl-deep-x`
+  3, `CALM_HEAL_AT` 0.7, `FIGHT_LINGER_S` 3, `HOLD_S` 3, `HOLD_R` 8, `--no-hold-first-sight` (-2.8 %),
+  `--pull-range` 10, `--no-reposition`, `--no-peace`, `--no-provoke`, `CROWD_FACTOR` 0.1 or 1, `SKIP_S` 20, `D0` 10
+  or 40, `THEIRS_BELOW` 1.01 (never "All Kill" one on someone else), even `--return-at off` (+1.6 %). The small
+  positives together (pull range 10, no peace, `HOLD_S` 3, `IDLE_PET_S` 2, `SPACING_REPEAT_S` 3, `D0` 40) at 256 runs:
+  -1.5 %. Gold an hour by zone is flat (1,870-2,170 a minute).
 - **Tried, not kept**: routing the patrol round the sight of idle purgers, blightmares and --never-aggro monsters
   (it ended the stop / back off / next waypoint rounds at one blightmare, 100 in 16 runs) gave kills +4 % but gold
-  -2 %: the gold a kill fell 1,092 -> 1,028, the rich rooms are behind them. A kill resetting its area's staleness
-  and looting after a target in reach (pets idle): no change.
+  -2 %: the gold a kill fell 1,092 -> 1,028, the rich rooms are behind them. Opening with "All Kill" at an idle target
+  in reach (within 8 or 5; "guard, never open" loosened): no gain. Passing over the cheap types (raw flesh, reanimated
+  knight, calamity, vampire bat, shadow minion): no gain. No hold for a passed-over monster: -3.6 %. A kill resetting
+  its area's staleness, looting after a target in reach, the nearest corpse first: no change.
 
 ## Network observations
 

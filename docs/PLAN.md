@@ -2395,10 +2395,13 @@ User: the simulator ignored Logan's armor; his suits differed between captures, 
 Simulator goal on the efficient-crawl branch (docs/NOTES.md "Less time not fighting in the simulator"). Kept: no
 spacing once a fight is over; out of a fight the vet supplies and the wait before moving on only for a pet below
 `tamer.CALM_HEAL_AT` 0.80; waypoints in sight within 7 count as visited and end a patrol leg; `HOLD_S` 5; the blink
-wait ends when the monster is back; the eerie corpse walk bounded like a loot walk. Gold an hour +3.7 % / +4.4 % on
-the two seed blocks, short of the +10 %: with the other players on, the level is supply-bound, and no runner knob
-screened moved it more than ±2 %. Rejected: routing the patrol round idle purgers' and blightmares' sight (more kills,
-less gold). *Live*: untried; the §5 command is unchanged.
+wait ends when the monster is back; the eerie corpse walk bounded like a loot walk; no seek toward a monster the fight
+passed over; no "All Kill" at a monster another player already has below 80 % of its hits (its corpse is theirs: the
+user's 2026-10-17 "all kill if it's aggro'd on something else" narrowed). Gold an hour +5.5 % / +5.9 % on the two seed
+blocks, deaths per gold 0.88x / 0.68x, short of the +10 %: with the other players on, the level is supply-bound, and
+no further runner knob screened moved it beyond the screens' ±2 % noise. Rejected: routing the patrol round idle
+purgers' and blightmares' sight (more kills, less gold); opening with "All Kill". *Live*: untried; the §5 command is
+unchanged.
 
 ## Risks
 

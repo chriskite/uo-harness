@@ -796,9 +796,9 @@ class Crawl:
         'patrolling' away or 'hunting for monsters' when there are high value mobs on screen we could go fight";
         live 22:08-22:40, 102 of 159 patrol starts had one within 18 tiles, 68 of them walked away from all):
         a monster we'd fight (wanted, attackable, not --never-aggro, not a type we avoid, on our floor) within
-        SEEK_R, beyond --pull-range or passed over (pick_target has the rest), whose area is in an open zone, not
-        near an avoided creature, and not where we stand. The best by its gold a fighting minute (the store's
-        estimate) over the route there. -> (waypoint index, kind, tiles, serial) or None. The patrol to that
+        SEEK_R, beyond --pull-range and not passed over (HuntLoop.skip; pick_target has the rest), whose area is in an
+        open zone, not near an avoided creature, and not where we stand. The best by its gold a fighting minute (the
+        store's estimate) over the route there. -> (waypoint index, kind, tiles, serial) or None. The patrol to that
         waypoint stops on the usual rules (a target in reach, the hold when it sees us, the pull budget)."""
         h, world = self.h, st["world"]
         labels = world.get("labels") or {}
@@ -818,8 +818,10 @@ class Crawl:
                 continue
             tile = (mob["x"], mob["y"])
             d = cheb(pos, tile)
-            skipped = getattr(h, "skip", {}).get(s, 0) > mono
-            if d > SEEK_R or (d <= self.a.pull_range and not skipped):
+            if d > SEEK_R or d <= self.a.pull_range or getattr(h, "skip", {}).get(s, 0) > mono:
+                # one passed over (out of our sight from its approach, pinned, another player's) isn't sought: until
+                # 2026-10-24 it was, and the patrol went back to the souls in their cells over and over (simulator:
+                # gold an hour +1.5 %, kills +1.4 % without)
                 continue
             name = labels.get(key) or mob.get("name")
             if type_key(name) in never or not h.wanted(world, key, mob) or not combat.attackable(world, key)[0] \

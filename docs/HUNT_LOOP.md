@@ -446,7 +446,10 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    taken it (user 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The
    simulator found the walk missing: from Logan's live tile (5242, 683) the first soul stood behind a wall
    (los.Sight), no tile within 2 steps saw it, and the fixed rule still waited 15 s (test_sim
-   `test_on_another_player`).
+   `test_on_another_player`). **Only while it is near full hits** (since 2026-10-24): one they already have below
+   `tamer.THEIRS_BELOW` 0.8 of its hits is passed over for 60 s instead ("passing over <it>: <who> has it at N %, its
+   loot is theirs"): the most damage takes the corpse (live 12 % of the credited kills were blue; in the simulator 63
+   of 63 kills after such an "All Kill" were). test_sim `test_theirs_passed_over`.
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
    (the other onto a second other, or onto our target), then Peacemaking on the target (it stops
@@ -1094,9 +1097,11 @@ Everything hunted before the crawl is zone 1: all 386 floor tiles of the box the
     arriving there. Before, only a waypoint stood on was visited, so a hallway walked past or looked down was walked
     to its end later.
   - **Monsters in view first** (`Crawl.seek`, user 2026-10-17): a monster we'd fight within 18 tiles beyond the
-    pull range (or passed over) sets the next waypoint (its area, open zones only, not near an avoided creature, the
+    pull range sets the next waypoint (its area, open zones only, not near an avoided creature, the
     best by gold a fighting minute over the route), stops a patrol elsewhere and ends a waypoint's dwell. Live
-    before: 68 of 159 patrol starts walked away from every such monster in view.
+    before: 68 of 159 patrol starts walked away from every such monster in view. Not one the fight passed over
+    (`HuntLoop.skip`: out of our sight, pinned, another player's): until 2026-10-24 such a one was sought too, and the
+    patrol went back to the souls in their cells over and over.
 - **The efficiency model** (`crawl.Model`). Per creature type: its fights (time to kill, hits lost,
   gold per kill, outcome); estimates are shrunk toward the pool of all fights with 2 pseudo-fights.
   A type is **avoided** when its estimated hits lost per fight exceed `--crawl-max-hits` × our max
