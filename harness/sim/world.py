@@ -119,6 +119,7 @@ ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario spec
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
+TEXT_OXYGEN_REFILLED = "Your oxygen is refilled."   # live, a Recovery Dolphin's refill (20261024_225113 11:30:57)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
 TEXT_SONG_WAIT = "You must wait a few moments before performing another barding song."
@@ -313,6 +314,7 @@ class World:
         self.penalty = 0
         self.under_s = 0.0                    # scenario `oxygen`: seconds under water since it was last refilled
         self.oxygen_due = None                # ... the next deprivation hit, once deprived
+        self.dolphin_due = None               # scenario `oxygen.dolphins`: their next refill tick
         self.gump_n = 0x7700
         self.gate_n = 0x7800                  # moongate menus' serials
         self.gate_gump = None                 # (serial, gate, picked destination) of the menu up
@@ -1155,10 +1157,12 @@ class World:
         return any(b[0] <= m.x <= b[2] and b[1] <= m.y <= b[3] for b in (self.sc.get("oxygen") or {}).get("underwater", ()))
 
     def _oxygen(self):
-        """Tidal Tomb's oxygen (scenario `oxygen`, knowledge #4641-4644): our time under water (its levels 2+) adds
-        up and a step out of it refills it; past a stage's `after_s` every `every_s` we lose `player` hits while above
-        `above` of our max, and each pet `pet_pct` of its max while above `above` of its own (unpreventable: no song
-        cuts it). The live oxygen bar and buff icons aren't sent (the runner reads neither)."""
+        """Tidal Tomb's oxygen (scenario `oxygen`, knowledge #4641-4645, the live numbers in its note): our time under
+        water (its levels 2+) adds up and a step out of it refills it; from a stage's `after_s` on, every `every_s`, we
+        lose `player` hits and each pet `pet_pct` of its max, never below `above` of the max (unpreventable: no song
+        cuts it). A Recovery Dolphin (`dolphins`) refills it on its tick every `dolphin_every_s` when we stand within
+        `dolphin_r` of it, with the live line "Your oxygen is refilled.". The live oxygen bar and buff icons aren't
+        sent (the runner reads neither)."""
         ox = self.sc.get("oxygen")
         if not ox:
             return
@@ -1166,23 +1170,38 @@ class World:
         if pl.ghost or not self._underwater(pl):
             self.under_s, self.oxygen_due = 0.0, None
             return
+        if ox.get("dolphins"):
+            if self.dolphin_due is None:
+                self.dolphin_due = self.t + self.rng.uniform(0.0, ox["dolphin_every_s"])   # its phase: unknown
+            if self.t >= self.dolphin_due:
+                self.dolphin_due = self._due(self.dolphin_due, ox["dolphin_every_s"])
+                if any(cheb(pl.pos, tuple(d["at"][:2])) <= ox["dolphin_r"] for d in ox["dolphins"]):
+                    self.under_s, self.oxygen_due = 0.0, None
+                    self.count("dolphin_refills")
+                    self._sys(TEXT_OXYGEN_REFILLED)
+                    return
         self.under_s += TICK_S
         self.count("underwater_s", n=TICK_S)
         stage = next((s for s in reversed(ox["stages"]) if self.under_s >= s["after_s"]), None)
         if stage is None:
             return
         if self.oxygen_due is None:
-            self.oxygen_due = self.t + ox["every_s"]
+            self.oxygen_due = self.t        # live the first hit came with the bar's last step (2026-10-24 20:04:23)
         if self.t < self.oxygen_due:
             return
         self.oxygen_due = self._due(self.oxygen_due, ox["every_s"])
-        if pl.hits > stage["above"] * pl.hits_max:
-            self.hurt(pl, stage["player"], None, "oxygen")
-            self.count("oxygen_damage", "player", stage["player"])
+        # a hit never takes one below the stage's floor (live: Logan -5 x8 then -2, a tidal mantis -32 x5, -7, -1 x3)
+        floor = stage["above"] * pl.hits_max
+        if pl.hits > floor:
+            n = min(stage["player"], pl.hits - floor)
+            self.hurt(pl, n, None, "oxygen")
+            self.count("oxygen_damage", "player", max(1, round(n)))
         for p in self.pets():
-            if p.alive and not p.ghost and p.hits > stage["above"] * p.hits_max:
-                self.hurt(p, stage["pet_pct"] * p.hits_max, None, "oxygen")
-                self.count("oxygen_damage", p.name, round(stage["pet_pct"] * p.hits_max))
+            floor = stage["above"] * p.hits_max
+            if p.alive and not p.ghost and p.hits > floor:
+                n = min(stage["pet_pct"] * p.hits_max, p.hits - floor)
+                self.hurt(p, n, None, "oxygen")
+                self.count("oxygen_damage", p.name, max(1, round(n)))
 
     def _on_level(self) -> bool:
         """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,
@@ -1572,7 +1591,8 @@ class World:
         t = self.t
         for sp in spec.get("specials", []):
             kind = sp["kind"]
-            if kind not in TIMED or t < m.cd.get(kind, 0.0):
+            key = sp.get("id", kind)                     # a burst's `id`: its own cooldown (a type with two bursts)
+            if kind not in TIMED or t < m.cd.get(key, 0.0):
                 continue
             if kind == "charge":
                 if m.charge_at is not None or cheb(m.pos, tgt.pos) > sp.get("range", 12) or not self.can_see(m, tgt):
@@ -1611,10 +1631,10 @@ class World:
                 if sp.get("on_blink"):
                     continue                             # the apparition's: only where its blink lands
                 # reanimated daemon (20261014_221341): bones around it out to ~5 tiles, one hit on each of us
-                if kind not in m.cd:
-                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                if key not in m.cd:
+                    m.cd[key] = t + self.rng.uniform(*sp["first_s"])
                     continue
-                m.cd[kind] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
+                m.cd[key] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
                 self._burst(m, sp)
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
@@ -1707,13 +1727,15 @@ class World:
         self.count("broodlings", sp["key"])
 
     def _burst(self, m: Mob, sp: dict):
-        """One area hit on each of us within `radius` (`song_pets` false: the pets' share isn't cut by the
-        Song of Discordance, as the apparition's live)."""
+        """One area hit on each of us within `radius`, or on `targets` of us there picked at random (`song_pets`
+        false: the pets' share isn't cut by the Song of Discordance, as the apparition's live)."""
         self._ev("ability", by=m.serial, kind="burst", v=None)
-        for o in self.team():
-            if cheb(o.pos, m.pos) <= sp["radius"]:
-                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
-                          song_pets=sp.get("song_pets", True))
+        hit = [o for o in self.team() if cheb(o.pos, m.pos) <= sp["radius"]]
+        if sp.get("targets") and len(hit) > sp["targets"]:
+            hit = self.rng.sample(hit, sp["targets"])
+        for o in hit:
+            self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
+                      song_pets=sp.get("song_pets", True))
 
     def _dematerialize(self, m: Mob, sp: dict):
         """A banshee hurt with the ability ready: '*dematerializes*', gone for a moment, back `jump` tiles

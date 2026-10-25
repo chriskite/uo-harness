@@ -2352,6 +2352,27 @@ Built from Logan Wolf's first visit (capture 20261024_102346; docs/SIM.md "Tidal
   - No retuning toward the visit's numbers. Logan's damage taken on level 1, a quarter of live in the simulator,
     is left as a named gap (one visit, 8 minutes).
 
+### Level 3 and the later visits (user 2026-10-25: "mine the session for new information to flesh out the simulator")
+
+Docs: docs/SIM.md "Level 3 and the later visits", docs/NOTES.md "Tidal Tomb: the later visits and level 3".
+
+- **Every visit is evidence, not only the one asked about.** Capture 20261024_102346 had four more visits after the
+  first (2026-10-24 evening, level 3 included). They doubled level 3's minutes and gave the oxygen deprivation.
+- **Measured numbers over the patch notes'.** The deprivation came at 732 s under, every 6 s, never below the floor
+  (the notes: 10 minutes, every 5 s). Major at 1464 s is the one inference.
+- **The later visits' spawns go in only where the first visit couldn't see.** Rejected: every first sighting. Monsters
+  wander, so later sightings of a known spawn would add it twice.
+- **One calibration over mixed pets.** `damage_to_pets` mixes the gravebug's and phoenix's armor with the Nightmares',
+  GirthyEarthy's and the imp's. The level 3 numbers the specs use are overrides from the single hits, each with its
+  victims in the note. Rejected for now: splitting calibrate by pet. The sim has only the gravebug and the phoenix to
+  apply it to.
+- **Level 3's attacks use the existing `burst`, with an `id` and a `targets` cap.** Rejected: a stacking scorch and
+  the astral backlash as new mechanics. One fight each, and the backlash's effect is unmeasured.
+- **The dolphin is a refill zone, not a mobile.** The runner reads no oxygen yet, so a visible dolphin would change
+  nothing it does.
+- **No retuning.** Level 3 in the sim kills Logan (5 of 8 runs, 4 on the walk in) where live he lived. Level 3
+  also has no way out for the runner (the leave gate is a level up). Both are named gaps in docs/SIM.md.
+
 ## The player's armor in the simulator (user 2026-10-24; built 2026-10-24)
 
 User: the simulator ignored Logan's armor; his suits differed between captures, and the aspect tier changes the AR

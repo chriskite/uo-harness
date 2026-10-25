@@ -30,6 +30,22 @@
     {"facet": 0, "from": [6834, 2079], "to": [0, 6609, 2060, 0],
      "note": "Tidal Tomb level 2 -> level 1's west end (20261024_102346 11:13:31, a step N from (6834, 2080))"},
     {"facet": 0, "from": [6609, 2060], "to": [0, 6834, 2079, -10],
-     "note": "Tidal Tomb level 1's west end -> level 2 (20261024_102346 11:13:39, a step S from (6609, 2059))"}
+     "note": "Tidal Tomb level 1's west end -> level 2 (20261024_102346 11:13:39, a step S from (6609, 2059))"},
+    {"facet": 0, "from": [6608, 2060], "to": [0, 6833, 2079, -11],
+     "note": "Tidal Tomb level 1's west strip -> level 2, the column kept (20261024_102346 19:52:11, a step S from (6608, 2059))"},
+    {"facet": 0, "from": [6610, 2060], "to": [0, 6835, 2079, -10],
+     "note": "Tidal Tomb level 1's west strip -> level 2 (20261024_102346 20:11:08, a step S from (6610, 2059))"},
+    {"facet": 0, "from": [6657, 2109], "to": [0, 3862, 3585, -60],
+     "note": "Tidal Tomb level 1, S of the recall arrival: out to the entrance outside (20261024_102346 20:08:10, a step S from (6657, 2108))"},
+    {"facet": 0, "from": [3862, 3585], "to": [0, 6657, 2109, -16],
+     "note": "Tidal Tomb's entrance outside: in to level 1 (20261024_102346 20:08:29, a step N from (3862, 3586))"},
+    {"facet": 0, "from": [6884, 1929], "to": [0, 7162, 2221, -50],
+     "note": "Tidal Tomb level 2's north strip -> level 3 (20261024_225113 2026-10-25 11:30:56, a step N from (6884, 1930); also 20261024_102346 20:58:14 from (6885, 1930))"},
+    {"facet": 0, "from": [6885, 1929], "to": [0, 7163, 2221, -50],
+     "note": "Tidal Tomb level 2's north strip -> level 3 (20261024_102346 20:54:47, a step N from (6885, 1930))"},
+    {"facet": 0, "from": [7161, 2221], "to": [0, 6883, 1929, -126],
+     "note": "Tidal Tomb level 3's arrival strip -> level 2 (20261024_225113 2026-10-25 11:35:19, a step S from (7161, 2220); also 20261024_102346 21:04:20)"},
+    {"facet": 0, "from": [7162, 2221], "to": [0, 6884, 1929, -126],
+     "note": "Tidal Tomb level 3's arrival strip -> level 2 (20261024_102346 20:58:00, a step S from (7162, 2220))"}
   ]
 }

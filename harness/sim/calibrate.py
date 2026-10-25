@@ -173,7 +173,9 @@ class Session:
         self.reds = set()          # red players in the region (red_player): no creature type
         self.packets_in_region = 0
         self.armor = collections.Counter()   # our status AR (0x11 physical_resist) -> seconds in the region
+        self.seconds_in_region = 0.0         # summed over the visits (t1 - t0 spans the gaps between them)
         self._ar = None
+        self._last_in = None                 # the last packet's time while we stand in the region, None outside
 
     # -- helpers on the live state -----------------------------------------
     def _monster(self, s, m):
@@ -232,15 +234,18 @@ class Session:
             inside = in_region(me.x, me.y, me.map)
             events = rt.drain_events()
             if not inside:
+                self._last_in = None   # the time away until the next visit isn't time in the region
                 continue
             self.packets_in_region += 1
             if self.t0 is None:
                 self.t0 = t
             ar = st.self.stats.get("physical_resist")
-            if self.t1 is not None and self._ar is not None:
-                self.armor[self._ar] += t - self.t1
+            if self._last_in is not None:
+                self.seconds_in_region += t - self._last_in
+                if self._ar is not None:
+                    self.armor[self._ar] += t - self._last_in
             self._ar = ar
-            self.t1 = t
+            self.t1 = self._last_in = t
             if self.self_name is None:
                 self.self_name = st.self.name
             # pets: ours are notoriety 2 and tame/bonded
@@ -809,8 +814,8 @@ def player_section(sessions):
         "other_heals_on_us": stats(other_heals, 1),
         "walk_steps_per_s": stats(walk_rates, 2),
         "damage_to_us_per_minute_in_region": {
-            "n": len(dmg_hits), "minutes": round(sum(s.t1 - s.t0 for s in sessions) / 60.0, 2),
-            "value": round(sum(dmg_hits) / (sum(s.t1 - s.t0 for s in sessions) / 60.0), 1)},
+            "n": len(dmg_hits), "minutes": round(sum(s.seconds_in_region for s in sessions) / 60.0, 2),
+            "value": round(sum(dmg_hits) / (sum(s.seconds_in_region for s in sessions) / 60.0), 1)},
     }
 
 
@@ -944,6 +949,7 @@ def build(tags, logs, scanned=None):
             "captures": [{"tag": s.tag, "character": s.self_name, "serial": f"0x{s.self_serial:08X}",
                           "in_region": [clock(s.t0), clock(s.t1)],
                           "packets_in_region": s.packets_in_region,
+                          "seconds_in_region": round(s.seconds_in_region, 1),
                           "pets": {n: f"0x{p:08X}" for p, n in sorted(s.pets.items())},
                           "other_players_seen": len(s.players_seen),
                           "red_players_seen": len(s.reds),

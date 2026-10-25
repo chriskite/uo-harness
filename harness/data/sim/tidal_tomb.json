@@ -1,6 +1,6 @@
 {
  "name": "tidal_tomb",
- "description": "Tidal Tomb as Logan Wolf went through it on 2026-10-24 10:59:55-11:14:06 (capture 20261024_102346, his first visit, played by the user): the recall row 'Tidal Tomb Inside' lands on level 1 at (6653, 2097) beside a gold moongate; level 1 (x 6608-6738, y 1932-2109, z -24..85, 7,701 walkable tiles) is the hunting level here; level 2 (x 6817-6967, y 1909-2098, z -127..-10, 7,278 tiles) is the first underwater level, by a teleporter at (6718, 1984); level 3 and the boss rooms weren't reached. Levels by a map flood fill (pathfind.Walk from each arrival; all 1,153 of Logan's steps there walk on the map). The character's blocks come from the Mausoleum scenario (`inherit`). Merged at load time with tidal_tomb_kb.json (wiki stats, sim/kb_scan.py) and tidal_tomb_observed.json (the capture, sim/calibrate.py --scenario tidal_tomb).",
+ "description": "Tidal Tomb as Logan Wolf went through it, played by the user: his first visit 2026-10-24 10:59:55-11:14:06 and four more that evening (19:32-21:04, capture 20261024_102346), and 2026-10-25 11:21:30-11:36:55 (capture 20261024_225113). The recall row 'Tidal Tomb Inside' lands on level 1 at (6653, 2097) beside a gold moongate; level 1 (x 6608-6738, y 1932-2109, z -24..85, 7,701 walkable tiles) is the hunting level here; level 2 (x 6817-6967, y 1909-2098, z -127..-10, 7,278 tiles) is the first underwater level, by a teleporter at (6718, 1984) or level 1's west strip (6608-6610, 2060); level 3 (x 7049-7255, y 1908-2221, z -55..3, 14,873 tiles) by level 2's north strip (6884-6885, 1929), its arrival (7162, 2221) 11 tiles from a Recovery Dolphin; Logan saw only its first part (x 7156-7217, y 2151-2221); the boss rooms weren't reached. Levels by a map flood fill (pathfind.Walk from each arrival; all of Logan's steps there walk on the map). The character's blocks come from the Mausoleum scenario (`inherit`). Merged at load time with tidal_tomb_kb.json (wiki stats, sim/kb_scan.py) and tidal_tomb_observed.json (the captures, sim/calibrate.py --scenario tidal_tomb).",
  "facet": 0,
  "evidence": {
   "kb": "tidal_tomb_kb.json",
@@ -11,13 +11,14 @@
   "box": [
    6600,
    1900,
-   6975,
-   2115
+   7260,
+   2225
   ],
   "tags": [
-   "20261024_102346"
+   "20261024_102346",
+   "20261024_225113"
   ],
-  "note": "sim/calibrate.py's region: both levels Logan walked (map flood fill: level 1 x 6608-6738, y 1932-2109; level 2 x 6817-6967, y 1909-2098), the dungeon's box"
+  "note": "sim/calibrate.py's region: the three levels Logan walked (map flood fill: level 1 x 6608-6738, y 1932-2109; level 2 x 6817-6967, y 1909-2098; level 3 x 7049-7255, y 1908-2221), the dungeon's box. Captures: his first visit (20261024_102346 10:59:55-11:14:06, levels 1-2, pets GraveRobber and AlaFlambe) and the second (20261024_225113, 2026-10-25 11:21:30-11:36:55, levels 1-3, pets NightmareA, NightmareB and a searing imp): the pets differ, so damage_to_pets mixes their armor (docs/NOTES.md 'Tidal Tomb: the second visit')"
  },
  "inherit": {
   "from": "mausoleum",
@@ -96,8 +97,8 @@
   "box": [
    6600,
    1900,
-   6975,
-   2115
+   7260,
+   2225
   ],
   "gold_gates": [
    [
@@ -110,7 +111,7 @@
    ]
   ],
   "recall_r": 2,
-  "note": "the user's dungeon rule (2026-10-13): recall in or out only near a gold moongate; live the recall in landed 2 tiles from the hue-2822 'golden moongate' 0x4003D7B5 (6652, 2095) and he left by a crimson gate on level 2 (no recall tried inside). Gold gates: both hue-2822 gates seen (6652, 2095) and (6642, 2062), on level 1; box: both levels (level 3 unknown; a level outside it isn't covered) [INFERENCE: the rule holds here as at the Mausoleum]"
+  "note": "the user's dungeon rule (2026-10-13): recall in or out only near a gold moongate; live the recall in landed 2 tiles from the hue-2822 'golden moongate' 0x4003D7B5 (6652, 2095) and he left by moongates (no recall tried inside). Gold gates: the hue-2822 gates seen (6652, 2095) and (6642, 2062) on level 1 (the third, (6685, 2064), is 11 tiles from the hunt's start and isn't a recall spot yet [INFERENCE: the rule holds at every gold gate]); box: the three levels Logan reached (the boss rooms unknown; a room outside it isn't covered) [INFERENCE: the rule holds here as at the Mausoleum]"
  },
  "area": [
   6606,
@@ -126,26 +127,44 @@
     1907,
     6969,
     2100
+   ],
+   [
+    7047,
+    1906,
+    7257,
+    2223
    ]
   ],
-  "every_s": 5.0,
+  "every_s": 6.0,
   "stages": [
    {
     "name": "minor",
-    "after_s": 600,
+    "after_s": 732,
     "player": 5,
     "pet_pct": 0.05,
     "above": 0.66
    },
    {
     "name": "major",
-    "after_s": 1200,
+    "after_s": 1464,
     "player": 10,
     "pet_pct": 0.1,
     "above": 0.33
    }
   ],
-  "note": "patch notes 2025-11-16 (knowledge #4641-4644): levels 2 and beyond are underwater; there players lose oxygen over time, leaving to level 1 or out of the dungeon refills it fully; 10 minutes under without a refill = Minor Oxygen Deprivation: -5 hits (unpreventable) every 5 s while above 66 %, each follower -5 % of its hits while above 66 %; 20 minutes = Major: -10 / -10 % while above 33 %. Recovery Dolphins at the entrances to level 3 and the boss rooms refill it every 5 s (#4645): not placed (not seen). Live (capture): on level 2 the server sent the 'Oxygen' gump 0xEC5F8754 every 6 s (11:08:37-11:14:05), its second bar's art 28135 stepping down one every 30 s (28125 at 11:13:14, 10 steps in 4.5 min [INFERENCE: 20 steps = the 10 minutes]), back to 28135 on level 1 at 11:13:39 (the refill); no deprivation reached. underwater: level 2's box (flood fill)"
+  "dolphins": [
+   {
+    "at": [
+     7164,
+     2210,
+     -50
+    ],
+    "note": "'recovery dolphin' 0x00004888 (body 151, notoriety 7, '(refills oxygen)'), 11 tiles N of level 3's arrival, the same serial and tile 2026-10-24 20:54:47 and 2026-10-25 11:30:56"
+   }
+  ],
+  "dolphin_r": 8,
+  "dolphin_every_s": 5.25,
+  "note": "patch notes 2025-11-16 (knowledge #4641-4645): levels 2 and beyond are underwater; there players lose oxygen over time, leaving to level 1 or out of the dungeon refills it fully, so does a Recovery Dolphin 'every 5 seconds' for 'all nearby players'; the notes' 10 minutes to Minor Oxygen Deprivation (-5 hits, unpreventable, while above 66 %, each follower -5 % while above 66 %) and 20 to Major (-10 / -10 % while above 33 %). Live it took longer: 2026-10-24 Logan went under at 19:52:11 and 'You suffer minor oxygen deprivation.' came from 20:04:23 (732 s), 9 times 6.0 s apart (n=8 gaps 6.00-6.06), Logan -5 each until one -2 took him to the floor, a tidal mantis -32 five times, -7, then -1 three times (its regeneration above the floor): a hit never takes one below `above` (World._oxygen). The 'Oxygen' gump 0xEC5F8754 came every 6 s under water; its second bar's art stepped 28135 -> 28111 one every 30.25 s (24 steps to the deprivation), then the first bar started down (28134 at 20:04:23) [INFERENCE: major when the first bar runs out too, 24 more steps: after_s 1464; not reached]. Dolphin: 'Your oxygen is refilled.' (and '*oxygen refilled*' over us) 5.06-5.38 s apart while we stood near it (n=26 gaps, median 5.25), within 8 tiles of it (none at 10-13 tiles for 16 s and more); its tick's phase is unknown (the first refill came 0.5-2.3 s after we walked into range). Not modelled: the dolphin as a mobile (the runner never sees it), the gump. underwater: level 2's and level 3's boxes (flood fill)"
  },
  "teleporters": [
   {
@@ -213,9 +232,17 @@
     2079,
     -10
    ]
-  }
+  },
+  {"from": [6608, 2060], "to": [6833, 2079, -11]},
+  {"from": [6610, 2060], "to": [6835, 2079, -10]},
+  {"from": [6657, 2109], "to": [3862, 3585, -60]},
+  {"from": [3862, 3585], "to": [6657, 2109, -16]},
+  {"from": [6884, 1929], "to": [7162, 2221, -50]},
+  {"from": [6885, 1929], "to": [7163, 2221, -50]},
+  {"from": [7161, 2221], "to": [6883, 1929, -126]},
+  {"from": [7162, 2221], "to": [6884, 1929, -126]}
  ],
- "teleporters_note": "capture 20261024_102346, each the tile a step went for when the server moved us ('from'; its 0x21 deny reported the tile we stood on): 11:00:06 S from (6656, 2108) out of the dungeon to (3861, 3585) by the entrance outside, 11:00:51 N from (3861, 3586) back in to (6656, 2109); 11:08:37 S from (6718, 1983) down to level 2 (6943, 2004); 11:13:31 N from (6834, 2080) up to level 1's west end (6609, 2060; oxygen refilled there), 11:13:39 S from (6609, 2059) back to (6834, 2079). The pairs land on each other's tile (2 of 2 seen both ways), so (6943, 2004) -> (6718, 1984) is taken as the level 2 arrival's way back [INFERENCE: not stepped on]",
+ "teleporters_note": "capture 20261024_102346, each the tile a step went for when the server moved us ('from'; its 0x21 deny reported the tile we stood on): 11:00:06 S from (6656, 2108) out of the dungeon to (3861, 3585) by the entrance outside, 11:00:51 N from (3861, 3586) back in to (6656, 2109); 11:08:37 S from (6718, 1983) down to level 2 (6943, 2004); 11:13:31 N from (6834, 2080) up to level 1's west end (6609, 2060; oxygen refilled there), 11:13:39 S from (6609, 2059) back to (6834, 2079). The pairs land on each other's tile (2 of 2 seen both ways), so (6943, 2004) -> (6718, 1984) is taken as the level 2 arrival's way back [INFERENCE: not stepped on]. The later visits (calibrate's levels.teleports) show strips that keep the column: S from (6608 / 6610, 2059) to (6833 / 6835, 2079) (2026-10-24 19:52:11, 20:11:08), S from (6657, 2108) out to (3862, 3585) and N back to (6657, 2109) (20:08:10, 20:08:29); level 2 -> 3, N from (6884 / 6885, 1930) to (7162 / 7163, 2221) (2026-10-25 11:30:56; 2026-10-24 20:54:47, 20:58:14); level 3 -> 2, S from (7161 / 7162, 2220) to (6883 / 6884, 1929) (11:35:19; 21:04:20, 20:58:00). The strips' other columns aren't listed [INFERENCE: likely wider]; a landing on a strip's tile doesn't move one again (the step onto it does)",
  "gates": [
   {
    "name": "golden moongate",
@@ -227,14 +254,8 @@
    ],
    "hue": 2822,
    "destinations": [
-    {
-     "name": "Totem",
-     "at": [
-      3867,
-      2900,
-      -40
-     ]
-    }
+    {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
+    {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3867, 2900, -40]}, {"name": "Corpse Creek"}
    ]
   },
   {
@@ -247,14 +268,18 @@
    ],
    "hue": 2822,
    "destinations": [
-    {
-     "name": "Totem",
-     "at": [
-      3867,
-      2900,
-      -40
-     ]
-    }
+    {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
+    {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3867, 2900, -40]}, {"name": "Corpse Creek"}
+   ]
+  },
+  {
+   "name": "golden moongate",
+   "serial": 1073993654,
+   "at": [6685, 2064, -18],
+   "hue": 2822,
+   "destinations": [
+    {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
+    {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3867, 2900, -40]}, {"name": "Corpse Creek"}
    ]
   },
   {
@@ -300,14 +325,24 @@
      "name": "Corpse Creek"
     }
    ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1073993657,
+   "at": [6897, 1992, -126],
+   "hue": 2820,
+   "destinations": [
+    {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
+    {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3867, 2900, -40]}, {"name": "Corpse Creek"}
+   ]
   }
  ],
- "gates_note": "the moongates seen (capture): golden 0x4003D7B5 at the arrival (6652, 2095) and 0x4003D7B7 (6642, 2062) on level 1, crimson 0x4003D7B8 (6913, 2071, -100) on level 2: Logan double-clicked it at 11:14:05, its 'Moongate Destinations' rows as listed, 'Travel to Destination' with Totem selected put him at (3867, 2900, -40) at 11:14:06 (the Mausoleum's crimson gate landed Totem travellers at (3859, 2890)). A crimson gate 0x4001AA04 stands on the arrival gate's tile too (World keys gates by tile: left out). The golden gates' menus weren't opened: one Totem row [INFERENCE, as the Mausoleum's]",
+ "gates_note": "the moongates seen (captures): golden 0x4003D7B5 at the arrival (6652, 2095), 0x4003D7B7 (6642, 2062) and 0x4003D7B6 (6685, 2064) on level 1; crimson 0x4003D7B8 (6913, 2071, -100) and 0x4003D7B9 (6897, 1992, -126) on level 2, the second 8 tiles S of the strip down to level 3. Every menu opened (0x4003D7B8 2026-10-24 11:14:05, 20:05:17, 20:20:27; 0x4003D7B6 19:41:11; 0x4003D7B9 21:04:35 and 2026-10-25 11:36:55) listed the same 'Moongate Destinations' rows, Anchor's Rest .. Corpse Creek, and 'Travel to Destination' with Totem put Logan at a different tile each time: (3867, 2900), (3870, 2891), (3846, 2876), (3848, 2867), (3882, 2893), (3859, 2890), z -40 or -19 (the Mausoleum's crimson gate landed at (3859, 2890)); the sim keeps one. The golden gates' rows are the same [INFERENCE for 0x4003D7B5 and 0x4003D7B7, never opened]. A crimson gate 0x4001AA04 stands on the arrival gate's tile too (World keys gates by tile: left out)",
  "runner": {
   "leave_gate": [6652, 2095],
   "gate_dest": "Totem",
   "heal_in_place": true,
-  "note": "run.py's defaults: in by the recall row, the hunt on level 1, out by the golden moongate at the arrival (6652, 2095) to Totem, then the recall home: the runner's leave by recall casts where it stands (sim smoke 2026-10-24: 'recall home failed (unusable)' 138 steps from the gate, the dungeon rule), its leave by gate walks there first. Level 1 runs ~150 steps deep from the gate, so heal in place as at the Mausoleum. Live the arrival tile holds a crimson gate too (gates_note): which menu a double-click there opens is untested. Level 2 instead: --enter-via 6718 1984 --leave-gate 6913 2071 (the crimson gate Logan left by), with the oxygen's 10 minutes in mind (no runner rule for it yet)"
+  "note": "run.py's defaults: in by the recall row, the hunt on level 1, out by the golden moongate at the arrival (6652, 2095) to Totem, then the recall home: the runner's leave by recall casts where it stands (sim smoke 2026-10-24: 'recall home failed (unusable)' 138 steps from the gate, the dungeon rule), its leave by gate walks there first. Level 1 runs ~150 steps deep from the gate, so heal in place as at the Mausoleum. Live the arrival tile holds a crimson gate too (gates_note): which menu a double-click there opens is untested. Level 2 instead: --enter-via 6718 1984 --leave-gate 6913 2071 (the crimson gate Logan left by), with the oxygen's 12 minutes in mind (no runner rule for it yet). Level 3 as Logan went (2026-10-25: level 1's west strip, level 2's north strip): --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992 (the crimson gate 8 tiles from the strip back up; no gate is known on level 3); the dolphin 11 tiles from the arrival refills the oxygen"
  },
  "spawns": [
   {
@@ -921,9 +956,67 @@
     -111
    ],
    "note": "level 2: first seen 11:08:37 (6943, 2023), 11:12:11 (6944, 2024)"
-  }
+  },
+  {"key": "oozing noughtilus", "at": [6676, 2022, 24], "note": "level 1: first seen 2026-10-24 19:35:19 (6676, 2022), capture 20261024_102346"},
+  {"key": "lowtide scavenger", "at": [6679, 2029, 19], "note": "level 1: first seen 2026-10-24 19:35:50 (6679, 2029), capture 20261024_102346"},
+  {"key": "lowtide scavenger", "at": [6685, 2019, 19], "note": "level 1: first seen 2026-10-24 19:36:25 (6685, 2019), capture 20261024_102346"},
+  {"key": "aquamarine smallshell", "at": [6695, 2019, 24], "note": "level 1: first seen 2026-10-24 19:36:28 (6695, 2019), capture 20261024_102346"},
+  {"key": "dungeon-nest crab", "at": [6680, 2049, -18], "note": "level 1: first seen 2026-10-24 19:37:08 (6680, 2049), capture 20261024_102346"},
+  {"key": "ruby smallshell", "at": [6687, 2043, -18], "note": "level 1: first seen 2026-10-24 19:37:40 (6687, 2043), capture 20261024_102346"},
+  {"key": "singing noughtilus", "at": [6675, 2058, -16], "note": "level 1: first seen 2026-10-24 19:39:28 (6675, 2058), capture 20261024_102346"},
+  {"key": "oozing noughtilus", "at": [6697, 2046, -18], "note": "level 1: first seen 2026-10-24 19:39:44 (6697, 2046), capture 20261024_102346"},
+  {"key": "lowtide scavenger", "at": [6704, 2032, 19], "note": "level 1: first seen 2026-10-24 19:39:45 (6704, 2032), capture 20261024_102346"},
+  {"key": "aquamarine smallshell", "at": [6693, 2056, -16], "note": "level 1: first seen 2026-10-24 19:39:49 (6693, 2056), capture 20261024_102346"},
+  {"key": "dungeon-nest crab", "at": [6705, 2057, -18], "note": "level 1: first seen 2026-10-24 19:39:49 (6705, 2057), capture 20261024_102346"},
+  {"key": "flying manta", "at": [6718, 2033, 19], "note": "level 1: first seen 2026-10-24 19:39:52 (6718, 2033), capture 20261024_102346"},
+  {"key": "mermadon", "at": [6626, 2007, 82], "note": "level 1: first seen 2026-10-24 19:50:07 (6626, 2007), capture 20261024_102346"},
+  {"key": "biolumen shellpod", "at": [6852, 2043, -71], "note": "level 2: first seen 2026-10-24 19:55:28 (6852, 2043), capture 20261024_102346"},
+  {"key": "astral zoa", "at": [6849, 2037, -71], "note": "level 2: first seen 2026-10-24 19:55:30 (6849, 2037), capture 20261024_102346"},
+  {"key": "giant pincer crab", "at": [6876, 2024, -90], "note": "level 2: first seen 2026-10-24 19:55:43 (6876, 2024), capture 20261024_102346"},
+  {"key": "voidfin", "at": [6849, 2023, -56], "note": "level 2: first seen 2026-10-24 19:56:12 (6849, 2023), capture 20261024_102346"},
+  {"key": "toxic zoa", "at": [6840, 2023, -56], "note": "level 2: first seen 2026-10-24 19:56:21 (6840, 2023), capture 20261024_102346"},
+  {"key": "combustive zoa", "at": [6867, 2018, -70], "note": "level 2: first seen 2026-10-24 19:56:48 (6867, 2018), capture 20261024_102346"},
+  {"key": "kelpdweller", "at": [6839, 2015, -56], "note": "level 2: first seen 2026-10-24 19:56:48 (6839, 2015), capture 20261024_102346"},
+  {"key": "soulcatcher", "at": [6864, 2011, -70], "note": "level 2: first seen 2026-10-24 19:56:57 (6864, 2011), capture 20261024_102346"},
+  {"key": "lighthouse shellpod", "at": [6868, 2024, -70], "note": "level 2: first seen 2026-10-24 19:57:12 (6868, 2024), capture 20261024_102346"},
+  {"key": "scourgeon", "at": [6850, 2006, -56], "note": "level 2: first seen 2026-10-24 19:57:13 (6850, 2006), capture 20261024_102346"},
+  {"key": "astral zoa", "at": [6841, 2005, -56], "note": "level 2: first seen 2026-10-24 19:57:13 (6841, 2005), capture 20261024_102346"},
+  {"key": "toxic zoa", "at": [6857, 1994, -56], "note": "level 2: first seen 2026-10-24 19:59:04 (6857, 1994), capture 20261024_102346"},
+  {"key": "razorfin", "at": [6845, 1989, -56], "note": "level 2: first seen 2026-10-24 19:59:05 (6845, 1989), capture 20261024_102346"},
+  {"key": "kelpdweller", "at": [6842, 1987, -56], "note": "level 2: first seen 2026-10-24 19:59:06 (6842, 1987), capture 20261024_102346"},
+  {"key": "voidfin", "at": [6868, 1994, -56], "note": "level 2: first seen 2026-10-24 19:59:06 (6868, 1994), capture 20261024_102346"},
+  {"key": "drowned mariner", "at": [6889, 2024, -90], "note": "level 2: first seen 2026-10-24 20:00:46 (6889, 2024), capture 20261024_102346"},
+  {"key": "biolumen shellpod", "at": [6895, 2038, -100], "note": "level 2: first seen 2026-10-24 20:00:51 (6895, 2038), capture 20261024_102346"},
+  {"key": "giant pincer crab", "at": [6860, 2034, -70], "note": "level 2: first seen 2026-10-24 20:49:13 (6860, 2034), capture 20261024_102346"},
+  {"key": "scourgeon", "at": [6880, 2030, -90], "note": "level 2: first seen 2026-10-24 20:49:32 (6880, 2030), capture 20261024_102346"},
+  {"key": "biolumen shellpod", "at": [6892, 2012, -90], "note": "level 2: first seen 2026-10-24 20:49:49 (6892, 2012), capture 20261024_102346"},
+  {"key": "voidfin", "at": [6884, 2023, -85], "note": "level 2: first seen 2026-10-24 20:49:56 (6884, 2023), capture 20261024_102346"},
+  {"key": "ocean bedrock", "at": [6889, 1991, -126], "note": "level 2: first seen 2026-10-24 20:50:28 (6889, 1991), capture 20261024_102346"},
+  {"key": "ironscale grouper", "at": [6881, 1985, -126], "note": "level 2: first seen 2026-10-24 20:51:22 (6881, 1985), capture 20261024_102346"},
+  {"key": "lighthouse shellpod", "at": [6865, 1980, -88], "note": "level 2: first seen 2026-10-24 20:51:32 (6865, 1980), capture 20261024_102346"},
+  {"key": "clearwater grouper", "at": [6883, 1973, -126], "note": "level 2: first seen 2026-10-24 20:52:35 (6883, 1973), capture 20261024_102346"},
+  {"key": "ocean bedrock", "at": [6886, 1957, -126], "note": "level 2: first seen 2026-10-24 20:53:13 (6886, 1957), capture 20261024_102346"},
+  {"key": "ironscale grouper", "at": [6883, 1942, -126], "note": "level 2: first seen 2026-10-24 20:53:26 (6883, 1942), capture 20261024_102346"},
+  {"key": "giant astral zoa", "at": [7158, 2195, -50], "note": "level 3: first seen 2026-10-24 20:54:49 (7158, 2195), capture 20261024_102346; again 21:01:02 (7158, 2193) and 2026-10-25 11:32:14 (7156, 2196)"},
+  {"key": "tidal sea serpent", "at": [7185, 2191, -50], "note": "level 3: first seen 2026-10-24 20:56:35 (7185, 2191), capture 20261024_102346; again 21:02:59 (7187, 2191) and 2026-10-25 11:31:03 (7187, 2191)"},
+  {"key": "ironscale grouper", "at": [6883, 1979, -126], "note": "level 2: first seen 2026-10-24 20:58:07 (6883, 1979), capture 20261024_102346"},
+  {"key": "greater razorfin", "at": [7181, 2171, -50], "note": "level 3: first seen 2026-10-24 20:58:20 (7181, 2171), capture 20261024_102346; again 2026-10-25 11:34:39 (7181, 2171)"},
+  {"key": "colossal pincer crab", "at": [7176, 2151, -50], "note": "level 3: first seen 2026-10-24 20:59:47 (7176, 2151), capture 20261024_102346"},
+  {"key": "giant combustive zoa", "at": [7197, 2172, -50], "note": "level 3: first seen 2026-10-24 20:59:47 (7197, 2172), capture 20261024_102346; again 2026-10-25 11:31:06 (7198, 2174)"},
+  {"key": "lighthouse shellpod", "at": [6918, 2029, -100], "note": "level 2: first seen 2026-10-25 11:24:47 (6918, 2029), capture 20261024_225113"},
+  {"key": "combustive zoa", "at": [6916, 2023, -100], "note": "level 2: first seen 2026-10-25 11:25:57 (6916, 2023), capture 20261024_225113"},
+  {"key": "frenzyfin", "at": [6906, 2016, -90], "note": "level 2: first seen 2026-10-25 11:25:58 (6906, 2016), capture 20261024_225113"},
+  {"key": "voidfin", "at": [6882, 2010, -90], "note": "level 2: first seen 2026-10-25 11:27:28 (6882, 2010), capture 20261024_225113"},
+  {"key": "ocean bedrock", "at": [6898, 1996, -126], "note": "level 2: first seen 2026-10-25 11:27:52 (6898, 1996), capture 20261024_225113"},
+  {"key": "ironscale grouper", "at": [6897, 1996, -126], "note": "level 2: first seen 2026-10-25 11:27:52 (6897, 1996), capture 20261024_225113"},
+  {"key": "lighthouse shellpod", "at": [6877, 1983, -126], "note": "level 2: first seen 2026-10-25 11:28:52 (6877, 1983), capture 20261024_225113"},
+  {"key": "ocean bedrock", "at": [6883, 1969, -126], "note": "level 2: first seen 2026-10-25 11:29:38 (6883, 1969), capture 20261024_225113"},
+  {"key": "colossal pincer crab", "at": [7217, 2183, -50], "note": "level 3: first seen 2026-10-25 11:34:43 (7217, 2183), capture 20261024_225113"},
+  {"key": "clearwater grouper", "at": [6883, 1946, -126], "note": "level 2: first seen 2026-10-25 11:35:19 (6883, 1946), capture 20261024_225113"},
+  {"key": "voidfin", "at": [6882, 1985, -126], "note": "level 2: first seen 2026-10-25 11:36:33 (6882, 1985), capture 20261024_225113"},
+  {"key": "biolumen shellpod", "at": [6883, 2001, -106], "note": "level 2: first seen 2026-10-25 11:36:40 (6883, 2001), capture 20261024_225113"}
  ],
- "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept), both levels, the capture's only visit: a first look, not the Mausoleum's 41-visit check. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the 8 pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb').",
+ "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept). The first 68 come from the first visit (2026-10-24 10:59:55-11:14:06, levels 1-2): a first look, not the Mausoleum's 41-visit check. The other 58 come from the later visits (2026-10-24 19:32-21:04 and 2026-10-25 11:21-11:36), only where the first visit couldn't see (a first sighting more than 18 tiles from every tile it stood on), so a spawn it had isn't counted twice: 13 on level 1's middle, 39 on level 2's west and north, 6 on level 3's first part. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood; 30 in all), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb'), the recovery dolphin (oxygen.dolphins), 5 monsters whose name never came.",
  "specials": {
   "bottomfeeder": [
    {
@@ -996,11 +1089,68 @@
     "note": "capture: 8 pincer crabs (new serials, 500 hits each, every one killed) came into being beside a fight with '*emerges*', each 0.5 s after a dungeon-nest crab's '*digs*' there (5: 11:01:34.4, 11:02:41.6, 11:03:39.2, 11:04:15.6, 11:04:30.8) or a lowtide scavenger's '*takes large swing*' with a nest crab fighting near (3: 11:05:46.4, 11:05:54.1, 11:06:11.5); one nest crab dug twice 15.2 s apart. The wiki's Dig (#14468, the tamed version: a teleport and a hit within 2) isn't the broodling: [INFERENCE: the nest crab broods them, every ~15 s while it fights, at most 2 of its own up]"
    }
   ],
-  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'); the lowtide scavenger's '*takes large swing*' (a 15-21 hit 0.5 s later, n=3) and '*scavenges*' (6); the Pressure effect (#4646) of the pinching crabs and kraits (none seen resolve)."
+  "tidal sea serpent": [
+   {
+    "kind": "burst",
+    "first_s": [2.0, 8.0],
+    "every_s": 7.7,
+    "radius": 3,
+    "damage_pet": [85, 126, 114],
+    "damage_player": [38, 57, 51],
+    "note": "level 3 (2026-10-25 11:31:08-11:32:11; 2026-10-24 20:56:43-20:57:37): every 7.5-8.0 s (n=9 gaps, median 7.7) one number on each pet within 3 tiles of it at once, beside its own swings: NightmareA, NightmareB and a searing imp 106-126 (8 times, all three 3 tiles off), GirthyEarthy 85-95 alone beside it (3 times; the casters at 5 got none); Logan at 4-7 tiles never (11 of 11), so radius 3. Its first 2 s into the fight (11:31:10.5). On Logan: never measured, [INFERENCE: the pets' x 0.45, the giant astral zoa's ratio of Logan's hits to the pets']. Twice a second number with it, 48-53 on all three pets (11:31:56.9, 11:32:04.5): not modelled. Three killed at 20,001 in numbers (the wiki's 20,000 hits + 1), in 56-69 s"
+   }
+  ],
+  "giant astral zoa": [
+   {
+    "kind": "burst",
+    "id": "astral",
+    "first_s": [1.0, 6.0],
+    "every_s": 6.0,
+    "radius": 7,
+    "damage_pet": [70, 82, 80],
+    "damage_player": [35, 56, 37],
+    "note": "level 3, a mage standing still at (7156-7158, 2193-2196) the whole fight (2026-10-24 20:54:49-20:56:24, 21:01:02-21:02:49; 2026-10-25 11:32:54-11:33:52): every 5.0-8.0 s (gaps 5.0-5.2 in a row the first evening fight, 6.8-8.0 the second day; median ~6) 78-82 on each pet 5-7 tiles from it (the three of 11:32:58 to 11:33:47, the searing imp and fireminion 2026-10-24) and Logan 35-56 within ~3 of them, each with 'Astral backlash impacts your ability to concentrate while casting!' (8 times; 'You are no longer suffering spell backlash.' ~35 s later: a casting penalty, not modelled). The tank beside it (GirthyEarthy at 1) took none of these but 70-78 alone at the same cadence: in the sim every one of us within 7 gets it. 2 killed at 18,001 (wiki 18,000 hits + 1) in 89-92 s"
+   },
+   {
+    "kind": "burst",
+    "id": "volley",
+    "first_s": [1.0, 6.0],
+    "every_s": 5.0,
+    "radius": 12,
+    "targets": 3,
+    "damage_pet": [29, 51, 41],
+    "damage_player": [29, 39, 34],
+    "note": "level 3: a number on 3 (twice 4) of us at once, out to 12 tiles from it, every 3.1-3.6 s in a row (gaps up to 10 between), pets 29-51 (median 41), Logan 29-39 (n=5; 33, 37, 39 at 6-9 tiles); it skipped Logan at 5-10 tiles as often: 3 picked at random"
+   }
+  ],
+  "greater razorfin": [
+   {
+    "kind": "bleed",
+    "chance": 1.0,
+    "tick": [18, 18],
+    "every_s": 1.27,
+    "seconds": 15.0,
+    "note": "level 3, 2026-10-24 20:58:26-20:59:45: an 18 on its target every 1.27 s (n=60, the median gap) from its first swing to 14 s after its death, the swings beside (melee_observed); no bleed text over the pet. [INFERENCE: a bleed on every hit, 15 s]"
+   }
+  ],
+  "giant combustive zoa": [
+   {
+    "kind": "burst",
+    "first_s": [2.0, 7.0],
+    "every_s": 5.8,
+    "radius": 12,
+    "damage_pet": [82, 128, 105],
+    "damage_player": [32, 41, 40],
+    "note": "level 3, 2026-10-25 11:34:13-11:34:50 (the only fight; it killed the three pets): a mage near (7197, 2172-2177); every 5.3-6.1 s (n=6 gaps) one number on each pet 10 tiles from it and on Logan at 8-12, the pets' rising 82-87, 89-95, 97-103, 110-112, 112-118, 123-128, Logan's 41, 32, 40, each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
+   }
+  ],
+  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'); the lowtide scavenger's '*takes large swing*' (a 15-21 hit 0.5 s later, n=3; 13 in the evening visits) and '*scavenges*' (6; 41); the frenzyfin's '*frenzies*' (9); the Pressure effect (#4646) of the pinching crabs and kraits (none seen resolve); the greater razorfin's steady 18 every ~1.2 s on the tank beside its 36-70 swings (2026-10-24 20:58:26-20:59:45, n~50; calibrate's swing numbers carry both); the giant zoas' spell backlash and scorch (their notes)."
  },
  "ranged_observed": {
   "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},
-  "soulcatcher": {"damage": [23, 30], "note": "its 4 numbers on the pets in the capture (23 and 26 beside one, 30 twice from range)"}
+  "soulcatcher": {"damage": [23, 30], "note": "its 4 numbers on the pets in the capture (23 and 26 beside one, 30 twice from range)"},
+  "giant astral zoa": {"damage": [36, 54], "every_s": 3.5, "note": "level 3: its single numbers on the one pet it fought, 35-48 on NightmareB/A 3.4-4.1 s apart (2026-10-25 11:33:00-11:33:52), 38-54 on GirthyEarthy beside it 2.5-5 s apart (2026-10-24 20:54:58-20:56:22): the wiki's spell damage 45-55 less the pet's armor; the defaults' 0.5 x wiki every 6 s made a third of it"},
+  "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"}
  },
  "melee_observed": {
   "clearwater grouper": {
@@ -1022,6 +1172,21 @@
     20
    ],
    "note": "its hits on the pets (12, 20, 21) without the 4-6 ooze ticks of a noughtilus beside it that calibrate's one-monster-in-reach rule gave it"
+  },
+  "tidal sea serpent": {
+   "melee": [49, 71, 61],
+   "swing_s": 3.4,
+   "note": "level 3: its swings (the 0x6E action 5 before each) on the pet it fought, 59-71 on NightmareB/A (n=11, median 63; 2026-10-25 11:31:08-11:32:09), 49-58 on GirthyEarthy (2026-10-24 20:56:43-20:57:34), 3.3-3.4 s apart in a row (some skipped: 4.4-5.0); calibrate's swing numbers (to 101, period 2.58 s) took its area hits on the tank (specials) for swings"
+  },
+  "greater razorfin": {
+   "melee": [40, 64, 54],
+   "swing_s": 3.4,
+   "note": "level 3, 2026-10-24 20:58:26-20:59:31 on GirthyEarthy: 19 swings of 36-70 (median 54) in 64 s, beside a steady 18 every 1.27 s (n=60, the median gap) that went on 14 s after its death: a bleed (specials). calibrate's 1.23 s period and 18 median were the bleed's"
+  },
+  "colossal pincer crab": {
+   "melee": [32, 69, 47],
+   "swing_s": 3.4,
+   "note": "level 3, 2026-10-24 20:59:59-21:00:41: its 6 single numbers on the pets (29-69, median 47; one period 3.4 s); calibrate's swing sums (68-138, n=3) added two numbers in 0.25 s. The wiki's Pinch (entangle, pierce, Pressure; #14472, the tamed version) wasn't seen"
   }
  },
  "trip": {

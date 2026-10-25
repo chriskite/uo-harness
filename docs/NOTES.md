@@ -5513,7 +5513,8 @@ level 3's entrance. Live on level 2:
 - Its layout holds two `tilepichue` bars at (58, 50) and (58, 64). The second's art stepped from 28135 down one
   every 30 s, reaching 28125 at 11:13:14.
 - It was back at 28135 on level 1's west end (11:13:39).
-- [INFERENCE] 28135 -> 28115 is the 10 minutes. The first bar stayed 28135.
+- [INFERENCE, refuted 2026-10-25: 24 steps, 732 s; "Tidal Tomb: the later visits" below] 28135 -> 28115 is the 10
+  minutes. The first bar stayed 28135.
 
 **Monsters on level 1 and their specials:**
 
@@ -5544,6 +5545,121 @@ level 3's entrance. Live on level 2:
   Logan said "All Follow Me" at 11:14:01 and took the crimson gate out at 11:14:05.
   - `logs/red_scan/20261024_102346.json` has the packets.
   - `sim/calibrate.py` now keeps reds out of the creature types.
+
+## Tidal Tomb: the later visits and level 3 (2026-10-24 19:32-21:04, 2026-10-25 11:21-11:36)
+
+The user played all of them. Evidence for the simulator's `tidal_tomb` changes of 2026-10-25 (docs/SIM.md "Tidal
+Tomb"):
+
+- Capture 20261024_102346 had four more visits that evening, after the scenario was first built from its morning:
+  19:32-19:41 (level 1), 19:48-20:05, 20:07-20:20 and 20:45-21:04 (levels 1-3). Pets GirthyEarthy, fireminion, a
+  searing imp and a tidal mantis. AR 133.
+- Capture 20261024_225113, 2026-10-25 11:21:30-11:36:55: levels 1-3. Pets NightmareA, NightmareB and the searing imp.
+  AR 122.
+- `sim/calibrate.py --scenario tidal_tomb` now covers both captures and the three levels: 4,224 s and 925 s in the box.
+
+**Getting in and out:**
+
+- **In:** every time by "Bad Places II" button 110 (19:32:41; 2026-10-25 11:21:28), from the runebooks on a shelf at
+  the house landing (4152-4154, 1431). Its neighbours there: "Towns Shrines & Alliances", "Wildlands Wilderness",
+  "Bad Places", "Friendly Houses 1". Arrival (6653, 2097, -16) every time.
+- **The teleporters are strips that keep the column.** Each pair lands on the other's row:
+  - level 1's west end (6608-6610, 2060) -> level 2 (6833-6835, 2079);
+  - level 1's exit (6656-6657, 2109) -> outside (3861-3862, 3585), and back;
+  - level 2's north end (6884-6885, 1929) -> level 3 (7162-7163, 2221);
+  - level 3's arrival row (7161-7162, 2221) -> level 2 (6883-6884, 1929).
+  - So level 3's arrival tile is itself a teleporter. Landing on one doesn't move you; stepping onto it does. A step
+    S from the tile north of the arrival took Logan back up (2026-10-24 20:58:00, 21:04:20; 2026-10-25 11:35:19).
+  - All eight new tiles are in `harness/data/teleporters.json`. The strips' other columns are unknown.
+- **Five moongates.**
+  - Golden, on level 1: 0x4003D7B5 (6652, 2095), 0x4003D7B7 (6642, 2062), and a new one, 0x4003D7B6 (6685, 2064, -18).
+  - Crimson, on level 2: 0x4003D7B8 (6913, 2071, -100), and a new one, 0x4003D7B9 (6897, 1992, -126), 8 tiles S of
+    the strip to level 3.
+  - Every menu opened listed the same nine 'Moongate Destinations' rows, Anchor's Rest .. Corpse Creek. That includes
+    the golden 0x4003D7B6 at 19:41:11. The scenario had guessed a lone Totem row for the golden gates.
+- **Totem's landing tile varies.** Six trips put Logan at (3867, 2900), (3870, 2891), (3846, 2876), (3848, 2867),
+  (3882, 2893) and (3859, 2890).
+
+**Level 3:**
+
+- Map flood fill from the arrival: x 7049-7255, y 1908-2221, z -55..3, 14,873 tiles.
+- Logan saw only its first part: he stood at x 7156-7201, y 2153-2221, z -50, for 822 s over the two visits.
+- **A Recovery Dolphin**, 'recovery dolphin' 0x00004888 (body 151, notoriety 7, '(refills oxygen)'), stands at
+  (7164, 2210), 11 tiles N of the arrival. Same serial and tile on both days.
+  - Near it: 'Your oxygen is refilled.' (and '*oxygen refilled*' over Logan) every 5.06-5.38 s (n=26 gaps, median
+    5.25 s), within 8 tiles.
+  - None came at 10-13 tiles for 16 s or longer.
+  - The first came 0.5-2.3 s after he walked into range: the dolphin ticks on its own clock.
+- **Monsters**, each at the same spot every time:
+  - a tidal sea serpent at (7185-7187, 2191);
+  - a giant astral zoa at (7156-7158, 2193-2196);
+  - a giant combustive zoa at (7197-7198, 2172-2174);
+  - a greater razorfin at (7181, 2171);
+  - colossal pincer crabs at (7176, 2151) and (7217, 2183).
+  - Out-of-sight respawns took at most 4.6 min (the astral zoa) and 5.4 min (the serpent).
+  - Every kill took the wiki's hits + 1 in numbers: serpent 20,001 (x3), astral zoa 18,001 (x2), colossal pincer crab
+    18,001, greater razorfin 20,001.
+  - Gold per corpse was within -4 % .. +11 % of the wiki's value.
+- **Tidal sea serpent.**
+  - Swings of 59-71 on a Nightmare and 49-58 on GirthyEarthy, ~3.4 s apart.
+  - Every 7.5-8.0 s (median 7.7) it also hits each pet within 3 tiles at once: 106-126 on the Nightmares and the imp,
+    85-95 on GirthyEarthy.
+  - Logan stood 4-7 tiles off and was never hit by it (11 of 11).
+- **Giant astral zoa**, a mage that stands still, has three attacks:
+  - every ~6 s (5.0-8.0), 78-82 on each pet 5-7 tiles from it, and 35-56 on Logan near them. Each of Logan's came with
+    'Astral backlash impacts your ability to concentrate while casting!'; 'You are no longer suffering spell
+    backlash.' followed ~35 s later. On 2026-10-24 the tank beside it (GirthyEarthy) never took these, only 70-78 alone
+    at the same cadence.
+  - every 3.1-3.6 s in a row, 29-51 on 3 (twice 4) of the team at random, out to 12 tiles; on Logan 29-39;
+  - its single spells on the pet it fights, 35-54, 2.5-5 s apart.
+- **Giant combustive zoa.** Only one fight (2026-10-25 11:34:13-11:34:50), and it killed the three pets.
+  - Every 5.3-6.1 s, one number on each pet and on Logan at 8-12 tiles.
+  - The pets' numbers rose fight-long: 82-87, 89-95, 97-103, 110-112, 112-118, 123-128. Its single hits on a pet rose
+    too, 40 -> 74.
+  - Logan's were 41, 32 and 40, each with 'The creature scorches you and you become more susceptible to damage from
+    them!'.
+  - [INFERENCE: a stacking +~10 % like Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %.]
+- **Greater razorfin.** Swings of 36-70 (median 54, ~3.4 s) on GirthyEarthy, plus a steady 18 every 1.27 s (n=60).
+  The 18s went on 14 s after its death: a bleed with no text.
+- **The pets.**
+  - 2026-10-25, all three died on level 3: NightmareB to the serpent at 11:32:04, then NightmareA at 11:34:44 and the
+    imp and NightmareB at 11:34:50 to the combustive zoa. Each time the veterinary supplies gave 'You are able to
+    resurrect your follower.' (bonded). Logan retreated up the strip at 11:35:19 and out by 0x4003D7B9 at 11:36:55.
+  - 2026-10-24: the imp died at 21:01:32, the fireminion at 21:01:39 and 21:03:46 (the second astral zoa and serpent).
+  - Level 3 over both days: 7 kills, 7 pet deaths, 726 damage on Logan (19 hits of 29-56) and 14 heal potions in 822 s.
+    Logan didn't die.
+  - The Guide gump on a Nightmare (11:20:15): 228 hits, level 14, control slots 2, attack speed 2.86 s, spell damage
+    24.0-30.6, wrestling 76.3, armor 24.6.
+
+**Oxygen, measured** (2026-10-24 19:52:11, under on level 2 until the deprivation):
+
+- 'You suffer minor oxygen deprivation.' came from 20:04:23: 732 s under, not the patch notes' 10 minutes. It came 9
+  times, 6.0 s apart (6.00-6.06), not 5.
+- Logan lost 5 each, then one 2 that took him to the 66 % floor.
+- The tidal mantis lost 32 (5 %) five times, then 7, then 1 three times: what it regenerated above the floor. So a
+  hit never takes you below the floor.
+- The 'Oxygen' gump's second bar stepped 28135 -> 28111, one step every 30.25 s: 24 steps to the deprivation. Then the
+  first bar started down (28134 at 20:04:23). [INFERENCE: major deprivation when the first bar runs out too, ~24 min.]
+- On 2026-10-25 the level 2 -> 3 strip at 7.6 min under and the dolphin beside level 3's arrival kept it from coming.
+
+**Barding, 2026-10-25:**
+
+- Songs were 17.7 %, against 16.9 % on 2026-10-24 morning.
+- Discord lasted 71 s (19 of 21; 86 s twice), peace 43 s (7 of 8), provoke 36 s (6 of 6).
+- The Mastery Chain gump: 12 links, Follower Damage +16 %, Effective Barding Skill +18. After the trip: a 13-link
+  limit.
+
+**Other players:**
+
+- The red *BUL SA PA oOo* showed up again, on level 2 at (6882, 2007) at 11:36:52, 18 tiles off, saying "In Vas
+  Mani". Logan took the crimson gate 3 s later.
+- 'A murder has occurred within this area' came at 11:31:41 on level 3. The player Romeno died on level 1 at
+  11:22:01.
+
+**A calibrate.py fix the second visit needed.** Two numbers summed time across visits as `t1 - t0`, which included
+the 8 hours between them: the AR seconds (36,280 s at AR 133 for 4,225 s there) and `damage_to_us_per_minute_in_region`.
+They now sum the time in the region (`Session.seconds_in_region`, also in `source.captures`). One visit's numbers are
+unchanged.
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 

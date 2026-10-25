@@ -48,6 +48,8 @@ python harness/sim/kb_scan.py --location "Tidal Tomb" --out harness/data/sim/tid
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal Tomb's level 1 ("Tidal Tomb" below)
 python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071
                                                                        # ... its level 2, under water
+python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
+    --leave-gate 6897 1992                                             # ... its level 3 (no way out yet: "Level 3")
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
@@ -133,7 +135,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
-| `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the capture 20261024_102346's observations (calibrate). |
+| `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the observations of captures 20261024_102346 and 20261024_225113, three levels (calibrate). |
 
 ## Calibration (2026-10-13)
 
@@ -1188,11 +1190,14 @@ notes. docs/NOTES.md "Tidal Tomb" has the operational facts.
 ```mermaid
 flowchart LR
   Home -- "recall: row 'Tidal Tomb Inside'" --> A["level 1 arrival (6653, 2097)<br/>golden gate (6652, 2095)"]
-  A -. "(6656, 2109) exit" .-> Out["outside (3861, 3585)"]
+  A -. "(6656-6657, 2109) exit" .-> Out["outside (3861, 3585)"]
   A -- "(6718, 1984)" --> L2["level 2, under water<br/>arrival (6943, 2004)"]
-  L2 -- "(6834, 2079)" --> W["level 1 west end (6609, 2060)"]
-  L2 -- "crimson gate (6913, 2071)" --> Totem
-  A -- "golden gate: the runner's leave" --> Totem
+  W["level 1 west end (6609, 2060)"] -- "strip (6608-6610, 2060)" --> L2
+  L2 -- "(6834, 2079)" --> W
+  L2 -- "north strip (6884-6885, 1929)" --> L3["level 3, under water<br/>arrival (7162, 2221)<br/>Recovery Dolphin (7164, 2210)"]
+  L3 -- "arrival row (7161-7162, 2221)" --> L2
+  L2 -- "crimson gates (6913, 2071), (6897, 1992)" --> Totem
+  A -- "golden gates: the runner's leave" --> Totem
   Totem -- recall --> Home
 ```
 
@@ -1225,12 +1230,14 @@ flowchart LR
 
 **New mechanics** (world.py, scenario-driven, so a Mausoleum run is unchanged):
 
-- **Oxygen** (scenario `oxygen`, patch notes #4641-4645).
-  - Under water, the player's time adds up. It refills on leaving level 2.
-  - After 10 minutes: -5 every 5 s while above 66 %, and each pet -5 % of its max.
-  - After 20 minutes: -10 / -10 % while above 33 %.
+- **Oxygen** (scenario `oxygen`, patch notes #4641-4645, measured live since 2026-10-25: "Level 3 and the later
+  visits" below).
+  - Under water, the player's time adds up. It refills on leaving the underwater levels, or at a Recovery Dolphin.
+  - From 732 s on: -5 every 6 s, and each pet -5 % of its max, never below 66 %.
+  - From 1464 s on [INFERENCE]: -10 / -10 %, never below 33 %.
   - No song cuts this damage (`UNPREVENTABLE`).
   - Live: the 'Oxygen' gump came every 6 s, its bar a step every 30 s. The simulator doesn't send it.
+  - Before 2026-10-25 these were the patch notes' numbers: 10 and 20 minutes, every 5 s, a hit while above the floor.
 - **Ooze aura** (oozing noughtilus, special `ooze`): 4 bursts 0.3 s apart on everyone within 2 tiles, every 7-12 s.
   The capture had 9 bursts, and the wiki's Ooze Aura matches.
 - **Brood** (dungeon-nest crab, special `brood`): '*digs*', then a pincer crab '*emerges*' beside it 0.5 s later,
@@ -1269,11 +1276,99 @@ flowchart LR
   - the scavenger's large swing;
   - Pressure;
   - the ooze's greater poison;
-  - Recovery Dolphins.
+  - Recovery Dolphins (placed since 2026-10-25).
 - **The arrival tile holds a golden and a crimson moongate.** The runner's default leave double-clicks that tile,
   and which menu opens there live is untested.
 - **Live, the Tidal rune is in the runebook "Bad Places II".** It is not in Logan's tome, which is what the
   simulator's tome row stands for.
+
+### Level 3 and the later visits (2026-10-25)
+
+User 2026-10-25: mine the day's run "through Tidal Tomb to the first part of level 3" to flesh out the simulator.
+
+The capture held more than that run. Capture 20261024_102346 also had four visits on 2026-10-24's evening (levels 1-3)
+after the scenario was built from its morning. All of them are evidence now. The facts are in docs/NOTES.md "Tidal
+Tomb: the later visits and level 3"; every number is in the scenario's notes.
+
+**The data:**
+
+- **Level 3**, by a map flood fill: x 7049-7255, y 1908-2221, 14,873 tiles. Logan saw only x 7156-7217, y 2151-2221.
+  - It is in the dungeon's box (no recall there) and under water (`oxygen.underwater`).
+- **14 teleporters.** The new tiles are the strips' other columns, the level 2 <-> 3 pair, and the exit's neighbour.
+  Also in `teleporters.json`.
+- **Five gates.** New: the golden 0x4003D7B6 (6685, 2064) on level 1 and the crimson 0x4003D7B9 (6897, 1992) on
+  level 2. Every gate has the live nine rows; the golden gates had a lone Totem row before.
+- **126 spawns**: the first visit's 68, plus 58 from the later visits. The 58 were added only where the first visit
+  couldn't see (more than 18 tiles from every tile it stood on), so its spawns aren't counted twice: 13 on level 1,
+  39 on level 2, 6 on level 3.
+- **`tidal_tomb_observed.json`** from both captures, 43 creature types.
+  - Its pets differ by visit: GraveRobber and AlaFlambe; GirthyEarthy, fireminion, a searing imp and a tidal mantis;
+    the Nightmares and the imp. `damage_to_pets` mixes their armor.
+  - The simulator's pets stay the gravebug and the phoenix.
+- **Level 3's creatures** (`specials`, `melee_observed`, `ranged_observed`, each with its numbers in the note):
+
+  | type | measured | modelled as |
+  |---|---|---|
+  | tidal sea serpent | swings 49-71 / 3.4 s; every 7.7 s 85-126 on each pet within 3 | melee override; `burst` radius 3 |
+  | giant astral zoa | 78-82 on pets at 5-7, Logan 35-56, every ~6 s; 29-51 on 3 of us within 12 every 3-5 s; 35-54 singles / 3.5 s | two `burst`s (`astral`, `volley` with `targets` 3); spell override |
+  | giant combustive zoa | 82 -> 128 on every pet, Logan 32-41 within 12, every 5.8 s; singles 40 -> 74 | `burst` radius 12 (no stacking); spell override |
+  | greater razorfin | swings 36-70 / 3.4 s; an 18 every 1.27 s that outlived it by 14 s | melee override; `bleed` on every hit |
+  | colossal pincer crab | 29-69 singles | melee override |
+
+**The code:**
+
+- **The dolphin** (`oxygen.dolphins`, `dolphin_r` 8, `dolphin_every_s` 5.25): on its own tick, our oxygen refills
+  within 8 tiles of it, with "Your oxygen is refilled." (`World._oxygen`). The dolphin is no mobile in the sim.
+- **Oxygen**: the first hit comes as the stage starts (live, with the bar's last step), and no hit takes one below
+  the floor.
+- **`burst`**: an `id` gives a type's second burst its own cooldown, and `targets` hits at most that many of us in
+  range, picked at random.
+- **`calibrate.py`**: the time in the region is summed over the visits. Before, `t1 - t0` spanned the gaps between
+  them, in the AR seconds and the damage per minute.
+- Tests: `test_tidal_oxygen` (new numbers, the floor), `test_tidal_dolphin`, `test_tidal_level3_bursts`, and level 3
+  in `test_tidal_recall_rule`.
+
+**Runs** (2026-10-25, from home, 30 game minutes, 8 runs each, `--compare`). Live is per hour on the level over all
+visits, from calibrate's level clusters: level 1 1,608 s, level 2 2,701 s, level 3 822 s. The sim's hours on the level
+were 4.08, 1.92 and 0.11.
+
+| per hour on the level | L1 sim (2026-10-24) | L1 live | L2 sim | L2 live | L3 sim | L3 live |
+|---|---|---|---|---|---|---|
+| kills | 236 (207) | 257 | (whole run) | 135 | (whole run) | 31 |
+| damage to Logan | 604 (520) | 1,413 | 2,774 | 2,980 | 10,876 | 3,180 |
+| runs where Logan died | 0 of 8 (0) | none | 5 of 8 (3 before) | none | 5 of 8 | none |
+
+`--compare` counts kills, vet supplies and potions over the whole run but divides by the hours on the level. That
+holds on level 1, where the walk in is short. On levels 2 and 3 most of a run is the walk, so only the damage row
+compares there.
+
+- **Level 1** (seeds 3-10): 97.5k/h looted and banked (85k looted before). Kills moved from 207 to 236/h, against
+  the first visit's 245. Damage to Logan stays under half of live.
+- **Level 2** (seeds 4-11, the command above): damage to Logan is now near live. The new spawns on its west and
+  north made it deadlier: 5 of 8 died (3 of 8 before), to shots and swings on the walk.
+- **Level 3** (seeds 4-11):
+  `--area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992`.
+  - 4 of the 5 deaths came on the walk in, on level 1 or level 2's north (ocean bedrocks, voidfins, shellpods). The
+    fifth came on level 3, to the giant astral zoa.
+  - Pets died in 7 of 8 runs. Live, 7 pet deaths came in 822 s there, and Logan none.
+  - On level 3 itself (6.6 min over the 8 runs) Logan took 10,876/h, 3.4x live's 3,180. Why is open: too few minutes
+    to split by source.
+  - The three runs that lived couldn't leave: "recall home failed (moongate: onto the moongate: no route from
+    (7158, 2194))". The Mover plans no route through a teleporter, so a leave gate on another level is out of reach.
+    Level 3 has no gate known.
+
+**Open:**
+
+- The runner can't leave level 3 (above). It needs a way out through the strip, or a gate found on level 3.
+- The walk in through level 2 kills Logan in the sim as the level 2 runs do. Live, the user fought through it.
+- Level 3's creatures are the first part's only; the boss rooms and their dolphins are unknown.
+- Not modelled: the combustive zoa's stacking scorch, the astral zoa's spell backlash (a casting penalty: does it
+  touch the recall?), the serpent's occasional second 48-53.
+- `--compare`'s kills, vet and potion rows on a level with a long walk in (above).
+- Barding differed by day: songs 17.7 % and discord / peace / provoke 71 / 43 / 36 s on 2026-10-25, against 16.9 %
+  and 68 / 34 / 42 s on the first visit. The scenario keeps the first visit's.
+- The Nightmares (2 control slots each, 228 hits, casters) aren't a simulator pet. Live they stood 7-10 tiles off
+  the zoas, and the zoas' area hits found them there.
 
 ## Player armor (2026-10-24)
 

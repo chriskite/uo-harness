@@ -3820,13 +3820,14 @@ def test_trace_no_side_effects():
 
 TIDAL_L1 = (6653, 2097)       # Tidal Tomb: the recall arrival on level 1, 2 tiles from the golden moongate
 TIDAL_L2 = (6943, 2004)       # ...level 2's arrival (under water: the scenario's `oxygen`)
+TIDAL_L3 = (7162, 2221)       # ...level 3's arrival, 11 tiles from its Recovery Dolphin (7164, 2210)
 
 
 def tidal_world(start, spawns=(), seed=1):
     sc = load("tidal_tomb")
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
-    sc["player"]["start"] = [start[0], start[1], -16 if start == TIDAL_L1 else -38]
+    sc["player"]["start"] = [start[0], start[1], {TIDAL_L1: -16, TIDAL_L3: -50}.get(start, -38)]
     return World(sc, seed=seed)
 
 
@@ -3858,26 +3859,55 @@ def test_scenario_inherit():
 
 
 def test_tidal_oxygen():
-    print("== Tidal Tomb: 10 minutes under water, then -5 every 5 s while above 66 % (pets 5 %); level 1 refills ==")
+    print("== Tidal Tomb: 732 s under water, then -5 every 6 s down to 66 % and no lower (pets 5 %); level 1 refills ==")
     w = tidal_world(TIDAL_L2)
     hurts = _log_hurts(w)
     pl = w.player
-    w.run_until(599.0)
-    check("no oxygen damage in the first 10 minutes", not any(k == "oxygen" for _, _, k, _ in hurts))
-    w.run_until(641.0)
+    w.run_until(731.0)
+    check("no oxygen damage in the first 732 s (live 2026-10-24: 19:52:11 under, 20:04:23 the first)",
+          not any(k == "oxygen" for _, _, k, _ in hurts))
+    w.run_until(800.0)
     on_us = [(t, n) for t, v, k, n in hurts if k == "oxygen" and v is pl]
-    gaps = [round(b[0] - a[0], 2) for a, b in zip(on_us, on_us[1:])]
-    check("from 605 s, 5 every 5 s (no song cuts it) until we are at 66 % or below: 100 -> 65",
-          bool(on_us) and 604.9 <= on_us[0][0] <= 605.2 and all(n == 5 for _, n in on_us)
-          and all(g == 5.0 for g in gaps) and pl.hits == 65, f"{on_us} hits {pl.hits}")
-    pets = {v.name for t, v, k, n in hurts if k == "oxygen" and v.kind == "pet" and abs(n - round(0.05 * v.hits_max)) <= 1}
-    check("each pet loses 5 % of its hits too", pets == {p.name for p in w.pets()}, str(pets))
+    gaps = [round(b[0] - a[0], 2) for a, b in zip(on_us[:7], on_us[1:7])]
+    floor = 0.66 * pl.hits_max
+    check("from 732 s, 5 every 6 s (no song cuts it) to 66 %, the 7th only down to it; then only what regenerated",
+          len(on_us) >= 7 and 731.9 <= on_us[0][0] <= 732.2 and all(n == 5 for _, n in on_us[:6])
+          and 1 <= on_us[6][1] <= 5 and all(g == 6.0 for g in gaps) and all(n <= 2 for _, n in on_us[7:])
+          and pl.hits >= floor - 1, f"{on_us} hits {pl.hits} of {pl.hits_max}")
+    first = {}
+    for t, v, k, n in hurts:
+        if k == "oxygen" and v.kind == "pet":
+            first.setdefault(v.name, (n, v.hits_max))
+    check("each pet's first is 5 % of its hits", set(first) == {p.name for p in w.pets()}
+          and all(abs(n - 0.05 * mx) <= 1 for n, mx in first.values()), str(first))
     pl.x, pl.y, pl.z = TIDAL_L1[0], TIDAL_L1[1], -16
-    w.run_until(645.0)
+    w.run_until(805.0)
     n = len(hurts)
-    w.run_until(700.0)
+    w.run_until(860.0)
     check("on level 1 the oxygen is refilled: no more deprivation hits", w.under_s == 0.0
           and not any(k == "oxygen" for _, _, k, _ in hurts[n:]), f"under_s {w.under_s}")
+
+
+def test_tidal_dolphin():
+    print("== Tidal Tomb level 3: the Recovery Dolphin refills our oxygen within 8 tiles every ~5.25 s, not from 11 ==")
+    for where, near in (((7164, 2214), True), (TIDAL_L3, False)):
+        w = tidal_world(TIDAL_L3)
+        hurts = _log_hurts(w)
+        said, orig = [], w._sys
+        w._sys = lambda text: (said.append((round(w.t, 2), text)), orig(text))
+        pl = w.player
+        pl.x, pl.y, pl.z = where[0], where[1], -50
+        w.under_s = 725.0                                   # 7 s from the deprivation
+        w.run_until(40.0)
+        refills = [t for t, text in said if text == "Your oxygen is refilled."]
+        deprived = [t for t, v, k, n in hurts if k == "oxygen"]
+        if near:
+            check("4 tiles from it: 'Your oxygen is refilled.' within 5.3 s, then every ~5.25 s; no deprivation",
+                  bool(refills) and refills[0] <= 5.3 and all(5.1 <= b - a <= 5.4 for a, b in zip(refills, refills[1:]))
+                  and not deprived and w.under_s < 5.3, f"refills {refills} deprived {deprived[:3]}")
+        else:
+            check("at the arrival, 11 tiles off: no refill, the deprivation from 7 s on",
+                  not refills and bool(deprived) and 6.9 <= deprived[0] <= 7.2, f"refills {refills} deprived {deprived[:3]}")
 
 
 def test_tidal_ooze_and_brood():
@@ -3928,6 +3958,47 @@ def test_tidal_ooze_and_brood():
     check("...at most 2 of its own up at once", 1 <= most <= 2, str(most))
 
 
+def test_tidal_level3_bursts():
+    print("== Tidal Tomb level 3: a sea serpent's area hit on us within 3 only; a giant astral zoa's two bursts both fire ==")
+    import collections
+    x, y = TIDAL_L3[0], TIDAL_L3[1] - 6
+
+    def setup(key):
+        w = tidal_world(TIDAL_L3, [{"key": key, "at": [x, y, -50]}])
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.hits = m.hits_max = 10 ** 6
+        m.next_step = 1e9                                    # it stands where placed
+        for o in w.team():
+            o.hits = o.hits_max = 10 ** 6
+        for p in w.pets():
+            p.mode = "stay"
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        gb.x, gb.y = x + 1, y                                # the tank beside it; Logan and the phoenix 6 off
+        m.target, m.threat = gb.serial, {gb.serial: 1e6}
+        return w, m
+
+    w, m = setup("tidal sea serpent")
+    m.spec = {**m.spec, "melee": None}
+    hits, orig_hurt = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", song_pets=True):
+        if kind == "burst":
+            hits.append((round(w.t, 2), victim.name, sim_cheb(victim.pos, by.pos)))
+        orig_hurt(victim, amount, by, kind, song_pets)
+    w.hurt = hurt
+    w.run_until(40.0)
+    times = sorted({t for t, _, _ in hits})
+    check("the serpent's area hit lands on the tank beside it every ~7.7 s, on none of us 6 off",
+          len(times) >= 3 and all(6.8 <= b - a <= 8.6 for a, b in zip(times, times[1:]))
+          and {n for _, n, _ in hits} == {"GraveRobber"} and all(d <= 3 for _, _, d in hits), f"{times} {hits[:4]}")
+    w, m = setup("giant astral zoa")
+    fired, orig_burst = collections.Counter(), w._burst
+    w._burst = lambda mob, sp: (fired.update([sp.get("id")]), orig_burst(mob, sp))
+    w.run_until(40.0)
+    check("...its 'astral' (every ~6 s) and 'volley' (~5 s) bursts each on their own cooldown",
+          fired["astral"] >= 4 and fired["volley"] >= 5, str(dict(fired)))
+
+
 def test_tidal_recall_rule():
     print("== the recall rule knows both dungeons: Tidal Tomb's gold gates, the Mausoleum's still ==")
     import escape
@@ -3936,6 +4007,7 @@ def test_tidal_recall_rule():
     why = escape.recall_forbidden((6650, 1990, 39), 0)
     check("...deep in level 1 it is refused", why is not None and "Tidal Tomb" in why, str(why))
     check("...on level 2 too", escape.recall_forbidden((*TIDAL_L2, -38), 0) is not None)
+    check("...and on level 3 (the dungeon's box takes it in)", escape.recall_forbidden((*TIDAL_L3, -50), 0) is not None)
     check("...and on the Mausoleum's fight level as before", escape.recall_forbidden((5261, 652, 0), 0) is not None)
 
 
@@ -3984,7 +4056,8 @@ def main():
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
-              test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_ooze_and_brood,
+              test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_dolphin,
+              test_tidal_ooze_and_brood, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
