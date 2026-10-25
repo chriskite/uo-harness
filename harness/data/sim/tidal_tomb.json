@@ -47,7 +47,7 @@
  },
  "bard": {
   "instrument": "exceedingly melodious",
-  "instrument_note": "the instrument's quality whose numbers the sim uses (sim/scenario.py load: its block in `instruments` over this one's). User 2026-10-25: 'Barding depends on the quality of the instrument'. The captures show which Logan played (a double-click plays an instrument, its name from the single-click): 2026-10-24 10:26:19 and 19:32:51 an 'eminently melodious sackbut' (+15 barding, wiki Magic Item Modifiers #13809), so the first visit and the evening's; from 22:17:39 a 'durable exceedingly melodious tambourine', 2026-10-25 10:58:19 a 'durable exceedingly melodious psaltery' (+20). Also looked at those days, not played in the captures: surpassingly melodious harps and a lute (+10), a supremely melodious bamboo flute (+25). The sim plays the quality he played last",
+  "instrument_note": "the instrument's quality whose numbers the sim uses (sim/scenario.py play: its block in `instruments` over this one's; run.py --instrument QUALITY for another). User 2026-10-25: 'Barding depends on the quality of the instrument'. The captures show which Logan played (a double-click plays an instrument, its name from the single-click): 2026-10-24 10:26:19 and 19:32:51 an 'eminently melodious sackbut' (+15 barding, wiki Magic Item Modifiers #13809), so the first visit and the evening's; from 22:17:39 a 'durable exceedingly melodious tambourine', 2026-10-25 10:58:19 a 'durable exceedingly melodious psaltery' (+20). Also looked at those days, not played in the captures: surpassingly melodious harps and a lute (+10), a supremely melodious bamboo flute (+25). The sim plays the quality he played last",
   "instruments": {
    "eminently melodious": {
     "guide": {

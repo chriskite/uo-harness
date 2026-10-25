@@ -128,11 +128,21 @@ def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
     for sp in sc["spawns"]:
         sp.setdefault("respawn_s", sc["defaults"]["respawn_s"])
     if (played := sc["bard"].get("instrument")) is not None:
-        # the barding numbers measured with the instrument Logan plays (user 2026-10-25: "Barding depends on the quality
-        # of the instrument"): its block in `bard.instruments` over the bard block's own
-        sc["bard"].update({k: v for k, v in sc["bard"]["instruments"][played].items() if not k.endswith("note")})
+        play(sc, played)
     sc["bard"]["chance"] = None          # per target: bard_chance()
     return sc
+
+
+def play(sc: dict, name: str) -> None:
+    """Logan plays an instrument of quality `name`: its barding numbers, measured live with it (user 2026-10-25:
+    "Barding depends on the quality of the instrument"), from `bard.instruments` over the bard block's own. load
+    does it for the scenario's `bard.instrument`, run.py --instrument for another. ValueError for one not there."""
+    have = sc["bard"].get("instruments") or {}
+    if name not in have:
+        raise ValueError(f"no instrument {name!r} in the scenario's bard.instruments (it has: "
+                         f"{', '.join(sorted(have)) or 'none'})")
+    sc["bard"].update({k: v for k, v in have[name].items() if not k.endswith("note")})
+    sc["bard"]["instrument"] = name
 
 
 def player_armor(sc: dict) -> dict:

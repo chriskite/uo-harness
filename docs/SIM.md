@@ -50,6 +50,8 @@ python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --
                                                                        # ... its level 2, under water
 python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
     --leave-gate 6897 1992 --leave-via 7161 2221                     # ... its level 3 ("Level 3 and the later visits")
+python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument "eminently melodious"
+                                                                       # ... with another instrument quality (bard.instruments)
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
@@ -1369,6 +1371,9 @@ depends on the quality of the instrument"):
   first visit was played with an eminently melodious sackbut (+15), today's with an exceedingly melodious psaltery
   (+20). The scenario keeps both sets and plays the latter: songs 17.7 %, discord / peace / provoke 71 / 43 / 36 s,
   the Guide's chances 6.5 points up (one type measured, the rest [INFERENCE]).
+  - `run.py --instrument QUALITY` plays another quality from `bard.instruments` for a batch (`sim.scenario.play`). The
+    summaries name it (`instrument`). A quality the scenario has no numbers for is refused before any run. Only
+    Tidal Tomb has instruments; the Mausoleum keeps its fixed barding numbers.
 - **Runs after both** (8 each, same seeds):
 
   | | level 1 | level 3 |
