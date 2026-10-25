@@ -74,6 +74,8 @@ DANGER_S = 300.0        # an avoided creature's last sighting shapes routes this
 CROWD_S = 300.0         # players / pets seen at a waypoint lower its score this long
 CROWD_FACTOR = 0.3
 RESPAWN_S = 600.0       # a depleted area rests this long [INFERENCE: spawn timers unknown]
+AWAKE_SHY_REST_S = 60.0  # a waypoint whose way runs into an awake purger's or blightmare's shot rests this long (one
+#                         on another player's pets is killed or gone within a minute or two [INFERENCE])
 SPOT_SAME_R = 80        # earlier crawl visits from a start this close count as the same floor (load_prior; live the
 #                         Mausoleum runs started 21, then 53 tiles from each other and twice began with no history)
 STALE_CAP_S = 600.0     # staleness beyond this counts the same
@@ -110,8 +112,8 @@ class Floor:
     def __len__(self) -> int:
         return len(self.adj)
 
-    def bfs(self, src, limit: int | None = None) -> dict:
-        """{tile: route steps from src} over the floor (up to `limit` steps)."""
+    def bfs(self, src, limit: int | None = None, blocked=frozenset()) -> dict:
+        """{tile: route steps from src} over the floor (up to `limit` steps), never onto a `blocked` tile."""
         src = tuple(src[:2])
         if src not in self.adj:
             return {}
@@ -122,7 +124,7 @@ class Floor:
             if limit is not None and dc >= limit:
                 continue
             for n in self.adj[c]:
-                if n not in dist:
+                if n not in dist and n not in blocked:
                     dist[n] = dc + 1
                     q.append(n)
         return dist
@@ -455,6 +457,7 @@ class Crawl:
         self.leg_t = 0.0             # when we set out for it (targets met on the way count for it)
         self.glance_s = 0.0
         self.pets_held = None        # why the last patrol waited for the pets (HuntLoop.patrol_hold), logged once
+        self.shot_held = None        # the awake shy kinds whose shot covers every way on (idle holds), logged once
         self.seek_for = None         # serial of the monster in view the patrol is heading for (seek), else None
         self.seek_t = -1e9           # the patrol's last look for one (interrupt)
         self.visited = {}            # waypoint -> monotonic time of our last stay
@@ -811,15 +814,15 @@ class Crawl:
         return any(cheb(w, tile) <= r + 2 or self.cell_of.get(tile) == i
                    for tile, _, _, r in self.danger.values())
 
-    def choose(self, pos):
+    def choose(self, pos, blocked=frozenset()):
         """The next waypoint index (or None): open zones, not depleted, not near an
-        avoided creature, reachable; staleness x value x crowd x zone / distance.
-        --crawl-loop: the next waypoint of the tour after the last one set out for."""
+        avoided creature, reachable (without stepping on a `blocked` tile: shot_tiles); staleness x value x crowd x
+        zone / distance. --crawl-loop: the next waypoint of the tour after the last one set out for."""
         if self.a.crawl_loop:
-            return self.next_in_tour(pos)
+            return self.next_in_tour(pos, blocked)
         now = time.monotonic()
         start = self.floor.nearest(pos)
-        dist = self.floor.bfs(start) if start is not None else {}
+        dist = self.floor.bfs(start, blocked=blocked) if start is not None else {}
         rates = {k: self.model.rates(k)["gold_min"] for k in range(1, self.unlocked + 1)}
         best_rate = max(rates.values()) or 1.0
         here = self.cell_of.get(start)
@@ -839,13 +842,13 @@ class Crawl:
                 best, best_score = i, score
         return best
 
-    def next_in_tour(self, pos):
+    def next_in_tour(self, pos, blocked=frozenset()):
         """--crawl-loop: on round the tour from our place in it, past areas cleared within
         RESPAWN_S, near an avoided creature, unreachable, or where we stand (a human clearing
         one pack after another, roughly in a loop: user 2026-10-13)."""
         now = time.monotonic()
         start = self.floor.nearest(pos)
-        dist = self.floor.bfs(start) if start is not None else {}
+        dist = self.floor.bfs(start, blocked=blocked) if start is not None else {}
         n = len(self.order)
         for k in range(1, n + 1):
             j = (self.tour_at + k) % n
@@ -856,6 +859,24 @@ class Crawl:
             self.tour_at = j
             return i
         return None
+
+    def shot_tiles(self, st) -> tuple[frozenset, list]:
+        """(the floor tiles an awake corpse purger or blightmare in view shoots: tamer.Team.shot_at, their kinds). The
+        patrol chooses only waypoints it reaches without stepping on one (user 2026-10-21: "stay out of their aggro
+        range"; live 2026-10-24 19:01:21-19:02:07 a purger on another player's pets in the corridor south of Logan,
+        nine rounds of a patrol into its shot and the cover back out)."""
+        team = getattr(self.h, "team", None)
+        if team is None:
+            return frozenset(), []
+        v = team.view(st)
+        shy = team.shy_awake(v)
+        out = set()
+        for m in shy:
+            r = tamer.CASTER_R if m["caster"] else tamer.RANGED_R
+            cx, cy = m["pos"][:2]
+            out.update(t for t in ((x, y) for x in range(cx - r, cx + r + 1) for y in range(cy - r, cy + r + 1))
+                       if t in self.floor.adj and team.shot_at(v, [m], t))
+        return frozenset(out), sorted({m["kind"] for m in shy})
 
     def idle(self, st):
         """Nothing to fight or loot: hold at the waypoint (a glance, or while targets keep
@@ -902,17 +923,31 @@ class Crawl:
             self.wp, self.arrived_t = None, None
         if self.wp is None:
             self.update_zones()
+            shot, kinds = self.shot_tiles(st)
             found = None if self.a.crawl_loop else self.seek(st, pos)
+            if found is not None and shot:
+                start = self.floor.nearest(pos)
+                if start is None or self.wps[found[0]] not in self.floor.bfs(start, blocked=shot):
+                    found = None                         # its waypoint only through the shot
             if found is not None:
                 self.wp, self.seek_for = found[0], found[3]
                 log(f"crawl: {found[1]} 0x{found[3]:08X} in view at {found[2]} tiles: patrolling toward it "
                     f"({self.wps[found[0]]})")
             else:
                 self.seek_for = None
-                self.wp = self.choose(pos)
+                self.wp = self.choose(pos, shot)
+            if self.wp is None and shot and self.choose(pos) is not None:
+                # every way on runs through an awake purger's or blightmare's shot: out of it until it ends
+                if self.shot_held != kinds:
+                    log(f"crawl: every way on runs through the awake {', '.join(kinds)}'s shot; waiting out of it")
+                self.shot_held = kinds
+                h.doing("wait", f"Waiting out of the {', '.join(kinds)}'s shot", tuple(pos[:2]))
+                time.sleep(0.4)
+                return
+            self.shot_held = None
             if self.wp is None:
                 self.depleted.clear()                    # nothing left: rest periods end early
-                self.wp = self.choose(pos)
+                self.wp = self.choose(pos, shot)
             if self.wp is None:
                 h.doing("wait", "Nothing to patrol to; waiting", tuple(pos[:2]))
                 time.sleep(0.4)
@@ -953,9 +988,11 @@ class Crawl:
                     log(f"crawl: more than the pull budget would see us together near {here}; patrolling elsewhere")
                 elif why.endswith("would see us"):
                     # the way to it goes nearer a --never-aggro monster in sight (Team.pull_check): another waypoint
-                    # (live 2026-10-17 21:12-21:16 the patrol to the same one stopped thousands of times)
-                    self.depleted[self.wp] = now + RESPAWN_S
-                    log(f"crawl: the way to {w} goes nearer {why[2:-len(' would see us')]}; patrolling elsewhere")
+                    # (live 2026-10-17 21:12-21:16 the patrol to the same one stopped thousands of times); past an awake
+                    # purger's or blightmare's shot only while it fights there (live 2026-10-24 19:01:21-19:02:07)
+                    self.depleted[self.wp] = now + (AWAKE_SHY_REST_S if why.startswith("an awake ") else RESPAWN_S)
+                    log(f"crawl: the way to {w} goes nearer {why.split(' ', 1)[1][:-len(' would see us')]}; "
+                        f"patrolling elsewhere")
                     self.wp = None
         except Abort as e:
             if "no route" not in str(e) and "cut by mobiles" not in str(e):

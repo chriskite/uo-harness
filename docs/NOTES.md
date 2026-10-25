@@ -4961,6 +4961,32 @@ Visit 4's walk back in. Capture session_20261024_102346 and the task log:
   5,560 and 5,566 kills, 112.5k and 113.7k gp banked an hour, over 52.8 and 52.5 hunting hours. No change beyond the
   noise.
 
+## Cover loops at a purger or blightmare on someone else (live 2026-10-24 19:00:30-19:02:55, hunt-20261024-185409-49f0)
+
+User: "Logan keeps getting stuck in a loop 'Out of the <mob>'s shot' when a purger or blightmare is fighting someone
+else". Task log, and capture session_20261024_102346:
+- 19:01:21-19:02:07, nine rounds in 46 s. Gix of Phyrexia's boreal faerie wyrm and colossal blade fought a corpse
+  purger at (5267, 653) in the corridor (its hits 73 -> 56 %). Logan was in the pocket north of it at (5267, 648). Every
+  "patrol to (5243, 716)" (84 steps, south past it) went to (5264, 653), 3 from it, then "stopped (GraveRobber is
+  fighting)". GraveRobber, guarding (war mode, flags 64 all through), stood at (5264, 652), 2 from Gix's wyrm and blade
+  at (5266, 653) and 3 from the purger, his hits at 100. Then
+  "cover: the corpse purger shoots us here; to (5267, 648)", and the patrol again. Twice between rounds: "a corpse
+  purger … is fighting a boreal faerie wyrm out of our sight: walking to see it", one step, cover.
+- 19:02:36-55, five rounds: "toward a target" at tormented souls past an awake blightmare at (5245, 687), into its
+  shot, then cover back to (5246, 675).
+- Why: an awake shy monster's reach was only a soft danger zone (`Mover.danger_cost`), and the corridor had no way
+  round, so the route crossed it. Guarding pets keep war mode on between fights, so `pets_busy` read a pet within 2 of
+  another player's fight as fighting. Nothing stopped an advance at the edge of its shot.
+- Fixed (docs/HUNT_LOOP.md "An awake one on someone else"): the patrol chooses only waypoints it reaches without
+  stepping into such a shot, and waits out of it when there are none. An advance stops at the shot's edge (waypoint rest
+  60 s, target passed over). No walk to see one on someone else. `pets_busy` skips a monster another player's side
+  fights unless a pet of ours swings at it. test_sim `test_patrol_off_awake_purger_shot` (before: 8 half-seconds in its
+  shot walking past, and "GraveRobber is fighting" beside it; after: 1, waiting out of it, not fighting).
+- **Simulator, before and after** (120 runs of 60 min, seeds 101 and 201, `--others --eerie --prior
+  harness/data/harness.db`; before = 4ea4fbe): covers 3,247 and 2,785; deaths 26 in 103.8 h and 27 in 98.7 h, 11 and
+  8 of them with a purger or blightmare in the last 15 s; pet deaths 44 and 45; 110.8k and 113.7k gp banked an hour.
+  The waits out of a shot: 77 in seed 101's after batch, median 5 s, longest 32 s.
+
 ## Red players met live (31 Logan captures 2026-10-13..22, measured 2026-10-22/23)
 
 For the simulator's reds (docs/SIM.md "Red players"). `harness/sim/red_scan.py` replays every capture (`replay.timed_packets`

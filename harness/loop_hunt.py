@@ -607,8 +607,11 @@ class HuntLoop:
 
     def pets_busy(self, st) -> str | None:
         """A live pet fighting: a monster on a pet (Team.pet_attackers: in war mode beside a pet hurt lately),
-        or a pet in war mode within PET_BUSY_R of a monster in war mode. Not one on a ledge or floor the pets can't
-        reach (on_our_floor): live 2026-10-19 19:34-19:35 an insane reanimator at z 30 hit GraveRobber at z 5 below it."""
+        or a pet in war mode within PET_BUSY_R of a monster in war mode, not one on another player or his pets
+        (Team.elsewhere) that no pet of ours swings at: live 2026-10-24 19:01:21-19:02:07 "GraveRobber is fighting"
+        stopped the patrol beside a purger on Gix's boreal faerie wyrm, nine times; guarding pets keep war mode on.
+        Not one on a ledge or floor the pets can't reach (on_our_floor): live 2026-10-19 19:34-19:35 an insane
+        reanimator at z 30 hit GraveRobber at z 5 below it."""
         if self.team is None:
             return None
         world = st["world"]
@@ -618,10 +621,15 @@ class HuntLoop:
             return m is not None and m.get("x") is not None and self.on_our_floor(st, s, m)
         if any(reach(s) for s in self.team.pet_attackers(st)):
             return "the pets are fighting"
+        now = time.time()
+        ours = {serial_of(sw["defender"]) for a, sw in (world.get("swings") or {}).items()
+                if serial_of(a) in self.team.roster and sw.get("defender") is not None
+                and now - (sw.get("t") or 0) <= SWING_RECENT_S}
         foes = [(m["x"], m["y"]) for k, m in world["mobiles"].items()
                 if m.get("x") is not None and not m.get("pet") and serial_of(k) not in self.team.roster
                 and serial_of(k) not in self.dead and (m.get("flags") or 0) & threats.FLAG_WARMODE
-                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY and reach(serial_of(k))]
+                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY and reach(serial_of(k))
+                and (serial_of(k) in ours or self.team.elsewhere(st, m) is None)]
         for p in self.team.pets(st):
             if not p["dead"] and p["war"] and any(cheb((p["x"], p["y"]), f) <= PET_BUSY_R for f in foes):
                 return f"{p['name']} is fighting"

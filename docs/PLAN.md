@@ -2253,6 +2253,21 @@ left on the first level"). Three "All Follow Me" from 17 tiles never reached him
   25 captures (in reach up to 13, out from 15). The simulator's pets used to hear every command at any distance, which
   hid the failure.
 
+## An awake purger's shot is a wall for the patrol (2026-10-24)
+
+User: "Logan keeps getting stuck in a loop 'Out of the <mob>'s shot' when a purger or blightmare is fighting someone
+else" (docs/NOTES.md "Cover loops at a purger or blightmare on someone else"). Decisions:
+- **Wait out of the shot rather than pass through it.** That is the user's rule of 2026-10-21 ("stay out of their aggro
+  range"). The patrol picks only waypoints reachable without stepping into an awake purger's or blightmare's shot, and
+  holds when there are none. Rejected: walking past at a distance. The loop's purger was on Gix's pets, but the shot
+  reaches whoever it sees, and the disease stacks. In the simulator the holds were short (median 5 s, at most 32 s).
+- **The waypoint filter is a BFS on the crawl floor with the shot tiles blocked**, not a hard zone in the Mover. A
+  hard zone would turn every waypoint beyond it into "no route" and rest it for `RESPAWN_S` (10 min) long after the
+  monster is dead. Advances still stop at the shot's edge (`Team.pull_check`), so a waypoint chosen before it woke
+  rests only 60 s.
+- **A pet's war mode beside another player's fight isn't a fight of ours** (`pets_busy` via `Team.elsewhere`). A pet
+  of ours swinging at it, or hurt beside it (`pet_attackers`), still is.
+
 ## Red players in the simulator (user 2026-10-22; built 2026-10-23)
 
 User: red players as an option in the combat simulator, as close as we can get to the live reds, to model gold banked

@@ -656,6 +656,22 @@ Discordance in the demo). A walk to a hurt pet stops on a step into an idle shy 
 Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel); from
 a shy one a step out of its reach counts too (13 tiles from a blightmare), though it still sees us there.
 
+**An awake one on someone else** (since 2026-10-24; user: "Logan keeps getting stuck in a loop 'Out of the <mob>'s
+shot' when a purger or blightmare is fighting someone else"; live 19:01:21-19:02:07 nine rounds at a purger on Gix's
+pets in the corridor, 19:02:36-55 five at a blightmare): its soft danger zone let routes cross its shot where the
+corridor gave no way round, the cover walked out and the patrol walked back in. Now:
+- **The patrol picks only waypoints it reaches without stepping into an awake shy monster's shot** (`Crawl.shot_tiles`,
+  the floor BFS with them blocked; seek's monster in view too). None left but through it: "crawl: every way on runs
+  through the awake corpse purger's shot; waiting out of it", until it dies, leaves or calms.
+- **An advance stops on a step into such a shot** (`Team.pull_check`: "an awake corpse purger would see us"): the
+  patrol rests that waypoint for 60 s (`crawl.AWAKE_SHY_REST_S`) and goes elsewhere; an approach passes its target over.
+- **No walk or step to see one on another player out of our sight**: a tile that sees it is in its shot. It is
+  passed over for 60 s ("… fighting Gix of Phyrexia out of our sight, and a tile that sees it is in its shot").
+- **A pet beside a monster on someone else isn't fighting** (`HuntLoop.pets_busy`): guarding pets keep war mode on,
+  so war mode beside it counts only when no other player or pet of theirs is at it (`Team.elsewhere`) or a pet of ours
+  swings at it; live "GraveRobber is fighting" stopped every patrol within 2 of Gix's fight. test_sim
+  `test_patrol_off_awake_purger_shot`.
+
 **Out of a shy monster's shot first** (`Team.cover`, since 2026-10-22; user 2026-10-21: "All you really have to do for
 disease casters like corpse purgers and blightmares is stay out of their aggro range and patrol the pets into them. If
 the pets are busy fighting something else just stay out of their aggro range or keep the pets between us and the

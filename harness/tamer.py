@@ -998,9 +998,12 @@ class Team:
 
     def pull_check(self, st) -> str | None:
         """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, a --never-aggro
-        monster or an idle corpse purger or blightmare (aggro.SHY) that would see us before a pet (back_off steps out), or
-        hold_reason. Its "at once" (more than the budget idle in sight together) only on a step that adds to
-        what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
+        monster or an idle corpse purger or blightmare (aggro.SHY) that would see us before a pet (back_off steps out),
+        an awake one whose shot reaches this tile ("an awake … would see us"; cover steps out: live 2026-10-24
+        19:01:21-19:02:07 a purger on another player's pets in the corridor, the patrol walked into its shot nine
+        times and cover walked out again; 19:02:36-55 the approach to a tormented soul behind a blightmare, five
+        times), or hold_reason. Its "at once" (more than the budget idle in sight together) only on a step that adds
+        to what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
         budget = self.a.pull_budget
         v = self.view(st)
         why = v.overpull(budget) if budget > 0 else (f"a {v.never_near(v.pos)[0]['kind']} would see us"
@@ -1008,6 +1011,9 @@ class Team:
         shy = self.shy_first(v, v.pos)
         if not why and shy:
             why = f"a {shy[0]['kind']} would see us"
+        awake = [m for m in self.shy_awake(v) if self.shot_at(v, [m], v.pos)]
+        if not why and awake:
+            why = f"an awake {awake[0]['kind']} would see us"
         w = sum(m["weight"] for m in v.wakes(v.pos))
         now = time.monotonic()
         if why and "at once" in why and w <= self.at_once_w + 1e-6:
@@ -1020,7 +1026,7 @@ class Team:
         elif why and "at once" in why:
             self.at_once_at = [(p, t) for p, t in self.at_once_at if now - t < AT_ONCE_S] + [(v.pos[:2], now)]
         self.at_once_w = w
-        seers = v.never_near(v.pos) + shy if why and why.endswith("would see us") else []
+        seers = v.never_near(v.pos) + shy + awake if why and why.endswith("would see us") else []
         if seers:
             # a --never-aggro monster in sight (or a purger before the pets): stop only on a step that brings a new one
             # into sight or goes nearer; walking out of its sight goes on (live 2026-10-17 21:12-21:16: 3225 "stopped (a
@@ -2024,6 +2030,14 @@ class Team:
                     self.all_kill(serial)
                     return
             elif cheb(h.pos(st), (mob["x"], mob["y"])) <= BARD_RANGE:
+                if aggro.shy(type_key(mob.get("name"))):
+                    # a purger or blightmare: any tile that sees it is in its shot (live 2026-10-24 19:01:55, the walk to
+                    # see one on another player's pets, then cover back out; once a minute as its skip ran out)
+                    log(f"passing over {name} 0x{serial:08X}: fighting {who} out of our sight, and a tile that sees it "
+                        f"is in its shot; skipping it for {SKIP_S:.0f} s")
+                    h.skip[serial] = now + SKIP_S
+                    h.disengage("dropped")
+                    return
                 if self.bard_step(st, serial):        # in range, out of our sight: a step that sees it
                     return
                 if not engaged and self.walk_to_see(st, serial, mob, who):

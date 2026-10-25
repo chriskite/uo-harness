@@ -1329,6 +1329,61 @@ def test_patrol_off_passed_over_area_hitter():
           f"half-seconds in reach {inside}, stand-offs {standoffs}")
 
 
+def test_patrol_off_awake_purger_shot():
+    print("== an awake corpse purger on another player's pets in the corridor: the patrol doesn't walk into its shot; "
+          "no patrol/cover ping-pong ==")
+    # live 2026-10-24 19:01:21-19:02:07 (hunt-20261024-185409-49f0): Gix's boreal faerie wyrm and colossal blade on a
+    # purger at (5267, 653); "patrol to (5243, 716)" south past it stopped in its shot ("GraveRobber is fighting"),
+    # "cover: the corpse purger shoots us here; to (5267, 648)", the patrol again: nine rounds in 46 s
+    import crawl
+    import threats
+    w = world_with([{"key": "corpse purger", "at": [5267, 653, 0]}], seed=7, start=(5267, 648), others=True)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    other = w.add_other(5266, 654, w.stand_z(5266, 654, w.player.z), name="Gix of Phyrexia", stay=1e6, dps=1.0)
+    m.target, m.threat, other.target = other.serial, {other.serial: 1e9}, m.serial
+    w._warm(m, True)
+    loop, clock, store, patched = hurt_loop(w, 100)
+    shots, world_tick, last = [], None, [-1.0]
+
+    def sample(now):
+        world_tick(now)
+        if now - last[0] >= 0.5:                          # every half-second, mid-walk too
+            last[0] = now
+            v = loop.team.view(loop.link.state())
+            shots.append(bool(loop.team.shot_at(v, loop.team.shy_awake(v), v.pos)))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            c.unlocked = 99
+            clock.advance(1.0)
+            # guarding pets keep war mode on between fights live (f64 on GraveRobber all through 19:01:18-50); the
+            # simulator drops it without a target, so the state is set as live: beside the purger, in war mode
+            st = loop.state()
+            gbm = st["world"]["mobiles"][f"0x{next(p for p in w.pets() if p.name == 'GraveRobber').serial:08X}"]
+            gbm["x"], gbm["y"] = 5267, 652
+            gbm["flags"] = (gbm.get("flags") or 0) | threats.FLAG_WARMODE
+            busy = loop.pets_busy(st)
+            # the waypoint chosen before it woke: the patrol's first step into its shot stops it
+            c.wp = min(range(len(c.wps)), key=lambda i: sim_cheb(c.wps[i], (5243, 716)))
+            world_tick = clock.on_advance
+            clock.on_advance = sample
+            for _ in range(160):                          # 80 s: past its 60 s skip too
+                clock.advance(0.5)
+                loop.tick()
+            clock.on_advance = world_tick
+            shot = sum(shots)
+            covers = out.getvalue().count("cover: the corpse purger shoots us here")
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("80 s: at most one cover, a half-second or two in its shot, waiting out of it (every way on passes it)",
+          covers <= 1 and shot <= 4 and "shot; waiting out of it" in out.getvalue(),
+          f"covers {covers}, half-seconds in its shot {shot}")
+    check("...a guarding pet beside it isn't 'fighting' it (it is on Gix's)", busy is None, str(busy))
+
+
 def test_others_corpse_not_looted():
     print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
     # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
@@ -3709,7 +3764,7 @@ def main():
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once,
-              test_patrol_off_passed_over_area_hitter,
+              test_patrol_off_passed_over_area_hitter, test_patrol_off_awake_purger_shot,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
