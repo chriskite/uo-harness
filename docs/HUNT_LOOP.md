@@ -662,12 +662,16 @@ fighting someone else"; live 19:01:21-19:02:07 nine rounds at a purger on Gix's 
 at a blightmare). One in war mode with another player or his pets beside it (`Team.elsewhere`), and neither on us nor
 on a pet of ours (`attackers`, `pet_attackers`), isn't a shot to keep out of (`Team.shy_threats`): no cover from it,
 no stop at its shot's edge, the patrol goes on past (its reach still bends routes: a soft crawl danger zone). In
-reach and in sight it gets "All Kill" as any monster on someone else does. Every other awake one:
+reach and in sight it gets "All Kill" as any monster on someone else does. Every other awake one is fought by the
+pets (on us: "All Kill" at once, below; on a pet: the guard; an idle one: "All Patrol" at it, `Team.patrol_pull`);
+these rules only keep Logan's own tile and walks out of its shot while they do:
 - **The patrol picks only waypoints it reaches without stepping into its shot** (`Crawl.shot_tiles`, the floor BFS
   with them blocked; seek's monster in view too). None left but through it: "crawl: every way on runs through the
-  awake corpse purger's shot; waiting out of it", until it dies, leaves or calms.
+  awake corpse purger's shot; waiting out of it", until the pets kill it, it leaves or calms.
 - **An advance stops on a step into its shot** (`Team.pull_check`: "an awake corpse purger would see us"): the patrol
-  rests that waypoint for 60 s (`crawl.AWAKE_SHY_REST_S`) and goes elsewhere; an approach passes its target over.
+  rests that waypoint for 60 s (`crawl.AWAKE_SHY_REST_S`) and goes elsewhere; an approach to another target passes
+  that target over. Simulator check 2026-10-24: an awake purger on a pet is killed in 14.5 s, the same as before
+  these rules.
 
 **A pet beside a monster on someone else isn't fighting** (`HuntLoop.pets_busy`): guarding pets keep war mode on, so war
 mode beside it counts only when no other player or pet of theirs is at it (`Team.elsewhere`) or a pet of ours swings
