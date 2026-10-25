@@ -17,12 +17,16 @@ const defaults: SimRunOptions = {
   trace: true,
   sets: [],
   runner_args: "",
+  team: "",
+  bestiary: "",
 };
 const limits: SimRunLimits = { seed: [0, 1000000], runs: [1, 288], minutes: [0.5, 240], careers: [0, 64] };
 
 describe("runRequest", () => {
   test("the defaults round-trip", () => {
     expect(runRequest(runFormFrom(defaults), limits, true)).toEqual({ ok: true, value: { kind: "run", options: defaults } });
+    const picked = { ...defaults, team: "nightmare_fire", bestiary: "none" };
+    expect(runRequest(runFormFrom(picked), limits, true)).toEqual({ ok: true, value: { kind: "run", options: picked } });
   });
   test("numbers are clamped to the limits; integers rounded, minutes not", () => {
     const r = runRequest({ ...runFormFrom(defaults), seed: "-4", runs: "999", minutes: "0.75", careers: "2.6" }, limits, true);

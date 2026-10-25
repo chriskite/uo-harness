@@ -38,6 +38,9 @@ python harness/sim/run.py --log run.log --seed 7                       # one run
 python harness/sim/run.py --seed 5 --at-hunt --trace [DIR]             # ... and its trace for the viz Sim page ("Traces")
 python harness/sim/run.py --runs 24 --armor 86                          # Logan in another suit's AR ("Player armor")
 python harness/sim/run.py --runs 24 --aspect-tier 10                    # ... or his Command tier: its AR and the pets' resistance
+python harness/sim/run.py --runs 24 --team nightmare_fire                 # another of Logan's teams ("Pets, teams and perks")
+python harness/sim/run.py --runs 24 --team "GirthyEarthy, a tidal mantis" --bestiary none   # pets by name, no bestiary perks
+python harness/sim/tamer_scan.py                                         # his codex, bestiary loadouts and pets' Guide values
 # or from the viz: Sim page, `run…` (run.py or a fight script with its options; docs/VISUALIZER.md §2.20)
 python harness/sim/cast_scan.py [--since 20261010] && python harness/sim/cast_scan.py --summary   # cast/flight times
 python harness/test_sim.py                                             # the tests (~50 s)
@@ -120,7 +123,9 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/link.py` | `SimLink`: `act`/`send` (walks get their sequence number, as the proxy stamps them), `state`/`movement` (the server's position as movement truth, the client model's snapshot, events), `wait`/`pos`/`open_containers` from `agent_link.Link`. A state read costs 20 ms of game time, a packet 2 ms. |
 | `sim/world.py` | The server (module docstring): walking by `pathfind.Walk.can_walk` on the install's map (z from the map), line of sight by `los.Sight`, monster and pet AI, other players (`--others`), bard skills, vet supplies, potions, Stationary Penalty, corpses and loot, the rune tome (escape.py's gump layout), our death. |
 | `sim/packets.py` | The S2C packets in the Outlands V10/V12 shapes the world model reads. |
-| `sim/scenario.py` | Loads `harness/data/sim/<name>.json` (its `inherit` takes the named blocks of another scenario: Tidal Tomb has Logan's pets, pack, bard, vet, potions and the engine defaults from the Mausoleum's) and builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence); `fit_bard` re-derives the barding skill. |
+| `sim/scenario.py` | Loads `harness/data/sim/<name>.json` (its `inherit` takes the named blocks of another scenario: Tidal Tomb has Logan's tamer block, pack, bard, vet, potions and the engine defaults from the Mausoleum's), builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence) and Logan's pets last (`sim/pets.select`); `fit_bard` re-derives the barding skill. |
+| `sim/pets.py` | Logan's pets ("Pets, teams and perks"): the Guide's stats at each pet's level, its abilities, the Taming Bestiary's perks and the Healer's Codex; the team and loadout `run.py --team / --bestiary` pick; how a pet takes the monsters' numbers measured on a reference pet. |
+| `sim/tamer_scan.py` | Reads the Healer's Codex, the Taming Bestiary loadouts and the pets' Guide values from the memory store's gumps into `data/sim/tamer/logan_wolf_observed.json`. |
 | `sim/calibrate.py` | The capture extractor that writes `<name>_observed.json` for the region and captures of the scenario's `calibration` block (`--scenario`; its rules are in the file's `rules`). Red players are no creature type. |
 | `sim/kb_scan.py` | A dungeon's wiki stats from the memory store's wiki rows (Creatures List rows at a location, the tameables' follower abilities, chosen patch notes): `tidal_tomb_kb.json`. |
 | `sim/run.py` | Runs, pool, careers (their clock and `--prior` memory), aggregate, comparison with the first trip. |
@@ -134,10 +139,11 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/red_scan.py`, `sim/entry_scan.py` | Every red-player encounter in the live captures, and where players appear and leave on Maus 3 (the evidence of "Red players", docs/NOTES.md "Red players met live"). |
 | `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py`, `sim/fight2330.py`, `sim/fight0038.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. `fight2330` also sets the runner's state as live (the pets on a dropped 'All Kill', following, taken for guarding) and places another player's party on a reanimated daemon. `fight0038` gives its two casters the capture's cadence and `ranged.area_r` (a spell landing on every one of our side within `area_r` of its victim and in the caster's range, sight or not: the live 00:38:37.7-44.7 lightnings and fireballs on Logan and all three pets at once); no scenario type has `area_r`. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
-| `data/sim/mausoleum.json` | The scenario: player, pets, pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
+| `data/sim/mausoleum.json` | The scenario: player, his tamer block (`tamer`: character and team; the pets in `data/sim/tamer/`), pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
 | `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the observations of captures 20261024_102346 and 20261024_225113, three levels (calibrate). |
+| `data/sim/tamer/logan_wolf.json`, `_observed.json` | Logan the tamer: skills, species, the 8 pets, 5 team presets, the live anchors, the perk tables (hand-authored, each block with its evidence); the scan's codex, loadouts and Guide values (generated, committed). |
 
 ## Calibration (2026-10-13)
 
@@ -1472,22 +1478,25 @@ On the types whose numbers on him are plain melee (no area or spell hits; 164 hi
   x (1 − U(AR/300, AR/150)), capped at all of it.
   - Transfixed copies have their own `melee_player` [44, 64]: Logan's 32 hits from copies, corrected and divided
     by (1 − AR/200).
-  - Pets keep the gravebug-referenced `melee`.
+  - Pets keep the reference pet's `melee` ("Pets, teams and perks").
 - **Unchanged:**
   - spells (`damage_to_player_x` 1.6);
   - feed ticks (`feed_to_player_x` 1.2, the old multiplier);
   - the specials' measured `damage_player`;
   - bleed, poison, disease, oxygen;
   - reds' hits, which are numbers measured live at AR 130/133.
-- **Pets and the tier.** Every hit on a pet takes `pet_taken_x` = (1 − follower resistance at the run's tier) /
-  (1 − at `pets_tier` 14), which is 1.0 at the scenario's own tier. The tier's effect on the pets is under the noise
-  in the data: the GraveRobber's corrected hits over the wiki mid held 0.40-0.58 by day, 10-12 to 10-24.
+- **Pets and the tier.** Since 2026-10-25 the Command tier sets each pet's follower damage (5 % + 1.5 % a tier) and
+  resistance in its build (`sim/pets.build_pet`), and a monster's numbers stand for the reference pet at `pets_tier` 14
+  (`sim/pets.taken_factor`). Before, every hit on a pet took `pet_taken_x` = (1 − follower resistance at the run's
+  tier) / (1 − at `pets_tier` 14). The tier's effect is under the noise in the data: the GraveRobber's corrected
+  hits over the wiki mid held 0.40-0.58 by day, 10-12 to 10-24.
 - **Run-time changes.** None are modelled; the World has no resurrection, so a run keeps one AR. Live:
   - 88 after a death until the aspect is activated again;
   - the +15 buff;
   - the ruby smallshell's pierce (its size is unmeasured; the status never showed it).
 - **Tests** (`test_sim.test_armor`): the 88/130/133/148 suits; hit bounds at AR 0 and 133; the AR 133 / AR 86
-  ratio of mean hits; pets untouched by Logan's AR; the tier's AR and pet share; `--armor` precedence.
+  ratio of mean hits; pets untouched by Logan's AR; the tier's AR and the pets' resistance (6 % less at tier 10);
+  `--armor` precedence.
 
 **Effect on the batches** (2026-10-24):
 
@@ -1509,6 +1518,117 @@ On the types whose numbers on him are plain melee (no area or spell hits; 164 hi
 
 **Open:** `hurt()` floors a hit at 1. Above AR 150 a hit can be fully absorbed, and whether the live server then shows
 0, 1 or nothing is unseen.
+
+## Pets, teams and perks (2026-10-25)
+
+The user (2026-10-25): every pet Logan uses replicated with its stats, attacks, abilities and bestiary perks as they
+work live; a choice of team and Taming Bestiary loadout for a batch, in `run.py` and on the viz Sim page; the Healer's
+Codex as live, configured as his. Before, the scenario held two hand-calibrated specs (GraveRobber, AlaFlambe) and the
+codex was only `vet.range` from the runner's `--vet-range`. The approach (the user's pick, "mechanics + live
+anchor"): the Guide's stats and the wiki's and gumps' formulas for every stat, ability and perk, with each pet's
+absolute numbers pinned to live captures where there are any.
+
+**Where the numbers come from.**
+
+- `sim/tamer_scan.py` reads three gumps from the memory store (docs/NOTES.md "The Healer's Codex, the Taming Bestiary
+  and the Guide"): the codex now is Overheal, Triage, Specialist and Without Borders at tier 3, the rest 0 (since
+  2026-10-17 22:06:15); the loadouts Phoenix/Gravebug (Attack, Tank; its Utility tab never viewed), Random (all
+  three tabs) and Nightmare/Fire (Attack; Tank and Utility empty); Manticore/Zoon only part-viewed (`decoded: false`);
+  each pet's Guide values (base, not levelled). Rerun it after Logan views a gump in game: the data fills in with
+  no code change.
+- `data/sim/tamer/logan_wolf.json`: his skills (Taming, Lore, Veterinary, Herding 120; the Mastery Chain's +16 %
+  follower damage), the 7 species (class, slots, min taming, attack kind, abilities), the 8 pets, the 5 team presets,
+  the perk tables (each perk's numbers per rank and its rule; the gumps' texts), the class threat (`tank` 4.0,
+  `attack`/`utility` 0.1: the fitted gravebug and phoenix), and the anchors.
+
+**A pet's build** (`pets.build_pet`, at the run's Command tier):
+
+| What | Rule |
+|---|---|
+| Level | hits x (1 + 10 % a level to 10, + 5 % past it); damage x (1 + 5 % / 2.5 %); speed + 2.5 % / 1.25 %; armor + 2.5 / 1; magic resist + 5 / 2 (wiki, patch #4658) |
+| Damage | x (1 + Command 5 % + 1.5 % a tier + Mastery 16 % + Veterinary 12 % + underdog 40 % x (120 − min taming) / 70 + Zoology + speed past the 50 % cap) |
+| Resistance | Command 5 % + 1.5 % a tier + underdog 20 % x the same + Zoology; with the perks and the codex at most 75 % (#4653) |
+| Attack period | the Guide's attack speed / (1 + level + Command speed, at most 0.5) x `k_speed` (the pet's live period over that at tier 14: 0.80-0.85) |
+| Damage factor | `k_dmg` 1.559, one for every pet: the gravebug's live median melee number (91, n=198, Tidal Tomb levels 1-2) over the model's on that armor (49.4). AlaFlambe has its own (`anchors.damage_override`, below) |
+
+Hits at the Guide levels, against the live hit bars: GraveRobber 542 (its Devour's +18-22 x3 fit 461-542 hits), AlaFlambe
+742, NightmareA 499, NightmareB 502 (bar ~480), a searing imp 341 (331-343), fireminion 367 (352-363), GirthyEarthy 986
+(~1000), a tidal mantis 652.
+
+**Its numbers on a monster** (`pets.melee_numbers` / `spell_numbers` / `ability_numbers`): uniform in the damage x (1 +
+the perks' damage bonus) x Lethality x the monster's mitigation, physical by its wiki armor (#11677, Breaker's at most
+75 off, #11669), spells by its magic resist (U(12.5 %, 37.5 %) x MR / 100, patch #5221; Breaker's at most 150 off,
+#4223); Spellburn and Epic Barrage take half the resist; an ignore effect against nothing gives +15 % (#11687).
+Abilities: Spellburn (an extra number, damage max x (1 + bonus + Immolate)), Spellsurge (the next cast x 2.25), Epic
+Barrage (3 spells of damage max x 0.6 every 15 s), Disease (damage max x 0.5 every 5 s for 20 s), Devour (10 % of
+max hits in 3 ticks every 15 s, live cadence), Earth Breath, Earth Shield, Bleed, Soak (its target's damage cut 3 %
+a slot). The perks' conditions as the World sees them (`World._pet_ctx`: hurt within 10 s, enemies on it, its hits,
+the distance, the tamer near the target, a channel running ...); a rule's "else" for a species without the
+mechanic named. Pools add inside, multiply across [INFERENCE].
+
+**Its damage taken** (`pets.taken_factor`): the monsters' numbers stand for a reference pet, the scenario's
+`defaults.pet_ref` (GraveRobber with Phoenix/Gravebug) or an entry's own `ref` (Tidal Tomb's level 3 numbers on
+NightmareB, GirthyEarthy, a searing imp); a pet takes them x its armor's kept share over the reference's (physical:
+melee, feed, charge, transfix), its resist's (spell), neither (true: wail, ooze, burst), each x (1 − its DR) / (1 −
+the reference's); ticks: Tolerance's chance of none. The tidal sea serpent's burst is physical (`damage_type`:
+GirthyEarthy's 85-95 against the Nightmares' 106-126 follows armor). Phoenix : gravebug on the same monster, the
+reference context: melee 1.83 (live 1.7), spells 0.86 (live 0.79; the plan's bound was 0.85: the gravebug's Tank
+tab adds 6 % resistance at one attacker, Aggression, Survival, Guardians, Tolerance).
+
+**The Healer's Codex** (`World._vet_finish`): a patient's heal is the wiki's bandage (#11327: Vet / 100 x U(80, 120) x
+(1 + 0.2 x Lore / 100); the plan's 147-221 assumed 0.3) x 75 % for one patient, 50 % for more (#11331) x (1 +
+Specialist 40 % + Without Borders 10 %) x the pet's healing perks (Mending, Swarm, Menagerie): one patient 134-201
+before the perks. Overheal adds 40 % of it in 3 ticks a second apart (live: a '+4' over the gravebug 1.06 s after a
+finish, 2026-10-14 22:35:56.17). Triage: patients in the reach resist 15 % more during a channel, 30 % below 33 % hits
+(Logan too). The reach is 2 + Without Borders 3 = 5 (`sc["vet"]["range"]`; run.py gives the runner `--vet-range 5`
+unless given). A resurrection: `res_hits` 0.10 + Critical Care's 7/21/35 % (the one live res, the gravebug at 31 %,
+had Critical Care rank 2).
+
+**Choosing** (`run.py --team`, `--bestiary`; the Sim page's two selects): a preset (`phoenix_gravebug` the default,
+`nightmare_fire`, `nightmares_minion`, `earth_fire`, `mantis_earth`) or pet names comma-separated (at most 5 control
+slots); a loadout name, `none`, or a .json file of {attack, tank, utility} (run.py only). A preset brings its own
+loadout; a tab never captured gives that class no perks and a warning (`party_warnings`; Phoenix/Gravebug's Utility
+for the mantis). Summaries and `all:` carry `team` and `bestiary`; `pet_damage_dealt` per pet on the level.
+
+**The default team's batch** (98 runs, seed 17, 14 careers, `-- --vet-range 5`):
+
+| Model | kills / h | deaths / h | gold / h | damage on Logan / h | pet deaths (runs) | vet / h | on the gravebug / h | on the phoenix / h |
+|---|---|---|---|---|---|---|---|---|
+| before (hand-calibrated specs) | 130.3 | 0.28 | 130,914 | 2,467 | 4 | 190 | 14,301 | 3,633 |
+| pets.py, one `k_dmg` | 184.9 | 0.08 | 193,094 | 1,939 | 0 | 115 | 9,547 | 2,747 |
+| pets.py, AlaFlambe's own factor | 166.8 | 0.13 | 175,893 | 1,971 | 1 | 128 | 10,895 | 2,911 |
+
+- With the shared factor the phoenix came to 559 a number, 727 a cast every 1.59 s and Epic Barrage's 819 every 13.5
+  s (518 a second), against the old spec's 438 a cast every 1.8 s (243). Past the plan's 15 % limit, its own factor
+  sets its model mean per number (spells and Spellburn, Spellsurge carried, the Mausoleum's mean MR 70.7) to that
+  438 (`pets.k_override` 1.221, 0.78 of `k_dmg`). Its numbers then sit at ~255 and ~630 a Spellburn (x 1.21 under the
+  songs: the live modes 250-350 and 650-800).
+- **Open: still +28 % kills.** The pets are those of 10-24/25 (levels 14-15; the Mausoleum's calibration had them at
+  10-11), and the phoenix's casts carry 1.30 numbers plus 0.35 from the barrage where live attacks carried 1.10
+  (3,162 numbers to 2,869 animations, "Parity"): Spellburn at 15 % x Primal 3 and the barrage's 3 hits every 15 s
+  [INFERENCE: the wiki's numbers] don't fit that count. The gravebug: 106 a hit every 1.67 s (63 a second) against 97
+  every 1.91 s (48), and Disease's ticks instead of the 40-a-tick poison.
+
+**Tidal Tomb level 3** (24 runs each from home, the level's area and enter/leave arguments of "Running"; live both
+days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level:
+
+| Team | level-3 kills | pet deaths | damage on Logan | team's damage dealt | pets' damage taken |
+|---|---|---|---|---|---|
+| live | 30.7 | 30.7 | 3,180 | | |
+| `nightmare_fire` | 36.1 | 44.5 | 6,405 | 758,411 | 28,977 |
+| `earth_fire` | 41.6 | 10.1 | 4,438 | 867,532 | 25,395 |
+| `earth_fire --bestiary none` | 19.3 | 62.2 | 9,493 | 553,568 | 55,085 |
+
+The runs die 11-18 times in 24, most to the giant astral zoa on level 3 and to the level 1-2 monsters on the way.
+
+**Tests**: `test_tamer_scan_rows` (the codex and bestiary rows from verbatim gump excerpts), `test_party_validation`
+(the refusals), `test_pet_builds` (the 8 hits, the phoenix : gravebug ratios, the reach 5), `test_perk_conditions`
+(Cornered, Pelt, Aggression, Triage through `World._pet_ctx`), `test_vet_codex` (a finish's heal and its Overheal),
+`test_team_run` (`run_once(team="nightmare_fire")`).
+
+**Not modelled**: poison and special resist (recorded from the Guide; the area hits' live phoenix = gravebug
+contradicts special resist), the Command aspect's Inspiration, poison levels (Immunize), the bestiary's stealth,
+frenzy, chill, entangle/hinder, pierce/hex and multi-target mechanics (none of these species has them).
 
 ## Limits
 

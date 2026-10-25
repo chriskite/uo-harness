@@ -14,7 +14,8 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   and in sight (re-checked every THINK_S), after a wake delay, go for the nearest of us they see (a
   pet on a tie); chase by a greedy step toward the
   target with an A* fallback; melee when adjacent (swing period, hit chance, damage) or ranged/spell
-  when in range and sight, the numbers the gravebug's and Logan's and the phoenix's scaled from them
+  when in range and sight; their numbers are those measured on a reference pet (scenario `defaults.pet_ref` or the
+  entry's `ref`: each pet takes them through its own armor, resist and perks, sim/pets.taken_factor) or on Logan
   (`_taken_x`); threat decides whom they hit: damage taken from each attacker (x the
   pet's `threat_x`, a tank's draw) plus our aggressive acts (a bard skill at it, "All Kill" at it:
   user 2026-10-12, aggro then goes to the character) while no pet has hurt it yet; a leash home when
@@ -25,15 +26,16 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   vampires' feed, the daemon's bone burst, disease, poison, life drain; respawn after `respawn_s`.
 - **Pets**: follow / guard / kill / stay by our pet commands ("All Guard Me": attack what attacks us
   or the pets; "All Kill": the target, then back to following; guarding stops at a recall);
-  melee (gravebug) or ranged (phoenix); bonded: a ghost at 0 hits (0xBF sub 0x19) that follows;
-  the gravebug devours a corpse nearby to heal.
+  Logan's team (sim/pets.py: each pet's Guide stats at its level, its abilities, the Taming Bestiary's perks; run.py
+  --team / --bestiary), melee or spells; bonded: a ghost at 0 hits (0xBF sub 0x19) that follows; the gravebug
+  devours a corpse nearby to heal.
 - **Bard skills**: use -> prompt + cursor (first "What instrument shall you play?" and a cursor for one
   when the instrument last played is gone from the pack, `World.played`); the target in range and sight, else cliloc 500446/500237;
   success by the scenario's rates; discord (damage dealt down, taken up), peace (no move, no attack;
   a Barding Break chance each second, then immunity), provoke (two monsters fight); the cooldowns
   and refusal texts the live server sends.
-- **Veterinary supplies, heal potions, the Stationary Penalty, corpses and loot, the rune tome
-  recall** (home and back), and our death.
+- **Veterinary supplies** (the wiki's heal formula with the Healer's Codex, sim/pets.py), **heal potions, the
+  Stationary Penalty, corpses and loot, the rune tome
 - **Other players** (scenario `others`, off unless `enabled`; docs/SIM.md "Other players"): blue
   players (human body, flags 0x20, a player's name), some with a pet or summon, who arrive on the
   level, run between spawn areas, fight the monsters near them at a measured damage rate and leave;
@@ -52,7 +54,7 @@ from __future__ import annotations
 import math
 import random
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import combat
 import escape
@@ -64,6 +66,7 @@ import tamer
 from agent_link import HELD_END_TEXT, HELD_SILENCED_TEXT, HELD_TEXT
 from sim import packets as P
 from sim import armor
+from sim import pets as pet_rules
 from sim.reds import Reds
 from sim.scenario import player_armor
 
@@ -119,6 +122,12 @@ ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario spec
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
+# a monster's damage kind -> how a pet takes it (sim/pets.taken_factor): physical through its armor, spell through its
+# magic resist, true through neither (the area hits), tick (Tolerance, Immunize), none (oxygen)
+DTYPE = {"melee": "physical", "feed": "physical", "charge": "physical", "transfix": "physical", "spell": "spell",
+         "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "poison": "tick", "bleed": "tick",
+         "disease": "tick", "oxygen": "none", "other": "none"}
+PET_OFFSETS = ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1))   # the pets' tiles beside the player at the start, in team order
 TEXT_OXYGEN_REFILLED = "Your oxygen is refilled."   # live, a Recovery Dolphin's refill (20261024_225113 11:30:57)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
 SONGS = ("discord", "peace", "provoke")
@@ -223,7 +232,6 @@ class Mob:
     mode: str = "follow"          # pets: follow, guard, kill, stay, patrol
     kill: int | None = None
     patrol: tuple | None = None   # pets on "All Patrol": the (x, y) clicked
-    devour_t: float = 0.0
     last_hurt_t: float = -1e9
     path: list = field(default_factory=list)
     stuck: int = 0
@@ -235,6 +243,14 @@ class Mob:
     casts: list = field(default_factory=list)   # a red player's spells on their way to us: [landing time, spell]
     rs: dict = field(default_factory=dict)      # a red player's state (sim/reds.py)
     cast: list | None = None      # a ranged cast under way (monster or pet): [release time, target serial, start time]
+    hurt_by: dict = field(default_factory=dict)   # a pet: monster serial -> the last time it hurt it (sim/pets.py)
+    res_t: float = -1e9           # a pet's last resurrection (Adrenaline)
+    surge_until: float = 0.0      # a pet's Spellsurge waits for its next cast until then
+    swoop_until: float = 0.0      # a pet's Swoop: its next attack's bonus until then
+    shield_until: float = 0.0     # a pet's Earth Shield is up until then
+    dom: dict = field(default_factory=dict)       # a pet's Dominance: target serial -> [hits, time of the first]
+    cripple: float = 0.0          # a monster's damage cut by a pet's Soak ...
+    cripple_until: float = 0.0    # ... until then
 
     @property
     def pos(self):
@@ -308,6 +324,8 @@ class World:
         self.last_use_t = -1e9
         self.potion_ready = 0.0
         self.vet_end = None                   # the running vet channel's finish time
+        self.heals_due = []                   # (time, Mob, amount): Overheal's ticks, a devour's later ticks
+        self.medic_until = {}                 # serial -> the end of the codex's Combat Medic / Immunize window
         self.last_step_t = 0.0
         self.steps_taken = 0                  # our confirmed steps: a stamina point every STEP_STAM_EVERY of them
         self.stam_next = None                 # when our stamina regains its next point (STAM_REGEN_S), below max
@@ -350,11 +368,12 @@ class World:
                           hits=p["hits"], hits_max=p["hits"], noto=1, spec=p)
         self.player.stam, self.player.stam_max = p.get("stam", 25), p.get("stam", 25)
         self.player.mana, self.player.mana_max = p.get("mana", 100), p.get("mana", 100)
-        arm = player_armor(sc)
-        self.player.ar, self.pet_taken_x = arm["ar"], arm["pet_taken_x"]
+        self.player.ar = player_armor(sc)["ar"]
         self.mobs[self.player.serial] = self.player
+        self.codex = pet_rules.codex_numbers(sc["vet"]["codex"], pet_rules.load_tamer(sc["tamer"]["character"]))
         for i, pet in enumerate(sc["pets"]):
-            px, py = x + (1 if i == 0 else 0), y + (0 if i == 0 else 1)
+            dx, dy = PET_OFFSETS[i % len(PET_OFFSETS)]
+            px, py = x + dx, y + dy
             m = Mob(pet["serial"], "pet", pet["key"], pet["name"], pet["body"], px, py, self.stand_z(px, py, z),
                     hits=pet["hits"], hits_max=pet["hits"], noto=2, spec=pet, mode="follow")
             self.mobs[m.serial] = m
@@ -848,7 +867,9 @@ class World:
             d[sub] = d.get(sub, 0) + n
 
     # ------------------------------------------------------------ damage
-    def hurt(self, victim: Mob, amount: float, by: Mob | None, kind="melee", song_pets=True):
+    def hurt(self, victim: Mob, amount: float, by: Mob | None, kind="melee", song_pets=True, dtype=None, ref=None):
+        """`amount` of `kind` on `victim` from `by`. A pet takes a monster's number (measured on the reference pet
+        `ref`, default the scenario's) through its own mitigation (DTYPE, or `dtype`; sim/pets.taken_factor)."""
         if not victim.alive or victim.ghost or amount <= 0:
             return
         if by is not None and by.kind in ("player", "pet") and self.penalty:
@@ -862,14 +883,25 @@ class World:
         if victim.kind in ("player", "pet") and (by is None or by.kind == "monster") \
                 and (song_pets or victim.kind == "player") and kind not in UNPREVENTABLE:
             amount *= 1 - self.song("discord")      # also on bleeds and area hits (patch 2022-08-26)
-        if victim.kind == "pet" and kind not in UNPREVENTABLE:
-            amount *= self.pet_taken_x              # the Command aspect's follower resistance at another tier
+        if by is not None and by.kind == "monster" and by.cripple_until > self.t:
+            amount *= 1 - by.cripple                 # a pet's Soak on it
+        if victim.kind == "pet":
+            f = pet_rules.taken_factor(victim.spec, self._pet_ctx(victim, by), dtype or DTYPE.get(kind, "true"), self.rng,
+                                       self.sc["pet_ref"][pet_rules.ref_key(ref)],
+                                       by is not None and by.target == victim.serial)
+            if f <= 0:
+                return                               # Tolerance: the tick ignored
+            amount *= f
+        elif victim.kind == "player" and kind not in UNPREVENTABLE:
+            amount *= 1 - self._patient_dr(victim)   # the Healer's Codex on Logan as his own patient
         if victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
             amount *= 1 + self.song("provoke")
         n = max(1, int(round(amount)))
         victim.hits -= n
         self._ev("hurt", v=victim.serial, by=by.serial if by is not None else None, n=n, kind=kind, h=int(victim.hits))
         victim.last_hurt_t = self.t
+        if victim.kind == "pet" and by is not None and by.kind == "monster":
+            victim.hurt_by[by.serial] = self.t       # Cornered, Aggression
         if by is not None:
             victim.damage_by[by.serial] = victim.damage_by.get(by.serial, 0) + n
             if victim.kind == "monster":
@@ -885,6 +917,8 @@ class World:
         elif victim.kind == "pet" and self._on_level():
             self.count("pet_damage_taken", victim.name, n)
             self.count("pet_damage_by", by.key if by is not None else kind, n)
+        elif victim.kind == "monster" and by is not None and by.kind == "pet" and self._on_level():
+            self.count("pet_damage_dealt", by.name, n)   # its hits, Spellburn, abilities (not its disease's ticks)
         if victim.kind not in OTHERS + ("red",) and (by is None or by.kind not in OTHERS):
             self._overhead(victim, f"-{n}")      # live: no "-N" over another player's fight (20261019_095934 10:11)
         if victim.kind == "player":
@@ -919,6 +953,8 @@ class World:
             return
         if m.kind in ("player", "pet"):
             amount *= 1 + self.song("peace")
+        if m.kind == "pet":
+            amount *= pet_rules.heal_mult(m.spec)   # the bestiary's healing perks (Mending, Swarm, Menagerie)
         n = int(round(min(amount, m.hits_max - m.hits)))
         m.hits += n
         self._ev("heal", m=m.serial, n=n, h=int(m.hits))
@@ -946,6 +982,7 @@ class World:
             return
         if m.kind == "pet":
             m.hits, m.ghost, m.target, m.mode = 0, True, None, "follow"
+            m.hurt_by, m.dom, m.surge_until, m.swoop_until, m.shield_until = {}, {}, 0.0, 0.0, 0.0
             self.metrics["pet_deaths"].append({"t": round(self.t, 1), "pet": m.name})
             if m.serial in self.viewing:
                 self.send(P.hits(m.serial, 0, 100), P.pet_dead(m.serial))
@@ -1062,6 +1099,11 @@ class World:
                 self._land(dest)
         if self.vet_end and t >= self.vet_end:
             self._vet_finish()
+        if self.heals_due and any(h[0] <= t for h in self.heals_due):
+            due = [h for h in self.heals_due if h[0] <= t]
+            self.heals_due = [h for h in self.heals_due if h[0] > t]
+            for _, m, amount in due:
+                self.heal(m, amount)
         if self.rope_landing and t >= self.rope_landing[0]:
             _, to = self.rope_landing
             self.rope_landing = None
@@ -1425,7 +1467,7 @@ class World:
                 hit = self.rng.random() < spec.get("hit_chance", 0.8)
                 self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
                 if hit:
-                    self.hurt(tgt, self._melee_on(tgt, spec), m)
+                    self.hurt(tgt, self._melee_on(tgt, spec), m, ref=spec.get("melee_ref"))
                     self._specials(m, tgt, spec)
             return
         if t >= m.next_step:
@@ -1434,21 +1476,18 @@ class World:
 
     def _melee_on(self, tgt: Mob, spec: dict) -> float:
         """One monster melee hit on `tgt`. On the player: `melee_player` (the wiki melee x `player_melee_k`, uniform)
-        less his armor, a uniform share of AR/300 to AR/150 (sim/armor.py; docs/SIM.md "Player armor"). Elsewhere the
-        type's `melee` numbers (the gravebug's), x `_taken_x`."""
+        less his armor, a uniform share of AR/300 to AR/150 (sim/armor.py; docs/SIM.md "Player armor"). On a pet the
+        type's `melee` numbers, measured on the reference pet (`hurt` takes them through this pet's armor)."""
         if tgt.kind == "player":
             return self.rng.uniform(*spec["melee_player"]) * armor.taken(tgt.ar, self.rng)
-        return self.roll(spec["melee"]) * self._taken_x(tgt, "melee")
+        return self.roll(spec["melee"])
 
     def _taken_x(self, tgt: Mob, kind: str) -> float:
-        """A monster's spell, feed and (on a pet) melee numbers are the gravebug's (it takes most hits); the others
-        take more: Logan `damage_to_player_x` of a spell and `feed_to_player_x` of a feed tick, the phoenix its
-        `melee_taken_x` of a melee hit or feed tick (scenario notes). His melee: `_melee_on`."""
+        """A monster's spell and feed numbers are a pet's (the reference pet's, sim/pets.py); Logan takes
+        `damage_to_player_x` of a spell and `feed_to_player_x` of a feed tick (scenario notes). His melee: `_melee_on`."""
         if tgt.kind == "player":
             d = self.sc["defaults"]
             return d["feed_to_player_x"] if kind == "feed" else d["damage_to_player_x"]
-        if tgt.kind == "pet" and kind in ("melee", "feed"):
-            return tgt.spec.get("melee_taken_x", 1.0)
         return 1.0
 
     def _cast(self, m: Mob, tgt: Mob, ranged: dict):
@@ -1506,9 +1545,9 @@ class World:
             return
         ranged = m.spec["ranged"]
         if m.kind == "pet":
-            self.hurt(victim, self.roll(ranged["damage"]), m, "spell")
+            self._pet_spell(m, victim)
             return
-        self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell")
+        self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell", ref=ranged.get("ref"))
         self._specials(m, victim, m.spec)
         for sp in m.spec.get("specials", []):
             if sp["kind"] == "fire_mark":
@@ -1521,7 +1560,7 @@ class World:
                 if o is victim or not o.alive or o.ghost or cheb(o.pos, victim.pos) > ranged["area_r"] \
                         or cheb(o.pos, m.pos) > ranged["range"]:
                     continue
-                self.hurt(o, self.roll(ranged["damage"]) * self._taken_x(o, "spell"), m, "spell")
+                self.hurt(o, self.roll(ranged["damage"]) * self._taken_x(o, "spell"), m, "spell", ref=ranged.get("ref"))
 
     def _cancel_cast(self, m: Mob, why: str):
         """A cast under way stops (pacified, no target, hidden, transfixed, dead): nothing is let go."""
@@ -1626,7 +1665,7 @@ class World:
                     p = sp.get("near_chance", 1.0) if d <= near else sp.get("far_chance", 0.0) if d <= far else 0.0
                     if p and self.rng.random() < p:
                         dmg = sp.get("damage_player" if o.kind == "player" else "damage_pet", sp.get("damage"))
-                        self.hurt(o, self.roll(dmg), m, "wail")
+                        self.hurt(o, self.roll(dmg), m, "wail", ref=sp.get("ref"))
             elif kind == "burst":
                 if sp.get("on_blink"):
                     continue                             # the apparition's: only where its blink lands
@@ -1702,7 +1741,8 @@ class World:
         when, left, sp = m.pulse
         for o in self.team():
             if cheb(o.pos, m.pos) <= sp["radius"]:
-                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "ooze")
+                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "ooze",
+                          dtype=sp.get("damage_type"), ref=sp.get("ref"))
         m.pulse = [self._due(when, sp["burst_s"]), left - 1, sp] if left > 1 and m.serial in self.mobs else None
 
     def _emerge(self, m: Mob):
@@ -1735,7 +1775,7 @@ class World:
             hit = self.rng.sample(hit, sp["targets"])
         for o in hit:
             self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
-                      song_pets=sp.get("song_pets", True))
+                      song_pets=sp.get("song_pets", True), dtype=sp.get("damage_type"), ref=sp.get("ref"))
 
     def _dematerialize(self, m: Mob, sp: dict):
         """A banshee hurt with the ability ready: '*dematerializes*', gone for a moment, back `jump` tiles
@@ -1781,7 +1821,7 @@ class World:
             self._overhead(m, "*feeds*")
             m.feed = [t + sp.get("first_tick_s", 0.7), self.rng.randint(*sp["ticks"]), s, sp]
             return
-        self.hurt(tgt, self.roll(sp["tick"]) * self._taken_x(tgt, "feed"), m, "feed")
+        self.hurt(tgt, self.roll(sp["tick"]) * self._taken_x(tgt, "feed"), m, "feed", ref=sp.get("ref"))
         m.feed = [self._due(when, sp.get("tick_s", 0.5)), left - 1, s, sp] if left > 1 else None
 
     def _charge(self, m: Mob, tgt: Mob, sp: dict):
@@ -1801,7 +1841,7 @@ class World:
         for o in hit[:sp.get("targets", 3)]:
             if cheb(o.pos, m.pos) <= 1:
                 dmg = sp.get("damage_player", sp["damage"]) if o.kind == "player" else sp["damage"]
-                self.hurt(o, self.roll(dmg), m, "charge")
+                self.hurt(o, self.roll(dmg), m, "charge", ref=sp.get("ref"))
 
     def transfix_player(self, seconds: float):
         """The vampire countess' transfix on us (live 2026-10-17 15:27:03 and 2026-10-20 19:23:23.04, Logan): the
@@ -1851,17 +1891,19 @@ class World:
             m.target = None                      # transfixed: live, no step and no attack animation
             self._cancel_cast(m, "held")
             return
-        dv = m.spec.get("devour")
-        if dv and m.hits < m.hits_max and t >= m.devour_t:
+        dv = next((a for a in m.spec.get("abilities", []) if a["name"] == "Devour"), None)
+        if dv and m.hits < m.hits_max and t >= m.cd.get("Devour", 0.0):
             # live (3 captures): '*devours corpse*' every 15.0-15.2 s while a corpse is near, 60 of 67 times
-            # mid-fight, then '+18' three times 0.5 s apart (+21 under a Song of Peacemaking)
+            # mid-fight, then '+N' three times 0.5 s apart: its share of max hits (the Guide's Devour) x its healing perks
             c = next((s for s, it in self.items.items() if it.get("kind") == "corpse"
-                      and cheb((it["x"], it["y"]), m.pos) <= dv.get("range", 2)), None)
+                      and cheb((it["x"], it["y"]), m.pos) <= dv["range"]), None)
             if c is not None:
-                m.devour_t = t + dv.get("every_s", 15.0)
+                m.cd["Devour"] = t + pet_rules.cooldown(m.spec, dv["cooldown_s"])
                 self._overhead(m, "*devours corpse*")
-                for _ in range(dv.get("ticks", 3)):
-                    self.heal(m, dv.get("heal", 18))
+                tick = dv["heal_pct"] * m.hits_max / dv["ticks"]
+                self.heal(m, tick)
+                self.heals_due += [(t + k * dv["tick_s"], m, tick) for k in range(1, dv["ticks"])]
+                self._swoop(m)
         if t >= m.next_think:
             m.next_think = t + THINK_S
             self._pet_think(m)
@@ -1871,7 +1913,9 @@ class World:
             #                                      moved 0-1 tiles in the 1.6 s after 15 of 20 '*phases*')
         if tgt is not None and tgt.alive and not tgt.hidden_until and cheb(owner.pos, tgt.pos) <= m.spec.get("leash", 14):
             self._warm(m, True)
-            self._pet_attack(m, tgt)
+            self._pet_cooldowns(m, tgt)
+            if tgt.serial in self.mobs and tgt.alive:
+                self._pet_attack(m, tgt)
         else:
             m.target = None
             self._cancel_cast(m, "target")
@@ -1941,19 +1985,132 @@ class World:
         if d <= 1:
             if spec.get("melee") and t >= m.next_swing:
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
-                hit = self.rng.random() < spec.get("hit_chance", 0.85)
+                ctx = self._pet_ctx(m, tgt)
+                hit = self.rng.random() < pet_rules.hit_chance(spec, ctx, tgt.target == m.serial)
                 self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
                 if hit:
-                    self.hurt(tgt, self.roll(spec["melee"]), m)
-                    for sp in spec.get("specials", []):
-                        if sp["kind"] == "poison" and self.rng.random() < sp.get("chance", 0):
-                            tgt.poison_until, tgt.poison_next = t + sp.get("seconds", 12), t + 2
-                            tgt.spec = {**tgt.spec, "_poison_dmg": sp.get("damage", 4)}
-                            self._overhead(tgt, tamer.TEXT_POISONED)
+                    self._pet_melee(m, tgt, ctx)
             return
         if t >= m.next_step:
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
+
+    def _pet_ctx(self, m: Mob, tgt: Mob | None = None) -> pet_rules.HitCtx:
+        """What pet `m`'s perks see now (sim/pets.HitCtx), against `tgt` (its target, or the monster hitting it)."""
+        t, pl = self.t, self.player
+        recent = sum(1 for at in m.hurt_by.values() if t - at <= pet_rules.HURT_S)
+        dom = m.dom.get(tgt.serial) if tgt is not None else None
+        return pet_rules.HitCtx(
+            hurt_10s=recent > 0, enemies_10s=min(3, recent), hp_frac=m.hits / m.hits_max if m.hits_max else 1.0,
+            dist=cheb(m.pos, tgt.pos) if tgt is not None else 1,
+            tamer_within_2=tgt is not None and not pl.ghost and cheb(m.pos, tgt.pos) <= pet_rules.NEAR_TARGET_R
+            and cheb(pl.pos, tgt.pos) <= pet_rules.NEAR_TARGET_R,
+            target_bleeding=tgt is not None and tgt.bleed_until > t, target_poisoned=tgt is not None and tgt.poison_until > t,
+            target_diseased=tgt is not None and bool(tgt.diseases),
+            afflicted=m.bleed_until > t or m.poison_until > t or bool(m.diseases), poisoned=m.poison_until > t,
+            after_res=t - m.res_t <= pet_rules.AFTER_RES_S,
+            tanks_alive=sum(1 for p in self.pets() if p.alive and not p.ghost and p.spec.get("class") == "tank"),
+            aggroed_on_it=tgt is not None and tgt.target == m.serial,
+            channel=self.vet_end is not None and cheb(m.pos, pl.pos) <= self.sc["vet"]["range"],
+            medic=self.medic_until.get(m.serial, 0.0) > t, immunized=self.medic_until.get(m.serial, 0.0) > t,
+            shield=m.shield_until > t, swoop=m.swoop_until > t, surge=m.surge_until > t,
+            dom_hits=dom[0] if dom is not None and t - dom[1] <= pet_rules.DOMINANCE_RESET_S else 0, now=t)
+
+    def _patient_dr(self, m: Mob) -> float:
+        """Logan as his own patient: the codex's Triage while a channel runs (doubled below 33 % hits), Combat Medic
+        after one."""
+        cx = self.codex
+        d = cx["triage"] * (2 if m.hits < m.hits_max * pet_rules.TRIAGE_LOW else 1) if self.vet_end is not None else 0.0
+        return d + (cx["combat_medic"] if self.medic_until.get(m.serial, 0.0) > self.t else 0.0)
+
+    def _pet_melee(self, m: Mob, tgt: Mob, ctx: pet_rules.HitCtx):
+        """A pet's melee hit landed: its numbers (sim/pets.melee_numbers) and their effects; Swoop spent, Dominance
+        counted."""
+        nums, eff = pet_rules.melee_numbers(m.spec, tgt.spec, ctx, self.rng)
+        m.swoop_until = 0.0
+        if "Dominance" in m.spec["pv"]:
+            e = m.dom.get(tgt.serial)
+            if e is None or self.t - e[1] > pet_rules.DOMINANCE_RESET_S:
+                m.dom[tgt.serial] = [1, self.t]
+            else:
+                e[0] += 1
+        for amount, _ in nums:
+            self.hurt(tgt, amount, m)
+        self._pet_effects(m, tgt, eff)
+
+    def _pet_spell(self, m: Mob, victim: Mob):
+        """A pet's cast landed (`_impact`): its numbers (sim/pets.spell_numbers, a Spellsurge waiting spent) and their
+        effects."""
+        ctx = self._pet_ctx(m, victim)
+        nums, eff = pet_rules.spell_numbers(m.spec, victim.spec, ctx, self.rng)
+        m.swoop_until = 0.0
+        if ctx.surge:
+            m.surge_until = 0.0
+        for amount, _ in nums:
+            if victim.serial not in self.mobs:
+                break
+            self.hurt(victim, amount, m, "spell")
+        self._pet_effects(m, victim, eff)
+
+    def _pet_effects(self, m: Mob, tgt: Mob, eff: list):
+        """A pet attack's effects (sim/pets.melee_numbers / spell_numbers): its heals (Metabolism, Feed, Carrion), a
+        Spellsurge armed; on the target: Disease (its ticks as a monster's disease; Toxic's two at once), Bleed, Soak's
+        cripple; Trample's numbers on up to 2 other monsters near it."""
+        t = self.t
+        for kind, p in eff:
+            if kind == "heal":
+                self.heal(m, p["share"] * m.hits_max)
+            elif kind == "surge":
+                m.surge_until = t + p["window_s"]
+            elif tgt.serial not in self.mobs or not tgt.alive:
+                continue
+            elif kind == "disease":
+                ticks = p["ticks"]
+                if p["double"]:
+                    for _ in range(2):
+                        self.hurt(tgt, p["tick"], None, "disease")
+                    ticks -= 2
+                if ticks > 0 and tgt.serial in self.mobs:
+                    tgt.diseases.append([t + p["every_s"], ticks, p["tick"], p["every_s"]])
+            elif kind == "bleed":
+                if not tgt.bleed_until:
+                    tgt.bleed = ((p["tick"], p["tick"]), p["every_s"])
+                    tgt.bleed_until, tgt.bleed_next = t + p["seconds"], t + p["every_s"]
+            elif kind == "soak":
+                tgt.cripple, tgt.cripple_until = p["cripple"], t + p["seconds"]
+            elif kind == "trample":
+                near = sorted((o for o in self.mobs.values() if o.kind == "monster" and o.alive and o is not tgt
+                               and not o.hidden_until and cheb(o.pos, tgt.pos) <= pet_rules.NEAR_TARGET_R),
+                              key=lambda o: cheb(o.pos, tgt.pos))
+                for o in near[:pet_rules.TRAMPLE_TARGETS]:
+                    self.hurt(o, p["amount"] * pet_rules.physical_mitigation(m.spec, o.spec, self.rng), m)
+
+    def _pet_cooldowns(self, m: Mob, tgt: Mob):
+        """A fighting pet's cooldown abilities (sim/pets.py), each when its cooldown is over: Epic Barrage and Earth
+        Breath on its target within their range and in sight, Earth Shield on itself; each use arms Swoop."""
+        t = self.t
+        for ab in m.spec.get("abilities", []):
+            if ab["type"] != "cooldown" or ab["name"] == "Devour" or t < m.cd.get(ab["name"], 0.0):
+                continue
+            if ab["name"] == "Earth Shield":
+                m.shield_until = t + ab["seconds"]
+            elif "mult" in ab:
+                if cheb(m.pos, tgt.pos) > ab["range"] or not self.can_see(m, tgt):
+                    continue
+                ctx = replace(self._pet_ctx(m, tgt), swoop=False)
+                for amount, label in pet_rules.ability_numbers(m.spec, ab, tgt.spec, ctx, self.rng):
+                    if tgt.serial not in self.mobs:
+                        break
+                    self.hurt(tgt, amount, m, label)
+            else:
+                continue
+            m.cd[ab["name"]] = t + pet_rules.cooldown(m.spec, ab["cooldown_s"])
+            self._ev("ability", by=m.serial, kind=ab["name"], v=tgt.serial)
+            self._swoop(m)
+
+    def _swoop(self, m: Mob):
+        if "Swoop" in m.spec.get("pv", {}) and m.spec["has"]["cooldown"]:
+            m.swoop_until = self.t + pet_rules.SWOOP_S
 
     def _step_to_shot(self, m: Mob, tgt: Mob, rng: int):
         """A ranged pet without a shot: a step on the way to the nearest tile within `rng` of its target that sees
@@ -2480,35 +2637,50 @@ class World:
         (live 0.6). A pet in range that is whole again by the finish (a devour, its regeneration) gets the finish line
         and no heal: live 373 channels since 10-17 23:08, none 'too far'; the simulator said 'too far' for those (93
         of its 111 in 1,417 channels)."""
-        pl, v = self.player, self.sc["vet"]
+        pl, v, cx = self.player, self.sc["vet"], self.codex
         self.vet_end = None
         self._ev("vet", phase="end", end=round(self.t, 2))
         rng = v["range"]
         ghosts = [m for m in self.pets() if m.ghost and cheb(m.pos, pl.pos) <= rng]
         near = [m for m in self.pets() if m.alive and not m.ghost and cheb(m.pos, pl.pos) <= rng]
-        pets = [m for m in near if m.hits < m.hits_max or m.poison_until > self.t]
+        patients = [m for m in near if m.hits < m.hits_max or m.poison_until > self.t]
         hurt_self = pl.hits < pl.hits_max or pl.poison_until > self.t
         if not near and not hurt_self and not ghosts:
             self._sys(tamer.TEXT_VET_FAR)
             return
         for m in ghosts:
-            if self.rng.random() < v["res_chance"]:
+            # the res chance and hits (scenario vet note) x the codex's Specialist and Without Borders, its Critical Care
+            cc = m.spec.get("pv", {}).get("Critical Care", {})
+            if self.rng.random() < min(1.0, v["res_chance"] * (1 + cx["chance"]) * (1 + cc.get("res_chance", 0.0))):
                 # live 20261014_221341 22:35:55.1: the line, 0xBF sub 0x19 alive, 31 %, then this channel's heal
-                m.ghost, m.mode, m.hits = False, "follow", m.hits_max * v["res_hits"]
+                m.ghost, m.mode, m.res_t = False, "follow", self.t
+                m.hits = m.hits_max * (v["res_hits"] + cc.get("res_hits", 0.0))
                 self._sys(tamer.TEXT_VET_RES)
                 self.send(P.pet_dead(m.serial, False), P.hits(m.serial, m.pct(), 100))
                 self.count("pet_res", m.name)
-                pets.append(m)
+                patients.append(m)
         self._sys(tamer.TEXT_VET_FINISH)
-        share = 1.0 if len(pets) <= 1 else v.get("multi_share", 0.67)
-        for m in pets:
+        for m in patients:
             m.poison_until = 0
-            self.heal(m, self.roll(v["heal_pet"]) * share)
+            amount = pet_rules.vet_heal(v["skill"], cx, len(patients), self.rng)
+            self.heal(m, amount)
+            self._overheal(m, amount)
         if hurt_self:
             pl.poison_until = 0
             # flagged in PvP the supplies healed Logan 15-22 (median 18, n 8) against 5-39 (29, n 129) otherwise
             # (docs/NOTES.md "Red players met live"; no rule found for it)
-            self.heal(pl, self.roll(v["heal_self_pvp"] if self.flagged() and v.get("heal_self_pvp") else v["heal_self"]))
+            amount = self.roll(v["heal_self_pvp"] if self.flagged() and v.get("heal_self_pvp") else v["heal_self"])
+            self.heal(pl, amount)
+            self._overheal(pl, amount)
+        if cx["combat_medic"] or cx["immunize"]:
+            for m in patients + ([pl] if hurt_self else []):
+                self.medic_until[m.serial] = self.t + cx["window_s"]
+
+    def _overheal(self, m: Mob, amount: float):
+        """The codex's Overheal: its share of a finish's heal (before the song and the perks) in 3 ticks a second
+        apart [INFERENCE: the cadence; live 2026-10-14 22:35:56.17 a '+4' over the gravebug 1.06 s after a finish]."""
+        if self.codex["overheal"]:
+            self.heals_due += [(self.t + k, m, amount * self.codex["overheal"] / 3) for k in (1, 2, 3)]
 
     def _drink(self, s):
         pl, pot = self.player, self.sc["potions"]

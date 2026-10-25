@@ -54,7 +54,6 @@ def one(seed):
     sc = load()
     sc["spawns"] = []
     sc["player"]["start"] = list(START) + [0]
-    sc["vet"]["range"] = 5
     clock = simclock.SimClock(epoch=simrun.EPOCH)
     w = World(sc, seed=seed)
     for p, xy in zip(w.pets(), PETS):

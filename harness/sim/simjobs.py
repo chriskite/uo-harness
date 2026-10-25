@@ -20,6 +20,8 @@ import sys
 import threading
 import time
 
+from sim import pets
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 DATA = os.path.join(os.path.dirname(HERE), "data", "sim")
@@ -29,7 +31,7 @@ MAX_SEEDS = 500
 MAX_ARGS = 60
 DEFAULTS = {"scenario": "mausoleum", "seed": 1, "runs": 1, "minutes": 30, "at_hunt": False, "others": False,
             "eerie": False, "reds": False, "prior": False, "fresh": False, "careers": 0, "trace": True, "sets": [],
-            "runner_args": ""}
+            "runner_args": "", "team": "", "bestiary": ""}
 LIMITS = {"seed": [0, 1_000_000], "runs": [1, 288], "minutes": [0.5, 240], "careers": [0, 64]}
 _SET = re.compile(r"^[A-Za-z_][\w.]*\.[A-Za-z_]\w*=.+$")
 _SEEDS = re.compile(r"^\s*\d+(\s*-\s*\d+)?(\s*,\s*\d+(\s*-\s*\d+)?)*\s*$")
@@ -114,7 +116,7 @@ class SimJobs:
     def options(self) -> dict:
         prior = bool(self.prior_db) and os.path.exists(self.prior_db)
         return {"scenarios": scenarios(), "prior": {"available": prior, "path": self.prior_db or ""},
-                "run": {"defaults": DEFAULTS, "limits": LIMITS}, "fights": fights()}
+                "run": {"defaults": DEFAULTS, "limits": LIMITS}, "fights": fights(), "tamer": pets.options()}
 
     def argv(self, req: dict) -> tuple[str, str, list[str]]:
         """(kind, label, argv after the interpreter) for a POST body; BadRequest when it can't run."""
@@ -139,6 +141,22 @@ class SimJobs:
                     args.append(flag)
             if careers:
                 args += ["--careers", str(careers)]
+            team, bestiary = o.get("team", ""), o.get("bestiary", "")
+            if not isinstance(team, str):
+                raise BadRequest("team: a preset name or pet names")
+            if team:
+                try:
+                    pets.parse_team(team, pets.load_tamer())
+                except ValueError as e:
+                    raise BadRequest(f"team: {e}") from None
+                args += ["--team", team]
+            if not isinstance(bestiary, str):
+                raise BadRequest("bestiary: a loadout name")
+            if bestiary:
+                allowed = pets.options()["bestiary"]
+                if bestiary not in allowed:
+                    raise BadRequest(f"bestiary: one of {allowed}")
+                args += ["--bestiary", bestiary]
             if _flag(o, "prior"):
                 if not (self.prior_db and os.path.exists(self.prior_db)):
                     raise BadRequest("prior: no live store here")

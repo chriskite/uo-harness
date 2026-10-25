@@ -207,6 +207,10 @@ export interface SimRunOptions {
   sets: string[];
   /** Free text after `--` (split shell-style by the server). */
   runner_args: string;
+  /** --team: a preset name or comma-separated pet names; "" = the scenario's team. */
+  team: string;
+  /** --bestiary: a loadout name or "none"; "" = the team's loadout. */
+  bestiary: string;
 }
 
 /** Inclusive [min, max] of each numeric run option. */
@@ -233,6 +237,8 @@ export interface SimOptions {
   prior: { available: boolean; path: string };
   run: { defaults: SimRunOptions; limits: SimRunLimits };
   fights: SimFight[];
+  /** Logan's team presets and Taming Bestiary loadouts (the last is "none"). */
+  tamer: { teams: { name: string; pets: string[]; bestiary: string }[]; bestiary: string[] };
 }
 
 export type SimJobRequest =

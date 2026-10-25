@@ -33,8 +33,11 @@ def check(name, cond, extra=""):
         FAILURES.append(name)
 
 
-def world_with(spawns, seed=1, start=FLOOR, others=False):
+def world_with(spawns, seed=1, start=FLOOR, others=False, team=None):
     sc = load()
+    if team:
+        from sim import pets
+        pets.select(sc, team)
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # the tests place each monster on its tile
     sc["player"]["start"] = [start[0], start[1], 0]
@@ -371,14 +374,14 @@ def test_bard_and_vet():
           f"at {w.player.pos[:2]}, {gb.hits}/{gb.hits_max}")
     for p in w.pets():
         p.mode = "stay"
-        p.x, p.y = w.player.x + 4, w.player.y       # live: the pets 3-4 tiles off then (a whole pet in range finishes)
+        p.x, p.y = w.player.x + w.sc["vet"]["range"] + 2, w.player.y   # beyond the supplies' reach (the codex's 5)
     gb.hits = gb.hits_max * 0.5
     w.player.hits = w.player.hits_max
     clock.advance(1.0)
     mark = len(link.events)
     link.send(actions.dclick(vet))
     until((tamer.TEXT_VET_FINISH, tamer.TEXT_VET_FAR))
-    check("a pet 4 tiles off at the finish: 'You are too far away ...'",
+    check("a pet 2 tiles beyond the supplies' reach at the finish: 'You are too far away ...'",
           any(e.get("text") == tamer.TEXT_VET_FAR for e in link.events[mark:]))
     mark = len(w.metrics["violations"])
     link.send(actions.say_unicode("GraveRobber release"))
@@ -980,8 +983,8 @@ def test_blink_stepoff():
     loop.team.standoff_t = time.monotonic()
     hurts = []
     orig = w.hurt
-    w.hurt = lambda victim, amount, by, kind="melee", song_pets=True: (
-        hurts.append((victim.name, kind, round(cheb(victim.pos, gb.pos)))), orig(victim, amount, by, kind, song_pets))
+    w.hurt = lambda victim, amount, by, kind="melee", song_pets=True, **kw: (
+        hurts.append((victim.name, kind, round(cheb(victim.pos, gb.pos)))), orig(victim, amount, by, kind, song_pets, **kw))
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             for _ in range(40):
@@ -1038,6 +1041,8 @@ def test_area_peace():
                    seed=7, start=(5268, 648))
     wolves = [m for m in w.mobs.values() if m.kind == "monster"]
     loop, clock, store, patched = hurt_loop(w, 100)
+    for p, x in zip(w.pets(), (5262, 5261)):
+        p.x, p.y, p.mode = x, 648, "stay"                  # out of the wolves' way: both come on us (the test's jam)
     for m in wolves:
         m.spec = {**m.spec, "difficulty": 20.0}            # a sure check, to test the action itself
         m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
@@ -1168,9 +1173,9 @@ def test_countess_reguard():
                     # GUARD_REPEAT_S would hold the next one (a lost target's) back 6.5 s
                     loop.team.guard_t, recent = tamer.time.monotonic(), True
                 clock.advance(0.5)
-                loop.tick()
                 if mark is None and w.t >= freed:
-                    mark = (w.metrics["guard_commands"], w.t)
+                    mark = (w.metrics["guard_commands"], w.t)    # before the runner's tick: a guard in it counts
+                loop.tick()
                 if mark is not None and w.metrics["guard_commands"] > mark[0]:
                     break
             took = w.t - freed
@@ -1727,10 +1732,17 @@ def test_songs():
     check("...and none is played again while all run", again is False)
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     m = Mob(10**6, "monster", "shade wolf", "a shade wolf", 23, gb.x + 1, gb.y, gb.z, hits=100, hits_max=100)
+    gb.hurt_by = {}
     h0 = gb.hits
-    w.hurt(gb, 100, m)
-    want = round(100 * (1 - sc["bard"]["song_x"]))
-    check(f"Song of Discordance: a creature's 100 hits our pet for {want}", h0 - gb.hits == want, f"{h0 - gb.hits}")
+    w.hurt(gb, 100, m, "wail")
+    sung = h0 - gb.hits
+    del w.songs["discord"]
+    gb.hurt_by = {}
+    h0 = gb.hits
+    w.hurt(gb, 100, m, "wail")
+    plain = h0 - gb.hits
+    x = 1 - sc["bard"]["song_x"]
+    check(f"Song of Discordance: a creature's hit on our pet x {x:.2f}", abs(sung - plain * x) <= 1, f"{sung} of {plain}")
 
 
 def test_pull_budget():
@@ -2419,7 +2431,12 @@ def test_blightmare_first_sight():
     # stepped, cast at him from 10-12 and he died at 18:21:15. Simulator (sim/fight1820.py), seeds 1-48: 22 deaths before
     import crawl
     from agent_link import Abort
+    from sim import world as simworld
     out = []
+    # its shots at the pets don't stray to Logan here (world.SHOT_AT_PLAYER_P): the runner closes to 11-12 tiles of it
+    # while it fights them, before and after 2026-10-25, and whether a 20 % stray lands is the seed's luck, not the rule
+    # under test (seed 3 drew one once the pets' rules changed the draws)
+    stray, simworld.SHOT_AT_PLAYER_P = simworld.SHOT_AT_PLAYER_P, 0.0
     for seed in (3, 5, 7):
         w = world_with([{"key": "blightmare", "at": [5242, 685, 0]}, {"key": "tormented soul", "at": [5248, 674, 0]},
                         {"key": "tormented soul", "at": [5251, 681, 0]}, {"key": "tormented soul", "at": [5239, 688, 0]}],
@@ -2448,6 +2465,7 @@ def test_blightmare_first_sight():
             simclock.uninstall(patched)
         out.append((seed, round(on_us[0]), w.metrics.get("player_damage_by", {}).get("blightmare", 0),
                     w.metrics["deaths"]))
+    simworld.SHOT_AT_PLAYER_P = stray
     check("3 seeds: the blightmare never on Logan, none of its spells on him",
           all(s == 0 and d == 0 and not dead for _, s, d, dead in out),
           f"(seed, seconds it was on him, its damage, deaths) {out}")
@@ -2906,9 +2924,9 @@ def _log_hurts(w):
     """Wrap w.hurt to record (time, victim, kind, hits lost)."""
     log, orig = [], w.hurt
 
-    def hurt(victim, amount, by, kind="melee", song_pets=True):
+    def hurt(victim, amount, by, kind="melee", song_pets=True, **kw):
         before = victim.hits
-        orig(victim, amount, by, kind, song_pets)
+        orig(victim, amount, by, kind, song_pets, **kw)
         log.append((round(w.t, 2), victim, kind, before - victim.hits))
     w.hurt = hurt
     return log
@@ -2962,14 +2980,14 @@ def test_audit_mechanics():
         woke[d] = when
     check("aggro 10: seen at 11 tiles, no wake in 6 s; at 9, war 1.5-3 s after (+ the 0.5 s think; live n=211)",
           woke.get(11) is None and isinstance(woke.get(9), float) and 1.4 <= woke[9] <= 4.1, str(woke))
-    # the victims: the spell, feed and pet-melee numbers are the gravebug's; Logan x1.6 on spells, x1.2 on a feed tick,
-    # the phoenix x1.7 on melee (Logan's melee: test_armor)
+    # the victims: a monster's spell, feed and melee numbers are the reference pet's (each pet's own share:
+    # test_pet_builds); Logan x1.6 on spells, x1.2 on a feed tick (his melee: test_armor)
     w = world_with([])
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     af = next(p for p in w.pets() if p.name == "AlaFlambe")
-    check("a monster's hit: the gravebug x1, Logan x1.2 on a feed tick and x1.6 on spells, the phoenix x1.7 on melee only",
-          (w._taken_x(gb, "melee"), w._taken_x(w.player, "feed"), w._taken_x(w.player, "spell"),
-           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.0, 1.2, 1.6, 1.7, 1.0))
+    check("a monster's hit: Logan x1.2 on a feed tick and x1.6 on spells; on a pet the measured number (its share in hurt)",
+          (w._taken_x(w.player, "feed"), w._taken_x(w.player, "spell"), w._taken_x(gb, "melee"),
+           w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.2, 1.6, 1.0, 1.0, 1.0))
     # apparition: a blink every ~8 s though its target stands beside it, onto the target's tile, the area hit
     # only at the landing; the song cuts Logan's share, not the pets'
     w = world_with([{"key": "apparition", "at": [5268, 649, 0]}], seed=12)
@@ -2994,7 +3012,7 @@ def test_audit_mechanics():
     bursts = [h for h in hurts if h[2] == "burst"]
     gaps = [round(b - a, 2) for a, b in zip(phases, phases[1:])]
     on_landing = all(any(abs(b[0] - t) < 0.05 for t, _ in landings) for b in bursts)
-    pet_burst = [h[3] for h in bursts if h[1].kind == "pet"]
+    pet_burst = {p.name: [h[3] for h in bursts if h[1] is p] for p in w.pets()}
     pl_burst = [h[3] for h in bursts if h[1].kind == "player"]
     check("apparition: '*phases*' 0.6-2.5 s in, then every 7.8-8.7 s beside its target, back on its tile 1.1-1.7 s "
           "later with the area hit there only (live n=48/56)",
@@ -3002,9 +3020,15 @@ def test_audit_mechanics():
           and landings and all(ok for _, ok in landings) and bursts and on_landing
           and sum(1 for t, _, x in said if x == "*phases*") == len(phases),
           f"phases {phases} landings {landings} bursts {[(b[0], b[1].name, b[3]) for b in bursts]}")
-    check("...the pets' share 36-38 under the Song of Discordance too, Logan's 55-60 cut by it",
-          pet_burst and all(36 <= n <= 38 for n in pet_burst) and pl_burst
-          and all(44 <= n <= 50 for n in pl_burst), f"pets {pet_burst} Logan {pl_burst}")
+    from sim import pets
+    ctx = w._pet_ctx(gb, m)
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    more = (1 - pets.dr(af.spec, w._pet_ctx(af, m))) / (1 - pets.dr(gb.spec, ctx, True))
+    check("...the gravebug's share 36-38 (the reference pet's numbers) under the Song of Discordance too, the phoenix's x "
+          "its resistance over the gravebug's (live 37 against 37: docs/SIM.md 'Pets, teams and perks'), Logan's 55-60 "
+          "cut by it", pet_burst["GraveRobber"] and all(36 <= n <= 38 for n in pet_burst["GraveRobber"])
+          and pet_burst["AlaFlambe"] and all(36 * more - 1 <= n <= 38 * more + 1 for n in pet_burst["AlaFlambe"])
+          and pl_burst and all(44 <= n <= 50 for n in pl_burst), f"pets {pet_burst} x{more:.3f} Logan {pl_burst}")
     # banshee: a hit with the ability ready dematerializes it, back 3-12 tiles off 1.4-1.6 s later; 7.5 s cooldown
     w = world_with([{"key": "banshee", "at": [5266, 652, 0]}], seed=13)
     m = next(m for m in w.mobs.values() if m.kind == "monster")
@@ -3732,16 +3756,240 @@ def test_armor():
     sc["player"]["armor"]["suit"]["aspect_tier"] = 10
     a10 = player_armor(sc)
     sc["player"]["armor"]["ar"] = 60
-    check("Command tier 10 instead of 14: AR 50 x 2.45 = 123; the pets take (1 - 0.20) / (1 - 0.26) of their numbers; "
-          "an explicit `ar` (run.py --armor) wins over the suit's",
-          a10["ar"] == 123 and abs(a10["pet_taken_x"] - 0.8 / 0.74) < 1e-9 and player_armor(sc)["ar"] == 60, str(a10))
+    check("Command tier 10 instead of 14: AR 50 x 2.45 = 123; an explicit `ar` (run.py --armor) wins over the suit's",
+          a10["ar"] == 123 and player_armor(sc)["ar"] == 60, str(a10))
+    from sim import pets
+    pets.select(sc)                                  # the pets at the suit's tier 10 (run.py --aspect-tier)
     sc["spawns"] = []
     sc["player"]["start"] = [FLOOR[0], FLOOR[1], 0]
     w10 = World(sc, seed=1)
-    gb = next(p for p in w10.pets() if p.name == "GraveRobber")
-    before = gb.hits
-    w10.hurt(gb, 100, None, "melee")
-    check("at tier 10 a 100 on the gravebug takes 108", before - gb.hits == 108, str(before - gb.hits))
+    gb10 = next(p for p in w10.pets() if p.name == "GraveRobber")
+    d14 = {p.name: p.spec["dr_static"] for p in w.pets()}
+    check("the pets' follower resistance at tier 10: 6 % less (the Command aspect's 5 % + 1.5 % a tier)",
+          all(abs(d14[p.name] - p.spec["dr_static"] - 0.06) < 1e-9 for p in w10.pets()),
+          str({p.name: round(d14[p.name] - p.spec["dr_static"], 4) for p in w10.pets()}))
+    taken = []
+    for ww, g in ((w, gb), (w10, gb10)):
+        g.hits = before = g.hits_max
+        ww.hurt(g, 100, None, "wail")
+        taken.append(before - g.hits)
+    check("a 100 wail (no armor) on the gravebug: more at tier 10 than at tier 14", taken[1] > taken[0], str(taken))
+
+
+def test_tamer_scan_rows():
+    print("== sim/tamer_scan.py reads the codex's and the bestiary's perk rows: gems = rank, points 0/1/3/5 ==")
+    from sim import tamer_scan as ts
+    # Healer's Codex page 1, session 150 seq 4485 (2026-10-17 22:06:15), its first three rows verbatim
+    layout = ("{ text 70 59 2655 0 18 0 1 0 0 0 }{ text 130 40 2655 1 18 0 1 0 0 0 }{ text 130 62 2550 2 18 0 1 0 0 0 }"
+              "{ button 160 64 2118 2117 1 0 100 }{ tooltip 0 3 }{ text 130 84 149 4 18 0 1 0 0 0 }"
+              "{ button 300 86 2118 2117 1 0 200 }{ text 70 159 2655 0 18 0 1 0 0 0 }{ text 130 140 2655 5 18 0 1 0 0 0 }"
+              "{ text 130 162 2550 2 18 0 1 0 0 0 }{ button 160 164 2118 2117 1 0 101 }{ tooltip 0 6 }"
+              "{ text 130 184 149 4 18 0 1 0 0 0 }{ button 300 186 2118 2117 1 0 201 }{ tilepic 43 251 3617 }"
+              "{ tilepic 65 251 3617 }{ tilepic 87 251 3617 }{ text 70 276 63 7 18 0 1 0 0 0 }"
+              "{ text 130 250 63 8 18 0 1 0 0 0 }{ text 130 272 2550 2 18 0 1 0 0 0 }{ button 160 272 2118 2117 1 0 102 }"
+              "{ tooltip 0 9 }")
+    lines = ["0 Pts", "Combat Medic", "Info", "Patients receive a (2% / 6% / 10%) bonus to damage resistance over the "
+             "next 15 seconds (cannot stack).", "Spend 1 Pts to Raise Tier", "Immunize", "Patients for the next 15 seconds "
+             "have a (20% / 60%/  100%) chance for new poisons to apply at 1 level lower. New bleed and disease effects "
+             "will be applied at (8% / 24% / 40%) reduced damage (cannot stack).", "5 Pts", "Overheal", "An additional "
+             "(8% / 24% / 40%) of healing amounts are applied to patient divided over the next 3 seconds."]
+    rows = ts.codex_rows(layout, lines)
+    check("codex: Combat Medic tier 0 (0 points), Immunize 0, Overheal tier 3 (3 gems, 5 points)",
+          rows == [{"perk": "Combat Medic", "points": 0, "tier": 0}, {"perk": "Immunize", "points": 0, "tier": 0},
+                   {"perk": "Overheal", "points": 5, "tier": 3}], str(rows))
+    # Taming Bestiary, Nightmare/Fire Attack page 3/11, session 194 seq 360634 (2026-10-25 11:49:24), rows 1-3
+    layout = ("{ tilepic 53 38 55046 }{ tilepic 73 38 55046 }{ text 70 71 63 0 18 0 1 0 0 0 }"
+              "{ text 130 35 63 1 18 0 1 0 0 0 }{ text 130 57 2550 2 18 0 1 0 0 0 }{ button 160 59 2118 2117 1 0 100 }"
+              "{ tooltip 0 3 }{ text 130 79 149 4 18 0 1 0 0 0 }{ button 300 81 2118 2117 1 0 200 }"
+              "{ tilepic 63 113 55046 }{ text 70 146 63 5 18 0 1 0 0 0 }{ text 130 110 63 6 18 0 1 0 0 0 }"
+              "{ text 130 132 2550 2 18 0 1 0 0 0 }{ button 160 134 2118 2117 1 0 101 }{ tooltip 0 7 }"
+              "{ text 130 154 149 4 18 0 1 0 0 0 }{ button 300 156 2118 2117 1 0 201 }{ text 70 204 2655 8 18 0 1 0 0 0 }"
+              "{ text 130 185 2655 9 18 0 1 0 0 0 }{ text 130 207 2550 2 18 0 1 0 0 0 }"
+              "{ button 160 209 2118 2117 1 0 102 }{ tooltip 0 10 }{ text 130 229 149 11 18 0 1 0 0 0 }"
+              "{ button 300 231 2118 2117 1 0 202 }")
+    lines = ["3 Pts", "Lethality", "Info", "Follower Damage have a (6% / 18% / 30%) chance to inflict +100% Damage, "
+             "otherwise will inflict (4% / 12% / 20%) additional Damage.", "Spend 2 Pts to Raise Tier", "1 Pts",
+             "Menagerie", "Follower Damage increased by ((1.5% / 4.5% / 7.5%) * Different Types of Followers Controlled "
+             "By Player). Healing Amounts increased by ((1% / 3% / 5%) * Different Types of Followers Controlled By "
+             "Player).", "0 Pts", "Mutation", "Reduces cooldown length of Cooldown Abilities by (1.5 / 4.5 / 7.5) "
+             "seconds. Follower Damage increased by (5% / 15% / 25%) if follower does not have a Cooldown Ability.",
+             "Spend 1 Pts to Raise Tier"]
+    rows = ts.bestiary_rows(layout, lines)
+    check("bestiary: Lethality rank 2 (2 gems, 3 points), Menagerie 1, Mutation 0",
+          [(r["perk"], r["cross"], r["points"], r["rank"]) for r in rows]
+          == [("Lethality", False, 3, 2), ("Menagerie", False, 1, 1), ("Mutation", False, 0, 0)], str(rows))
+    # Phoenix/Gravebug Tank, session 124 seq 9014: its fourth row, a cross perk
+    layout = ("{ tilepic 63 263 55046 }{ text 70 296 1256 0 18 0 1 0 0 0 }{ text 130 260 1256 11 18 0 1 0 0 0 }"
+              "{ text 130 282 2550 2 18 0 1 0 0 0 }{ button 160 284 2118 2117 1 0 103 }{ tooltip 0 12 }"
+              "{ text 130 304 149 4 18 0 1 0 0 0 }")
+    lines = ["1 Pts", "Tolerance", "Info", "", "Spend 2 Pts to Raise Tier", "0 Pts", "Trample", "",
+             "Spend 1 Pts to Raise Tier", "[Cross] Ambush", "", "[Cross] Beast Sting", ""]
+    rows = ts.bestiary_rows(layout, lines)
+    check("bestiary: '[Cross] Beast Sting' rank 1 is the cross perk Beast Sting",
+          rows == [{"perk": "Beast Sting", "cross": True, "points": 1, "rank": 1}], str(rows))
+    try:
+        ts.bestiary_rows(layout.replace("{ tilepic 63 263 55046 }", "{ tilepic 63 263 55046 }{ tilepic 83 263 55046 }"),
+                         lines, "test")
+        refused = False
+    except ValueError:
+        refused = True
+    check("a row whose gems and points disagree (2 gems, 1 point) is a ValueError", refused)
+
+
+def test_party_validation():
+    print("== a team and a bestiary loadout are refused with the reason: slots, points, unknown names ==")
+    import json
+    import tempfile
+    from sim import pets
+    t = pets.load_tamer()
+
+    def err(fn):
+        try:
+            fn()
+        except ValueError as e:
+            return str(e)
+        return None
+
+    def tab_file(data):
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(data, f)
+        f.close()
+        return f.name
+    got = {"slots": err(lambda: pets.parse_team("AlaFlambe, NightmareA", t)),
+           "pet": err(lambda: pets.parse_team("GraveRobber,Fluffy", t)),
+           "twice": err(lambda: pets.parse_team("graverobber,GraveRobber", t)),
+           "points": err(lambda: pets.parse_bestiary(tab_file(
+               {"attack": {"Lethality": 3, "Immolate": 3, "Primal": 3, "Pelt": 3, "Cornered": 1}}), t)),
+           "perk": err(lambda: pets.parse_bestiary(tab_file({"tank": {"Bogus": 1}}), t)),
+           "own_cross": err(lambda: pets.parse_bestiary(tab_file({"tank": {"[Cross] Hearty": 1}}), t)),
+           "cross": err(lambda: pets.parse_bestiary(tab_file({"tank": {"[Cross] Lethality": 3, "[Cross] Pelt": 1}}), t)),
+           "loadout": err(lambda: pets.parse_bestiary("Fortres", t))}
+    want = {"slots": "team takes 6 control slots, max 5", "pet": "unknown pet 'Fluffy' (pets: GraveRobber, ",
+            "twice": "pet 'GraveRobber' twice", "points": "bestiary attack: 21 points, max 20",
+            "perk": "bestiary tank: unknown perk 'Bogus'", "own_cross": "bestiary tank: [Cross] 'Hearty' is a tank perk",
+            "cross": "bestiary tank: 6 cross points, max 5", "loadout": "unknown loadout 'Fortres' (loadouts: "}
+    check("each refusal names its reason", all((got[k] or "").startswith(v) for k, v in want.items()),
+          str({k: v for k, v in got.items() if not (v or "").startswith(want[k])}))
+    names, preset = pets.parse_team("nightmare_fire", t)
+    check("a preset gives its pets, tank first", names == ["NightmareA", "NightmareB", "a searing imp"]
+          and preset == "nightmare_fire", str(names))
+    sc = load()
+    pets.select(sc, "GirthyEarthy, a tidal mantis")
+    check("pets named without a preset take the scenario team's loadout; a tab never captured: no perks and a warning",
+          sc["party"]["bestiary"] == "Phoenix/Gravebug" and sc["party"]["warnings"]
+          == ["Phoenix/Gravebug utility tab not captured: no perks for a tidal mantis"]
+          and next(p for p in sc["pets"] if p["name"] == "a tidal mantis")["perks"] == {}, str(sc["party"]["warnings"]))
+
+
+def test_pet_builds():
+    print("== the pets at their Guide level and Command tier 14: hits (wiki level table); the phoenix takes the "
+          "gravebug-measured numbers through its own armor and resist ==")
+    import random
+    import statistics
+    from sim import pets
+    t = pets.load_tamer()
+    hits = {}
+    for team in t["teams"]:
+        sc = load()
+        pets.select(sc, team)
+        hits.update({p["name"]: p["hits"] for p in sc["pets"]})
+    want = {"GraveRobber": 542, "AlaFlambe": 742, "NightmareA": 499, "NightmareB": 502, "a searing imp": 341,
+            "fireminion": 367, "GirthyEarthy": 986, "a tidal mantis": 652}
+    check("hits: the Guide's x (1 + 10 % a level to 10, 5 % past it); live bars ~1000, ~480, 331-343, 352-363",
+          hits == want, str(hits))
+    sc = load()
+    gb, ph = sc["pets"]
+    ref, rng = sc["pet_ref"]["default"], random.Random(1)
+
+    def mean(spec, dt):
+        return statistics.fmean(pets.taken_factor(spec, pets.REF_TANK, dt, rng, ref, True) for _ in range(20000))
+    phys, spell = mean(ph, "physical") / mean(gb, "physical"), mean(ph, "spell") / mean(gb, "spell")
+    check("phoenix : gravebug on a monster's melee 1.6-1.85 (live 1.7), on its spells 0.72-0.88 (live 0.79; the "
+          "gravebug's Tank-tab resistance puts the model near 0.86)", 1.6 <= phys <= 1.85 and 0.72 <= spell <= 0.88,
+          f"{phys:.3f} {spell:.3f}")
+    check("the supplies reach 5 (2 + Without Borders tier 3)", sc["vet"]["range"] == 5, str(sc["vet"]["range"]))
+
+
+def test_perk_conditions():
+    print("== the bestiary's conditions as the World sees them: Cornered, Pelt, Aggression; the codex's Triage ==")
+    from sim import pets
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}], team="earth_fire")
+    w.t = 100.0
+    mon = next(m for m in w.mobs.values() if m.kind == "monster")
+    fm = next(p for p in w.pets() if p.name == "fireminion")
+    corn, pelt = fm.spec["pv"]["Cornered"], fm.spec["pv"]["Pelt"]
+    fm.x, fm.y = mon.x - 2, mon.y
+    fm.hurt_by = {mon.serial: w.t - 5}
+    hot = pets.damage_bonus(fm.spec, w._pet_ctx(fm, mon))
+    fm.hurt_by = {mon.serial: w.t - 15}
+    cold = pets.damage_bonus(fm.spec, w._pet_ctx(fm, mon))
+    check("Cornered (Random, rank 1): hurt by a creature 5 s ago +7 %, 15 s ago +4 %",
+          abs(hot - cold - (corn["dmg_cond"] - corn["dmg"])) < 1e-9 and (corn["dmg_cond"], corn["dmg"]) == (0.07, 0.04),
+          f"{hot:.3f} {cold:.3f}")
+    fm.x = mon.x - 5
+    far = pets.damage_bonus(fm.spec, w._pet_ctx(fm, mon))
+    check("Pelt (rank 2): its target 5 tiles off +21 %, 2 tiles off +12 %",
+          abs(far - cold - (pelt["dmg_cond"] - pelt["dmg"])) < 1e-9 and (pelt["dmg_cond"], pelt["dmg"]) == (0.21, 0.12),
+          f"{far:.3f} {cold:.3f}")
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}])
+    w.t = 100.0
+    mon = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    agg = gb.spec["pv"]["Aggression"]
+    none = (pets.damage_bonus(gb.spec, w._pet_ctx(gb, mon)), pets.dr(gb.spec, w._pet_ctx(gb, mon)))
+    gb.hurt_by = {mon.serial: w.t - 2, mon.serial + 1: w.t - 8}
+    two = (pets.damage_bonus(gb.spec, w._pet_ctx(gb, mon)), pets.dr(gb.spec, w._pet_ctx(gb, mon)))
+    check("Aggression (rank 2): two creatures on it in 10 s: +9 % damage and +3 % resistance each; none: +12 % damage",
+          abs(two[0] - none[0] - (2 * agg["dmg_per"] - agg["dmg"])) < 1e-9 and abs(two[1] - none[1] - 2 * agg["dr_per"]) < 1e-9
+          and (agg["dmg_per"], agg["dr_per"], agg["dmg"]) == (0.09, 0.03, 0.12), f"{none} {two}")
+    gb.hurt_by = {}
+    gb.x, gb.y = w.player.x + 1, w.player.y
+    base = pets.dr(gb.spec, w._pet_ctx(gb))
+    w.vet_end = w.t + 3.0
+    ch = pets.dr(gb.spec, w._pet_ctx(gb))
+    gb.hits = gb.hits_max * 0.30
+    low = pets.dr(gb.spec, w._pet_ctx(gb))
+    check("Triage (tier 3): +15 % resistance during a channel within the supplies' reach, +30 % below 33 % hits",
+          abs(ch - base - 0.15) < 1e-9 and abs(low - base - 0.30) < 1e-9, f"{base:.3f} {ch:.3f} {low:.3f}")
+
+
+def test_vet_codex():
+    print("== the supplies' heal: the wiki's formula x Specialist and Without Borders x the pet's healing perks; "
+          "Overheal 40 % more in 3 ticks ==")
+    from sim import pets
+    w = world_with([], team="nightmare_fire")
+    link, clock = link_for(w)
+    nb = next(p for p in w.pets() if p.name == "NightmareB")
+    for p in w.pets():
+        p.mode = "stay"
+        p.x, p.y = (w.player.x + 1, w.player.y) if p is nb else (w.player.x + 9, w.player.y)
+    nb.hits = round(nb.hits_max * 0.3)                  # room for the heal and its Overheal
+    over = _log_overhead(w)
+    vet = next(s for s, it in w.items.items() if it.get("kind") == "vet")
+    link.send(actions.dclick(vet))
+    clock.advance(10.0)
+    link._pump()
+    plus = [(t, int(x[1:])) for t, s, x in over if s == nb.serial and x.startswith("+")]
+    sk = w.sc["vet"]["skill"]
+    f = sk["veterinary"] / 100 * (1 + 0.2 * sk["lore"] / 100) * 0.75 * (1 + 0.40 + 0.10) * pets.heal_mult(nb.spec)
+    ok = len(plus) >= 4
+    first, ticks = (plus[0], plus[1:4]) if ok else ((0, 0), [])
+    check("one patient: Vet/100 x U(80, 120) x (1 + 0.2 x Lore/100) x 75 % x (1 + 40 % + 10 %) x its perks "
+          f"({80 * f:.0f}-{120 * f:.0f})", ok and 80 * f - 1 <= first[1] <= 120 * f + 1, str(plus))
+    check("then Overheal: 3 ticks 1, 2 and 3 s after, 40 % of the heal in all (± 2 %)",
+          ok and [round(t - first[0]) for t, _ in ticks] == [1, 2, 3]
+          and 0.38 <= sum(n for _, n in ticks) / first[1] <= 0.42, str(plus))
+
+
+def test_team_run():
+    print("== run.py --team: another team hunts (the runner with three pets) ==")
+    from sim import run as simrun
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        r = simrun.run_once(1, [], minutes=0.2, at_hunt=True, team="nightmare_fire")
+    check("the team, its loadout and its three pets in the summary",
+          r["outcome"] == "done" and r["team"] == ["NightmareA", "NightmareB", "a searing imp"]
+          and r["bestiary"] == "Nightmare/Fire" and set(r["pets_end"]) == {"NightmareA", "NightmareB", "a searing imp"},
+          f"{r['outcome']} {r['error']} {r.get('team')} {r.get('bestiary')} {r.get('pets_end')}")
 
 
 def test_cast_then_flight():
@@ -4005,10 +4253,10 @@ def test_tidal_level3_bursts():
     m.spec = {**m.spec, "melee": None}
     hits, orig_hurt = [], w.hurt
 
-    def hurt(victim, amount, by, kind="melee", song_pets=True):
+    def hurt(victim, amount, by, kind="melee", song_pets=True, **kw):
         if kind == "burst":
             hits.append((round(w.t, 2), victim.name, sim_cheb(victim.pos, by.pos)))
-        orig_hurt(victim, amount, by, kind, song_pets)
+        orig_hurt(victim, amount, by, kind, song_pets, **kw)
     w.hurt = hurt
     w.run_until(40.0)
     times = sorted({t for t, _, _ in hits})
@@ -4079,6 +4327,8 @@ def main():
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
+              test_tamer_scan_rows, test_party_validation, test_pet_builds, test_perk_conditions, test_vet_codex,
+              test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_level3_bursts,

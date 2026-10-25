@@ -21,6 +21,10 @@ export interface RunForm {
   /** One `module.NAME=value` per line. */
   sets: string;
   runner_args: string;
+  /** A team preset name, "" = the scenario's team. */
+  team: string;
+  /** A Taming Bestiary loadout, "" = the team's own. */
+  bestiary: string;
 }
 
 export type NumField = keyof SimRunLimits;
@@ -104,6 +108,8 @@ export function runRequest(f: RunForm, limits: SimRunLimits, priorAvailable: boo
     trace: f.trace,
     sets,
     runner_args: f.runner_args.trim(),
+    team: f.team,
+    bestiary: f.bestiary,
   };
   return { ok: true, value: { kind: "run", options } };
 }

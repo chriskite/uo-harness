@@ -71,7 +71,6 @@ def one(seed):
     sc["spawns"] = [{"key": k, "at": list(at), "respawn_s": [99999, 99999]} for k, at in SPAWNS]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # each where the capture had it
     sc["player"]["start"] = list(START)
-    sc["vet"]["range"] = 5
     for k, over in CASTERS.items():
         c = sc["creatures"][k] = copy.deepcopy(sc["creatures"][k])
         c["ranged"].update(over)

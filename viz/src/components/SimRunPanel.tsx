@@ -174,6 +174,40 @@ function RunFields({ form, upd, opts }: { form: RunForm; upd: Update<RunForm>; o
             ))}
           </select>
         </label>
+        <label className="sim-field" title="--team: the pet team; scenario default = the scenario's team">
+          <span>team</span>
+          <select
+            value={form.team}
+            onChange={(e) => {
+              const v = e.target.value;
+              upd((f) => ({ ...f, team: v }));
+            }}
+          >
+            <option value="">scenario default</option>
+            {(opts.tamer?.teams ?? []).map((t) => (
+              <option key={t.name} value={t.name}>
+                {`${t.name} (${t.pets.join(", ")})`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="sim-field" title="--bestiary: the Taming Bestiary loadout; team's loadout = the team preset's own">
+          <span>bestiary</span>
+          <select
+            value={form.bestiary}
+            onChange={(e) => {
+              const v = e.target.value;
+              upd((f) => ({ ...f, bestiary: v }));
+            }}
+          >
+            <option value="">team's loadout</option>
+            {(opts.tamer?.bestiary ?? []).map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </label>
         {num("seed", "seed", 1, "--seed: the first run's seed; run i uses seed + i")}
         {num("runs", "runs", 1, "--runs")}
         {num("minutes", "minutes", 0.5, "--minutes: the runner's timeout, in game minutes")}

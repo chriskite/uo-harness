@@ -1216,6 +1216,13 @@ alone, as §2.11.
   itself). Routes `/api/sim/options`, `/api/sim/jobs` (GET list, POST start), `/api/sim/jobs/cancel`. Jobs are kept
   in memory (the newest 20); their traces stay in the trace dir. Traces are written as `<name>.part` and renamed at
   the end of the run, so the picker never offers one still being written.
+- **Team and bestiary** (added 2026-10-25, user request): two selects after the scenario's, Logan's team presets
+  (`--team`, "scenario default" for the scenario's) and the Taming Bestiary loadouts with perks captured (`--bestiary`,
+  "team's loadout" for the preset's own, or `none`), from `/api/sim/options` `tamer` (`sim/pets.options`). The server
+  checks a team with `pets.parse_team` and takes a loadout only from that list (no file paths). Verified 2026-10-25 in
+  headless Chrome (Playwright, 1600×1000) against a private `viz_server.py --live --state-port 1`: both selects listed,
+  a run of `nightmare_fire` with Nightmare/Fire started with `--team nightmare_fire --bestiary Nightmare/Fire` and its
+  trace held the three pets.
 
 ## 3. Parity principle
 

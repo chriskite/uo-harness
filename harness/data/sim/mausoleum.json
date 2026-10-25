@@ -42,71 +42,11 @@
   1429,
   6
  ],
- "pets": [
-  {
-   "serial": 909054,
-   "key": "gravebug",
-   "name": "GraveRobber",
-   "body": 387,
-   "hits": 450,
-   "melee": [
-    57,
-    159,
-    76
-   ],
-   "swing_s": 1.91,
-   "hit_chance": 0.95,
-   "step_s": 0.21,
-   "follow": 1,
-   "leash": 14,
-   "threat_x": 4.0,
-   "devour": {
-    "heal": 18,
-    "ticks": 3,
-    "every_s": 15.0,
-    "range": 2
-   },
-   "devour_note": "3 captures (2026-10-12/13): '*devours corpse*' over the gravebug 67 times, 15.0-15.2 s apart at the shortest (median gap 15.2 s), 60 of them with it hurt within 5 s (mid-fight); then '+18' three times 0.5 s apart (19 times; '+21' x3 11 times under a 17.7 % Song of Peacemaking; less when nearly full): 54 a feed. Knowledge: Devour 'Can consume nearby corpses to heal 10% of maximum health' (45 of 450; 54 live [INFERENCE: its healing bonuses]). Before 2026-10-13 the simulator fed it twice, only out of a fight. range 2 [INFERENCE]",
-   "specials": [
-    {
-     "kind": "poison",
-     "chance": 0.15,
-     "damage": 40,
-     "seconds": 20
-    }
-   ],
-   "note": "hits 450: 4.5 hits per percent point (303 single '-N' vs the 0xA1 share drop, capture); melee p10/p90/median of its attributed hits (n=175) every 1.91 s (attack animation, n=240); step 0.21 s: its one-tile moves out of war mode (n=470, capture: it kept 1-3 tiles behind our 0.20 s run; 0.3 s left it 9-22 tiles behind in the sim); threat_x 4.0 [fitted: with the phoenix's 0.3 the simulated gravebug takes most of the pets' damage, as live: 796 vs 84 hits per war-minute; the Tank class draws aggro, knowledge #2074]; devour: devour_note; disease [INFERENCE: tamed Disease 15 % (knowledge #14471), damage per tick scaled to its melee]"
-  },
-  {
-   "serial": 2551638,
-   "key": "phoenix",
-   "name": "AlaFlambe",
-   "body": 832,
-   "hits": 660,
-   "ranged": {
-    "range": 10,
-    "damage": [
-     211,
-     776,
-     327
-    ],
-    "every_s": 1.8,
-    "cast_s": [0, 0, 0],
-    "flight_s": [0, 0, 0],
-    "cast_action": 4,
-    "effect": null,
-    "cast_note": "cast_scan 2026-10-23 (103 captures since 2026-10-10): no 0xC0 from the phoenix (2551638) and no '-N' sample of its own (n=0 < 5), so no cast or flight time: its hit lands with its attack animation (4, mausoleum_observed AlaFlambe), no effect sent [INFERENCE: instant, as before]"
-   },
-   "step_s": 0.21,
-   "follow": 1,
-   "leash": 14,
-   "threat_x": 0.1,
-   "threat_note": "0.1 since 2026-10-21 (0.3 before, fitted to the first trip): of the monsters' attributed hits on all 41 live visits the gravebug took 81 %, the phoenix 9.6 %, Logan 9.4 %; at 0.3 the simulator gave 78 / 11.6 / 10.6 %, at 0.1 80 / 9.4 / 11 % (24 runs) and the phoenix's damage 3,154 -> 2,733 an hour",
-   "melee_taken_x": 1.7,
-   "melee_taken_note": "the phoenix takes 1.7x the gravebug's number from the same monster's melee (World._taken_x): medians AF/GR on today's captures (20261015_171928, _204514, _210709), one attributed attacker each: shadowguard 1.75 (n=9 AF / 36 GR), vampire bat 1.92 (7/26), corpsebride 1.65 (6/45), shadow minion 1.75 (5/32), vampire countess 1.35 (7/28); not on spells (banshee 0.79, 9/17) nor the area hits (wail 16 vs 16, apparition burst 37 vs 37), which carry their own numbers",
-   "note": "hits 660: 6.6 hits per percent point (n=24, capture); range 10 [INFERENCE; Epic Barrage reaches 12, knowledge #6882]; step 0.21 s (one-tile moves out of war mode, n=471, capture); took little aggro on the trip (84 hits per war-minute vs the gravebug's 796): threat_x 0.3 [fitted with the gravebug's 4.0]. Spell hits every 1.80 s (attack animation n=254 on the first trip; 1.79 s over the 134 kills below). Damage: the first trip's p10/p90 of 30 attributed numbers with the median of the ambiguous ones as mode was (154, 565, 238); recalibrated 2026-10-20 x 1.373 to (211, 776, 327) from Logan's live pets visits (docs/SIM.md 'Parity with the live runs'): 134 kills from full hits (tormented and bound souls, shadowguards, purgers, corpsebrides, minions, forgotten souls, knights) took 905,861 in 2,614 s from our first hit to the death, the gravebug 1,409 attack animations (x 0.95 x its median 99), the phoenix 1,460: 530 a phoenix attack with the songs and the discord on, where the simulator applied 386 (its base 319 x those, 1.21); live the phoenix's attacks carry more numbers than animations (3,162 numbers to 2,869 animations), its numbers bimodal (250-350 and 650-800)"
-  }
- ],
+ "tamer": {
+  "character": "logan_wolf",
+  "team": "phoenix_gravebug",
+  "note": "Logan's pets come from harness/data/sim/tamer/logan_wolf.json and its scan (sim/pets.py; run.py --team / --bestiary pick others): GraveRobber the gravebug and AlaFlambe the phoenix with the Phoenix/Gravebug bestiary loadout, as on every Mausoleum visit (2026-10-12 to 10-24). Until 2026-10-25 this block was `pets`, two hand-calibrated specs: the gravebug's 450 hits (4.5 a percent point), melee (57, 159, 76) every 1.91 s and a 40-a-tick poison; the phoenix's 660 hits, spells (211, 776, 327) every 1.8 s (its live numbers bimodal, 250-350 and 650-800) and melee_taken_x 1.7"
+ },
  "loadout": {
   "backpack": 1147051922,
   "gold_serial": 1103658840,
@@ -265,28 +205,21 @@
   "song_note": "barding songs (a bard skill at the ground): live 2026-10-13 (20261013_173449) all three printed 15.0 % (5 % x effective barding / 100 each, knowledge #11234: Discordance less damage taken from creatures, Peacemaking more healing received, Provocation more damage against creatures) for 15 minutes, on us and the followers; 10 s between songs, apart from the skill timer (#11234; live a second song 3.8 s after the first: 'You must wait a few moments before performing another barding song.'); damage reduction also on area hits and bleeds (patch 2022-08-26, #6504)"
  },
  "vet": {
-  "range": 2,
   "res_chance": 1.0,
-  "res_hits": 0.31,
-  "res_note": "a bonded pet's ghost within range at a channel's finish comes back at 31 % ('You are able to resurrect your follower.', 0xBF sub 0x19 alive; then the channel's heal); 1 of 1 tries, capture 20261014_221341 22:35:55.1 (knowledge #11547: 80 Veterinary) [INFERENCE: res_chance 1.0 from n=1]",
+  "res_hits": 0.10,
+  "res_note": "a bonded pet's ghost within range at a channel's finish comes back ('You are able to resurrect your follower.', 0xBF sub 0x19 alive; then the channel's heal): the gravebug (909054) at 31 % on 1 of 1 tries, capture 20261014_221341 22:35:55.1, with Critical Care rank 2 (+21 % of max hits, its Tank tab since 2026-10-12): res_hits 0.10 is the rest, Critical Care's share added per pet (World._vet_finish) [INFERENCE: res_chance 1.0 from n=1, x the codex's and Critical Care's chance]",
   "channel_s": [
    5.0,
    5.3
-  ],
-  "heal_pet": [
-   104,
-   202,
-   135
   ],
   "heal_self": [
    20,
    37,
    29
   ],
-  "multi_share": 1.0,
   "heal_self_pvp": [15, 22, 18],
   "heal_self_pvp_note": "flagged in PvP (within 60 s of a player's attack line or hit on him) the supplies healed Logan 15-22, median 18 (n 8, not capped) against 5-39, median 29 (n 129) otherwise (docs/NOTES.md 'Red players met live'); no rule found that explains it",
-  "note": "range 2 (+ Without Borders: --vet-range); channel 5.0-5.3 s (n=43); heals: a pet, the gravebug's hit bar's rise at 'You finish using veterinary supplies.' on all 41 live visits (2026-10-21), those that didn't fill it, 23 / 30 / 45 % (q10 / median / q90, n=145) x 4.5 hits a percent (40-120, median 71.5 from the first capture's 36 before); us: his hits' rise at the finish, those that didn't fill him, 21 / 29 / 36 (q10 / median / q90, n=167; 12-25, median 17 from the first capture's 11 before)"
+  "note": "range: the supplies' 2 tiles + the Healer's Codex Without Borders (sim/pets.select: 5 at tier 3; run.py hands it to the runner's --vet-range unless given); channel 5.0-5.3 s (n=43); a pet's heal: the wiki's formula (#11327: Veterinary/100 x U(80, 120) x (1 + 0.2 x Lore/100); supplies 75 % on one patient, 50 % on more, #11331) x the codex's Specialist and Without Borders, then the bestiary's healing perks (World._vet_finish, docs/SIM.md 'Pets, teams and perks'). Until 2026-10-25 a pet's heal was (104, 202, 135): the gravebug's hit bar's rise at the finish on 41 live visits, 23 / 30 / 45 % (q10 / median / q90, n=145) x an assumed 450 hits. us: his hits' rise at the finish, those that didn't fill him, 21 / 29 / 36 (q10 / median / q90, n=167; 12-25, median 17 from the first capture's 11 before)"
  },
  "potions": {
   "heal": [
@@ -300,6 +233,8 @@
   "note": "heal: the server's own number (cliloc 1008158 'You feel better (N)', affix) on 612 live drinks in 41 visits (2026-10-21): those that didn't fill him (194) healed 30 / 34 / 41 (q25 / median / q75), 47-51 at q90-q95; drunk under 30 hits 30 / 40 / 51 (q10 / median / q90, n=40). [25, 40] before (the trip's six drinks, median 32.5) left the simulated Logan low: he dipped below 15 hits 1.2 times an hour and died after nearly every dip, live 2.9 times and 0.6 deaths. cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
  },
  "defaults": {
+  "pet_ref": {"pet": "GraveRobber", "bestiary": "Phoenix/Gravebug"},
+  "pet_ref_note": "the pet the monsters' damage numbers here stand for (their melee and spells measured on the gravebug, which took 81 % of their hits): another pet takes them x its armor or magic resist and damage resistance over this one's (sim/pets.taken_factor); a creature entry's own `ref` (melee_observed, ranged_observed, specials) names the pet its numbers were measured on",
   "aggro_range": 10,
   "wake_s": [1.5, 3.0],
   "wake_note": "an idle monster takes a target this long after one of us came within its aggro range and sight, the nearest then: the 10-tile crossing to war mode on today's captures (20261015_090607 to _210709), 1.4-2.6 s (p10 1.6, median 2.2, n=188; 20 slower ones were idle monsters left alone longer); before: 20261015_171928 18:57:06 one apparition 1.8 s, 19:49:35 one 2.7 s",

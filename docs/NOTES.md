@@ -5694,8 +5694,9 @@ unchanged.
 - Fixed (`Team.setup`, `tamer.untagged_near`): an untagged non-human, non-attackable mobile within 3 tiles is
   single-clicked first (`agent_link.look_at`, the stock client's 0x09 + 0x34), and the roster is the tagged pets
   within 3 tiles plus the remembered ones in view. Nothing else in the runner is tied to the pets' kind: the tank is
-  whichever pet stands next to a monster in war mode (`Team.tank_t`). The simulator still models only the gravebug
-  and the phoenix (data/sim/mausoleum.json `pets`), so its numbers are for those two.
+  whichever pet stands next to a monster in war mode (`Team.tank_t`). The simulator modelled only the gravebug
+  and the phoenix until 2026-10-25; since then all eight of Logan's pets ("The Healer's Codex, the Taming Bestiary
+  and the Guide" below, docs/SIM.md "Pets, teams and perks").
 
 ## Pets locked on a fight they can't reach: walk back / patrol ping-pong (live 2026-10-24 21:40:47-21:41:31, hunt-20261024-211218-bab0)
 
@@ -5894,6 +5895,41 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
 - **Fix:** `HuntLoop.doing` sends only `loop_hunt.INTENT_TALLY` (the pane's ten counters); no proxy change, so no
   proxy restart. A runner started before the fix still loses its tally at the 33rd counter. The pane's message
   now names a rejected tally as a cause too.
+
+## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
+
+The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
+x, y}; the answers as `gump_response` {gump_id, button_id, switches, texts}). `lines` holds each distinct string once,
+so a value is read through its element's line index, never by its position in `lines`.
+
+- **Healer's Codex**, gump 1244441914, 2 pages. A perk row: 0-3 gems (`tilepic X Y 3617`), "N Pts" (a text at x 70),
+  then its name (the next text at x 130); the tier is the gem count, the points 0/1/3/5 for tiers 0-3. Page "k/2" at
+  (213, 528), points spent "a/20" at (77, 605); button 9 is Reset Spent Points. Logan's since 2026-10-17 22:06:15
+  (session 150, seq 4485 page 1 and 4474 page 2): Overheal, Triage, Specialist and Without Borders at tier 3 (20/20),
+  Combat Medic, Immunize, Pressure Points and Self Treatment 0.
+- **Taming Bestiary**, gump 1353229584: per loadout three tabs (Attack button 10, Utility 11, Tank 12; the tab shown
+  is the button drawn with gump 2154) of 11 pages of 4 perk rows in the codex's grammar (gems `tilepic 55046`; a
+  "[Cross] " name is another tab's perk, at most 5 cross points); page "k/11" at (215, 356), points "a/20" at
+  (77, 605), cross-class "c/5" at (310, 547). The loadout shown is the select's default item (`select 96 704 252
+  <id> 1`, `selectitem <id> @Name@`), the active one the item drawn with ` 63 -1 -1`. A Reset (button 9, twice) or a
+  new loadout shows 0/20: the scan rebuilds a tab from its views after the last 0/20 one. Active: Phoenix/Gravebug
+  from 2026-10-12 21:01, Random from 2026-10-24 20:38, Nightmare/Fire from 2026-10-25 11:01. Never viewed: the
+  Utility tab of Phoenix/Gravebug, Fortress, Manticore/BloodSerp, Water Dragon/Drake, 5 Casters, Flamehounds,
+  Drowned/WaterDrake, DebuffBirb; Manticore/Zoon one Attack page only. The perks' texts (each with its numbers per
+  rank) are in `harness/data/sim/tamer/logan_wolf.json` `perks`; e.g. Swarm's healing is (1 % / 3 % / 5 %) x the
+  followers controlled, Menagerie's (1 % / 3 % / 5 %) x their distinct types.
+- **Guide**, gump 3280914284, opened on a pet or a wild creature: the title at y 40 ("Name the Species", or "A
+  Species"), "Level N" at (205, 67) with an xp bar, at (209, 90) without one at the top level 15; the Values page's
+  rows at label x 75 / value x 170 (y 150 min taming, 170 slots, 190 hits "cur/max", 210 attack speed "2.86s", 230
+  "Melee Damage" or "Spell Damage" "lo - hi", 250 wrestling, 270 armor, 290 magic resist, 310 poison and 330 special
+  resist). They are the *base* values, not levelled (the wiki's level table makes the live hit bars: GirthyEarthy
+  448 -> ~1000, NightmareB 228 -> ~480). A wild creature's adds Barding and Taming Chance; a toggle at (212, 127)
+  reads "Base" or "Tamed".
+- The supplies at a finish (live): the one resurrection seen (2026-10-14 22:35:55.11, capture 20261014_221341) was
+  GraveRobber's, at 31 % with Critical Care rank 2 in its tab; a '+4' over it 1.06 s after that finish was an
+  Overheal tick (the codex's tier then is in the scan's history).
+- The wiki's bandage heal on a creature is (Veterinary / 100) x U(80, 120) x (1 + 0.2 x Lore / 100) (knowledge
+  #11327); supplies heal 50 % of it on each patient, 75 % when there is one (#11331).
 
 ## Network observations
 

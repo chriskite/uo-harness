@@ -105,7 +105,7 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       at most SIM_LOS_MAX others (los.Sight.can_see); 400 a bad query
   GET  /api/sim/options  what a simulator run can be started with (sim/simjobs.py): scenarios, run.py's
                       option defaults and limits, the scripted fights (sim/fight*.py) with their options, whether
-                      the live store is there for --prior (--memory-db)
+                      the live store is there for --prior (--memory-db), and Logan's team presets and bestiary loadouts
   GET  /api/sim/jobs  {jobs: [{id, kind, label, argv, status, started, ended, exit, traces, out}]}: the runs
                       started here, newest first; `out` the last 200 output lines, `traces` the files written
   POST /api/sim/jobs  {"kind": "run", "options": {...}} or {"kind": "fight", "fight", "seeds", "args", "trace"}

@@ -57,7 +57,6 @@ def one(seed):
     sc["spawns"] = [{"key": k, "at": list(at), "respawn_s": [99999, 99999]} for k, at in SPAWNS]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # each where the capture had it
     sc["player"]["start"] = list(START)
-    sc["vet"]["range"] = 5
     sc["loadout"]["items"].append({"serial": 0x6FFF0001, "graphic": soul_jar.EMPTY_JAR_GRAPHIC, "amount": 5,
                                    "kind": "soul_jar"})
     clock = simclock.SimClock(epoch=simrun.EPOCH)

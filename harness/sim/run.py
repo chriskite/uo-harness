@@ -1,6 +1,7 @@
 """Run the hunt runner against the simulator (docs/SIM.md "Running").
 
     python harness/sim/run.py [--scenario mausoleum] [--seed 1] [--minutes 30] [--runs 1] [--jobs 4]
+                              [--team TEAM] [--bestiary LOADOUT]
                               [--log FILE] [--json] [--trace [DIR]] -- <loop_hunt arguments>
 
 The runner is the real `loop_hunt.HuntLoop` (with `--pets`, `tamer.Team`) in this process, its
@@ -11,7 +12,9 @@ ends at the first leave). Defaults added to the runner's arguments unless given:
 --leave-recall <the scenario's tome> --enter-recall <it> --enter-rune <the hunting row> --crawl
 --timeout <minutes x 60> --no-drop-off`. Several runs (`--runs N`, seeds seed..seed+N-1) go to
 a pool of `--jobs` processes; the table (or `--json` lines) lists one summary per run. `--trace` records each run's
-trace (sim/trace.py) to DIR (default logs/sim_traces) for the viz Sim page.
+trace (sim/trace.py) to DIR (default logs/sim_traces) for the viz Sim page. `--team` / `--bestiary`: Logan's pets and
+Taming Bestiary loadout instead of the scenario's (sim/pets.py; docs/SIM.md "Pets, teams and perks"); the runner gets
+`--vet-range` as far as his Healer's Codex lets the supplies reach unless given.
 """
 from __future__ import annotations
 
@@ -94,7 +97,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
              at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
              eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
              trace: str | None = None, area: tuple | None = None, armor: dict | None = None,
-             instrument: str | None = None) -> dict:
+             instrument: str | None = None, team: str | None = None, bestiary: str | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
@@ -106,7 +109,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     `area`: the hunting level's box (x0, y0, x1, y1) for the per-hour numbers instead of the scenario's. `armor`:
     {aspect_tier, ar} over the scenario's `player.armor` (--aspect-tier: the suit's Command tier, so its AR and the
     pets' follower resistance; --armor: the AR itself). `instrument`: the instrument quality Logan plays instead of
-    the scenario's `bard.instrument` (--instrument; its measured numbers in `bard.instruments`)."""
+    the scenario's `bard.instrument` (--instrument; its measured numbers in `bard.instruments`). `team` / `bestiary`:
+    Logan's pets (a preset or pet names) and bestiary loadout (a name, "none" or a .json file) instead of the
+    scenario's (--team / --bestiary, sim/pets.select)."""
     import ast
     import importlib
     import loop_hunt
@@ -117,6 +122,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     from agent_link import Abort
     from sim import clock as simclock
     from sim.link import SimLink
+    from sim import pets
     from sim.scenario import load, play
     from sim.world import World
 
@@ -142,23 +148,22 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
         sc["area"] = list(area)
     if instrument:
         play(sc, instrument)
-    if "--vet-range" in extra:
-        # the runner's --vet-range is the character's (the Healer's Codex "Without Borders" adds 1/2/3 tiles,
-        # knowledge #11343): the simulated supplies reach as far, else the runner stands where they don't
-        sc["vet"]["range"] = int(extra[extra.index("--vet-range") + 1])
+    pets.select(sc, team, bestiary)          # after the armor: the Command tier sets the pets' numbers
+    # the runner's --vet-range is the character's: the supplies' reach with his codex (Without Borders), unless given
+    rargs = extra if "--vet-range" in extra else extra + ["--vet-range", str(sc["vet"]["range"])]
     clock = simclock.SimClock(epoch=epoch)
     world = World(sc, seed=seed)
     link = SimLink(world, clock)
     tracer, stdout = None, sys.stdout
     if trace:
         tracer = simtrace.Tracer(world, trace, label=scenario, seed=seed,
-                                 runner_args=runner_args(sc, extra, minutes, at_hunt), epoch=epoch)
+                                 runner_args=runner_args(sc, rargs, minutes, at_hunt), epoch=epoch)
         sys.stdout = tracer.tee(sys.stdout)
     if db is None:
         db = os.path.join(tempfile.mkdtemp(prefix="sim_"), "harness.db")
         if prior:
             seed_prior(db, prior, sc["player"]["serial"])
-    args = loop_hunt.arg_parser().parse_args(runner_args(sc, extra, minutes, at_hunt)
+    args = loop_hunt.arg_parser().parse_args(runner_args(sc, rargs, minutes, at_hunt)
                                              + ["--memory", db, "--seed", str(seed)])
     patched = simclock.install(clock)
     store = memory.Memory(db)
@@ -207,10 +212,12 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "kills_per_min": round(m["kills"] / max(clock.elapsed / 60, 1e-9), 2),
             "player_damage_taken": round(m["player_damage_taken"]), "player_hits_end": int(pl.hits), "player_ar": pl.ar,
             "instrument": sc["bard"].get("instrument"),
+            "team": sc["party"]["team"], "bestiary": sc["party"]["bestiary"],
+            "party_warnings": sc["party"]["warnings"],
             "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
             "pets_end": {p.name: p.pct() for p in world.pets()},
             "pet_damage_taken": m["pet_damage_taken"], "player_damage_by": m.get("player_damage_by", {}),
-            "pet_damage_by": m.get("pet_damage_by", {}),
+            "pet_damage_by": m.get("pet_damage_by", {}), "pet_damage_dealt": m.get("pet_damage_dealt", {}),
             "vet_uses": m["vet_uses"], "potions": m["potions"],
             "bard": m["bard"], "guard_commands": m["guard_commands"], "kill_commands": m["kill_commands"],
             "patrol_commands": m["patrol_commands"],
@@ -257,7 +264,7 @@ def _pool_run(job):
     out_all = []
     epoch = EPOCH
     for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace, area,
-            armor, instrument) in enumerate(runs):
+            armor, instrument, team, bestiary) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -268,7 +275,7 @@ def _pool_run(job):
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
                          prior=prior if career is None else None, reds=reds, trace=trace, area=area, armor=armor,
-                         instrument=instrument)
+                         instrument=instrument, team=team, bestiary=bestiary)
         finally:
             sys.stdout = old
             out.close()
@@ -329,6 +336,11 @@ def main(argv=None):
                     help="the instrument quality Logan plays instead of the scenario's bard.instrument, one with "
                          "numbers measured live in its bard.instruments (Tidal Tomb: 'eminently melodious', "
                          "'exceedingly melodious'; docs/SIM.md 'Level 3 and the later visits')")
+    ap.add_argument("--team", default=None, metavar="TEAM",
+                    help="a team preset (phoenix_gravebug, nightmare_fire, nightmares_minion, earth_fire, mantis_earth) "
+                         "or pet names comma-separated")
+    ap.add_argument("--bestiary", default=None, metavar="LOADOUT",
+                    help="a Taming Bestiary loadout (Phoenix/Gravebug, Random, Nightmare/Fire), none, or a .json file")
     a = ap.parse_args(argv)
     if a.instrument:
         from sim.scenario import load, play
@@ -336,6 +348,13 @@ def main(argv=None):
             play(load(a.scenario), a.instrument)     # an unknown one fails here, not in every pool worker
         except ValueError as e:
             ap.error(f"--instrument: {e}")
+    if a.team or a.bestiary:
+        from sim import pets
+        from sim.scenario import load
+        try:
+            pets.select(load(a.scenario), a.team, a.bestiary)    # refused here, not in every pool worker
+        except (ValueError, OSError) as e:
+            ap.error(f"--team/--bestiary: {e}")
     if a.runs > 1:
         cpu_budget.limit()
     seeds = list(range(a.seed, a.seed + a.runs))
@@ -346,7 +365,7 @@ def main(argv=None):
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
              tuple(a.set), a.others, a.eerie, a.prior, a.reds,
              simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None, tuple(a.area) if a.area else None,
-             {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument)
+             {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument, a.team, a.bestiary)
             for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
@@ -357,6 +376,8 @@ def main(argv=None):
         with ProcessPoolExecutor(max_workers=min(a.jobs, len(careers))) as ex:
             results = [r for rs in ex.map(_pool_run, careers) for r in rs]
     results.sort(key=lambda r: r["seed"])
+    for w in dict.fromkeys(w for r in results for w in r.get("party_warnings") or ()):
+        print(f"warning: {w}", file=sys.stderr)
     if a.json:
         for r in results:
             print(json.dumps(r))
@@ -403,6 +424,8 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             "deaths_per_h": round(deaths / hours, 2),
             "player_ar": sorted({r.get("player_ar") for r in ok}),
             "instrument": sorted({r.get("instrument") for r in ok if r.get("instrument")}),
+            "team": sorted({", ".join(r["team"]) for r in ok if r.get("team")}),
+            "bestiary": sorted({r.get("bestiary") for r in ok if r.get("bestiary")}),
             "player_damage_per_h": round(sum(r["player_damage_taken"] for r in ok) / hours),
             "runs_with_death": sum(1 for r in ok if r["deaths"]),
             "runs_with_pet_death": sum(1 for r in ok if r["pet_deaths"]),
@@ -550,15 +573,16 @@ def compare(results: list[dict], trip: dict) -> str:
               trip.get("discord_ok", 0), trip.get("discord_fail", 0)),
              ("peace success", tot("bard", "peace_ok"), tot("bard", "peace_fail"),
               trip.get("peace_ok", 0), trip.get("peace_fail", 0))]
-    gb = tot("pet_damage_taken", "GraveRobber")
-    ph = tot("pet_damage_taken", "AlaFlambe")
     out = [f"per hour on the level: sim {h:.2f} h over {len(ok)} runs, trip {th * 60:.1f} min",
            f"{'':>16} {'sim':>8} {'trip':>8}"]
     out += [f"{name:>16} {s:>8.1f} {t:>8.1f}" for name, s, t in rows]
     out += [f"{name:>16} {ok_ / max(1, ok_ + f):>8.2f} {tok / max(1, tok + tf):>8.2f}" for name, ok_, f, tok, tf in share]
-    out.append(f"{'gravebug:phoenix':>16} {gb / max(1, ph):>8.1f} "
-               f"{trip.get('gravebug_per_war_min', 0) / max(1, trip.get('phoenix_per_war_min', 1)):>8.1f}"
-               "  (damage taken; the trip's per war-minute)")
+    if ok and {"GraveRobber", "AlaFlambe"} <= set(ok[0].get("team") or ()):
+        # the trip's pets: their split of the monsters' damage beside the trip's
+        gb, ph = tot("pet_damage_taken", "GraveRobber"), tot("pet_damage_taken", "AlaFlambe")
+        out.append(f"{'gravebug:phoenix':>16} {gb / max(1, ph):>8.1f} "
+                   f"{trip.get('gravebug_per_war_min', 0) / max(1, trip.get('phoenix_per_war_min', 1)):>8.1f}"
+                   "  (damage taken; the trip's per war-minute)")
     return "\n".join(out)
 
 

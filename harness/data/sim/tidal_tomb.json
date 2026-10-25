@@ -24,15 +24,16 @@
   "from": "mausoleum",
   "keys": [
    "player",
-   "pets",
+   "tamer",
    "loadout",
    "bard",
    "vet",
    "potions",
    "defaults"
   ],
-  "note": "Logan Wolf's own blocks (hits, stamina, pets GraveRobber and AlaFlambe, pack, bard skill and song numbers, vet supplies, potions) and the engine defaults: the Mausoleum's, as he brought the same pets and kit (capture: same pet serials, same skills); a dict here updates the base's (player.start, defaults.pets_first, bard's Tidal Tomb numbers)"
+  "note": "Logan Wolf's own blocks (hits, stamina, his tamer block: pets GraveRobber and AlaFlambe by default, pack, bard skill and song numbers, vet supplies, potions) and the engine defaults: the Mausoleum's, as he brought the same pets and kit (capture: same pet serials, same skills); a dict here updates the base's (player.start, defaults.pets_first, bard's Tidal Tomb numbers). The level 3 numbers measured on other pets carry their `ref` (refs_note)"
  },
+ "refs_note": "a creature entry measured on or after 2026-10-24 20:38 (the Random, then the Nightmare/Fire bestiary loadouts) names in `ref` the pet its numbers came from, the first its note names (NightmareA/B: NightmareB with Nightmare/Fire; GirthyEarthy, a searing imp, fireminion with Random): another pet takes them x its armor or magic resist and damage resistance over that pet's (sim/pets.taken_factor); the rest stand for the default, the gravebug (defaults.pet_ref)",
  "player": {
   "start": [
    6653,
@@ -1114,6 +1115,9 @@
     "radius": 3,
     "damage_pet": [85, 126, 114],
     "damage_player": [38, 57, 51],
+    "damage_type": "physical",
+    "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire"},
+    "damage_type_note": "physical, not an area spell: GirthyEarthy's 85-95 against the Nightmares' 106-126 follows their armor (83 vs 54), not their magic resist (112 vs 135-139)",
     "note": "level 3 (2026-10-25 11:31:08-11:32:11; 2026-10-24 20:56:43-20:57:37): every 7.5-8.0 s (n=9 gaps, median 7.7) one number on each pet within 3 tiles of it at once, beside its own swings: NightmareA, NightmareB and a searing imp 106-126 (8 times, all three 3 tiles off), GirthyEarthy 85-95 alone beside it (3 times; the casters at 5 got none); Logan at 4-7 tiles never (11 of 11), so radius 3. Its first 2 s into the fight (11:31:10.5). On Logan: never measured, [INFERENCE: the pets' x 0.45, the giant astral zoa's ratio of Logan's hits to the pets']. Twice a second number with it, 48-53 on all three pets (11:31:56.9, 11:32:04.5): not modelled. Three killed at 20,001 in numbers (the wiki's 20,000 hits + 1), in 56-69 s"
    }
   ],
@@ -1126,6 +1130,7 @@
     "radius": 7,
     "damage_pet": [70, 82, 80],
     "damage_player": [35, 56, 37],
+    "ref": {"pet": "a searing imp", "bestiary": "Random"},
     "note": "level 3, a mage standing still at (7156-7158, 2193-2196) the whole fight (2026-10-24 20:54:49-20:56:24, 21:01:02-21:02:49; 2026-10-25 11:32:54-11:33:52): every 5.0-8.0 s (gaps 5.0-5.2 in a row the first evening fight, 6.8-8.0 the second day; median ~6) 78-82 on each pet 5-7 tiles from it (the three of 11:32:58 to 11:33:47, the searing imp and fireminion 2026-10-24) and Logan 35-56 within ~3 of them, each with 'Astral backlash impacts your ability to concentrate while casting!' (8 times; 'You are no longer suffering spell backlash.' ~35 s later: a casting penalty, not modelled). The tank beside it (GirthyEarthy at 1) took none of these but 70-78 alone at the same cadence: in the sim every one of us within 7 gets it. 2 killed at 18,001 (wiki 18,000 hits + 1) in 89-92 s"
    },
    {
@@ -1166,8 +1171,8 @@
  "ranged_observed": {
   "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},
   "soulcatcher": {"damage": [23, 30], "note": "its 4 numbers on the pets in the capture (23 and 26 beside one, 30 twice from range)"},
-  "giant astral zoa": {"damage": [36, 54], "every_s": 3.5, "note": "level 3: its single numbers on the one pet it fought, 35-48 on NightmareB/A 3.4-4.1 s apart (2026-10-25 11:33:00-11:33:52), 38-54 on GirthyEarthy beside it 2.5-5 s apart (2026-10-24 20:54:58-20:56:22): the wiki's spell damage 45-55 less the pet's armor; the defaults' 0.5 x wiki every 6 s made a third of it"},
-  "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"}
+  "giant astral zoa": {"damage": [36, 54], "every_s": 3.5, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire"}, "note": "level 3: its single numbers on the one pet it fought, 35-48 on NightmareB/A 3.4-4.1 s apart (2026-10-25 11:33:00-11:33:52), 38-54 on GirthyEarthy beside it 2.5-5 s apart (2026-10-24 20:54:58-20:56:22): the wiki's spell damage 45-55 less the pet's armor; the defaults' 0.5 x wiki every 6 s made a third of it"},
+  "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire"}, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"}
  },
  "melee_observed": {
   "clearwater grouper": {
@@ -1193,11 +1198,13 @@
   "tidal sea serpent": {
    "melee": [49, 71, 61],
    "swing_s": 3.4,
+   "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire"},
    "note": "level 3: its swings (the 0x6E action 5 before each) on the pet it fought, 59-71 on NightmareB/A (n=11, median 63; 2026-10-25 11:31:08-11:32:09), 49-58 on GirthyEarthy (2026-10-24 20:56:43-20:57:34), 3.3-3.4 s apart in a row (some skipped: 4.4-5.0); calibrate's swing numbers (to 101, period 2.58 s) took its area hits on the tank (specials) for swings"
   },
   "greater razorfin": {
    "melee": [40, 64, 54],
    "swing_s": 3.4,
+   "ref": {"pet": "GirthyEarthy", "bestiary": "Random"},
    "note": "level 3, 2026-10-24 20:58:26-20:59:31 on GirthyEarthy: 19 swings of 36-70 (median 54) in 64 s, beside a steady 18 every 1.27 s (n=60, the median gap) that went on 14 s after its death: a bleed (specials). calibrate's 1.23 s period and 18 median were the bleed's"
   },
   "colossal pincer crab": {

@@ -20,10 +20,14 @@ Per creature type, in this order of evidence:
 - specials: the scenario's `specials` table;
 - `melee_observed` / `ranged_observed`: the scenario's own measured overrides (each with its note),
   over all of the above; `aggro_observed.<type>.range`: the type's measured aggro range (else
-  `defaults.aggro_range`).
+  `defaults.aggro_range`);
+- armor and magic resist: the wiki's (what the pets' hits meet, sim/pets.py); `ref` in a `melee_observed` entry
+  (`melee_ref`), a `ranged_observed` one or a special: the pet its numbers were measured on (else
+  `defaults.pet_ref`).
 
 `fit_bard(observed, kb)` re-derives the effective barding skill from the capture's outcomes;
-`player_armor(sc)` resolves the player's AR and the pets' damage share from `player.armor`.
+`player_armor(sc)` resolves the player's AR, aspect and tier from `player.armor`; `load` builds Logan's pets last
+(sim/pets.select: the scenario's `tamer` block).
 """
 from __future__ import annotations
 
@@ -31,7 +35,7 @@ import json
 import math
 import os
 
-from sim import armor
+from sim import armor, pets
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.path.dirname(HERE), "data", "sim")
@@ -58,7 +62,8 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     period = (sw.get("period_s") or {})
     swing = period["median"] if (period.get("n") or 0) >= MIN_N and period["median"] >= MIN_SWING_S else df["swing_s"]
     src["swing_s"] = "capture" if swing != df["swing_s"] else "default"
-    if (mo := sc.get("melee_observed", {}).get(key)) is not None:
+    mo = sc.get("melee_observed", {}).get(key)
+    if mo is not None:
         melee, swing = mo.get("melee", melee), mo.get("swing_s", swing)
         src["melee"] = "melee_observed"
     ai = kb.get("ai") or "melee"
@@ -83,6 +88,8 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     return {"key": key, "name": kb.get("name") or f"a {key}", "body": graphics[0] if graphics and graphics[0] else 400,
             "notoriety": noto, "hits": kb.get("hits") or 1000, "difficulty": kb.get("difficulty"),
             "melee": melee if ai != "mage" else None, "swing_s": swing, "hit_chance": df["hit_chance"],
+            "armor": kb.get("armor") or 0, "magic_resist": kb.get("magic_resist") or 0,
+            "melee_ref": (mo or {}).get("ref"),
             "melee_player": [kb["melee_damage"][0] * df["player_melee_k"], kb["melee_damage"][1] * df["player_melee_k"]]
             if ai != "mage" and kb.get("melee_damage") else None,
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
@@ -130,6 +137,8 @@ def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
     if (played := sc["bard"].get("instrument")) is not None:
         play(sc, played)
     sc["bard"]["chance"] = None          # per target: bard_chance()
+    if "tamer" in sc:
+        pets.select(sc)                  # Logan's pets (sim/pets.py); run.py re-selects for --team / --bestiary
     return sc
 
 
@@ -146,16 +155,14 @@ def play(sc: dict, name: str) -> None:
 
 
 def player_armor(sc: dict) -> dict:
-    """The player's armor from `player.armor` (docs/SIM.md "Player armor"): {ar, aspect, tier, pet_taken_x}.
-    `ar`: the block's own `ar` when set (run.py --armor), else the suit's (armor.suit_ar). `pet_taken_x`: the share
-    of damage the pets take against the numbers they were measured with, at the Command tier `pets_tier`
-    (armor.follower_resist); 1.0 unless the suit's aspect or tier differs from it (run.py --aspect-tier)."""
+    """The player's armor from `player.armor` (docs/SIM.md "Player armor"): {ar, aspect, tier}. `ar`: the block's
+    own `ar` when set (run.py --armor), else the suit's (armor.suit_ar); aspect and tier: the suit's (the Command
+    tier sets the pets' follower damage and resistance, sim/pets.build_pet; run.py --aspect-tier)."""
     a = sc["player"]["armor"]
     suit = a["suit"]
     aspect, tier = suit.get("aspect"), suit.get("aspect_tier")
     ar = a["ar"] if a.get("ar") is not None else armor.suit_ar(suit)
-    x = (1 - armor.follower_resist(aspect, tier)) / (1 - armor.follower_resist("command", a["pets_tier"]))
-    return {"ar": ar, "aspect": aspect, "tier": tier, "pet_taken_x": x}
+    return {"ar": ar, "aspect": aspect, "tier": tier}
 
 
 def bard_chance(sc: dict, difficulty: float | None) -> float:

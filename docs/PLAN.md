@@ -2420,8 +2420,8 @@ User: the simulator ignored Logan's armor; his suits differed between captures, 
   summon would join the roster, and the runner would then wait for it or leave over it.
 - Rejected: the stock right-click "Release" check (`mount.is_own`). It opens a context menu in the user's client
   for each pet. The tag plus "within 3 tiles at the start" is enough at the house.
-- **Not done: the simulator's pets.** It models the gravebug and the phoenix only, so batches for other pets
-  stand for those two.
+- **The simulator's pets: done 2026-10-25** ("Logan's pets, teams and the Healer's Codex in the simulator" below).
+  Until then it modelled the gravebug and the phoenix only.
 
 ## Pets standing locked off a fight get 'All Follow Me', not another walk back (2026-10-24)
 
@@ -2472,6 +2472,38 @@ blocks, deaths per gold 0.88x / 0.68x, short of the +10 %: with the other player
 no further runner knob screened moved it beyond the screens' ±2 % noise. Rejected: routing the patrol round idle
 purgers' and blightmares' sight (more kills, less gold); opening with "All Kill". *Live*: untried; the §5 command is
 unchanged.
+
+## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
+
+The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and
+Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex as live, set as his. Built as
+`sim/tamer_scan.py` (his gumps from the memory store), `data/sim/tamer/logan_wolf.json` (the hand-authored data) and
+`sim/pets.py` (the mechanics); docs/SIM.md "Pets, teams and perks". Decisions:
+
+- **Mechanics plus a live anchor** (the user's pick): the Guide's base stats through the wiki's level table, the
+  wiki's and the gumps' formulas for every stat, ability and perk, the absolute numbers pinned to the captures:
+  each pet's live attack period (`k_speed`), one damage factor for every pet from the gravebug's live median melee
+  number (`k_dmg` 1.559: the unknown stacking is the tamer's, not the species'). Rejected: a calibrated spec per pet
+  (most pets have no attributed numbers; perks would then change nothing).
+- **The monsters' numbers stand for a reference pet** (`defaults.pet_ref`, an entry's `ref`) and each pet takes them
+  through its own armor, resist and resistance over the reference's: the scenarios' measured numbers stay as they
+  are, and a pet with another loadout takes more or less. The old `melee_taken_x` 1.7 (phoenix) comes out of the
+  armor rule (1.83 in the model), `pet_taken_x` out of the Command tier in the build.
+- **The default team stays GraveRobber and AlaFlambe with Phoenix/Gravebug** (the user), so batches stay comparable.
+  Bonus pools add inside and multiply across [INFERENCE].
+- **The plan's contingency taken**: with the shared factor the default batch made 42 % more kills an hour (130.3 ->
+  184.9); AlaFlambe got its own factor (`anchors.damage_override`: its model mean per number = the old spec's 438).
+  Still +28 % (166.8): **open**, with the phoenix's numbers per attack (the model's 1.30 a cast plus Epic Barrage's
+  against the live 1.10) and the pets' levels (14-15 now, 10-11 at the Mausoleum's calibration) as the leads.
+- **The vet heal is the wiki's formula** with the codex (Specialist + Without Borders), not the gravebug's bar x an
+  assumed 450 hits; Lore counts 0.2 a point (#11327; the plan's numbers had 0.3). `vet.res_hits` 0.31 -> 0.10: the one
+  live res was the gravebug's with Critical Care rank 2 (+21 %), which the model now adds per pet.
+- **run.py hands the runner `--vet-range`** from the codex (5) unless given; before, the runner's flag set the
+  simulated reach.
+- **The Sim page refuses a bestiary file path** (it would read arbitrary files); `run.py` takes one.
+- Open besides the kills: spells phoenix : gravebug 0.86 against the live 0.79, and the area hits 1.09 against the
+  live 37 vs 37 (the gravebug's Tank-tab resistance); the never-captured tabs (Phoenix/Gravebug's Utility: the mantis
+  runs without perks, with a warning) fill in when Logan opens them and the scan runs again.
 
 ## Risks
 

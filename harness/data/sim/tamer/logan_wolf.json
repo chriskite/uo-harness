@@ -1,0 +1,189 @@
+{
+  "description": "Logan Wolf's tamer, pets, teams and the perk numbers of the Taming Bestiary and the Healer's Codex (harness/sim/pets.py, docs/SIM.md 'Pets, teams and perks'). The perks he has taken, the codex tiers and the pets' Guide values are the scan's: logan_wolf_observed.json (harness/sim/tamer_scan.py).",
+  "tamer": {
+    "taming": 120,
+    "lore": 120,
+    "veterinary": 120,
+    "herding": 120,
+    "follower_damage": 0.16,
+    "max_slots": 5,
+    "note": "skills: docs/NOTES.md (Taming, Lore, Veterinary and Herding 120); the searing imp's Guide Details page reads '+22.9 % Damage, +11.4 % Wrestling, +11.4 % Damage Resistance' = 0.4 / 0.2 x (120 - 80) / 70 (the underdog bonus over its min taming); follower_damage: the Mastery Chain's Follower Damage +16 % (docs/NOTES.md); max_slots: the five control slots every live team filled"
+  },
+  "species": {
+    "gravebug": {
+      "class": "tank", "slots": 1, "min_taming": 115, "body": 387, "attack": "melee",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Disease", "type": "passive", "chance": 0.15, "mult": 0.5, "every_s": 5, "seconds": 20},
+        {"name": "Devour", "type": "cooldown", "cooldown_s": 15, "heal_pct": 0.10, "ticks": 3, "tick_s": 0.5, "range": 2}
+      ],
+      "note": "Guide (GraveRobber) and its Abilities page; Devour 'Can consume nearby corpses to heal 10% of maximum health', its 15 s cooldown measured live ('*devours corpse*' 15.0-15.2 s apart at the shortest, 3 captures 2026-10-12/13), then '+N' three times 0.5 s apart; Disease (knowledge #14471, tamed 15 %)"
+    },
+    "phoenix": {
+      "class": "attack", "slots": 4, "min_taming": 120, "body": 832, "attack": "spell",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true},
+        {"name": "Spellsurge", "type": "passive", "chance": 0.15, "bonus": 1.25, "window_s": 10},
+        {"name": "Epic Barrage", "type": "cooldown", "cooldown_s": 15, "range": 12, "hits": 3, "mult": 0.6, "half_resist": true}
+      ],
+      "note": "Guide (AlaFlambe) Abilities page and wiki #4255/#4258/#4259/#4271; Epic Barrage reaches 12 tiles (patch 2022-03-16); its cooldown [INFERENCE: Devour's measured 15 s]"
+    },
+    "nightmare": {
+      "class": "attack", "slots": 2, "min_taming": 100, "body": 204, "attack": "spell",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true}
+      ],
+      "note": "Guide (NightmareA/B) Abilities page; Spellburn as the phoenix's (wiki #4255)"
+    },
+    "searing imp": {
+      "class": "attack", "slots": 1, "min_taming": 80, "body": 74, "attack": "spell",
+      "zoology": {"damage": 0.042, "dr": 0.021},
+      "abilities": [
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true}
+      ],
+      "note": "Guide (a searing imp); its Details page: 'Zoology +4.2 % Damage, +2.1 % DR' (the only Details page captured: the other species' zoology is 0 here)"
+    },
+    "fire minion": {
+      "class": "attack", "slots": 1, "min_taming": 90, "body": 776, "attack": "spell",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true}
+      ],
+      "note": "Guide (fireminion) Abilities page"
+    },
+    "earth dragon": {
+      "class": "tank", "slots": 3, "min_taming": 115, "body": 12, "attack": "melee",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Earth Breath", "type": "cooldown", "cooldown_s": 15, "range": 12, "mult": 2.0, "damage": "physical"},
+        {"name": "Earth Shield", "type": "cooldown", "cooldown_s": 60, "seconds": 60, "melee_bonus": 0.15, "armor": 30}
+      ],
+      "note": "Guide (GirthyEarthy) Abilities page; Earth Breath physical; cooldowns [INFERENCE: Devour's measured 15 s; Earth Shield's equal to its 60 s]"
+    },
+    "tidal mantis": {
+      "class": "utility", "slots": 2, "min_taming": 100, "body": 242, "attack": "melee",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Bleed", "type": "passive", "chance": 0.15, "mult": 1.0, "seconds": 15, "every_s": 3},
+        {"name": "Soak", "type": "passive", "chance": 0.15, "cripple_per_slot": 0.03, "seconds": 15}
+      ],
+      "note": "Guide (a tidal mantis) Abilities page; Bleed's ticks every 3 s for 15 s [INFERENCE: the simulator's bleed cadence]; Soak cripples the target's damage by 3 % a control slot"
+    }
+  },
+  "pets": [
+    {"name": "GraveRobber", "serial": 909054, "species": "gravebug"},
+    {"name": "AlaFlambe", "serial": 2551638, "species": "phoenix"},
+    {"name": "NightmareA", "serial": 909057, "species": "nightmare"},
+    {"name": "NightmareB", "serial": 909047, "species": "nightmare"},
+    {"name": "a searing imp", "serial": 7083513, "species": "searing imp"},
+    {"name": "fireminion", "serial": 1906662, "species": "fire minion"},
+    {"name": "GirthyEarthy", "serial": 950799, "species": "earth dragon"},
+    {"name": "a tidal mantis", "serial": 5192282, "species": "tidal mantis"}
+  ],
+  "pets_note": "serials: the capture's (tidal_tomb_observed pets.*.serials; 0x000DDEFE GraveRobber ... 0x004F3A5A the mantis)",
+  "teams": {
+    "phoenix_gravebug": {"pets": ["GraveRobber", "AlaFlambe"], "bestiary": "Phoenix/Gravebug",
+                         "note": "live 2026-10-12 to 2026-10-24 (the Mausoleum's calibration and Tidal Tomb levels 1-2)"},
+    "nightmare_fire": {"pets": ["NightmareA", "NightmareB", "a searing imp"], "bestiary": "Nightmare/Fire",
+                       "note": "live 2026-10-25 (Tidal Tomb level 3)"},
+    "nightmares_minion": {"pets": ["NightmareA", "NightmareB", "fireminion"], "bestiary": "Phoenix/Gravebug",
+                          "note": "live 2026-10-23 20:33-22:01"},
+    "earth_fire": {"pets": ["GirthyEarthy", "fireminion", "a searing imp"], "bestiary": "Random",
+                   "note": "live 2026-10-24 20:46 to 2026-10-25 00:39 (Tidal Tomb level 3)"},
+    "mantis_earth": {"pets": ["GirthyEarthy", "a tidal mantis"], "bestiary": "Phoenix/Gravebug",
+                     "note": "live 2026-10-24 19:33-20:32"}
+  },
+  "teams_note": "the tank first, then the pets in the order the simulator always placed them (beside Logan east, south, west, north, south-east)",
+  "class_threat_x": {"tank": 4.0, "attack": 0.1, "utility": 0.1},
+  "class_threat_note": "the fitted gravebug (4.0) and phoenix (0.1) values the Mausoleum calibrated (of the monsters' attributed hits on 41 live visits the gravebug took 81 %, the phoenix 9.6 %, Logan 9.4 %): the Tank class draws aggro (knowledge #2074); a utility pet as an attack pet [INFERENCE]",
+  "hit_chance": 0.95,
+  "hit_chance_note": "a melee pet's base chance to hit: the gravebug's measured (n=175 attributed hits); the Bestiary's accuracy perks add to it",
+  "step_s": 0.21,
+  "follow": 1,
+  "leash": 14,
+  "move_note": "every pet's one-tile moves out of war mode 0.209-0.214 s apart live (tidal_tomb_observed pets.*.step_interval_s_not_fighting); follow 1 and leash 14 as the gravebug and phoenix always had",
+  "spell_range": 10,
+  "spell_range_note": "the phoenix's range 10 [INFERENCE], for every caster",
+  "anchors": {
+    "damage": {"pet": "GraveRobber", "bestiary": "Phoenix/Gravebug", "team": "phoenix_gravebug", "tier": 14,
+               "observed_median": 91.0, "n": 198, "target_ar": 49.4, "target_mr": 0,
+               "note": "tidal_tomb_observed pets.GraveRobber.damage_dealt_attributed (median 91, n=198) in Tidal Tomb levels 1-2, where it fought; target_ar: the mean wiki armor over those levels' spawns (x < 7049, n=120). pets.k_dmg is this median over the model's (its melee hits on that armor in the reference tank context): one factor for every pet (the unknown stacking is the tamer's, not the species')"},
+    "damage_override": {
+      "AlaFlambe": {"bestiary": "Phoenix/Gravebug", "team": "phoenix_gravebug", "tier": 14, "mean_per_number": 438.0,
+                    "target_mr": 70.7, "target_ar": 26.0, "n": 20000,
+                    "note": "run.py's default-team batch (98 runs, seed 17, 14 careers, --vet-range 5) went from 130.3 to 184.9 kills an hour with the shared k_dmg alone (+42 %, the plan's 15 % limit): the phoenix's model numbers came to 559 a number, 727 a cast every 1.59 s plus Epic Barrage, against the hand-calibrated spec's (211, 776, 327), 438 a cast every 1.8 s. Its own factor: its model mean per number (spells and Spellburn, Spellsurge carried from cast to cast, REF_CASTER, on the Mausoleum spawns' mean magic resist 70.7 and armor 26.0) equal to that 438 (pets.k_override)"}
+    },
+    "speed": {
+      "GraveRobber": {"period_s": 1.67, "measure": "p10", "action": 5},
+      "GirthyEarthy": {"period_s": 1.70, "measure": "p10", "action": 5},
+      "a tidal mantis": {"period_s": 1.76, "measure": "p10", "action": 6},
+      "AlaFlambe": {"period_s": 1.59, "measure": "median", "action": 4},
+      "NightmareA": {"period_s": 1.60, "measure": "median", "action": 7},
+      "NightmareB": {"period_s": 1.60, "measure": "median", "action": 7},
+      "fireminion": {"period_s": 1.62, "measure": "median", "action": 5},
+      "a searing imp": {"period_s": 1.71, "measure": "median", "action": 0}
+    },
+    "speed_tier": 14,
+    "speed_note": "tidal_tomb_observed pets.*.attack_animation (2026-10-24/25): the period between attack animations, p10 for the melee pets (their median holds the walks between targets), the median for the casters; action: the 0x6E action of the attack (a caster's cast_action). pets.k_speed per pet is this period over the Guide's attack speed at its level and Command tier 14"
+  },
+  "perks": {
+    "bestiary": {
+      "Ambush": {"tab": "attack", "dmg": [0.05, 0.15, 0.25], "rule": "no stealth: dmg"},
+      "Cornered": {"tab": "attack", "dmg_cond": [0.07, 0.21, 0.35], "dmg": [0.04, 0.20, 0.25], "rule": "hurt by a creature within 10 s: dmg_cond, else dmg (the gump's 4/20/25 verbatim)"},
+      "Feed": {"tab": "attack", "dmg_cond": [0.05, 0.15, 0.25], "heal": [0.005, 0.015, 0.025], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Bleed: its target bleeding, dmg_cond and a melee hit heals heal x max hits; a species without: dmg"},
+      "Feral": {"tab": "attack", "dmg": [0.05, 0.15, 0.25], "rule": "no Frenzy/Enrage: dmg"},
+      "Giant Killer": {"tab": "attack", "hit": [0.02, 0.06, 0.10], "rule": "melee hit chance + hit, doubled while the result is below 0.66"},
+      "Heavy Breathing": {"tab": "attack", "dmg": [0.05, 0.15, 0.25], "rule": "no multi-target ability: dmg"},
+      "Hunting Party": {"tab": "attack", "dmg_cond": [0.07, 0.21, 0.35], "dmg": [0.04, 0.12, 0.20], "rule": "the pet and Logan both within 2 of the target: dmg_cond, else dmg"},
+      "Immolate": {"tab": "attack", "spellburn": [0.4, 1.2, 2.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Spellburn: its Spellburn + spellburn; else dmg"},
+      "Lethality": {"tab": "attack", "chance": [0.06, 0.18, 0.30], "dmg": [0.04, 0.12, 0.20], "rule": "each number: chance of +100 %, else + dmg"},
+      "Menagerie": {"tab": "attack", "dmg_per": [0.015, 0.045, 0.075], "heal_per": [0.01, 0.03, 0.05], "rule": "dmg_per and heal_per x the team's distinct species"},
+      "Mutation": {"tab": "attack", "cooldown_s": [1.5, 4.5, 7.5], "dmg": [0.05, 0.15, 0.25], "rule": "a species with a cooldown ability: its cooldowns - cooldown_s (at least 1 s); else dmg"},
+      "Pelt": {"tab": "attack", "dmg_cond": [0.07, 0.21, 0.35], "dmg": [0.04, 0.12, 0.20], "rule": "the target 4+ tiles off: dmg_cond, else dmg"},
+      "Primal": {"tab": "attack", "passive": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with a passive ability: its chance x (1 + passive); else dmg"},
+      "Swarm": {"tab": "attack", "dmg_per": [0.015, 0.045, 0.075], "heal_per": [0.01, 0.03, 0.05], "rule": "dmg_per and heal_per x the team's pets (ghosts count)"},
+      "Beast Sting": {"tab": "utility", "dmg_cond": [0.08, 0.24, 0.40], "dmg": [0.05, 0.15, 0.25], "rule": "its target poisoned: dmg_cond, else dmg (no species here poisons)"},
+      "Breaker": {"tab": "utility", "ar": [5, 15, 25], "mr": [10, 30, 50], "rule": "physical hits ignore ar of the target's armor (at most 75 in all), spells mr of its magic resist (at most 150)"},
+      "Carrion": {"tab": "utility", "dmg_cond": [0.04, 0.12, 0.20], "heal": [0.01, 0.03, 0.05], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Disease: its target diseased, dmg_cond and a melee hit heals heal x max hits; else dmg"},
+      "Contagion": {"tab": "utility", "tick": [0.25, 0.75, 1.25], "dmg": [0.04, 0.12, 0.20], "rule": "a species with Disease: its ticks + tick; else dmg"},
+      "Debilitate": {"tab": "utility", "dmg": [0.04, 0.12, 0.20], "rule": "no poison: dmg"},
+      "Deep Lungs": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no multi-target ability: dmg"},
+      "Dominance": {"tab": "utility", "hit": [0.03, 0.09, 0.15], "rule": "melee hit chance + hit until 5 hits on that target, re-armed 15 s after its first"},
+      "Frostbite": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no chill: dmg"},
+      "Metabolism": {"tab": "utility", "heal": [0.005, 0.015, 0.025], "dmg_cond": [0.04, 0.12, 0.20], "rule": "a melee hit heals heal x max hits; at max hits dmg_cond"},
+      "Opportunity": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no entangle/hinder: dmg"},
+      "Punishment": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no pierce/hex: dmg"},
+      "Scour": {"tab": "utility", "cripple": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Soak: its cripple x (1 + cripple); else dmg"},
+      "Swoop": {"tab": "utility", "swoop": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with a cooldown ability: its next attack within 10 s of a cooldown use + swoop; else dmg"},
+      "Toxic": {"tab": "utility", "double_first": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Disease: this chance its first tick lands twice at once; else dmg"},
+      "Adrenaline": {"tab": "tank", "dmg_cond": [0.10, 0.30, 0.50], "dr_cond": [0.04, 0.12, 0.20], "dmg": [0.04, 0.12, 0.20], "dr": [0.01, 0.03, 0.05], "rule": "within 15 s of a resurrection: dmg_cond and dr_cond, else dmg and dr"},
+      "Aggression": {"tab": "tank", "dmg_per": [0.03, 0.09, 0.15], "dr_per": [0.01, 0.03, 0.05], "dmg": [0.04, 0.12, 0.20], "rule": "n distinct creatures that hurt it within 10 s (at most 3): dmg_per and dr_per x n; none: dmg"},
+      "Alpha": {"tab": "tank", "hit": [0.02, 0.06, 0.10], "rule": "melee hit chance + hit, doubled when its target is on it"},
+      "Behemoth": {"tab": "tank", "dmg_cond": [0.08, 0.24, 0.40], "dr_cond": [0.015, 0.045, 0.075], "dmg": [0.03, 0.09, 0.15], "dr": [0.01, 0.03, 0.05], "rule": "3+ control slots: dmg_cond and dr_cond, else dmg and dr"},
+      "Bully": {"tab": "tank", "dr": [0.02, 0.06, 0.10], "rule": "no multi-target cooldown ability: dr"},
+      "Critical Care": {"tab": "tank", "res_chance": [0.2, 0.6, 1.0], "res_hits": [0.07, 0.21, 0.35], "rule": "resurrection chance x (1 + res_chance); it comes back with + res_hits of its max hits"},
+      "Deflection": {"tab": "tank", "dr": [0.04, 0.12, 0.20], "dr_cond": [0.02, 0.06, 0.10], "rule": "dr against no attacker or one not on it; dr_cond against one on it"},
+      "Guardians": {"tab": "tank", "dr_cond": [0.04, 0.12, 0.20], "dr": [0.02, 0.06, 0.10], "rule": "2+ live tank-class pets: dr_cond, else dr"},
+      "Hearty": {"tab": "tank", "dmg_cond": [0.07, 0.21, 0.35], "dmg": [0.04, 0.12, 0.20], "rule": "above 75 % hits: dmg_cond, else dmg"},
+      "Mending": {"tab": "tank", "heal": [0.07, 0.21, 0.35], "dmg_cond": [0.04, 0.12, 0.20], "rule": "heals on it + heal; at max hits and not poisoned dmg_cond"},
+      "Stalwart": {"tab": "tank", "dr": [0.02, 0.06, 0.10], "rule": "dr (its debuff-ignore has nothing to act on here)"},
+      "Survival": {"tab": "tank", "dr": [0.03, 0.09, 0.15], "rule": "dr"},
+      "Tolerance": {"tab": "tank", "skip": [0.08, 0.24, 0.40], "dr": [0.01, 0.03, 0.05], "rule": "this chance a bleed, disease or poison tick on it is skipped; not afflicted: dr"},
+      "Trample": {"tab": "tank", "trample": [0.06, 0.18, 0.30], "dmg": [0.05, 0.15, 0.25], "rule": "a melee hit: damage_max x trample on up to 2 other monsters within 2 of the target; a caster: dmg"}
+    },
+    "bestiary_note": "per rank 1/2/3 (1, 3 and 5 points); the gump's texts (Taming Bestiary, gump 1353229584, sessions 192/194) and wiki #16334-16345. A rule's 'else' is for a species without the mechanic named: here Disease (gravebug), Bleed and Soak (tidal mantis), Spellburn (every caster), cooldown abilities (gravebug, phoenix, earth dragon); none has stealth, frenzy, poison, chill, entangle/hinder, pierce/hex, flamestrike or a multi-target ability. Bonuses add within a pool; the pools multiply [INFERENCE]",
+    "codex": {
+      "Combat Medic": {"dr": [0.02, 0.06, 0.10], "seconds": 15, "rule": "patients dr for 15 s after a finish"},
+      "Immunize": {"tick": [0.08, 0.24, 0.40], "seconds": 15, "rule": "bleed and disease ticks on patients - tick for 15 s after a finish (poison levels aren't modelled)"},
+      "Overheal": {"heal": [0.08, 0.24, 0.40], "seconds": 3, "rule": "+ heal of each heal, in 3 ticks over the next 3 s"},
+      "Pressure Points": {"melee": [0.05, 0.15, 0.25], "rule": "Logan's melee (he never melees: no effect)"},
+      "Self Treatment": {"seconds_off": [0.75, 2.25, 3.75], "rule": "bandages only, no effect on supplies"},
+      "Specialist": {"heal": [0.08, 0.24, 0.40], "chance": [0.08, 0.24, 0.40], "rule": "heals + heal, resurrect/cure chance + chance (of normal)"},
+      "Triage": {"dr": [0.03, 0.09, 0.15], "rule": "patients within reach while a channel runs: dr, doubled below 33 % hits"},
+      "Without Borders": {"range": [1, 2, 3], "heal": [0.02, 0.06, 0.10], "chance": [0.02, 0.06, 0.10], "rule": "the supplies' reach + range; heals + heal, resurrect/cure chance + chance"}
+    },
+    "codex_note": "per tier 1/2/3 (1, 3 and 5 points); the gump's texts (Healer's Codex, gump 1244441914). The Command aspect's Inspiration special isn't modelled: no live trigger found"
+  }
+}

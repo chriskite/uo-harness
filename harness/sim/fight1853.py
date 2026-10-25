@@ -61,7 +61,6 @@ def one(seed):
     sc = load()
     sc["spawns"] = []
     sc["player"]["start"] = sc["recall"]["rows"][0]["at"]         # home, as run.run_once without at_hunt
-    sc["vet"]["range"] = 5
     clock = simclock.SimClock(epoch=simrun.EPOCH)
     w = World(sc, seed=seed)
     home = w.player.pos
