@@ -110,10 +110,12 @@ CLILOC_INSTRUMENT_BROKE = 502079  # "You broke your instrument trying to play it
 #                                   Discordance, then the 0x1D of Logan's durable psaltery 0x672A0FE1: worn out)
 # lute, lap harp, standing harp, drum, tambourines (Logan's pack, live 20261015_171928: 0xEB3 his lute, 0xE9C,
 # 0xE9E, 0xEB2 the lap harp after the 18:40 death), the psaltery 0x4E2A (his "durable exceedingly melodious psaltery",
-# status 2026-10-25), the bamboo flute 0x2805 ("supremely melodious bamboo flute", status 2026-10-25 17:29). Outlands
-# has more instrument art than these: Team.instrument takes an item by its name (INSTRUMENT_NAME) as well
-INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E, 0x4E2A, 0x2805)
-INSTRUMENT_NAME = re.compile(r"\b(lute|harp|drum|tambourine|psaltery|flute|bagpipes?)\b", re.I)
+# status 2026-10-25), the bamboo flute 0x2805 ("supremely melodious bamboo flute", status 2026-10-25 17:29), the shawm
+# 0x4E2E ("supremely melodious shawm", user 2026-10-26 18:43: "the shawm is an instrument"; the run at 18:41 refused to
+# go in with it as his only one). Outlands has more instrument art than these: Team.instrument takes an item by its
+# name (INSTRUMENT_NAME) as well ("drums" plural, the sackbut of 2026-10-24 too)
+INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E, 0x4E2A, 0x2805, 0x4E2E)
+INSTRUMENT_NAME = re.compile(r"\b(lute|harp|drums?|tambourine|psaltery|flute|bagpipes?|shawm|sackbut)\b", re.I)
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 BARD_RANGE = 10               # [INFERENCE] successes seen at 1-9 tiles
 SKILL_GAP_S = 5.0             # wiki Peacemaking; live: the next cursor came 5 s after the last use

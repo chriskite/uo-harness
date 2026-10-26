@@ -1708,15 +1708,15 @@ def test_leave_from_far():
 
 
 def test_instrument():
-    print("== the instrument last played is gone: the prompt answered with one from the pack (a lap harp, a psaltery); "
-          "none: skills off, and no recall in ==")
+    print("== the instrument last played is gone: the prompt answered with one from the pack (a lap harp, a psaltery, a "
+          "shawm); none: skills off, and no recall in ==")
     # live 20261015_171928 after the 18:40 death: 54 "What instrument shall you play?" answered with the
     # skill's target ("That is not a musical instrument."), every bard skill and song lost for two runs. Live
     # 2026-10-25 17:24:23 Logan's durable psaltery (0x4E2A, not in INSTRUMENT_GRAPHICS then) broke; the visit went on
     # without bard skills, and nothing kept a run from recalling in without one
     import loop_hunt
     out = {}
-    for spare in (0x0EB2, 0x4E2A, None):
+    for spare in (0x0EB2, 0x4E2A, 0x4E2E, None):      # the shawm: live 2026-10-26 18:41 refused, his only one
         w = world_with([{"key": "shade wolf", "at": [5268, 648, 0]}], seed=7)
         m = next(m for m in w.mobs.values() if m.kind == "monster")
         lute = w.played
@@ -1742,9 +1742,10 @@ def test_instrument():
         finally:
             store.close()
             simclock.uninstall(patched)
-    check("the lap harp or the psaltery picked and the discord answered, the recall in allowed; with none, the bard "
-          "skills off and no recall in (low_supplies)",
-          out[0x0EB2] == out[0x4E2A] == (True, True, False, False, False) and out[None] == (True, False, True, True, True),
+    check("the lap harp, the psaltery or the shawm picked and the discord answered, the recall in allowed; with none, "
+          "the bard skills off and no recall in (low_supplies)",
+          out[0x0EB2] == out[0x4E2A] == out[0x4E2E] == (True, True, False, False, False)
+          and out[None] == (True, False, True, True, True),
           str(out))
 
 

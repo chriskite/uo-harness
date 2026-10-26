@@ -619,8 +619,9 @@ Paste this (or point the session at this section) to start an overseer.
 >    one on his chain), skill mastery orbs and seeds (the drop-off moves them since 2026-10-20; one left behind is still loot),
 >    jewellery, gems, instruments ("supremely melodious") and hued valuables. **Leave Logan's
 >    kit**: gold (the next drop-off takes it), the supplies (potions, vet supplies, bandages, rope, empty bottles),
->    the rune tome and runebook, **the instrument he plays** (one at least: since 2026-10-25 the user's "supremely
->    melodious bamboo flute" 0x68D40079; a looted instrument beside it is loot), his crook, the codexes, books and tomes, bags, pouches, the satchel, the
+>    the rune tome and runebook, **the instrument he plays** (one at least: the user's "supremely melodious bamboo
+>    flute" 0x68D40079 until its loss at the 2026-10-26 00:32 death, since then the "supremely melodious shawm"
+>    0x67F5BCA3; a looted instrument beside it is loot), his crook, the codexes, books and tomes, bags, pouches, the satchel, the
 >    wooden box and its key, the wraith mask and hood, the Kasa, the spyglass, **mastery chains** (player-crafted
 >    only, never loot: user 2026-10-20), the soul jars (a filled one is the user's: step
 >    5). To tell new loot from kit, save `status` before each `ctl run` and compare serials after the drop-off.

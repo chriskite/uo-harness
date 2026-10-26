@@ -6126,6 +6126,14 @@ Visit 3 on 0f3c2ee, ~18.8k gp lost with the corpse; the pets lived (GraveRobber 
 - **Simulator** (`sim/fight0032.py`, the scene from 00:32:08; seeds 1-200): no death at either threshold (0.8: damage
   on Logan mean 38, walks to a hurt pet 60, held 266; 0.5: 30, 38, 323). The simulator's daemon stayed by its spawn and
   its spells didn't reach Logan as live: the death isn't reproduced, so no fix is proven by it.
+- **After the death** (2026-10-26): his played flute 0x68D40079 went with the corpse. A second, looted "durable supremely
+  melodious bamboo flute" 0x6A2E1957 (from a corpse at 00:12:02) and "supremely melodious drums" 0x6807160E sit in the
+  magic item recycler 0x6264BB54: the 00:19 drop-off's recycler step took the flute. The user re-geared him (platemail,
+  an agapite gorget, Command aspect on: "armor aspect: Command on arms, chest, gloves, gorget, legs; 19668 Arcane
+  Essence"). Run hunt-20261026-184101-3117 then refused at home: "no instrument in the pack: not going in"; his only
+  one was a "supremely melodious shawm" 0x67F5BCA3, graphic 0x4E2E, known to neither `INSTRUMENT_GRAPHICS` nor
+  `INSTRUMENT_NAME` (user 18:43: "the shawm is an instrument"). Both now have it; the name pattern takes "drums" and
+  "sackbut" too. test_sim `test_instrument` with a shawm (fails before).
 
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
