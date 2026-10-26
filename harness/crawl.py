@@ -84,6 +84,9 @@ TELEPORT_GAP = 2        # no waypoint within this many tiles of a teleporter
 MAX_ROUTE = 400         # floor BFS bound (route steps from the start)
 MAX_TILES = 60000
 SEEK_R = 18             # a monster in view this close (the client's view range) is patrolled toward (Crawl.seek)
+SEEK_KILL_S = 20.0      # ...scored by its gold per kill over the time the kill costs: the fight, this much more (the loot,
+#                         the care, the next pull: live 37.9 s on Maus 3 per kill 2026-10-22..25 against a 15.7 s mean fight)
+SEEK_STEP_S = 0.3       # ...and the walk there by route (live patrols ~0.28 s a step with the pets)
 SEEK_EVERY_S = 1.0      # the patrol's look for one (interrupt) at most this often
 SEEN_R = 7              # a waypoint in our line of sight this near counts as looked at (Crawl.glimpse, interrupt)
 ARTICLE = re.compile(r"^(a|an|the)\s+", re.I)
@@ -797,8 +800,9 @@ class Crawl:
         live 22:08-22:40, 102 of 159 patrol starts had one within 18 tiles, 68 of them walked away from all):
         a monster we'd fight (wanted, attackable, not --never-aggro, not a type we avoid, on our floor) within
         SEEK_R, beyond --pull-range and not passed over (HuntLoop.skip; pick_target has the rest), whose area is in an
-        open zone, not near an avoided creature, and not where we stand. The best by its gold a fighting minute (the
-        store's estimate) over the route there. -> (waypoint index, kind, tiles, serial) or None. The patrol to that
+        open zone, not near an avoided creature, and not where we stand. The best by its gold a kill (the store's
+        estimate) over the time it costs: the fight, SEEK_KILL_S, the walk by route. -> (waypoint index, kind, tiles,
+        serial) or None. The patrol to that
         waypoint stops on the usual rules (a target in reach, the hold when it sees us, the pull budget)."""
         h, world = self.h, st["world"]
         labels = world.get("labels") or {}
@@ -836,7 +840,12 @@ class Crawl:
                 continue
             if hasattr(h, "on_our_floor") and not h.on_our_floor(st, s, mob):
                 continue
-            score = max(self.model.estimate(name)["gold_min"], 1.0) / (1.0 + dist[self.wps[i]] / D0)
+            # gold per kill over the time the kill costs (SEEK_KILL_S, the walk): gold per fighting minute alone put a
+            # tormented soul (857 gp in 13 s) 21 steps off ahead of a reanimated daemon (1,491 gp in 35 s) 15 off, and the
+            # patrol walked away from the daemon to the soul and on (live 2026-10-25 22:02:08; user: "walked away from a
+            # freshly spawned reanimated demon to patrol elsewhere which makes no sense")
+            e = self.model.estimate(name)
+            score = max(e["gold"], 1.0) / (e["fight_s"] + SEEK_KILL_S + SEEK_STEP_S * dist[self.wps[i]])
             if score > best_s:
                 best, best_s = (i, type_key(name), d, s), score
         return best

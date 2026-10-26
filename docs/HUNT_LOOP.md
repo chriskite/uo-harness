@@ -1164,8 +1164,10 @@ Everything hunted before the crawl is zone 1: all 386 floor tiles of the box the
     arriving there. Before, only a waypoint stood on was visited, so a hallway walked past or looked down was walked
     to its end later.
   - **Monsters in view first** (`Crawl.seek`, user 2026-10-17): a monster we'd fight within 18 tiles beyond the
-    pull range sets the next waypoint (its area, open zones only, not near an avoided creature, the
-    best by gold a fighting minute over the route), stops a patrol elsewhere and ends a waypoint's dwell. Live
+    pull range sets the next waypoint (its area, open zones only, not near an avoided creature, the best by its
+    gold a kill over the time the kill costs: the fight, `SEEK_KILL_S` 20 s more, 0.3 s a route step; by gold a
+    fighting minute over the route until 2026-10-25, when a tormented soul won over a reanimated daemon at the same
+    range and the patrol walked away from the daemon), stops a patrol elsewhere and ends a waypoint's dwell. Live
     before: 68 of 159 patrol starts walked away from every such monster in view. Not one the fight passed over
     (`HuntLoop.skip`: out of our sight, pinned, another player's): until 2026-10-24 such a one was sought too, and the
     patrol went back to the souls in their cells over and over.

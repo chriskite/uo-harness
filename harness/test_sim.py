@@ -2626,6 +2626,38 @@ def test_blightmare_first_sight():
           f"(seed, seconds it was on him, its damage, deaths) {out}")
 
 
+def test_seek_by_kill_value():
+    print("== the live 22:02:08 scene: an idle reanimated daemon 13 off and a tormented soul 12 off: the seek goes to "
+          "the daemon ==")
+    # live 2026-10-25 22:02:08 (hunt-20261025-214237-36a7): "crawl: tormented soul ... in view at 12 tiles: patrolling
+    # toward it", passed over there ("it can't see us"), the patrol on north; the daemon, spawned 22:01:42 at (5237, 701),
+    # never sought (user: "walked away from a freshly spawned reanimated demon"). The store's estimates then: the daemon
+    # 1,491 gp in 34.7 s, the soul 857 gp in 13.1 s; by gold a fighting minute the soul won
+    import crawl
+    w = world_with([{"key": "reanimated daemon", "at": [5237, 701, 0]}, {"key": "tormented soul", "at": [5247, 676, 0]}],
+                   seed=7, start=(5238, 688))
+    for m in w.mobs.values():
+        m.calm_until = 1e9
+    loop, clock, store, patched = hurt_loop(w, 100)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            model = crawl.Model()
+            for name, fight_s, gold in (("a reanimated daemon", 34.7, 1491), ("tormented soul", 13.1, 857)):
+                for _ in range(200):
+                    model.add_fight(name, fight_s, 5, "kill")
+                    model.add_gold(name, gold)
+            c = loop.crawl = crawl.Crawl(loop, model)
+            c.setup(loop.state())
+            c.unlocked = 99
+            st = loop.state()
+            found = c.seek(st, loop.pos(st))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the daemon (more gold a kill over the time it costs)", found is not None and found[1] == "reanimated daemon",
+          str(found))
+
+
 def test_blightmare_awake_patrol():
     print("== the live 18:21:09 tiles: a blightmare awake on us 12 off, the patrol toward it: none into its reach ==")
     # live 2026-10-21 18:21:09-12: after the loot at (5244, 673), 61/100 and two infections, "patrol to (5243, 682)"
@@ -4600,7 +4632,7 @@ def main():
               test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
-              test_blightmare_awake_patrol, test_guard_after_dropped_kill,
+              test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_patrol_after_back_off,
               test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,

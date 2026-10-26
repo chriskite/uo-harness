@@ -2523,6 +2523,15 @@ side: deaths 11 -> 6, banked/h +2.7 %, discord/h +9 %, peace/h +18 %. Same incid
 50 %) is walked to inside an awake caster's reach from out of its sight (user: GraveRobber "~70%" unvetted for a
 while); the 00:38 death's tank was at 92 %, still held; the simulator shows no change in deaths.
 
+## The patrol's seek by gold a kill over the time it costs (2026-10-25)
+
+User: the patrol walked away from a fresh reanimated daemon at 22:02 (docs/NOTES.md "The patrol walked away from a
+fresh reanimated daemon"). The seek ranked monsters in view by gold a fighting minute, which puts a slow, rich kill
+below a quick, poor one. Decision: gold a kill over the fight plus `SEEK_KILL_S` 20 s (what a kill costs beyond the
+fight live) plus the walk. Rejected for now: "All Patrol" at a monster the fight passes over for not seeing us
+(simulator: -3 % gold, more deaths); a memory of idle monsters out of view (not needed for this scene; open if the
+walk-aways go on).
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

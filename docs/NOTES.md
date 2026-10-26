@@ -6032,6 +6032,33 @@ on the reanimated demon … we never discorded or peaced it which is a huge issu
   `hurt` wrapper now passes the world's `ref`): 0 deaths at both, damage on Logan mean 98 at both. test_sim
   `test_to_pet_not_into_caster_reach` walks at 70 % now (held at 0.5).
 
+## The patrol walked away from a fresh reanimated daemon (live 2026-10-25 22:02, hunt-20261025-214237-36a7)
+
+User: "the runner is still going off and patrolling away even when perfectly good high value mobs are right next to it.
+About 22:02 it walked away from a freshly spawned reanimated demon to patrol elsewhere which makes no sense."
+
+- **Capture** (session_20261025_210102, `WorldRuntime` replay): a reanimated daemon 0x006CE63B appeared at 22:01:42 at
+  (5237, 701), idle (war flag off) until out of view at 22:02:15. 22:02:08, after the blightmare's loot at (5238, 688):
+  "crawl: area (5237, 687) depleted …", "crawl: tormented soul 0x006CE523 in view at 12 tiles: patrolling toward it
+  ((5243, 673))"; the daemon was 13 off. 22:02:14 "passing over tormented soul …: it can't see us from 6 tiles"; 22:02:19
+  the next leg went north to (5249, 626), the daemon 27 off and gone from view; never fought.
+- **Cause** (`Crawl.seek`, the scene replayed in the simulator with the store's model): the seek scored by gold a
+  fighting minute over the route. The store then: tormented soul 857 gp a kill in 13.1 s (3,940/min), reanimated
+  daemon 1,491 gp in 34.7 s (2,581/min, the lowest of the Maus 3 types). Scores 1,922 (soul, 21 route steps) against
+  1,475 (daemon, 15).
+- **Fix**: score = gold a kill / (fight_s + `SEEK_KILL_S` 20 + 0.3 s x route steps): the time a kill costs. Live
+  10-22..25: 37.9 s on Maus 3 per kill against a 15.7 s mean fight (hunt episodes, `fight` events); ~0.28 s a patrol
+  step. The scene now seeks the daemon (25.2 against 21.8 gp/s). test_sim `test_seek_by_kill_value` (fails before).
+- **Simulator** (98 runs a side, seed 17, careers 14, `--others --eerie --prior` the main store; fafcbc6 against the
+  fix): kills/h 118.1 -> 119.2, banked/h 127.6k -> 129.4k (+1.4 %), deaths 7 -> 4, runs with a pet death 1 -> 2,
+  damage on Logan/h 1,833 -> 1,937. Within the noise but none worse in gold.
+- **What else walks away** (a throwaway audit of the run, 84 patrol legs: the idle non-pet mobiles within 18 in the
+  capture at each leg's start): 14 legs headed away from every idle one in view. Most were a monster the fight had just
+  passed over for "it can't see us" (`Team.unseen`, 50 of them against 97 kills that run: souls 6 tiles off behind a
+  wall), and the elder vampires (never aggro, right). **Tried and not shipped**: "All Patrol" at such a one before the
+  pass-over (`patrol_pull` for any kind): patrols 337 -> 1,529 in the batch, kills/h 119.2 -> 114.7, banked/h 129.4k
+  -> 125.6k, deaths 4 -> 6. Walking into its sight cost deaths in 2026-10-17's batch ("Targets behind walls").
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
