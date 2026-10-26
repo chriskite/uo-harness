@@ -6087,6 +6087,34 @@ About 22:02 it walked away from a freshly spawned reanimated demon to patrol els
   -> 4, damage on Logan/h 1,647 -> 1,865 (+13 %): more skills for more of the purgers' stray shots, gold even.
   **Provocation never goes out in the simulator** (0/h both sides; live 56 today): open.
 
+## Dead in a daemon's and a blightmare's reach (live 2026-10-26 00:32:45, hunt-20261025-234615-4525)
+
+Visit 3 on 0f3c2ee, ~18.8k gp lost with the corpse; the pets lived (GraveRobber 59 %, AlaFlambe 67 %). Death juncture
+1871: no attacker, no swing. Capture session replay (`WorldRuntime`), task log lines 2836-2897:
+
+- **00:31:54-59** "holding here: reanimated daemon in sight at 10 tiles", then "toward a target: route 2 steps" to 7 of
+  it; GraveRobber on the daemon at (5241, 692-693); two of its spells reached Logan at (5244, 686), 6 from the pet:
+  100 -> 67 -> 33 in 0.3 s. Potion (74), stand-off to (5247, 687).
+- **00:32:10-19** "to a hurt pet: (5246, 687) … 1 into an area hit's reach" (GraveRobber 74 %), Discordance on the
+  daemon (success), cover from a blightmare that woke at (5242, 685), then "to a hurt pet: (5239, 687) … 1 into an area
+  hit's reach", 8 steps west for GraveRobber at 65 %: held below 0.5 before fafcbc6, walked since (`TO_PET_CASTER_AT`
+  0.8). A tormented soul woke on him there (1 tile).
+- **00:32:29-30** "to heal the tank: (5235, 686), 4 from GraveRobber, 2 into an area hit's reach" (`stand_off`'s step in
+  for a tank below its heal line). He stood there to the end: the daemon at (5240, 687) 5 off, the blightmare at (5241,
+  686) 6 off. Area peace 00:32:32 calmed both for ~2 s.
+- **00:32:37-42** "stand-off cut short: out of charge reach: no route within 6 steps" three times (no tile clear of the
+  daemon's reach within `STANDOFF_MOVES` 6; each try returns True and takes the tick). No "cover:" line after 00:32:14.
+- **Damage, 100 -> 0 in 7.6 s** after a potion at 00:32:37.17: 39.47 -27 (on Logan and both pets at once: the daemon's
+  area spell), 39.58 -17 (disease, graphic 0x376A, the blightmare's), 40.28 vet channel on us begun at 56 (the potion
+  clock had 7 s to run), 42.81 -30 (again on all three at once), 44.74 -28 (graphic 0x091D). Dead at 44.84.
+- **Not the peek**: no "out of our sight: stepping" line in the last minute; the bard skills went from where he stood.
+- **Cause** [INFERENCE: the order of weight]: the walks to vet GraveRobber (65 % and 75 %) took Logan into the reach of an
+  awake daemon's area spells beside an awake blightmare, where no tile clear of it lay within 6 steps; there the two
+  casters' damage outran a potion clock. The 0.8 threshold (the user's ~70 % vet, 21:49) allowed the first walk.
+- **Simulator** (`sim/fight0032.py`, the scene from 00:32:08; seeds 1-200): no death at either threshold (0.8: damage
+  on Logan mean 38, walks to a hurt pet 60, held 266; 0.5: 30, 38, 323). The simulator's daemon stayed by its spawn and
+  its spells didn't reach Logan as live: the death isn't reproduced, so no fix is proven by it.
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
