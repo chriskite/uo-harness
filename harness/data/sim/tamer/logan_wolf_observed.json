@@ -241,14 +241,15 @@
    "Phoenix/Gravebug": {
     "attack": {
      "decoded": true,
-     "points": 15,
-     "cross": 0,
+     "points": 20,
+     "cross": 5,
      "pages_seen": 11,
-     "evidence": "latest 195/164311 20261025_210102 2026-10-25 23:06:43; 214 views",
+     "evidence": "latest 195/184758 20261025_210102 2026-10-25 23:18:35; 222 views",
      "perks": {
       "Immolate": 3,
       "Lethality": 3,
-      "Primal": 3
+      "Primal": 3,
+      "[Cross] Behemoth": 3
      }
     },
     "tank": {

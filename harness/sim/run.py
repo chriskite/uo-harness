@@ -109,7 +109,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     by default). `epoch`: the game time it starts at. `trace`: record the run's trace (sim/trace.py) to this path.
     `area`: the hunting level's box (x0, y0, x1, y1) for the per-hour numbers instead of the scenario's. `armor`:
     {aspect_tier, ar} over the scenario's `player.armor` (--aspect-tier: the suit's Command tier, so its AR and the
-    pets' follower resistance; --armor: the AR itself). `instrument`: the instrument quality Logan plays instead of
+    pets' follower damage, speed and resistance; "off": no aspect active; --armor: the AR itself). `instrument`: the
+    instrument quality Logan plays instead of
     the scenario's `bard.instrument` (--instrument; its measured numbers in `bard.instruments`). `team` / `bestiary`:
     Logan's pets (a preset or pet names) and bestiary loadout (a name, "none" or a .json file) instead of the
     scenario's (--team / --bestiary, sim/pets.select); `levels`: "NAME=LEVEL" for pets at another level than their
@@ -145,7 +146,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             sc[flag]["enabled"] = True
     for k, v in (armor or {}).items():
         if v is not None:
-            (sc["player"]["armor"]["suit"] if k == "aspect_tier" else sc["player"]["armor"])[k] = v
+            (sc["player"]["armor"]["suit"] if k == "aspect_tier" else sc["player"]["armor"])[k] = \
+                None if v == "off" else v
     if area:
         sc["area"] = list(area)
     if instrument:
@@ -331,9 +333,10 @@ def main(argv=None):
     ap.add_argument("--armor", type=int, default=None, metavar="AR",
                     help="the player's armor rating instead of the scenario's suit (docs/SIM.md 'Player armor'; Logan's "
                          "eras: 86, 118, 130, 133)")
-    ap.add_argument("--aspect-tier", type=int, default=None, metavar="T",
+    ap.add_argument("--aspect-tier", type=lambda s: s if s == "off" else int(s), default=None, metavar="T",
                     help="the suit's Command aspect tier instead of the scenario's: its AR (20 %% + 5 %% a tier) and the "
-                         "pets' follower resistance (5 %% + 1.5 %% a tier)")
+                         "pets' follower damage, speed and resistance (5 %% + 1.5 %% a tier); 'off': no aspect active "
+                         "(after a death until it is activated again, or out of arcane essence)")
     ap.add_argument("--instrument", default=None, metavar="QUALITY",
                     help="the instrument quality Logan plays instead of the scenario's bard.instrument, one with "
                          "numbers measured live in its bard.instruments (Tidal Tomb: 'eminently melodious', "

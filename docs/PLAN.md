@@ -2581,11 +2581,14 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   - `parity.py --team --until` and `run.py --pet-level` let each team's window be compared as live played it.
   - Open: the Random team (2 h, levels guessed) at 0.77; kills an hour ~1.3x live in every team, the time between
     fights, not the pets.
-- **The 21:39 Phoenix/Gravebug loadout is tested live, not fitted** (2026-10-25 23:06): the model makes it 10 % faster
-  than the 10-15 one, live it was ~19 % slower per monster on 4 visits. The leading hypothesis, Behemoth's damage not
-  reaching AlaFlambe [INFERENCE], also explains most of the old fit's `k_x` 0.73; a model-only refit couldn't tell it
-  from the other perks the build moved. The user removed only Behemoth and sent the runner out
-  (`logs/simcmp/behemoth_ab.py`, throwaway, compares the windows). Until it settles, `k_x` and Behemoth's rule stand.
+- **The 21:39 Phoenix/Gravebug loadout is tested live, not fitted** (2026-10-25 23:06): the model made it 10 % faster
+  than the 10-15 one, live it was ~19 % slower per monster on 4 visits. A Behemoth hypothesis (its damage not reaching
+  AlaFlambe) led to a live A/B; the user then found the cause: Logan's armor aspect was off (out of arcane essence,
+  21:16-23:17), and `run.py --aspect-tier off` reproduces those visits (kill time 0.93, 0.75-1.56). The hypothesis is
+  withdrawn, `k_x` and Behemoth's rule stand. The loadout's test continues with the aspect on, from 23:18.
+- **A live window is compared only with Logan's aspect state known** (his AR in 0x11): an unaspected stretch moves the
+  pets' damage, speed and resistance by a quarter or more. Open: a per-visit aspect flag in parity.py's live side
+  (proposed, not built); the scenario's suit (AR 133) predates the 122 one worn since 10-24 22:08.
 
 ## Risks
 

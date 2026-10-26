@@ -6127,11 +6127,19 @@ so a value is read through its element's line index, never by its position in `l
     kill time from 3.3 s (banshee) to 38.1 s (reanimated daemon); Nightmare/Fire 82.0, Random 78.0.
 - **Phoenix/Gravebug rebuilt again, 2026-10-25 evening** (the scan's views, `tamer_scan.py --as-of`): Tank tab to
   Mending 3, Stalwart 3, Survival 3, [Cross] Carrion 3 at ~21:38; Attack tab to Immolate 3, Lethality 3, Primal 3,
-  [Cross] Behemoth 3 by 21:39:35; Behemoth removed (Attack 15/20, 0/5 cross) between 23:06:00 and the view at 23:06:43.
-  The 4 visits with Behemoth 3 (21:43-23:00, 0.94 h): kills 94.7 an hour (the 10-15 loadout's 83 visits 93.1), each
-  monster's kill time 1.19x (0.85-1.42), damage on GraveRobber 19,926 an hour (11,040), vet uses 157 (130), fights
-  ending in a target switch 13.3 % (5.3 %), AlaFlambe's attributable numbers' median 183 (212, n 70). Discords and
-  songs an hour as before. docs/SIM.md "The 21:39 Phoenix/Gravebug loadout".
+  [Cross] Behemoth 3 by 21:39:35; Behemoth removed (Attack 15/20, 0/5 cross) between 23:06:00 and the view at 23:06:43,
+  put back at ~23:17 by the user. The 4 visits with Behemoth 3 (21:43-22:45, 0.94 h) ran **without Logan's armor
+  aspect** (next item): kills 94.7 an hour (the 10-15 loadout's 83 aspected visits 93.1), each monster's kill time
+  1.19x (0.85-1.42), damage on GraveRobber 19,926 an hour (11,040), vet uses 157 (130), fights ending in a target
+  switch 13.3 % (5.3 %), AlaFlambe's attributable numbers' median 183 (212, n 70; undiscorded under the song 183, n 50,
+  against 214, n 1,155). Discords and songs an hour as before. docs/SIM.md "The 21:39 Phoenix/Gravebug loadout".
+- **Logan's armor aspect, read from his AR** (0x11 `physical_resist`, Logan's full status packets in the captures):
+  AR 133 (148 under the +15 Armor Rating Increase buff) to 2026-10-24 22:07; a suit change then: AR 122 (137 buffed)
+  aspected, 80 without; the aspect off from 2026-10-25 21:16:07 to 23:17:59 (AR 80; the user: Logan ran out of arcane
+  essence), on again after. No visit from 10-17 23:08 to 10-25 21:16 spent over 5 % of its time below AR 110. The aspect
+  only works with arcane essence above zero (knowledge #332, the Harvest aspect's wording). The captures' jsonl keeps a
+  64-byte hex prefix of each packet: `world.parsers._p_character_status` fails on a type-5 0x11 there (weight at byte
+  64), but AR (u16 at 62) and max hits (39) are inside.
 - Behemoth's text: "Follower Damage increased by (8% / 24% / 40%) and Damage Resistance by (1.5% / 4.5% / 7.5%) if
   follower takes 3 or more Control Slots" (knowledge #4243, #10236); an older one, "Melee and Spell Damage increased by
   (10% / 20% / 30%)" (#5808).

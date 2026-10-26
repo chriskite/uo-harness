@@ -37,7 +37,8 @@ python harness/sim/run.py --runs 24 --set tamer.FALLBACK_S=0          # an exper
 python harness/sim/run.py --log run.log --seed 7                       # one run, with the runner's log
 python harness/sim/run.py --seed 5 --at-hunt --trace [DIR]             # ... and its trace for the viz Sim page ("Traces")
 python harness/sim/run.py --runs 24 --armor 86                          # Logan in another suit's AR ("Player armor")
-python harness/sim/run.py --runs 24 --aspect-tier 10                    # ... or his Command tier: its AR and the pets' resistance
+python harness/sim/run.py --runs 24 --aspect-tier 10                    # ... or his Command tier: its AR and the pets' damage, speed, resistance
+python harness/sim/run.py --runs 24 --aspect-tier off --armor 80        # ... or no aspect active (after a death, out of arcane essence)
 python harness/sim/run.py --runs 24 --team nightmare_fire                 # another of Logan's teams ("Pets, teams and perks")
 python harness/sim/run.py --runs 24 --team "GirthyEarthy, a tidal mantis" --bestiary none   # pets by name, no bestiary perks
 python harness/sim/tamer_scan.py                                         # his codex, bestiary loadouts and pets' Guide values
@@ -1476,7 +1477,9 @@ On the types whose numbers on him are plain melee (no area or spell hits; 164 hi
 - **Logan's AR.** `player.armor` in `mausoleum.json`, inherited by Tidal Tomb:
   - the suit (`platemail`, `exceptional`, `verite`, `command`, tier 14) gives AR 133 (`sim/armor.suit_ar`);
   - an explicit `ar` wins over the suit (`run.py --armor N`);
-  - `run.py --aspect-tier T` changes the tier, which moves both the AR and the pets' follower resistance.
+  - `run.py --aspect-tier T` changes the tier, which moves both the AR and the pets' follower damage, speed and
+    resistance; `--aspect-tier off`: no aspect active (after a death until it's activated again, or out of arcane
+    essence: live 2026-10-25 21:16-23:17), the suit's AR without its bonus and no Command bonus on the pets.
   - `World.player.ar` holds the value; run summaries carry `player_ar`, and the aggregate adds `player_ar` and
     `player_damage_per_h`.
 - **A monster's melee on Logan** (`World._melee_on`): its `melee_player` (the wiki melee x `player_melee_k`, uniform)
@@ -1657,37 +1660,36 @@ the live kills, with a resampled interval), is the measure of the team's damage.
    against the live 12.6 (23 kills) and carry most of it. **Open**, too thin to fit on.
 6. **Open: kills an hour stay ~1.3x live in all three** even where the kill times match: the time between fights
    (the crawl, pulls, rests) is shorter than live. Not the pets'.
-7. Current state: rescanned 2026-10-25 23:08: Phoenix/Gravebug as the user rebuilt it at 21:38-21:39, less Behemoth
-   from 23:06 (next paragraph). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
+7. Current state: rescanned 2026-10-25 23:27 (views to 23:18:35): Phoenix/Gravebug as the user rebuilt it at
+   21:38-21:39 (next paragraph). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
 
-**The 21:39 Phoenix/Gravebug loadout: the model doesn't follow it (open).** The user rebuilt the team's tabs at
-21:38-21:39 (Attack: Immolate 3, Lethality 3, Primal 3, [Cross] Behemoth 3; Tank: Mending 3, Stalwart 3, Survival 3,
-[Cross] Carrion 3) and the runner played 4 visits (0.94 h, 21:43-23:00) with them. Batches of 144 (seed 17, as above)
-with that loadout and with the 10-15 one, on the same runner code:
+**The 21:39 Phoenix/Gravebug loadout, and Logan's armor aspect.** The user rebuilt the team's tabs at 21:38-21:39
+(Attack: Immolate 3, Lethality 3, Primal 3, [Cross] Behemoth 3; Tank: Mending 3, Stalwart 3, Survival 3, [Cross]
+Carrion 3) and the runner played 4 visits (0.94 h, 21:43-22:45) with them. **Logan's armor wasn't aspected** in any of
+them (the user: out of arcane essence; his 0x11 AR 80 from 21:16:07 to 23:17:59, 122 before and after; every visit
+of the fit windows above was aspected). The Command aspect's follower damage, speed and resistance (5 % + 1.5 %, 2.5 %
++ 0.75 % and 5 % + 1.5 % a tier) were off: in the model the pets' static damage x 0.83, their attack period x 1.10,
+GraveRobber's static resistance 27.4 % -> 1.4 %, AlaFlambe's 26.0 % -> 0. `run.py --aspect-tier off` (with `--armor 80`,
+the suit worn since 10-24 22:08) runs that. Batches of 144 (seed 17, as above), against those 4 visits:
 
-| Per hour, or as stated | Live 10-15 (83 visits) | Live 21:39 (4 visits) | Sim 10-15 | Sim 21:39 |
-|---|---|---|---|---|
-| kill time, 21:39 / 10-15 (weighted by the live 21:39 kills, types with 3+) | | 1.19 (0.85-1.42) | | 0.90 |
-| kill time, sim / live | | | 0.98 (0.95-1.03) | 0.79 (0.67-1.13) |
-| kills | 93.1 | 94.7 | 123.2 | 128.0 |
-| damage on GraveRobber | 11,040 | 19,926 (11,451-22,619) | 9,967 | 7,533 |
-| vet uses | 130 | 157 (121-202) | 119 | 75 |
-| fights ending "switched" | 5.3 % | 13.3 % (29 of 218) | 5.0 % | 4.6 % |
-| AlaFlambe's attributable numbers, 25 / 45 / 75 / 95 % | 196 / 212 / 319 / 768 | 167 / 183 / 267 / 967 (n 70) | | |
+| Per hour, or as stated | Live (95 % interval) | Sim, aspect on | Sim, aspect off |
+|---|---|---|---|
+| kill time, sim / live (5 types) | | 0.72 (0.58-1.21) | 0.93 (0.75-1.56) |
+| kills | 94.7 (76.1-116.6) | 129.1 | 113.7 |
+| damage on GraveRobber | 19,926 (11,451-22,619) | 7,535 | 12,851 |
+| damage on AlaFlambe | 2,819 (1,552-4,622) | 2,564 | 3,895 |
+| vet uses | 157 (121-202) | 76 | 120 |
 
-The model's numbers for the phoenix move 1.04 / 1.05 / 0.98 / 1.85 at those quantiles (21:39 over 10-15); live moved
-0.85 / 0.86 / 0.84 / 1.26. The bard side didn't change (discords, songs an hour), nor does the runner code explain it
-(the sim on the current code still fits the 10-15 window). **Hypothesis [INFERENCE]: Behemoth's damage doesn't reach
-AlaFlambe's numbers** ("Follower Damage increased by 8/24/40 % if follower takes 3 or more Control Slots", knowledge
-#4243; an older text #5808: "Melee and Spell Damage +10/20/30 %"). Without it the model's 21:39 body moves ~0.88-0.90
-of the 10-15's (live 0.85), and the unexplained ~1.25x of the phoenix's plain casts in the 10-15 fit (Behemoth 2 is
-+24 %) would mostly go, with it most of `k_x` 0.73. The tank side follows from the slower kills or the model's credit
-for Stalwart and Survival: GraveRobber soaks more where the model gives it less. **The test, live:** the user removed
-only Behemoth at 23:06 (Attack 15/20 points, 0/5 cross) and started the runner at 23:07:46. The model's prediction if
-Behemoth works: the phoenix's numbers x 0.71 (x 0.88 at 95 %), kill times ~1.25x; if not: unchanged. A confound: the
-with-Behemoth shift (21:42-22:45) ran before fafcbc6 (bard skills from a peek out of cover, 22:43) and 69a80ed (crawl
-seek, 23:03), the test's shift with both, so the phoenix's numbers on undiscorded targets are the clean measure, and
-the model's prediction compares two batches on the same code.
+Before the user found it, the window read as the loadout slowing the team: each monster's kill time 1.19x (0.85-1.42)
+the 10-15 loadout's live where the model (aspect on) said 0.90, AlaFlambe's attributable numbers' body 0.86x where
+it said 1.05x, GraveRobber's damage taken 1.8x and target switches 13.3 % of fights (5.3 %). The aspect accounts for
+them: 0.90 x 1.10 / 0.83 = 1.19, 1.05 x 0.83 = 0.87. The hypothesis it displaced, Behemoth's damage not reaching the
+phoenix, is withdrawn (an untested live A/B, 23:07-23:17, one short visit, also unaspected). **Lessons**: a window's
+comparison needs Logan's aspect state (the AR in his 0x11, `logs/simcmp/aspect_ar.py`-style); the scenario's suit
+(133, aspected verite plate) predates the 122 one worn since 10-24 22:08 (the Nightmare/Fire, Random and tonight's
+windows; Logan's own damage taken, not the pets'). **Next, live:** the 21:39 loadout with the aspect, from 23:18 (the
+user put Behemoth 3 back). The model (aspect on) predicts 0.90 of the 10-15 loadout's kill times, GraveRobber 7.5k an
+hour (11.0k), vet 76 (130).
 
 **Tidal Tomb level 3** (24 runs each from home, the level's area and enter/leave arguments of "Running"; live both
 days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level, on the recalibrated model with the scan of

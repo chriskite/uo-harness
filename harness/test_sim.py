@@ -3176,8 +3176,9 @@ def test_audit_mechanics():
           (w._taken_x(w.player, "feed"), w._taken_x(w.player, "spell"), w._taken_x(gb, "melee"),
            w._taken_x(af, "melee"), w._taken_x(af, "spell")) == (1.2, 1.6, 1.0, 1.0, 1.0))
     # apparition: a blink every ~8 s though its target stands beside it, onto the target's tile, the area hit
-    # only at the landing; the song cuts Logan's share, not the pets'
-    w = world_with([{"key": "apparition", "at": [5268, 649, 0]}], seed=12)
+    # only at the landing; the song cuts Logan's share, not the pets'. The 10-15 loadout: the live 37 against 37 was
+    # measured with it, and its gravebug is the reference pet (the current scan's tabs move its share)
+    w = world_with([{"key": "apparition", "at": [5268, 649, 0]}], seed=12, bestiary="Phoenix/Gravebug 2026-10-15")
     m = next(m for m in w.mobs.values() if m.kind == "monster")
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
     for o in w.team():
@@ -3961,6 +3962,22 @@ def test_armor():
         ww.hurt(g, 100, None, "wail")
         taken.append(before - g.hits)
     check("a 100 wail (no armor) on the gravebug: more at tier 10 than at tier 14", taken[1] > taken[0], str(taken))
+    from sim import run as simrun
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        r = simrun.run_once(1, [], minutes=0.2, at_hunt=True, armor={"aspect_tier": "off", "ar": None})
+    sc = load()
+    sc["player"]["armor"]["suit"]["aspect_tier"] = None          # what --aspect-tier off sets
+    pets.select(sc)
+    off = {p["name"]: p for p in sc["pets"]}
+    cmd = 0.05 + 0.015 * 14                                      # the Command aspect's damage and resistance at 14
+    check("--aspect-tier off (out of arcane essence, live 2026-10-25 21:16-23:17): the suit's AR without its bonus, 88; "
+          "the pets lose the tier-14 Command damage and resistance (0.26 each) and attack slower",
+          r["outcome"] == "done" and r["player_ar"] == 88
+          and all(abs(p.spec["dmg_static"] - off[p.name]["dmg_static"] - cmd) < 1e-9
+                  and abs(p.spec["dr_static"] - off[p.name]["dr_static"] - cmd) < 1e-9
+                  and off[p.name]["period"] > p.spec["period"] for p in w.pets()),
+          f"{r['outcome']} {r.get('error')} AR {r.get('player_ar')} "
+          + str({n: (round(o['dmg_static'], 3), round(o['dr_static'], 3), o['period']) for n, o in off.items()}))
 
 
 def test_tamer_scan_rows():
