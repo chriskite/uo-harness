@@ -2441,6 +2441,12 @@ heals, no dispels, no locked doors and no heal potions.
   before it. The proxy's `close` event doesn't say which side closed. **Cause (user):** the server was
   down for patching both times. A patch looks like this: S2C stops, about 90 s later the connection
   closes, and the user logs back in once the server is up.
+  **2026-10-26 13:45, a patch that announced itself:** session `20261026_105736` got three System `0xAE`
+  broadcasts at 13:45:11–13: "Staff message from Luthius:", "Patching!", "The world is saving, please
+  wait.". S2C then went silent and the connection closed 90 s later. Run `lumber-20261026-131436-abc9`
+  aborted at witcher_254 (1122,1098) with ~666 logs in the pouch. A System "Patching!" broadcast is a
+  global message, not a staff check on us. The jsonl `hex` is capped at 64 bytes, so get the full text by
+  decoding `.s2c.raw` (`uo.s2c.S2CStream` with the `viz_feed.prelude_keys` key).
 - **2026-10-13 14:12:35, a different drop (Seer-28):** session `20261013_103242` closed 40 ms after normal
   chopping traffic (chop lines, an equip, a container add), with no S2C silence and no server message,
   while the same ClassicUO process stayed up. The user called it a server-side hiccup. Run
