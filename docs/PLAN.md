@@ -2544,6 +2544,10 @@ User: "lots of mobs are fighting the pets and we are not barding any of them ...
 provos." Decision: the peek at a target not on us goes up to 4 steps, counts only eyes that would wake to us, and
 ignores vet range unless a channel runs. Simulator: discord +7.5 %, peace +9 %, gold even, damage on Logan +13 %
 (the purgers' stray shots): the user's priority on the bard skills taken over that cost.
+After the 00:32:45 death (docs/NOTES.md "Dead in a daemon's and a blightmare's reach": vet walks for GraveRobber at
+65-75 % into a reanimated daemon's area-spell reach, no clear tile within 6 steps), asked whether to go back to the 50 %
+hold near casters (all of them, or the area casters only) or keep 80 %: the user kept 80 % (2026-10-26). The simulator
+didn't reproduce the death at either threshold.
 
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
