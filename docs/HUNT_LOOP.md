@@ -230,6 +230,14 @@ tome "New Player Locations", 0x57C3DEB6; its default rune is Cambria, by the ban
   (mana/reagents): not going in"). Else "runetome 0x…: N recall charge(s)". Live 2026-10-25 17:53 the recall home
   took Logan's tome's last charge and the recall in failed ("reagents"); one fewer and he'd have stood at Totem
   with the loot. With --pets and a bard skill on, no instrument in the pack ends the run there too (`check_instrument`).
+  **The armor aspect** (`--armor-aspect`, on by default since 2026-10-25; `check_aspect`, user: "make the runner check
+  aspect before a trip and refuse to leave home without it"): before each recall in, the Aspect Mastery menu is read
+  ("[aspect", one gump, `aspects.read`) and the worn armor checked (`aspects.armor_check`): Arcane Essence left and a
+  worn armor piece in the armor section's aspect hue (Command: 1782, the menu's icon hue too). Off: a `low_supplies`
+  juncture (item `armor aspect`) and the run ends at home ("armor aspect off: …; not going in"); on: "armor aspect:
+  Command on arms, chest, …; N Arcane Essence". Live 2026-10-25 21:16:06 the essence ran out mid-run ("Your aspect
+  items revert to normal (no arcane essence remaining).", the platemail 1782 -> 2207) and two hours of runs went
+  without it. Characters without an armor aspect run with `--no-armor-aspect`; the simulator passes it (no menu).
 - **Out** (`--leave-recall BOOK`): every leave rule (hits, two attackers, hostile player, time up,
   done) recalls to the book's default rune instead of walking to an exit. A survival leave
   recalls at once from where it stands: no war-mode toggle, no walk, a spell cursor that is up is
@@ -483,11 +491,14 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    fails"): a skill goes only at a target we see by the server's rule (`Team.bard_sees`, `aggro.View.we_see`:
    from us to it, within 10), a provoked pair both seen. One due but unseen: a step (up to 2, at most every
    3 s, never mid-channel) to the tile that sees it with the fewest eyes on us, fewer than here (a step costs 0.3),
-   under the reposition's rules (`Team.bard_step`); none: no skill this tick. **A target not on us** (on a pet): its
-   own sight of us isn't counted and no more eyes than here will do, and the skill goes from the new tile at once;
-   the cover or the reposition walks us back out of its sight next tick (since 2026-10-25: the cover and the caster
-   reposition keep us out of the sight of a blightmare, purger or caster the pets fight, so no tile ever counted as
-   good enough: 0 skills at 96 shy kills 2026-10-22..25; docs/NOTES.md "No bard skill at a caster or shy monster").
+   under the reposition's rules (`Team.bard_step`); none: no skill this tick. **A target not on us** (on a pet), a
+   peek: up to 4 steps (`PEEK_STEPS`), only the eyes that would wake to us counted (idle monsters before a pet, a
+   --never-aggro one, the backspawn; not those already fighting, the target included) and no more of them than here,
+   the pets kept within --vet-range only while a vet channel runs; the skill goes from the new tile at once and the
+   cover or the reposition walks us back out next tick (since 2026-10-25: the cover and the caster reposition keep us
+   out of the sight of a blightmare, purger or caster the pets fight, so no tile ever counted as good enough: 0 skills
+   at 96 shy kills 2026-10-22..25; round a corner from two awake purgers, 23:31, one skill in 50 s with four monsters
+   on the pets, the only seeing tile 4 steps off; docs/NOTES.md "No bard skill at a caster or shy monster").
    **Barding songs** (`--songs`; user 2026-10-13, capture 20261013_173449): the same skills at a
    ground tile beside us play the Songs of Discordance, Peacemaking and Provocation on us and the
    pets for 15 minutes (live 15.0 % each: less damage taken from creatures, more healing received,

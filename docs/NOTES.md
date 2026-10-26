@@ -6059,6 +6059,34 @@ About 22:02 it walked away from a freshly spawned reanimated demon to patrol els
   pass-over (`patrol_pull` for any kind): patrols 337 -> 1,529 in the batch, kills/h 119.2 -> 114.7, banked/h 129.4k
   -> 125.6k, deaths 4 -> 6. Walking into its sight cost deaths in 2026-10-17's batch ("Targets behind walls").
 
+## The armor aspect ran out mid-run; no barding round a corner (live 2026-10-25 21:16 and 23:31)
+
+- **The aspect** (user 23:16: "Logan's armor is not aspected"; then "make the runner check aspect before a trip and
+  refuse to leave home without it"). Store speech: 21:16:06 "Your aspect items revert to normal (no arcane essence
+  remaining)." The capture: Logan's five verite platemail pieces (0x67291869-0x6729186D) went from hue 1782 to 2207
+  at that second; his ramshead mask (helmet layer) stayed 1700 throughout. The "(Command Aspect N/250000 xp)" lines
+  went on after the revert: no sign of it. The Aspect Mastery gump at 23:14:45: Charges 0, every section Command Tier
+  14, icon hue 1782; 23:17:57 Charges 20,000 (the user's essence), 23:17:59 the plate back to 1782 (activation, -5),
+  23:18:01 19,990. Fixtures `testdata/aspect_gumps.json` `logan_out`/`logan_on`.
+- **Runner now** (`HuntLoop.check_aspect`, `aspects.armor_check`, `--armor-aspect` default on): before each recall
+  in, the menu read and the worn armor checked: essence left and a worn armor piece in the armor section's icon hue
+  (one piece is enough: the revert and an activation re-send every piece; the mask never takes it). Off: `low_supplies`
+  item `armor aspect`, "armor aspect off: …; not going in", the run ends at home. test_aspects `test_armor_check` (the
+  live gumps and suit); the runner path smoke-tested against the fixtures (off for the essence, off for the hue, on).
+  Not watched mid-run: the revert line is the evidence for that if wanted.
+- **Barding round a corner** (user 23:32: "lots of mobs are fighting the pets and we are not barding any of them ...
+  Should be firing off discos and provos"). Capture replay 23:31:26-23:32:02 (hunt-20261025-231940-5e67): Logan at
+  (5262, 647) where cover put him, out of two awake corpse purgers' shot; on the pets 4-7 tiles off two purgers and two
+  bound souls; one Discordance (23:31:10) in 50 s. The scene in the simulator: none of the four in sight from there;
+  within 2 steps no tile saw any; within 4 only (5260, 651), beyond --vet-range of AlaFlambe and in the second purger's
+  sight, which the peek counted. **Now** the peek (`bard_step(peek=True)`) goes up to `PEEK_STEPS` 4, counts only the
+  eyes that would wake to us (idle first sight, --never-aggro, backspawn), not monsters already fighting, keeps the pets
+  in vet range only while a vet channel runs (and may start during one). test_sim `test_bard_peek_corner` (fails before).
+  Simulator (98 runs a side, seed 17, careers 14, `--others --eerie --prior`, a361f14 against the change): peeks 1,133
+  -> 1,983, discord/h 140.6 -> 151.1, peace/h 52.7 -> 57.4, kills/h 131.8 -> 133.5, banked/h 147.1k -> 146.8k, deaths 3
+  -> 4, damage on Logan/h 1,647 -> 1,865 (+13 %): more skills for more of the purgers' stray shots, gold even.
+  **Provocation never goes out in the simulator** (0/h both sides; live 56 today): open.
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,

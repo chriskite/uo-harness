@@ -2532,6 +2532,19 @@ fight live) plus the walk. Rejected for now: "All Patrol" at a monster the fight
 (simulator: -3 % gold, more deaths); a memory of idle monsters out of view (not needed for this scene; open if the
 walk-aways go on).
 
+## No recall in without the armor aspect; a wider peek for bard skills (2026-10-25)
+
+User: "make the runner check aspect before a trip and refuse to leave home without it" (the essence ran out mid-run at
+21:16 and two hours of runs went unaspected). Decision: the Aspect Mastery menu read at home before each recall in
+(one gump, as the lumber runner's), essence left and a worn armor piece in the armor aspect's hue, else the run ends
+at home with a `low_supplies` juncture; activating it stays the user's (essence and the choice of aspect). Rejected:
+activating it ourselves as the lumber runner does (the user asked for a refusal; Logan's aspect and hues are his), and
+judging by the "(Command Aspect … xp)" lines (they went on after the revert).
+User: "lots of mobs are fighting the pets and we are not barding any of them ... Should be firing off discos and
+provos." Decision: the peek at a target not on us goes up to 4 steps, counts only eyes that would wake to us, and
+ignores vet range unless a channel runs. Simulator: discord +7.5 %, peace +9 %, gold even, damage on Logan +13 %
+(the purgers' stray shots): the user's priority on the bard skills taken over that cost.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

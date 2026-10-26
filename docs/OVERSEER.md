@@ -605,6 +605,11 @@ Paste this (or point the session at this section) to start an overseer.
 >    bandages and potions, the new normal (about 30 heal potions, 70 vet supplies, 5 Total Refresh and 15 rope; user:
 >    "I reduced our load out from the shelf so we aren't wasting so many resources when we keep dying to reds";
 >    knowledge #17148). Short of that after the Resupply: tell the user and don't start.
+>    **The armor aspect**: since 2026-10-25 the runner reads the Aspect Mastery menu at home before each recall in and
+>    won't go without the armor aspect on or with no Arcane Essence ("armor aspect off: …; not going in", a
+>    `low_supplies` juncture with item `armor aspect`; on: "armor aspect: Command on …; N Arcane Essence"). That day the
+>    essence ran out mid-run at 21:16 and the aspect reverted unnoticed for two hours. Off: tell the user (activating it
+>    and the essence are theirs) and start nothing until they answer.
 >    **Then the loot the drop-off left in the pack goes into the chest** (user 2026-10-20: "see if any loot
 >    that isn't auto-dropped off is in the pack and move it to the chest"; that day a mastery chain dye stayed in
 >    the pack). The drop-off only takes what its tomes, the deposit safe, the stockpile, the recycler and the

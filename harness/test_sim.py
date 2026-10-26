@@ -1944,6 +1944,38 @@ def test_bard_peek():
           all(not s and went and n == 1 for s, went, n, _ in out.values()), str(out))
 
 
+def test_bard_peek_corner():
+    print("== four monsters on the pets round a corner, two of them awake purgers: a peek and a skill all the same ==")
+    # live 2026-10-25 23:31:10-23:32:02 (hunt-20261025-231940-5e67, capture replay): Logan at (5262, 647) out of both
+    # purgers' shot, the fight 4-7 tiles off round the wall, one Discordance in 50 s (user: "lots of mobs are fighting
+    # the pets and we are not barding any of them"). The only tile that saw it was 4 steps off, out of vet range of
+    # AlaFlambe and in the second purger's sight
+    w = world_with([{"key": "corpse purger", "at": [5266, 651, 0]}, {"key": "corpse purger", "at": [5265, 652, 0]},
+                    {"key": "bound soul", "at": [5266, 652, 0]}, {"key": "bound soul", "at": [5269, 652, 0]}],
+                   seed=7, start=(5262, 647))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gr = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    gr.x, gr.y, af.x, af.y = 5265, 651, 5268, 652
+    mobs = [m for m in w.mobs.values() if m.kind == "monster"]
+    for m, pet in zip(mobs, (gr, gr, gr, af)):
+        m.target, m.threat = pet.serial, {pet.serial: 50}
+        w._warm(m, True)
+        m.next_step = 1e9
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.link.send(tamer.command("all kill"))
+            clock.advance(4.0)                      # the pets on the first purger: hurt within ENGAGED_S
+            st = loop.state()
+            seen = loop.team.bard_sees(st, mobs[0].serial)
+            went = loop.team.bard(st, mobs[0].serial, st["world"]["mobiles"][f"0x{mobs[0].serial:08X}"])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("out of its sight in the corner, then the peek and the skill", not seen and went
+          and loop.team.counts.get("bard", 0) == 1, f"seen {seen} went {went} counts {loop.team.counts} at {w.player.pos}")
+
+
 def test_purger_back_off():
     print("== an idle corpse purger would see us before the pets: back behind them; no skill at it ==")
     # live 2026-10-17 23:14:08-12: "holding here: corpse purger in sight at 10 tiles: letting it come"; it woke at 9 with
@@ -4643,7 +4675,8 @@ def main():
               test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_bard_peek, test_rope_sight, test_red_flight, test_red_out_of_view,
+              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_rope_sight, test_red_flight,
+              test_red_out_of_view,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,

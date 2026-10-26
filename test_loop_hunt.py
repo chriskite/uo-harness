@@ -1182,7 +1182,8 @@ async def main(staff=False, fight=None, crawl=False, recall=False, pause=False):
                    "--crawl-max-dmg", "200", "--crawl-depleted-s", "4", "--crawl-dwell", "2"] if crawl else []),
                 *(["--enter-recall", f"0x{UTOME:08X}", "--enter-rune", "Urukton Bluffs",
                    "--leave-recall", f"0x{UTOME:08X}", "--fight-spot", str(U_FIGHT[0]), str(U_FIGHT[1]),
-                   "--bank-gold", "1", "--pk-wait", str(PK_WAIT)] if recall else []),
+                   "--bank-gold", "1", "--pk-wait", str(PK_WAIT),
+                   "--no-armor-aspect"] if recall else []),    # the mock server has no Aspect Mastery menu
                 "--gheal-min-missing", str(GHEAL_MIN),
                 "--control-port", str(CONTROL_PORT), "--state-port", str(STATE_PORT), "--memory", db,
                 "--entry", str(ENTRY[0]), str(ENTRY[1]), "0",

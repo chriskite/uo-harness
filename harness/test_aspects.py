@@ -162,10 +162,39 @@ def test_suit():
     check("a learned suit hue: that piece is fine, the others now aren't", s["plain"] and "chest" not in s["plain"], s)
 
 
+LOGAN = 0x00104A60
+
+
+def logan(plate_hue: int) -> dict:
+    """Logan Wolf's worn suit (live serials and layers 2026-10-25): five verite platemail pieces in `plate_hue` (1782
+    with the Command aspect, 2207 without) and the ramshead mask on the helmet layer, 1700 throughout."""
+    plate = {0x67291869: 0x0D, 0x6729186A: 0x04, 0x6729186B: 0x13, 0x6729186C: 0x07, 0x6729186D: 0x0A}
+    items = {f"0x{s:08X}": {"layer": layer, "container": f"0x{LOGAN:08X}", "hue": plate_hue} for s, layer in plate.items()}
+    items["0x5558A485"] = {"layer": 0x06, "container": f"0x{LOGAN:08X}", "hue": 1700}
+    return {"items": items}
+
+
+def test_armor_check():
+    print("== the armor aspect before a trip (Logan, live 2026-10-25) ==")
+    out, on = parse("logan_out"), parse("logan_on")
+    r = aspects.armor_check(out, logan(2207), LOGAN)
+    check("23:14:45, the essence gone and the plate in its own hue: off, for the essence", not r["ok"]
+          and "Arcane Essence" in r["why"] and r["charges"] == 0, r)
+    r = aspects.armor_check(on, logan(2207), LOGAN)
+    check("essence loaded, the armor not activated: off, for the hue", not r["ok"] and "1782" in r["why"], r)
+    r = aspects.armor_check(on, logan(1782), LOGAN)
+    check("23:18:01, activated: on (the mask's own hue doesn't count against it)", r["ok"] and r["aspect"] == "Command"
+          and len(r["aspected"]) == 5 and r["plain"] == ["helmet"], r)
+    r = aspects.armor_check(on, {"items": {}}, LOGAN)
+    check("no armor worn: off", not r["ok"] and r["why"] == "no armor worn", r)
+
+
+
 if __name__ == "__main__":
     test_gump()
     test_lines()
     test_flow()
     test_suit()
+    test_armor_check()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")
     sys.exit(1 if FAILURES else 0)

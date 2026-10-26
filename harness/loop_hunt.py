@@ -141,6 +141,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
 import aggro  # noqa: E402
+import aspects  # noqa: E402
 import combat  # noqa: E402
 import crawl  # noqa: E402
 import dropoff  # noqa: E402
@@ -2530,6 +2531,7 @@ class HuntLoop:
         """Recall to --enter-recall's rune --enter-rune (its default without one), then the walk in (--enter-via).
         The first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
+        self.check_aspect()
         self.check_instrument()
         self.check_charges()
         if self.team is not None:
@@ -2568,6 +2570,30 @@ class HuntLoop:
                              {"item": "instrument"})
         raise Abort("no instrument in the pack: not going in (the bard skills and songs need one; "
                     "--no-discord --no-peace --no-provoke --no-songs to go without)")
+
+    def check_aspect(self):
+        """--armor-aspect: no recall in without the armor aspect on (user 2026-10-25: "make the runner check aspect
+        before a trip and refuse to leave home without it"). The Aspect Mastery menu read ("[aspect", one gump:
+        aspects.read) for the essence and the armor section's aspect hue, then the worn pieces (aspects.armor_check).
+        Off: a low_supplies juncture (item `armor aspect`) and the run ends at home. Live 2026-10-25 21:16:06 the
+        Arcane Essence ran out mid-run ("Your aspect items revert to normal"), Logan's platemail went back to its own
+        hue, and the runs went on for two hours without the Command aspect's armor and pet bonuses."""
+        if not self.args.armor_aspect:
+            return
+        self.human.wait("read")
+        try:
+            menu = aspects.read(escape_mod.LinkIO(self.link), self.human)
+        except aspects.AspectError as e:
+            raise Abort(f"the Aspect Mastery menu can't be read: {e}; not going in (--no-armor-aspect to go without)")
+        st = self.state()
+        res = aspects.armor_check(menu, st["world"], self.me(st))
+        if res["ok"]:
+            log(f"armor aspect: {res['aspect']} on {', '.join(res['aspected'])}; {res['charges']} Arcane Essence")
+            return
+        self.memory.juncture("hunt", "low_supplies", f"Armor aspect off: {res['why']}; not going in", "attention",
+                             {"item": "armor aspect", "aspect": res["aspect"], "charges": res["charges"],
+                              "plain": res["plain"]})
+        raise Abort(f"armor aspect off: {res['why']}; not going in (--no-armor-aspect to go without)")
 
     def check_charges(self):
         """No recall in without the way home: --enter-recall's and --leave-recall's books read (escape.check_ready, one
@@ -3931,6 +3957,9 @@ def arg_parser() -> argparse.ArgumentParser:
                          "other than jewellery, combat.worth_looting; user 2026-10-15)")
     ap.add_argument("--loot-keep", action="append", default=None, metavar="WORD",
                     help="without --loot-all: also take items whose name has this word, whatever they are (repeat)")
+    ap.add_argument("--armor-aspect", action=argparse.BooleanOptionalAction, default=True,
+                    help="no recall in without the worn armor's aspect on and Arcane Essence left (the Aspect Mastery "
+                         "menu read at home before each trip, HuntLoop.check_aspect; user 2026-10-25)")
     ap.add_argument("--soul-jars", action=argparse.BooleanOptionalAction, default=True,
                     help="Field of Souls: with an empty soul jar in the pack, walk to an eerie corpse in view and "
                          "fill the jar there (soul_jar.py; user 2026-10-17)")

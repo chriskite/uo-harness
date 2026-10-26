@@ -206,6 +206,7 @@ FIGHT_LINGER_S = 8.0          # a fight counts this long after its last monster 
 # Aggro (aggro.py): a better tile in a fight
 REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
+PEEK_STEPS = 4                # bard_step's peek at a target not on us: this far (live 23:31: the fight seen 4 steps off)
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 CASTER_R = 12                 # a caster in war mode this close in sight is casting at us (live 2026-10-19 19:54:43-57 a
 #                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
@@ -2396,13 +2397,19 @@ class Team:
         and no more eyes on us than here (stand_score plus 0.3 a step: allowing REPOSITION_GAIN more cost the
         simulator 9 runs with a death in 144, docs/NOTES.md "Bard skills at targets out of sight"). Never
         mid-channel. True when we stepped.
-        `peek` (the target isn't on us): its own sight of us isn't counted and the tile needs no fewer eyes than here,
-        only no more. A caster or ranged one fighting the pets is what the care keeps us out of the sight of (the cover,
-        the reposition), and seeing it means its sight of us: counted, no tile was ever good enough (live 2026-10-25
-        21:45:55 a blightmare and 21:48:40 a reanimated daemon the pets killed with no bard skill at either; 0 skills at
-        96 shy kills 2026-10-22..25, 89 at 54 before the cover). The care walks us back out after the skill."""
+        `peek` (the target isn't on us): up to PEEK_STEPS; only the eyes that would wake to us count (idle monsters
+        before a pet, a --never-aggro one, the backspawn), not those of monsters already fighting, and no more of
+        them than here will do; the pets kept within --vet-range only while a vet channel runs (its finish needs one in
+        reach). The cover and the caster reposition keep us out of the sight of what the pets fight, and seeing it
+        means its sight of us: counted, no tile was ever good enough (live 2026-10-25 21:45:55 a blightmare and
+        21:48:40 a reanimated daemon the pets killed with no bard skill at either; 0 skills at 96 shy kills
+        2026-10-22..25, 89 at 54 before the cover); and from a corner out of two awake purgers' shot every tile that
+        saw the fight was 4 steps off, beyond vet range of a pet and in the other purger's sight (live 23:31:10-23:32:02,
+        hunt-20261025-231940-5e67: four monsters on the pets 4-7 tiles off, one Discordance in 50 s; user: "lots of mobs
+        are fighting the pets and we are not barding any of them ... Should be firing off discos and provos"). The care
+        walks us back out after the skill."""
         h, now = self.h, time.monotonic()
-        if now - self.bard_step_t < REPOSITION_S or now < self.vet_busy_until:
+        if now - self.bard_step_t < REPOSITION_S or (now < self.vet_busy_until and not peek):
             return False
         self.bard_step_t = now
         v = self.view(st)
@@ -2412,15 +2419,20 @@ class Team:
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
         spaced = [o["pos"][:2] for o in v.mobs if o["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
-        eyes_of_it = peek and m["war"] and (m["caster"] or m["ranged"])
+        in_range = keep if not peek or now < self.vet_busy_until else []
 
         def score(t) -> float:
-            return v.stand_score(t) - (1.0 if eyes_of_it and v.sees(m, t, los.MAX_DISTANCE) else 0.0)
+            if not peek:
+                return v.stand_score(t)
+            return 100.0 * len(v.never_near(t)) + 10.0 * (
+                sum(o["weight"] for o in v.first_on_us(t, margin=1))
+                + sum(aggro.weight(kind) for _, kind in v.backspawn_exposed(t)))
 
+        steps = PEEK_STEPS if peek else REPOSITION_STEPS
         here = score(v.pos)
         best, best_s, best_c = None, None, None
-        for t, k in self.tiles_within(v, REPOSITION_STEPS).items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
+        for t, k in self.tiles_within(v, steps).items():
+            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in in_range) \
                     or any(cheb(t, n) < SPACING_R for n in spaced) or not v.we_see(m, t, BARD_RANGE):
                 continue
             c = score(t)
@@ -2434,7 +2446,7 @@ class Team:
         self.count("bard_los_moves")
         log(f"{m['kind']} 0x{serial:08X} out of our sight: stepping to {best[:2]}")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * REPOSITION_STEPS, max_route=2 * REPOSITION_STEPS,
+            h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * steps, max_route=2 * steps,
                             mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):

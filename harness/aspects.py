@@ -127,6 +127,31 @@ def suit(world: dict, me: int, hue: int = HARVEST_HUE) -> dict:
             "ok": not missing and not plain}
 
 
+def armor_check(menu: dict, world: dict, me: int) -> dict:
+    """Whether the worn armor has its aspect on, from the menu (`parse`/`read`) and the worn pieces: Arcane Essence
+    left (at 0 the server reverts every aspect item: live 2026-10-25 21:16:06 "Your aspect items revert to normal (no
+    arcane essence remaining)." and Logan's platemail went from the Command hue 1782 to its own 2207) and a worn armor
+    piece in the armor section's aspect hue (the menu's icon hue: Command 1782 icon and pieces, Harvest 2086 both).
+    One piece in it is enough: the revert and an activation re-send every piece, and a piece that never takes it (Logan's
+    ramshead mask, 1700 throughout) stays out of the verdict. {ok, why, aspect, hue, charges, aspected, plain}."""
+    sec = (menu.get("sections") or {}).get("armor") or {}
+    hue, charges = sec.get("hue"), menu.get("charges")
+    s = suit(world, me, hue) if hue is not None else {"pieces": [], "plain": []}
+    aspected = [p["layer"] for p in s["pieces"] if hue is not None and p["hue"] == hue]
+    out = {"aspect": sec.get("aspect"), "hue": hue, "charges": charges, "aspected": aspected, "plain": s["plain"]}
+    if not charges:
+        why = f"no Arcane Essence ({charges} charges): every aspect is off"
+    elif hue is None or not sec.get("aspect"):
+        why = "the menu shows no armor aspect"
+    elif not s["pieces"]:
+        why = "no armor worn"
+    elif not aspected:
+        why = f"no worn armor piece in the {sec['aspect']} aspect's hue {hue}: the armor aspect isn't on"
+    else:
+        why = None
+    return {**out, "ok": why is None, "why": why}
+
+
 class _Menu:
     """One visit to the menu over the IO: what the server sent, the open gump."""
 
