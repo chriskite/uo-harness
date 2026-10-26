@@ -1687,9 +1687,13 @@ them: 0.90 x 1.10 / 0.83 = 1.19, 1.05 x 0.83 = 0.87. The hypothesis it displaced
 phoenix, is withdrawn (an untested live A/B, 23:07-23:17, one short visit, also unaspected). **Lessons**: a window's
 comparison needs Logan's aspect state (the AR in his 0x11, `logs/simcmp/aspect_ar.py`-style); the scenario's suit
 (133, aspected verite plate) predates the 122 one worn since 10-24 22:08 (the Nightmare/Fire, Random and tonight's
-windows; Logan's own damage taken, not the pets'). **Next, live:** the 21:39 loadout with the aspect, from 23:18 (the
-user put Behemoth 3 back). The model (aspect on) predicts 0.90 of the 10-15 loadout's kill times, GraveRobber 7.5k an
-hour (11.0k), vet 76 (130).
+windows; Logan's own damage taken, not the pets'). **Live with the aspect** (from 23:18, Behemoth 3 back; the first 21
+minutes): the pets' damage per second of fighting (our-hue numbers on monsters over the runner's fight-seconds,
+`logs/simcmp/dps_now.py` / `dps_old.py`) 405, against 272 for the same loadout unaspected and 325 for the 10-15
+loadout's 83 visits: live 1.49x and 1.25x where the model (pet_damage_dealt over its fight-seconds) gives 1.30x and
+1.11x. The first visit made 120.8 kills an hour (the model 128.9; the 10-15 visits' 90th percentile 109). Target
+switches back to 6 % of fights. Open: GraveRobber took 17.0k an hour in that visit, 140 a kill (10-15: 119), where the
+model gives the new Tank tab 7.5k, 58 a kill (its 10-15 81): one visit, to watch.
 
 **Tidal Tomb level 3** (24 runs each from home, the level's area and enter/leave arguments of "Running"; live both
 days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level, on the recalibrated model with the scan of

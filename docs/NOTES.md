@@ -6140,6 +6140,9 @@ so a value is read through its element's line index, never by its position in `l
   only works with arcane essence above zero (knowledge #332, the Harvest aspect's wording). The captures' jsonl keeps a
   64-byte hex prefix of each packet: `world.parsers._p_character_status` fails on a type-5 0x11 there (weight at byte
   64), but AR (u16 at 62) and max hits (39) are inside.
+- **The pets' damage per second of fighting, live** (our-hue overhead numbers on monsters, no other player within 18,
+  over the runner's fight records' `fight_s`): the 10-15 Phoenix/Gravebug loadout's 83 visits 325 (26,118 numbers, 287
+  each); the 21:39 loadout unaspected (21:40-23:00) 272 (264 each), aspected (23:18-23:39) 405 (336 each).
 - Behemoth's text: "Follower Damage increased by (8% / 24% / 40%) and Damage Resistance by (1.5% / 4.5% / 7.5%) if
   follower takes 3 or more Control Slots" (knowledge #4243, #10236); an older one, "Melee and Spell Damage increased by
   (10% / 20% / 30%)" (#5808).
