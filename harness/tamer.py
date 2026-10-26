@@ -211,8 +211,10 @@ CASTER_R = 12                 # a caster in war mode this close in sight is cast
 #                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
 CASTER_STEPS = 4              # ...and a reposition out of its sight goes this far
 RANGED_R = 13                 # a ranged monster in war mode this close in sight is shooting at us (the purger's barrage: 12)
-TO_PET_CASTER_AT = 0.5        # to_pet: a pet at this share of hits or more isn't walked to nearer an awake caster or ranged
-#                              monster, within its reach (live 2026-10-25 00:38:30, the tank at 92 %)
+TO_PET_CASTER_AT = 0.8        # to_pet: a pet at this share of hits or more isn't walked to nearer an awake caster or ranged
+#                              monster, within its reach (live 2026-10-25 00:38:30, the tank at 92 %); 0.5 until 2026-10-25
+#                              21:48:55-49:06 held GraveRobber at 56-64 % unvetted (user: "didn't use vet supplies on GR
+#                              for quite a while even though he was ~70% health"); simulator: no change in deaths
 COVER_STEPS = 8               # cover: out of an awake purger's or blightmare's shot this far at most
 COVER_S = 2.0                 # ...at most this often
 BACK_OFF_S = 2.0              # back_off at most this often
@@ -2341,8 +2343,8 @@ class Team:
         if fx.get("los", 0) > now or cheb(self.h.pos(st), (mob["x"], mob["y"])) > BARD_RANGE:
             return False
         kind = type_key(mob.get("name"))
-        if aggro.shy(kind) and serial not in {serial_of(a["serial"]) for a in self.h.attackers(st)} \
-                and not self.engaged(st, serial):
+        on_us = serial in {serial_of(a["serial"]) for a in self.h.attackers(st)}
+        if aggro.shy(kind) and not on_us and not self.engaged(st, serial):
             # our skill draws its aggro before the pets hit it (user 2026-10-12: an aggressive act of ours puts the mob on
             # us) and a purger then barrages us wherever the pets stand; on us, or on the pets, the skills go (live demo
             # 2026-10-18 17:56:02: his Discordance on the purger GraveRobber fought, never a hit on Logan)
@@ -2351,7 +2353,13 @@ class Team:
             now >= self.calm_ready and (self.a.provoke or self.a.peace) and fx.get("calm", 0) <= now
             and fx.get("immune", 0) <= now)
         if due and not self.bard_sees(st, serial):
-            return self.bard_step(st, serial)
+            # a step that sees it, then the skill from there at once: the care (cover from a shy one's shot, the
+            # reposition out of a caster's sight) walks us back out next tick and would undo the step before the skill
+            if not self.bard_step(st, serial, peek=not on_us):
+                return False
+            st = self.h.state()
+            if not self.bard_sees(st, serial):
+                return True
         if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
             return self.use(SKILL_DISCORD, serial)
         if now < self.calm_ready:
@@ -2381,13 +2389,18 @@ class Team:
         m = next((m for m in v.mobs if m["serial"] == serial), None)
         return m is None or v.we_see(m, tile or v.pos, BARD_RANGE)
 
-    def bard_step(self, st, serial: int) -> bool:
+    def bard_step(self, st, serial: int, peek: bool = False) -> bool:
         """A bard skill is due at `serial` and we don't see it: step (up to REPOSITION_STEPS, at most once every
         REPOSITION_S) to the tile that sees it with the fewest eyes on us (aggro.View.stand_score), under the
         reposition's rules (the pets within --vet-range, out of a Charge's reach and fire, not onto the tank),
         and no more eyes on us than here (stand_score plus 0.3 a step: allowing REPOSITION_GAIN more cost the
         simulator 9 runs with a death in 144, docs/NOTES.md "Bard skills at targets out of sight"). Never
-        mid-channel. True when we stepped."""
+        mid-channel. True when we stepped.
+        `peek` (the target isn't on us): its own sight of us isn't counted and the tile needs no fewer eyes than here,
+        only no more. A caster or ranged one fighting the pets is what the care keeps us out of the sight of (the cover,
+        the reposition), and seeing it means its sight of us: counted, no tile was ever good enough (live 2026-10-25
+        21:45:55 a blightmare and 21:48:40 a reanimated daemon the pets killed with no bard skill at either; 0 skills at
+        96 shy kills 2026-10-22..25, 89 at 54 before the cover). The care walks us back out after the skill."""
         h, now = self.h, time.monotonic()
         if now - self.bard_step_t < REPOSITION_S or now < self.vet_busy_until:
             return False
@@ -2399,16 +2412,22 @@ class Team:
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
         spaced = [o["pos"][:2] for o in v.mobs if o["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
-        here = v.stand_score(v.pos)
-        best, best_s = None, None
+        eyes_of_it = peek and m["war"] and (m["caster"] or m["ranged"])
+
+        def score(t) -> float:
+            return v.stand_score(t) - (1.0 if eyes_of_it and v.sees(m, t, los.MAX_DISTANCE) else 0.0)
+
+        here = score(v.pos)
+        best, best_s, best_c = None, None, None
         for t, k in self.tiles_within(v, REPOSITION_STEPS).items():
             if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
                     or any(cheb(t, n) < SPACING_R for n in spaced) or not v.we_see(m, t, BARD_RANGE):
                 continue
-            s = v.stand_score(t) + 0.3 * k
+            c = score(t)
+            s = c + 0.3 * k
             if best_s is None or s < best_s:
-                best, best_s = t, s
-        if best is None or best_s > here:
+                best, best_s, best_c = t, s, c
+        if best is None or (best_c > here if peek else best_s > here):
             return False
         label = "to see the bard target"
         h.doing("reposition", f"Stepping to {best[0]},{best[1]} to see {m['kind']}", best[:2])

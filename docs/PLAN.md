@@ -2510,6 +2510,19 @@ results' charge counts aren't kept across runs, and the first run's in needs it 
 instrument or recall scrolls (none known in the house; the user supplies them). A mid-visit break doesn't end the
 visit: the pets fight on, and the leave rules are unchanged.
 
+## Bard skills at a caster or shy monster the pets fight: a peek from cover (2026-10-25)
+
+User: no Discordance or Peacemaking at a blightmare or a reanimated daemon the pets fought, "a huge issue" (docs/NOTES.md
+"No bard skill at a caster or shy monster the pets fought"). The cover and the caster reposition keep Logan out of such
+a monster's sight, and the skills need sight. Decision: for a target that isn't on us, the bard step leaves its own
+sight of us out of the score and goes for no more other eyes than here, and the skill goes at once from that tile;
+the care then walks back out. Its shots stay on the pet it fights (the simulator's stray share at the player in its
+sight, 0.2 as live, covers the rest). Rejected: casting from cover (the server refuses out of sight), and dropping
+the cover/reposition while a skill is due (the whole fight in its sight, not a second or two). Simulator 98 runs a
+side: deaths 11 -> 6, banked/h +2.7 %, discord/h +9 %, peace/h +18 %. Same incident, the vet: a pet below 80 % (was
+50 %) is walked to inside an awake caster's reach from out of its sight (user: GraveRobber "~70%" unvetted for a
+while); the 00:38 death's tank was at 92 %, still held; the simulator shows no change in deaths.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

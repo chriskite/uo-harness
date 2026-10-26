@@ -1911,6 +1911,39 @@ def test_bard_sight():
           out[WALL_FROM[:2]] == 0 and out[SEEN_FROM[:2]] == 1, str(out))
 
 
+def test_bard_peek():
+    print("== a caster or shy one on a pet, out of our sight by the care: a step into its sight and the skill at once ==")
+    # live 2026-10-25 (hunt-20261025-214237-36a7): 21:45:55 a blightmare at (5244, 688) on GraveRobber, Logan at (5240,
+    # 698) where cover put him; 21:48:40 a reanimated daemon at (5242, 695) on GraveRobber, Logan at (5240, 705) where the
+    # reposition put him. The pets killed both with no bard skill: bard_step counted the target's own sight of us
+    # (user: "patrolled the pets correctly to a blightmare but did not try to discord or peace it")
+    out = {}
+    for key, at, me, pets in (("blightmare", (5244, 688, 0), (5240, 698), ((5244, 689), (5243, 694))),
+                              ("reanimated daemon", (5242, 695, 0), (5240, 705), ((5242, 696), (5244, 706)))):
+        w = world_with([{"key": key, "at": list(at)}], seed=7, start=me)
+        m = next(m for m in w.mobs.values() if m.key == key)
+        loop, clock, store, patched = hurt_loop(w, 100)
+        gr = next(p for p in w.pets() if p.name == "GraveRobber")
+        for p, xy in zip(sorted(w.pets(), key=lambda p: p is not gr), pets):
+            p.x, p.y = xy
+        m.target, m.threat = gr.serial, {gr.serial: 50}
+        w._warm(m, True)
+        m.next_step = 1e9
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop.link.send(tamer.command("all kill"))
+                clock.advance(4.0)                      # the pets on it: hurt within ENGAGED_S
+                st = loop.state()
+                seen = loop.team.bard_sees(st, m.serial)
+                went = loop.team.bard(st, m.serial, st["world"]["mobiles"][f"0x{m.serial:08X}"])
+            out[key] = (seen, went, loop.team.counts.get("bard", 0), tuple(w.player.pos[:2]))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("out of its sight at the start, then a step and the skill, for both",
+          all(not s and went and n == 1 for s, went, n, _ in out.values()), str(out))
+
+
 def test_purger_back_off():
     print("== an idle corpse purger would see us before the pets: back behind them; no skill at it ==")
     # live 2026-10-17 23:14:08-12: "holding here: corpse purger in sight at 10 tiles: letting it come"; it woke at 9 with
@@ -2500,7 +2533,7 @@ def test_to_pet_not_into_shot():
 
 def test_to_pet_not_into_caster_reach():
     print("== the live 00:38:30 tiles: the tank at 92 % on an awake master reanimator 12 off: no walk to 4 of it; at "
-          "15 % the walk; a potion refused at full health starts no cooldown ==")
+          "70 % the walk; a potion refused at full health starts no cooldown ==")
     # live 2026-10-25 00:38:27-45 (hunt-20261024-230728-d7cf): the reposition out of its sight to (5243, 733), then "to a
     # hurt pet: (5243, 722), 4 from GirthyEarthy", its and a shadowguard's spells on all of us, 100 -> 0 in 6 s; a vet
     # finish (72 -> 100) just before a potion's click ("You are already at full health.") counted as a drink, and no
@@ -2509,7 +2542,7 @@ def test_to_pet_not_into_caster_reach():
     import healing
     from agent_link import serial_of
     out, res = io.StringIO(), {}
-    for frac in (0.92, 0.15):
+    for frac in (0.92, 0.70):     # 70 %: live 2026-10-25 21:48:55-49:06 GraveRobber held at 56-64 % (user: "didn't vet")
         w = world_with([{"key": "master reanimator", "at": [5239, 721, 0]}], seed=7, start=(5243, 733))
         mr = next(m for m in w.mobs.values() if m.key == "master reanimator")
         loop, clock, store, patched = hurt_loop(w, 100)
@@ -2539,9 +2572,9 @@ def test_to_pet_not_into_caster_reach():
     check("at 92 %: no walk nearer the awake reanimator, the reason logged",
           res[0.92][0] and not res[0.92][1] and res[0.92][2] == 12 and "awake master reanimator" in out.getvalue(),
           f"(awake, walked, from it) {res[0.92]}")
-    check(f"at 15 % (below tamer.TO_PET_CASTER_AT {tamer.TO_PET_CASTER_AT:.0%}): the walk to the pet",
-          res[0.15][1] and res[0.15][2] < 12,
-          f"(awake, walked, from it) {res[0.15]}")
+    check(f"at 70 % (below tamer.TO_PET_CASTER_AT {tamer.TO_PET_CASTER_AT:.0%}): the walk to the pet",
+          res[0.70][1] and res[0.70][2] < 12,
+          f"(awake, walked, from it) {res[0.70]}")
     check("at full health the potion isn't drunk and its clock stays", res["potion"] == (False, True),
           f"(drunk, clock unchanged) {res['potion']}")
 
@@ -4561,7 +4594,7 @@ def main():
               test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_rope_sight, test_red_flight, test_red_out_of_view,
+              test_bard_sight, test_bard_peek, test_rope_sight, test_red_flight, test_red_out_of_view,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,

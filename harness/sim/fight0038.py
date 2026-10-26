@@ -92,9 +92,9 @@ def one(seed):
     hits = []
     orig_hurt = w.hurt
 
-    def hurt(victim, amount, by, kind="melee", song_pets=True):
+    def hurt(victim, amount, by, kind="melee", song_pets=True, **kw):
         before = victim.hits
-        orig_hurt(victim, amount, by, kind, song_pets)
+        orig_hurt(victim, amount, by, kind, song_pets, **kw)
         if victim is w.player and before != victim.hits:
             hits.append((round(w.t, 1), by.key if by is not None else kind, round(before - victim.hits)))
     w.hurt = hurt

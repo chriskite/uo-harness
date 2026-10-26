@@ -5995,6 +5995,43 @@ already cleared, waiting to heal before moving on when a pet misses a few hits.
   `low_supplies` juncture (item `recall charges`) and the run ends at home. Log "runetome 0x444AB1F3: N recall
   charge(s)" each time. test_sim `test_recall_charges` (36, 2, 1 charges).
 
+## No bard skill at a caster or shy monster the pets fought (live 2026-10-25 21:45-21:49, hunt-20261025-214237-36a7)
+
+User: "Logan patrolled the pets correctly to a blightmare but did not try to discord or peace it", then "the same issue
+on the reanimated demon … we never discorded or peaced it which is a huge issue".
+
+- **21:45:50-46:24** "'All Patrol' to (5242, 691), 3 from the blightmare 0x006CC55D", "cover: the blightmare shoots
+  us here; to (5240, 698)", "target a blightmare … at 10 tiles", the pets killed it at 21:46:24. Capture
+  session_20261025_210102 (`WorldRuntime` replay): the blightmare stood at (5244, 688) on GraveRobber at (5244, 689)
+  all fight. **21:48:37-49:39** "reposition: reanimated daemon 0x006CC919 8 tiles off can cast at us here; to (5240,
+  705)", the daemon at (5242, 695) on GraveRobber at (5242, 696) till it died. No bard skill at either; Discordance
+  and Peacemaking went at a shadow minion, a shadowguard and a vampiric consort in the same run.
+- **Cause**: `Team.bard` needs the target in our sight (`bard_sees`); the cover (shy ones) and the reposition
+  (casters) had taken Logan out of its sight, and `Team.bard_step` scored a tile that sees it with `stand_score`,
+  which counts every caster or ranged monster in war mode that sees the tile: the target too. Seeing the target is
+  its sight of us, so no tile was ever as good as here and the step never went (a step needed fewer eyes than here
+  after its 0.3 a step). Task logs: "Discordance|Peacemaking|Provocation on a blightmare|corpse purger" 89 at 54
+  kills 2026-10-17..21, **0 at 96 kills 2026-10-22..25** (the cover shipped 2026-10-22, a400be6).
+- **Runner now**: a due skill at a target not on us gets the step with its own sight of us not counted and no more
+  eyes than here (`bard_step(peek=True)`), and the skill goes from the new tile in the same call (the care's cover or
+  reposition walks us back out next tick and would undo the step first). Log: "blightmare 0x… out of our sight:
+  stepping to (x, y)", then "Discordance on a blightmare: …". A target on us keeps the old rule. test_sim
+  `test_bard_peek` (both live scenes: no skill before, the step and the skill after).
+- **Simulator** (98 runs a side, seed 17, careers 14, `--others --eerie --prior` the main store, 9dfdbf7's pets):
+
+  | | deaths | pet-death runs | kills/h | banked/h | damage on us/h | pet damage/h | discord/h | peace/h | bard steps |
+  |---|---|---|---|---|---|---|---|---|---|
+  | before (9dfdbf7) | 11 | 1 | 117 | 125.0k | 1,837 | 14,019 | 122.9 | 55.8 | 3 |
+  | after | 6 | 0 | 118 | 128.4k | 1,812 | 13,641 | 133.7 | 66.0 | 1,012 |
+- **The vet in the same fight** (user: "We also didn't use vet supplies on GR for quite a while even though he was ~70%
+  health"): 21:48:50-49:06 "to a hurt pet: GraveRobber (82%|56%|64%|62%) is only in reach 6 from the awake reanimated
+  daemon, out of its sight 10 off here (50% or more); staying out of it", the walk and the vet only at 51 % (21:49:13);
+  21:49:30-35 the same at 72 % and 63 %. `tamer.TO_PET_CASTER_AT` (the 00:38 rule, "Dead vetting a pet in two casters'
+  reach") 0.5 -> **0.8**: the 92 % hold of that death stays. Simulator: the same batch with the bard fix, 0.8 against
+  0.5: deaths 7 vs 6, banked/h 127.6k vs 128.4k, vets/h 132.2 vs 131.0 (noise); `sim/fight0038.py` seeds 1-200 (its
+  `hurt` wrapper now passes the world's `ref`): 0 deaths at both, damage on Logan mean 98 at both. test_sim
+  `test_to_pet_not_into_caster_reach` walks at 70 % now (held at 0.5).
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,

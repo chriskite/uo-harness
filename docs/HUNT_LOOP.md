@@ -482,8 +482,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    **In sight first** (user 2026-10-17: "A lot of times it tries to bard a mob that cannot be seen and
    fails"): a skill goes only at a target we see by the server's rule (`Team.bard_sees`, `aggro.View.we_see`:
    from us to it, within 10), a provoked pair both seen. One due but unseen: a step (up to 2, at most every
-   3 s, never mid-channel) to the tile that sees it with the fewest eyes on us, no more than here, under the
-   reposition's rules (`Team.bard_step`); none: no skill this tick.
+   3 s, never mid-channel) to the tile that sees it with the fewest eyes on us, fewer than here (a step costs 0.3),
+   under the reposition's rules (`Team.bard_step`); none: no skill this tick. **A target not on us** (on a pet): its
+   own sight of us isn't counted and no more eyes than here will do, and the skill goes from the new tile at once;
+   the cover or the reposition walks us back out of its sight next tick (since 2026-10-25: the cover and the caster
+   reposition keep us out of the sight of a blightmare, purger or caster the pets fight, so no tile ever counted as
+   good enough: 0 skills at 96 shy kills 2026-10-22..25; docs/NOTES.md "No bard skill at a caster or shy monster").
    **Barding songs** (`--songs`; user 2026-10-13, capture 20261013_173449): the same skills at a
    ground tile beside us play the Songs of Discordance, Peacemaking and Provocation on us and the
    pets for 15 minutes (live 15.0 % each: less damage taken from creatures, more healing received,
@@ -734,10 +738,12 @@ ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and
 (docs/NOTES.md "Dead on the walk in to a red", the follow-up).
 **No walk to a hurt pet from out of an awake caster's sight into its reach** (`Team.to_pet`, since 2026-10-25): with
 an awake caster or ranged monster (not a shy one: its shot rule above) that doesn't see us here (`CASTER_R` 12,
-`RANGED_R` 13), a live pet at `tamer.TO_PET_CASTER_AT` (50 %) or more isn't walked to when the vet tile (or the pet's
-tile) is within that reach of it by distance, sight or not, and nearer it than here: "to a hurt pet: GirthyEarthy
-(92%) is only in reach 4 from the awake master reanimator, out of its sight 12 off here (50% or more); staying out of
-it". Below 50 %, or a ghost, the walk goes on; so does one with us in its sight already. Live 2026-10-25 00:38:27-45
+`RANGED_R` 13), a live pet at `tamer.TO_PET_CASTER_AT` (80 %; 50 % until 2026-10-25 21:49, when GraveRobber went
+unvetted at 56-64 % for 20 s beside a reanimated daemon, user: "didn't use vet supplies on GR for quite a while") or more
+isn't walked to when the vet tile (or the pet's tile) is within that reach of it by distance, sight or not, and nearer
+it than here: "to a hurt pet: GirthyEarthy (92%) is only in reach 4 from the awake master reanimator, out of its
+sight 12 off here (80% or more); staying out of it". Below 80 %, or a ghost, the walk goes on; so does one with us in
+its sight already. Live 2026-10-25 00:38:27-45
 the reposition had taken Logan out of a master reanimator's sight 12 off, and the walk took him to 4 of it for the
 tank at 92 %; its spells and a shadowguard's landed on all of us at once, Logan behind a wall by our map, 100 -> 0 in
 6 s (docs/NOTES.md "Dead vetting a pet in two casters' reach").
