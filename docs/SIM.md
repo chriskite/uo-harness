@@ -1657,9 +1657,37 @@ the live kills, with a resampled interval), is the measure of the team's damage.
    against the live 12.6 (23 kills) and carry most of it. **Open**, too thin to fit on.
 6. **Open: kills an hour stay ~1.3x live in all three** even where the kill times match: the time between fights
    (the crawl, pulls, rests) is shorter than live. Not the pets'.
-7. Current state: rescanned 2026-10-25 21:15 (the rebuilt Phoenix/Gravebug, the levels). With it AlaFlambe's perks add
-   38 % to its damage in the reference caster context (45 % with the 10-15 tabs) and its resistance is 2.75 points
-   lower (Behemoth rank 1). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
+7. Current state: rescanned 2026-10-25 23:08: Phoenix/Gravebug as the user rebuilt it at 21:38-21:39, less Behemoth
+   from 23:06 (next paragraph). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
+
+**The 21:39 Phoenix/Gravebug loadout: the model doesn't follow it (open).** The user rebuilt the team's tabs at
+21:38-21:39 (Attack: Immolate 3, Lethality 3, Primal 3, [Cross] Behemoth 3; Tank: Mending 3, Stalwart 3, Survival 3,
+[Cross] Carrion 3) and the runner played 4 visits (0.94 h, 21:43-23:00) with them. Batches of 144 (seed 17, as above)
+with that loadout and with the 10-15 one, on the same runner code:
+
+| Per hour, or as stated | Live 10-15 (83 visits) | Live 21:39 (4 visits) | Sim 10-15 | Sim 21:39 |
+|---|---|---|---|---|
+| kill time, 21:39 / 10-15 (weighted by the live 21:39 kills, types with 3+) | | 1.19 (0.85-1.42) | | 0.90 |
+| kill time, sim / live | | | 0.98 (0.95-1.03) | 0.79 (0.67-1.13) |
+| kills | 93.1 | 94.7 | 123.2 | 128.0 |
+| damage on GraveRobber | 11,040 | 19,926 (11,451-22,619) | 9,967 | 7,533 |
+| vet uses | 130 | 157 (121-202) | 119 | 75 |
+| fights ending "switched" | 5.3 % | 13.3 % (29 of 218) | 5.0 % | 4.6 % |
+| AlaFlambe's attributable numbers, 25 / 45 / 75 / 95 % | 196 / 212 / 319 / 768 | 167 / 183 / 267 / 967 (n 70) | | |
+
+The model's numbers for the phoenix move 1.04 / 1.05 / 0.98 / 1.85 at those quantiles (21:39 over 10-15); live moved
+0.85 / 0.86 / 0.84 / 1.26. The bard side didn't change (discords, songs an hour), nor does the runner code explain it
+(the sim on the current code still fits the 10-15 window). **Hypothesis [INFERENCE]: Behemoth's damage doesn't reach
+AlaFlambe's numbers** ("Follower Damage increased by 8/24/40 % if follower takes 3 or more Control Slots", knowledge
+#4243; an older text #5808: "Melee and Spell Damage +10/20/30 %"). Without it the model's 21:39 body moves ~0.88-0.90
+of the 10-15's (live 0.85), and the unexplained ~1.25x of the phoenix's plain casts in the 10-15 fit (Behemoth 2 is
++24 %) would mostly go, with it most of `k_x` 0.73. The tank side follows from the slower kills or the model's credit
+for Stalwart and Survival: GraveRobber soaks more where the model gives it less. **The test, live:** the user removed
+only Behemoth at 23:06 (Attack 15/20 points, 0/5 cross) and started the runner at 23:07:46. The model's prediction if
+Behemoth works: the phoenix's numbers x 0.71 (x 0.88 at 95 %), kill times ~1.25x; if not: unchanged. A confound: the
+with-Behemoth shift (21:42-22:45) ran before fafcbc6 (bard skills from a peek out of cover, 22:43) and 69a80ed (crawl
+seek, 23:03), the test's shift with both, so the phoenix's numbers on undiscorded targets are the clean measure, and
+the model's prediction compares two batches on the same code.
 
 **Tidal Tomb level 3** (24 runs each from home, the level's area and enter/leave arguments of "Running"; live both
 days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level, on the recalibrated model with the scan of

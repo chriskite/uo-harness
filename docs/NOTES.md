@@ -6125,6 +6125,16 @@ so a value is read through its element's line index, never by its position in `l
     at once (spell and Spellburn), 13 % three or more; the numbers' 25-65 % quantiles 196-245, 95 % 768.
   - Mausoleum parity per team: the GraveRobber + AlaFlambe visits killed 93.1 an hour on the level, a type's median
     kill time from 3.3 s (banshee) to 38.1 s (reanimated daemon); Nightmare/Fire 82.0, Random 78.0.
+- **Phoenix/Gravebug rebuilt again, 2026-10-25 evening** (the scan's views, `tamer_scan.py --as-of`): Tank tab to
+  Mending 3, Stalwart 3, Survival 3, [Cross] Carrion 3 at ~21:38; Attack tab to Immolate 3, Lethality 3, Primal 3,
+  [Cross] Behemoth 3 by 21:39:35; Behemoth removed (Attack 15/20, 0/5 cross) between 23:06:00 and the view at 23:06:43.
+  The 4 visits with Behemoth 3 (21:43-23:00, 0.94 h): kills 94.7 an hour (the 10-15 loadout's 83 visits 93.1), each
+  monster's kill time 1.19x (0.85-1.42), damage on GraveRobber 19,926 an hour (11,040), vet uses 157 (130), fights
+  ending in a target switch 13.3 % (5.3 %), AlaFlambe's attributable numbers' median 183 (212, n 70). Discords and
+  songs an hour as before. docs/SIM.md "The 21:39 Phoenix/Gravebug loadout".
+- Behemoth's text: "Follower Damage increased by (8% / 24% / 40%) and Damage Resistance by (1.5% / 4.5% / 7.5%) if
+  follower takes 3 or more Control Slots" (knowledge #4243, #10236); an older one, "Melee and Spell Damage increased by
+  (10% / 20% / 30%)" (#5808).
 
 ## Network observations
 

@@ -2581,6 +2581,11 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   - `parity.py --team --until` and `run.py --pet-level` let each team's window be compared as live played it.
   - Open: the Random team (2 h, levels guessed) at 0.77; kills an hour ~1.3x live in every team, the time between
     fights, not the pets.
+- **The 21:39 Phoenix/Gravebug loadout is tested live, not fitted** (2026-10-25 23:06): the model makes it 10 % faster
+  than the 10-15 one, live it was ~19 % slower per monster on 4 visits. The leading hypothesis, Behemoth's damage not
+  reaching AlaFlambe [INFERENCE], also explains most of the old fit's `k_x` 0.73; a model-only refit couldn't tell it
+  from the other perks the build moved. The user removed only Behemoth and sent the runner out
+  (`logs/simcmp/behemoth_ab.py`, throwaway, compares the windows). Until it settles, `k_x` and Behemoth's rule stand.
 
 ## Risks
 

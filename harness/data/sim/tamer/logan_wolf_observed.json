@@ -241,40 +241,27 @@
    "Phoenix/Gravebug": {
     "attack": {
      "decoded": true,
-     "points": 20,
-     "cross": 3,
-     "pages_seen": 10,
-     "evidence": "latest 195/5243 20261025_210102 2026-10-25 21:11:26; 156 views",
+     "points": 15,
+     "cross": 0,
+     "pages_seen": 11,
+     "evidence": "latest 195/164311 20261025_210102 2026-10-25 23:06:43; 214 views",
      "perks": {
-      "Heavy Breathing": 1,
-      "Hunting Party": 1,
-      "Immolate": 2,
-      "Lethality": 1,
-      "Mutation": 2,
-      "Pelt": 2,
-      "Primal": 3,
-      "[Cross] Behemoth": 1,
-      "[Cross] Breaker": 1,
-      "[Cross] Swoop": 1
+      "Immolate": 3,
+      "Lethality": 3,
+      "Primal": 3
      }
     },
     "tank": {
      "decoded": true,
      "points": 20,
      "cross": 5,
-     "pages_seen": 11,
-     "evidence": "latest 195/5193 20261025_210102 2026-10-25 21:11:23; 106 views",
+     "pages_seen": 3,
+     "evidence": "latest 195/43978 20261025_210102 2026-10-25 21:37:57; 124 views",
      "perks": {
-      "Aggression": 2,
-      "Critical Care": 2,
-      "Guardians": 1,
-      "Hearty": 3,
-      "Mending": 1,
-      "Survival": 1,
-      "Tolerance": 1,
-      "[Cross] Beast Sting": 1,
-      "[Cross] Primal": 1,
-      "[Cross] Swarm": 2
+      "Mending": 3,
+      "Stalwart": 3,
+      "Survival": 3,
+      "[Cross] Carrion": 3
      }
     },
     "utility": {
@@ -282,7 +269,7 @@
      "points": 0,
      "cross": 0,
      "pages_seen": 0,
-     "evidence": "latest 195/2490 20261025_210102 2026-10-25 21:05:39; 1 views",
+     "evidence": "latest 195/164246 20261025_210102 2026-10-25 23:06:33; 2 views",
      "perks": {}
     }
    },
