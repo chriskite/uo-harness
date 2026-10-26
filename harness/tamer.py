@@ -2583,11 +2583,13 @@ class Team:
                 self.skill_ready = time.monotonic() + SKILL_RETRY_S
             log(f"{what}: no target cursor ({[r[1] for r in refused] or 'no answer'})")
             return True
+        # the second cursor's mark before the first answer goes out: an in-process link (the simulator) delivers the
+        # server's "Whom do you wish them to attack?" cursor inside that send, before a mark taken after it
+        mark2 = len(h.link.events)
         if not self._aim(cur, serial, BARD_RANGE, bard=True):
             return True
         if second is not None:
-            mark2 = len(h.link.events)
-            cur2 = self._cursor(mark2, not_id=None)
+            cur2 = self._cursor(mark2, not_id=cur.get("cursor_id"))
             if cur2 is None or not self._aim(cur2, second, BARD_RANGE, bard=True):
                 log(f"{what}: no second target")
                 return True

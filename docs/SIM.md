@@ -232,7 +232,8 @@ What the capture and the wiki fixed:
 
 The runner kills at about 58 % of Logan's rate there: it explores an unknown floor (85 crawl waypoints)
 where he walked straight to the next pack, and waits for mobs to come rather than opening (user
-2026-10-12). It never provokes: Logan's 4 provocations went at mobs not yet fighting (an opener).
+2026-10-12). The 0 provocations were a runner bug that only the simulator's link exposed, not a choice: every
+one ended "no second target" until 2026-10-26 (below, "Provocation never went out").
 
 ## What the simulator found (and what was fixed)
 
@@ -593,6 +594,31 @@ where he walked straight to the next pack, and waits for mobs to come rather tha
   fight step-aways that don't wait for mobiles (`mobile_wait=0`, docs/HUNT_LOOP.md "Self care") 1 death, 13 jars,
   55; with the Tank draw since ("Parity with the live runs") 3 deaths, 9 jars, 53. Seed 5 had died "retreat: … cut
   by mobiles we couldn't shove; waiting" in the corridor.
+- **Provocation never went out** (fixed 2026-10-26, `tamer.Team.use`; test_sim `test_bard_provoke`, failing before):
+  every batch since the first compare showed 0 provocations, but the run logs had the runner trying one or several
+  times per run ("Provocation on a vampire bat onto 0x00300036: no second target"). The runner took the second
+  cursor's event mark *after* sending the first target. Live, `agent_link.Link.act` only sends and the server's
+  second cursor reaches `link.events` on a later state read, so the mark came first and the cursor was found. The
+  simulator's `SimLink.send` runs the World and pumps its reply inside the send, so the "Whom do you wish them to
+  attack?" cursor was already behind the mark; `_cursor` waited it out and the cursor stayed open. Now the mark is
+  taken before the first answer, and the first cursor's id is excluded. Live behaviour is unchanged.
+  Two blocks of 144 runs each (`--others --eerie --prior <store> -- --vet-range 5 --crawl-learn-s 180`):
+
+  | | seeds 17-160, before | after | seeds 161-304, before | after |
+  |---|---|---|---|---|
+  | provocations ok / failed | 0 / 0 | 369 / 312 | 0 / 0 | 335 / 301 |
+  | runs with a death | 4 | 6 | 3 | 6 |
+  | deaths per game hour | 0.06 | 0.08 | 0.04 | 0.08 |
+  | gold banked per game hour | 134.4k | 134.3k | 136.8k | 136.2k |
+  | damage to Logan per game hour | 1,753 | 1,754 | 1,576 | 1,788 |
+  | kills per game hour | 121.9 | 122.3 | 121.7 | 121.5 |
+
+  Deaths 7 -> 12 over the 288 runs (one-sided p 0.18 for an equal rate: not significant, but higher in both
+  blocks). The batches now play the provocations the live runner already makes. One death (seed 84) came 6 s after
+  a failed provocation, with the bound soul it targeted on Logan. That is the World's rule that a failed incite turns
+  the first creature on the bard (`World._bard`, [INFERENCE], never checked against a capture). The other deaths
+  were purger-room deaths with no provocation near them. Live success rate: 17 of 27 answered at Tidal Tomb
+  (`tidal_tomb_observed.json`); the simulator gets 54 % at the Mausoleum.
 
 ## Monster mechanics audit (2026-10-15)
 

@@ -1062,6 +1062,45 @@ def test_area_peace():
           f"{w.metrics['bard']} calmed {calmed}")
 
 
+def test_bard_provoke():
+    print("== two monsters on the pets, the target discorded: Provocation of the other onto it, both cursors answered ==")
+    # the simulator's link delivers the server's second cursor ("Whom do you wish them to attack?") inside the send of
+    # the first answer; Team.use took the second cursor's mark after that send, so every provocation ended "no second
+    # target" (0 in every batch since the trip compare in docs/SIM.md)
+    w = world_with([{"key": "shade wolf", "at": [5268, 651, 0]}, {"key": "shade wolf", "at": [5269, 651, 0]}],
+                   seed=7, start=(5268, 648))
+    wolves = [m for m in w.mobs.values() if m.kind == "monster"]
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 10 ** 6
+    for m, dx in zip(wolves, (0, 1)):
+        m.x, m.y = gb.x + dx, gb.y + 1                      # both beside the gravebug, in our sight
+        m.next_step = 1e9
+        m.hits = m.hits_max = 10 ** 6
+        m.spec = {**m.spec, "difficulty": 20.0}            # a sure check, to test the action itself
+        m.target, m.threat = gb.serial, {gb.serial: 1e9}
+        w._warm(m, True)
+    first, other = wolves
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.5)
+            for m in wolves:
+                w.hurt(gb, 5, m)                            # the gravebug hurt by both: the wolves are in the fight
+            clock.advance(0.5)
+            st = loop.state()
+            loop.team.effects[first.serial] = {"discord": tamer.time.monotonic() + 1e6}   # discord done: provoke next
+            fighting = loop.team.others(st, first.serial)
+            loop.team.bard(st, first.serial, st["world"]["mobiles"][f"0x{first.serial:08X}"])
+            clock.advance(1.0)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    bard = w.metrics["bard"]
+    check("the other wolf is in the fight; the provocation is answered and incites it onto the target",
+          fighting == [other.serial] and bard.get("provoke_ok") == 1 and other.provoke
+          and other.provoke[0] == first.serial, f"others {fighting} bard {bard} provoke {other.provoke}")
+
+
 def test_idle_pet():
     print("== a pet standing idle beside the other pet's fight gets 'All Kill' and joins it ==")
     # live 20261015_210709 21:19:51-20:43: AlaFlambe out of a transfix stood 45 s out of war mode while GraveRobber
@@ -4675,7 +4714,7 @@ def main():
               test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_rope_sight, test_red_flight,
+              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,
               test_red_out_of_view,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,

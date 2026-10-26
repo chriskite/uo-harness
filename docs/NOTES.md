@@ -2637,6 +2637,12 @@ Design: docs/VISUALIZER.md §2.13 and docs/PLAN.md "Nystul the Wizard".
     from the west rooms only via (5190, 682), and from the arrival via the nightstalker room. In the
     simulator, with the walk out modelled, most deaths are on that walk (docs/SIM.md "With the real
     way out").
+- **The simulator's link delivers replies inside the send** (found 2026-10-26: Provocation never went out in the
+  simulator; docs/SIM.md "Provocation never went out"). `SimLink.send` runs the World on the packet and pumps its S2C
+  reply into `link.events` before `act` returns. Live, `agent_link.Link.act` only sends, and replies reach `events`
+  on a later state read. So runner code that waits for a reply MUST take its `len(h.link.events)` mark *before* the
+  `act`; a mark taken after it works live and misses the reply in the simulator. `Team.use`'s second Provocation
+  cursor was the one case found: 0 provocations answered in two 144-run blocks before the fix, 1,317 after.
 
 ## Logan Wolf's tamer fighting at the Mausoleum (capture 20261012_210013, analysed 2026-10-12)
 
