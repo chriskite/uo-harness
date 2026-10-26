@@ -2531,7 +2531,8 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
 - **The plan's contingency taken**: with the shared factor the default batch made 42 % more kills an hour (130.3 ->
   184.9); AlaFlambe got its own factor (`anchors.damage_override`: its model mean per number = the old spec's 438).
   Still +28 % (166.8): **open**, with the phoenix's numbers per attack (the model's 1.30 a cast plus Epic Barrage's
-  against the live 1.10) and the pets' levels (14-15 now, 10-11 at the Mausoleum's calibration) as the leads.
+  against the live 1.10) as the lead. Not the pets' levels (corrected 2026-10-25 evening): GraveRobber and AlaFlambe
+  were at 15 from 10-17/18, through most of the old spec's fit window and every visit since.
 - **The vet heal is the wiki's formula** with the codex (Specialist + Without Borders), not the gravebug's bar x an
   assumed 450 hits; Lore counts 0.2 a point (#11327; the plan's numbers had 0.3). `vet.res_hits` 0.31 -> 0.10: the one
   live res was the gravebug's with Critical Care rank 2 (+21 %), which the model now adds per pet.
@@ -2539,8 +2540,19 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   simulated reach.
 - **The Sim page refuses a bestiary file path** (it would read arbitrary files); `run.py` takes one.
 - Open besides the kills: spells phoenix : gravebug 0.86 against the live 0.79, and the area hits 1.09 against the
-  live 37 vs 37 (the gravebug's Tank-tab resistance); the never-captured tabs (Phoenix/Gravebug's Utility: the mantis
-  runs without perks, with a warning) fill in when Logan opens them and the scan runs again.
+  live 37 vs 37 (the gravebug's Tank-tab resistance).
+- **Phoenix/Gravebug's Utility tab is empty** (the user, 2026-10-25: the team has no utility-class pet): recorded as
+  known (`bestiary_known`), so the mantis runs without perks and without a warning. A tab the scan decodes later wins.
+- **The anchors and reference pets are pinned to the state they were measured in** (2026-10-25 evening, after the
+  user's "The pets are at level 15 now" and his reset of Phoenix/Gravebug's Attack tab at 21:01): `anchors.loadouts`
+  (the loadout as it was, read with `tamer_scan.py --as-of`) and each anchor's `level`. Before, `k_dmg`, AlaFlambe's
+  factor, `k_speed` and the references were computed with the current scan: a rescan would have folded every loadout
+  or level change into the factors (AlaFlambe 1.221 -> 1.695 for the Attack tab reset, its damage unchanged). Rejected:
+  a per-tab history in the scan's output read by date. The copies with their evidence are explicit and few, and
+  `--as-of` reproduces them.
+- **Recalibration is against live play, per team** (docs/SIM.md "Recalibrating"): the 84 GraveRobber + AlaFlambe
+  visits at level 15 with Phoenix/Gravebug of 10-15 fit AlaFlambe; the Nightmare/Fire (13 visits) and Random (6)
+  windows are held out to test the shared `k_dmg`. Needs `parity.py --until` and a pets filter first.
 
 ## Risks
 

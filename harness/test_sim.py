@@ -33,11 +33,11 @@ def check(name, cond, extra=""):
         FAILURES.append(name)
 
 
-def world_with(spawns, seed=1, start=FLOOR, others=False, team=None):
+def world_with(spawns, seed=1, start=FLOOR, others=False, team=None, bestiary=None):
     sc = load()
-    if team:
+    if team or bestiary:
         from sim import pets
-        pets.select(sc, team)
+        pets.select(sc, team, bestiary)
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0   # the tests place each monster on its tile
     sc["player"]["start"] = [start[0], start[1], 0]
@@ -3997,29 +3997,38 @@ def test_party_validation():
           and preset == "nightmare_fire", str(names))
     sc = load()
     pets.select(sc, "GirthyEarthy, a tidal mantis")
-    check("pets named without a preset take the scenario team's loadout; a tab never captured: no perks and a warning",
-          sc["party"]["bestiary"] == "Phoenix/Gravebug" and sc["party"]["warnings"]
-          == ["Phoenix/Gravebug utility tab not captured: no perks for a tidal mantis"]
+    check("pets named without a preset take the scenario team's loadout; Phoenix/Gravebug's Utility tab empty (the user: "
+          "no utility pet in that team): the mantis without perks, no warning",
+          sc["party"]["bestiary"] == "Phoenix/Gravebug" and sc["party"]["warnings"] == []
+          and next(p for p in sc["pets"] if p["name"] == "a tidal mantis")["perks"] == {}, str(sc["party"]["warnings"]))
+    t = pets.load_tamer(sc["tamer"]["character"])            # the cached copy select reads
+    tabs = t["bestiary"]["loadouts"]["Phoenix/Gravebug"]
+    known, tabs["utility"] = tabs["utility"], None          # as if never captured and not known
+    try:
+        sc = load()
+        pets.select(sc, "GirthyEarthy, a tidal mantis")
+    finally:
+        tabs["utility"] = known
+    check("a tab never captured and not known: no perks for that class and a warning",
+          sc["party"]["warnings"] == ["Phoenix/Gravebug utility tab not captured: no perks for a tidal mantis"]
           and next(p for p in sc["pets"] if p["name"] == "a tidal mantis")["perks"] == {}, str(sc["party"]["warnings"]))
 
 
 def test_pet_builds():
-    print("== the pets at their Guide level and Command tier 14: hits (wiki level table); the phoenix takes the "
+    print("== the pets' hits by the wiki level table at the levels of the live hit bars; the phoenix takes the "
           "gravebug-measured numbers through its own armor and resist ==")
     import random
     import statistics
     from sim import pets
     t = pets.load_tamer()
-    hits = {}
-    for team in t["teams"]:
-        sc = load()
-        pets.select(sc, team)
-        hits.update({p["name"]: p["hits"] for p in sc["pets"]})
-    want = {"GraveRobber": 542, "AlaFlambe": 742, "NightmareA": 499, "NightmareB": 502, "a searing imp": 341,
-            "fireminion": 367, "GirthyEarthy": 986, "a tidal mantis": 652}
+    none = {tab: {} for tab in pets.TABS}
+    want = {"GraveRobber": (15, 542), "AlaFlambe": (15, 742), "NightmareA": (14, 499), "NightmareB": (14, 502),
+            "a searing imp": (14, 341), "fireminion": (15, 367), "GirthyEarthy": (14, 986), "a tidal mantis": (11, 652)}
+    hits = {n: pets.build_pet(n, t, none, "command", 14, [n], level=lv)["hits"] for n, (lv, _) in want.items()}
     check("hits: the Guide's x (1 + 10 % a level to 10, 5 % past it); live bars ~1000, ~480, 331-343, 352-363",
-          hits == want, str(hits))
+          hits == {n: h for n, (_, h) in want.items()}, str(hits))
     sc = load()
+    pets.select(sc, "phoenix_gravebug", "Phoenix/Gravebug 2026-10-15")    # the loadout of the live ratios
     gb, ph = sc["pets"]
     ref, rng = sc["pet_ref"]["default"], random.Random(1)
 
@@ -4032,10 +4041,46 @@ def test_pet_builds():
     check("the supplies reach 5 (2 + Without Borders tier 3)", sc["vet"]["range"] == 5, str(sc["vet"]["range"]))
 
 
+def test_anchors_pinned():
+    print("== a rescan after a loadout or level change moves the pets, not the live anchors (k_dmg, the phoenix's own "
+          "factor, k_speed, the reference pets) ==")
+    import copy
+    from sim import pets
+    from sim.scenario import load as load_sc
+    caches = (pets.load_tamer, pets.k_dmg, pets.k_override, pets.k_speeds)
+    real_load = pets.load_tamer
+    before = (pets.k_dmg(), pets.k_override("AlaFlambe"), dict(pets.k_speeds()), load_sc()["pet_ref"]["default"])
+    t2 = copy.deepcopy(real_load())
+    pg = t2["bestiary"]["loadouts"]["Phoenix/Gravebug"]
+    # live 2026-10-25 21:01-21:03: the Attack tab reset and refilled without its cross perks; the Tank tab redone too
+    pg["attack"] = {**pg["attack"], "perks": {"Immolate": 2, "Lethality": 1, "Mutation": 2, "Pelt": 2, "Primal": 3}}
+    pg["tank"] = {**pg["tank"], "perks": {"Survival": 3, "Hearty": 3, "Guardians": 3}}
+    for n in t2["guide"]:
+        t2["guide"][n]["level"] = 15                         # every pet at the top level
+    for c in caches:
+        c.cache_clear()
+    pets.load_tamer = lambda character="logan_wolf": t2
+    try:
+        after = (pets.k_dmg(), pets.k_override("AlaFlambe"), dict(pets.k_speeds()), load_sc()["pet_ref"]["default"])
+        sc = load_sc()
+        af = next(p for p in sc["pets"] if p["name"] == "AlaFlambe")
+        nb = pets.build_pet("NightmareB", t2, {tab: {} for tab in pets.TABS}, "command", 14, ["NightmareB"])
+    finally:
+        pets.load_tamer = real_load
+        for c in caches:
+            c.cache_clear()
+    check("the anchors and the default reference pet unchanged", after == before, f"{before[:2]} -> {after[:2]}")
+    check("...while the phoenix carries tonight's perks (no Swarm, Hunting Party, Breaker) and NightmareB, measured at "
+          "1.60 s at level 14, is faster at 15",
+          set(af["perks"]) == {"Immolate", "Lethality", "Mutation", "Pelt", "Primal"} and nb["period"] < 1.60 - 0.01,
+          f"{sorted(af['perks'])} {nb['period']:.3f}")
+
+
 def test_perk_conditions():
     print("== the bestiary's conditions as the World sees them: Cornered, Pelt, Aggression; the codex's Triage ==")
     from sim import pets
-    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}], team="earth_fire")
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}], team="earth_fire",
+                   bestiary="Random 2026-10-24")             # pinned: a later change to Random doesn't move the ranks
     w.t = 100.0
     mon = next(m for m in w.mobs.values() if m.kind == "monster")
     fm = next(p for p in w.pets() if p.name == "fireminion")
@@ -4053,7 +4098,7 @@ def test_perk_conditions():
     check("Pelt (rank 2): its target 5 tiles off +21 %, 2 tiles off +12 %",
           abs(far - cold - (pelt["dmg_cond"] - pelt["dmg"])) < 1e-9 and (pelt["dmg_cond"], pelt["dmg"]) == (0.21, 0.12),
           f"{far:.3f} {cold:.3f}")
-    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}])
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}], bestiary="Phoenix/Gravebug 2026-10-15")
     w.t = 100.0
     mon = next(m for m in w.mobs.values() if m.kind == "monster")
     gb = next(p for p in w.pets() if p.name == "GraveRobber")
@@ -4451,7 +4496,8 @@ def main():
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
-              test_tamer_scan_rows, test_party_validation, test_pet_builds, test_perk_conditions, test_vet_codex,
+              test_tamer_scan_rows, test_party_validation, test_pet_builds, test_anchors_pinned, test_perk_conditions,
+              test_vet_codex,
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_dolphin,

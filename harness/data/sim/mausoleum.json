@@ -233,8 +233,8 @@
   "note": "heal: the server's own number (cliloc 1008158 'You feel better (N)', affix) on 612 live drinks in 41 visits (2026-10-21): those that didn't fill him (194) healed 30 / 34 / 41 (q25 / median / q75), 47-51 at q90-q95; drunk under 30 hits 30 / 40 / 51 (q10 / median / q90, n=40). [25, 40] before (the trip's six drinks, median 32.5) left the simulated Logan low: he dipped below 15 hits 1.2 times an hour and died after nearly every dip, live 2.9 times and 0.6 deaths. cooldown 10 s (knowledge #4909); satchel 10 % + exceptional 5 % + bronzehide 15 % (knowledge #11445)"
  },
  "defaults": {
-  "pet_ref": {"pet": "GraveRobber", "bestiary": "Phoenix/Gravebug"},
-  "pet_ref_note": "the pet the monsters' damage numbers here stand for (their melee and spells measured on the gravebug, which took 81 % of their hits): another pet takes them x its armor or magic resist and damage resistance over this one's (sim/pets.taken_factor); a creature entry's own `ref` (melee_observed, ranged_observed, specials) names the pet its numbers were measured on",
+  "pet_ref": {"pet": "GraveRobber", "bestiary": "Phoenix/Gravebug 2026-10-15", "level": 15},
+  "pet_ref_note": "the pet the monsters' damage numbers here stand for (their melee and spells measured on the gravebug, which took 81 % of their hits), with its loadout and level then (a pinned loadout, tamer/logan_wolf.json anchors.loadouts: later changes to it move the pets, not the reference): another pet takes them x its armor or magic resist and damage resistance over this one's (sim/pets.taken_factor); a creature entry's own `ref` (melee_observed, ranged_observed, specials) names the pet its numbers were measured on",
   "aggro_range": 10,
   "wake_s": [1.5, 3.0],
   "wake_note": "an idle monster takes a target this long after one of us came within its aggro range and sight, the nearest then: the 10-tile crossing to war mode on today's captures (20261015_090607 to _210709), 1.4-2.6 s (p10 1.6, median 2.2, n=188; 20 slower ones were idle monsters left alone longer); before: 20261015_171928 18:57:06 one apparition 1.8 s, 19:49:35 one 2.7 s",

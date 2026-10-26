@@ -207,7 +207,7 @@
      "points": 20,
      "cross": 4,
      "pages_seen": 11,
-     "evidence": "latest 194/360634 20261024_225113 2026-10-25 11:49:24; 182 views",
+     "evidence": "latest 194/882564 20261024_225113 2026-10-25 20:48:56; 183 views",
      "perks": {
       "Cornered": 2,
       "Immolate": 2,
@@ -242,20 +242,20 @@
     "attack": {
      "decoded": true,
      "points": 20,
-     "cross": 5,
+     "cross": 3,
      "pages_seen": 10,
-     "evidence": "latest 192/889407 20261024_102346 2026-10-24 20:34:15; 94 views",
+     "evidence": "latest 195/5243 20261025_210102 2026-10-25 21:11:26; 156 views",
      "perks": {
+      "Heavy Breathing": 1,
       "Hunting Party": 1,
       "Immolate": 2,
-      "Lethality": 2,
-      "Mutation": 1,
-      "Pelt": 1,
+      "Lethality": 1,
+      "Mutation": 2,
+      "Pelt": 2,
       "Primal": 3,
-      "Swarm": 1,
-      "[Cross] Behemoth": 2,
+      "[Cross] Behemoth": 1,
       "[Cross] Breaker": 1,
-      "[Cross] Hearty": 1
+      "[Cross] Swoop": 1
      }
     },
     "tank": {
@@ -263,7 +263,7 @@
      "points": 20,
      "cross": 5,
      "pages_seen": 11,
-     "evidence": "latest 192/889383 20261024_102346 2026-10-24 20:34:11; 84 views",
+     "evidence": "latest 195/5193 20261025_210102 2026-10-25 21:11:23; 106 views",
      "perks": {
       "Aggression": 2,
       "Critical Care": 2,
@@ -277,7 +277,14 @@
       "[Cross] Swarm": 2
      }
     },
-    "utility": null
+    "utility": {
+     "decoded": true,
+     "points": 0,
+     "cross": 0,
+     "pages_seen": 0,
+     "evidence": "latest 195/2490 20261025_210102 2026-10-25 21:05:39; 1 views",
+     "perks": {}
+    }
    },
    "Random": {
     "attack": {
@@ -372,6 +379,12 @@
     "from_t": 1792944081.77,
     "from": "2026-10-25 11:01:21",
     "evidence": "194/290533 20261024_225113 2026-10-25 11:01:21"
+   },
+   {
+    "name": "Phoenix/Gravebug",
+    "from_t": 1792979343.844,
+    "from": "2026-10-25 20:49:03",
+    "evidence": "194/882624 20261024_225113 2026-10-25 20:49:03"
    }
   ]
  },
@@ -393,7 +406,7 @@
    "magic_resist": 115.9,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "181/230406 20261021_164924 2026-10-21 21:51:39 (Alaflambe the Phoenix)"
+   "evidence": "195/1451 20261025_210102 2026-10-25 21:01:41 (Alaflambe the Phoenix)"
   },
   "GirthyEarthy": {
    "species": "earth dragon",
@@ -431,11 +444,11 @@
    "magic_resist": 53.8,
    "poison_resist": 33.0,
    "special_resist": 33.0,
-   "evidence": "155/589 20261018_164530 2026-10-18 16:48:26 (Graverobber the Gravebug)"
+   "evidence": "194/883146 20261024_225113 2026-10-25 20:51:20 (Graverobber the Gravebug)"
   },
   "NightmareA": {
    "species": "nightmare",
-   "level": 14,
+   "level": 15,
    "min_taming": 100.0,
    "slots": 2,
    "hits_max": 227,
@@ -450,11 +463,11 @@
    "magic_resist": 73.8,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/371296 20261024_225113 2026-10-25 13:00:14 (Nightmarea the Nightmare)"
+   "evidence": "194/882402 20261024_225113 2026-10-25 20:48:30 (Nightmarea the Nightmare)"
   },
   "NightmareB": {
    "species": "nightmare",
-   "level": 14,
+   "level": 15,
    "min_taming": 100.0,
    "slots": 2,
    "hits_max": 228,
@@ -469,11 +482,11 @@
    "magic_resist": 81.4,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/371282 20261024_225113 2026-10-25 13:00:11 (Nightmareb the Nightmare)"
+   "evidence": "194/882380 20261024_225113 2026-10-25 20:48:27 (Nightmareb the Nightmare)"
   },
   "a searing imp": {
    "species": "searing imp",
-   "level": 14,
+   "level": 15,
    "min_taming": 80.0,
    "slots": 1,
    "hits_max": 155,
@@ -488,7 +501,7 @@
    "magic_resist": 108.9,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/371308 20261024_225113 2026-10-25 13:00:16 (A Searing Imp)"
+   "evidence": "194/882420 20261024_225113 2026-10-25 20:48:33 (A Searing Imp)"
   },
   "a tidal mantis": {
    "species": "tidal mantis",

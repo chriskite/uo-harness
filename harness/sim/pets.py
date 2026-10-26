@@ -102,12 +102,21 @@ REF_CASTER = replace(REF_TANK, hurt_10s=False, enemies_10s=0, hp_frac=1.0, dist=
 # ------------------------------------------------------------ data
 @functools.lru_cache(maxsize=None)
 def load_tamer(character: str = "logan_wolf") -> dict:
-    """The tamer's data and its scan merged ({..., codex, bestiary, guide, character}); cached: never mutate it."""
+    """The tamer's data and its scan merged ({..., codex, bestiary, guide, character}); a tab the scan never saw whole
+    filled from `bestiary_known` (each with its source). Cached: never mutate it."""
     with open(os.path.join(TAMER_DIR, f"{character}.json"), encoding="utf-8") as f:
         t = json.load(f)
     with open(os.path.join(TAMER_DIR, f"{character}_observed.json"), encoding="utf-8") as f:
         obs = json.load(f)
     t.update(codex=obs["codex"], bestiary=obs["bestiary"], guide=obs["guide"], character=character)
+    for name, tabs in (t.get("bestiary_known") or {}).items():
+        have = t["bestiary"]["loadouts"].setdefault(name, {tab: None for tab in TABS})
+        for tab, known in tabs.items():
+            if have.get(tab) is None:
+                perks = dict(known["perks"])
+                pts = sum(TIER_POINTS[r] for r in perks.values())
+                have[tab] = {"decoded": True, "perks": perks, "points": pts, "evidence": known["note"],
+                             "cross": sum(TIER_POINTS[r] for p, r in perks.items() if p.startswith(CROSS))}
     return t
 
 
@@ -116,10 +125,12 @@ def _usable(tabs: dict) -> bool:
 
 
 def options(character: str = "logan_wolf") -> dict:
-    """The team presets and the loadouts with perks captured (and "none"), for run.py and the viz Sim page."""
+    """The team presets, the loadouts with perks captured, the anchors' pinned ones (a loadout as it was then) and
+    "none", for run.py and the viz Sim page."""
     t = load_tamer(character)
     return {"teams": [{"name": n, "pets": list(v["pets"]), "bestiary": v["bestiary"]} for n, v in t["teams"].items()],
-            "bestiary": [n for n, tabs in t["bestiary"]["loadouts"].items() if _usable(tabs)] + ["none"]}
+            "bestiary": [n for n, tabs in t["bestiary"]["loadouts"].items() if _usable(tabs)]
+            + list(t["anchors"].get("loadouts") or {}) + ["none"]}
 
 
 def _pet(name: str, t: dict) -> dict:
@@ -176,8 +187,9 @@ def check_tab(tab: str, perks: dict, t: dict) -> None:
 
 
 def parse_bestiary(arg: str, t: dict) -> tuple[str, dict]:
-    """(label, {tab: perks or None}) for a scanned loadout's name (case-insensitive), "none", or a .json file of
-    {"attack": {..}, "tank": {..}, "utility": {..}} in the scan's perk keys. None: a tab never captured whole."""
+    """(label, {tab: perks or None}) for a scanned loadout's name (case-insensitive), an anchor's pinned one
+    (anchors.loadouts: a loadout as it was then), "none", or a .json file of {"attack": {..}, "tank": {..},
+    "utility": {..}} in the scan's perk keys. None: a tab never captured whole."""
     a = arg.strip()
     if a.lower() == "none":
         return "none", {tab: {} for tab in TABS}
@@ -191,6 +203,13 @@ def parse_bestiary(arg: str, t: dict) -> tuple[str, dict]:
             check_tab(tab, loadout[tab], t)
         return a, loadout
     usable = options(t["character"])["bestiary"]
+    pinned = {k.lower(): k for k in t["anchors"].get("loadouts") or {}}
+    if a.lower() in pinned:
+        name = pinned[a.lower()]
+        loadout = {tab: dict(t["anchors"]["loadouts"][name].get(tab) or {}) for tab in TABS}
+        for tab in TABS:
+            check_tab(tab, loadout[tab], t)
+        return name, loadout
     names = {k.lower(): k for k in t["bestiary"]["loadouts"]}
     name = names.get(a.lower())
     if name is None:
@@ -249,10 +268,12 @@ def _period(g: dict, aspect, tier) -> float:
 
 @functools.lru_cache(maxsize=None)
 def k_speeds(character: str = "logan_wolf") -> dict:
-    """Per pet with a live period: that period over the formula's at the anchors' Command tier."""
+    """Per pet with a live period: that period over the formula's at the pet's level then (the anchor's `level`) and
+    the anchors' Command tier."""
     t = load_tamer(character)
     tier = t["anchors"]["speed_tier"]
-    return {n: a["period_s"] / _period(t["guide"][n], "command", tier) for n, a in t["anchors"]["speed"].items()}
+    return {n: a["period_s"] / _period({**t["guide"][n], "level": a["level"]}, "command", tier)
+            for n, a in t["anchors"]["speed"].items()}
 
 
 def k_speed(name: str, t: dict) -> float:
@@ -262,12 +283,12 @@ def k_speed(name: str, t: dict) -> float:
 
 @functools.lru_cache(maxsize=None)
 def k_dmg(character: str = "logan_wolf") -> float:
-    """The live median of the anchor pet's melee numbers over the model's (its melee hits, k_dmg 1, on a target of
-    the anchor's armor in REF_TANK, ANCHOR_N draws of random.Random(1))."""
+    """The live median of the anchor pet's melee numbers over the model's (its melee hits, k_dmg 1, at its level and
+    loadout when measured, on a target of the anchor's armor in REF_TANK, ANCHOR_N draws of random.Random(1))."""
     t = load_tamer(character)
     a = t["anchors"]["damage"]
-    _, loadout = parse_bestiary(a["bestiary"], t)
-    spec = build_pet(a["pet"], t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0)
+    _, loadout = parse_bestiary(a["loadout"], t)
+    spec = build_pet(a["pet"], t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0, level=a["level"])
     rng = random.Random(1)
     tgt = {"armor": a["target_ar"], "magic_resist": a["target_mr"]}
     v = [n for _ in range(ANCHOR_N) for n, lab in melee_numbers(spec, tgt, REF_TANK, rng)[0] if lab == "melee"]
@@ -277,14 +298,15 @@ def k_dmg(character: str = "logan_wolf") -> float:
 @functools.lru_cache(maxsize=None)
 def k_override(name: str, character: str = "logan_wolf") -> float | None:
     """A pet's own damage factor (anchors.damage_override, each with its reason) instead of k_dmg: its model mean per
-    number (k 1; a caster's spells and Spellburn with Spellsurge carried from cast to cast in REF_CASTER, a melee
-    pet's hits in REF_TANK) on the anchor's target equal to `mean_per_number`; None without one."""
+    number (k 1, at its level and loadout when measured; a caster's spells and Spellburn with Spellsurge carried from
+    cast to cast in REF_CASTER, a melee pet's hits in REF_TANK) on the anchor's target equal to `mean_per_number`;
+    None without one."""
     t = load_tamer(character)
     a = (t["anchors"].get("damage_override") or {}).get(name)
     if a is None:
         return None
-    _, loadout = parse_bestiary(a["bestiary"], t)
-    spec = build_pet(name, t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0)
+    _, loadout = parse_bestiary(a["loadout"], t)
+    spec = build_pet(name, t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0, level=a["level"])
     rng = random.Random(1)
     tgt = {"armor": a["target_ar"], "magic_resist": a["target_mr"]}
     v, surge = [], False
@@ -298,13 +320,14 @@ def k_override(name: str, character: str = "logan_wolf") -> float | None:
     return a["mean_per_number"] / statistics.fmean(v)
 
 
-def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: float | None = None) -> dict:
+def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: float | None = None,
+              level: int | None = None) -> dict:
     """The World's spec of pet `name` with the bestiary `loadout` ({tab: perks or None}), Logan's armor aspect and
     tier, in `team` (pet names: Swarm and Menagerie count it). `k`: the damage factor (default its k_override, else
-    k_dmg)."""
+    k_dmg). `level`: another than its Guide's (the anchors: the pet's level when measured)."""
     pet = _pet(name, t)
     sp = t["species"][pet["species"]]
-    g = t["guide"][name]
+    g = t["guide"][name] if level is None else {**t["guide"][name], "level": level}
     lv, cmd, tm = _level(g["level"]), _command(aspect, tier), t["tamer"]
     under = max(0.0, min(1.0, (min(tm["taming"], tm["lore"]) - sp["min_taming"]) / 70.0))
     speed = lv["speed"] + cmd["speed"]
@@ -351,14 +374,15 @@ def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: fl
 
 
 def ref_key(ref) -> str:
-    """`sc["pet_ref"]`'s key of a creature entry's `ref` ({pet, bestiary}; None or "default": the scenario's)."""
-    return "default" if not ref or ref == "default" else f"{ref['pet']}|{ref['bestiary']}"
+    """`sc["pet_ref"]`'s key of a creature entry's `ref` ({pet, bestiary, level}; None or "default": the scenario's)."""
+    return "default" if not ref or ref == "default" else f"{ref['pet']}|{ref['bestiary']}|{ref.get('level')}"
 
 
 def ref_values(ref: dict, t: dict, tier) -> dict:
-    """{ar, mr, dr} of the reference pet `ref` with its loadout at Command `tier`, its DR in REF_TANK."""
+    """{ar, mr, dr} of the reference pet `ref` with its loadout (a pinned one: as it was when its numbers were
+    measured) and its level then (`level`, else its Guide's) at Command `tier`, its DR in REF_TANK."""
     _, loadout = parse_bestiary(ref["bestiary"], t)
-    spec = build_pet(ref["pet"], t, loadout, "command", tier, [ref["pet"]])
+    spec = build_pet(ref["pet"], t, loadout, "command", tier, [ref["pet"]], level=ref.get("level"))
     return {"ar": spec["ar"], "mr": spec["mr"], "dr": dr(spec, REF_TANK, True)}
 
 

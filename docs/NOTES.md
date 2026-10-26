@@ -6012,11 +6012,30 @@ so a value is read through its element's line index, never by its position in `l
   (77, 605), cross-class "c/5" at (310, 547). The loadout shown is the select's default item (`select 96 704 252
   <id> 1`, `selectitem <id> @Name@`), the active one the item drawn with ` 63 -1 -1`. A Reset (button 9, twice) or a
   new loadout shows 0/20: the scan rebuilds a tab from its views after the last 0/20 one. Active: Phoenix/Gravebug
-  from 2026-10-12 21:01, Random from 2026-10-24 20:38, Nightmare/Fire from 2026-10-25 11:01. Never viewed: the
-  Utility tab of Phoenix/Gravebug, Fortress, Manticore/BloodSerp, Water Dragon/Drake, 5 Casters, Flamehounds,
+  from 2026-10-12 21:01, Random from 2026-10-24 20:38, Nightmare/Fire from 2026-10-25 11:01, Phoenix/Gravebug again
+  from 2026-10-25 20:49. Never viewed: the Utility tab of Phoenix/Gravebug (empty, the user 2026-10-25: no
+  utility-class pet in that team), Fortress, Manticore/BloodSerp, Water Dragon/Drake, 5 Casters, Flamehounds,
   Drowned/WaterDrake, DebuffBirb; Manticore/Zoon one Attack page only. The perks' texts (each with its numbers per
   rank) are in `harness/data/sim/tamer/logan_wolf.json` `perks`; e.g. Swarm's healing is (1 % / 3 % / 5 %) x the
   followers controlled, Menagerie's (1 % / 3 % / 5 %) x their distinct types.
+- **The loadouts changed under the live data** (`tamer_scan.py --as-of`): Phoenix/Gravebug was built 2026-10-12
+  21:10, rebuilt 10-15 12:04-12:07 (both tabs reset and refilled) and unchanged until the Attack tab's reset on 10-25
+  at 21:01:26, refilled by 21:11:26 to Heavy Breathing 1, Hunting Party 1, Immolate 2, Lethality 1, Mutation 2, Pelt 2,
+  Primal 3, [Cross] Behemoth 1, Breaker 1, Swoop 1 (20/20, 3/5); its Utility tab viewed at 21:05:39, empty. Nightmare/Fire's Attack tab was
+  Ambush 1, Cornered 1, Hunting Party 1, Immolate 2, Lethality 2, Menagerie 2, Mutation 1, Pelt 1, Primal 2, Swarm 2
+  (20/20, no cross) from 10-25 11:01 until its reset at 11:44:02, so the Tidal Tomb level 3 fights of 11:31-11:36 ran
+  with that one, not the rebuild with four cross perks. Random unchanged since 10-24 20:38. The simulator's anchors
+  keep each as it was (data/sim/tamer/logan_wolf.json `anchors.loadouts`).
+- **Levels** (the Guide views): GraveRobber and AlaFlambe 11 on 10-14, 15 from 10-17 23:10 (AlaFlambe) and 10-18
+  16:48 (GraveRobber); NightmareA/B 13 on 10-23 21:50, 14 from 10-25 11:20, 15 at 20:48; fireminion 13 on 10-24
+  20:34, 15 from 10-25 10:56; a searing imp 10 on 10-24 20:34, 13 at 23:41, 14 at 11:43, 15 at 20:48; GirthyEarthy 10
+  until 10-24 20:27 (11), 14 on 10-25 10:56 (not viewed since); the mantis 11 on 10-24 20:32. Level 15 is the top
+  (knowledge #1204); its Guide shows no xp bar and puts "Level 15" at (209, 90).
+- **Live Mausoleum visits by team** (episodes, loop hunt, the visit's `pets` serials and the loadout active then):
+  GraveRobber + AlaFlambe with Phoenix/Gravebug 84 visits, 15.3 h, 10-17 22:10 to 10-24 18:55 (92.6 kills an hour of
+  visit); GirthyEarthy + fireminion + a searing imp with Random 6 visits, 2.0 h, 10-24 21:13 to 10-25 00:24 (78.0);
+  NightmareA/B + a searing imp with Nightmare/Fire 13 visits, 4.2 h, 10-25 13:03 to 17:30 (82.0). The simulator's
+  recalibration windows (docs/SIM.md "Recalibrating").
 - **Guide**, gump 3280914284, opened on a pet or a wild creature: the title at y 40 ("Name the Species", or "A
   Species"), "Level N" at (205, 67) with an xp bar, at (209, 90) without one at the top level 15; the Values page's
   rows at label x 75 / value x 170 (y 150 min taming, 170 slots, 190 hits "cur/max", 210 attack speed "2.86s", 230

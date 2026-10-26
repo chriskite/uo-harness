@@ -96,6 +96,10 @@
                      "note": "live 2026-10-24 19:33-20:32"}
   },
   "teams_note": "the tank first, then the pets in the order the simulator always placed them (beside Logan east, south, west, north, south-east)",
+  "bestiary_known": {
+    "Phoenix/Gravebug": {"utility": {"perks": {}, "note": "user 2026-10-25: the team has no utility-class pet, so the tab isn't used: empty (the scan saw it first at 2026-10-25 21:05:39, 0/20; this stands for a store without that view)"}}
+  },
+  "bestiary_known_note": "tabs the scan never saw whole, known otherwise (each with its source); pets.load_tamer fills a null scanned tab from here, a tab the scan decodes wins",
   "class_threat_x": {"tank": 4.0, "attack": 0.1, "utility": 0.1},
   "class_threat_note": "the fitted gravebug (4.0) and phoenix (0.1) values the Mausoleum calibrated (of the monsters' attributed hits on 41 live visits the gravebug took 81 %, the phoenix 9.6 %, Logan 9.4 %): the Tank class draws aggro (knowledge #2074); a utility pet as an attack pet [INFERENCE]",
   "hit_chance": 0.95,
@@ -107,26 +111,47 @@
   "spell_range": 10,
   "spell_range_note": "the phoenix's range 10 [INFERENCE], for every caster",
   "anchors": {
-    "damage": {"pet": "GraveRobber", "bestiary": "Phoenix/Gravebug", "team": "phoenix_gravebug", "tier": 14,
+    "loadouts": {
+      "Phoenix/Gravebug 2026-10-15": {
+        "attack": {"Hunting Party": 1, "Immolate": 2, "Lethality": 2, "Mutation": 1, "Pelt": 1, "Primal": 3, "Swarm": 1, "[Cross] Behemoth": 2, "[Cross] Breaker": 1, "[Cross] Hearty": 1},
+        "tank": {"Aggression": 2, "Critical Care": 2, "Guardians": 1, "Hearty": 3, "Mending": 1, "Survival": 1, "Tolerance": 1, "[Cross] Beast Sting": 1, "[Cross] Primal": 1, "[Cross] Swarm": 2},
+        "utility": {},
+        "note": "Phoenix/Gravebug as built 2026-10-15 12:04-12:07 (scan views, the tabs reset and refilled to 20/20 and 5/5) and unchanged until the Attack tab's reset 2026-10-25 21:01:26: the loadout of every GraveRobber + AlaFlambe visit 10-15 to 10-24 (84 Mausoleum visits 10-17 22:10 to 10-24 18:55, Tidal Tomb 10-24 morning). Utility: bestiary_known. run.py --bestiary takes this name too"
+      },
+      "Nightmare/Fire 2026-10-25 11:02": {
+        "attack": {"Ambush": 1, "Cornered": 1, "Hunting Party": 1, "Immolate": 2, "Lethality": 2, "Menagerie": 2, "Mutation": 1, "Pelt": 1, "Primal": 2, "Swarm": 2},
+        "tank": {},
+        "utility": {},
+        "note": "Nightmare/Fire as active from 2026-10-25 11:01:21 (tamer_scan.py --as-of '2026-10-25 11:40': the Attack tab's views up to 11:02:11, 20/20 and 0/5) until its reset at 11:44:02: the loadout of the Tidal Tomb level 3 fights 11:31-11:36, where the level 3 numbers on NightmareB were measured (tidal_tomb.json `ref`). Rebuilt 11:44-11:49 with four cross perks (the scan's Nightmare/Fire)"
+      },
+      "Random 2026-10-24": {
+        "attack": {"Cornered": 1, "Heavy Breathing": 1, "Immolate": 3, "Lethality": 1, "Menagerie": 2, "Pelt": 2, "Primal": 2, "Swarm": 2},
+        "tank": {"Behemoth": 2, "Critical Care": 1, "Deflection": 2, "Hearty": 1, "Mending": 1, "Stalwart": 2, "Survival": 2, "[Cross] Lethality": 1, "[Cross] Mutation": 2, "[Cross] Swoop": 1},
+        "utility": {"Beast Sting": 1, "Breaker": 2, "Carrion": 1, "Deep Lungs": 1, "Frostbite": 1, "Metabolism": 2, "Punishment": 1, "Scour": 3, "[Cross] Feed": 2, "[Cross] Lethality": 1},
+        "note": "Random as active from 2026-10-24 20:38:09 (its Attack tab built 20:34-20:38, Tank by 19:22, Utility before) to 2026-10-25 11:01: the loadout of the Tidal Tomb level 3 fights 2026-10-24 20:46-21:04, where the level 3 numbers on GirthyEarthy and the searing imp were measured (tidal_tomb.json `ref`)"
+      }
+    },
+    "loadouts_note": "a loadout as it was when an anchor was measured: the anchors are computed with it and the pet's level then, never with the current scan, so a loadout or level changed later moves the model (a rescan would otherwise fold the change into k_dmg / k_override / k_speed)",
+    "damage": {"pet": "GraveRobber", "loadout": "Phoenix/Gravebug 2026-10-15", "level": 15, "team": "phoenix_gravebug", "tier": 14,
                "observed_median": 91.0, "n": 198, "target_ar": 49.4, "target_mr": 0,
-               "note": "tidal_tomb_observed pets.GraveRobber.damage_dealt_attributed (median 91, n=198) in Tidal Tomb levels 1-2, where it fought; target_ar: the mean wiki armor over those levels' spawns (x < 7049, n=120). pets.k_dmg is this median over the model's (its melee hits on that armor in the reference tank context): one factor for every pet (the unknown stacking is the tamer's, not the species')"},
+               "note": "tidal_tomb_observed pets.GraveRobber.damage_dealt_attributed (median 91, n=198) in Tidal Tomb levels 1-2 on 2026-10-24 10:59-11:14, where it fought (level 15 since its Guide view 2026-10-18 16:48); target_ar: the mean wiki armor over those levels' spawns (x < 7049, n=120). pets.k_dmg is this median over the model's (its melee hits on that armor in the reference tank context): one factor for every pet (the unknown stacking is the tamer's, not the species')"},
     "damage_override": {
-      "AlaFlambe": {"bestiary": "Phoenix/Gravebug", "team": "phoenix_gravebug", "tier": 14, "mean_per_number": 438.0,
+      "AlaFlambe": {"loadout": "Phoenix/Gravebug 2026-10-15", "level": 15, "team": "phoenix_gravebug", "tier": 14, "mean_per_number": 438.0,
                     "target_mr": 70.7, "target_ar": 26.0, "n": 20000,
-                    "note": "run.py's default-team batch (98 runs, seed 17, 14 careers, --vet-range 5) went from 130.3 to 184.9 kills an hour with the shared k_dmg alone (+42 %, the plan's 15 % limit): the phoenix's model numbers came to 559 a number, 727 a cast every 1.59 s plus Epic Barrage, against the hand-calibrated spec's (211, 776, 327), 438 a cast every 1.8 s. Its own factor: its model mean per number (spells and Spellburn, Spellsurge carried from cast to cast, REF_CASTER, on the Mausoleum spawns' mean magic resist 70.7 and armor 26.0) equal to that 438 (pets.k_override)"}
+                    "note": "run.py's default-team batch (98 runs, seed 17, 14 careers, --vet-range 5) went from 130.3 to 184.9 kills an hour with the shared k_dmg alone (+42 %, the plan's 15 % limit): the phoenix's model numbers came to 559 a number, 727 a cast every 1.59 s plus Epic Barrage, against the hand-calibrated spec's (211, 776, 327), 438 a cast every 1.8 s. Its own factor: its model mean per number (spells and Spellburn, Spellsurge carried from cast to cast, REF_CASTER, on the Mausoleum spawns' mean magic resist 70.7 and armor 26.0) equal to that 438 (pets.k_override). The 438 is the old spec's, fitted 2026-10-20 to the live visits 10-15 21:10 to 10-20 (AlaFlambe level 11 on 10-14, 15 from 10-17 23:10): a stopgap until the fit to the live level-15 visits (docs/SIM.md 'Pets, teams and perks')"}
     },
     "speed": {
-      "GraveRobber": {"period_s": 1.67, "measure": "p10", "action": 5},
-      "GirthyEarthy": {"period_s": 1.70, "measure": "p10", "action": 5},
-      "a tidal mantis": {"period_s": 1.76, "measure": "p10", "action": 6},
-      "AlaFlambe": {"period_s": 1.59, "measure": "median", "action": 4},
-      "NightmareA": {"period_s": 1.60, "measure": "median", "action": 7},
-      "NightmareB": {"period_s": 1.60, "measure": "median", "action": 7},
-      "fireminion": {"period_s": 1.62, "measure": "median", "action": 5},
-      "a searing imp": {"period_s": 1.71, "measure": "median", "action": 0}
+      "GraveRobber": {"period_s": 1.67, "measure": "p10", "action": 5, "level": 15},
+      "GirthyEarthy": {"period_s": 1.70, "measure": "p10", "action": 5, "level": 10},
+      "a tidal mantis": {"period_s": 1.76, "measure": "p10", "action": 6, "level": 10},
+      "AlaFlambe": {"period_s": 1.59, "measure": "median", "action": 4, "level": 15},
+      "NightmareA": {"period_s": 1.60, "measure": "median", "action": 7, "level": 14},
+      "NightmareB": {"period_s": 1.60, "measure": "median", "action": 7, "level": 14},
+      "fireminion": {"period_s": 1.62, "measure": "median", "action": 5, "level": 13},
+      "a searing imp": {"period_s": 1.71, "measure": "median", "action": 0, "level": 12}
     },
     "speed_tier": 14,
-    "speed_note": "tidal_tomb_observed pets.*.attack_animation (2026-10-24/25): the period between attack animations, p10 for the melee pets (their median holds the walks between targets), the median for the casters; action: the 0x6E action of the attack (a caster's cast_action). pets.k_speed per pet is this period over the Guide's attack speed at its level and Command tier 14"
+    "speed_note": "tidal_tomb_observed pets.*.attack_animation (2026-10-24/25): the period between attack animations, p10 for the melee pets (their median holds the walks between targets), the median for the casters; action: the 0x6E action of the attack (a caster's cast_action); level: the pet's during its samples (the store's 0x6E per pet and visit against its Guide views): GraveRobber and AlaFlambe 2026-10-24 10:59-11:14 (15); the Nightmares 2026-10-25 11:21-11:37 (14 from 11:20); fireminion 10-24 20:33-21:05 (13 at 20:34, 14 at 21:05); GirthyEarthy 10-24 19:32-21:05 (1,473 of its 2,133 before its level 11 at 20:27); the mantis 19:32-20:33 (10, 11 at 20:32); the imp 535 at 10-11 (10-24 evening) and 382 at 13-14 (10-25), so 12. pets.k_speed per pet is this period over the Guide's attack speed at that level and Command tier 14"
   },
   "perks": {
     "bestiary": {
