@@ -2602,6 +2602,11 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
 - **A live window is compared only with Logan's aspect state known** (his AR in 0x11): an unaspected stretch moves the
   pets' damage, speed and resistance by a quarter or more. Open: a per-visit aspect flag in parity.py's live side
   (proposed, not built); the scenario's suit (AR 133) predates the 122 one worn since 10-24 22:08.
+- **The new Tank tab's resistance isn't fitted on one hour** (2026-10-26): live, Stalwart 3 and Survival 3 cut
+  GraveRobber's numbers 6 % (2-10 %) where their texts and the model give 17-25 %. A factor of ~0.25 on the bestiary's
+  resistance would match it but moves the codex's and every tab's too, without a mechanism; the stacking with the
+  Command aspect's resistance (additive in the model, [INFERENCE] in the pools rule) is the other candidate. Next: more
+  aspected hours with this loadout, then fit one with the Random team's GirthyEarthy (1.54x the model's damage) held out.
 
 ## Risks
 

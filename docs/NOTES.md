@@ -6198,7 +6198,13 @@ so a value is read through its element's line index, never by its position in `l
   64), but AR (u16 at 62) and max hits (39) are inside.
 - **The pets' damage per second of fighting, live** (our-hue overhead numbers on monsters, no other player within 18,
   over the runner's fight records' `fight_s`): the 10-15 Phoenix/Gravebug loadout's 83 visits 325 (26,118 numbers, 287
-  each); the 21:39 loadout unaspected (21:40-23:00) 272 (264 each), aspected (23:18-23:39) 405 (336 each).
+  each); the 21:39 loadout unaspected (21:40-23:00) 272 (264 each), aspected (2026-10-25 23:18 to 10-26 00:33, 6
+  visits, 1.05 h) 449 (2,476 numbers, 344 each).
+- **The 21:39 loadout aspected, live** (23:18-00:32): 123.4 kills an hour; each monster's kill time 0.91 (0.78-1.02)
+  the 10-15 loadout's; GraveRobber 14,548 an hour, AlaFlambe 4,097, Logan 2,564, vet uses 145. GraveRobber's numbers
+  per monster type (one war monster in reach): 0.940 (0.900-0.981) of the 10-15 Tank tab's on the means (tormented
+  soul 17 -> 16, blightmare 18 -> 18, reanimated daemon 30 -> 32, shadowguard 20 -> 18). The runner stopped at Logan's
+  death, 2026-10-26 00:32:45 ("Dead in a daemon's and a blightmare's reach" above); his AR 0 since.
 - Behemoth's text: "Follower Damage increased by (8% / 24% / 40%) and Damage Resistance by (1.5% / 4.5% / 7.5%) if
   follower takes 3 or more Control Slots" (knowledge #4243, #10236); an older one, "Melee and Spell Damage increased by
   (10% / 20% / 30%)" (#5808).

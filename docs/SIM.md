@@ -1659,7 +1659,8 @@ the live kills, with a resampled interval), is the measure of the team's damage.
    for GirthyEarthy and the imp (no Guide view between 10-24 20:27 and 10-25 10:56); its shade wolves die in 5.8 s
    against the live 12.6 (23 kills) and carry most of it. **Open**, too thin to fit on.
 6. **Open: kills an hour stay ~1.3x live in all three** even where the kill times match: the time between fights
-   (the crawl, pulls, rests) is shorter than live. Not the pets'.
+   (the crawl, pulls, rests) is shorter than live. Not the pets'. 2026-10-26: 1.05x on the 21:39 loadout's aspected
+   visits, run by the current runner (below): most likely the batches' newer runner [INFERENCE].
 7. Current state: rescanned 2026-10-25 23:27 (views to 23:18:35): Phoenix/Gravebug as the user rebuilt it at
    21:38-21:39 (next paragraph). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
 
@@ -1685,15 +1686,45 @@ the 10-15 loadout's live where the model (aspect on) said 0.90, AlaFlambe's attr
 it said 1.05x, GraveRobber's damage taken 1.8x and target switches 13.3 % of fights (5.3 %). The aspect accounts for
 them: 0.90 x 1.10 / 0.83 = 1.19, 1.05 x 0.83 = 0.87. The hypothesis it displaced, Behemoth's damage not reaching the
 phoenix, is withdrawn (an untested live A/B, 23:07-23:17, one short visit, also unaspected). **Lessons**: a window's
-comparison needs Logan's aspect state (the AR in his 0x11, `logs/simcmp/aspect_ar.py`-style); the scenario's suit
-(133, aspected verite plate) predates the 122 one worn since 10-24 22:08 (the Nightmare/Fire, Random and tonight's
-windows; Logan's own damage taken, not the pets'). **Live with the aspect** (from 23:18, Behemoth 3 back; the first 21
-minutes): the pets' damage per second of fighting (our-hue numbers on monsters over the runner's fight-seconds,
-`logs/simcmp/dps_now.py` / `dps_old.py`) 405, against 272 for the same loadout unaspected and 325 for the 10-15
-loadout's 83 visits: live 1.49x and 1.25x where the model (pet_damage_dealt over its fight-seconds) gives 1.30x and
-1.11x. The first visit made 120.8 kills an hour (the model 128.9; the 10-15 visits' 90th percentile 109). Target
-switches back to 6 % of fights. Open: GraveRobber took 17.0k an hour in that visit, 140 a kill (10-15: 119), where the
-model gives the new Tank tab 7.5k, 58 a kill (its 10-15 81): one visit, to watch.
+comparison needs Logan's aspect state (his AR in the 0x11 status: the captures' 64-byte hex prefix holds it at bytes
+62-63); the scenario's suit (133, aspected verite plate) predates the 122 one worn since 10-24 22:08 (the
+Nightmare/Fire, Random and tonight's windows; Logan's own damage taken, not the pets').
+
+**The 21:39 loadout aspected, live** (2026-10-25 23:18 to 2026-10-26 00:32, 6 visits, 1.05 h; the runner stopped at
+Logan's death, 00:32:45) against the batch of it aspected at his AR 122 (`--bestiary` the 21:39 tabs, `--armor 122`):
+
+| Per hour, or as stated | Live (95 % interval) | Sim | Live, the 10-15 loadout (83 visits) |
+|---|---|---|---|
+| kill time, sim / live (12 types) | | 0.99 (0.88-1.16) | |
+| kill time, this loadout / the 10-15 (14 types) | 0.91 (0.78-1.02) | 0.90 | |
+| kills | 123.4 (103.0-146.6) | 128.9 | 93.1 |
+| the pets' damage per second of fighting | 449 | | 325 |
+| damage on GraveRobber | 14,548 (10,346-16,509) | 7,534 | 11,040 |
+| damage on AlaFlambe | 4,097 (2,925-4,815) | 2,415 | 2,202 |
+| damage on Logan | 2,564 (2,293-2,757) | 1,840 | 2,150 |
+| vet uses | 145 (113-170) | 75 | 130 |
+
+(Damage per second of fighting: our-hue numbers on monsters, no other player within 18, over the runner's fight
+records' seconds; the model's pet_damage_dealt over its fight-seconds gives the loadout 1.11x, live 1.38x.)
+
+- **The offense matches**: the loadout's kill-time gain (0.90 predicted, 0.91 live) and the kill times themselves.
+  AlaFlambe's attributable numbers at 25 / 45 / 75 / 95 %: 213 / 234 / 341 / 1,072 (10-15: 196 / 212 / 319 / 768;
+  the model's ratios 1.04 / 1.05 / 0.98 / 1.85, live 1.09 / 1.10 / 1.07 / 1.40).
+- **Kills an hour 1.05x live**, where the 10-15 window was 1.32x: live made 33 % more kills an hour than with the
+  10-15 loadout, the loadout's kill times 10 % of it. [INFERENCE] The rest is the runner: the 10-15 window ran the
+  runner of its week, every batch the current one; item 6 above ("kills an hour ~1.3x") was most likely that gap.
+- **Open: the defense.** The pets took about twice the model's damage. GraveRobber per hit, by monster type (a '-N'
+  with exactly one war monster in melee and ranged reach; 355 hits against the 10-15 window's 3,925, 13 types): this
+  Tank tab over the 10-15 one 0.940 (0.900-0.981) on the means, where the model gives 0.75-0.83 (one to three
+  attackers: Stalwart 3 and Survival 3, +25 % resistance by their texts #4244, against the old tab's 9-15 %). The
+  perks' texts match the model; their resistance shows about a quarter of itself live. The Random team's GirthyEarthy
+  (Stalwart 2, Survival 2, Behemoth 2) took 1.54x the model's damage too (0.65 sim / live), GraveRobber with the 10-15
+  tab 1.11x. Not fitted on 1 h: a factor on every bestiary resistance would also move the codex's and the other tabs'
+  without a mechanism (a non-additive stacking with the Command aspect's resistance fits about as well).
+  AlaFlambe took 40 % more a kill than with the 10-15 loadout (the model 12 % less): more of the monsters' attention
+  on it, which a resistance factor wouldn't cover.
+- Also open: gold 0.67 of the model's a kill (785 against 1,113; the 10-15 window 929 against 1,117); damage on Logan
+  0.72 and stand-offs 0.42 of live (his death at 00:32:45 in a reanimated daemon's and a blightmare's reach: docs/NOTES.md).
 
 **Tidal Tomb level 3** (24 runs each from home, the level's area and enter/leave arguments of "Running"; live both
 days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level, on the recalibrated model with the scan of
