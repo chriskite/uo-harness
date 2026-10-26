@@ -23,17 +23,17 @@
       "class": "attack", "slots": 4, "min_taming": 120, "body": 832, "attack": "spell",
       "zoology": {"damage": 0, "dr": 0},
       "abilities": [
-        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true},
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "damage": "physical", "half_armor": true},
         {"name": "Spellsurge", "type": "passive", "chance": 0.15, "bonus": 1.25, "window_s": 10},
-        {"name": "Epic Barrage", "type": "cooldown", "cooldown_s": 15, "range": 12, "hits": 3, "mult": 0.6, "half_resist": true}
+        {"name": "Epic Barrage", "type": "cooldown", "cooldown_s": 15, "range": 12, "hits": 3, "mult": 0.6, "damage": "physical", "half_armor": true}
       ],
-      "note": "Guide (AlaFlambe) Abilities page and wiki #4255/#4258/#4259/#4271; Epic Barrage reaches 12 tiles (patch 2022-03-16); its cooldown [INFERENCE: Devour's measured 15 s]"
+      "note": "Guide (AlaFlambe) Abilities page and wiki #4255/#4258/#4259/#4271; Spellburn 'an additional (DamageMax * 1.0) damage that ignores half of target's armor' (#4271: physical, knowledge #2794), Epic Barrage '3 hits that each inflict (DamageMax * 0.6) damage that ignores half of target's armor' (#4259), Spellsurge 'increase Damage of the next spellcast within 10 seconds by 125%' (#14482); Epic Barrage reaches 12 tiles (patch 2022-03-16); its cooldown [INFERENCE: Devour's measured 15 s]"
     },
     "nightmare": {
       "class": "attack", "slots": 2, "min_taming": 100, "body": 204, "attack": "spell",
       "zoology": {"damage": 0, "dr": 0},
       "abilities": [
-        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true}
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "damage": "physical", "half_armor": true}
       ],
       "note": "Guide (NightmareA/B) Abilities page; Spellburn as the phoenix's (wiki #4255)"
     },
@@ -41,7 +41,7 @@
       "class": "attack", "slots": 1, "min_taming": 80, "body": 74, "attack": "spell",
       "zoology": {"damage": 0.042, "dr": 0.021},
       "abilities": [
-        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true}
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "damage": "physical", "half_armor": true}
       ],
       "note": "Guide (a searing imp); its Details page: 'Zoology +4.2 % Damage, +2.1 % DR' (the only Details page captured: the other species' zoology is 0 here)"
     },
@@ -49,7 +49,7 @@
       "class": "attack", "slots": 1, "min_taming": 90, "body": 776, "attack": "spell",
       "zoology": {"damage": 0, "dr": 0},
       "abilities": [
-        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "half_resist": true}
+        {"name": "Spellburn", "type": "passive", "chance": 0.15, "mult": 1.0, "damage": "physical", "half_armor": true}
       ],
       "note": "Guide (fireminion) Abilities page"
     },
@@ -134,12 +134,14 @@
     "loadouts_note": "a loadout as it was when an anchor was measured: the anchors are computed with it and the pet's level then, never with the current scan, so a loadout or level changed later moves the model (a rescan would otherwise fold the change into k_dmg / k_override / k_speed)",
     "damage": {"pet": "GraveRobber", "loadout": "Phoenix/Gravebug 2026-10-15", "level": 15, "team": "phoenix_gravebug", "tier": 14,
                "observed_median": 91.0, "n": 198, "target_ar": 49.4, "target_mr": 0,
-               "note": "tidal_tomb_observed pets.GraveRobber.damage_dealt_attributed (median 91, n=198) in Tidal Tomb levels 1-2 on 2026-10-24 10:59-11:14, where it fought (level 15 since its Guide view 2026-10-18 16:48); target_ar: the mean wiki armor over those levels' spawns (x < 7049, n=120). pets.k_dmg is this median over the model's (its melee hits on that armor in the reference tank context): one factor for every pet (the unknown stacking is the tamer's, not the species')"},
+               "barding": {"multipliers": {"1.169": 107, "1.3639": 91},
+                           "note": "the barding on the 198 hits (calibrate.Session replay of 20261024_102346, the Tidal Tomb region; the gravebug's hits by calibrate's rule: adjacent, within 0.15 s after its attack animation): all 198 under the Song of Provocation ('+16.9% damage against creatures for 15 minutes', five plays), 91 on a target discorded then (102 discords succeeded: bard.discord_taken 0.1667). The live median carries them; the World applies both again where the runner bards, so the model's hits take them before the median is compared (pets.k_dmg)"},
+               "note": "tidal_tomb_observed pets.GraveRobber.damage_dealt_attributed (median 91, n=198) in Tidal Tomb levels 1-2 on 2026-10-24 10:59-11:14, where it fought (level 15 since its Guide view 2026-10-18 16:48); target_ar: the mean wiki armor over those levels' spawns (x < 7049, n=120). pets.k_dmg is this median over the model's (its melee hits on that armor in the reference tank context, with the barding live had): one factor for every pet (the unknown stacking is the tamer's, not the species')"},
     "damage_override": {
-      "AlaFlambe": {"loadout": "Phoenix/Gravebug 2026-10-15", "level": 15, "team": "phoenix_gravebug", "tier": 14, "mean_per_number": 438.0,
-                    "target_mr": 70.7, "target_ar": 26.0, "n": 20000,
-                    "note": "run.py's default-team batch (98 runs, seed 17, 14 careers, --vet-range 5) went from 130.3 to 184.9 kills an hour with the shared k_dmg alone (+42 %, the plan's 15 % limit): the phoenix's model numbers came to 559 a number, 727 a cast every 1.59 s plus Epic Barrage, against the hand-calibrated spec's (211, 776, 327), 438 a cast every 1.8 s. Its own factor: its model mean per number (spells and Spellburn, Spellsurge carried from cast to cast, REF_CASTER, on the Mausoleum spawns' mean magic resist 70.7 and armor 26.0) equal to that 438 (pets.k_override). The 438 is the old spec's, fitted 2026-10-20 to the live visits 10-15 21:10 to 10-20 (AlaFlambe level 11 on 10-14, 15 from 10-17 23:10): a stopgap until the fit to the live level-15 visits (docs/SIM.md 'Pets, teams and perks')"}
+      "AlaFlambe": {"k_x": 0.73,
+                    "note": "fitted 2026-10-25 to the live GraveRobber + AlaFlambe visits (84, 14.8 h on the Mausoleum level, 10-17 23:08 to 10-24 19:00, both pets at 15, Phoenix/Gravebug of 10-15): on k_dmg alone the parity batch (144 runs, seed 17, --others --eerie --prior, the pinned loadout) killed in 0.76 of the live times (19 types; 0.74-0.80) while the three casters of Nightmare/Fire, on k_dmg alone, killed in 1.06 (0.99-1.21) of theirs. The phoenix carries ~85 % of its team's damage, so 0.85 x + 0.15 = 0.76 gives x 0.72; its live damage per attack animation in the 134 full-hit kills of 10-15 to 10-20, 530 with the songs and discord on, against the model's 721 there (Spellburn, Spellsurge, Epic Barrage every 13.5 s as live), gives 0.735. Not one mechanic: Spellsurge's +125 % (15 % x Primal) is 18 % of it; the barrage's cadence (13.9 s live) and its hits (median 213 live, ~235 modelled) fit"}
     },
+    "damage_override_note": "a pet's own factor, k_dmg x `k_x`, fitted with its reason (pets.k_override). Until 2026-10-25 evening AlaFlambe's model mean per number was set to the old spec's 438, a stopgap that misread 438 (a phoenix attack's damage with its Spellburn: 530 with the songs and discord on / 1.21) as a number's",
     "speed": {
       "GraveRobber": {"period_s": 1.67, "measure": "p10", "action": 5, "level": 15},
       "GirthyEarthy": {"period_s": 1.70, "measure": "p10", "action": 5, "level": 10},

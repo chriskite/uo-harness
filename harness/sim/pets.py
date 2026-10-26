@@ -19,9 +19,10 @@ A pet's spec (`build_pet`), from its Guide's *base* values at its level (the wik
   (anchors.damage); a pet with `anchors.damage_override` (AlaFlambe, its reason there) has its own (`k_override`).
 
 Its numbers on a monster (`melee_numbers`, `spell_numbers`, `ability_numbers`): uniform in [lo, hi] x (1 + the
-perks' damage bonus) x Lethality x the monster's mitigation: physical x armor.taken(AR - Breaker) (#11677, #11669),
-spells x (1 - U(12.5 %, 37.5 %) x MR / 100) (patch #5221, Breaker #4223); half_resist halves the AR/MR; an
-ignore-armor effect against nothing left to ignore gives +15 % (#11687). Bonuses add within a pool, the pools
+perks' damage bonus) x Lethality x the monster's mitigation: physical x armor.taken(AR - Breaker on a melee hit)
+(#11677, #11669), spells x (1 - U(12.5 %, 37.5 %) x MR / 100) (patch #5221, Breaker #4223); Spellburn and Epic Barrage
+are physical against half the armor (#4271, #4259); an ignore effect against nothing left to ignore gives +15 %
+(#11687). Bonuses add within a pool, the pools
 multiply [INFERENCE]. Its damage taken (`taken_factor`): the monsters' numbers stand for a reference pet
 (`sc["pet_ref"]`: the scenario's defaults.pet_ref, or a creature entry's own `ref`); a pet takes them x its own
 mitigation over the reference's (armor for physical, magic resist for spells) x (1 - its DR) / (1 - the reference's).
@@ -45,6 +46,7 @@ CROSS = "[Cross] "
 TIER_POINTS = (0, 1, 3, 5)          # points a perk at rank/tier 0-3 costs (the gumps)
 MAX_TAB_POINTS = 20
 MAX_CROSS_POINTS = 5
+MAX_LEVEL = 15                      # a pet's top level (knowledge #1204)
 VET_BASE_RANGE = 2                  # Veterinary supplies heal the followers within 2 tiles (wiki #11331)
 VET_SINGLE, VET_SHARED = 0.75, 0.50  # of a bandage's heal: one patient, more (wiki #11331)
 VET_ROLL = (80, 120)                # a bandage heals Vet/100 x U(80, 120) x (1 + VET_LORE x Lore/100) (wiki #11327)
@@ -283,41 +285,27 @@ def k_speed(name: str, t: dict) -> float:
 
 @functools.lru_cache(maxsize=None)
 def k_dmg(character: str = "logan_wolf") -> float:
-    """The live median of the anchor pet's melee numbers over the model's (its melee hits, k_dmg 1, at its level and
-    loadout when measured, on a target of the anchor's armor in REF_TANK, ANCHOR_N draws of random.Random(1))."""
+    """The live median of the anchor pet's melee numbers over the model's: its melee hits at k_dmg 1, at its level and
+    loadout when measured, on a target of the anchor's armor in REF_TANK, each x a barding multiplier drawn from the
+    ones live had on the measured hits (`barding.multipliers` {multiplier: hits}: the Song of Provocation, a discord on
+    the target; the World applies both again where the runner plays them); ANCHOR_N draws of random.Random(1)."""
     t = load_tamer(character)
     a = t["anchors"]["damage"]
     _, loadout = parse_bestiary(a["loadout"], t)
     spec = build_pet(a["pet"], t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0, level=a["level"])
-    rng = random.Random(1)
+    rng, brng = random.Random(1), random.Random(2)
+    xs = [float(x) for x, n in ((a.get("barding") or {}).get("multipliers") or {"1": 1}).items() for _ in range(n)]
     tgt = {"armor": a["target_ar"], "magic_resist": a["target_mr"]}
-    v = [n for _ in range(ANCHOR_N) for n, lab in melee_numbers(spec, tgt, REF_TANK, rng)[0] if lab == "melee"]
+    v = [n * brng.choice(xs) for _ in range(ANCHOR_N) for n, lab in melee_numbers(spec, tgt, REF_TANK, rng)[0]
+         if lab == "melee"]
     return a["observed_median"] / statistics.median(v)
 
 
-@functools.lru_cache(maxsize=None)
 def k_override(name: str, character: str = "logan_wolf") -> float | None:
-    """A pet's own damage factor (anchors.damage_override, each with its reason) instead of k_dmg: its model mean per
-    number (k 1, at its level and loadout when measured; a caster's spells and Spellburn with Spellsurge carried from
-    cast to cast in REF_CASTER, a melee pet's hits in REF_TANK) on the anchor's target equal to `mean_per_number`;
-    None without one."""
-    t = load_tamer(character)
-    a = (t["anchors"].get("damage_override") or {}).get(name)
-    if a is None:
-        return None
-    _, loadout = parse_bestiary(a["loadout"], t)
-    spec = build_pet(name, t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0, level=a["level"])
-    rng = random.Random(1)
-    tgt = {"armor": a["target_ar"], "magic_resist": a["target_mr"]}
-    v, surge = [], False
-    for _ in range(a["n"]):
-        if spec["attack"] == "spell":
-            nums, eff = spell_numbers(spec, tgt, replace(REF_CASTER, surge=surge), rng)
-            surge = any(e == "surge" for e, _ in eff)
-        else:
-            nums, _ = melee_numbers(spec, tgt, REF_TANK, rng)
-        v += [n for n, _ in nums]
-    return a["mean_per_number"] / statistics.fmean(v)
+    """A pet's own damage factor (anchors.damage_override, each with its fit and reason): k_dmg x its `k_x`; None
+    without one."""
+    a = (load_tamer(character)["anchors"].get("damage_override") or {}).get(name)
+    return None if a is None else k_dmg(character) * a["k_x"]
 
 
 def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: float | None = None,
@@ -395,13 +383,29 @@ def _refs(sc: dict) -> dict:
     return out
 
 
-def select(sc: dict, team: str | None = None, bestiary: str | None = None) -> None:
+def parse_levels(args, t: dict) -> dict:
+    """{pet name: level} from "NAME=LEVEL" strings (run.py --pet-level; names case-insensitive, levels 1-15)."""
+    out = {}
+    for a in args or ():
+        name, _, lv = a.rpartition("=")
+        pet = next((p for p in t["pets"] if p["name"].lower() == name.strip().lower()), None)
+        if pet is None:
+            raise ValueError(f"unknown pet {name.strip()!r} (pets: {', '.join(p['name'] for p in t['pets'])})")
+        if not lv.strip().isdigit() or not 1 <= int(lv) <= MAX_LEVEL:
+            raise ValueError(f"{a!r}: a level 1-{MAX_LEVEL}")
+        out[pet["name"]] = int(lv)
+    return out
+
+
+def select(sc: dict, team: str | None = None, bestiary: str | None = None, levels=None) -> None:
     """Build the scenario's pets: `team` (a preset or pet names; default the scenario's `tamer.team`) with the bestiary
-    loadout `bestiary` (default: the team preset's own, else the scenario team's). Writes sc["pets"], sc["party"],
+    loadout `bestiary` (default: the team preset's own, else the scenario team's), each at its Guide's level or the
+    one `levels` gives ("NAME=LEVEL" strings: a past window's, run.py --pet-level). Writes sc["pets"], sc["party"],
     sc["vet"]["range"] / ["codex"] / ["skill"] and sc["pet_ref"]. Run after the armor is set (--aspect-tier)."""
     from sim.scenario import player_armor
     t = load_tamer(sc["tamer"]["character"])
     names, preset = parse_team(team or sc["tamer"]["team"], t)
+    lv = parse_levels(levels, t)
     if bestiary:
         label, loadout = parse_bestiary(bestiary, t)
     else:
@@ -415,8 +419,9 @@ def select(sc: dict, team: str | None = None, bestiary: str | None = None) -> No
                 warnings.append(f"{label} {tab} tab not captured: no perks for {', '.join(who)}")
             loadout[tab] = {}
     arm = player_armor(sc)
-    sc["pets"] = [build_pet(n, t, loadout, arm["aspect"], arm["tier"], names) for n in names]
+    sc["pets"] = [build_pet(n, t, loadout, arm["aspect"], arm["tier"], names, level=lv.get(n)) for n in names]
     sc["party"] = {"team": names, "preset": preset, "bestiary": label, "loadout": loadout,
+                   "levels": {p["name"]: p["level"] for p in sc["pets"]},
                    "codex": dict(t["codex"]["current"]), "warnings": warnings}
     sc["vet"]["codex"] = dict(t["codex"]["current"])
     sc["vet"]["range"] = codex_numbers(sc["vet"]["codex"], t)["range"]
@@ -547,10 +552,13 @@ def heal_mult(spec: dict) -> float:
     return 1.0 + spec.get("heal_bonus", 0.0)
 
 
-def physical_mitigation(spec: dict, tgt_spec: dict, rng: random.Random, half: bool = False) -> float:
-    """The share of a pet's physical number the monster keeps: its armor (less Breaker's, halved by half_resist)."""
+def physical_mitigation(spec: dict, tgt_spec: dict, rng: random.Random, half: bool = False,
+                        breaker: bool = True) -> float:
+    """The share of a pet's physical number the monster keeps: its armor (less Breaker's on a melee attack: "Melee
+    Attacks will ignore (5 / 15 / 25) Armor Rating"; halved by `half`, an ability that "ignores half of target's
+    armor")."""
     ar = tgt_spec.get("armor") or 0
-    brk = spec["pv"].get("Breaker")
+    brk = spec["pv"].get("Breaker") if breaker else None
     if brk is not None:
         ar = max(0.0, ar - min(brk["ar"], BREAKER_AR_CAP))
     if half:
@@ -560,15 +568,14 @@ def physical_mitigation(spec: dict, tgt_spec: dict, rng: random.Random, half: bo
     return armor.taken(ar, rng)
 
 
-def spell_mitigation(spec: dict, tgt_spec: dict, rng: random.Random, half: bool = False) -> float:
-    """The share of a pet's spell number the monster keeps: its magic resist (less Breaker's, halved by half_resist)."""
+def spell_mitigation(spec: dict, tgt_spec: dict, rng: random.Random) -> float:
+    """The share of a pet's spellcast the monster keeps: its magic resist (less Breaker's: "Spellcasts ignore (10 /
+    30 / 50) Magic Resist")."""
     mr = tgt_spec.get("magic_resist") or 0
     brk = spec["pv"].get("Breaker")
     if brk is not None:
         mr = max(0.0, mr - min(brk["mr"], BREAKER_MR_CAP))
-    if half:
-        mr /= 2
-    if (brk is not None or half) and mr <= 0:
+    if brk is not None and mr <= 0:
         return 1 + IGNORE_ZERO_BONUS
     return max(0.0, 1 - rng.uniform(*SPELL_RESIST) * mr / 100)
 
@@ -613,8 +620,8 @@ def melee_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -
 
 def spell_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -> tuple[list, list]:
     """One cast landing: ([(amount, label)], [(effect, params)]): the spell (x the Spellsurge waiting, if any), a
-    Spellburn proc's own number (damage_max x its mult x (1 + bonus + Immolate), half the target's resist).
-    Effects: surge {window_s} (the next cast's bonus)."""
+    Spellburn proc's own number: damage_max x its mult x (1 + bonus + Immolate), physical, half the target's armor
+    (#4271, knowledge #2794). Effects: surge {window_s} (the next cast's bonus)."""
     pv = spec["pv"]
     bonus = damage_bonus(spec, ctx)
     lo, hi = spec["damage"]
@@ -627,22 +634,24 @@ def spell_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -
         if a["name"] == "Spellburn":
             b = bonus + pv.get("Immolate", {}).get("spellburn", 0.0)
             nums.append((spec["damage_max"] * a["mult"] * (1 + b) * lethality(spec, rng)
-                         * spell_mitigation(spec, tgt_spec, rng, half=a.get("half_resist", False)), "spellburn"))
+                         * physical_mitigation(spec, tgt_spec, rng, half=a.get("half_armor", False), breaker=False),
+                         "spellburn"))
         elif a["name"] == "Spellsurge":
             eff.append(("surge", {"window_s": a["window_s"]}))
     return nums, eff
 
 
 def ability_numbers(spec: dict, ab: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -> list:
-    """A damaging cooldown ability's numbers on its target: Epic Barrage `hits` spells of damage_max x mult (half
-    resist), Earth Breath one physical number of damage_max x mult; each x (1 + bonus) x Lethality."""
+    """A damaging cooldown ability's numbers on its target, each damage_max x mult x (1 + bonus) x Lethality: Epic
+    Barrage 3 hits that ignore half the target's armor (#4259), Earth Breath one; physical (no Breaker: not a melee
+    attack), else spells against magic resist."""
     bonus = damage_bonus(spec, ctx)
     base = spec["damage_max"] * ab["mult"] * (1 + bonus)
-    half = ab.get("half_resist", False)
     if ab.get("damage") == "physical":
-        return [(base * lethality(spec, rng) * physical_mitigation(spec, tgt_spec, rng, half), "melee")
+        return [(base * lethality(spec, rng)
+                 * physical_mitigation(spec, tgt_spec, rng, ab.get("half_armor", False), breaker=False), "melee")
                 for _ in range(ab.get("hits", 1))]
-    return [(base * lethality(spec, rng) * spell_mitigation(spec, tgt_spec, rng, half), "spell")
+    return [(base * lethality(spec, rng) * spell_mitigation(spec, tgt_spec, rng), "spell")
             for _ in range(ab.get("hits", 1))]
 
 

@@ -59,6 +59,11 @@ python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument 
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
 python harness/sim/parity.py sim.jsonl --db <main checkout>/harness/data/harness.db --logs <main checkout>/logs
+# ... one team's live window against a batch of it as it was then ("Recalibrating"): the pinned loadout, the levels then
+python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <store> --team nightmare_fire \
+    --pet-level NightmareA=14 --pet-level NightmareB=14 --pet-level "a searing imp=14" --json -- --vet-range 5 \
+    --crawl-learn-s 180 > nf.jsonl
+python harness/sim/parity.py nf.jsonl --team nightmare_fire --since 2026-10-25T12:00 --until 2026-10-25T18:00
 python harness/sim/fight1822.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 18:22 live death replayed
 python harness/sim/fight1820.py 1,2,...,48 [--awake] [--log] [--trace DIR] [--harness DIR]   # the 2026-10-21 18:21 blightmare death
 python harness/sim/fight2227.py 1,2,...,12 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-21 22:27 ping-pong at a ledge
@@ -1552,7 +1557,7 @@ absolute numbers pinned to live captures where there are any.
 | Damage | x (1 + Command 5 % + 1.5 % a tier + Mastery 16 % + Veterinary 12 % + underdog 40 % x (120 − min taming) / 70 + Zoology + speed past the 50 % cap) |
 | Resistance | Command 5 % + 1.5 % a tier + underdog 20 % x the same + Zoology; with the perks and the codex at most 75 % (#4653) |
 | Attack period | the Guide's attack speed / (1 + level + Command speed, at most 0.5) x `k_speed` (the pet's live period over that at its level then and tier 14: 0.80-0.84) |
-| Damage factor | `k_dmg` 1.559, one for every pet: the gravebug's live median melee number (91, n=198, Tidal Tomb levels 1-2, level 15) over the model's on that armor (49.4). AlaFlambe has its own (`anchors.damage_override`, below) |
+| Damage factor | `k_dmg` 1.2425, one for every pet: the gravebug's live median melee number (91, n=198, Tidal Tomb levels 1-2, level 15) over the model's on that armor (49.4) *with the barding live had on those hits* (all under the Song of Provocation +16.9 %, 91 of 198 on a discorded target +16.67 %; 1.559 before, which counted them twice). AlaFlambe x 0.73 of it, fitted to its live visits ("Recalibrating") |
 
 **The anchors are pinned** (since 2026-10-25 evening): each is computed with the pet's level and bestiary loadout *when
 it was measured* (`anchors.loadouts`: Phoenix/Gravebug as built 10-15 12:04-12:07, Nightmare/Fire before its 10-25
@@ -1571,14 +1576,16 @@ the imp 349, GirthyEarthy 1,008.
 
 **Its numbers on a monster** (`pets.melee_numbers` / `spell_numbers` / `ability_numbers`): uniform in the damage x (1 +
 the perks' damage bonus) x Lethality x the monster's mitigation, physical by its wiki armor (#11677, Breaker's at most
-75 off, #11669), spells by its magic resist (U(12.5 %, 37.5 %) x MR / 100, patch #5221; Breaker's at most 150 off,
-#4223); Spellburn and Epic Barrage take half the resist; an ignore effect against nothing gives +15 % (#11687).
+75 off on a melee hit, #11669), spells by its magic resist (U(12.5 %, 37.5 %) x MR / 100, patch #5221; Breaker's at
+most 150 off, #4223); Spellburn and Epic Barrage are physical against half the armor ("ignores half of target's armor",
+#4271, #4259; knowledge #2794: Spellburn is physical); an ignore effect against nothing gives +15 % (#11687).
 Abilities: Spellburn (an extra number, damage max x (1 + bonus + Immolate)), Spellsurge (the next cast x 2.25), Epic
-Barrage (3 spells of damage max x 0.6 every 15 s), Disease (damage max x 0.5 every 5 s for 20 s), Devour (10 % of
-max hits in 3 ticks every 15 s, live cadence), Earth Breath, Earth Shield, Bleed, Soak (its target's damage cut 3 %
-a slot). The perks' conditions as the World sees them (`World._pet_ctx`: hurt within 10 s, enemies on it, its hits,
-the distance, the tamer near the target, a channel running ...); a rule's "else" for a species without the
-mechanic named. Pools add inside, multiply across [INFERENCE].
+Barrage (3 hits of damage max x 0.6 every 15 s less Mutation: 13.5 s for AlaFlambe, live 13.9 between barrages, never
+under 13.3), Disease (damage max x 0.5 every 5 s for 20 s), Devour (10 % of max hits in 3 ticks every 15 s, live
+cadence), Earth Breath (live 10.8-11.5 s apart, model 10.5), Earth Shield (live 61-67 s), Bleed, Soak (its target's
+damage cut 3 % a slot). The perks' conditions as the World sees them (`World._pet_ctx`: hurt within 10 s, enemies on
+it, its hits, the distance, the tamer near the target, a channel running ...); a rule's "else" for a species without
+the mechanic named. Pools add inside, multiply across [INFERENCE].
 
 **Its damage taken** (`pets.taken_factor`): the monsters' numbers stand for a reference pet, the scenario's
 `defaults.pet_ref` (GraveRobber at 15 with Phoenix/Gravebug of 10-15) or an entry's own `ref` (Tidal Tomb's level 3
@@ -1606,74 +1613,79 @@ utility} (run.py only). A preset brings its own loadout (the scan's current one)
 that class no perks and a warning (`party_warnings`; none with the current data). Summaries and `all:` carry `team`
 and `bestiary`; `pet_damage_dealt` per pet on the level.
 
-**The default team's batch** (98 runs, seed 17, 14 careers, `-- --vet-range 5`; Phoenix/Gravebug as of 10-15, the
-scan's before the user's rebuild of 2026-10-25 21:01-21:11):
+**The default team's batch** (98 runs, seed 17, 14 careers, `-- --vet-range 5`; Phoenix/Gravebug as of 10-15):
 
 | Model | kills / h | deaths / h | gold / h | damage on Logan / h | pet deaths (runs) | vet / h | on the gravebug / h | on the phoenix / h |
 |---|---|---|---|---|---|---|---|---|
 | before (hand-calibrated specs) | 130.3 | 0.28 | 130,914 | 2,467 | 4 | 190 | 14,301 | 3,633 |
-| pets.py, one `k_dmg` | 184.9 | 0.08 | 193,094 | 1,939 | 0 | 115 | 9,547 | 2,747 |
-| pets.py, AlaFlambe's own factor | 166.8 | 0.13 | 175,893 | 1,971 | 1 | 128 | 10,895 | 2,911 |
+| pets.py, one `k_dmg` (barding counted twice) | 184.9 | 0.08 | 193,094 | 1,939 | 0 | 115 | 9,547 | 2,747 |
+| pets.py, AlaFlambe's stopgap 438 a number | 166.8 | 0.13 | 175,893 | 1,971 | 1 | 128 | 10,895 | 2,911 |
+| recalibrated (`k_dmg` 1.2425, AlaFlambe x 0.73, Spellburn and barrage physical) | 144.7 | 0.08 | 153,872 | 2,173 | 2 | 144 | 11,952 | 3,539 |
 
-- With the shared factor the phoenix came to 559 a number, 727 a cast every 1.59 s and Epic Barrage's 819 every 13.5
-  s (518 a second), against the old spec's 438 a cast every 1.8 s (243). Past the plan's 15 % limit, its own factor
-  sets its model mean per number (spells and Spellburn, Spellsurge carried, the Mausoleum's mean MR 70.7) to that
-  438 (`pets.k_override` 1.221, 0.78 of `k_dmg`). Its numbers then sit at ~255 and ~630 a Spellburn (x 1.21 under the
-  songs: the live modes 250-350 and 650-800).
-- **Open: still +28 % kills.** Not the pets' levels: GraveRobber and AlaFlambe were at 15 from 10-17/18 (their Guide
-  views), through most of the window the old spec was fitted to (live visits 10-15 21:10 to 10-20) and every visit
-  since; only the first trip (10-12, level 10) had them lower. The leads: the phoenix's casts carry 1.30 numbers plus
-  0.35 from the barrage where live attacks carried 1.10 (3,162 numbers to 2,869 animations, "Parity"): Spellburn at
-  15 % x Primal 3 and the barrage's 3 hits every 15 s [INFERENCE: the wiki's numbers] don't fit that count. The
-  gravebug: 106 a hit every 1.67 s (63 a second) against 97 every 1.91 s (48), and Disease's ticks instead of the
-  40-a-tick poison.
-- **Next: the fit to the live level-15 visits** ("Recalibrating" below).
+**Recalibrating** (the user, 2026-10-25: "The pets are at level 15 now"; done the same evening). The yardstick is live
+play, not the old simulator: the store holds three teams' Mausoleum visits with their levels and loadouts known, and
+`parity.py --team T --since --until` compares one team's visits with a batch played as live (`--team`, the pinned
+`--bestiary`, `--pet-level` for the levels then, `--others --eerie --prior <store> -- --vet-range 5 --crawl-learn-s
+180`, 144 runs, seed 17). Its new last line, the kill-time ratio (the per-type medians' geometric mean, weighted by
+the live kills, with a resampled interval), is the measure of the team's damage.
 
-**Recalibrating** (the user, 2026-10-25: "The pets are at level 15 now"). The yardstick is live play, not the old
-simulator: the store holds three teams' Mausoleum visits with their levels and loadouts known.
+| Team (live) | Loadout | Visits | Hours | Window | Levels | Kill time, sim / live | Kills / h, sim / live |
+|---|---|---|---|---|---|---|---|
+| GraveRobber + AlaFlambe (fitted) | Phoenix/Gravebug 2026-10-15 | 83 | 14.8 | 10-17 23:08 – 10-24 19:00 | 15 | 0.98 (0.95-1.03) | 1.32 |
+| NightmareA/B + a searing imp (held out) | Nightmare/Fire (after 11:49) | 13 | 4.2 | 10-25 13:03 – 17:30 | 14 | 1.06 (0.99-1.21) | 1.30 |
+| GirthyEarthy + fireminion + a searing imp (held out) | Random 2026-10-24 | 6 | 2.0 | 10-24 21:13 – 10-25 00:24 | 12/14/12 [INFERENCE] | 0.77 (0.73-0.92) | 1.34 |
 
-| Team (live) | Loadout | Visits | Hours | Window | Levels |
-|---|---|---|---|---|---|
-| GraveRobber + AlaFlambe | Phoenix/Gravebug 2026-10-15 | 84 | 15.3 | 10-17 22:10 – 10-24 18:55 | 15 (both by 10-18) |
-| NightmareA/B + a searing imp | Nightmare/Fire (after 11:49) | 13 | 4.2 | 10-25 13:03 – 17:30 | 14 |
-| GirthyEarthy + fireminion + a searing imp | Random 2026-10-24 | 6 | 2.0 | 10-24 21:13 – 10-25 00:24 | 11-14 |
-
-1. `parity.py` takes `--since` only: it needs `--until` and the team's pet serials, so each window above is compared
-   on its own.
-2. A batch per team as live played it (`--team`, the pinned `--bestiary`, `--others --eerie --prior <store> --
-   --vet-range 5 --crawl-learn-s 180`), compared per hour on the level: kills, kill times per monster type, damage on
-   Logan and on each pet.
-3. Fit AlaFlambe on the first window (its own factor, or the Spellburn/barrage count that makes its numbers per attack
-   1.10), replacing the stopgap 438 from the old spec; `k_dmg` stays the gravebug's live median.
-4. The Nightmare/Fire and Random windows are held out: no factor of their own. If their kill times land in the live
-   interval, the shared `k_dmg` holds for the casters; if not, the per-number composition is what's off.
-5. The current state is in: rescanned 2026-10-25 21:15 (the rebuilt Phoenix/Gravebug, the levels). With it AlaFlambe's
-   perks add 38 % to its damage in the reference caster context (45 % with the 10-15 tabs) and its resistance is 2.75
-   points lower (Behemoth rank 1). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
+1. **The anchor counted the barding twice.** All 198 of the gravebug's Tidal Tomb hits behind `k_dmg` fell under the
+   Song of Provocation, 91 of them on a discorded target (a `calibrate.Session` replay of 20261024_102346 with each
+   hit's song and discord, reproducing n 198 and median 91); the World applies both again. With them in the model's
+   hits `k_dmg` is 1.2425 (1.559). On that factor alone the GraveRobber + AlaFlambe batch killed in 0.76 of the live
+   times (0.74 before the correction) and the three casters of Nightmare/Fire in 1.06.
+2. **The phoenix is fitted on its own window.** It carries ~85 % of its team's damage, so 0.85 x + 0.15 = 0.76 gives
+   x 0.72; its live damage per attack animation (530 with the songs and discord on, the 134 full-hit kills of 10-15
+   to 10-20) against the model's 721 gives 0.735. `anchors.damage_override.AlaFlambe.k_x` 0.73: kill times 0.98
+   (0.95-1.03), deaths to monsters 0.3 an hour as live, potions in the live interval.
+3. **What the overshoot isn't.** Its procs come as often as modelled (live: 24 % of its attributable attacks bring two
+   numbers at once, 13 % three or more; the model ~27 % and ~10 %), the barrage's cadence and hits fit (above), and
+   Spellsurge is 18 % of it. Its plain casts land ~1.25x too big against the live cluster at ~196-245 (attributable
+   numbers, the gravebug not beside the monster: a selection toward undiscorded opening shots). Unexplained; the
+   factor stands for it.
+4. **Spellburn and Epic Barrage are physical against half the armor** (the patch notes' wording; the model had them as
+   spells against half the magic resist).
+5. **Held out.** Nightmare/Fire, three casters with Spellburn and no factor of their own, lands in its live interval:
+   the shared `k_dmg` holds for them. The Random team kills in 0.77 of the live times, on 2 hours and levels guessed
+   for GirthyEarthy and the imp (no Guide view between 10-24 20:27 and 10-25 10:56); its shade wolves die in 5.8 s
+   against the live 12.6 (23 kills) and carry most of it. **Open**, too thin to fit on.
+6. **Open: kills an hour stay ~1.3x live in all three** even where the kill times match: the time between fights
+   (the crawl, pulls, rests) is shorter than live. Not the pets'.
+7. Current state: rescanned 2026-10-25 21:15 (the rebuilt Phoenix/Gravebug, the levels). With it AlaFlambe's perks add
+   38 % to its damage in the reference caster context (45 % with the 10-15 tabs) and its resistance is 2.75 points
+   lower (Behemoth rank 1). GirthyEarthy's and the mantis's Guides, if they are at 15 now, need one look each.
 
 **Tidal Tomb level 3** (24 runs each from home, the level's area and enter/leave arguments of "Running"; live both
-days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level, with the references pinned and the scan
-of 2026-10-25 21:15 (the Nightmares and the imp at 15):
+days: 7 kills, 7 pet deaths, 726 on Logan in 822 s), per hour on the level, on the recalibrated model with the scan of
+2026-10-25 21:15 (the Nightmares and the imp at 15):
 
 | Team | level-3 kills | pet deaths | damage on Logan | team's damage dealt | pets' damage taken |
 |---|---|---|---|---|---|
 | live | 30.7 | 30.7 | 3,180 | | |
-| `nightmare_fire` | 36.6 | 48.1 | 7,232 | 762,907 | 37,391 |
-| `earth_fire` | 51.7 | 12.2 | 5,020 | 1,035,522 | 31,791 |
-| `earth_fire --bestiary none` | 25.9 | 33.7 | 7,945 | 572,911 | 47,252 |
+| `nightmare_fire` | 27.8 | 39.7 | 8,519 | 676,380 | 38,641 |
+| `earth_fire` | 39.0 | 13.0 | 4,383 | 796,330 | 27,787 |
+| `earth_fire --bestiary none` | 20.3 | 65.4 | 7,577 | 471,286 | 36,768 |
 
-The runs die 7-13 times in 24, most to the giant astral zoa on level 3 and to the level 1-2 monsters on the way; only
-6-12 of the 24 reach level 3 (0.5-1.5 hours there a team). Without the bestiary the team deals 45 % less and takes
-49 % more. **These batches are too small to fit on**: the same three, rerun after each change of the evening (the
-references pinned, then the rescan), gave `nightmare_fire` 17-48 pet deaths an hour and `earth_fire` without the
-bestiary 10-62. Its fit needs the live level 3 hours (14 minutes) to grow, or many more runs.
+The runs die 9-13 times in 24, most to the giant astral zoa on level 3 and to the level 1-2 monsters on the way; only
+10-11 of the 24 reach level 3 (0.8-1.5 hours there a team). Without the bestiary the team deals 41 % less and takes 32
+% more. **These batches are too small to fit on**: the same three, rerun after each change of the evening, gave
+`nightmare_fire` 17-48 pet deaths an hour and `earth_fire` without the bestiary 10-65. Its fit needs the live level 3
+hours (14 minutes) to grow, or many more runs.
 
 **Tests**: `test_tamer_scan_rows` (the codex and bestiary rows from verbatim gump excerpts), `test_party_validation`
-(the refusals; the known-empty tab; a tab neither captured nor known), `test_pet_builds` (the 8 hits at the levels of
-the live bars, the phoenix : gravebug ratios with the 10-15 loadout, the reach 5), `test_anchors_pinned` (a rescan's
-loadout and level changes move the pets, not the anchors), `test_perk_conditions` (Cornered, Pelt, Aggression, Triage
-through `World._pet_ctx`, on pinned loadouts), `test_vet_codex` (a finish's heal and its Overheal), `test_team_run`
-(`run_once(team="nightmare_fire")`).
+(the refusals; the known-empty tab; a tab neither captured nor known; `--pet-level`), `test_pet_builds` (the 8 hits at
+the levels of the live bars, the phoenix : gravebug ratios with the 10-15 loadout, the reach 5), `test_anchors_pinned`
+(a rescan's loadout and level changes move the pets, not the anchors), `test_pet_mitigation` (a cast against magic
+resist, Spellburn and the barrage against half the armor), `test_kdmg_barding` (the live barding out of `k_dmg`),
+`test_parity_team` (one team's visits up to `--until`, another team's death kept with its visit, the kill-time ratio's
+weights), `test_perk_conditions` (Cornered, Pelt, Aggression, Triage through `World._pet_ctx`, on pinned loadouts),
+`test_vet_codex` (a finish's heal and its Overheal), `test_team_run` (`run_once(team="nightmare_fire")`).
 
 **Not modelled**: poison and special resist (recorded from the Guide; the area hits' live phoenix = gravebug
 contradicts special resist), the Command aspect's Inspiration, poison levels (Immunize), the bestiary's stealth,

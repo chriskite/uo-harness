@@ -97,7 +97,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
              at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
              eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
              trace: str | None = None, area: tuple | None = None, armor: dict | None = None,
-             instrument: str | None = None, team: str | None = None, bestiary: str | None = None) -> dict:
+             instrument: str | None = None, team: str | None = None, bestiary: str | None = None,
+             levels: tuple = ()) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
@@ -111,7 +112,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     pets' follower resistance; --armor: the AR itself). `instrument`: the instrument quality Logan plays instead of
     the scenario's `bard.instrument` (--instrument; its measured numbers in `bard.instruments`). `team` / `bestiary`:
     Logan's pets (a preset or pet names) and bestiary loadout (a name, "none" or a .json file) instead of the
-    scenario's (--team / --bestiary, sim/pets.select)."""
+    scenario's (--team / --bestiary, sim/pets.select); `levels`: "NAME=LEVEL" for pets at another level than their
+    Guide's (--pet-level: a past window's)."""
     import ast
     import importlib
     import loop_hunt
@@ -148,7 +150,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
         sc["area"] = list(area)
     if instrument:
         play(sc, instrument)
-    pets.select(sc, team, bestiary)          # after the armor: the Command tier sets the pets' numbers
+    pets.select(sc, team, bestiary, levels)  # after the armor: the Command tier sets the pets' numbers
     # the runner's --vet-range is the character's: the supplies' reach with his codex (Without Borders), unless given
     rargs = extra if "--vet-range" in extra else extra + ["--vet-range", str(sc["vet"]["range"])]
     clock = simclock.SimClock(epoch=epoch)
@@ -212,7 +214,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "kills_per_min": round(m["kills"] / max(clock.elapsed / 60, 1e-9), 2),
             "player_damage_taken": round(m["player_damage_taken"]), "player_hits_end": int(pl.hits), "player_ar": pl.ar,
             "instrument": sc["bard"].get("instrument"),
-            "team": sc["party"]["team"], "bestiary": sc["party"]["bestiary"],
+            "team": sc["party"]["team"], "bestiary": sc["party"]["bestiary"], "levels": sc["party"]["levels"],
             "party_warnings": sc["party"]["warnings"],
             "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
             "pets_end": {p.name: p.pct() for p in world.pets()},
@@ -264,7 +266,7 @@ def _pool_run(job):
     out_all = []
     epoch = EPOCH
     for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace, area,
-            armor, instrument, team, bestiary) in enumerate(runs):
+            armor, instrument, team, bestiary, levels) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -275,7 +277,7 @@ def _pool_run(job):
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
                          prior=prior if career is None else None, reds=reds, trace=trace, area=area, armor=armor,
-                         instrument=instrument, team=team, bestiary=bestiary)
+                         instrument=instrument, team=team, bestiary=bestiary, levels=levels)
         finally:
             sys.stdout = old
             out.close()
@@ -341,6 +343,9 @@ def main(argv=None):
                          "or pet names comma-separated")
     ap.add_argument("--bestiary", default=None, metavar="LOADOUT",
                     help="a Taming Bestiary loadout (Phoenix/Gravebug, Random, Nightmare/Fire), none, or a .json file")
+    ap.add_argument("--pet-level", action="append", default=[], metavar="NAME=LEVEL",
+                    help="a pet at this level instead of its Guide's (repeatable): a past window's, for a comparison "
+                         "with the live runs then (docs/SIM.md 'Recalibrating')")
     a = ap.parse_args(argv)
     if a.instrument:
         from sim.scenario import load, play
@@ -348,13 +353,13 @@ def main(argv=None):
             play(load(a.scenario), a.instrument)     # an unknown one fails here, not in every pool worker
         except ValueError as e:
             ap.error(f"--instrument: {e}")
-    if a.team or a.bestiary:
+    if a.team or a.bestiary or a.pet_level:
         from sim import pets
         from sim.scenario import load
         try:
-            pets.select(load(a.scenario), a.team, a.bestiary)    # refused here, not in every pool worker
+            pets.select(load(a.scenario), a.team, a.bestiary, a.pet_level)    # refused here, not in every worker
         except (ValueError, OSError) as e:
-            ap.error(f"--team/--bestiary: {e}")
+            ap.error(f"--team/--bestiary/--pet-level: {e}")
     if a.runs > 1:
         cpu_budget.limit()
     seeds = list(range(a.seed, a.seed + a.runs))
@@ -365,7 +370,7 @@ def main(argv=None):
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
              tuple(a.set), a.others, a.eerie, a.prior, a.reds,
              simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None, tuple(a.area) if a.area else None,
-             {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument, a.team, a.bestiary)
+             {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument, a.team, a.bestiary, tuple(a.pet_level))
             for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]

@@ -4,6 +4,11 @@ the hunting level, with the live 95 % interval (docs/SIM.md "Parity with the liv
     python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
         --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
     python harness/sim/parity.py sim.jsonl [--db harness/data/harness.db] [--logs logs] [--since 2026-10-17T23:08]
+        [--until 2026-10-24T19:00] [--team phoenix_gravebug]
+
+`--team` keeps the live visits whose pets are exactly that team's (and the capture scan counts the damage on them);
+`--until` ends the window; both together compare one team's time with a batch of it as it was then (docs/SIM.md
+"Recalibrating"). The last line, the kill-time ratio, sums up the team's damage against live.
 
 Both sides are the runner's own records: the visits (`episodes`, loop hunt, style pets), its `fight`, `death` and
 `leave` job events. Live they come from the memory store (the main checkout's), simulated from run.py's `--json`
@@ -57,9 +62,11 @@ def type_key(name: str | None) -> str:
 
 
 # ---------------------------------------------------------------- live
-def live_visits(db: str, since: float, serial: int, box: list) -> tuple[list[dict], list[dict]]:
-    """The live pets visits since `since` (with their deaths and leaves, and `_eerie`: the eerie corpses the proxy
-    first saw in them within `box`, its `eerie_corpse` events) and the fights in them."""
+def live_visits(db: str, since: float, serial: int, box: list, until: float | None = None,
+                pets: set | None = None, dungeon: list | None = None) -> tuple[list[dict], list[dict]]:
+    """The live pets visits from `since` to `until` (with their deaths and leaves, and `_eerie`: the eerie corpses the
+    proxy first saw in them within `box`, its `eerie_corpse` events) and the fights in them. `pets`: only the visits
+    with exactly these pet serials (the visit's `pets`); `dungeon`: only those whose spot lies in this box."""
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     visits = [json.loads(d) for (d,) in con.execute(
         "SELECT data FROM episodes WHERE loop='hunt' AND t_start>=? AND (char_serial=? OR char_serial IS NULL) "
@@ -75,21 +82,28 @@ def live_visits(db: str, since: float, serial: int, box: list) -> tuple[list[dic
         v["_eerie"] = sum(1 for t, e in eerie if v["t_start"] <= t <= v["t_end"]
                           and box[0] <= e.get("x", -1) <= box[2] and box[1] <= e.get("y", -1) <= box[3])
     for v in visits:
-        v["_deaths"], v["_leaves"] = [], []
-    fights = []
+        v["_deaths"], v["_leaves"], v["_fights"] = [], [], []
     for k, t, x, y, d in ev:
-        # a record belongs to the last visit started before it (a death on the walk out comes after the visit's end)
+        # a record belongs to the last visit started before it (a death on the walk out comes after the visit's end);
+        # every visit takes its records before the filters below, so another team's death never lands on ours
         v = next((v for v in reversed(visits) if v["t_start"] <= t), None)
         if v is None:
             continue
         if k == "fight":
             if t <= v["t_end"]:
-                fights.append(d)
+                v["_fights"].append(d)
         elif k == "death" and t <= v["t_end"] + 600:
             v["_deaths"].append({"x": x, "y": y, "cause": d.get("cause")})
         elif k == "leave" and t <= v["t_end"] + 60:
             v["_leaves"].append({"why": d.get("why"), "died": "died" in str(d.get("gate"))})
-    return visits, fights
+    if until is not None:
+        visits = [v for v in visits if v["t_start"] <= until]
+    if pets is not None:
+        visits = [v for v in visits if {int(s, 16) for s in (v.get("pets") or {})} == pets]
+    if dungeon is not None:
+        visits = [v for v in visits if v.get("spot") and dungeon[0] <= v["spot"][0] <= dungeon[2]
+                  and dungeon[1] <= v["spot"][1] <= dungeon[3]]
+    return visits, [f for v in visits for f in v["_fights"]]
 
 
 def capture_char(cap: str) -> int | None:
@@ -204,12 +218,15 @@ def _scan(job) -> list[dict]:
 
 def live_scan(logs: str, visits: list[dict], me_serial: int, pets: dict[int, str], area: list,
               kinds: set) -> list[dict]:
-    """The capture scan for every visit, cached in <logs>/parity_live_scan.json by window."""
+    """The capture scan for every visit, cached in <logs>/parity_live_scan.json by window; a cached window scanned
+    with other pet names (another team's) is scanned again."""
     cache_path = os.path.join(logs, "parity_live_scan.json")
     cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
     cache = {k: r for k, r in cache.items() if r.get("v") == SCAN_V}
+    names = set(pets.values())
     jobs = capture_windows(logs, visits, me_serial)
-    todo = {c: [w for w in ws if f"{w[0]:.1f}" not in cache] for c, ws in jobs.items()}
+    todo = {c: [w for w in ws if f"{w[0]:.1f}" not in cache or set(cache[f"{w[0]:.1f}"]["pets"]) != names]
+            for c, ws in jobs.items()}
     todo = {c: ws for c, ws in todo.items() if ws}
     if todo:
         from concurrent.futures import ProcessPoolExecutor
@@ -394,11 +411,33 @@ def report(live: list[dict], live_fights: list[dict], scan: list[dict], sim: lis
         if len(kl[k]) >= 5 and len(ks[k]) >= 5:
             out.append(f"  {k:<22} {statistics.median(kl[k]):>6.1f} ({len(kl[k]):>3}) / "
                        f"{statistics.median(ks[k]):>6.1f} ({len(ks[k]):>4})")
+    kr = kill_ratio(kl, ks, rng)
+    if kr is not None:
+        out.append(f"time to kill, sim / live over those types (geometric mean by the live kills, 95 % interval over "
+                   f"the live kills resampled): {kr[0]:.2f} ({kr[1]:.2f}-{kr[2]:.2f}), {kr[3]} types")
     return "\n".join(out)
+
+
+def kill_ratio(kl: dict, ks: dict, rng: random.Random, min_n: int = 5, boot_n: int = 500):
+    """The simulated kill times over the live ones in one number: the geometric mean of the per-type median ratios,
+    each type (min_n kills or more on both sides) weighted by its live kills; with the 2.5 / 97.5 percentiles over the
+    live kills resampled within each type. (ratio, lo, hi, types), or None without a type in common."""
+    types = [k for k in kl if len(kl[k]) >= min_n and len(ks.get(k) or ()) >= min_n]
+    if not types:
+        return None
+    w = {k: len(kl[k]) for k in types}
+    sim_med = {k: statistics.median(ks[k]) for k in types}
+
+    def gm(live_med):
+        return math.exp(sum(w[k] * math.log(sim_med[k] / live_med[k]) for k in types) / sum(w.values()))
+    point = gm({k: statistics.median(kl[k]) for k in types})
+    rs = sorted(gm({k: statistics.median([rng.choice(kl[k]) for _ in kl[k]]) for k in types}) for _ in range(boot_n))
+    return point, rs[int(0.025 * boot_n)], rs[int(0.975 * boot_n) - 1], len(types)
 
 
 def main(argv=None) -> int:
     import memory
+    from sim import pets as pet_rules
     from sim.scenario import load
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("sim", help="run.py --json output (one summary a line)")
@@ -407,20 +446,31 @@ def main(argv=None) -> int:
     ap.add_argument("--since", default=RUNNER_SINCE,
                     help="live visits from this local time on (default: the runner the simulator runs; "
                          f"{LIVE_SINCE} for every visit on the live server)")
+    ap.add_argument("--until", default=None, help="live visits started up to this local time (default: all)")
+    ap.add_argument("--team", default=None,
+                    help="only the live visits with exactly this team's pets (a preset or pet names, as run.py "
+                         "--team; default the scenario's team); the capture scan counts the damage on these pets")
     ap.add_argument("--no-scan", action="store_true",
                     help="skip the capture scan (damage on the pets and on us by source, monsters met)")
     a = ap.parse_args(argv)
     sc = load()
+    if a.team:
+        pet_rules.select(sc, a.team)
     me = sc["player"]["serial"]
     pets = {p["serial"]: p["name"] for p in sc["pets"]}
     since = datetime.datetime.fromisoformat(a.since).timestamp()
+    until = datetime.datetime.fromisoformat(a.until).timestamp() if a.until else None
     spots = sc["eerie"]["spots"]
     box = [min(s[0] for s in spots) - VIEW, min(s[1] for s in spots) - VIEW,
            max(s[0] for s in spots) + VIEW, max(s[1] for s in spots) + VIEW]
-    live, live_fights = live_visits(a.db, since, me, box)
+    live, live_fights = live_visits(a.db, since, me, box, until, set(pets), sc["dungeon"]["box"])
     scan = [] if a.no_scan else live_scan(a.logs, live, me, pets, sc["area"], set(sc["creatures"]))
     with open(a.sim, encoding="utf-8") as f:
         results = [json.loads(line) for line in f if line.strip().startswith("{")]
+    teams = {tuple(r.get("team") or ()) for r in results if "sim_s" in r}
+    if teams and teams != {tuple(sc["party"]["team"])}:
+        print(f"warning: the batch's team {sorted(teams)} isn't the one compared ({sc['party']['team']})",
+              file=sys.stderr)
     sim, sim_fights, world = sim_visits(results)
     print(report(live, live_fights, scan, sim, sim_fights, world))
     return 0

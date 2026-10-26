@@ -4012,6 +4012,16 @@ def test_party_validation():
     check("a tab never captured and not known: no perks for that class and a warning",
           sc["party"]["warnings"] == ["Phoenix/Gravebug utility tab not captured: no perks for a tidal mantis"]
           and next(p for p in sc["pets"] if p["name"] == "a tidal mantis")["perks"] == {}, str(sc["party"]["warnings"]))
+    sc = load()
+    pets.select(sc, "nightmare_fire", None, ["nightmareb=14"])
+    nb = next(p for p in sc["pets"] if p["name"] == "NightmareB")
+    lv = {p["name"]: p["level"] for p in sc["pets"]}
+    check("--pet-level: NightmareB at 14 (502 hits), the others at their Guide's", nb["hits"] == 502
+          and sc["party"]["levels"] == lv and lv["NightmareB"] == 14
+          and lv["NightmareA"] == t["guide"]["NightmareA"]["level"], str(sc["party"]["levels"]))
+    got = [err(lambda a=a: pets.parse_levels([a], t)) for a in ("Bogus=3", "GraveRobber=16", "GraveRobber=x")]
+    check("--pet-level refused: an unknown pet, a level past 15 or not a number",
+          got[0].startswith("unknown pet 'Bogus'") and all("a level 1-15" in g for g in got[1:]), str(got))
 
 
 def test_pet_builds():
@@ -4047,7 +4057,7 @@ def test_anchors_pinned():
     import copy
     from sim import pets
     from sim.scenario import load as load_sc
-    caches = (pets.load_tamer, pets.k_dmg, pets.k_override, pets.k_speeds)
+    caches = (pets.load_tamer, pets.k_dmg, pets.k_speeds)
     real_load = pets.load_tamer
     before = (pets.k_dmg(), pets.k_override("AlaFlambe"), dict(pets.k_speeds()), load_sc()["pet_ref"]["default"])
     t2 = copy.deepcopy(real_load())
@@ -4074,6 +4084,87 @@ def test_anchors_pinned():
           "1.60 s at level 14, is faster at 15",
           set(af["perks"]) == {"Immolate", "Lethality", "Mutation", "Pelt", "Primal"} and nb["period"] < 1.60 - 0.01,
           f"{sorted(af['perks'])} {nb['period']:.3f}")
+
+
+def test_pet_mitigation():
+    print("== a plain cast meets the target's magic resist; Spellburn and Epic Barrage are physical against half its armor "
+          "(#4271, #4259) ==")
+    import random
+    import statistics
+    from sim import pets
+    sc = load()
+    pets.select(sc, "phoenix_gravebug", "Phoenix/Gravebug 2026-10-15")
+    af = sc["pets"][1]
+    eb = next(a for a in af["abilities"] if a["name"] == "Epic Barrage")
+
+    def barrage(tgt):
+        rng = random.Random(5)
+        return statistics.fmean(n for _ in range(3000) for n, _ in pets.ability_numbers(af, eb, tgt, pets.REF_CASTER, rng))
+
+    def cast(tgt):
+        rng = random.Random(5)
+        return statistics.fmean(pets.spell_numbers(af, tgt, pets.REF_CASTER, rng)[0][0][0] for _ in range(6000))
+    bare, resistant, armored = barrage({"armor": 0, "magic_resist": 0}), barrage({"armor": 0, "magic_resist": 200}), \
+        barrage({"armor": 120, "magic_resist": 0})
+    want = (1 - 60 / 200) / 1.15         # half of 120 at the rule's mean; nothing left to ignore: +15 % (#11687)
+    check("Epic Barrage: magic resist 200 changes nothing; armor 120 keeps the share of half of it (0.61 of the bare)",
+          abs(resistant / bare - 1) < 1e-9 and abs(armored / bare - want) < 0.02, f"{resistant / bare:.3f} {armored / bare:.3f}")
+    r = cast({"armor": 0, "magic_resist": 100}) / cast({"armor": 0, "magic_resist": 200})
+    check("a plain cast: magic resist 100 against 200 (Breaker's 10 off) keeps 0.775 / 0.525 of it",
+          abs(r - 0.775 / 0.525) < 0.03, f"{r:.3f}")
+
+
+def test_kdmg_barding():
+    print("== k_dmg compares the live median with model hits under the barding live had (Provocation song, discord) ==")
+    import copy
+    from sim import pets
+    real = pets.load_tamer
+    t2 = copy.deepcopy(real())
+    t2["anchors"]["damage"]["barding"] = {"multipliers": {"1": 1}}
+    k = pets.k_dmg()
+    for c in (pets.load_tamer, pets.k_dmg):
+        c.cache_clear()
+    pets.load_tamer = lambda character="logan_wolf": t2
+    try:
+        k_plain = pets.k_dmg()
+    finally:
+        pets.load_tamer = real
+        for c in (pets.load_tamer, pets.k_dmg):
+            c.cache_clear()
+    check("without the barding the factor would be 1.2-1.3x higher (107 hits x 1.169, 91 x 1.364)",
+          1.2 <= k_plain / k <= 1.3, f"{k:.4f} {k_plain:.4f}")
+
+
+def test_parity_team():
+    print("== parity.py: one team's live visits only, up to --until; another team's death stays with its visit; the kill "
+          "time ratio weighs each type by its live kills ==")
+    import json
+    import random
+    import tempfile
+    import memory
+    from sim import parity
+    db = os.path.join(tempfile.mkdtemp(prefix="parity_"), "harness.db")
+    store = memory.Memory(db)
+    ours, theirs = {"0x000DDEFE": "GraveRobber", "0x0026EF56": "AlaFlambe"}, {"0x000DDEF7": "NightmareB"}
+    rows = [(1000, 2000, ours), (2100, 3000, theirs), (3100, 4000, ours)]
+    with store.con:
+        for a, b, p in rows:
+            store.con.execute("INSERT INTO episodes(loop, t_start, t_end, data, char_serial) VALUES('hunt',?,?,?,1)",
+                              (a, b, json.dumps({"style": "pets", "t_start": a, "t_end": b, "pets": p,
+                                                 "spot": [5230, 700]})))
+        for t, kind, d in ((1500, "fight", {"name": "a shade wolf", "fight_s": 5, "outcome": "kill"}),
+                           (2500, "death", {"cause": "shade wolf"}),
+                           (2600, "fight", {"name": "a bound soul", "fight_s": 9, "outcome": "kill"})):
+            store.con.execute("INSERT INTO job_events(t, job, kind, facet, x, y, data, char_serial) "
+                              "VALUES(?, 'hunt', ?, 0, 5230, 700, ?, 1)", (t, kind, json.dumps(d)))
+    store.close()
+    visits, fights = parity.live_visits(db, 0, 1, [0, 0, 0, 0], until=3050, pets={0x000DDEFE, 0x0026EF56},
+                                        dungeon=[5150, 600, 5760, 760])
+    check("ours up to --until: one visit, its fight, no death (the other team's death 500 s after its end)",
+          [v["t_start"] for v in visits] == [1000] and not visits[0]["_deaths"]
+          and [f["name"] for f in fights] == ["a shade wolf"], f"{[(v['t_start'], v['_deaths']) for v in visits]} {fights}")
+    kr = parity.kill_ratio({"a": [10] * 6, "b": [20] * 12}, {"a": [5] * 6, "b": [20] * 12}, random.Random(1))
+    check("kill ratio: (0.5^6 x 1^12)^(1/18) = 0.794", abs(kr[0] - 0.5 ** (1 / 3)) < 1e-9 and kr[3] == 2, str(kr))
 
 
 def test_perk_conditions():
@@ -4496,7 +4587,8 @@ def main():
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
-              test_tamer_scan_rows, test_party_validation, test_pet_builds, test_anchors_pinned, test_perk_conditions,
+              test_tamer_scan_rows, test_party_validation, test_pet_builds, test_anchors_pinned, test_pet_mitigation,
+              test_kdmg_barding, test_parity_team, test_perk_conditions,
               test_vet_codex,
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,

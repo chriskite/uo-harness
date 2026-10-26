@@ -6048,6 +6048,19 @@ so a value is read through its element's line index, never by its position in `l
   Overheal tick (the codex's tier then is in the scan's history).
 - The wiki's bandage heal on a creature is (Veterinary / 100) x U(80, 120) x (1 + 0.2 x Lore / 100) (knowledge
   #11327); supplies heal 50 % of it on each patient, 75 % when there is one (#11331).
+- **The pets' damage live, measured for the recalibration** (2026-10-25 evening; docs/SIM.md "Recalibrating"):
+  - Barding on the gravebug's hits: all 198 of its attributed Tidal Tomb hits (20261024_102346, 10:59-11:14) were under
+    the Song of Provocation ("+16.9% damage against creatures for 15 minutes", played five times), 91 on a target
+    discorded then. Any number measured on our pets' hits carries these; the simulator applies them itself.
+  - Epic Barrage: AlaFlambe's animation action 12 every 13.6-13.9 s in a fight (n 3,487, never under 13.3); three of
+    our-hue numbers on one monster 0.04-0.16 s apart, 2,038 of them in 775 war-minutes of the 83 GraveRobber +
+    AlaFlambe visits, hits median 213 (192-326). Its casts are action 4, 1.6 s apart.
+  - GirthyEarthy: Earth Breath is its action 12, 10.8-11.5 s apart (never under 10.7); Earth Shield action 11, 61-67 s
+    apart; its swings send actions 4, 5 and 6 together.
+  - AlaFlambe's attributable numbers (no gravebug beside the monster): 24 % of its attacks with any bring two numbers
+    at once (spell and Spellburn), 13 % three or more; the numbers' 25-65 % quantiles 196-245, 95 % 768.
+  - Mausoleum parity per team: the GraveRobber + AlaFlambe visits killed 93.1 an hour on the level, a type's median
+    kill time from 3.3 s (banshee) to 38.1 s (reanimated daemon); Nightmare/Fire 82.0, Random 78.0.
 
 ## Network observations
 

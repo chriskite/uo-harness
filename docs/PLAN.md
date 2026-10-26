@@ -2528,11 +2528,9 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   armor rule (1.83 in the model), `pet_taken_x` out of the Command tier in the build.
 - **The default team stays GraveRobber and AlaFlambe with Phoenix/Gravebug** (the user), so batches stay comparable.
   Bonus pools add inside and multiply across [INFERENCE].
-- **The plan's contingency taken**: with the shared factor the default batch made 42 % more kills an hour (130.3 ->
-  184.9); AlaFlambe got its own factor (`anchors.damage_override`: its model mean per number = the old spec's 438).
-  Still +28 % (166.8): **open**, with the phoenix's numbers per attack (the model's 1.30 a cast plus Epic Barrage's
-  against the live 1.10) as the lead. Not the pets' levels (corrected 2026-10-25 evening): GraveRobber and AlaFlambe
-  were at 15 from 10-17/18, through most of the old spec's fit window and every visit since.
+- **The plan's contingency taken, then replaced**: with the shared factor the default batch made 42 % more kills an hour
+  (130.3 -> 184.9); AlaFlambe got a stopgap factor (its model mean per number = the old spec's 438, which was a
+  phoenix *attack's* damage) at +28 % (166.8). Replaced the same evening by the recalibration below: 144.7 (+11 %).
 - **The vet heal is the wiki's formula** with the codex (Specialist + Without Borders), not the gravebug's bar x an
   assumed 450 hits; Lore counts 0.2 a point (#11327; the plan's numbers had 0.3). `vet.res_hits` 0.31 -> 0.10: the one
   live res was the gravebug's with Critical Care rank 2 (+21 %), which the model now adds per pet.
@@ -2550,9 +2548,17 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   or level change into the factors (AlaFlambe 1.221 -> 1.695 for the Attack tab reset, its damage unchanged). Rejected:
   a per-tab history in the scan's output read by date. The copies with their evidence are explicit and few, and
   `--as-of` reproduces them.
-- **Recalibration is against live play, per team** (docs/SIM.md "Recalibrating"): the 84 GraveRobber + AlaFlambe
-  visits at level 15 with Phoenix/Gravebug of 10-15 fit AlaFlambe; the Nightmare/Fire (13 visits) and Random (6)
-  windows are held out to test the shared `k_dmg`. Needs `parity.py --until` and a pets filter first.
+- **Recalibration is against live play, per team** (docs/SIM.md "Recalibrating"), done 2026-10-25 evening:
+  - `k_dmg` keeps the gravebug's live median as its anchor but takes the barding out of it: all 198 hits were under the
+    Song of Provocation, 91 on a discorded target, and the World applies both again (1.559 -> 1.2425).
+  - AlaFlambe gets its own fitted factor (k_dmg x 0.73) from the 83 GraveRobber + AlaFlambe visits at level 15 (kill
+    times 0.76 -> 0.98 of live), agreeing with its live damage per attack (530 against the model's 721). Rejected:
+    removing Spellsurge (only 18 % of the gap, and the wiki says it works) or a factor for every caster (the
+    Nightmare/Fire casters, held out, land at 1.06 of their live kill times on the shared factor alone).
+  - Spellburn and Epic Barrage are physical against half the armor, as the patch notes word them.
+  - `parity.py --team --until` and `run.py --pet-level` let each team's window be compared as live played it.
+  - Open: the Random team (2 h, levels guessed) at 0.77; kills an hour ~1.3x live in every team, the time between
+    fights, not the pets.
 
 ## Risks
 
