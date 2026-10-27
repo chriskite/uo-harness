@@ -5755,6 +5755,34 @@ AlaFlambe. AR 120 the whole visit, not 133.
   block 0x71E/0x71F (height 5) under the pavers at its own z and got no answer at all; flat floor statics (0x051A at
   51) played. Since then it names the flat floor on top.
 
+## Tidal Tomb: levels 2 and 3 by hand (2026-10-26 22:36:47-22:48:42, capture 20261026_183552)
+
+The user played it after the runner's level 1 shift: in by level 1's west strip, level 2 for 9.0 min, level 3's first
+part for 2.6 min, back up the arrival row. Pets GraveRobber and AlaFlambe. Evidence for the simulator's 2026-10-26
+level 2/3 changes (docs/SIM.md "Levels 2 and 3 by hand").
+
+- **No new creature type.** 45 monsters first seen there, all of the scenario's types. He stood only where the
+  earlier visits had (every tile within 12 of one of theirs).
+- **Spawns:** today's idle sightings at the strip's arrival (x 6840-6855, y 2080-2098) were the types the earlier
+  visits had seen idle on the same tiles (razorfin, frenzyfin, soulcatcher, biolumen shellpod, drowned mariner,
+  astral zoa), yet the scenario had none of them there: the old "only where the first visit couldn't see" rule had
+  dropped them.
+- **Damage:** level 2, Logan 262 in 8 hits (1,740 an hour), GraveRobber 2,401, AlaFlambe 460. Level 3, Logan 44 in one
+  hit, GraveRobber 1,958 and AlaFlambe 1,125 in 2.6 min: the giant astral zoa's 70-78 on GraveRobber every ~5 s, the
+  sea serpent's 35-97, then the greater razorfin's swings and its 18 bleed ticks. GraveRobber died at 22:48:00 to the
+  greater razorfin ("You are able to resurrect your follower." at 22:48:05).
+- **The Recovery Dolphin reaches 12 tiles, not 8.** 'Your oxygen is refilled.' every ~5.2 s with Logan 10-12 tiles from
+  it (22:47:51-22:48:11, (7172, 2198)). Over all three captures, one-second samples on level 3 with a refill within
+  5.5 s: 7-9 tiles 90 of 96, 10-12 52 of 75, 13 2 of 23, 14+ 8 of 207. Its sight doesn't matter (16 of 21 at 12 out of
+  sight). The 2026-10-25 note "none at 10-13 tiles" was wrong.
+- **Frenzyfin '*frenzies*'** (2 here, 11 in all captures): after the emote three rounds of hits 0.6, 0.85 and 1.1 s
+  later on every pet beside it, 20-32 each (2026-10-25 11:26:06 on three pets at once, 25-31), ~15-30 s apart on one
+  frenzyfin.
+- Once each, not modelled: a combustive zoa's scorch on Logan (22:38:43 "The creature scorches you and you become more
+  susceptible to damage from them!"), an ironscale grouper's '*deflects*' (22:45:41, no damage number near it).
+- Other players on level 2: iniquitous ("[OG Fallen Lord, -FL-]", casting In Por Ylem, Uus Sanct, In Jux Sanct),
+  sirgrundy, Lunar Sniper; none hostile to us.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

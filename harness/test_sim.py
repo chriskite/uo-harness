@@ -4813,8 +4813,9 @@ def test_tidal_oxygen():
 
 
 def test_tidal_dolphin():
-    print("== Tidal Tomb level 3: the Recovery Dolphin refills our oxygen within 8 tiles every ~5.25 s, not from 11 ==")
-    for where, near in (((7164, 2214), True), (TIDAL_L3, False)):
+    print("== Tidal Tomb level 3: the Recovery Dolphin refills our oxygen within 12 tiles every ~5.25 s, not from 14 ==")
+    # live 2026-10-26 22:47:51-22:48:11: refills every ~5.2 s at 10-12 tiles from it; none at 13+ (all three captures)
+    for where, d, near in (((7164, 2214), 4, True), ((7172, 2198), 12, True), ((7178, 2196), 14, False)):
         w = tidal_world(TIDAL_L3)
         hurts = _log_hurts(w)
         said, orig = [], w._sys
@@ -4826,11 +4827,11 @@ def test_tidal_dolphin():
         refills = [t for t, text in said if text == "Your oxygen is refilled."]
         deprived = [t for t, v, k, n in hurts if k == "oxygen"]
         if near:
-            check("4 tiles from it: 'Your oxygen is refilled.' within 5.3 s, then every ~5.25 s; no deprivation",
+            check(f"{d} tiles from it: 'Your oxygen is refilled.' within 5.3 s, then every ~5.25 s; no deprivation",
                   bool(refills) and refills[0] <= 5.3 and all(5.1 <= b - a <= 5.4 for a, b in zip(refills, refills[1:]))
                   and not deprived and w.under_s < 5.3, f"refills {refills} deprived {deprived[:3]}")
         else:
-            check("at the arrival, 11 tiles off: no refill, the deprivation from 7 s on",
+            check(f"{d} tiles off: no refill, the deprivation from 7 s on",
                   not refills and bool(deprived) and 6.9 <= deprived[0] <= 7.2, f"refills {refills} deprived {deprived[:3]}")
 
 

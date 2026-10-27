@@ -1561,6 +1561,48 @@ The pets' damage matches. Time to kill per type, live (the runner's, n 3-17): 4.
 hunter explains only part of the kills and gold gap: the sim's other players (`--others`, "Other players") take 6 %
 of the kills and 5 % of the gold. The rest is open, and the sample is under half an hour.
 
+### Levels 2 and 3 by hand (2026-10-26)
+
+User 2026-10-26: "I just ended a good run through TT level 2 and the first area of 3. Check it and update the
+simulator with anything (mobs, mechanics) we were missing." Capture 20261026_183552, 22:36:47-22:48:42: level 2 for
+9.0 min by level 1's west strip, level 3's first part for 2.6 min. The facts are in docs/NOTES.md "Tidal Tomb: levels 2
+and 3 by hand".
+
+- **No new creature type.** He walked only ground the earlier visits had walked.
+- **16 level 2 spawns** (75 on level 2 now; `spawn_note`), by level 1's rule over all three captures: mostly the west
+  entry from the strip (x 6840-6872, y 2053-2098), where the earlier visits had seen the same types idle on the same
+  tiles but the old 18-tile rule had left them out.
+- **The Recovery Dolphin reaches 12 tiles** (`dolphin_r` 12, was 8): live refills at 10-12 tiles, none from 13
+  (`test_tidal_dolphin`).
+- **The frenzyfin's frenzy** (special `ooze` on `frenzyfin`): after '*frenzies*' three rounds of hits 0.6, 0.85 and
+  1.1 s later on everyone beside it, 20-33, every 14-24 s.
+- **The pincer crab's melee** stays 3-7 (`melee_observed`): with this capture calibrate's numbers for it took in the
+  scavengers' large swings (3-20). The rest of the regenerated observations moved a little (drowned mariner 34 a hit
+  and 1.57 s a swing, from 40 and 2.84).
+- Not modelled (one each): a combustive zoa's scorch on Logan, an ironscale grouper's '*deflects*'.
+
+**Runs** (8 each, seeds 4-11, 30 min from home):
+
+| | level 2, before | level 2, after | level 3, before | level 3, after |
+|---|---|---|---|---|
+| runs where Logan died | 1 of 8 | 4 of 8 | 4 of 8 | 8 of 8 |
+| damage to Logan per hour on the level | 1,949 | 2,546 | (whole run) | (whole run) |
+| kills per hour on the level | 162 | 185 | | |
+
+Level 2's command: `--area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071`. Level 3's:
+`--area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161
+2221`.
+
+- **Live, by hand:** the same 9 minutes of level 2 cost Logan 262, 1,740 an hour, and no death; level 3's 2.6 min cost
+  GraveRobber his life (the greater razorfin).
+- **The level 3 walk in now dies on level 2**, at the strip's arrival, every run in 3-5 game minutes. Seed 8: at
+  (6845, 2084), from 100 hits in 15 s to the drowned mariners' (88) and a soulcatcher's (58) shots. The user fought
+  that same ground with the pets.
+- **The gap is tactics, not the world** (user 2026-10-26: "I'm pretty sure the divergence is indeed tactics ... TT
+  level 2 requires more careful positioning and aggro management than other areas the runner has experienced"). The
+  runner walks through the arrival's shooters toward the next teleporter; the user stops and fights them there.
+  Level 2 needs crawler rules before a live try (the earlier "Open" list).
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
