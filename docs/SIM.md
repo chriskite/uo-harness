@@ -1515,6 +1515,26 @@ drank nothing. The wait for the pets ignored attacks; now it fights (docs/HUNT_L
   - Damage to Logan is still 0.6x the live rate. Live he had AR 120, the sim 133.
   - Live used 160 vet supplies an hour, the sim 50.
 
+
+**The runner live on level 1 against the sim** (2026-10-26, hunt-20261026-215149-a52b and -220225-0528, 2 visits,
+26.7 min on the level; the first visit still sang at the land and stood beside noughtiluses; another player,
+CrioZonik, hunted the level too and ~33 monsters died in view to others). The sim: 8 runs, seeds 3-10, 4.1 h, b900996
+rules, no other players (Tidal Tomb has no `others` block).
+
+| per hour on level 1 | live | sim |
+|---|---|---|
+| kills (the runner's) | 241 | 333 |
+| gold looted | 90.7k | 120k |
+| damage to Logan | 594 | 462 |
+| damage to GraveRobber | 5,758 | 5,603 |
+| damage to AlaFlambe | 719 | 822 |
+| heal potions | 18 | 6.9 |
+| vet supplies | 70 | 47 |
+| deaths | 0 | 0 |
+
+The pets' damage matches. Time to kill per type, live (the runner's, n 3-17): 4.3-7.9 s medians (singing noughtilus
+4.3, ruby smallshell 5.6, oozing noughtilus 6.0, dungeon-nest crab 7.5, mermadon 7.9), as the user's own. The kills
+and gold gap fits the other hunter [INFERENCE: the sample is under half an hour].
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
