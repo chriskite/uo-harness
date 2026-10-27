@@ -2549,6 +2549,21 @@ After the 00:32:45 death (docs/NOTES.md "Dead in a daemon's and a blightmare's r
 hold near casters (all of them, or the area casters only) or keep 80 %: the user kept 80 % (2026-10-26). The simulator
 didn't reproduce the death at either threshold.
 
+## The pets first on the casters, as the user plays them (2026-10-26)
+
+Three deaths on 10-25/26 under casters, one under a purger while the user played; the user fought the reanimator's room
+with no damage by sending the pets in first ("I keep the pets between me and mobs so mobs aggro on the pets, I don't walk
+over to other mobs while our pets are fighting"). The captures: the difference is who the monsters target, not how far
+Logan stands (docs/NOTES.md "How the user plays the casters and purgers"). Decision (the user picked all five): the
+casters that stand and cast are shy like the purger (back off from their first sight, "All Patrol" at them, cover from
+their shots), the purger's barrage and the reanimator's chain lightning get area zones round them and the pet beside
+them, a purger's and a blightmare's spawn spots join the backspawn rule, and no loot walk goes into an idle shy monster's
+first sight. Rejected: treating the reanimator's walls as see-through (the user tested: they hold; its out-of-sight
+hits were spells begun while it saw Logan); the other shy casters' spawn spots (the simulator: -8 % gold, more deaths).
+Accepted cost: about 5 % gold in the simulator for 12 % less damage on Logan and fewer deaths there; the simulator
+can't reproduce the live caster deaths, so the live runs decide. Next on the list: vet "in passing" (begin out of
+reach, step in for the finish; the user's trick), with the stale "never mid-channel" gates.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

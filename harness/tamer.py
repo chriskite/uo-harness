@@ -184,7 +184,11 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # (action 6, ~8.8 s apart): Logan -46/-47/-48 at 0-1 and -39 at 2 (12:02:06, with the gravebug -37), the
 # pets -36/-38; none on a pet at 3-5. Stand 3 off.
 # Reanimated daemon (20261014_221341): its bone burst hit Logan at 5 tiles (-39/-49) and both pets (94-107).
-AREA_R = {"apparition": 3, "reanimated daemon": 6}
+# Since 2026-10-26 (docs/NOTES.md "How the user plays the casters and purgers"): the corpse purger's barrage lands on
+# the ground round its target's tile (spread 2; 933 volleys: 38-45 % hit 0-1 from the centre, 5-16 % at 2+) and its
+# disease stacks; the master reanimator's chain lightning jumps from its target to everyone near, through walls (user)
+# [INFERENCE: the 3]. Their zone is round them and the pet beside them (area_zone), as the daemon's.
+AREA_R = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 # An apparition's blink (docs/SIM.md audit, n=56): "*phases*" over it, gone (0x1D), then back 1.1-1.6 s later on its
@@ -548,7 +552,9 @@ class Team:
     def seed_backspawn(self, st):
         """Stealthers' spawn spots (aggro.stealthy) on this facet: where the store saw us kill one (our tile then,
         within the pull range of it) and the Mausoleum's observed first sightings (harness/data/sim/mausoleum.json
-        spawns: every first-seen position in the captures). One spot per BACKSPAWN_MERGE tiles."""
+        spawns: every first-seen position in the captures); a corpse purger's or blightmare's spots (aggro.respawn_r,
+        since 2026-10-26) from those first sightings only (they don't come to us: our tile at the kill isn't theirs).
+        One spot per BACKSPAWN_MERGE tiles."""
         facet = (st["world"].get("self") or {}).get("map") or 0
         pos = self.h.pos(st)
         found = []
@@ -564,7 +570,7 @@ class Team:
         try:
             with open(SPAWNS_PATH, encoding="utf-8") as f:
                 for s in json.load(f).get("spawns") or []:
-                    if aggro.stealthy(s["key"]):
+                    if aggro.respawn_r(s["key"]) is not None:
                         found.append((tuple(s["at"][:2]), s["key"]))
         except OSError:
             pass
@@ -572,7 +578,7 @@ class Team:
             if cheb(spot, pos) <= 200:
                 self.add_backspawn(spot, kind)
         if self.backspawn:
-            log(f"backspawn: {len(self.backspawn)} stealther spawn spot(s) known here; standing out of their open ground")
+            log(f"backspawn: {len(self.backspawn)} stealther and shy spawn spot(s) known here; standing out of their sight")
 
     def add_backspawn(self, spot, kind):
         if not any(cheb(spot, s) <= BACKSPAWN_MERGE for s in self.backspawn):
@@ -671,7 +677,7 @@ class Team:
                 continue
             self.sighted.add(s)
             kind = type_key(labels.get(key) or mob.get("name"))
-            if kind and aggro.stealthy(kind) and not (mob.get("flags") or 0) & aggro.WAR:
+            if kind and aggro.respawn_r(kind) is not None and not (mob.get("flags") or 0) & aggro.WAR:
                 self.add_backspawn((mob["x"], mob["y"]), kind)        # idle where we first saw it: its spawn
 
     @staticmethod
@@ -1780,7 +1786,8 @@ class Team:
         zone = self.area_zone(st)
         v = self.view(st)
         shy = self.shy_awake(v)
-        if not zone and not shy:
+        idle_shy = any(m["shy"] and not m["war"] for m in v.mobs)
+        if not zone and not shy and not idle_shy:
             return None, None
         pos = tuple(self.h.pos(st)[:2])
         if cheb(pos, spot) <= combat.LOOT_RANGE and not self.zone_depth(zone, pos) and not self.shot_at(v, shy, pos):
@@ -1795,6 +1802,13 @@ class Team:
         if t is None and shy:
             return None, (f"the corpse at {spot} lies in the shot of the awake "
                           f"{', '.join(sorted({m['kind'] for m in shy}))}, every tile within {lr} of it too")
+        end = t[:2] if t is not None else spot
+        if idle_shy and (first := self.shy_first(v, (end[0], end[1], v.z_at(end)))):
+            # an idle shy monster (a caster since 2026-10-26) would see us there before a pet: its first target. Simulator,
+            # the live 19:30 room (test_caster_room_pets_first): the shadowguard patrolled and killed from the doorway,
+            # then "to the corpse" 9 steps into the room woke the master reanimator onto Logan (user: "I don't walk over
+            # to other mobs while our pets are fighting (i.e. I avoid being sighted by hostiles)")
+            return None, f"the corpse at {spot} lies in an idle {first[0]['kind']}'s sight before the pets'"
         return t, None                    # no walkable clear tile found near: the walk as before, round the reach
 
     @staticmethod
@@ -2039,7 +2053,7 @@ class Team:
                 return False
             there = (to or (p["x"], p["y"]))[:2]
             near = sorted((cheb(m["pos"], there), cheb(m["pos"], v.pos), m["kind"]) for m in v.mobs
-                          if m["war"] and (m["caster"] or m["ranged"]) and not m["shy"]
+                          if m["war"] and (m["caster"] or m["ranged"]) and m["kind"] not in aggro.SHOOTERS
                           and cheb(m["pos"], there) <= (r := CASTER_R if m["caster"] else RANGED_R)
                           and cheb(m["pos"], there) < cheb(m["pos"], v.pos) and not v.sees(m, v.pos, r))
             if near and not p["dead"] and p["frac"] >= TO_PET_CASTER_AT:
@@ -2047,8 +2061,9 @@ class Team:
                 # awake master reanimator on the pets, 12 off; this walked him 11 steps to 4 of it (behind a wall by our
                 # map) for GirthyEarthy at 92 %, and its and a shadowguard's spells on all of us, sight or not, took him
                 # 100 -> 0 in 6 s. From out of an awake caster's or ranged monster's sight, no walk nearer it within its
-                # reach (by distance: the area spells needed no sight) for a pet at TO_PET_CASTER_AT or more. The shy ones
-                # have their shot rule above and cover (simulator: with them, 862 of this rule's 1,931 holds in 40 runs)
+                # reach (by distance: the area spells needed no sight) for a pet at TO_PET_CASTER_AT or more. The purger
+                # and the blightmare have their shot rule above and cover (simulator: with them, 862 of this rule's 1,931
+                # holds in 40 runs); the casters made shy on 2026-10-26 (the master reanimator of 00:38 among them) keep it
                 d_there, d_here, kind = near[0]
                 log(f"{label}: {p['name']} ({p['frac']:.0%}) is only in reach {d_there} from the awake {kind}, out of "
                     f"its sight {d_here} off here ({TO_PET_CASTER_AT:.0%} or more); staying out of it")

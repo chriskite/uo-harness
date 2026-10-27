@@ -652,6 +652,10 @@ Paste this (or point the session at this section) to start an overseer.
 >      than 8 tiles ("not patrolling yet"). It heals in place: potions, the vet supplies on Logan and the pets.
 >      It keeps out of a never-aggro monster's sight (elder vampire, elder vampire countess) and fights one
 >      that comes for him (no running from it since 2026-10-24).
+>      Since 2026-10-26 the standing casters (master reanimator, shadowguard, banshee, shadow minion) are handled like
+>      purgers: "back to … out of its sight", "'All Patrol' to (x, y) … the pets wake it, not us", "cover: the
+>      shadowguard shoots us here; …", and a loot can wait ("not looting X yet: the corpse at (x, y) lies in an idle
+>      master reanimator's sight before the pets'"). More back-and-forth and fewer shadowguard kills are expected.
 >    - **Out:** hurt below the leave line with no heal coming, a pet hurt or lost, **a red** (in view,
 >      tracked, or "… is attacking you!"), or **the carried value reaching V\*** (gold rate against the death
 >      rate there, with red encounters, and the measured trip; ~24k live on 2026-10-17). The leave is the

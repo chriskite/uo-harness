@@ -2073,6 +2073,42 @@ def test_purger_no_ping_pong():
           f"{m.target}, hits {m.hits}, at {w.player.pos}")
 
 
+def test_caster_room_pets_first():
+    print("== the master reanimator's room from its doorway: the pets first on the casters, not Logan ==")
+    # live 2026-10-26 19:30:06-16 (hunt-20261026-184350-3c20): "holding here: shadowguard in sight at 6 tiles: letting it
+    # come" in the doorway (5241, 723); it woke on Logan (ensnared, diseased), the reanimator after, dead at 19:30:23. The
+    # user from the same place at 19:45: "All Patrol" into the room from out of sight, both woke on the pets, no damage
+    # (aggro.SHY since: the casters too)
+    w = world_with([{"key": "shadowguard", "at": [5235, 723, 0]}, {"key": "master reanimator", "at": [5230, 722, 0]}],
+                   seed=7, start=(5241, 723))
+    for m in w.mobs.values():
+        m.next_step = 1e9                               # they stand where the capture had them
+    loop, clock, store, patched = hurt_loop(w, 100)
+    first = {}
+    tick = w._tick
+
+    def watch():
+        tick()
+        for m in w.mobs.values():
+            if m.kind == "monster" and m.target is not None and m.serial not in first:
+                first[m.serial] = "Logan" if m.target == w.player.serial else "pet"
+    w._tick = watch
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            import crawl
+            loop.crawl = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            loop.crawl.setup(loop.state())
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 40 and len(first) < 2 and w.player.alive:
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    by = {k: round(v) for k, v in w.metrics.get("player_damage_by", {}).items() if k in ("shadowguard", "master reanimator")}
+    check("both woke on a pet, none on Logan; little of their damage on him", first and "Logan" not in first.values()
+          and sum(by.values()) < 30, f"first targets {first} damage on Logan {by} at {w.player.pos}")
+
+
 def test_patrol_pull():
     print("== an idle corpse purger 12 tiles off: 'All Patrol' beside it, the pets wake it, it shoots them ==")
     # live demo 2026-10-18 17:55:57.5: Logan 14 tiles from an idle purger, the spot 3 from it; it woke on GraveRobber
@@ -4723,7 +4759,7 @@ def main():
               test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
-              test_purger_back_off, test_purger_no_ping_pong, test_patrol_pull, test_patrol_after_back_off,
+              test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
               test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument, test_recall_charges,

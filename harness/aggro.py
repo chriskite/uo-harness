@@ -127,8 +127,13 @@ def ranged(kind: str) -> bool:
 # (user 2026-10-17: "We're frequently getting diseased by the corpse purgers"; its barrage diseases: docs/NOTES.md
 # "Corpse purger diseases"); the blightmare since 2026-10-21 (a mage that stood at its spot and cast at Logan from 10-12
 # with its Spellblight disease in both live deaths to it, 10-19 19:55 and 10-21 18:21; docs/NOTES.md "Dead in a
-# blightmare's reach again").
-SHY = ("corpse purger", "blightmare")
+# blightmare's reach again"); since 2026-10-26 the casters that stand and cast (the master reanimator, the shadowguard, the
+# banshee, the shadow minion, the insane reanimator): user 2026-10-26 "I keep the pets between me and mobs so mobs aggro
+# on the pets ... I avoid being sighted by hostiles", his fight in the reanimator's room with "All Patrol" from out of
+# sight and no damage, against two deaths there where they saw Logan first (docs/NOTES.md "How the user plays the
+# casters and purgers").
+SHY = ("corpse purger", "blightmare", "master reanimator", "shadowguard", "banshee", "shadow minion",
+       "insane reanimator")
 
 
 def shy(kind: str) -> bool:
@@ -144,8 +149,19 @@ def stealthy(kind: str) -> bool:
 # call it backspawn. A human knows not to stand out in the open when stealth mobs are going to respawn there";
 # live 20261015_171928 18:40:10 an unseen nightstalker hit Logan -58 from 2 tiles, the side away from the pets):
 # a tile within BACKSPAWN_R of a stealther's spawn spot, in its sight, with no pet nearer the spot than the tile,
-# scores as if that monster stood there idle.
+# scores as if that monster stood there idle. A corpse purger's or blightmare's spot too since 2026-10-26, within its
+# reach (BACKSPAWN_SHY_R; user: "I move to spots where if a mob respawns (like the dreaded blightmare) I won't be
+# standing in its sight"). Not the other shy casters' spots: with the shadowguards' and banshees' too, the simulator lost
+# 8 % gold and doubled the deaths against the purger's and the blightmare's alone (98 runs a side).
 BACKSPAWN_R = 7
+BACKSPAWN_SHY_R = 12          # tamer.CASTER_R: a purger's or a blightmare's respawn shoots or casts from there
+SHOOTERS = ("corpse purger", "blightmare")   # the shy ones before 2026-10-26: their shot rules (tamer.Team.to_pet), spots
+RESPAWN_SHY = SHOOTERS
+
+
+def respawn_r(kind: str) -> int | None:
+    """How far a monster respawning at its spot reaches us (the backspawn rule), or None: not one we keep out of."""
+    return BACKSPAWN_SHY_R if kind in RESPAWN_SHY else BACKSPAWN_R if stealthy(kind) else None
 
 
 class View:
@@ -244,15 +260,15 @@ class View:
         return 100.0 * never + 10.0 * (idle + back) + 1.0 * casters
 
     def backspawn_exposed(self, tile) -> list:
-        """[(spot, kind)]: stealthers' spawn spots (Team.backspawn) within BACKSPAWN_R of `tile` that see it, with
-        no pet nearer the spot than the tile."""
+        """[(spot, kind)]: stealthers' and shy monsters' spawn spots (Team.backspawn) within their reach (respawn_r) of
+        `tile` that see it, with no pet nearer the spot than the tile."""
         out = []
         for spot, kind in self.spawns:
-            d = cheb(spot, tile)
-            if d > BACKSPAWN_R or any(cheb(spot, p) < d for p in self.pets):
+            d, r = cheb(spot, tile), respawn_r(kind) or BACKSPAWN_R
+            if d > r or any(cheb(spot, p) < d for p in self.pets):
                 continue
             m = {"pos": (spot[0], spot[1], self.z_at(spot[:2]))}
-            if self.sees(m, tile, BACKSPAWN_R):
+            if self.sees(m, tile, r):
                 out.append((spot, kind))
         return out
 

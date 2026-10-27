@@ -576,7 +576,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet
    beside it (`tamer.Team.stand_off`, up to 6 steps, running). Other area hitters likewise
    (`tamer.AREA_R`): an apparition 3 (its hit lands on everyone within 2: 20261015_090607 and _115604),
-   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341). **An apparition's blink**
+   a reanimated daemon 6 (its bone burst reached Logan at 5, 20261014_221341), since 2026-10-26 a corpse purger 3 (its
+   barrage lands on the ground round its target's tile, spread 2, and the disease stacks) and a master reanimator 3
+   (its chain lightning jumps from its target to everyone near, through walls; [INFERENCE] the 3). **An apparition's blink**
    (since 2026-10-17; user: "when an apparition vanishes we know its going to pop out on the player/pet it
    was aggro'd on ... right now we just wait there to get hit for like -47"): on its "*phases*" the pet it
    fights (its latest swing's defender, else the nearest pet within 2 of it) is where it lands 1.1-1.6 s
@@ -677,11 +679,15 @@ them), so the reposition, the spacing off the tank and the retreat pick tiles ou
 the pets between; the pull spot steps back so the pets, a tile or two behind us, end up between us and
 what comes.
 
-**Corpse purgers and blightmares** (`aggro.SHY`; user 2026-10-17: "We're frequently getting diseased by the corpse
+**Corpse purgers, blightmares and the standing casters** (`aggro.SHY`: since 2026-10-26 also the master reanimator, the
+shadowguard, the banshee, the shadow minion and the insane reanimator; user: "I keep the pets between me and mobs so mobs
+aggro on the pets ... I avoid being sighted by hostiles"; his fight of the reanimator's room with "All Patrol" from out
+of sight against two deaths there where they saw Logan first, docs/NOTES.md "How the user plays the casters and
+purgers"; user 2026-10-17: "We're frequently getting diseased by the corpse
 purgers"; the blightmare since 2026-10-21, after two live deaths in its spells and Spellblight disease from 10-12 tiles
 at its spawn (5243, 687), docs/NOTES.md "Dead in a blightmare's reach again"): they shoot from where they stand, their
-first sight takes whoever they see first and their barrage or spells reach us wherever the pets stand. Neither is
-held for (it doesn't come on). An advance (patrol, approach) stops on a step into an idle one's sight before the
+first sight takes whoever they see first and their barrage or spells reach us wherever the pets stand. None is
+held for (none comes on to the pets in time). An advance (patrol, approach) stops on a step into an idle one's sight before the
 pets ("a corpse purger would see us", "a blightmare would see us"; the crawl then patrols elsewhere), and the runner
 steps back (up to 3, out of its sight first, then, with `--patrol-pull`, to a tile from which a patrol spot is in
 reach, else farther from it, the pets within vet range; `Team.back_off`: "back to … out of its sight, in reach to send
@@ -748,7 +754,8 @@ staying out of it"); it is vetted once the shooter is dead or the pet comes out.
 ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and cover walked him out each time
 (docs/NOTES.md "Dead on the walk in to a red", the follow-up).
 **No walk to a hurt pet from out of an awake caster's sight into its reach** (`Team.to_pet`, since 2026-10-25): with
-an awake caster or ranged monster (not a shy one: its shot rule above) that doesn't see us here (`CASTER_R` 12,
+an awake caster or ranged monster (not a corpse purger or blightmare: their shot rule above; the casters made shy on
+2026-10-26 keep this rule, test_sim `test_to_pet_not_into_caster_reach`) that doesn't see us here (`CASTER_R` 12,
 `RANGED_R` 13), a live pet at `tamer.TO_PET_CASTER_AT` (80 %; 50 % until 2026-10-25 21:49, when GraveRobber went
 unvetted at 56-64 % for 20 s beside a reanimated daemon, user: "didn't use vet supplies on GR for quite a while") or more
 isn't walked to when the vet tile (or the pet's tile) is within that reach of it by distance, sight or not, and nearer
@@ -840,8 +847,11 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   away from the pets, and killed him in 2.7 s): the spawn spots of stealthers (the wiki's stealth: the
   nightstalker, the shade wolf, the vampiric consort) come from the store's kills of them, the Mausoleum's
   observed first sightings (harness/data/sim/mausoleum.json spawns) and where one is first seen idle this
-  run (`Team.backspawn`). A tile within 7 of one, in its sight, with no pet nearer the spot than the tile
-  scores as that monster idle there (`aggro.View.backspawn_exposed`, in `stand_score` and the pull spot):
+  run (`Team.backspawn`); since 2026-10-26 a corpse purger's and a blightmare's too, from the first sightings only,
+  within their reach of 12 (`aggro.respawn_r`; user: "I move to spots where if a mob respawns (like the dreaded
+  blightmare) I won't be standing in its sight"; the other shy casters' spots too cost the simulator gold and deaths). A
+  tile within 7 of a stealther's spot (12 of a purger's or blightmare's), in its sight, with no pet nearer the spot
+  than the tile scores as that monster idle there (`aggro.View.backspawn_exposed`, in `stand_score` and the pull spot):
   the spacing, reposition and retreat tiles keep the pets between Logan and the spawns. Repositioning
   keeps spacing's 3 tiles off the tank.
 - **Line of sight in a fight** ("situational": between two rooms, stay out of sight of the room the
@@ -1390,6 +1400,11 @@ counted the corpse's gold as xp. Now (`loop_hunt.loot`):
   hitter is dead, gone or out of war mode. Here clear and within reach: looted from here. User 2026-10-21; live
   hunt-20261021-091743-38b6 09:54:10 "to the corpse" walked to (5242, 676), a tile from the reanimated daemon
   fighting the pets, 8 s before its death. `ctl act loot` doesn't walk. test_sim `test_loot_off_area_hitter`.
+  **Nor into an idle shy monster's first sight** (since 2026-10-26): when the loot tile (or the corpse) lies where an idle
+  shy monster would see Logan before a pet (`Team.shy_first`), the loot waits ("not looting X yet: the corpse at (x, y)
+  lies in an idle master reanimator's sight before the pets'"); the patrol pull or the fight wakes it on the pets first.
+  Simulator, the live 19:30 room (test_sim `test_caster_room_pets_first`): the shadowguard patrolled and killed from the
+  doorway, then "to the corpse" 9 steps into the room woke the reanimator onto Logan.
 - Our open answered by "Players cannot commit aggressive actions in that location." or "You may not
   loot this corpse." (the server's 0xAE system text; the client's Auto Open Corpses got the latter,
   ANTICHEAT.md A14) **stops at once**: no lift. The runner waits for the corpse's `0x24` or such a

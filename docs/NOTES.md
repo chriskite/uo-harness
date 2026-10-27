@@ -6194,6 +6194,23 @@ sight". Throwaway replays of session_20261026_183552 and a scan of the Mausoleum
   38-45 %, at 2 or more 5-16 % (noise of other damage included).
 - **Damage on Logan by the runner's activity** (the latest task-log line before each hit, 10-22..26): spread over
   vets, fights, patrols, spacing, stand-offs and the rest; no single action stands out that way.
+- **Vet channels and steps** (user: "you can walk up to the injured pet right as a vet supply tick is about to land, you
+  don't have to hang out next to a reanimated demon very long"): the runner's channels 18:44-19:30 with 2-7 steps in
+  them healed pets 3-4 tiles off at the finish (+140 d3 after 2 steps, +77 d3 after 6, +124 d4 after 2): a step doesn't
+  cut the reach to 1, as the simulator has held since 2026-10-20 (126 of 128). The runner's "never mid-channel (a step
+  shortens its reach to 1)" gates are stale. The begin's reach for a pet farther than --vet-range is not established
+  live (the simulator lets a channel begin with a hurt pet within range + 3).
+- **Built 2026-10-26** (the user's choice of five): the casters that stand and cast made shy (`aggro.SHY`: master
+  reanimator, shadowguard, banshee, shadow minion, insane reanimator: back off from their first sight, "All Patrol"
+  the pets at them, cover from their shots, the to_pet caster rule kept); `tamer.AREA_R` corpse purger 3 and master
+  reanimator 3; a purger's and a blightmare's spawn spots in the backspawn rule within 12; no loot walk into an idle shy
+  monster's first sight. The walks keep off awake shy casters' reach through the crawl's soft danger zones. Simulator
+  (196 runs a side: seeds 17 and 1001, careers 14, `--others --eerie --prior`; aa4a846 against the change): deaths 9 ->
+  5, damage on Logan/h ~1,920 -> ~1,690 (-12 %), gold banked/h 145.4k -> 138.2k (-5 %), kills/h -4 %, pet-death runs
+  1 -> 0. Corpsebride damage on him rose (seed 17: 244 -> 342/h). Each alone (seed 17): the shy casters dmg -18 %, gold
+  -5 %, 0 deaths; the area zones gold +1 %, dmg -1 %; the purger/blightmare spawn spots dmg -5 %, gold 0; the other shy
+  casters' spawn spots too: gold -8 %, deaths 2 -> 5 (left out). The simulator doesn't reproduce today's live deaths
+  (base: 2-7 deaths in ~45 h; live 3 in ~4 h): the live runs are the test.
 
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
