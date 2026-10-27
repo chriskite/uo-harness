@@ -99,7 +99,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
              eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
              trace: str | None = None, area: tuple | None = None, armor: dict | None = None,
              instrument: str | None = None, team: str | None = None, bestiary: str | None = None,
-             levels: tuple = ()) -> dict:
+             levels: tuple = (), links: str | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
@@ -111,11 +111,12 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     `area`: the hunting level's box (x0, y0, x1, y1) for the per-hour numbers instead of the scenario's. `armor`:
     {aspect_tier, ar} over the scenario's `player.armor` (--aspect-tier: the suit's Command tier, so its AR and the
     pets' follower damage, speed and resistance; "off": no aspect active; --armor: the AR itself). `instrument`: the
-    instrument quality Logan plays instead of
-    the scenario's `bard.instrument` (--instrument; its measured numbers in `bard.instruments`). `team` / `bestiary`:
+    instrument quality Logan plays instead of the scenario's `bard.instrument` (--instrument: a key of
+    `bard.instrument_bonus`). `team` / `bestiary`:
     Logan's pets (a preset or pet names) and bestiary loadout (a name, "none" or a .json file) instead of the
     scenario's (--team / --bestiary, sim/pets.select); `levels`: "NAME=LEVEL" for pets at another level than their
-    Guide's (--pet-level: a past window's)."""
+    Guide's (--pet-level: a past window's). `links`: a Mastery Chain spec instead of Logan's chain (--links,
+    sim/chain.py)."""
     import ast
     import importlib
     import loop_hunt
@@ -126,8 +127,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     from agent_link import Abort
     from sim import clock as simclock
     from sim.link import SimLink
-    from sim import pets
-    from sim.scenario import load, play
+    from sim import chain, pets
+    from sim.scenario import bard_eff, load, play
     from sim.world import World
 
     for s in sets:
@@ -153,7 +154,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
         sc["area"] = list(area)
     if instrument:
         play(sc, instrument)
-    pets.select(sc, team, bestiary, levels)  # after the armor: the Command tier sets the pets' numbers
+    if links:
+        chain.apply(sc, links)
+    pets.select(sc, team, bestiary, levels)  # after the armor and the chain: they set the pets' numbers
     # the runner's --vet-range is the character's: the supplies' reach with his codex (Without Borders), unless given
     rargs = extra if "--vet-range" in extra else extra + ["--vet-range", str(sc["vet"]["range"])]
     clock = simclock.SimClock(epoch=epoch)
@@ -216,7 +219,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "hunt_s": round(m["hunt_s"], 1), "place_s": {k: round(v, 1) for k, v in m.get("place_s", {}).items()},
             "kills_per_min": round(m["kills"] / max(clock.elapsed / 60, 1e-9), 2),
             "player_damage_taken": round(m["player_damage_taken"]), "player_hits_end": int(pl.hits), "player_ar": pl.ar,
-            "instrument": sc["bard"].get("instrument"),
+            "instrument": sc["bard"].get("instrument"), "bard_eff": bard_eff(sc),
+            "chain": {k: v["total"] for k, v in sorted(sc["chain"]["links"].items())},
+            "chain_links": sum(v["n"] for v in sc["chain"]["links"].values()),
             "team": sc["party"]["team"], "bestiary": sc["party"]["bestiary"], "levels": sc["party"]["levels"],
             "party_warnings": sc["party"]["warnings"],
             "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
@@ -269,7 +274,7 @@ def _pool_run(job):
     out_all = []
     epoch = EPOCH
     for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace, area,
-            armor, instrument, team, bestiary, levels) in enumerate(runs):
+            armor, instrument, team, bestiary, levels, links) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -280,7 +285,7 @@ def _pool_run(job):
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
                          prior=prior if career is None else None, reds=reds, trace=trace, area=area, armor=armor,
-                         instrument=instrument, team=team, bestiary=bestiary, levels=levels)
+                         instrument=instrument, team=team, bestiary=bestiary, levels=levels, links=links)
         finally:
             sys.stdout = old
             out.close()
@@ -339,9 +344,14 @@ def main(argv=None):
                          "pets' follower damage, speed and resistance (5 %% + 1.5 %% a tier); 'off': no aspect active "
                          "(after a death until it is activated again, or out of arcane essence)")
     ap.add_argument("--instrument", default=None, metavar="QUALITY",
-                    help="the instrument quality Logan plays instead of the scenario's bard.instrument, one with "
-                         "numbers measured live in its bard.instruments (Tidal Tomb: 'eminently melodious', "
-                         "'exceedingly melodious'; docs/SIM.md 'Level 3 and the later visits')")
+                    help="the instrument quality Logan plays instead of the scenario's bard.instrument (melodious, "
+                         "surpassingly / eminently / exceedingly / supremely melodious: +5 .. +25 effective barding; "
+                         "docs/SIM.md 'Barding from the effective skill')")
+    ap.add_argument("--links", default=None, metavar="SPEC",
+                    help="Mastery Chain links instead of Logan's chain, comma-separated: 'current' (start from his), "
+                         "'none', TYPE=N[:MATERIAL][+N:MATERIAL] (bronze unless named; types in "
+                         "data/sim/mastery_links.json), e.g. 'current, effective_barding=10' (docs/SIM.md 'Mastery "
+                         "Chain links')")
     ap.add_argument("--team", default=None, metavar="TEAM",
                     help="a team preset (phoenix_gravebug, nightmare_fire, nightmares_minion, earth_fire, mantis_earth) "
                          "or pet names comma-separated")
@@ -357,6 +367,17 @@ def main(argv=None):
             play(load(a.scenario), a.instrument)     # an unknown one fails here, not in every pool worker
         except ValueError as e:
             ap.error(f"--instrument: {e}")
+    if a.links:
+        from sim import chain
+        from sim.scenario import load
+        sc0 = load(a.scenario)
+        try:
+            chain.apply(sc0, a.links)
+        except ValueError as e:
+            ap.error(f"--links: {e}")
+        c = sc0["chain"]
+        print(f"chain: {chain.describe(c['links'])}" + (f"; {c['over_limit']} more links than Logan's {c['limit']} slots"
+                                                         if c["over_limit"] else ""), file=sys.stderr)
     if a.team or a.bestiary or a.pet_level:
         from sim import pets
         from sim.scenario import load
@@ -374,7 +395,8 @@ def main(argv=None):
     jobs = [(s, extra, a.scenario, a.minutes, os.path.join(logdir, f"run_{s}.log") if logdir else a.log, a.at_hunt,
              tuple(a.set), a.others, a.eerie, a.prior, a.reds,
              simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None, tuple(a.area) if a.area else None,
-             {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument, a.team, a.bestiary, tuple(a.pet_level))
+             {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument, a.team, a.bestiary, tuple(a.pet_level),
+             a.links)
             for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]
@@ -433,6 +455,10 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             "deaths_per_h": round(deaths / hours, 2),
             "player_ar": sorted({r.get("player_ar") for r in ok}),
             "instrument": sorted({r.get("instrument") for r in ok if r.get("instrument")}),
+            "bard_eff": sorted({r.get("bard_eff") for r in ok if r.get("bard_eff") is not None}),
+            "chain": sorted({json.dumps(r["chain"], sort_keys=True) for r in ok if "chain" in r}),
+            "bard": {k: sum((r.get("bard") or {}).get(k, 0) for r in ok)
+                     for k in sorted({k for r in ok for k in (r.get("bard") or {})})},
             "team": sorted({", ".join(r["team"]) for r in ok if r.get("team")}),
             "bestiary": sorted({r.get("bestiary") for r in ok if r.get("bestiary")}),
             "player_damage_per_h": round(sum(r["player_damage_taken"] for r in ok) / hours),

@@ -1,0 +1,82 @@
+{
+ "note": "Mastery Chain links the simulator models (sim/chain.py; docs/SIM.md 'Mastery Chain links'). Values per link by material, bronze / silver / gold / corrupted: the wiki's Mastery Chain page (rev 32179, 2026-08-11; outlands_web.db docs 'Mastery Chain'), its '~' values exact as 1 / 1.25 / 1.5 / 1.625 x bronze. A link type adds its links' values; 'points' are skill points, the rest shares (0.02 = 2 %). Up to 10 links of a type (15 with a redline upgrade) and up to 30 in a chain (wiki); a character installs as many as his unlocked slots (Logan: tamer/logan_wolf.json chain.limit). Each `effect` says where the simulator applies it; [INFERENCE] marks a rule the wiki doesn't state.",
+ "materials": ["bronze", "silver", "gold", "corrupted"],
+ "max_same_type": 10,
+ "max_links": 30,
+ "types": {
+  "effective_barding": {
+   "wiki": "Effective Barding Skill", "unit": "points", "values": [3.0, 3.75, 4.5, 4.875],
+   "effect": "adds to the effective barding skill E (80 skill + the instrument's quality + these): the success chance (+1 point a point), the durations and the songs (World._bard, _song; docs/SIM.md 'Barding from the effective skill')"
+  },
+  "barding_durations": {
+   "wiki": "Barding Effect Durations", "unit": "share", "values": [0.03, 0.0375, 0.045, 0.04875],
+   "effect": "Discordance, Peacemaking and Provocation last x (1 + total) [INFERENCE: the 15-minute songs are not a skill's effect and stay]"
+  },
+  "break_ignore": {
+   "wiki": "Bard Reset/Break Ignore Chance", "unit": "share", "values": [0.025, 0.03125, 0.0375, 0.040625],
+   "effect": "a Barding Break about to end our peace or provocation is avoided with this chance ('Barding break avoided for <name>', the live text). Live Logan saw 53 such lines with no link of this type (2026-10-12..26): a base chance the simulator doesn't model, so this adds to 0. The 'reset' half is not modelled"
+  },
+  "damage_to_barded": {
+   "wiki": "Damage to Barded Creatures", "unit": "share", "values": [0.0175, 0.021875, 0.02625, 0.0284375],
+   "effect": "multiplicative (wiki): our and our pets' damage on a creature we discorded, pacified or provoked x (1 + total) [INFERENCE: the pets' damage counts, as the songs' does]"
+  },
+  "follower_damage": {
+   "wiki": "Follower Damage", "unit": "share", "values": [0.02, 0.025, 0.03, 0.0325],
+   "effect": "additive (wiki): in the pets' static damage pool (sim/pets.build_pet)"
+  },
+  "follower_damage_resistance": {
+   "wiki": "Follower Damage Resistance", "unit": "share", "values": [0.02, 0.025, 0.03, 0.0325],
+   "effect": "in the pets' static damage resistance, with the Command aspect's (at most 75 % with the perks)"
+  },
+  "follower_attack_speed": {
+   "wiki": "Follower Attack Speed", "unit": "share", "values": [0.01, 0.0125, 0.015, 0.01625],
+   "effect": "in the pets' attack speed bonus with their level's and the Command aspect's (at most 50 %, the rest damage, #4661)"
+  },
+  "follower_healing_received": {
+   "wiki": "Follower Healing Received", "unit": "share", "values": [0.03, 0.0375, 0.045, 0.04875],
+   "effect": "every heal on a pet x (1 + this + the perks' heal bonuses) [INFERENCE: the same pool as Mending, Swarm, Menagerie]"
+  },
+  "follower_accuracy_defense": {
+   "wiki": "Follower Accuracy/Defense", "unit": "share", "values": [0.015, 0.01875, 0.0225, 0.024375],
+   "effect": "a melee pet's chance to hit + this, a monster's melee chance to hit a pet - this [INFERENCE: points of hit chance]"
+  },
+  "alchemy_healing_veterinary": {
+   "wiki": "Alchemy/Healing/Veterinary", "unit": "points", "values": [3.0, 3.75, 4.5, 4.875],
+   "effect": "effective Veterinary: the vet supplies' heals (Vet / 100 x ...) and the pets' 10 % x Vet / 100 damage [INFERENCE: 'effective skill links boost the bonuses you get from those skills in combat', wiki]. Its Alchemy (the heal potions' numbers are measured, not a formula) and Healing (no bandages) don't apply"
+  },
+  "healing_received": {
+   "wiki": "Healing Received", "unit": "share", "values": [0.03, 0.0375, 0.045, 0.04875],
+   "effect": "every heal on Logan (potions, vet supplies) x (1 + total) [INFERENCE: additive with the Song of Peacemaking's]"
+  },
+  "damage_resistance": {
+   "wiki": "Damage Resistance", "unit": "share", "values": [0.01, 0.0125, 0.015, 0.01625],
+   "effect": "on Logan: what he takes x (1 - total - the codex's) [INFERENCE: one pool]"
+  },
+  "physical_damage_resistance": {
+   "wiki": "Physical Damage Resistance", "unit": "share", "values": [0.015, 0.01875, 0.0225, 0.024375],
+   "effect": "as damage_resistance, on Logan's physical hits (melee, feeds, charges, a transfixed copy's)"
+  },
+  "spell_damage_resistance": {
+   "wiki": "Spell Damage Resistance", "unit": "share", "values": [0.015, 0.01875, 0.0225, 0.024375],
+   "effect": "as damage_resistance, on the spells that reach Logan"
+  },
+  "gold_drop": {
+   "wiki": "Gold/Doubloon Drop Increase", "unit": "share", "values": [0.01, 0.015, 0.02, 0.0225],
+   "effect": "the gold in a corpse x (1 + total)"
+  }
+ },
+ "unmodelled": {
+  "Damage Dealt By Player": "Logan doesn't fight; his only damage is through his pets",
+  "Damage to Creatures Above 66% HP": "a player's damage (Logan doesn't fight)",
+  "Damage to Creatures Below 33% HP": "a player's damage (Logan doesn't fight)",
+  "Damage to Bosses": "no boss in either scenario",
+  "Boss Damage Resistance": "no boss in either scenario",
+  "Damage to Bleeding Creatures": "a player's damage (Logan doesn't fight)",
+  "Damage to Diseased Creatures": "a player's damage (Logan doesn't fight)",
+  "Damage to Poisoned Creatures": "a player's damage (Logan doesn't fight)",
+  "Effective Magic Resist Skill": "the spells on Logan are measured numbers, no resist roll",
+  "Effective Parrying Skill": "no parry roll on Logan",
+  "Special Loot Chance": "no special loot in the simulator",
+  "Rare Loot Chance": "no rare loot in the simulator"
+ }
+}

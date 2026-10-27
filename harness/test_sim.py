@@ -18,7 +18,7 @@ import pathfind  # noqa: E402
 import tamer  # noqa: E402
 from sim import clock as simclock  # noqa: E402
 from sim.link import SimLink  # noqa: E402
-from sim.scenario import bard_chance, load  # noqa: E402
+from sim.scenario import bard_chance, bard_eff, bard_secs, load, play  # noqa: E402
 from sim.world import Mob, World, cheb as sim_cheb  # noqa: E402
 
 FAILURES = []
@@ -337,9 +337,6 @@ def test_bard_and_vet():
     link.send(actions.use_skill(tamer.SKILL_PEACE))
     check("another skill within the 5 s gap: cliloc 500118", any(e.get("cliloc") == tamer.CLILOC_SKILL_WAIT
                                                                  for e in link.events[mark:]))
-    sc = w.sc
-    check("the fitted barding chance: shade wolf (difficulty 86.7) above 0.6, the minimum at 145+",
-          bard_chance(sc, 86.7) > 0.6 and abs(bard_chance(sc, 145.2) - 0.33 * sc["bard"]["effective_skill"] / 100) < 1e-9)
     w = world_with([])
     link, clock = link_for(w)
     gb = next(p for p in w.pets() if p.key == "gravebug")
@@ -1043,8 +1040,10 @@ def test_area_peace():
     loop, clock, store, patched = hurt_loop(w, 100)
     for p, x in zip(w.pets(), (5262, 5261)):
         p.x, p.y, p.mode = x, 648, "stay"                  # out of the wolves' way: both come on us (the test's jam)
+    for k in w.sc["bard"]["d"]["median"]:
+        w.sc["bard"]["d"][k]["shade wolf"] = -100.0             # a sure check, to test the action itself
     for m in wolves:
-        m.spec = {**m.spec, "difficulty": 20.0}            # a sure check, to test the action itself
+        m.spec = {**m.spec, "difficulty": 20.0}            # and a rare Barding Break
         m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
         w._warm(m, True)
     try:
@@ -1077,9 +1076,11 @@ def test_bard_provoke():
         m.x, m.y = gb.x + dx, gb.y + 1                      # both beside the gravebug, in our sight
         m.next_step = 1e9
         m.hits = m.hits_max = 10 ** 6
-        m.spec = {**m.spec, "difficulty": 20.0}            # a sure check, to test the action itself
+        m.spec = {**m.spec, "difficulty": 20.0}            # a rare Barding Break
         m.target, m.threat = gb.serial, {gb.serial: 1e9}
         w._warm(m, True)
+    for k in w.sc["bard"]["d"]["median"]:
+        w.sc["bard"]["d"][k]["shade wolf"] = -100.0         # a sure check, to test the action itself
     first, other = wolves
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -1940,7 +1941,7 @@ def test_songs():
     h0 = gb.hits
     w.hurt(gb, 100, m, "wail")
     plain = h0 - gb.hits
-    x = 1 - sc["bard"]["song_x"]
+    x = 1 - w.song_x
     check(f"Song of Discordance: a creature's hit on our pet x {x:.2f}", abs(sung - plain * x) <= 1, f"{sung} of {plain}")
 
 
@@ -4684,21 +4685,24 @@ def tidal_world(start, spawns=(), seed=1):
 
 def test_scenario_inherit():
     print("== a scenario's `inherit`: the base's blocks it lacks, a dict it has updated by its own, a missing key refused; "
-          "the instrument played picks its barding numbers ==")
+          "the instrument quality played: the child's over the base's, an unknown one refused ==")
     import json
     import tempfile
     d = tempfile.mkdtemp(prefix="sim_inherit_")
     kb = {"creatures": {"rat": {"name": "a rat", "hits": 10, "melee_damage": [1, 2], "ai": "melee"}}}
     base = {"evidence": {"kb": "kb.json", "observed": "none.json"}, "player": {"name": "Logan", "start": [1, 1, 0]},
-            "pets": [{"name": "Rex"}], "defaults": {"a": 1, "b": 2}, "bard": {"skill": 149}, "spawns": []}
+            "pets": [{"name": "Rex"}], "defaults": {"a": 1, "b": 2}, "spawns": [],
+            "bard": {"skill": 149, "instrument": "fine", "instrument_bonus": {"fine": 20, "plain": 0},
+                     "difficulty": "bard.json"}}
     child = {"evidence": {"kb": "kb.json", "observed": "none.json"}, "player": {"start": [9, 9, 0]},
              "defaults": {"b": 3}, "spawns": [],
              "inherit": {"from": "base", "keys": ["player", "pets", "defaults", "bard"]}}
     bad = {**child, "inherit": {"from": "base", "keys": ["vet"]}}
-    played = {**child, "bard": {"song_x": 0.1, "seconds": {"discord": 60}, "instrument": "fine",
-                                "instruments": {"fine": {"song_x": 0.2, "seconds": {"discord": 70}, "song_note": "x"},
-                                                "plain": {"song_x": 0.15}}}}
-    for name, data in (("kb", kb), ("base", base), ("child", child), ("bad", bad), ("played", played)):
+    played = {**child, "bard": {"instrument": "plain"}}
+    unknown = {**child, "bard": {"instrument": "golden"}}
+    fit = {"kinds": {"discord": {"types": {}, "median_d": 50.0}}}
+    for name, data in (("kb", kb), ("base", base), ("child", child), ("bad", bad), ("played", played),
+                       ("unknown", unknown), ("bard", fit)):
         with open(os.path.join(d, f"{name}.json"), "w", encoding="utf-8") as f:
             json.dump(data, f)
     sc = load("child", d)
@@ -4712,8 +4716,70 @@ def test_scenario_inherit():
         refused = True
     check("a key the base doesn't have is refused", refused)
     b = load("played", d)["bard"]
-    check("the instrument played: its song and durations over the bard block's, the base's skill kept, no note",
-          b["song_x"] == 0.2 and b["seconds"] == {"discord": 70} and b["skill"] == 149 and "song_note" not in b, str(b))
+    check("the child's instrument over the base's, the base's qualities and skill kept",
+          b["instrument"] == "plain" and b["instrument_bonus"] == {"fine": 20, "plain": 0} and b["skill"] == 149, str(b))
+    try:
+        load("unknown", d)
+        refused = False
+    except ValueError:
+        refused = True
+    check("an instrument quality not in instrument_bonus is refused", refused)
+
+
+def test_chain_links():
+    print("== Mastery Chain links as an input (--links): the spec and the game's limits; the effective barding skill "
+          "sets the chance, the durations and the songs by the live rules ==")
+    import copy
+    from sim import chain
+
+    def err(spec):
+        try:
+            chain.parse(spec)
+            return ""
+        except ValueError as e:
+            return str(e)
+    cur = chain.parse("current, effective_barding=10:silver")
+    check("'current' keeps Logan's other links; a type named replaces his (10 silver Effective Barding: +37.5)",
+          cur["follower_damage"] == chain.current()["follower_damage"]
+          and cur["effective_barding"] == {"n": 10, "total": 37.5}, str(cur))
+    mixed = chain.parse("Follower Damage=2+4:gold")
+    check("a wiki name; materials add per link (2 bronze + 4 gold Follower Damage: +16 %, as Logan's six)",
+          abs(mixed["follower_damage"]["total"] - 0.16) < 1e-9 and mixed["follower_damage"]["n"] == 6, str(mixed))
+    got = {s: err(s) for s in ("effective_barding=11", "effective_barding=10, follower_damage=10, gold_drop=10, "
+                               "healing_received=1", "bogus=1", "damage dealt by player=1", "follower_damage=1:platinum",
+                               "follower_damage")}
+    check("refused: 11 of a type, 31 links, an unknown type, an unmodelled one (with why), a bad material, no count",
+          "allows 10" in got["effective_barding=11"] and "holds 30" in got[next(k for k in got if "gold_drop" in k)]
+          and "unknown link type" in got["bogus=1"] and "doesn't fight" in got["damage dealt by player=1"]
+          and "material" in got["follower_damage=1:platinum"] and "TYPE=N" in got["follower_damage"], str(got))
+    sc = load()
+    check("Logan's effective barding: 80 skill + supremely melodious 25 + his six links' 18", bard_eff(sc) == 123,
+          str(bard_eff(sc)))
+    # the live answers (bard_observed durations): discord 71 s at E 118, 86 s on a provoked one; peace 43 s on a
+    # discorded one, 36 s on another; at E 123 discord 74 s, peace on a discorded one 45 s
+    want = {("discord", 118): 71, ("discord", 143): 86, ("peace", 143): 43, ("peace", 118): 36, ("provoke", 118): 36,
+            ("discord", 123): 74, ("peace", 148): 45, ("discord", 108): 65, ("peace", 133): 40}
+    secs = {k: bard_secs(sc, *k) for k in want}
+    check("durations as live: ceil(60 or 30 x E / 100)", secs == want, str(secs))
+    long = copy.deepcopy(sc)
+    chain.apply(long, "current, barding_durations=10:gold")
+    check("10 gold Barding Effect Durations links: +45 %", bard_secs(long, "discord", 123) == 108,
+          str(bard_secs(long, "discord", 123)))
+    more = copy.deepcopy(sc)
+    chain.apply(more, "current, effective_barding=10")
+    gain = bard_chance(more, "discord", "shade wolf", bard_eff(more)) - bard_chance(sc, "discord", "shade wolf", 123)
+    check("4 more Effective Barding links (+12): +12 points of chance at a shade wolf", abs(gain - 0.12) < 1e-9
+          and bard_eff(more) == 135, f"{gain:.4f} at E {bard_eff(more)}")
+    texts = []
+    for quality, shown in (("eminently melodious", "16.9%"), ("supremely melodious", "18.4%")):
+        s2 = copy.deepcopy(sc)
+        play(s2, quality)
+        w = World(s2, seed=1)
+        w._sys = texts.append
+        w._song("discord")
+        texts.append(shown)
+    check("the song prints 15 % x E / 100 cut to a tenth: 16.9 % at E 113, 18.4 % at E 123 (live)",
+          f"({texts[1]}" in texts[0] and f"({texts[3]}" in texts[2], str(texts))
 
 
 def test_tidal_oxygen():
@@ -4958,7 +5024,7 @@ def main():
               test_vet_codex,
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
-              test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_dolphin,
+              test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_hunt):
         t()

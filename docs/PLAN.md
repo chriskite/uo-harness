@@ -2381,9 +2381,32 @@ Docs: docs/SIM.md "Level 3 and the later visits", docs/NOTES.md "Tidal Tomb: the
     (the simulator's first batch).
 - **Barding by the instrument's quality** (user: "Barding depends on the quality of the instrument"). The captures
   name it: an eminently melodious sackbut (+15) on 2026-10-24, an exceedingly melodious psaltery (+20) on 2026-10-25.
-  The scenario keeps each one's measured numbers (`bard.instruments`) and picks the one played last
-  (`bard.instrument`). Rejected: a formula from the instrument bonus to every number. One Guide pair is the only
-  measure of its effect on the chance.
+  The scenario kept each one's measured numbers (`bard.instruments`) and picked the one played last
+  (`bard.instrument`). Rejected then: a formula from the instrument bonus to every number, on one Guide pair.
+  Superseded 2026-10-26 (below, "Mastery Chain links in the simulator").
+
+## Mastery Chain links in the simulator (user 2026-10-26: "We need to have the links as an input, rather than fitting to Logan's success rate with them on. My goal is to try different combos of links")
+
+Docs: docs/SIM.md "Mastery Chain links", NOTES.md "Barding from the effective skill".
+
+- **The barding numbers from the effective barding skill E** (80 skill + the instrument's quality + the Effective
+  Barding links), not fixed or fitted ones. The store had what the 2026-10-25 decision lacked: five E levels in the
+  songs and 4,293 task-log answers across them. Songs, durations and the chance's slope all follow E (NOTES). So a link
+  or an instrument changes them by rule, and the instrument blocks went.
+- **Each type's difficulty fitted on live answers at their E** (`bard_scan.py` -> `bard_observed.json`, per skill),
+  then the Guide's chance, then the skill's median. Rejected: the wiki difficulty with a fitted skill offset (the
+  2026-10-13 S = 149). The fitted d don't track the wiki's (23-57 against 67-205).
+- **Links as a spec of counts and materials** (`--links`), with the wiki's per-link values, the game's 10-a-type and
+  30-a-chain limits, and Logan's chain as the gump's totals (`current`). Exceeding his 13 slots is allowed and named,
+  so planning ahead is possible.
+- **Only link types with a mechanic in the simulator.** Barding (Effective Barding, Durations, Break Ignore, Damage to
+  Barded), the follower types, effective Veterinary, Logan's damage resistances and Healing Received, gold drop.
+  Player-damage, boss, loot and resist-skill types are refused with the reason (`mastery_links.json` `unmodelled`).
+  Where the wiki gives no stacking rule, the choice is marked [INFERENCE] in the type's `effect`.
+- **The fitted factors stay put.** `k_dmg` and the reference pets are built with the chain they were measured under
+  (`anchors.chain`: Follower Damage 16 %), so a run's chain moves the pets and never the calibration.
+- **The baseline moved to Logan as he is now**: supremely melodious (E 123, since 2026-10-25 17:36) and Follower Damage
+  18.5 % (since 2026-10-25 11:38). Batches before this change ran E 118 and 16 %.
 
 ## The player's armor in the simulator (user 2026-10-24; built 2026-10-24)
 

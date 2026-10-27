@@ -5,9 +5,17 @@
     "lore": 120,
     "veterinary": 120,
     "herding": 120,
-    "follower_damage": 0.16,
+    "barding": 80,
     "max_slots": 5,
-    "note": "skills: docs/NOTES.md (Taming, Lore, Veterinary and Herding 120); the searing imp's Guide Details page reads '+22.9 % Damage, +11.4 % Wrestling, +11.4 % Damage Resistance' = 0.4 / 0.2 x (120 - 80) / 70 (the underdog bonus over its min taming); follower_damage: the Mastery Chain's Follower Damage +16 % (docs/NOTES.md); max_slots: the five control slots every live team filled"
+    "note": "skills: docs/NOTES.md (Taming, Lore, Veterinary and Herding 120; Peacemaking, Discordance and Provocation 80: `barding`); the searing imp's Guide Details page reads '+22.9 % Damage, +11.4 % Wrestling, +11.4 % Damage Resistance' = 0.4 / 0.2 x (120 - 80) / 70 (the underdog bonus over its min taming); max_slots: the five control slots every live team filled"
+  },
+  "chain": {
+    "limit": 13,
+    "links": {
+      "follower_damage": {"n": 7, "total": 0.185},
+      "effective_barding": {"n": 6, "total": 18.0}
+    },
+    "note": "Logan's Mastery Chain (sim/chain.py; run.py --links 'current, ...' starts from it). The chain gump in the memory store (gump id 2785326818; tamer data, not runtime memory): 2026-10-13 17:49 '8 Links Installed, 12 Link Limit, 6 Follower Damage (+16.00%), 2 Effective Barding Skill (+6.00)', 17:50 '12 Links Installed, Effective Barding Skill (+18.00)' (six bronze: 3.00 each), unchanged through 2026-10-25 11:19; 11:37 '13 Link Limit'; 11:38 '13 Links Installed, 7 Follower Damage (+18.50%)' (a silver, 2.50), the same through 21:33. The materials of the six 16 % links are not on the gump (bronze 2 / silver 2.5 / gold 3 / corrupted 3.25 each): only the totals are"
   },
   "species": {
     "gravebug": {
@@ -111,6 +119,8 @@
   "spell_range": 10,
   "spell_range_note": "the phoenix's range 10 [INFERENCE], for every caster",
   "anchors": {
+    "chain": {"follower_damage": 0.16, "effective_barding": 18.0},
+    "chain_note": "the chain's totals while every anchor and reference pet was measured (2026-10-13 17:50 .. 2026-10-25 11:38: the gump in `chain.note`): k_dmg builds its anchor pet and ref_values its reference pets with these, so the factors fitted then stay fixed whatever chain a run plays",
     "loadouts": {
       "Phoenix/Gravebug 2026-10-15": {
         "attack": {"Hunting Party": 1, "Immolate": 2, "Lethality": 2, "Mutation": 1, "Pelt": 1, "Primal": 3, "Swarm": 1, "[Cross] Behemoth": 2, "[Cross] Breaker": 1, "[Cross] Hearty": 1},

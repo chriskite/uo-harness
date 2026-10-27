@@ -173,36 +173,26 @@
   "note": "run.py's defaults for this scenario: the way Logan went in and out (capture); with a long walk out, leave less and heal in place (--no-heal-in-place turns it off). The nightstalker room is no longer avoided (user 2026-10-13, after his crawl 20261013_204518 went through it; before that a crawl_avoid box [5170, 690, 5188, 718] kept it out: `--crawl-avoid 5170 690 5188 718` puts it back)"
  },
  "bard": {
-  "effective_skill": 149,
+  "instrument": "supremely melodious",
+  "instrument_bonus": {"melodious": 5, "surpassingly melodious": 10, "eminently melodious": 15, "exceedingly melodious": 20, "supremely melodious": 25},
+  "instrument_note": "the quality of the instrument Logan plays (run.py --instrument for another; user 2026-10-25: 'Barding depends on the quality of the instrument', not its kind): its bonus to the effective barding skill E = 80 skill (tamer barding) + this + the Mastery Chain's Effective Barding (sim/chain.py). Bonuses: wiki Magic Item Modifiers #13809 (surpassingly 10 .. supremely 25), melodious 5 (forum KB). The songs fix E (SONG below) and so the bonus: 15.0 % before the links (E 100: exceedingly, 2026-10-13 17:39), then 16.2 / 16.9 / 17.7 / 18.4 % = E 108 / 113 / 118 / 123 with the +18 links: surpassingly / eminently (the sackbut, 2026-10-24) / exceedingly (the psaltery, 2026-10-25) / supremely (since 2026-10-25 17:36: the bamboo flute, after its loss at the 2026-10-26 00:32 death a shawm; docs/OVERSEER.md). No Item Identification (knowledge #3870 would multiply the bonus)",
   "min_chance_factor": 0.33,
   "range": 12,
-  "chance_note": "p = max(S/100 - difficulty/100, 0.33 x S/100) (knowledge #8530 #5239); S = 149 fitted (maximum likelihood, n=47) to the trip's 18/30 discord, 8/14 peace, 2/4 provoke at the difficulties of their targets (scenario.fit_bard)",
-  "observed": {"discord": {"abomination": [10, 13], "apparition": [29, 47], "banshee": [27, 42], "blightmare": [10, 13], "bound soul": [20, 26], "calamity": [36, 45], "corpse purger": [17, 26], "corpsebride": [32, 45], "forgotten soul": [18, 34], "newly reanimated": [13, 13], "nightstalker": [27, 42], "raw flesh": [25, 25], "reanimated knight": [13, 14], "shade wolf": [51, 98], "shadow minion": [32, 35], "shadowguard": [22, 28], "tormented soul": [29, 50], "vampire bat": [27, 30], "vampire countess": [20, 27]},
-               "peace": {"apparition": [13, 17], "banshee": [5, 16], "bound soul": [12, 17], "calamity": [10, 10], "corpse purger": [8, 12], "corpsebride": [6, 13], "nightstalker": [10, 15], "shade wolf": [13, 16], "shadow minion": [10, 12], "shadowguard": [16, 23], "tormented soul": [8, 12]}},
-  "observed_note": "[successes, attempts] of the runner's Discordance and Peacemaking at a target, by its type, from Logan's live pets runs on the live server (task logs hunt-20261015-211040 .. hunt-20261020-183232: 'Discordance on <type>: success|failed'; 458/653 and 111/163), types with 10+ attempts; the simulator uses these rates for those types and the formula above for the rest. The formula with S = 149 put every target past difficulty 100 at its 49 % floor: live the shadowguard (131.8) was discorded 79 %, the shade wolf (86.7) 52 %, overall 70 % against the simulator's 57 % (docs/SIM.md 'Parity with the live runs').",
+  "difficulty": "bard_observed.json",
+  "chance_note": "p = max((E + bonus - d) / 100, 0.33 x (E + bonus) / 100), at most 1 (knowledge #8530 #5239 #11223); bonus `barded_bonus` on a target already barded (Discordance on one pacified or provoked, Peacemaking on one discorded, pacified or provoked, Provocation with either creature so: the durations, seconds_note). d per skill and type: `difficulty` (sim/bard_scan.py: the maximum-likelihood d of each type's 10+ live answers 2026-10-15..26, each at the E its song printed), else the Guide's chance (`guide`, Tidal Tomb), else the skill's median d. One point of E is one point of chance: on the 3,000 live Discordances at E 108-123 a slope of 1 fits better than none by 4.8 in log-likelihood (Peacemaking 4.6; docs/SIM.md 'Barding from the effective skill'). No 95 % cap: raw flesh and newly reanimated took 120 of 120. The wiki difficulty is not the server's: the fitted d sit at 23-57 for Discordance on types the wiki puts at 67-205",
+  "barded_bonus": 25,
+  "seconds_per_100": {"discord": 60, "peace": 30, "provoke": 30},
+  "seconds_note": "a success lasts ceil(base x (E + bonus) / 100 x (1 + the chain's Barding Effect Durations)) s, the same for every type: 2,977 of the 2,999 live answers 2026-10-15..26 (the rest an instrument changed within the hour: bard_observed durations), e.g. discord 65 / 68 / 71 / 74 s at E 108 / 113 / 118 / 123 and 80-89 s barded; peace 43 s at E 118 is 30 x 143 (Logan pacifies what he discorded), 36 s without; provoke 36 s or 43 s at E 118, 43 s in 70 of 83: the bonus with the creature incited not discorded, so it counts the one it is incited onto (Logan's discorded target), +25 not the wiki's 12.5 a creature",
   "discord_dealt": 0.1667,
   "discord_taken": 0.1667,
-  "discord_bonus_calm": 0.25,
-  "seconds": {
-   "discord": 71,
-   "peace": 43,
-   "provoke": 36
-  },
-  "seconds_easy": {
-   "discord": 88,
-   "peace": 36,
-   "provoke": 36
-  },
-  "easy_below_difficulty": 50,
   "act_threat": 400,
   "break_threat": 200,
-  "note": "discord 16.67 % at 80 printed (knowledge #11224); durations as the trip's answers ('(1m)', '(1m 15s)' on spare parts, '(38s)', '(30s)'); act_threat: an aggressive act of ours draws the mob onto the character (user 2026-10-12) [INFERENCE: worth 400 damage of threat], only while no pet has hurt it yet (the trip: our acts after the pets' first damage drew none of 14 monsters onto Logan; of 7 reached first, 3 hit him; docs/NOTES.md); break_threat likewise; range 12 [INFERENCE] (successes at 1-9 tiles); provoke_x 4: the hue-2417 numbers while two provoked creatures fought, median 95 (n=29), vs their ~24 per hit on our pets",
+  "note": "discord 16.67 % at 80 printed: it scales with the printed skill, not the effective one (knowledge #11224), so neither the instrument nor the links move it; act_threat: an aggressive act of ours draws the mob onto the character (user 2026-10-12) [INFERENCE: worth 400 damage of threat], only while no pet has hurt it yet (the trip: our acts after the pets' first damage drew none of 14 monsters onto Logan; of 7 reached first, 3 hit him; docs/NOTES.md); break_threat likewise; range 12 [INFERENCE] (successes at 1-9 tiles); provoke_x 4: the hue-2417 numbers while two provoked creatures fought, median 95 (n=29), vs their ~24 per hit on our pets",
   "provoke_x": 4.0,
-  "song_x": 0.177,
-  "links_note": "user 2026-10-13: Effective Barding links added to the mastery chain before 20261013_204518. After them every barding number grew ~18 %: songs 15.0 -> 17.7 %, discord '(1m)' -> '(1m 11s)' (17 of 18; '(1m 26s)' on a corpse purger just provoked), peace '(38s)' -> '(43s)' (6 of 7, one '(36s)'), provoke '(30s)' -> '(36s)' and '(43s)'; success unchanged (fit_bard: S 151 on its 50 answers, 149 before). The seconds and song_x are the post-links ones (seconds_easy scaled by 1.18 [INFERENCE]); discord_dealt/taken are not re-measured [INFERENCE: they may have grown alike]",
+  "song_per_100": 0.15,
   "song_s": 900,
   "song_gap_s": 10,
-  "song_note": "barding songs (a bard skill at the ground): live 2026-10-13 (20261013_173449) all three printed 15.0 % (5 % x effective barding / 100 each, knowledge #11234: Discordance less damage taken from creatures, Peacemaking more healing received, Provocation more damage against creatures) for 15 minutes, on us and the followers; 10 s between songs, apart from the skill timer (#11234; live a second song 3.8 s after the first: 'You must wait a few moments before performing another barding song.'); damage reduction also on area hits and bleeds (patch 2022-08-26, #6504)"
+  "song_note": "barding songs (a bard skill at the ground) print song_per_100 x E / 100, cut to a tenth: 15.0 / 16.2 / 16.8 / 16.9 / 17.7 / 18.4 % live (the memory store's 'You are now under the effect of a Song of ...', 2026-10-13..26), E as instrument_note; the wiki says 5 % x E / 100 (knowledge #11234), three times less. Discordance less damage taken from creatures, Peacemaking more healing received, Provocation more damage against creatures, for 15 minutes, on us and the followers; 10 s between songs, apart from the skill timer (#11234; live a second song 3.8 s after the first: 'You must wait a few moments before performing another barding song.'); damage reduction also on area hits and bleeds (patch 2022-08-26, #6504)"
  },
  "vet": {
   "res_chance": 1.0,

@@ -48,44 +48,17 @@
   "pets_first_note": "the Mausoleum's nightstalker rule doesn't apply here: no type of this dungeon is known to go for the pets first"
  },
  "bard": {
-  "instrument": "exceedingly melodious",
-  "instrument_note": "the instrument's quality whose numbers the sim uses (sim/scenario.py play: its block in `instruments` over this one's; run.py --instrument QUALITY for another). User 2026-10-25: 'Barding depends on the quality of the instrument'. The captures show which Logan played (a double-click plays an instrument, its name from the single-click): 2026-10-24 10:26:19 and 19:32:51 an 'eminently melodious sackbut' (+15 barding, wiki Magic Item Modifiers #13809), so the first visit and the evening's; from 22:17:39 a 'durable exceedingly melodious tambourine', 2026-10-25 10:58:19 a 'durable exceedingly melodious psaltery' (+20). Also looked at those days, not played in the captures: surpassingly melodious harps and a lute (+10), a supremely melodious bamboo flute (+25). The sim plays the quality he played last",
-  "instruments": {
-   "eminently melodious": {
-    "guide": {
-     "ruby smallshell": 0.927,
-     "dungeon-nest crab": 0.773,
-     "flying manta": 0.741,
-     "singing noughtilus": 0.937,
-     "oozing noughtilus": 0.877,
-     "mermadon": 0.669,
-     "colossal pincer crab": 0.485
-    },
-    "guide_note": "'Barding Chance' in the game's creature Guide gump (0xC38EC76C) Logan opened live with the sackbut: 2026-10-24 11:01:00 ruby smallshell 92.7 %, 11:02:42 dungeon-nest crab 77.3 %, 11:06:29 flying manta 74.1 %, 11:06:48 singing noughtilus 93.7 %, 11:08:08 oozing noughtilus 87.7 %, 19:51:32 mermadon 66.9 %, 21:00:22 colossal pincer crab 48.5 %: the server's own number for him, used before the wiki formula (World._bard) where no live counts are in `observed`. The formula with S = 149 gives the manta 93 %: it is off here. Live outcomes on the first visit: discord 23 ok / 3 fail (by type in tidal_tomb_observed bard)",
-    "song_x": 0.169,
-    "song_note": "live 2026-10-24 10:59:58 / 11:00:55 / 11:11:40: 'Song of Peacemaking (16.9% healing amounts ...)', 'Song of Provocation (+16.9% damage against creatures ...)', 'Song of Discordance (16.9% reduced damage from creatures ...)'",
-    "seconds": {"discord": 68, "peace": 34, "provoke": 42},
-    "seconds_easy": {"discord": 68, "peace": 34, "provoke": 42},
-    "seconds_note": "live answers on the first visit: discord '(1m 8s)' 21 of 23 (difficulty 6-153 alike; 83 s twice, a clearwater grouper and a giant pincer crab), peace '(34s)' 2 of 2, provoke '(42s)' 3 of 3; the Guide's 'Barding Duration' 34 s / 68 s"
-   },
-   "exceedingly melodious": {
-    "guide": {
-     "ruby smallshell": 0.95,
-     "dungeon-nest crab": 0.838,
-     "flying manta": 0.806,
-     "singing noughtilus": 0.95,
-     "oozing noughtilus": 0.942,
-     "mermadon": 0.734,
-     "colossal pincer crab": 0.55
-    },
-    "guide_note": "the Guide with the psaltery, 2026-10-25 11:21:49 and 11:22:24: oozing noughtilus 94.2 % (87.7 % with the sackbut), Barding Duration 71 s (68 s); 13:18:59 a blightmare 50.6 %, 35 s. The other types are the sackbut's + 6.5 points, capped at 95 % [INFERENCE: the one pair measured; +5 instrument skill moved it 6.5 points (Item ID multiplies an instrument's bonus, knowledge #3870)]",
-    "song_x": 0.177,
-    "song_note": "live 2026-10-25 11:27:38 / 11:29:41 / 11:32:30: 'Song of Discordance (17.7% reduced damage ...)', 'Song of Provocation (+17.7% ...)', 'Song of Peacemaking (17.7% ...)'; 0.177 on the Mausoleum's trips too",
-    "seconds": {"discord": 71, "peace": 43, "provoke": 36},
-    "seconds_easy": {"discord": 71, "peace": 43, "provoke": 36},
-    "seconds_note": "live answers 2026-10-25: discord '(1m 11s)' 19 of 21 ('1m 26s' twice), peace '(43s)' 7 of 8 ('36s' once), provoke '(36s)' 6 of 6"
-   }
-  }
+  "guide": {
+   "ruby smallshell": [0.927, 113],
+   "dungeon-nest crab": [0.773, 113],
+   "flying manta": [0.741, 113],
+   "singing noughtilus": [0.937, 113],
+   "oozing noughtilus": [0.942, 118],
+   "mermadon": [0.669, 113],
+   "colossal pincer crab": [0.485, 113],
+   "blightmare": [0.506, 118]
+  },
+  "guide_note": "[chance, E]: the 'Barding Chance' in the game's creature Guide gump (0xC38EC76C) Logan opened live, at the effective barding skill E he had then (the Mausoleum's bard.instrument_note): with the eminently melodious sackbut (E 113) 2026-10-24 11:01:00 ruby smallshell 92.7 %, 11:02:42 dungeon-nest crab 77.3 %, 11:06:29 flying manta 74.1 %, 11:06:48 singing noughtilus 93.7 %, 11:08:08 oozing noughtilus 87.7 %, 19:51:32 mermadon 66.9 %, 21:00:22 colossal pincer crab 48.5 %; with the exceedingly melodious psaltery (E 118) 2026-10-25 11:21:49 oozing noughtilus 94.2 % (its d 23.8 against 25.3 with the sackbut), 13:18:59 a blightmare 50.6 %. World._bard takes d = E - 100 x chance from it for a type with too few live answers (bard_observed.json first). The Guide is not the live rate everywhere: the blightmare's 50.6 % is d 67.4, its 43 live Discordances fit d 44.5"
  },
  "recall": {
   "tome": 1145745907,
@@ -1071,6 +1044,37 @@
   {"key": "dungeon-nest crab", "at": [6637, 2025, 20], "note": "level 1: first seen 2026-10-24 19:33:47 (6637, 2025), 11 tiles from the type's nearest spawn, capture 20261024_102346 (added 2026-10-26)"}
  ],
  "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept). The first 68 come from the first visit (2026-10-24 10:59:55-11:14:06, levels 1-2): a first look, not the Mausoleum's 41-visit check. The other 58 come from the later visits (2026-10-24 19:32-21:04 and 2026-10-25 11:21-11:36), only where the first visit couldn't see (a first sighting more than 18 tiles from every tile it stood on), so a spawn it had isn't counted twice: 13 on level 1's middle, 39 on level 2's west and north, 6 on level 3's first part. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood; 30 in all), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb'), the recovery dolphin (oxygen.dolphins), 5 monsters whose name never came. 2026-10-26: the user walked all of level 1 (capture 20261026_183552, 20:30-20:45, within 12 tiles of 96 % of its floor); 25 spawns added (86 on level 1 now), one per idle first sighting (not war mode, not '*emerges*') more than 8 tiles from every spawn of its type (spawn_spread 4 and the 2-tile wander keep a spawn's own monster within ~6): 24 of today's, mostly the west rooms (x 6620-6648) and the south-east room (x 6688-6723, y 2056-2094) that had none, and a nest crab of 2026-10-24 19:33:47 the old 18-tile rule had left out (the first visit had seen that spot). Two idle pincer crabs far from any nest crab or scavenger are spawns; three within 3 tiles of one are taken for broodlings. 6 of the 61 earlier level 1 spawns met nothing of their type within 6 tiles today, in view 16-97 s each: kept (a respawn or another player's kill explains that).",
+ "others": {
+  "enabled": false,
+  "arrive_per_h": 20.0,
+  "stay_s": [30, 300, 90],
+  "notoriety": 1,
+  "bodies": [400, 400, 400, 400, 400, 400, 400, 400, 401],
+  "names": ["Purple Roundy", "Mugiwara-", "CrioZonik", "SpinalTap", "Psymon Potts", "Genkii", "SlackAlice", "BronzeGandalf", "Romeno", "Felwich", "Skuli", "Liberachi", "Lunar Sniper", "Trissomia", "KadenTheTamer", "Senhor dos Bixim", "Vice Versa", "Siege Perilous"],
+  "pets": [
+   {"name": "an earth elemental", "body": 14, "tag": "(summoned)", "w": 176},
+   {"name": "a water elemental", "body": 16, "tag": "(summoned)", "w": 85},
+   {"name": "an azure wyrmling", "body": 1504, "tag": "(bonded)", "w": 91},
+   {"name": "an azure wyrm", "body": 1419, "tag": "(bonded)", "w": 91},
+   {"name": "a giant black widow", "body": 11, "tag": "(bonded)", "w": 18},
+   {"name": "a colossal huntsman", "body": 110, "tag": "(bonded)", "w": 18},
+   {"name": "a black widow", "body": 736, "tag": "(bonded)", "w": 14},
+   {"name": "a lemura", "body": 293, "tag": "(bonded)", "w": 9},
+   {"name": "a blood drake", "body": 61, "tag": "(bonded)", "w": 7},
+   {"name": "a sword spider", "body": 137, "tag": "(bonded)", "w": 5}
+  ],
+  "pet_share": 0.63,
+  "dps": [178, 885, 456],
+  "every_s": 1.5,
+  "reach": 8,
+  "step_s": 0.2,
+  "engage_r": 5,
+  "linger_s": [1, 10, 3],
+  "roam_r": 40,
+  "pet_part": 0.6,
+  "hits": 1000,
+  "note": "other (non-hostile) players on level 1, measured 2026-10-26 over the three Tidal Tomb captures with Logan on level 1 (20261024_102346, 20261024_225113, 20261026_183552: 1.39 h, 5,001 one-second samples; the Mausoleum's method, docs/NOTES.md 'Other players at the Mausoleum'; a player: a human body whose name has no article, so the human-bodied lowtide scavengers are not; Logan's pets of every visit apart). Off unless enabled (sim/run.py --others). Live in our view: >= 1 other player 8.9 % of the time (Mausoleum 27.4 %), 0.10 on average (1.16 when any); 51 appearances (gaps over 30 s split them), 36 arrivals an hour; in-view stays p25 / median / p75 / p90 2 / 4 / 10 / 44 s (n 43): they mostly run through, to level 2 [INFERENCE]; 32 of the 51 with a pet or summon within 4 tiles (pet_share 0.63; the pets by seconds in view: earth and water elementals summoned, azure wyrmlings and wyrms, widows, ...); notoriety 1 in 504 of 514 player-seconds, a red 5; monsters dying beside another player and away from us: 12 an hour in view. 41 names, the 18 most seen here (a red left out). The Mausoleum's fight rules and damage rates (dps, every_s, reach, step_s, hits) [INFERENCE: not measured here]. arrive_per_h, stay_s, linger_s and engage_r are fitted (24 runs of 20 min, seeds 17-40, --vet-range 5 --crawl-learn-s 180, 2026-10-26): 4/h, stays 120-900 s: 7.2 % / 0.08 / 14 arrivals / stays 3 / 8 / 24 / 50 / their kills in view 8.9; 10/h, 60-600, linger 3-25: 9.0 % / 0.09 / 17 / 4 / 12 / 27 / 47 / 19.8; 30/h, 20-200: 13.7 % / 0.14 / 26 / 4 / 10 / 27 / 50 / 24.6; these (20/h, 30-300 s, linger 1-10, engage_r 5): 8.9 % / 0.10 / 23 arrivals / 2 / 8 / 18 / 46 / 19.5. Short of live: arrivals in view (23 of 36) and the median stay (8 against 4): live players cross the view without stopping, the sim's walk from spawn area to spawn area; their kills in view 1.6x live. Not modelled: hunters out of our view clearing spawns (the Mausoleum's `unseen`; no Tidal Tomb measure of idle monsters at our approach yet)"
+ },
  "specials": {
   "bottomfeeder": [
    {

@@ -98,7 +98,7 @@ def scan(job):
     discorded = collections.defaultdict(list)
     for use in sess.bard:
         if use["skill"] == tamer.SKILL_DISCORD and use["outcome"] == "ok" and use["targets"]:
-            dur = use.get("duration_s") or bard["seconds"]["discord"]
+            dur = use.get("duration_s") or bard["seconds_per_100"]["discord"]   # none parsed: E 100's 60 s
             discorded[use["targets"][-1]["serial"]].append((use["t"], use["t"] + dur))
     ill = collections.defaultdict(list)
     for t, s, x in sess.overhead:

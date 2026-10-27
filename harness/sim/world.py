@@ -69,7 +69,7 @@ from sim import packets as P
 from sim import armor
 from sim import pets as pet_rules
 from sim.reds import Reds
-from sim.scenario import player_armor
+from sim.scenario import bard_chance, bard_eff, bard_secs, player_armor, song_share
 
 VIEW = 18                 # the client's view range (combat.VIEW_RANGE)
 COMMAND_R = 14            # a pet takes a spoken command this far from us [INFERENCE: 71 'All Follow Me' with a pet 7+ off in
@@ -373,6 +373,9 @@ class World:
         self.player.stam, self.player.stam_max = p.get("stam", 25), p.get("stam", 25)
         self.player.mana, self.player.mana_max = p.get("mana", 100), p.get("mana", 100)
         self.player.ar = player_armor(sc)["ar"]
+        self.links = sc["chain"]["totals"]     # the Mastery Chain's (sim/chain.py)
+        self.bard_e = bard_eff(sc)             # effective barding: skill + instrument + links
+        self.song_x = song_share(sc)
         self.mobs[self.player.serial] = self.player
         self.codex = pet_rules.codex_numbers(sc["vet"]["codex"], pet_rules.load_tamer(sc["tamer"]["character"]))
         for i, pet in enumerate(sc["pets"]):
@@ -880,6 +883,9 @@ class World:
             amount = 1                       # Stationary Penalty: our and our followers' damage is 1
         if victim.discord_until > self.t and by is not None and by.kind != "monster":
             amount *= 1 + self.sc["bard"]["discord_taken"]
+        if victim.kind == "monster" and by is not None and by.kind in ("player", "pet") and self.links["damage_to_barded"] \
+                and (victim.discord_until > self.t or victim.calm_until > self.t or victim.provoke):
+            amount *= 1 + self.links["damage_to_barded"]   # the chain's Damage to Barded Creatures
         if by is not None and by.provoke and victim.kind == "monster":
             amount *= self.sc["bard"].get("provoke_x", 1.0)
         if by is not None and by.discord_until > self.t:
@@ -897,7 +903,10 @@ class World:
                 return                               # Tolerance: the tick ignored
             amount *= f
         elif victim.kind == "player" and kind not in UNPREVENTABLE:
-            amount *= 1 - self._patient_dr(victim)   # the Healer's Codex on Logan as his own patient
+            # the Healer's Codex on Logan as his own patient, and the chain's damage resistances
+            lk = self.links
+            typed = {"physical": lk["physical_damage_resistance"], "spell": lk["spell_damage_resistance"]}
+            amount *= 1 - self._patient_dr(victim) - lk["damage_resistance"] - typed.get(DTYPE.get(kind), 0.0)
         if victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
             amount *= 1 + self.song("provoke")
         n = max(1, int(round(amount)))
@@ -957,6 +966,8 @@ class World:
             return
         if m.kind in ("player", "pet"):
             amount *= 1 + self.song("peace")
+        if m.kind == "player":
+            amount *= 1 + self.links["healing_received"]   # the chain's Healing Received
         if m.kind == "pet":
             amount *= pet_rules.heal_mult(m.spec)   # the bestiary's healing perks (Mending, Swarm, Menagerie)
         n = int(round(min(amount, m.hits_max - m.hits)))
@@ -1005,7 +1016,7 @@ class World:
         self.items[corpse] = {"kind": "corpse", "x": m.x, "y": m.y, "z": m.z, "body": m.body, "owner": m.serial,
                               "name": f"{m.name} corpse", "noto": noto, "t": self.t, "others": others}
         lo, hi = m.spec.get("gold", [0, 0])
-        gold = self.rng.randint(int(lo), int(hi)) if hi else 0
+        gold = round(self.rng.randint(int(lo), int(hi)) * (1 + self.links["gold_drop"])) if hi else 0
         if gold:
             g = self._item_serial()
             self.items[g] = {"graphic": combat.GOLD_GRAPHIC, "amount": gold, "container": corpse, "kind": "gold"}
@@ -1280,11 +1291,15 @@ class World:
         if (m.calm_until > t or m.provoke) and int(t / TICK_S) % int(1.0 / TICK_S) == 0:
             diff = m.spec.get("difficulty") or 100
             if self.rng.random() < diff / 100.0 / 100.0:     # (difficulty / 100) % per second (patch 2020-04-07)
-                m.calm_until = 0.0
-                m.provoke = None
-                m.immune_until = t + diff / 10.0
-                self._overhead(m, "*Barding Break*")
-                self._act(m, self.sc["bard"]["break_threat"], count=False)
+                if self.rng.random() < self.links["break_ignore"]:
+                    self._sys(f"Barding break avoided for {m.name}")     # the chain's Break Ignore (live text)
+                    self.count("bard", "break_avoided")
+                else:
+                    m.calm_until = 0.0
+                    m.provoke = None
+                    m.immune_until = t + diff / 10.0
+                    self._overhead(m, "*Barding Break*")
+                    self._act(m, self.sc["bard"]["break_threat"], count=False)
         if m.provoke and m.provoke[1] <= t:
             m.provoke = None
 
@@ -1474,7 +1489,7 @@ class World:
         if d <= 1 and abs(m.z - tgt.z) <= 15:
             if t >= m.next_swing and spec.get("melee"):
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
-                hit = self.rng.random() < spec.get("hit_chance", 0.8)
+                hit = self.rng.random() < spec.get("hit_chance", 0.8) - (tgt.spec.get("defense", 0.0) if tgt.kind == "pet" else 0.0)
                 self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
                 if hit:
                     self.hurt(tgt, self._melee_on(tgt, spec), m, ref=spec.get("melee_ref"))
@@ -2359,7 +2374,8 @@ class World:
 
     def _song(self, kind: str):
         """A barding song: the bard skill at the ground (knowledge #11233/#11234: 15 min, 10 s between songs,
-        independent of the skill timer; live 2026-10-13, three of three played and printed 15.0 %)."""
+        independent of the skill timer); its share from the effective barding skill (scenario.song_share), printed cut
+        to a tenth (live 16.9 % at E 113)."""
         t, b = self.t, self.sc["bard"]
         if t < self.song_ready:
             self._sys(TEXT_SONG_WAIT)
@@ -2368,7 +2384,7 @@ class World:
         self.songs[kind] = t + b.get("song_s", 900.0)
         self._ev("song", kind=kind, until=round(self.songs[kind], 2))
         self.count("songs", kind)
-        x = round(100 * b.get("song_x", 0.15), 1)
+        x = math.floor(1000 * self.song_x + 1e-6) / 10
         self._sys("You are now under the effect of a Song of " + {
             "discord": f"Discordance ({x}% reduced damage from creatures for 15 minutes).",
             "peace": f"Peacemaking ({x}% healing amounts for 15 minutes).",
@@ -2376,7 +2392,7 @@ class World:
 
     def song(self, kind: str) -> float:
         """The song's bonus share while it runs, else 0."""
-        return self.sc["bard"].get("song_x", 0.15) if self.songs.get(kind, 0.0) > self.t else 0.0
+        return self.song_x if self.songs.get(kind, 0.0) > self.t else 0.0
 
     def _target(self, p):
         from world.parsers import parse_packet
@@ -2470,9 +2486,7 @@ class World:
             if m.kind != "monster" or not m.alive or m.hidden_until or cheb(m.pos, pl.pos) > tamer.AREA_PEACE_R \
                     or m.immune_until > t:
                 continue
-            diff = m.spec.get("difficulty") or 100.0
-            s = b["effective_skill"]
-            if self.rng.random() < min(0.95, max(s / 100.0 - diff / 100.0, b["min_chance_factor"] * s / 100.0)):
+            if self.rng.random() < bard_chance(self.sc, "peace", m.key, self.bard_e):
                 m.calm_until = max(m.calm_until, t + 2.0)
                 hit += 1
         self.count("bard", "area_peace_ok" if hit else "area_peace_fail")
@@ -2482,6 +2496,14 @@ class World:
             self._sys(tamer.TEXT_AREA_PEACE_OK)
         else:
             self._sys("You fail to pacify your opponent. You estimate the task to be fairly reasonable.")
+
+    def _barded(self, m: Mob, kind: str) -> bool:
+        """Already under a bard effect of ours for `kind`'s +25 (knowledge #11223: a Discordance on a pacified or
+        provoked creature; live, Peacemaking on a discorded one too, and a Provocation with either creature barded:
+        bard.seconds_note)."""
+        if m.calm_until > self.t or m.provoke:
+            return True
+        return kind != "discord" and m.discord_until > self.t
 
     def _bard(self, kind, tgt: Mob, first: Mob | None):
         t, b, pl = self.t, self.sc["bard"], self.player
@@ -2494,13 +2516,9 @@ class World:
             return
         self._act(target, b["act_threat"])
         diff = target.spec.get("difficulty") or 100.0
-        s = b["effective_skill"] + (25 if kind == "discord" and (target.calm_until > t or target.provoke) else 0)
-        p = min(0.95, max(s / 100.0 - diff / 100.0, b["min_chance_factor"] * s / 100.0))   # knowledge #8530/#5239
-        seen = (b.get("observed") or {}).get(kind, {}).get(target.key)
-        if seen:
-            p = seen[0] / seen[1]          # the live rate at this type (scenario bard.observed_note)
-        elif (shown := (b.get("guide") or {}).get(target.key)) is not None:
-            p = shown                      # the game's Guide showed it to Logan (scenario bard.guide_note)
+        barded = self._barded(target, kind) or (kind == "provoke" and self._barded(tgt, kind))
+        e = self.bard_e + (b["barded_bonus"] if barded else 0.0)
+        p = bard_chance(self.sc, kind, target.key, e)   # scenario.bard_chance: the live d per type (bard.chance_note)
         self.skill_ready = t + tamer.SKILL_GAP_S
         word = {"discord": "discord your opponent", "peace": "pacify your opponent",
                 "provoke": "incite anger amongst your opponents"}[kind]
@@ -2518,20 +2536,20 @@ class World:
             return
         self.count("bard", f"{kind}_ok")
         self._ev("bard", skill=kind, v=target.serial, ok=True)
-        secs = (b["seconds_easy"] if diff < b["easy_below_difficulty"] else b["seconds"])[kind]
+        secs = bard_secs(self.sc, kind, e)
+        shown = f"{secs // 60}m{(' %ds' % (secs % 60)) if secs % 60 else ''}" if secs >= 60 else f"{secs}s"
         if kind == "discord":
             target.discord_until = t + secs
-            self._sys(f"You play successfully, disrupting your opponent and weakening them significantly. "
-                      f"({secs // 60}m{(' %ds' % (secs % 60)) if secs % 60 else ''})")
+            self._sys(f"You play successfully, disrupting your opponent and weakening them significantly. ({shown})")
         elif kind == "peace":
             target.calm_until, target.target = t + secs, None
             self.calm_ready = t + tamer.CALM_SUCCESS_S
-            self._sys(f"You play successfully, pacifying your target. ({secs}s)")
+            self._sys(f"You play successfully, pacifying your target. ({shown})")
         else:
             first.provoke, tgt.provoke = (tgt.serial, t + secs), (first.serial, t + secs)
             first.target, tgt.target = tgt.serial, first.serial
             self.calm_ready = t + tamer.CALM_SUCCESS_S
-            self._sys(f"You play successfully, provoking your targets. ({secs}s)")
+            self._sys(f"You play successfully, provoking your targets. ({shown})")
 
     # items: vet supplies, potions, tome, containers, corpses
     def _dclick(self, s):

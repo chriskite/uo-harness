@@ -55,7 +55,9 @@ python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --
 python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
     --leave-gate 6897 1992 --leave-via 7161 2221                     # ... its level 3 ("Level 3 and the later visits")
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument "eminently melodious"
-                                                                       # ... with another instrument quality (bard.instruments)
+                                                                       # ... with another instrument quality (+15 barding)
+python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
+python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
 python harness/sim/run.py --runs 144 --seed 17 --others --eerie --prior <main checkout>/harness/data/harness.db \
     --json -- --vet-range 5 --crawl-learn-s 180 > sim.jsonl
@@ -129,7 +131,9 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/link.py` | `SimLink`: `act`/`send` (walks get their sequence number, as the proxy stamps them), `state`/`movement` (the server's position as movement truth, the client model's snapshot, events), `wait`/`pos`/`open_containers` from `agent_link.Link`. A state read costs 20 ms of game time, a packet 2 ms. |
 | `sim/world.py` | The server (module docstring): walking by `pathfind.Walk.can_walk` on the install's map (z from the map), line of sight by `los.Sight`, monster and pet AI, other players (`--others`), bard skills, vet supplies, potions, Stationary Penalty, corpses and loot, the rune tome (escape.py's gump layout), our death. |
 | `sim/packets.py` | The S2C packets in the Outlands V10/V12 shapes the world model reads. |
-| `sim/scenario.py` | Loads `harness/data/sim/<name>.json` (its `inherit` takes the named blocks of another scenario: Tidal Tomb has Logan's tamer block, pack, bard, vet, potions and the engine defaults from the Mausoleum's), builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence) and Logan's pets last (`sim/pets.select`); `fit_bard` re-derives the barding skill. |
+| `sim/scenario.py` | Loads `harness/data/sim/<name>.json` (its `inherit` takes the named blocks of another scenario: Tidal Tomb has Logan's tamer block, pack, bard, vet, potions and the engine defaults from the Mausoleum's), builds each creature's spec from the wiki stats and the capture (its docstring gives the order of evidence), puts the character's Mastery Chain in (`sim/chain.apply`) and Logan's pets last (`sim/pets.select`); the barding numbers from the effective barding skill (`bard_eff`, `bard_chance`, `bard_secs`, `song_share`). |
+| `sim/chain.py`, `data/sim/mastery_links.json` | The Mastery Chain as an input ("Mastery Chain links"): the link types the simulator models with their values per material (the wiki's table), `run.py --links` specs, Logan's chain (his tamer file's `chain`). |
+| `sim/bard_scan.py`, `data/sim/bard_observed.json` | Logan's live barding answers (the hunt task logs) at the effective barding skill his songs printed: each type's difficulty per skill, the duration rule's check ("Barding from the effective skill"). |
 | `sim/pets.py` | Logan's pets ("Pets, teams and perks"): the Guide's stats at each pet's level, its abilities, the Taming Bestiary's perks and the Healer's Codex; the team and loadout `run.py --team / --bestiary` pick; how a pet takes the monsters' numbers measured on a reference pet. |
 | `sim/tamer_scan.py` | Reads the Healer's Codex, the Taming Bestiary loadouts and the pets' Guide values from the memory store's gumps into `data/sim/tamer/logan_wolf_observed.json`. |
 | `sim/calibrate.py` | The capture extractor that writes `<name>_observed.json` for the region and captures of the scenario's `calibration` block (`--scenario`; its rules are in the file's `rules`). Red players are no creature type. |
@@ -169,7 +173,8 @@ What the capture and the wiki fixed:
   Casters' spells are [INFERENCE] (the wiki's spell damage x 0.5 every 6 s): none was attributable.
 - **Barding**: the wiki formula `max(S/100 - difficulty/100, 0.33 x S/100)` with S = 149 fitted by
   maximum likelihood to the trip's 47 answered attempts; durations and refusal texts as the trip's. Since
-  2026-10-20 the live success rate by type where it has 10+ attempts (`bard.observed`).
+  2026-10-20 the live success rate by type where it has 10+ attempts (`bard.observed`). Since 2026-10-26 everything from
+  the effective barding skill and each type's live-fitted difficulty ("Barding from the effective skill").
 - **Aggro range 10** with sight (2026-10-15 audit below: 210 of 211 war-mode flips with the nearest of us
   seen at 1-10 tiles). It was 13 for a day on the user's guess ("I think its 12 or 13"), 10 before that,
   from the capture's war-mode switches 1-13 tiles from us, median 7. The wiki's flat 20-tile Perception
@@ -207,7 +212,8 @@ What the capture and the wiki fixed:
   minutes, 10 s between songs: less damage to us and the pets from creatures (bleeds and area hits
   too), more healing received, more damage by us and the pets. 15.0 % each on the second trip, 17.7 %
   since the user's Effective Barding links (the crawl, 20261013_204518), which also lengthened the
-  bard skills' effects ~18 % (discord 71 s, peace 43 s, provoke 36 s); the scenario has the new values.
+  bard skills' effects ~18 % (discord 71 s, peace 43 s, provoke 36 s). Since 2026-10-26 both follow the effective
+  barding skill ("Barding from the effective skill").
 - **Moongate menus** open with the last destination selected, as live; the runner then presses Travel
   on the first menu. A double-click on a gate within a tile opens its menu, and Travel works from
   there, as Logan left on the crawl.
@@ -1407,13 +1413,12 @@ depends on the quality of the instrument"):
     Since then a leave that went up a level isn't called off.
   - `test_go_home_tidal_level3`: `--go-home` from (7170, 2200) comes home by the strip and the gate, both pets
     along. Without `--leave-via`: "no way out from (7170, 2200)".
-- **The instrument** (`bard.instrument`, `bard.instruments`; docs/NOTES.md "Barding: the instrument changed"): the
-  first visit was played with an eminently melodious sackbut (+15), today's with an exceedingly melodious psaltery
-  (+20). The scenario keeps both sets and plays the latter: songs 17.7 %, discord / peace / provoke 71 / 43 / 36 s,
-  the Guide's chances 6.5 points up (one type measured, the rest [INFERENCE]).
-  - `run.py --instrument QUALITY` plays another quality from `bard.instruments` for a batch (`sim.scenario.play`). The
-    summaries name it (`instrument`). A quality the scenario has no numbers for is refused before any run. Only
-    Tidal Tomb has instruments; the Mausoleum keeps its fixed barding numbers.
+- **The instrument** (`bard.instrument`; docs/NOTES.md "Barding: the instrument changed"): the first visit was played
+  with an eminently melodious sackbut (+15), today's with an exceedingly melodious psaltery (+20).
+  - `run.py --instrument QUALITY` plays another quality for a batch (`sim.scenario.play`); the summaries name it
+    (`instrument`). Until 2026-10-26 Tidal Tomb kept each quality's measured numbers (`bard.instruments`) and the
+    Mausoleum fixed ones; since then the quality is a bonus to the effective barding skill in both ("Barding from the
+    effective skill"), and only the quality matters (user 2026-10-26: not the instrument's kind).
 - **Runs after both** (8 each, same seeds):
 
   | | level 1 | level 3 |
@@ -1670,19 +1675,20 @@ absolute numbers pinned to live captures where there are any.
   Guide values (base, not levelled) and level (all 15 since 10-25 20:48 but GirthyEarthy 14 and the mantis 11, last
   seen 10-25 10:56 and 10-24 20:32). Rerun it after Logan views a gump in game: the data fills in with no code change.
   `--as-of 'YYYY-MM-DD HH:MM'` prints the gumps as they stood then (how the anchors' loadouts below were read).
-- `data/sim/tamer/logan_wolf.json`: his skills (Taming, Lore, Veterinary, Herding 120; the Mastery Chain's +16 %
-  follower damage), the 7 species (class, slots, min taming, attack kind, abilities), the 8 pets, the 5 team presets,
-  the perk tables (each perk's numbers per rank and its rule; the gumps' texts), the class threat (`tank` 4.0,
-  `attack`/`utility` 0.1: the fitted gravebug and phoenix), and the anchors.
+- `data/sim/tamer/logan_wolf.json`: his skills (Taming, Lore, Veterinary, Herding 120; barding 80), his Mastery Chain
+  (`chain`: the gump's totals, "Mastery Chain links"), the 7 species (class, slots, min taming, attack kind,
+  abilities), the 8 pets, the 5 team presets, the perk tables (each perk's numbers per rank and its rule; the gumps'
+  texts), the class threat (`tank` 4.0, `attack`/`utility` 0.1: the fitted gravebug and phoenix), and the anchors
+  (with the chain they were measured under, `anchors.chain`).
 
 **A pet's build** (`pets.build_pet`, at the run's Command tier):
 
 | What | Rule |
 |---|---|
 | Level | hits x (1 + 10 % a level to 10, + 5 % past it); damage x (1 + 5 % / 2.5 %); speed + 2.5 % / 1.25 %; armor + 2.5 / 1; magic resist + 5 / 2 (wiki, patch #4658) |
-| Damage | x (1 + Command 5 % + 1.5 % a tier + Mastery 16 % + Veterinary 12 % + underdog 40 % x (120 − min taming) / 70 + Zoology + speed past the 50 % cap) |
-| Resistance | Command 5 % + 1.5 % a tier + underdog 20 % x the same + Zoology; with the perks and the codex at most 75 % (#4653) |
-| Attack period | the Guide's attack speed / (1 + level + Command speed, at most 0.5) x `k_speed` (the pet's live period over that at its level then and tier 14: 0.80-0.84) |
+| Damage | x (1 + Command 5 % + 1.5 % a tier + the chain's Follower Damage (Logan 18.5 %) + Veterinary 12 % + underdog 40 % x (120 − min taming) / 70 + Zoology + speed past the 50 % cap) |
+| Resistance | Command 5 % + 1.5 % a tier + the chain's Follower Damage Resistance + underdog 20 % x the same + Zoology; with the perks and the codex at most 75 % (#4653) |
+| Attack period | the Guide's attack speed / (1 + level + Command speed + the chain's Follower Attack Speed, at most 0.5) x `k_speed` (the pet's live period over that at its level then and tier 14: 0.80-0.84) |
 | Damage factor | `k_dmg` 1.2425, one for every pet: the gravebug's live median melee number (91, n=198, Tidal Tomb levels 1-2, level 15) over the model's on that armor (49.4) *with the barding live had on those hits* (all under the Song of Provocation +16.9 %, 91 of 198 on a discorded target +16.67 %; 1.559 before, which counted them twice). AlaFlambe x 0.73 of it, fitted to its live visits ("Recalibrating") |
 
 **The anchors are pinned** (since 2026-10-25 evening): each is computed with the pet's level and bestiary loadout *when
@@ -1878,6 +1884,77 @@ weights), `test_perk_conditions` (Cornered, Pelt, Aggression, Triage through `Wo
 **Not modelled**: poison and special resist (recorded from the Guide; the area hits' live phoenix = gravebug
 contradicts special resist), the Command aspect's Inspiration, poison levels (Immunize), the bestiary's stealth,
 frenzy, chill, entangle/hinder, pierce/hex and multi-target mechanics (none of these species has them).
+
+## Mastery Chain links (2026-10-26)
+
+User 2026-10-26: "We need to have the links as an input, rather than fitting to Logan's success rate with them on. My
+goal is to try different combos of links." Before, the chain's Follower Damage was a constant (16 %) in the tamer
+file. Its Effective Barding was in the measured barding numbers only (the fixed songs and durations, the observed
+rates). Decision record: docs/PLAN.md "Mastery Chain links in the simulator".
+
+```
+python harness/sim/run.py --runs 98 --links "current, effective_barding=10"          # Logan's chain, 10 EB links
+python harness/sim/run.py --runs 98 --links "follower_damage=4:gold+3, effective_barding=6"
+python harness/sim/run.py --runs 98 --links none                                       # no chain
+```
+
+- **A spec** (`sim/chain.py`): comma-separated `TYPE=N[:MATERIAL][+N:MATERIAL]` (bronze unless named), `current` to start
+  from Logan's chain (a type named after it replaces his), `none`. TYPE is a key of `data/sim/mastery_links.json` or
+  the wiki's name. Refused before any run: more than 10 links of a type, more than 30 in a chain, an unknown type,
+  and a type the simulator doesn't model (with why: "Damage Dealt By Player": Logan doesn't fight). More links than
+  Logan's 13 slots run, with a line on stderr saying so.
+- **The values** per link are the wiki's (bronze, silver x 1.25, gold x 1.5, corrupted x 1.625). Logan's chain is the
+  gump's totals (`tamer/logan_wolf.json` `chain`): Follower Damage 7 links +18.5 %, Effective Barding 6 bronze +18.
+  The gump doesn't show which of the first six Follower Damage links are which material.
+- **Summaries** carry `chain` (each type's total), `chain_links` and `bard_eff`. `all:` carries the batch's chains,
+  E values and the bard skills' counts (`bard`: ok and fail per skill).
+
+| Link type | Where the simulator applies it |
+|---|---|
+| Effective Barding Skill | E: chance, durations, songs (below) |
+| Barding Effect Durations | durations x (1 + total); the songs' 15 minutes stay [INFERENCE] |
+| Bard Reset/Break Ignore Chance | a Barding Break about to fire is avoided ("Barding break avoided for ...") |
+| Damage to Barded Creatures | our and the pets' damage on a creature we discorded, pacified or provoked (pets [INFERENCE]) |
+| Follower Damage / Damage Resistance / Attack Speed | the pets' static pools (`pets.build_pet`, "Pets, teams and perks") |
+| Follower Healing Received | every heal on a pet, with the perks' heal bonus [INFERENCE] |
+| Follower Accuracy/Defense | a melee pet's hit chance up, a monster's melee chance on a pet down, in points [INFERENCE] |
+| Alchemy/Healing/Veterinary | effective Veterinary: the supplies' heals and the pets' Veterinary damage term [INFERENCE] |
+| Healing Received; Damage, Physical, Spell Damage Resistance | on Logan: heals; one damage-resistance pool with the codex's [INFERENCE] |
+| Gold/Doubloon Drop Increase | the gold in a corpse |
+
+`mastery_links.json` `effect` gives each one's rule and source. The fitted factors stay put. `k_dmg` and the
+reference pets are built with the chain they were measured under (`anchors.chain`: Follower Damage 16 %). A run's
+chain moves the pets and never the calibration.
+
+**Not modelled**: break avoidance without the link (live, 53 avoided with no such link: a base chance of unknown
+size), the link's "reset" half, Alchemy on the potions (their heals are measured numbers), player-damage, boss, loot,
+parry and magic-resist types.
+
+### Barding from the effective skill
+
+Every barding number now follows the effective barding skill **E = 80 + the instrument's quality (melodious 5 ..
+supremely 25) + the Effective Barding links** (`scenario.bard_eff`). The evidence (docs/NOTES.md "Barding from the
+effective skill"; `sim/bard_scan.py` over the hunt task logs and the store's songs, 2026-10-15..26):
+
+- **Songs**: 15 % x E / 100, printed cut to a tenth. Live 15.0 / 16.2 / 16.9 / 17.7 / 18.4 % at E 100 / 108 / 113 /
+  118 / 123 (the wiki's 5 % is a third of it).
+- **Durations**: ceil(60 s, or 30 s for peace and provoke, x (E + bonus) / 100) for every type. Live: 2,977 of 2,999
+  answers. The bonus is +25 on a target already barded, which covers Logan's peace after his discord (43 s at E 118,
+  not 36 s) and a provoke onto his discorded target.
+- **Chance**: max((E + bonus - d) / 100, 0.33 x (E + bonus) / 100), at most 1. d is per skill and type
+  (`data/sim/bard_observed.json`): the maximum-likelihood d of the type's 10+ live answers, each at its E. Without
+  those, the Guide's chance (Tidal Tomb) gives d, else the skill's median (Discordance 45.5, Peacemaking 75,
+  Provocation 92.75). A point of E is a point of chance: on 3,000 live discords across five E levels a slope of 1 beats
+  0 by 4.8 in log-likelihood. Peace's d sit 15-35 above discord's on the same type. Neither tracks the wiki
+  difficulty.
+- The Discorded debuff (16.67 %) follows the printed skill, not E (#11224): unchanged by links or instruments.
+
+This replaced `bard.effective_skill` 149 (a fitted offset on the wiki difficulty), `bard.observed` (rates at whatever E
+they were played) and the per-instrument blocks. **Baseline change**: the scenarios now play Logan as he is
+(supremely melodious, E 123; Follower Damage 18.5 %). Batches before ran E 118 and 16 %.
+
+Tests: `test_chain_links` (the spec's limits and merge; the live durations and song prints at their E; +12 E is +12
+points of chance), `test_scenario_inherit` (the instrument quality).
 
 ## Limits
 

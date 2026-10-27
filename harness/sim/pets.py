@@ -9,14 +9,17 @@ A pet's spec (`build_pet`), from its Guide's *base* values at its level (the wik
 - hits x (1 + 0.10 a level to 10, + 0.05 a level past it); damage x (1 + 0.05 / 0.025); attack speed + 2.5 % /
   1.25 %; armor + 2.5 / 1; magic resist + 5 / 2;
 - damage x a static pool: 1 + the Command aspect's follower damage (5 % + 1.5 % a tier) + the Mastery Chain's
-  `follower_damage` + Veterinary's 10 % x skill/100 + the underdog bonus 40 % x (min(Taming, Lore) - min taming) / 70
-  (the searing imp's Details page) + the species' Zoology + attack speed over the 50 % cap (#4661);
-- damage resistance: the Command aspect's 5 % + 1.5 % a tier (armor.follower_resist) + the underdog's 20 % x the
-  same share + Zoology; with the perks' and the codex's at most 75 % (#4653);
-- attack period: the Guide's attack speed / (1 + level + Command speed bonus, at most 0.5) x `k_speed`, the pet's
-  live period over that formula at Command tier 14 (anchors.speed; a pet without an anchor: the others' median);
+  Follower Damage + Veterinary's 10 % x effective skill/100 + the underdog bonus 40 % x (min(Taming, Lore) - min
+  taming) / 70 (the searing imp's Details page) + the species' Zoology + attack speed over the 50 % cap (#4661);
+- damage resistance: the Command aspect's 5 % + 1.5 % a tier (armor.follower_resist) + the chain's Follower Damage
+  Resistance + the underdog's 20 % x the same share + Zoology; with the perks' and the codex's at most 75 % (#4653);
+- attack period: the Guide's attack speed / (1 + level + Command + the chain's Follower Attack Speed, at most 0.5) x
+  `k_speed`, the pet's live period over that formula at Command tier 14 (anchors.speed; a pet without an anchor: the
+  others' median);
 - damage x `k_dmg`, one factor for every pet: the gravebug's live median melee number over the model's
   (anchors.damage); a pet with `anchors.damage_override` (AlaFlambe, its reason there) has its own (`k_override`).
+  The anchor and the reference pets are built with the chain they had then (anchors.chain), a run's pets with the
+  run's (sim/chain.py: sc["chain"]), which also gives the heals on them, their hit chance and the monsters' on them.
 
 Its numbers on a monster (`melee_numbers`, `spell_numbers`, `ability_numbers`): uniform in [lo, hi] x (1 + the
 perks' damage bonus) x Lethality x the monster's mitigation: physical x armor.taken(AR - Breaker on a melee hit)
@@ -37,7 +40,7 @@ import random
 import statistics
 from dataclasses import dataclass, replace
 
-from sim import armor
+from sim import armor, chain as chain_mod
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TAMER_DIR = os.path.join(os.path.dirname(HERE), "data", "sim", "tamer")
@@ -264,8 +267,15 @@ def _command(aspect, tier) -> dict:
             "dr": armor.follower_resist(aspect, tier)}
 
 
-def _period(g: dict, aspect, tier) -> float:
-    return g["attack_s"] / (1 + min(SPEED_CAP, _level(g["level"])["speed"] + _command(aspect, tier)["speed"]))
+def _period(g: dict, aspect, tier, link_speed: float = 0.0) -> float:
+    return g["attack_s"] / (1 + min(SPEED_CAP, _level(g["level"])["speed"] + _command(aspect, tier)["speed"] + link_speed))
+
+
+def links(t: dict, chain: dict | None = None) -> dict:
+    """A chain's totals for every modelled link type: `chain` (totals, any subset), else the tamer's own chain."""
+    if chain is None:
+        return chain_mod.totals(t["chain"]["links"])
+    return {**chain_mod.totals({}), **chain}
 
 
 @functools.lru_cache(maxsize=None)
@@ -292,7 +302,8 @@ def k_dmg(character: str = "logan_wolf") -> float:
     t = load_tamer(character)
     a = t["anchors"]["damage"]
     _, loadout = parse_bestiary(a["loadout"], t)
-    spec = build_pet(a["pet"], t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0, level=a["level"])
+    spec = build_pet(a["pet"], t, loadout, "command", a["tier"], t["teams"][a["team"]]["pets"], k=1.0, level=a["level"],
+                     chain=t["anchors"]["chain"])
     rng, brng = random.Random(1), random.Random(2)
     xs = [float(x) for x, n in ((a.get("barding") or {}).get("multipliers") or {"1": 1}).items() for _ in range(n)]
     tgt = {"armor": a["target_ar"], "magic_resist": a["target_mr"]}
@@ -309,24 +320,26 @@ def k_override(name: str, character: str = "logan_wolf") -> float | None:
 
 
 def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: float | None = None,
-              level: int | None = None) -> dict:
+              level: int | None = None, chain: dict | None = None) -> dict:
     """The World's spec of pet `name` with the bestiary `loadout` ({tab: perks or None}), Logan's armor aspect and
     tier, in `team` (pet names: Swarm and Menagerie count it). `k`: the damage factor (default its k_override, else
-    k_dmg). `level`: another than its Guide's (the anchors: the pet's level when measured)."""
+    k_dmg). `level`: another than its Guide's (the anchors: the pet's level when measured). `chain`: the Mastery
+    Chain's totals (sim/chain.py; default the tamer's own chain)."""
     pet = _pet(name, t)
     sp = t["species"][pet["species"]]
     g = t["guide"][name] if level is None else {**t["guide"][name], "level": level}
-    lv, cmd, tm = _level(g["level"]), _command(aspect, tier), t["tamer"]
+    lv, cmd, tm, lk = _level(g["level"]), _command(aspect, tier), t["tamer"], links(t, chain)
     under = max(0.0, min(1.0, (min(tm["taming"], tm["lore"]) - sp["min_taming"]) / 70.0))
-    speed = lv["speed"] + cmd["speed"]
-    dmg_static = (1 + cmd["damage"] + tm["follower_damage"] + 0.10 * tm["veterinary"] / 100 + 0.4 * under
+    speed = lv["speed"] + cmd["speed"] + lk["follower_attack_speed"]
+    vet = tm["veterinary"] + lk["alchemy_healing_veterinary"]
+    dmg_static = (1 + cmd["damage"] + lk["follower_damage"] + 0.10 * vet / 100 + 0.4 * under
                   + sp["zoology"]["damage"] + max(0.0, speed - SPEED_CAP))
-    dr_static = cmd["dr"] + 0.2 * under + sp["zoology"]["dr"]
+    dr_static = cmd["dr"] + lk["follower_damage_resistance"] + 0.2 * under + sp["zoology"]["dr"]
     if k is None:
         k = k_override(name, t["character"])
     f = lv["damage"] * dmg_static * (k_dmg(t["character"]) if k is None else k)
     lo, hi = g["damage"][0] * f, g["damage"][1] * f
-    period = _period(g, aspect, tier) * k_speed(name, t)
+    period = _period(g, aspect, tier, lk["follower_attack_speed"]) * k_speed(name, t)
     perks = dict(loadout.get(sp["class"]) or {})
     table = t["perks"]["bestiary"]
     ranks = {(p[len(CROSS):] if p.startswith(CROSS) else p): r for p, r in perks.items()}
@@ -335,7 +348,8 @@ def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: fl
     names = {a["name"] for a in abilities}
     team_species = {_pet(n, t)["species"] for n in team}
     heal_bonus = (pv.get("Menagerie", {}).get("heal_per", 0) * len(team_species)
-                  + pv.get("Swarm", {}).get("heal_per", 0) * len(team) + pv.get("Mending", {}).get("heal", 0))
+                  + pv.get("Swarm", {}).get("heal_per", 0) * len(team) + pv.get("Mending", {}).get("heal", 0)
+                  + lk["follower_healing_received"])
     shield = next((a for a in abilities if a["name"] == "Earth Shield"), {})
     codex = codex_numbers(t["codex"]["current"], t)
     spec = {"serial": pet["serial"], "key": pet["species"], "name": name, "body": sp["body"], "species": pet["species"],
@@ -348,12 +362,13 @@ def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: fl
                     "cooldown": any(a["type"] == "cooldown" for a in abilities),
                     "passive": any(a["type"] == "passive" for a in abilities)},
             "team_pets": len(team), "team_types": len(team_species), "heal_bonus": heal_bonus,
+            "defense": lk["follower_accuracy_defense"],
             "shield_armor": shield.get("armor", 0), "shield_bonus": shield.get("melee_bonus", 0.0),
             "codex": {k_: codex[k_] for k_ in ("triage", "combat_medic", "immunize")},
             "threat_x": t["class_threat_x"][sp["class"]], "step_s": t["step_s"], "follow": t["follow"],
             "leash": t["leash"], "specials": []}
     if sp["attack"] == "melee":
-        spec.update(melee={"lo": lo, "hi": hi}, swing_s=period, hit_chance=t["hit_chance"])
+        spec.update(melee={"lo": lo, "hi": hi}, swing_s=period, hit_chance=t["hit_chance"] + lk["follower_accuracy_defense"])
     else:
         sa = t["anchors"]["speed"].get(name) or {}
         spec["ranged"] = {"range": t["spell_range"], "every_s": period, "cast_s": [0, 0, 0], "flight_s": [0, 0, 0],
@@ -370,7 +385,8 @@ def ref_values(ref: dict, t: dict, tier) -> dict:
     """{ar, mr, dr} of the reference pet `ref` with its loadout (a pinned one: as it was when its numbers were
     measured) and its level then (`level`, else its Guide's) at Command `tier`, its DR in REF_TANK."""
     _, loadout = parse_bestiary(ref["bestiary"], t)
-    spec = build_pet(ref["pet"], t, loadout, "command", tier, [ref["pet"]], level=ref.get("level"))
+    spec = build_pet(ref["pet"], t, loadout, "command", tier, [ref["pet"]], level=ref.get("level"),
+                     chain=t["anchors"]["chain"])
     return {"ar": spec["ar"], "mr": spec["mr"], "dr": dr(spec, REF_TANK, True)}
 
 
@@ -400,8 +416,10 @@ def parse_levels(args, t: dict) -> dict:
 def select(sc: dict, team: str | None = None, bestiary: str | None = None, levels=None) -> None:
     """Build the scenario's pets: `team` (a preset or pet names; default the scenario's `tamer.team`) with the bestiary
     loadout `bestiary` (default: the team preset's own, else the scenario team's), each at its Guide's level or the
-    one `levels` gives ("NAME=LEVEL" strings: a past window's, run.py --pet-level). Writes sc["pets"], sc["party"],
-    sc["vet"]["range"] / ["codex"] / ["skill"] and sc["pet_ref"]. Run after the armor is set (--aspect-tier)."""
+    one `levels` gives ("NAME=LEVEL" strings: a past window's, run.py --pet-level), with the scenario's Mastery Chain
+    (sc["chain"], sim/chain.apply; the character's own when unset). Writes sc["pets"], sc["party"],
+    sc["vet"]["range"] / ["codex"] / ["skill"], sc["bard"]["skill"] and sc["pet_ref"]. Run after the armor is set
+    (--aspect-tier) and the chain (--links)."""
     from sim.scenario import player_armor
     t = load_tamer(sc["tamer"]["character"])
     names, preset = parse_team(team or sc["tamer"]["team"], t)
@@ -419,13 +437,18 @@ def select(sc: dict, team: str | None = None, bestiary: str | None = None, level
                 warnings.append(f"{label} {tab} tab not captured: no perks for {', '.join(who)}")
             loadout[tab] = {}
     arm = player_armor(sc)
-    sc["pets"] = [build_pet(n, t, loadout, arm["aspect"], arm["tier"], names, level=lv.get(n)) for n in names]
+    if "chain" not in sc:
+        chain_mod.apply(sc)
+    lk = links(t, sc["chain"]["totals"])
+    sc["pets"] = [build_pet(n, t, loadout, arm["aspect"], arm["tier"], names, level=lv.get(n), chain=lk) for n in names]
     sc["party"] = {"team": names, "preset": preset, "bestiary": label, "loadout": loadout,
                    "levels": {p["name"]: p["level"] for p in sc["pets"]},
                    "codex": dict(t["codex"]["current"]), "warnings": warnings}
     sc["vet"]["codex"] = dict(t["codex"]["current"])
     sc["vet"]["range"] = codex_numbers(sc["vet"]["codex"], t)["range"]
-    sc["vet"]["skill"] = {k: t["tamer"][k] for k in ("veterinary", "lore")}
+    sc["vet"]["skill"] = {"veterinary": t["tamer"]["veterinary"] + lk["alchemy_healing_veterinary"],
+                          "lore": t["tamer"]["lore"]}
+    sc["bard"]["skill"] = t["tamer"]["barding"]
     tier = sc["player"]["armor"]["pets_tier"]
     sc["pet_ref"] = {k: ref_values(r, t, tier) for k, r in _refs(sc).items()}
 

@@ -5669,12 +5669,40 @@ instrument").
 - With the sackbut: songs 16.9 %, discord 68 s, peace 34 s, provoke 42 s.
 - With the psaltery: songs 17.7 %, discord 71 s (19 of 21; 86 s twice), peace 43 s (7 of 8), provoke 36 s (6 of 6).
 - The creature Guide's "Barding Chance" on an oozing noughtilus: 87.7 % with the sackbut, 94.2 % with the psaltery
-  (its "Barding Duration" 68 s -> 71 s). So +5 instrument skill moved the chance 6.5 points [INFERENCE: Item ID
-  multiplies an instrument's bonus, knowledge #3870].
+  (its "Barding Duration" 68 s -> 71 s). (Read on 2026-10-25 as Item ID multiplying the bonus, knowledge #3870; the
+  songs below show no multiplier: Logan has no Item Identification.)
 - The Mastery Chain gump on 2026-10-25: 12 links, Follower Damage +16 %, Effective Barding Skill +18. After the trip,
   a 13-link limit.
-- The simulator's Tidal Tomb scenario keeps both sets (`bard.instruments`) and plays the quality he played last
-  (`bard.instrument`).
+
+**Barding from the effective skill** (2026-10-26; user: the links as an input to the simulator, and "the only thing
+that matters is the 'melodious' level", not the instrument's kind). Evidence: the memory store's songs and chain gumps,
+the hunt task logs' 4,293 bard answers 2026-10-15..26 (`harness/sim/bard_scan.py`).
+
+- **Logan's chain over time** (gump id 2785326818 in the store): 2026-10-13 17:49 "8 Links Installed, 12 Link Limit,
+  6 Follower Damage (+16.00%), 2 Effective Barding Skill (+6.00)"; 17:50 12 installed, Effective Barding +18.00 (six
+  bronze links of 3.00); unchanged to 2026-10-25 11:19; 11:37 a 13-link limit; 11:38 7 Follower Damage (+18.50 %: a
+  silver 2.50), the same through 21:33. The gump shows only each type's count and total, not the materials.
+- **A song prints 15 % x E / 100, cut to a tenth**, E = the effective barding skill = 80 (Peacemaking, Discordance,
+  Provocation) + the instrument's quality bonus + the Effective Barding links: 15.0 % (E 100: exceedingly, before the
+  links, 2026-10-13 17:39), 16.2 % (108: surpassingly), 16.9 % (113: eminently, the sackbut), 17.7 % (118:
+  exceedingly), 18.4 % (123: supremely, since 2026-10-25 17:36). 16.8 % (E 112) 2026-10-14..17 [INFERENCE: a skill a
+  point lower then]. The wiki says 5 % x E / 100 (#11234). Others: 4.0 % on 2026-10-02/03 (before the template), 15.8 %
+  on the test shard 2026-10-15 morning, 9.9 % twice on 2026-10-23 21:26-21:41 (not Logan's E; unexplained).
+- **A success lasts ceil(base x (E + bonus) / 100)**, base 60 s for Discordance, 30 s for Peacemaking and
+  Provocation, the same for every creature type; bonus 25 on a target already barded (Discordance on one pacified or
+  provoked, #11223; Peacemaking or Provocation on one discorded). 2,957 of 2,979 durations in the task logs fit; the
+  other 22 fall within an hour of an instrument change. Logan's Peacemaking almost always follows his Discordance, so
+  it lasts 30 x (E + 25): 43 s at E 118, not the 36 s a fresh target gets.
+- **One point of E is one point of chance**: p = max((E + bonus - d) / 100, 0.33 x (E + bonus) / 100) with d per skill
+  and type. Over the eras (E 108-123), a slope of 1 beats a slope of 0 by 4.8 in log-likelihood on 3,000 Discordances
+  and 4.6 on 1,000 Peacemakings (0.5-1.5 fit alike). No 95 % cap: raw flesh and newly reanimated took 120 of 120. The
+  wiki difficulty is not the server's d: Discordance's fitted d sit at 23-57 on types the wiki puts at 67-205, and
+  Peacemaking's are 15-35 higher than Discordance's on the same type (median 76 against 45.5).
+- **Barding break avoided** happens with no Break Ignore link: 53 "Barding break avoided for <name>" lines
+  2026-10-12..26 against 238 "*barding break*" overheads (any player's breaks in view). A base chance exists; its size
+  is not separable from these counts.
+- The Discorded debuff scales with the printed Discordance, not E (#11224: 80 / 120 x 25 % = 16.67 %): the links and
+  the instrument don't change it.
 
 **Leaving level 3.** The user's way out: back up the arrival strip (a step S onto (7161, 2221) at 11:35:19) and the
 crimson gate 0x4003D7B9 at (6897, 1992) on level 2 (11:36:55). The hunt runner does the same since 2026-10-25 with

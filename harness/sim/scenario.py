@@ -25,9 +25,10 @@ Per creature type, in this order of evidence:
   (`melee_ref`), a `ranged_observed` one or a special: the pet its numbers were measured on (else
   `defaults.pet_ref`).
 
-`fit_bard(observed, kb)` re-derives the effective barding skill from the capture's outcomes;
-`player_armor(sc)` resolves the player's AR, aspect and tier from `player.armor`; `load` builds Logan's pets last
-(sim/pets.select: the scenario's `tamer` block).
+`player_armor(sc)` resolves the player's AR, aspect and tier from `player.armor`; `load` puts the character's Mastery
+Chain in (sim/chain.apply) and builds Logan's pets last (sim/pets.select: the scenario's `tamer` block). The barding
+numbers come from the effective barding skill (`bard_eff`: skill + instrument quality + the chain's Effective Barding;
+docs/SIM.md "Barding from the effective skill"): `bard_chance`, `bard_secs`, `song_share`.
 """
 from __future__ import annotations
 
@@ -35,7 +36,7 @@ import json
 import math
 import os
 
-from sim import armor, pets
+from sim import armor, chain, pets
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.path.dirname(HERE), "data", "sim")
@@ -134,24 +135,36 @@ def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
     sc["creatures"] = {k: creature_spec(k, kb["creatures"][k], (obs.get("creatures") or {}).get(k), sc) for k in keys}
     for sp in sc["spawns"]:
         sp.setdefault("respawn_s", sc["defaults"]["respawn_s"])
-    if (played := sc["bard"].get("instrument")) is not None:
-        play(sc, played)
-    sc["bard"]["chance"] = None          # per target: bard_chance()
+    play(sc, sc["bard"]["instrument"])
+    sc["bard"]["d"] = bard_difficulty(sc["bard"], data_dir)
     if "tamer" in sc:
+        chain.apply(sc)                  # the character's own chain; run.py re-applies for --links
         pets.select(sc)                  # Logan's pets (sim/pets.py); run.py re-selects for --team / --bestiary
     return sc
 
 
 def play(sc: dict, name: str) -> None:
-    """Logan plays an instrument of quality `name`: its barding numbers, measured live with it (user 2026-10-25:
-    "Barding depends on the quality of the instrument"), from `bard.instruments` over the bard block's own. load
-    does it for the scenario's `bard.instrument`, run.py --instrument for another. ValueError for one not there."""
-    have = sc["bard"].get("instruments") or {}
+    """Logan plays an instrument of quality `name` (a key of `bard.instrument_bonus`): its bonus is part of his effective
+    barding skill (bard_eff). load does it for the scenario's `bard.instrument`, run.py --instrument for another.
+    ValueError for a quality not there."""
+    have = sc["bard"]["instrument_bonus"]
     if name not in have:
-        raise ValueError(f"no instrument {name!r} in the scenario's bard.instruments (it has: "
-                         f"{', '.join(sorted(have)) or 'none'})")
-    sc["bard"].update({k: v for k, v in have[name].items() if not k.endswith("note")})
+        raise ValueError(f"no instrument quality {name!r} (one of: {', '.join(have)})")
     sc["bard"]["instrument"] = name
+
+
+def bard_difficulty(b: dict, data_dir: str = DATA) -> dict:
+    """{skill: {type: d}, "median": {skill: d}} for World._bard: the live fit (`b["difficulty"]`, sim/bard_scan.py),
+    then the Guide's chances for the types the fit lacks (`b["guide"]` {type: [chance, E]}: d = E - 100 x chance)."""
+    with open(os.path.join(data_dir, b["difficulty"]), encoding="utf-8") as f:
+        fit = json.load(f)["kinds"]
+    out = {"median": {k: v["median_d"] for k, v in fit.items()}}
+    for kind, v in fit.items():
+        d = {ty: e["d"] for ty, e in v["types"].items()}
+        for ty, (p, e) in (b.get("guide") or {}).items():
+            d.setdefault(ty, e - 100.0 * p)
+        out[kind] = d
+    return out
 
 
 def player_armor(sc: dict) -> dict:
@@ -165,31 +178,29 @@ def player_armor(sc: dict) -> dict:
     return {"ar": ar, "aspect": aspect, "tier": tier}
 
 
-def bard_chance(sc: dict, difficulty: float | None) -> float:
-    """Success chance of a bard skill against `difficulty` (knowledge #8530/#5239)."""
+def bard_eff(sc: dict) -> float:
+    """Logan's effective barding skill: his skill (tamer barding) + the instrument's quality + the Mastery Chain's
+    Effective Barding links (docs/SIM.md "Barding from the effective skill")."""
     b = sc["bard"]
-    s = b["effective_skill"]
-    d = difficulty if difficulty is not None else 100.0
-    return max(s / 100.0 - d / 100.0, b["min_chance_factor"] * s / 100.0)
+    return b["skill"] + b["instrument_bonus"][b["instrument"]] + sc["chain"]["totals"]["effective_barding"]
 
 
-def fit_bard(observed: dict, kb: dict, skills=("Discordance", "Peacemaking", "Provocation")) -> dict:
-    """The effective barding skill that best explains the capture's ok/fail answers per target type
-    (maximum likelihood over 100-250, step 1)."""
-    rows = []
-    for skill in skills:
-        for typ, outc in (observed.get("bard", {}).get(skill, {}).get("by_type") or {}).items():
-            d = (kb["creatures"].get(typ) or {}).get("difficulty")
-            if d is None:
-                continue
-            rows.append((d, outc.get("ok", 0), outc.get("fail", 0)))
-    best = None
-    for s in range(100, 251):
-        ll = 0.0
-        for d, ok, fail in rows:
-            p = min(0.99, max(0.01, max(s / 100 - d / 100, 0.33 * s / 100)))
-            ll += ok * math.log(p) + fail * math.log(1 - p)
-        if best is None or ll > best[1]:
-            best = (s, ll)
-    n = sum(ok + fail for _, ok, fail in rows)
-    return {"effective_skill": best[0], "log_likelihood": round(best[1], 2), "n": n}
+def bard_chance(sc: dict, kind: str, key: str, e: float) -> float:
+    """A bard skill's chance at a creature of type `key` with effective skill `e` (bard_eff + any barded bonus):
+    max((e - d) / 100, min_chance_factor x e / 100), at most 1 (knowledge #8530/#5239); d from bard_difficulty, else
+    the skill's median."""
+    b = sc["bard"]
+    d = b["d"][kind].get(key, b["d"]["median"][kind])
+    return min(1.0, max((e - d) / 100.0, b["min_chance_factor"] * e / 100.0))
+
+
+def bard_secs(sc: dict, kind: str, e: float) -> int:
+    """A success's seconds at effective skill `e`: ceil(seconds_per_100 x e / 100 x (1 + the chain's Barding Effect
+    Durations)); live 2,957 of 2,979 answers (bard.seconds_note)."""
+    base = sc["bard"]["seconds_per_100"][kind]
+    return math.ceil(base * e / 100.0 * (1 + sc["chain"]["totals"]["barding_durations"]) - 1e-9)
+
+
+def song_share(sc: dict) -> float:
+    """A barding song's bonus share: song_per_100 x bard_eff / 100 (live 15.0-18.4 %, bard.song_note)."""
+    return sc["bard"]["song_per_100"] * bard_eff(sc) / 100.0
