@@ -980,7 +980,7 @@ class Team:
             or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
 
     def cover(self, st) -> bool:
-        """An awake corpse purger or blightmare (aggro.SHY) that sees us within its reach: walk (up to COVER_STEPS) to
+        """An awake corpse purger or blightmare (aggro.shy) that sees us within its reach: walk (up to COVER_STEPS) to
         the nearest tile out of every such shot, out of area hits and fire, the fewest idle eyes (stand_score) first,
         before the vet supplies on anyone, the spacing or anything else but a retreat; mid-channel too (its shot and
         the diseases it stacks outrun the channel). User 2026-10-21: "All you really have to do for disease casters
@@ -1084,7 +1084,7 @@ class Team:
 
     def pull_check(self, st) -> str | None:
         """Why an advance (a patrol walk, an approach) should stop here: aggro.View.overpull, a --never-aggro
-        monster or an idle corpse purger or blightmare (aggro.SHY) that would see us before a pet (back_off steps out),
+        monster or an idle corpse purger or blightmare (aggro.shy) that would see us before a pet (back_off steps out),
         an awake one whose shot reaches this tile, not one on someone else (shy_threats: walked past; "an awake …
         would see us"; cover steps out, and without this stop the walk went straight back in: live 2026-10-24
         19:01:21-19:02:55, nine and five rounds), or hold_reason. Its "at once" (more than the budget idle in sight
@@ -1159,11 +1159,11 @@ class Team:
         return f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles: letting it come"
 
     def shy_first(self, v, tile) -> list[dict]:
-        """Idle corpse purgers and blightmares (aggro.SHY) that would see us on `tile` before a pet (first_on_us)."""
+        """Idle corpse purgers and blightmares (aggro.shy) that would see us on `tile` before a pet (first_on_us)."""
         return [m for m in v.first_on_us(tile, margin=1) if m["shy"]]
 
     def back_off(self, st) -> bool:
-        """An idle corpse purger or blightmare (aggro.SHY) would see us before a pet (aggro.View.first_on_us): its first
+        """An idle corpse purger or blightmare (aggro.shy) would see us before a pet (aggro.View.first_on_us): its first
         sight puts its aggro on us and its barrage or spells reach us wherever the pets stand, so step (up to
         PULL_STEPS, at most every BACK_OFF_S) to a tile out of its sight, else farther from it than here, keeping the
         pets within --vet-range: the guarding pets trail us, so it meets them first. User 2026-10-17: "We're frequently
@@ -1222,7 +1222,7 @@ class Team:
         return True
 
     def patrol_pull(self, st, serial: int | None = None) -> bool:
-        """--patrol-pull: "All Patrol" at a ground tile beside an idle corpse purger (aggro.SHY) within PATROL_R, so
+        """--patrol-pull: "All Patrol" at a ground tile beside an idle corpse purger (aggro.shy) within PATROL_R, so
         the pets wake it and its barrage goes to them (user 2026-10-18: "We can send our pets to a spot away from us,
         e.g. to within aggro distance of a purger, while we're not in aggro range"; live demo 17:55-18:00, docs/NOTES.md
         "All Patrol": both purgers woken that way shot the pets, Logan 100/100). Only with nothing fighting, nothing
@@ -1565,7 +1565,7 @@ class Team:
 
     @staticmethod
     def shy_beyond(v, tile) -> int:
-        """Shy casters and ranged monsters (aggro.SHY) in war mode that see `tile` beyond their reach: in stand_score's
+        """Shy casters and ranged monsters (aggro.shy) in war mode that see `tile` beyond their reach: in stand_score's
         count (sight to los.MAX_DISTANCE), yet they shoot from where they stand and can't hit us there."""
         reach = {m["serial"] for m in Team.casters_at(v, tile)}
         return sum(1 for m in v.mobs if m["war"] and m["shy"] and (m["caster"] or m["ranged"])
@@ -1780,7 +1780,7 @@ class Team:
 
     def loot_tile(self, st, spot) -> tuple:
         """Where to loot the corpse at `spot` from while an area hitter or an awake shy monster (a corpse purger or a
-        blightmare in war mode, aggro.SHY: it shoots from where it stands) is in view -> (tile, None): walk there;
+        blightmare in war mode, aggro.shy: it shoots from where it stands) is in view -> (tile, None): walk there;
         (None, None): as before (neither, or here is in reach of the corpse, clear of every area hit and out of every
         shy one's shot); (None, why): wait, no tile within combat.LOOT_RANGE of the corpse is clear of the area hits,
         or each is in a shy one's shot. The tile: clear of every area hit and fire and out of the shy ones' shots,
@@ -1819,7 +1819,7 @@ class Team:
 
     @staticmethod
     def shy_awake(v) -> list[dict]:
-        """Corpse purgers and blightmares (aggro.SHY) in war mode in view: they shoot from where they stand."""
+        """Corpse purgers and blightmares (aggro.shy) in war mode in view: they shoot from where they stand."""
         return [m for m in v.mobs if m["war"] and m["shy"]]
 
     def shy_threats(self, st, v) -> list[dict]:
@@ -2203,7 +2203,7 @@ class Team:
                 and not any(not p["dead"] and p["dist"] <= self.a.vet_range + 2 for p in self.pets(st)) \
                 and self.rejoin(st):
             return                        # nothing between it and us here: to the pets (rejoin)
-        # a corpse purger or blightmare on us (aggro.SHY) gets "All Kill" at once and no walk back to the pets through
+        # a corpse purger or blightmare on us (aggro.shy) gets "All Kill" at once and no walk back to the pets through
         # its shot (cover takes us out of it; simulator seed 2072: a 12-step rejoin under a purger, 100 -> 33): it shoots
         # from where it stands and its diseases stack, so 4 s more of it is 40-60 hits; its aggro is on us already (user
         # 2026-10-21: "If you 'All Kill' on a mob that isn't already aggro'd on something else ... it will aggro on us")

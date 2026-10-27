@@ -122,22 +122,31 @@ def ranged(kind: str) -> bool:
     return (creatures().get(kind) or {}).get("ai") == "ranged"
 
 
-# Monsters that shoot from where they stand, whose first sight of us we keep the pets ahead of (tamer.Team.back_off):
-# their aggro goes to whoever they see first and their attack reaches us wherever the pets stand. The corpse purger
-# (user 2026-10-17: "We're frequently getting diseased by the corpse purgers"; its barrage diseases: docs/NOTES.md
-# "Corpse purger diseases"); the blightmare since 2026-10-21 (a mage that stood at its spot and cast at Logan from 10-12
-# with its Spellblight disease in both live deaths to it, 10-19 19:55 and 10-21 18:21; docs/NOTES.md "Dead in a
-# blightmare's reach again"); since 2026-10-26 the casters that stand and cast (the master reanimator, the shadowguard, the
-# banshee, the shadow minion, the insane reanimator): user 2026-10-26 "I keep the pets between me and mobs so mobs aggro
-# on the pets ... I avoid being sighted by hostiles", his fight in the reanimator's room with "All Patrol" from out of
-# sight and no damage, against two deaths there where they saw Logan first (docs/NOTES.md "How the user plays the
-# casters and purgers").
-SHY = ("corpse purger", "blightmare", "master reanimator", "shadowguard", "banshee", "shadow minion",
-       "insane reanimator")
+# Monsters that shoot or cast from where they stand, whose first sight of us we keep the pets ahead of
+# (tamer.Team.back_off): their aggro goes to whoever they see first and their attack reaches us wherever the pets
+# stand. The corpse purger (user 2026-10-17: "We're frequently getting diseased by the corpse purgers"; its barrage
+# diseases: docs/NOTES.md "Corpse purger diseases"); the blightmare since 2026-10-21 (a mage that stood at its spot and
+# cast at Logan from 10-12 with its Spellblight disease in both live deaths to it, 10-19 19:55 and 10-21 18:21;
+# docs/NOTES.md "Dead in a blightmare's reach again"); since 2026-10-26 the casters that stand and cast (user 2026-10-26
+# "I keep the pets between me and mobs so mobs aggro on the pets ... I avoid being sighted by hostiles", his fight in
+# the reanimator's room with "All Patrol" from out of sight and no damage, against two deaths there where they saw Logan
+# first: docs/NOTES.md "How the user plays the casters and purgers").
+# Since 2026-10-26 by the wiki's AI rather than by name (user: Tidal Tomb's drowned mariners, soulcatchers and zoas
+# are "conceptually similar to the ranger attackers and casters in Mausoleum 3"; "treat them the same"): a mage or
+# ranged AI from SHY_MIN_DIFFICULTY up (the weak casters, a familiar 21 and a reanimator zealot 50, die before they
+# matter [INFERENCE]), plus SHY_EXTRA (the shadowguard: a meleemage that casts from its spot, on the user's list).
+# On the Mausoleum that keeps the old seven and adds the calamity (it cast at Logan from 13), the fleshweaver and the
+# muddled vampire hunter; on Tidal Tomb the drowned mariner and buccaneer, the soulcatcher and every zoa.
+SHY_AI = frozenset(("mage", "ranged"))
+SHY_MIN_DIFFICULTY = 60.0
+SHY_EXTRA = frozenset(("shadowguard",))
 
 
 def shy(kind: str) -> bool:
-    return kind in SHY
+    if kind in SHY_EXTRA:
+        return True
+    c = creatures().get(kind) or {}
+    return c.get("ai") in SHY_AI and (c.get("difficulty") or 0.0) >= SHY_MIN_DIFFICULTY
 
 
 def stealthy(kind: str) -> bool:

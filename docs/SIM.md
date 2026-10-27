@@ -53,7 +53,7 @@ python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal T
 python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071
                                                                        # ... its level 2, under water
 python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
-    --leave-gate 6897 1992 --leave-via 7161 2221                     # ... its level 3 ("Level 3 and the later visits")
+    --fight-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221   # ... its level 3, level 2 fought through
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument "eminently melodious"
                                                                        # ... with another instrument quality (+15 barding)
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
@@ -1602,6 +1602,49 @@ Level 2's command: `--area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-
   level 2 requires more careful positioning and aggro management than other areas the runner has experienced"). The
   runner walks through the arrival's shooters toward the next teleporter; the user stops and fights them there.
   Level 2 needs crawler rules before a live try (the earlier "Open" list).
+
+### Level 2's shooters, and fighting through level 2 (2026-10-26)
+
+User 2026-10-26: Tidal Tomb's drowned mariners, soulcatchers and zoas are "conceptually similar to the ranger attackers
+and casters in Mausoleum 3": treat them the same. Also: "whereas Maus 2 is not so dangerous and we can largely run
+through, in TT we'll always have to fight in 2 in order to get to 3."
+
+- **The shy rules by AI** (`aggro.shy`). Before, the rules for monsters that shoot from their spot were keyed to seven
+  Mausoleum names: the back-off before one sees us, 'All Patrol' into it, the cover, the loot tile and the crawl's seek
+  skip. Now they cover any mage or ranged AI from difficulty 60 up in the wiki data, plus the shadowguard. In the sim
+  the shooters are built the same: a mariner like a purger (range 10, keeps 4), a zoa like a reanimator (12, keeps 1).
+  The mariner hits about 2.5 times as hard per second (25 every 1.6 s against 15 every 2.3 s), and soulcatchers walk
+  in.
+- **`--fight-via X Y`** (`HuntLoop.walk_in_fought`): the walk-in leg to that teleporter is fought through instead of
+  walked. Each round is the hunt tick's fighting (`combat_step`, split out of `tick`). Then the pets are healed up and
+  gathered (the crawl patrol's wait or `Team.rejoin`) and the walk goes on, stopping as the patrol does
+  (`fought_stop`). The leg aborts after `WALK_FOUGHT_S` (20 min).
+
+**Runs** (seeds from 4, 30 min from home; Maus 3 from seed 17):
+
+| | Maus 3, 48 runs | level 2 crawl, 16 | level 3, 16 |
+|---|---|---|---|
+| before | 3 died; 145.8 kills/h, 146,949 gp/h | 7 died; 162.6 kills/h, 172,146 gp/h | 15 died; 99,631 gp/h |
+| shy by AI | 2 died; 144.4, 144,247 | 3 died; 146.9, 161,040 | 14 died; 79,926 gp/h |
+| shy by AI and `--fight-via 6884 1929` | | | 9 died; 158,867 gp/h |
+
+- **Maus 3 is unchanged** within noise: gold -1.8 %, one death fewer.
+- **Level 2's deaths fall from 7 runs to 3**, for 10 % fewer kills: the back-offs and the patrols cost time.
+- **Level 3 needs both.** The shy rule alone doesn't help: the walk-in doesn't use it.
+- **The fought leg takes 11-20 game minutes** across the strip (`fought through` at 2-4 min, level 3 reached at 13-22
+  min).
+- **The first version waited for lagging pets with `wait_pets`.** Its 'All Follow Me' pulled them off their fights and
+  ended 3 of the 16 legs "pets not all within reach"; it had 3 deaths. With the crawl's rejoin no leg aborts, and 9
+  runs die.
+- **Where they die:** 5 on the fought leg, 4 later. On the leg, two at the strip's arrival (a frenzyfin and a drowned
+  mariner, 105 and 66 in 15 s; seed 18 frenzyfin 147) and three by the leave gate (6891-6898, 1989-2000). The killers
+  there are melee: an ocean bedrock (108 in 15 s), an ironscale grouper, a voidfin. Seed 6 (log): Logan walked to a
+  grouper's corpse at 100 hits with a provoked ocean bedrock beside it and was at 13 seven seconds later. Later: two
+  on the leave across level 2 (seed 8 by the bedrocks at (6888, 1968), time up; seed 13 by the gate), seed 12 on
+  level 3 (a tidal sea serpent, 137), seed 15 at the strip's arrival.
+- **Open:** the melee killers by the gate. The pets measured an ocean bedrock at 30 a hit every 2 s
+  (`tidal_tomb_observed.json`), so one on Logan kills him in about 7 s. Those deaths are the runner's fight rules
+  (looting beside an awake one, the off-the-tank steps), not the leg.
 
 ## Player armor (2026-10-24)
 

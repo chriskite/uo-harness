@@ -2167,7 +2167,7 @@ def test_caster_room_pets_first():
     # live 2026-10-26 19:30:06-16 (hunt-20261026-184350-3c20): "holding here: shadowguard in sight at 6 tiles: letting it
     # come" in the doorway (5241, 723); it woke on Logan (ensnared, diseased), the reanimator after, dead at 19:30:23. The
     # user from the same place at 19:45: "All Patrol" into the room from out of sight, both woke on the pets, no damage
-    # (aggro.SHY since: the casters too)
+    # (aggro.shy since: the casters too)
     w = world_with([{"key": "shadowguard", "at": [5235, 723, 0]}, {"key": "master reanimator", "at": [5230, 722, 0]}],
                    seed=7, start=(5241, 723))
     for m in w.mobs.values():
@@ -4675,11 +4675,11 @@ TIDAL_L2 = (6943, 2004)       # ...level 2's arrival (under water: the scenario'
 TIDAL_L3 = (7162, 2221)       # ...level 3's arrival, 11 tiles from its Recovery Dolphin (7164, 2210)
 
 
-def tidal_world(start, spawns=(), seed=1):
+def tidal_world(start, spawns=(), seed=1, z=None):
     sc = load("tidal_tomb")
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
-    sc["player"]["start"] = [start[0], start[1], {TIDAL_L1: -16, TIDAL_L3: -50}.get(start, -38)]
+    sc["player"]["start"] = [start[0], start[1], z if z is not None else {TIDAL_L1: -16, TIDAL_L3: -50}.get(start, -38)]
     return World(sc, seed=seed)
 
 
@@ -4972,6 +4972,71 @@ def test_tidal_recall_rule():
     check("...and on the Mausoleum's fight level as before", escape.recall_forbidden((5261, 652, 0), 0) is not None)
 
 
+def test_shy_by_ai():
+    print("== shy (keep out of its first sight, the pets into it): a mage or ranged AI from difficulty 60, the shadowguard; "
+          "not a weak caster, not a melee one ==")
+    import aggro
+    got = {k: aggro.shy(k) for k in ("corpse purger", "blightmare", "shadowguard", "calamity", "drowned mariner",
+                                     "soulcatcher", "astral zoa", "familiar", "reanimator zealot", "ocean bedrock",
+                                     "vampire countess")}
+    want = {"corpse purger": True, "blightmare": True, "shadowguard": True, "calamity": True, "drowned mariner": True,
+            "soulcatcher": True, "astral zoa": True, "familiar": False, "reanimator zealot": False,
+            "ocean bedrock": False, "vampire countess": False}
+    check("as the rule says for both dungeons' types", got == want, str({k: v for k, v in got.items() if v != want[k]}))
+
+
+def test_walk_in_fought():
+    print("== --fight-via: the level 2 leg to level 3 fought through; a drowned mariner by the way woken on the pets, "
+          "killed, then on through the teleporter ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    from sim import world as simworld
+    # user 2026-10-26: "in TT we'll always have to fight in 2 in order to get to 3"; simulator the same day: 15 of 16
+    # level 3 runs died, most on the walk across level 2 among its drowned mariners and soulcatchers
+    w = tidal_world((6834, 2079), [{"key": "drowned mariner", "at": [6852, 2072, -86]}], z=-10)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    tele = ["6884", "1929"]
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs", "--enter-via", *tele,
+                                                                       "--fight-via", *tele], 10, at_hunt=False)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    pets = {p.serial for p in w.pets()}
+    targets = set()
+    stray, simworld.SHOT_AT_PLAYER_P = simworld.SHOT_AT_PLAYER_P, 0.0
+    run_until = clock.on_advance
+
+    def watch(now):
+        run_until(now)
+        if m.alive and m.target is not None:
+            targets.add(m.target)
+    clock.on_advance = watch
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    err = None
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            try:
+                loop.walk_in([(6884, 1929)])
+            except loop_hunt.Abort as e:
+                err = str(e)
+    finally:
+        clock.on_advance = run_until
+        simworld.SHOT_AT_PLAYER_P = stray
+        store.close()
+        simclock.uninstall(patched)
+    check("through to level 3 alive, the mariner dead, its aggro only ever on the pets",
+          err is None and w.player.alive and not w.player.ghost and sim_cheb(w.player.pos, TIDAL_L3) <= 3
+          and not m.alive and targets and targets <= pets,
+          f"err {err!r} at {w.player.pos} mariner alive {m.alive} targets {targets} pets {pets} | "
+          + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+
+
 def test_tidal_hunt():
     print("== a Tidal Tomb hunt from home: recall in, kills on level 1, out by the golden moongate to Totem, home ==")
     from sim import run as simrun
@@ -5027,7 +5092,7 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_level3_bursts,
-              test_tidal_recall_rule, test_tidal_hunt):
+              test_tidal_recall_rule, test_shy_by_ai, test_walk_in_fought, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

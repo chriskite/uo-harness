@@ -257,6 +257,7 @@ TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fe
 #                               route's 12 to the tile before it and the step on; the stand there was killing Logan until
 #                               the user walked him through. 13 plus a 2-step margin, ~3 s running against a stand of up
 #                               to WALK_IN_FIGHT_S; GATE_DASH_R's rule for the leave gate)
+WALK_FOUGHT_S = 1200.0        # --fight-via: a fought leg not at its teleporter after this long aborts (the escape)
 GOLD_GATE_STEPS = 120        # --enter-via: a hostile player on the walk in: flee to a gold moongate this many route steps
 #                               off at most and recall home (walk_in_threat; user 2026-10-22 after Botan's kill: "Flee to a
 #                               gold gate, recall home"); none that near (past the first teleporter: gold gates are on a
@@ -3069,6 +3070,8 @@ class HuntLoop:
                 if near is None:
                     raise Abort(f"{label}: no route onto it")
                 dash = False
+                if kind == "enter" and tuple(tile[:2]) in {tuple(t) for t in self.args.fight_via or []}:
+                    self.walk_in_fought(label, near)
                 while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
                     if why == "under attack":
                         path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
@@ -3279,6 +3282,59 @@ class HuntLoop:
             time.sleep(0.3)
         self.disengage("ended")
         self.team.follow()
+
+    def fought_stop(self, st) -> str | None:
+        """walk_in_fought's stop: something on us or our hits falling, a monster in reach to pull (pick_target), an
+        advance that would pull too much or into a shy one's sight (Team.pull_check), the pets fighting or left behind
+        (patrol_hold): the crawl patrol's stops without its seek and waypoints."""
+        self.scan_events(st)
+        if self.walk_hurt(st) or self.attackers(st):
+            return "under attack"
+        if self.pick_target(st) is not None:
+            return "a target in reach"
+        return self.team.pull_check(st) or self.patrol_hold(st) if self.team is not None else None
+
+    def walk_in_fought(self, label, near):
+        """--fight-via: the leg to this teleporter fought through as on the hunt level, not walked (user 2026-10-26:
+        "in TT we'll always have to fight in 2 in order to get to 3"; simulator 2026-10-26: all 8 level 3 runs died on
+        the walk across level 2, at its arrival among the drowned mariners and soulcatchers). The pets on 'All Guard
+        Me'; each round the tick's fighting (combat_step: what's in reach pulled and killed, the back-off from a shy
+        one's first sight, 'All Patrol' at one, the hold for what sees us), the pets healed and with us, then on toward
+        `near` (the tile before the teleporter) until fought_stop. Abort when not there after WALK_FOUGHT_S."""
+        log(f"{label}: fought through (--fight-via)")
+        if self.team is not None:
+            self.team.guard_t = -1e9
+            self.team.guard()
+        end = time.monotonic() + WALK_FOUGHT_S
+        try:
+            while True:
+                if time.monotonic() > end:
+                    raise Abort(f"{label}: not through after {WALK_FOUGHT_S:.0f} s of fighting")
+                st = self.state()
+                self.walk_hurt(st)
+                if self.combat_step(st, self.attackers(st), False):
+                    continue
+                if self.team is not None and self.team.busy_healing(st):
+                    self.doing("vet", "Healing up before moving on")
+                    time.sleep(POLL_S)
+                    continue
+                if self.team is not None and (why := self.patrol_hold(st)):
+                    # as the crawl patrol (Crawl.idle): fighting, wait; left behind, back to them (Team.rejoin). Not
+                    # wait_pets: its 'All Follow Me' pulls them off what they fight and aborts when they don't come
+                    # (simulator 2026-10-26: 3 of 16 fought legs ended "pets not all within reach")
+                    if self.pets_busy(st) is None and self.team.rejoin(st):
+                        continue
+                    self.doing("hold", f"Waiting for the pets ({why})")
+                    time.sleep(POLL_S)
+                    continue
+                if cheb(self.pos(st), near) == 0:
+                    return
+                self.doing("enter", f"Fighting through to the teleporter at {near[0]},{near[1]}", near)
+                self.mover.walk_to(lambda: near, 0, label, stop=self.fought_stop)
+        finally:
+            self.disengage("ended")
+            if self.team is not None:
+                self.team.follow()
 
     def wait_pk(self):
         """After leaving from a hostile player: stay home until --pk-wait has passed."""
@@ -3654,49 +3710,7 @@ class HuntLoop:
             if reason[1] == "info":
                 return True
             return not self.go_back(reason)
-        me = st["world"]["self"]
-        if self.rearm(st):
-            return False
-        if self.team is not None and not self.team.potion_first(st) and self.team.stand_off(st):
-            return False                  # out of an area hit first, unless a potion is ready: it goes at once
-        if self.cure(st):
-            return False
-        if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
-            self.human.wait("hotkey")
-            return False
-        if self.team is not None and self.team.care(st):
-            return False
-        if self.unstick(st, attackers):
-            return False
-        if not attackers and (eerie := self.soul_corpse(st, walk=self.engaged is None)) is not None:
-            self.fill_soul_jar(*eerie)     # before looting: other players race us to an eerie corpse
-            return False
-        if not attackers and (c := self.loot_next()) is not None:
-            self.loot(c)
-            return False
-        if self.team is not None and self.team.patrol_watch(st):
-            return False                  # the pets on "All Patrol" at a purger: we stand, then 'All Guard Me'
-        target = self.pick_target(st, pull=not winding)
-        if target is not None:
-            if target != self.engaged and self.engaged is not None:
-                log(f"switching target to 0x{target:08X}")
-                self.disengage("switched")
-            self.fight(target)
-            return False
-        if self.engaged is not None:
-            self.disengage()
-        if self.war_mode(st, False):
-            log("nothing near: war mode off")
-            self.human.wait("hotkey")
-        if self.team is not None and self.team.back_off(st):
-            return False                  # a corpse purger would see us before the pets: back behind them
-        if self.team is not None and not winding and self.team.patrol_pull(st):
-            return False                  # an idle purger in reach: the pets sent to wake it ("All Patrol")
-        if self.team is not None and (why := self.team.hold_reason(st)):
-            if self.team.pull_spot(st):
-                return False
-            self.doing("hold", f"Holding: {why}")
-            time.sleep(POLL_S)
+        if self.combat_step(st, attackers, winding):
             return False
         if self.team is not None and self.crawl is not None and self.team.busy_healing(st):
             self.doing("vet", "Healing up before moving on")
@@ -3721,6 +3735,57 @@ class HuntLoop:
         self.doing("wait", f"Hunting for {what} at {self.fight_spot[0]},{self.fight_spot[1]} "
                            f"({self.totals['kills']} killed)", self.fight_spot)
         time.sleep(POLL_S)
+        return False
+
+    def combat_step(self, st, attackers, winding: bool) -> bool:
+        """The tick's fighting, in its order: the weapon back in hand, out of an area hit, a cure, a heal, the pets' care,
+        unstuck, an eerie corpse, the loot, the pets on 'All Patrol', a target and its fight, then (nothing to fight) the
+        back-off from a shy monster's first sight, 'All Patrol' at one, the hold for one that sees us. True when it did
+        something (one decision). Shared by the tick and a fought leg of the walk in (walk_in_fought)."""
+        me = st["world"]["self"]
+        if self.rearm(st):
+            return True
+        if self.team is not None and not self.team.potion_first(st) and self.team.stand_off(st):
+            return True                   # out of an area hit first, unless a potion is ready: it goes at once
+        if self.cure(st):
+            return True
+        if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+            self.human.wait("hotkey")
+            return True
+        if self.team is not None and self.team.care(st):
+            return True
+        if self.unstick(st, attackers):
+            return True
+        if not attackers and (eerie := self.soul_corpse(st, walk=self.engaged is None)) is not None:
+            self.fill_soul_jar(*eerie)     # before looting: other players race us to an eerie corpse
+            return True
+        if not attackers and (c := self.loot_next()) is not None:
+            self.loot(c)
+            return True
+        if self.team is not None and self.team.patrol_watch(st):
+            return True                   # the pets on "All Patrol" at a purger: we stand, then 'All Guard Me'
+        target = self.pick_target(st, pull=not winding)
+        if target is not None:
+            if target != self.engaged and self.engaged is not None:
+                log(f"switching target to 0x{target:08X}")
+                self.disengage("switched")
+            self.fight(target)
+            return True
+        if self.engaged is not None:
+            self.disengage()
+        if self.war_mode(st, False):
+            log("nothing near: war mode off")
+            self.human.wait("hotkey")
+        if self.team is not None and self.team.back_off(st):
+            return True                   # a corpse purger would see us before the pets: back behind them
+        if self.team is not None and not winding and self.team.patrol_pull(st):
+            return True                   # an idle purger in reach: the pets sent to wake it ("All Patrol")
+        if self.team is not None and (why := self.team.hold_reason(st)):
+            if self.team.pull_spot(st):
+                return True
+            self.doing("hold", f"Holding: {why}")
+            time.sleep(POLL_S)
+            return True
         return False
 
     def setup(self, pets_required: bool = True):
@@ -3889,6 +3954,10 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--enter-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
                     help="after --enter-recall's arrival, step onto these teleporters in order (repeat) to reach "
                          "the hunting level; the last arrival is the hunt (the Mausoleum: 5554 700, 5507 701, 5507 696, 5522 637)")
+    ap.add_argument("--fight-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
+                    help="the --enter-via teleporters (repeat) whose leg is fought through as on the hunt level rather "
+                         "than walked: the pets on guard, what's in reach pulled and killed, the shy shooters' first "
+                         "sight kept on the pets, then on (Tidal Tomb's level 2 on the way to 3: 6884 1929)")
     ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
                          "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "
@@ -4058,6 +4127,8 @@ def main():
         ap.error("--leave-gate travels to --gate-dest, then recalls home with --leave-recall: give both")
     if args.enter_via and args.enter_recall is None:
         ap.error("--enter-via walks the teleporters after --enter-recall's arrival")
+    if args.fight_via and not {tuple(t) for t in args.fight_via} <= {tuple(t) for t in args.enter_via or []}:
+        ap.error("--fight-via names --enter-via teleporters: give each as --enter-via too")
     if args.go_home and args.leave_recall is None:
         ap.error("--go-home recalls home with --leave-recall: give it")
 

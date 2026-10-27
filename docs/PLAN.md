@@ -2587,6 +2587,25 @@ Accepted cost: about 5 % gold in the simulator for 12 % less damage on Logan and
 can't reproduce the live caster deaths, so the live runs decide. Next on the list: vet "in passing" (begin out of
 reach, step in for the finish; the user's trick), with the stale "never mid-channel" gates.
 
+## Shy by the wiki AI; Tidal Tomb's level 2 fought through to level 3 (2026-10-26)
+
+User: Tidal Tomb's drowned mariners, soulcatchers and zoas are "conceptually similar to the ranger attackers and
+casters in Mausoleum 3" (agreed: treat them the same); "in TT we'll always have to fight in 2 in order to get to 3".
+Decisions:
+
+- **`aggro.shy` from the wiki AI, not a name list.** Mage or ranged AI from difficulty 60 up, plus the shadowguard (a
+  meleemage the user named). The floor leaves out the weak casters: a familiar is 21 and a reanimator zealot 50.
+  Rejected: adding the Tidal names to the list, a second list to keep in step with every new dungeon.
+  `SHOOTERS`/`RESPAWN_SHY` stay the purger and the blightmare: the backspawn rule cost gold for other types before.
+- **`--fight-via`** names the walk-in legs fought as on the hunt level. It uses the tick's own fighting, split out as
+  `combat_step`, rather than a fight-mode walk of its own. It is an argument, not automatic for every leg: Maus 2 is
+  run through. Lagging pets get the crawl's rejoin, not `wait_pets`, whose 'All Follow Me' pulls them off a fight and
+  aborts.
+- **Accepted:** simulator level 3 runs with a death 15 of 16 -> 9 of 16, gold an hour 99.6k -> 158.9k; Maus 3
+  unchanged; level 2 crawl deaths 7 -> 3 of 16 for 10 % fewer kills. The fought leg takes 11-20 min. **Open:** level
+  2's melee killers by the leave gate (ocean bedrock, ironscale grouper) on the leg and on the leave (docs/SIM.md
+  "Level 2's shooters").
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

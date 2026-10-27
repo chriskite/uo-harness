@@ -696,8 +696,12 @@ them), so the reposition, the spacing off the tank and the retreat pick tiles ou
 the pets between; the pull spot steps back so the pets, a tile or two behind us, end up between us and
 what comes.
 
-**Corpse purgers, blightmares and the standing casters** (`aggro.SHY`: since 2026-10-26 also the master reanimator, the
-shadowguard, the banshee, the shadow minion and the insane reanimator; user: "I keep the pets between me and mobs so mobs
+**Corpse purgers, blightmares and the standing casters** (`aggro.shy`: since 2026-10-26 any mage or ranged AI in the wiki
+data from difficulty 60 up, plus the shadowguard: on the Mausoleum the purger, the blightmare, the master and insane
+reanimators, the banshee, the shadow minion, the calamity, the fleshweaver and the muddled vampire hunter; on Tidal
+Tomb the drowned mariner and buccaneer, the soulcatcher and every zoa (user: they are "conceptually similar to the
+ranger attackers and casters in Mausoleum 3"; docs/SIM.md "Level 2's shooters"). User 2026-10-26: "I keep the pets
+between me and mobs so mobs
 aggro on the pets ... I avoid being sighted by hostiles"; his fight of the reanimator's room with "All Patrol" from out
 of sight against two deaths there where they saw Logan first, docs/NOTES.md "How the user plays the casters and
 purgers"; user 2026-10-17: "We're frequently getting diseased by the corpse
@@ -954,8 +958,16 @@ moongate, and never near a red one).
     (`HuntLoop.leave_up`): a planned leave as the walk in goes (`walk_in_legs`, no song), a hurt leave or a hostile
     player's at flight pace (`walk_in_rush`). Then the gate as below. Once through one, a hurt leave isn't called off
     for being healed: before that, the simulator's hurt leaves healed on level 2 and hunted there for the rest of the
-    run. Level 3: `--enter-via 6609 2060 --enter-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221
-    --gate-dest Totem`.
+    run. Level 3: `--enter-via 6609 2060 --enter-via 6884 1929 --fight-via 6884 1929 --leave-gate 6897 1992
+    --leave-via 7161 2221 --gate-dest Totem`.
+  - **A leg fought through: `--fight-via X Y`** (repeat; each one also an `--enter-via`; since 2026-10-26, user: "in
+    TT we'll always have to fight in 2 in order to get to 3"). The walk-in leg to that teleporter is fought, not
+    walked (`HuntLoop.walk_in_fought`): the pets on 'All Guard Me' and each round the tick's fighting
+    (`combat_step`: what's in reach pulled and killed, the back-off from a shy one's first sight, 'All Patrol' at
+    one, the hold for what sees us). The pets are healed up and gathered before each advance (the crawl patrol's
+    wait, or `Team.rejoin`), and the walk toward the tile before the teleporter stops on the patrol's stops
+    (`fought_stop`). After `WALK_FOUGHT_S` (20 min) without getting there the leg aborts. Then 'All Follow Me' and
+    through. Simulator: level 3 runs with a death 15 of 16 -> 9 of 16 (docs/SIM.md "Level 2's shooters").
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point

@@ -830,7 +830,7 @@ class Crawl:
             name = labels.get(key) or mob.get("name")
             if type_key(name) in never or not h.wanted(world, key, mob) or not combat.attackable(world, key)[0] \
                     or self.avoid(st, key, mob) or aggro.shy(type_key(name)):
-                # a corpse purger or blightmare (aggro.SHY) isn't sought: it shoots from where it stands, so walking
+                # a corpse purger or blightmare (aggro.shy) isn't sought: it shoots from where it stands, so walking
                 # up to it puts us in its shot before the pets (user 2026-10-21: "stay out of their aggro range and
                 # patrol the pets into them"; simulator 2026-10-21: 5 of 15 blightmare deaths in one batch came within
                 # 2 minutes of a seek toward one)
