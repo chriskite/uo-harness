@@ -2020,7 +2020,8 @@ Tests: `test_chain_links` (the spec's limits and merge; the live durations and s
 points of chance), `test_scenario_inherit` (the instrument quality).
 
 **First combos** (Mausoleum, 98 runs a chain, seed 17, `--others --prior <store> -- --vet-range 5 --crawl-learn-s
-180`, supremely melodious; 13 links but `current`, all bronze but Logan's own; ~49 game hours each):
+180`, supremely melodious; 13 links a chain: Logan's own materials for `current`, bronze for the rest; ~49 game hours
+each):
 
 | `--links` | E | kills / h | banked / h | pets' damage / h | discord / peace / provoke ok | runs with a death |
 |---|---|---|---|---|---|---|
@@ -2034,7 +2035,7 @@ points of chance), `test_scenario_inherit` (the instrument quality).
 - Between 13-link mixes the gaps are 2-4 % and the deaths are 1-5 in 98 runs: within the noise of one 98-run batch.
   Ranking combos needs several seed blocks per arm, as "Provocation never went out" did.
 - Live at E 123 (task logs since 2026-10-25 17:36): discord 0.765, peace 0.758, provoke 0.63 (n = 655, 211, 57). The
-  simulated provoke rate is lower; the runner's provoke targets in the simulator are not live's.
+  simulated provoke rate is lower [INFERENCE: the simulated runner provokes other pairs than live; not checked].
 
 ## Limits
 
