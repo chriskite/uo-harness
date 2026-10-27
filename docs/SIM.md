@@ -797,6 +797,26 @@ parameter's evidence is in `mausoleum.json`'s `others.note`.
 - **Why off by default**: players move every headline number 15-30 % (gold, kills, deaths), so with them on no batch
   would compare with the tables above this section. Use `--others` for anything players touch (targets on others,
   loot rights, crowding), and for a final check of a change.
+- **Tidal Tomb** (2026-10-26, user: "Add other players to TT"): its own `others` block (`tidal_tomb.json`, every
+  number's evidence in its note), level 1. Measured over the three captures with Logan there (1.39 h, the method
+  above): another player in view 8.9 % of the time (here 27.4 %), 36 arrivals in view an hour, in-view stays median
+  4 s (p90 44): they mostly cross the level. 63 % come with a pet or summon (earth and water elementals, azure wyrms,
+  widows). 12 monsters an hour died beside one of them in our view. The fight rules and damage rates are the
+  Mausoleum's. Arrivals 20 an hour, stays 30-300 s, 1-10 s at a spawn area and `engage_r` 5 are fitted. The sim
+  matches live on how often players are in view, but not on arrivals, stays or their kills:
+
+  | level 1, in our view | live | sim (24 runs, 20 min) |
+  |---|---|---|
+  | one or more players | 8.9 % | 8.9 % |
+  | players, mean | 0.10 | 0.10 |
+  | arrivals an hour | 36 | 23 |
+  | stay p25 / median / p75 / p90, s | 2 / 4 / 10 / 44 | 2 / 8 / 18 / 46 |
+  | their kills an hour | 12 | 19.5 |
+
+  The same 24 runs without players: kills 309 -> 291 an hour, gold 113.8k -> 108.4k (-5 %), damage to Logan 512 ->
+  503, no deaths either way. That is much less than the gap to the runner's first live visits (241 kills, 90.7k
+  gold an hour, "The runner live on level 1 against the sim"). Hunters out of our view clearing spawns (the
+  Mausoleum's `unseen`) aren't modelled here: no Tidal Tomb measure of idle monsters at our approach yet.
 
 ## Red players (2026-10-21; a batch option since 2026-10-23)
 
@@ -1537,8 +1557,9 @@ rules, no other players (Tidal Tomb has no `others` block).
 | deaths | 0 | 0 |
 
 The pets' damage matches. Time to kill per type, live (the runner's, n 3-17): 4.3-7.9 s medians (singing noughtilus
-4.3, ruby smallshell 5.6, oozing noughtilus 6.0, dungeon-nest crab 7.5, mermadon 7.9), as the user's own. The kills
-and gold gap fits the other hunter [INFERENCE: the sample is under half an hour].
+4.3, ruby smallshell 5.6, oozing noughtilus 6.0, dungeon-nest crab 7.5, mermadon 7.9), as the user's own. The other
+hunter explains only part of the kills and gold gap: the sim's other players (`--others`, "Other players") take 6 %
+of the kills and 5 % of the gold. The rest is open, and the sample is under half an hour.
 
 ## Player armor (2026-10-24)
 
