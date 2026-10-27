@@ -1438,6 +1438,24 @@ depends on the quality of the instrument"):
 - The Nightmares (2 control slots each, 228 hits, casters) aren't a simulator pet. Live they stood 7-10 tiles off
   the zoas, and the zoas' area hits found them there.
 
+### Stuck in the pit (2026-10-26)
+
+User 2026-10-26: a 30-minute level 1 run (seed 1, trace `20261026_184059_tidal_tomb_s1`) "gets stuck about 4:30 in
+and doesn't engage any more mobs".
+
+- **What happened:** at 279.5 s a patrol to (6650, 2050) stepped from the ledge (6657, 2053, 19) to (6656, 2053, -18),
+  into a sealed 57-tile pit at x 6650-6662, y 2048-2061. No route left it, and live Logan never stood in it.
+  - From 287.7 s every waypoint failed: "no route from (6655, 2055); skipping it for 600 s".
+  - For the next 25 minutes he patrolled between the pit's two waypoints. After the first 4.5 min the run made no
+    more kills (19 by then).
+- **Why:** `pathfind.Walk` skipped every object with the tiledata Door flag, so the walker could open doors. The
+  pit's walls are secret-door art statics (0xE8-0xF7) that carry the flag (docs/MAP.md). The planner and the
+  simulator's own walk share `Walk`, so both let him through.
+- **Fix:** the Door flag is skipped only on ground items. A static with it blocks like any wall
+  (`test_pathfind` "static walls with the Door flag block").
+- **The same run after the fix** (same seed and runner arguments): 131 kills in 30.5 game minutes, 20-25 in every 5
+  minutes, 55,240 gold banked over two visits, no "no route".
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its

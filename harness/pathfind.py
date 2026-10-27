@@ -215,13 +215,17 @@ class Walk:
                 objs.append((ls.min_z, ls.avg_z - ls.min_z, flags, ls.avg_z,
                              ("land", ls) if stretched else ("flat", None)))
         statics = self.m.statics(x, y) or ()
-        for graphic, z in [(s.graphic, s.z) for s in statics] + list(self.dynamic(x, y)):
+        for graphic, z, ground in ([(s.graphic, s.z, False) for s in statics]
+                                   + [(g, gz, True) for g, gz in self.dynamic(x, y)]):
             it = self.td.item(graphic)
             if it is None:
                 continue
             f = it.flags
-            if f & uomap.DOOR:
-                continue                      # the walker opens doors when denied
+            if f & uomap.DOOR and ground:
+                # the walker opens a door item when denied; a static with the Door flag is art that never opens (the
+                # secret-door stone walls 0xE8-0xF7 walling Tidal Tomb's pit at (6650-6662, 2048-2061): skipped,
+                # they let the planner and the simulator step off the ledge at z 19 into it, simulator 2026-10-26)
+                continue
             flags = 0
             if f & (uomap.IMPASSABLE | uomap.SURFACE):
                 flags = POF_IMPASSABLE_OR_SURFACE

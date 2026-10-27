@@ -120,6 +120,16 @@ def main():
     check("straight onto the door tile stays plannable (the walker opens it ahead)",
           doors.can_walk(2027, 2218, 15, 0) == (2027, 2217, 15))
 
+    print("== static walls with the Door flag block (Tidal Tomb's pit, simulator 2026-10-26) ==")
+    # the secret-door stone wall art 0xF2/0xF6 (z -21, -1, 19) and 0xE8 (z 19) walls a sealed pit at z -18 under the
+    # level 1 ledge; skipped as doors, the ledge stepped down 37 z into it and the simulated Logan stayed there 25 min
+    check("off the ledge west through the 0xF6 wall: refused", walk.can_walk(6657, 2053, 19, 6) is None,
+          str(walk.can_walk(6657, 2053, 19, 6)))
+    check("onto the 0xE8 wall tile above the pit: refused", walk.can_walk(6655, 2055, 19, 0) is None
+          and walk.can_walk(6656, 2054, 19, 6) is None)
+    check("the ledge itself still walks (live Logan on (6661, 2045-2050, 19))",
+          walk.can_walk(6661, 2047, 19, 4) == (6661, 2048, 19))
+
     print("== a player house blocks like the client places it (live 20261002_153718) ==")
     # 0xF3 data_type 2, multi 0x154 at (943,774,z1), Corpse Creek. The server denied all 12
     # moves into it (lumber trip to the banker, 17:38-17:41); the bare map allows every one.

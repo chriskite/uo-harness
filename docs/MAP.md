@@ -276,6 +276,12 @@ gives 0 for any z in 0…255 and −1 for small negative z.
   floor, over land z 0. The inn doors at (1933,2589,z20) and (1935,2588,z0) come in as 0xF3
   items 0x6AD/0x6A5 (tiledata `wooden door`, Door flag). Neither tile has a door static:
   **doors are dynamic, not in the map file.**
+- **Statics with the Door flag are walls** (2026-10-26). The stone walls 0xE8-0xF7 (the secret-door art) carry the
+  Door flag in tiledata, and the map has them as statics: around Tidal Tomb level 1's sealed pit at (6650-6662,
+  2048-2061, z -18), 0xF2/0xF6 at z -21, -1 and 19 and 0xE8 at z 19. A static never opens, so `pathfind.Walk`
+  skips the Door flag only on ground items (the doors the walker opens). Before, it skipped them on statics too, and
+  the ledge at z 19 stepped down 37 z into the pit (docs/SIM.md "Stuck in the pit"). With the walls in, each of the
+  52,793 confirmed steps in captures 20261024_102346 and 20261025_210102 gets the same answer from `can_walk` as before.
 - Walk memory (built from the committed captures): all 838 facet-0 tiles have a standing height
   (land avg z or surface top) with no Impassable static overlapping a 16-high body. The 15
   tiles with capture z from 0x1B/0x20/0x77 all sit on such a height.
