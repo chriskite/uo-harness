@@ -6135,6 +6135,32 @@ Visit 3 on 0f3c2ee, ~18.8k gp lost with the corpse; the pets lived (GraveRobber 
   `INSTRUMENT_NAME` (user 18:43: "the shawm is an instrument"). Both now have it; the name pattern takes "drums" and
   "sackbut" too. test_sim `test_instrument` with a shawm (fails before).
 
+## Dead in the master reanimator's room again (live 2026-10-26 19:30:23, hunt-20261026-184350-3c20)
+
+Visit 3 on 4520b6a (the shawm), 9,571 gp lost with the corpse; the pets lived (AlaFlambe 100 %, GraveRobber 90 %).
+The room of the 2026-10-25 00:38 death ("Dead vetting a pet in two casters' reach"): Logan died 2 tiles from that spot.
+Capture session_20261026_183552 replayed (`WorldRuntime`):
+
+- **19:30:06-11** a shadowguard 0x0006221E at (5235, 723) passed over ("it can't see us from 6 tiles"), then "holding
+  here: shadowguard in sight at 6 tiles: letting it come"; it woke on the pets (19:30:11); an idle master reanimator
+  0x00062483 at (5230, 722), 11 off.
+- **19:30:13** "You have been ensnared and diseased!" (effect 0x5683 on Logan), -23 (100 -> 77); potion at 14.17
+  (100). 15.27 Discordance on the shadowguard (success); the reanimator in war mode from 15.7.
+- **19:30:16** "reposition: shadowguard 0x0006221E 5 tiles off, master reanimator 0x00062483 10 tiles off can cast at
+  us here; to (5241, 726) (2 -> 0 in reach)". By our map (`los.Sight`, server rule and Wall-strict alike) neither sees
+  (5241, 726): the line crosses a NoShoot wall piece 0x00C5 at (5240, 726) (flags 0x6050), from the reanimator's tile
+  and from every tile beside it.
+- **Damage there, 100 -> 0 in 5 s**: 18.25 -20 (disease tick, 0x376A), 19.21 -31 (effect 0x36BD, an explosion, on Logan
+  alone), 19.54 vet channel on us begun at 49 (the potion clock had 5 s to run), 20.88 -33 (0x3709, a flamestrike
+  column, on Logan; GraveRobber -24 0.1 s before), 23.25 -18 (disease). Dead at 23.30.
+- **Same signature as 00:38 on 10-25** (Logan at (5243, 722), the reanimator then at (5239, 721)): spells landed on a tile
+  our map says the casters don't see; both times a wall along x 5240 (0x00C5 / 0x6685, NoShoot) is the block.
+  [INFERENCE: either the reanimator's spells reach a pet's surroundings without sight (00:38: a lightning on Logan and
+  all three pets at once) or the live map/LOS differs from ours at that wall; not settled.] `tamer.AREA_R` has no master
+  reanimator, so no stand-off keeps Logan off its victims.
+- Both of 2026-10-26's deaths ended the same way: under two awake casters, the potion clock running, a vet channel on
+  Logan below 50 % counted as "a heal coming", so no leave.
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
