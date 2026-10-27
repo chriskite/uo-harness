@@ -2786,17 +2786,25 @@ class Team:
         ring = sorted(((x + dx, y + dy) for dx in range(-SONG_SPOT_R, SONG_SPOT_R + 1)
                        for dy in range(-SONG_SPOT_R, SONG_SPOT_R + 1) if dx or dy), key=lambda t: (cheb(t, (x, y)), t))
         for tx, ty in ring:
-            floors = [o for o in walk.objects(tx, ty)
-                      if o[2] & pathfind.POF_SURFACE and abs(o[3] - z) <= SONG_SPOT_DZ]
-            if not floors:
+            objs = walk.objects(tx, ty)
+            stand = [o for o in objs if o[2] & pathfind.POF_SURFACE and abs(o[3] - z) <= SONG_SPOT_DZ]
+            if not stand:
                 continue
-            o = min(floors, key=lambda o: abs(o[3] - z))
-            if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), (tx, ty, o[3])) is not None:
+            tz = min(stand, key=lambda o: abs(o[3] - z))[3]
+            if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), (tx, ty, tz)) is not None:
                 continue
-            if o[4][0] in ("land", "flat"):
-                return tx, ty, o[3], 0
-            if (o[4][1], o[0]) in {(s.graphic, s.z) for s in statics(tx, ty) or ()}:
-                return tx, ty, o[0], o[4][1]
+            cell = walk.m.land(tx, ty)
+            if cell is not None and cell[0] not in los.INVALID_LAND:
+                return tx, ty, tz, 0                     # the land (live: every Mausoleum song so)
+            # over the invalid land: the flat floor static (height 0) on top at that height, the one a click names; a
+            # block under it (stone 0x71E/0x71F, height 5) isn't (live 22:08:16-38 three songs named the stone under
+            # the pavers: no answer; the user's 7 named flat floors), and a tile with something taller on it is skipped
+            on = {(s.graphic, s.z) for s in statics(tx, ty) or ()}
+            flat = [o for o in objs if o[3] == tz and o[1] == 0 and o[4][0] == "item" and (o[4][1], o[0]) in on]
+            if not flat or any(p[0] >= tz and p[1] > 0 and p[2] & pathfind.POF_IMPASSABLE_OR_SURFACE for p in objs):
+                continue
+            o = flat[-1]
+            return tx, ty, o[0], o[4][1]
         return None
 
     def song_left(self, st, sid: int, now: float) -> float:

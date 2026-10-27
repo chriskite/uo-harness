@@ -5723,6 +5723,9 @@ AlaFlambe. AR 120 the whole visit, not 133.
   logged "no answer"). The floor is statics over the invalid land 0x244 at z -100, and RunUO's LandTarget takes the
   land's own height. The user's songs named the floor static under the clicked tile (0x8C62 at -18, 0x50B1 at -16,
   0x053D, 0x0522, 0x58C6; 1-4 tiles off) and all 7 played. Fix: `Team.song_spot` (docs/HUNT_LOOP.md "Barding songs").
+  The first fix's run (hunt-20261026-220225-0528) played all three, but at 22:08:16-38 three songs named the stone
+  block 0x71E/0x71F (height 5) under the pavers at its own z and got no answer at all; flat floor statics (0x051A at
+  51) played. Since then it names the flat floor on top.
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
