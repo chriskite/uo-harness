@@ -5718,6 +5718,11 @@ AlaFlambe. AR 120 the whole visit, not 133.
 - `*barding break*` over a singing noughtilus twice, each right after a successful provocation on it.
 - An oozing noughtilus came back 144 s after its death, on the same tile (6635, 2018).
 - Kills took 4.8-11.9 s a type (median from the first number to the death), pincer crabs 1.4 s.
+- **Songs on this floor** (the runner's first live run here, hunt-20261026-215149-a52b, 21:52-21:54): every song at a
+  tile beside Logan, sent as the land (graphic 0) at his z, got cliloc 500237 "Target cannot be seen." (the runner
+  logged "no answer"). The floor is statics over the invalid land 0x244 at z -100, and RunUO's LandTarget takes the
+  land's own height. The user's songs named the floor static under the clicked tile (0x8C62 at -18, 0x50B1 at -16,
+  0x053D, 0x0522, 0x58C6; 1-4 tiles off) and all 7 played. Fix: `Team.song_spot` (docs/HUNT_LOOP.md "Barding songs").
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 

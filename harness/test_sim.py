@@ -1810,6 +1810,47 @@ def test_heal_in_place():
           args.heal_in_place and out[True] is None and out[False] and "GraveRobber" in out[False][0], str(out))
 
 
+def test_songs_tidal_floor():
+    print("== songs on Tidal Tomb's floor (statics over the invalid land 0x244): the floor static named, in sight ==")
+    # live 2026-10-26 21:52-21:54 (hunt-20261026-215149-a52b): every song at a tile beside Logan with graphic 0 got
+    # 500237 "Target cannot be seen." (the server takes graphic 0 for the land, at z -100 under the floor)
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = tidal_world(TIDAL_L1)
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    buf, sent = io.StringIO(), []
+    act = link.act
+
+    def spy(data):
+        if data[:1] == b"\x6c":
+            sent.append(data)
+        return act(data)
+    link.act = spy
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            end = clock.elapsed + 60
+            while len(w.songs) < 3 and clock.elapsed < end:
+                if not loop.team.song(loop.state()):
+                    clock.advance(0.5)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    graphics = [int.from_bytes(d[23:27], "big") for d in sent if d[1] == 1]
+    check("all three songs play at the arrival, at a floor static (graphic not 0), no 'cannot be seen'",
+          set(w.songs) == {"discord", "peace", "provoke"} and graphics and all(graphics)
+          and "cannot be seen" not in buf.getvalue(), f"{w.songs} graphics {[hex(g) for g in graphics]} | "
+          + " | ".join(ln for ln in buf.getvalue().splitlines() if "Song" in ln)[-500:])
+
+
 def test_songs():
     print("== --songs: the runner plays the three barding songs at the ground; they cut the damage we take ==")
     import tempfile
@@ -4857,7 +4898,7 @@ def main():
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
-              test_songs,
+              test_songs, test_songs_tidal_floor,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,

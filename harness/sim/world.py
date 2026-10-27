@@ -63,6 +63,7 @@ import nav
 import pathfind
 import soul_jar
 import tamer
+import uomap
 from agent_link import HELD_END_TEXT, HELD_SILENCED_TEXT, HELD_TEXT
 from sim import packets as P
 from sim import armor
@@ -2326,6 +2327,23 @@ class World:
         self._sys(prompt)
         self._cursor({"kind": skill})
 
+    def _ground_point(self, f: dict):
+        """Where a ground target answer points, as RunUO resolves it: graphic 0 is the land (LandTarget: the land's
+        average z, whatever the answer's z), else the static of that graphic at that z on the tile (StaticTarget: its
+        top), None when there is none. Live 2026-10-26 21:52-21:54 (Tidal Tomb level 1, its land the invalid 0x244 at
+        z -100 under the floor statics): every song at a tile beside Logan with graphic 0 got 500237 "Target cannot be
+        seen."; the user's own songs there named the floor static (0x8C62 at -18, 0x50B1 at -16) and played."""
+        x, y, z, g = f.get("x"), f.get("y"), f.get("z") or 0, f.get("graphic") or 0
+        if not g:
+            land = self.walk._land_info(x, y)
+            return (x, y, land.avg_z if land is not None else z)
+        for s in self.walk.m.statics(x, y) or ():
+            if s.graphic == g and s.z == z:
+                it = self.walk.td.item(g)
+                h = 0 if it is None else (it.height // 2 if it.flags & uomap.BRIDGE else it.height)
+                return (x, y, z + h)
+        return None
+
     def _song(self, kind: str):
         """A barding song: the bard skill at the ground (knowledge #11233/#11234: 15 min, 10 s between songs,
         independent of the skill timer; live 2026-10-13, three of three played and printed 15.0 %)."""
@@ -2378,6 +2396,13 @@ class World:
             self._skill(pend["sid"])
             return
         if f.get("target_type") == 1 and pend["kind"] in SONGS and f.get("x") != 0x7FFFFFFF:
+            point = self._ground_point(f)
+            if point is None:
+                return                                   # no such static there: the server drops the answer
+            pl = self.player
+            if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), point) is not None:
+                self.send(P.cliloc(500237))
+                return
             self._song(pend["kind"])
             return
         serial = f.get("serial") or 0

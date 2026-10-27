@@ -78,6 +78,7 @@ import combat
 import healing
 import los
 import nav
+import pathfind
 from agent_link import Abort, cheb, log, serial_of
 
 SKILL_PEACE, SKILL_DISCORD, SKILL_PROVO = 9, 15, 22          # skills.mul ids (the 0x12 type 0x24 text)
@@ -188,7 +189,10 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # the ground round its target's tile (spread 2; 933 volleys: 38-45 % hit 0-1 from the centre, 5-16 % at 2+) and its
 # disease stacks; the master reanimator's chain lightning jumps from its target to everyone near, through walls (user)
 # [INFERENCE: the 3]. Their zone is round them and the pet beside them (area_zone), as the daemon's.
-AREA_R = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3}
+# Oozing noughtilus (Tidal Tomb, capture 20261024_102346): its Ooze Aura, 4 bursts 0.3 s apart on everyone within 2
+# of it every 7-12 s (Logan 4-7 each, twice its greater poison); user 2026-10-26: "We should not stand next to oozing
+# noughtiluses, they do AOE poison bursts". Stand 3 off, as from the apparition.
+AREA_R = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3, "oozing noughtilus": 3}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 # An apparition's blink (docs/SIM.md audit, n=56): "*phases*" over it, gone (0x1D), then back 1.1-1.6 s later on its
@@ -288,6 +292,8 @@ SONG_BUFF_ICONS = {SKILL_DISCORD: 59, SKILL_PEACE: 58, SKILL_PROVO: 57}   # our 
 SONG_S = 900.0                # 15 minutes (knowledge #9034, live "for 15 minutes")
 SONG_GAP_S = 10.0             # between songs (knowledge #11234)
 SONG_RENEW_S = 60.0
+SONG_SPOT_R = 3               # song_spot: a floor tile this far off at most (the user's: 1-4 tiles, 7 captures)
+SONG_SPOT_DZ = 10             # ...its surface within this of our z
 
 
 def irreversible(text: str) -> str | None:
@@ -2737,15 +2743,19 @@ class Team:
         if h.leave_reason(st) or self.potion_first(st):
             h.cancel(cur)
             return True
-        x, y, z = h.pos(st)[:3]
-        walk = h.mover.walk_map(st)
-        beside = [n for n in (walk.can_walk(x, y, z, d) for d in range(8)) if n] if walk is not None else []
-        gx, gy, gz = beside[0] if beside else (x, y, z)        # live: a tile 1-3 away, never our own
-        h.link.act(actions.target_xyz(cur["cursor_id"], gx, gy, gz, 0, cur.get("cursor_type") or 0))
-        h.wait_for(lambda s: any(song_answer(e) for e in h.link.events[mark:]), ANSWER_WAIT_S)
+        spot = self.song_spot(st)
+        if spot is None:
+            log(f"{what}: no floor tile within {SONG_SPOT_R} tiles in our sight; not singing here")
+            h.cancel(cur)
+            return True
+        gx, gy, gz, graphic = spot
+        h.link.act(actions.target_xyz(cur["cursor_id"], gx, gy, gz, graphic, cur.get("cursor_type") or 0))
+        h.wait_for(lambda s: any(song_answer(e) or (e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS)
+                                 for e in h.link.events[mark:]), ANSWER_WAIT_S)
         got = next((a for a in (song_answer(e) for e in h.link.events[mark:]) if a), None)
         if got is None:
-            log(f"{what}: no answer")
+            unseen = any(e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS for e in h.link.events[mark:])
+            log(f"{what}: " + (f"({gx}, {gy}, {gz}) graphic 0x{graphic:04X} cannot be seen" if unseen else "no answer"))
         elif got[0] == "on":
             self.songs[got[1]] = time.monotonic() + SONG_S
             self.count("song_on")
@@ -2755,6 +2765,39 @@ class Team:
         self.broke(mark)
         h.human.wait("hotkey")
         return True
+
+    def song_spot(self, st):
+        """The ground to sing at -> (x, y, z, graphic), or None: the nearest tile 1-SONG_SPOT_R off (never our own) with a
+        floor surface within SONG_SPOT_DZ of our z, in our sight (los.Sight, eye to that surface), named as the client
+        names a click on it: the floor static (its graphic and its own z), else the land (graphic 0). A target, not a
+        step: a teleporter tile is fine. The server resolves graphic 0 to the land at its own height (RunUO
+        LandTarget): where the floor is statics over the invalid land 0x244 (Tidal Tomb, z -100) that is under the floor,
+        out of sight. Live 2026-10-26 21:52-21:54 every song at a tile beside Logan with graphic 0 there got 500237
+        "Target cannot be seen."; the user's songs named the floor static (0x8C62 at -18, 0x50B1 at -16: 7 of 7
+        played), 1-4 tiles off. No map: our own tile's land, as before."""
+        h = self.h
+        walk = h.mover.walk_map(st)
+        if walk is None:
+            x, y, z = h.pos(st)[:3]
+            return x, y, z, 0
+        v = self.view(st)
+        x, y, z = v.pos
+        statics = walk.m.statics
+        ring = sorted(((x + dx, y + dy) for dx in range(-SONG_SPOT_R, SONG_SPOT_R + 1)
+                       for dy in range(-SONG_SPOT_R, SONG_SPOT_R + 1) if dx or dy), key=lambda t: (cheb(t, (x, y)), t))
+        for tx, ty in ring:
+            floors = [o for o in walk.objects(tx, ty)
+                      if o[2] & pathfind.POF_SURFACE and abs(o[3] - z) <= SONG_SPOT_DZ]
+            if not floors:
+                continue
+            o = min(floors, key=lambda o: abs(o[3] - z))
+            if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), (tx, ty, o[3])) is not None:
+                continue
+            if o[4][0] in ("land", "flat"):
+                return tx, ty, o[3], 0
+            if (o[4][1], o[0]) in {(s.graphic, s.z) for s in statics(tx, ty) or ()}:
+                return tx, ty, o[0], o[4][1]
+        return None
 
     def song_left(self, st, sid: int, now: float) -> float:
         """Seconds the song still runs: the later of what we played (self.songs) and its buff on us
