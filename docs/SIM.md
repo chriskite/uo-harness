@@ -2019,6 +2019,23 @@ they were played) and the per-instrument blocks. **Baseline change**: the scenar
 Tests: `test_chain_links` (the spec's limits and merge; the live durations and song prints at their E; +12 E is +12
 points of chance), `test_scenario_inherit` (the instrument quality).
 
+**First combos** (Mausoleum, 98 runs a chain, seed 17, `--others --prior <store> -- --vet-range 5 --crawl-learn-s
+180`, supremely melodious; 13 links but `current`, all bronze but Logan's own; ~49 game hours each):
+
+| `--links` | E | kills / h | banked / h | pets' damage / h | discord / peace / provoke ok | runs with a death |
+|---|---|---|---|---|---|---|
+| `current` (FD +18.5 %, EB +18) | 123 | 119.0 | 127,972 | 865,417 | 0.75 / 0.74 / 0.54 | 3 |
+| `none` | 105 | 109.7 | 117,315 | 775,726 | 0.57 / 0.56 / 0.46 | 1 |
+| `follower_damage=10, effective_barding=3` | 114 | 116.9 | 127,235 | 849,277 | 0.65 / 0.64 / 0.47 | 3 |
+| `follower_damage=3, effective_barding=10` | 135 | 115.5 | 123,357 | 825,734 | 0.86 / 0.84 / 0.68 | 1 |
+| `effective_barding=6, follower_damage=4, damage_to_barded=3` | 123 | 115.2 | 123,758 | 829,201 | 0.75 / 0.74 / 0.50 | 5 |
+
+- The chain is worth ~8 % of kills and gold here (none against current).
+- Between 13-link mixes the gaps are 2-4 % and the deaths are 1-5 in 98 runs: within the noise of one 98-run batch.
+  Ranking combos needs several seed blocks per arm, as "Provocation never went out" did.
+- Live at E 123 (task logs since 2026-10-25 17:36): discord 0.765, peace 0.758, provoke 0.63 (n = 655, 211, 57). The
+  simulated provoke rate is lower; the runner's provoke targets in the simulator are not live's.
+
 ## Limits
 
 - The fight level is modelled whole, but the first two levels only along Logan's way in: his
