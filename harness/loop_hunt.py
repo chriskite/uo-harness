@@ -408,6 +408,7 @@ class HuntLoop:
         self.low_posted = False
         self.potions = healing.PotionClock()
         self.refresh_t = -1e9        # monotonic time of our last stamina potion (refresh_potion)
+        self.cure_t = -1e9           # ... of our last cure potion (cure)
         self.mover.refresh = self.refresh_potion
         self.mover.no_idle = self.no_idle
         self.visit_n = 0
@@ -481,6 +482,7 @@ class HuntLoop:
                 return                    # through monsters on the way out: a 2 s peace on them (Team.area_peace)
             #                               (not from a red: live 20261017_133304 13:40:56 it stopped 1.5 s to play
             #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later)
+            self.cure(st)
             if me.get("hits") is None or me.get("hits_max") is None or me["hits"] >= me["hits_max"]:
                 return
             if self.frac(me) < self.args.heal_at and self.potions.ready(time.monotonic()) \
@@ -1262,6 +1264,29 @@ class HuntLoop:
         self.count("potions")
         log(f"heal potion: {me.get('hits')} -> {hits} hits")
         return healing.CLILOC_HEALED in heard or (hits or 0) > (me.get("hits") or 0)
+
+    def cure(self, st) -> bool:
+        """Poisoned (world.self.poisoned: the server's 0x17 about us) and a cure potion (healing.CURE_POTION_GRAPHIC) in
+        the pack: one double-click on it wherever it sits, as drink(); not within healing.RETRY_S["cure"] of the last
+        try. User 2026-10-26: "the runner seems not to use cure potions when Logan is poisoned"; live 22:31:09-49 on
+        Tidal Tomb level 1 he stayed poisoned 40 s until the user drank one (cliloc 500231 "You feel cured of
+        poison!", the flag off). True when the potion went out."""
+        world = st["world"]
+        now = time.monotonic()
+        if not world["self"].get("poisoned") or now - self.cure_t < healing.RETRY_S["cure"]:
+            return False
+        pots = healing.in_pack(world, self.me(st), healing.CURE_POTION_GRAPHIC)
+        if not pots:
+            return False
+        self.cure_t = now
+        me = world["self"]
+        self.doing("heal", f"Drinking a cure potion (poisoned, {me.get('hits')}/{me.get('hits_max')} hits)")
+        self.human.wait("hotkey")
+        self.link.act(actions.dclick(pots[0][0]))
+        got = self.link.wait(lambda s: not s["world"]["self"].get("poisoned"), 1.5)
+        self.count("cures")
+        log("cure potion: " + ("cured" if got is not None else "still poisoned"))
+        return True
 
     def refresh_potion(self) -> bool:
         """A stamina potion (healing.REFRESH_POTION_GRAPHIC, Total Refresh) for a shove the server refused at
@@ -3235,6 +3260,8 @@ class HuntLoop:
             me = st["world"]["self"]
             if not self.team.potion_first(st) and self.team.stand_off(st):
                 continue
+            if self.cure(st):
+                continue
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
                 self.human.wait("hotkey")
                 continue
@@ -3632,6 +3659,8 @@ class HuntLoop:
             return False
         if self.team is not None and not self.team.potion_first(st) and self.team.stand_off(st):
             return False                  # out of an area hit first, unless a potion is ready: it goes at once
+        if self.cure(st):
+            return False
         if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
             self.human.wait("hotkey")
             return False

@@ -1810,6 +1810,53 @@ def test_heal_in_place():
           args.heal_in_place and out[True] is None and out[False] and "GraveRobber" in out[False][0], str(out))
 
 
+def test_cure_potion():
+    print("== poisoned: the runner's tick drinks a cure potion (none while not poisoned) ==")
+    # user 2026-10-26: "the runner seems not to use cure potions when Logan is poisoned"; live 22:31:09-49 Logan stayed
+    # poisoned 40 s on Tidal Tomb level 1 until the user drank one
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    sc = load()
+    w = World(sc, seed=1)
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, ["--no-songs"], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    cures = lambda: sum(it["amount"] for it in w.items.values() if it.get("kind") == "cure_potion")  # noqa: E731
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            loop.spot = loop.fight_spot = tuple(w.player.pos[:2])
+            loop.start_visit(loop.state())
+            before = cures()
+            end = clock.elapsed + 8
+            while clock.elapsed < end:
+                loop.tick()
+                clock.advance(0.2)
+            unpoisoned = cures()
+            w.player.poison_until, w.player.poison_next = w.t + 60, w.t + 2
+            clock.advance(0.2)
+            poisoned_at = w.t
+            while w.player.poison_until > w.t and w.t - poisoned_at < 10:
+                loop.tick()
+                clock.advance(0.2)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("no cure potion while not poisoned", unpoisoned == before, f"{before} -> {unpoisoned}")
+    check("poisoned: a cure potion drunk and the poison gone within 3 s",
+          w.player.poison_until <= w.t and w.t - poisoned_at <= 3 and cures() == before - 1
+          and "cure potion: cured" in buf.getvalue(),
+          f"after {w.t - poisoned_at:.1f} s, potions {before} -> {cures()}; "
+          + " | ".join(ln for ln in buf.getvalue().splitlines() if "cure" in ln)[-300:])
+
+
 def test_songs_tidal_floor():
     print("== songs on Tidal Tomb's floor (statics over the invalid land 0x244): the floor static named, in sight ==")
     # live 2026-10-26 21:52-21:54 (hunt-20261026-215149-a52b): every song at a tile beside Logan with graphic 0 got
@@ -4898,7 +4945,7 @@ def main():
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
-              test_songs, test_songs_tidal_floor,
+              test_songs, test_songs_tidal_floor, test_cure_potion,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,

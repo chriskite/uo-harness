@@ -298,6 +298,7 @@ class World:
         self.next_other_t = None              # the next other player's arrival on the level
         self.engaged_fn = None                # sim.run: the runner's engaged target (metrics only)
         self.others_in_view = {}              # other player serial -> time it came into our view
+        self.poison_shown = False             # the player's poison flag as last sent (_poison_flag)
         if self.others_on:
             self.metrics.update({"others_arrived": 0, "others_kills": 0, "others_kills_in_view": 0, "others_view_s": {},
                                  "others_dwell": [],
@@ -1259,6 +1260,8 @@ class World:
         if m.poison_until > t and t >= m.poison_next:
             m.poison_next = t + 2.0
             self.hurt(m, m.spec.get("_poison_dmg", 4), None, "poison")
+        if m.kind == "player":
+            self._poison_flag()
         if m.bleed_until and t >= m.bleed_next:
             self.hurt(m, self.roll(m.bleed[0]), None, "bleed")
             m.bleed_next += m.bleed[1]
@@ -2579,6 +2582,8 @@ class World:
             self._drink(s)
         elif kind == "refresh_potion":
             self._refresh(s)
+        elif kind == "cure_potion":
+            self._cure(s)
         elif kind == "soul_jar":
             self._fill_jar(s)
         elif kind == "tome":
@@ -2787,6 +2792,31 @@ class World:
         self.send(P.stam(pl.serial, pl.stam, pl.stam_max))
         self._consume(s)
         self._ev("potion", kind="refresh", ok=True, n=pl.stam_max)
+
+    def _cure(self, s):
+        """A cure potion: poisoned, cured at once ("You feel cured of poison!", cliloc 500231, and the 0x17 flag off: live
+        2026-10-26 22:31:49 on Logan); not poisoned, not drunk [INFERENCE: ServUO's CurePotion, cliloc 1042000 "You
+        decide against drinking this potion, as you are not poisoned."]. No cooldown of its own [INFERENCE]."""
+        pl = self.player
+        if pl.poison_until <= self.t:
+            self.send(P.cliloc(1042000))
+            self._ev("potion", kind="cure", ok=False, n=0)
+            return
+        pl.poison_until = 0.0
+        self.metrics["cure_potions"] = self.metrics.get("cure_potions", 0) + 1
+        self.send(P.cliloc(500231))
+        self._poison_flag()
+        self._consume(s)
+        self._ev("potion", kind="cure", ok=True, n=0)
+
+    def _poison_flag(self):
+        """The player's poison health-bar flag (0x17 type 1) whenever it changes: on with a poison, off when it ends,
+        a cure potion or the vet supplies cure it (live: the server's 0x17 about Logan, world.self.poisoned)."""
+        pl = self.player
+        on = pl.poison_until > self.t
+        if on != self.poison_shown:
+            self.poison_shown = on
+            self.send(P.poisoned(pl.serial, 3 if on else 0))
 
     def _lift(self, s, amount):
         it = self.items.get(s)

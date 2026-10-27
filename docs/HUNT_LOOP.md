@@ -78,6 +78,12 @@ Each tick re-reads the proxy state and decides, in this order:
    until the overseer acks `speech_nearby`. Leaving to survive overrides the hold.
 3. **Heal** below `--heal-at`, one heal per tick (`harness/healing.py`, shared with `ctl act heal`;
    user decision 2026-10-02):
+   **Poisoned first** (`HuntLoop.cure`, since 2026-10-26; the tick, the walk's fight and the walk out): with the
+   server's poison flag on us (0x17, `world.self.poisoned`) and a cure potion (`0x0F07`) in the pack at any depth,
+   one double-click on it, as the heal potion's, then "cure potion: cured" or "still poisoned"; again after 1.5 s
+   at the soonest. User 2026-10-26: "the runner seems not to use cure potions when Logan is poisoned" (live 22:31:09-49
+   on Tidal Tomb level 1 he stayed poisoned 40 s until the user drank one: "You feel cured of poison!", cliloc
+   500231). The simulator sends the flag and takes the potion; test_sim `test_cure_potion`.
    - **A heal potion whenever one can be drunk**: any heal potion (graphic `0x0F0C`) in the
      backpack at any bag depth, smallest stack first, its bags opened first, the stock
      double-click. "Can be drunk" means not at full health and 10 s since the last drink (the

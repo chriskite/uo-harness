@@ -61,6 +61,11 @@ def mana(serial, cur, top):
 def stam(serial, cur, top):
     return b"\xa3" + u32(serial) + u16(top) + u16(cur)
 
+def poisoned(serial, level=0):
+    """0x17 health-bar status, type 1 (poison), `level` 0 = not poisoned (live 2026-10-26 22:31:09 / 22:31:49 on
+    Logan: `17000c00104a6000010001 03`, then `... 00` with the cure)."""
+    return b"\x17" + u16(12) + u32(serial) + u16(1) + u16(1) + bytes([level & 0xFF])
+
 
 def cursor(cid, cursor_type=1, target_type=0):
     """0x6C target cursor: target_type 0 an object, 1 a location ("All Patrol": `6c 01 <id> 00 ...`, live 2026-10-18)."""
