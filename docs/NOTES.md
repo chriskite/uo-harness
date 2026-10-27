@@ -706,6 +706,10 @@ Wiki: [Resource Stockpile](https://wiki.uooutlands.com/Resource_Stockpile),
   with 0. `stockpile.deposit` does exactly that; the overseer's `ctl act stockpile` runs the same
   flow on every board stack in the pack. Never target yourself: per the wiki that adds every valid
   item in the pack, reagents and tools included, depending on the player's Settings.
+- **Logs are refused (live 2026-10-27 08:3x, SeerOutlandDan4):** with no hatchet to convert, `act stockpile
+  0x440D4F8D` (814 logs, loose in the backpack) answered "You do not find any items that could be added to a
+  Resource Stockpile." and left the stack; targeting a pouch of log stacks got the same. Only boards (and
+  ingots) go in, so logs stay in the pack until a hatchet converts them (`act convert --store`).
 - **A whole pouch at once (user's suggestion, live test 2026-10-05 22:05–22:17):**
   - **Retrieval works:** the stockpile's Retrieval menu (row button 110 regular boards, 111
     dullwood) is gump 0xCB355E84, lines "Retrieve Items", "Available", the count, "Retrieve", "",
