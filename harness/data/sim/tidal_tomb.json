@@ -264,6 +264,16 @@
  "teleporters_note": "capture 20261024_102346, each the tile a step went for when the server moved us ('from'; its 0x21 deny reported the tile we stood on): 11:00:06 S from (6656, 2108) out of the dungeon to (3861, 3585) by the entrance outside, 11:00:51 N from (3861, 3586) back in to (6656, 2109); 11:08:37 S from (6718, 1983) down to level 2 (6943, 2004); 11:13:31 N from (6834, 2080) up to level 1's west end (6609, 2060; oxygen refilled there), 11:13:39 S from (6609, 2059) back to (6834, 2079). The pairs land on each other's tile (2 of 2 seen both ways), so (6943, 2004) -> (6718, 1984) is taken as the level 2 arrival's way back [INFERENCE: not stepped on]. The later visits (calibrate's levels.teleports) show strips that keep the column: S from (6608 / 6610, 2059) to (6833 / 6835, 2079) (2026-10-24 19:52:11, 20:11:08), S from (6657, 2108) out to (3862, 3585) and N back to (6657, 2109) (20:08:10, 20:08:29); level 2 -> 3, N from (6884 / 6885, 1930) to (7162 / 7163, 2221) (2026-10-25 11:30:56; 2026-10-24 20:54:47, 20:58:14); level 3 -> 2, S from (7161 / 7162, 2220) to (6883 / 6884, 1929) (11:35:19; 21:04:20, 20:58:00). The strips' other columns aren't listed [INFERENCE: likely wider]; a landing on a strip's tile doesn't move one again (the step onto it does)",
  "gates": [
   {
+   "name": "crimson moongate",
+   "serial": 1073850884,
+   "at": [6652, 2095, -16],
+   "hue": 2820,
+   "destinations": [
+    {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
+    {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3867, 2900, -40]}, {"name": "Corpse Creek"}
+   ]
+  },
+  {
    "name": "golden moongate",
    "serial": 1073993653,
    "at": [
@@ -356,7 +366,7 @@
    ]
   }
  ],
- "gates_note": "the moongates seen (captures): golden 0x4003D7B5 at the arrival (6652, 2095), 0x4003D7B7 (6642, 2062) and 0x4003D7B6 (6685, 2064) on level 1; crimson 0x4003D7B8 (6913, 2071, -100) and 0x4003D7B9 (6897, 1992, -126) on level 2, the second 8 tiles S of the strip down to level 3. Every menu opened (0x4003D7B8 2026-10-24 11:14:05, 20:05:17, 20:20:27; 0x4003D7B6 19:41:11; 0x4003D7B9 21:04:35 and 2026-10-25 11:36:55) listed the same 'Moongate Destinations' rows, Anchor's Rest .. Corpse Creek, and 'Travel to Destination' with Totem put Logan at a different tile each time: (3867, 2900), (3870, 2891), (3846, 2876), (3848, 2867), (3882, 2893), (3859, 2890), z -40 or -19 (the Mausoleum's crimson gate landed at (3859, 2890)); the sim keeps one. The golden gates' rows are the same [INFERENCE for 0x4003D7B5 and 0x4003D7B7, never opened]. A crimson gate 0x4001AA04 stands on the arrival gate's tile too (World keys gates by tile: left out)",
+ "gates_note": "the moongates seen (captures): golden 0x4003D7B5 at the arrival (6652, 2095), 0x4003D7B7 (6642, 2062) and 0x4003D7B6 (6685, 2064) on level 1; crimson 0x4003D7B8 (6913, 2071, -100) and 0x4003D7B9 (6897, 1992, -126) on level 2, the second 8 tiles S of the strip down to level 3. Every menu opened (0x4003D7B8 2026-10-24 11:14:05, 20:05:17, 20:20:27; 0x4003D7B6 19:41:11; 0x4003D7B9 21:04:35 and 2026-10-25 11:36:55) listed the same 'Moongate Destinations' rows, Anchor's Rest .. Corpse Creek, and 'Travel to Destination' with Totem put Logan at a different tile each time: (3867, 2900), (3870, 2891), (3846, 2876), (3848, 2867), (3882, 2893), (3859, 2890), z -40 or -19 (the Mausoleum's crimson gate landed at (3859, 2890)); the sim keeps one. The golden gates' rows are the same [INFERENCE for 0x4003D7B5 and 0x4003D7B7, never opened]. A crimson gate 0x4001AA04 (hue 2820, the crimson gates' hue; 2822 the golden ones') stands on the arrival gate's tile too, in all three captures (2026-10-24, -25, -26); the user's in-game map shows both there (2026-10-26). In the sim since 2026-10-26, first on the tile as live (it came first in the captures), its rows the golden one's [INFERENCE: never opened]; World.gates keys the menu by tile, the same rows either way",
  "runner": {
   "leave_gate": [6652, 2095],
   "gate_dest": "Totem",

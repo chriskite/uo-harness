@@ -638,6 +638,15 @@ Paste this (or point the session at this section) to start an overseer.
 >    earlier level it walks the rest of the teleporters from the first one it can reach. (Before, `--spot 5199
 >    737` was needed and worked only within 18 tiles of the arrival: run hunt-20261018-212957-c791 tried to
 >    recall from 48 tiles off.)
+>    **Tidal Tomb level 1 instead** (user 2026-10-26, when the user asks for it; the rest of this section holds): with
+>    the user's "Tidal Tomb Inside" rune in the tome 0x444AB1F3 (the library tome "Bad Places II" at the guild house
+>    isn't one the runner can use), `ctl run hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180
+>    --leave-recall 0x444AB1F3 --leave-gate 6652 2095 --gate-dest Totem --enter-recall 0x444AB1F3 --enter-rune
+>    "Tidal Tomb Inside"`. In: the recall to the arrival (6653, 2097), no teleporters; the crawl's floor is level 1
+>    (its teleporters down to level 2 at (6608-6610, 2060) and (6718, 1984), and the exit at (6656-6657, 2109), are
+>    known walls to the walk rules). Out: the gate on the arrival tile (the user's choice; it holds a golden 0x4003D7B5
+>    and a hue-2820 one 0x4001AA04, either opens the destinations menu [INFERENCE for the second]), Totem, the tome
+>    home. Logan anywhere but level 1 (another teleporter column than these, the exit) is an issue for the parent.
 >    What it does, so the log reads right:
 >    - **In:** the recall to "Maus Near 2", the four teleporters with the pets on "All Follow Me" (a fight on
 >      the way: the pets guard until it's over, unless he is within 15 steps of the teleporter: then he goes through

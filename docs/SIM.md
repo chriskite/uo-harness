@@ -1317,8 +1317,10 @@ flowchart LR
   - Pressure;
   - the ooze's greater poison;
   - Recovery Dolphins (placed since 2026-10-25).
-- **The arrival tile holds a golden and a crimson moongate.** The runner's default leave double-clicks that tile,
-  and which menu opens there live is untested.
+- **The arrival tile holds a golden and a crimson moongate** (0x4003D7B5 hue 2822, 0x4001AA04 hue 2820; the user's
+  in-game map shows both, 2026-10-26). The runner's leave double-clicks the first gate item on that tile. Since
+  2026-10-26 the sim has both, the crimson first as in the captures, with the golden one's rows; which menu opens there
+  live is untested.
 - **Live, the Tidal rune is in the runebook "Bad Places II".** It is not in Logan's tome, which is what the
   simulator's tome row stands for.
 
