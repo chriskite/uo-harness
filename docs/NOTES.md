@@ -6155,11 +6155,45 @@ Capture session_20261026_183552 replayed (`WorldRuntime`):
   column, on Logan; GraveRobber -24 0.1 s before), 23.25 -18 (disease). Dead at 23.30.
 - **Same signature as 00:38 on 10-25** (Logan at (5243, 722), the reanimator then at (5239, 721)): spells landed on a tile
   our map says the casters don't see; both times a wall along x 5240 (0x00C5 / 0x6685, NoShoot) is the block.
-  [INFERENCE: either the reanimator's spells reach a pet's surroundings without sight (00:38: a lightning on Logan and
-  all three pets at once) or the live map/LOS differs from ours at that wall; not settled.] `tamer.AREA_R` has no master
-  reanimator, so no stand-off keeps Logan off its victims.
+  [Settled in the next section: the spells were begun while it saw him, 1.3-4.5 s before they landed.] `tamer.AREA_R`
+  has no master reanimator, so no stand-off keeps Logan off its victims (its chain lightning ignores walls).
 - Both of 2026-10-26's deaths ended the same way: under two awake casters, the potion clock running, a vet channel on
   Logan below 50 % counted as "a heal coming", so no leave.
+
+## How the user plays the casters and purgers, and what the captures show (2026-10-26 19:45-20:30)
+
+The user took Logan over at 19:45:21 (run hunt-20261026-193645-612f paused) and fought the master reanimator's room:
+"I managed to fight that room from the same area just now without taking any damage"; "I keep the pets between me and
+mobs so mobs aggro on the pets, I don't walk over to other mobs while our pets are fighting (i.e. I avoid being sighted
+by hostiles)"; "I move to spots where if a mob respawns (like the dreaded blightmare) I won't be standing in its
+sight". Throwaway replays of session_20261026_183552 and a scan of the Mausoleum captures since 2026-10-15:
+
+- **The user's fight (19:45:21-19:46:20)**: from (5241, 717), north of the room and out of sight of the reanimator at
+  (5234, 725) and a shadowguard at (5231, 723), "All Patrol" into the room (19:45:27); both woke on the pets. Then he
+  stood at (5241, 726) (the 19:30 death's tile) and in the doorway (5241, 723) in plain sight of both, Discordance on
+  each, Peacemaking on the shadowguard: no damage. Their aggro was on the pets.
+- **Metrics** (sampled every 0.5 s with an awake monster within 14; damage per such minute): the user 9.3 min (4.2 in
+  a fight): 26/min on Logan, a pet nearer each awake monster than he 92 % of the time, "All Patrol" 8 times, no disease
+  line; the runner 19:36:45-19:45:20 (4.3 in a fight): 90/min, 71 %, "All Patrol" once, 3 disease lines; the runner
+  18:44-19:30 (21.3): 59/min, 84 %, "All Patrol" 5 times in 46 min. Distances to the nearest awake monster and the
+  share of time seen by none were about the same (median 4; 19-33 %): the difference is who has the aggro, not how far.
+- **The reanimator's walls hold** (user: "it can't see through the walls ... I just tested several tiles across the
+  wall from it and it didn't aggro on me"; chain lightning, the bolts on Logan and the pets at once, ignores walls).
+  Of the 39 explosions and flamestrikes on Logan alone 10-15..10-26, 20 landed with it in sight by our map; of the 19
+  that didn't, 18 came 1.3-4.5 s after it last had sight of him (explosion median ~3 s, flamestrike 1.3-2.9 s): the
+  spell was begun while it saw him and landed after he stepped out of its sight (user: "Maybe it actually cast the
+  spell when it briefly saw me and there's a delay before it hits... that's certainly the case for explosion").
+  At 19:30:16 the reposition walked Logan from the doorway to (5241, 726): seen on the way, hit there. So a step out
+  of a caster's sight saves nothing for ~4.5 s, and a walk that crosses its sight is the hit.
+- **The corpse purger's barrage** (user: "It looks like it targets the ground where the player/pet it aggro'd on stood
+  and shoots an AOE disease effect"): a volley of 4-14 moving body-part effects (0x1DA4, 0x1E19, 0x09B7, 0x09B9, 0x160A,
+  0x1DB1, ...) from the purger to ground points around its target's tile at the throw (spread median 2), then the
+  burst ~0.8 s later (0x377A at the centre, 0x372A "You have contracted a foul disease!" on who stands in it), and
+  disease ticks -11..-17 every ~0.3-1 s that stack (the user's 19:54:46-57 death: two volleys, the second centred on
+  his own tile; 100 -> 0 in 11 s while walking away). 933 volleys: hits on whoever stood 0-1 tiles from the centre
+  38-45 %, at 2 or more 5-16 % (noise of other damage included).
+- **Damage on Logan by the runner's activity** (the latest task-log line before each hit, 10-22..26): spread over
+  vets, fights, patrols, spacing, stand-offs and the rest; no single action stands out that way.
 
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
