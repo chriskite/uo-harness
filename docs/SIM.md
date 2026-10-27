@@ -1456,6 +1456,63 @@ and doesn't engage any more mobs".
 - **The same run after the fix** (same seed and runner arguments): 131 kills in 30.5 game minutes, 20-25 in every 5
   minutes, 55,240 gold banked over two visits, no "no route".
 
+### Level 1 walked whole (2026-10-26)
+
+User 2026-10-26: "I have explored all of level one of TT ... make sure the simulator has all the monster spawns and
+mechanics accounted for on level 1". Capture 20261026_183552, 20:30:34-20:45:36 (902 s on level 1), GraveRobber and
+AlaFlambe, AR 120. Logan stood within 12 tiles of 96 % of level 1's floor (99 % with the earlier visits).
+
+**Spawns.** All 10 creature types he met were in the scenario. Its 61 level 1 spawns missed whole rooms:
+
+- The earlier visits' spawns came from first sightings, and the later visits' only where the first visit couldn't
+  see. The first visit had looked into the west rooms (x 6620-6648) while they were empty, so the later visits'
+  monsters there were left out.
+- Added 25 (86 on level 1 now; `spawn_note`): each an idle first sighting (not war mode, not `*emerges*`) more than
+  8 tiles from every spawn of its type. 24 are today's, mostly the west rooms and the south-east room (x 6688-6723,
+  y 2056-2094), which had none. The 2026-10-24 capture had two unnamed manta bodies idle in that room at the same
+  spots. One more is a nest crab of 2026-10-24 that the old rule had dropped.
+- Kept: 6 old spawns met nothing of their type today, each in view 16-97 s, which a respawn explains.
+- 49 of 57 idle sightings within 3 tiles of a spawn were its type, so a spawn keeps one type.
+
+**Mechanics.** The overhead texts and system messages on level 1, against the scenario:
+
+| seen live | count | in the simulator |
+|---|---|---|
+| scavenger `*takes large swing*`, a 14-21 on its target 0.5 s later, every 7.6-8.0 s | 14 | **new**: special `large_swing` |
+| a pincer crab `*emerges*` at that hit (22 of 26 swings with fewer than 2 of its own up) | 9 | **new**: the swing's `brood` |
+| nest crab `*digs*`, a pincer crab 0.5 s later | 12 / 9 | `brood` (since 2026-10-24) |
+| bottomfeeder `*feeds*` | 3 | `feed` |
+| ruby smallshell Pierce Claw ("A ruby-sharp strike temporarily reduces your armor!") | 1 | no (AR in the status stayed 120) |
+| scavenger `*scavenges*`: 14 of 15 while idle, no damage, no crab | 15 | no: an idle emote |
+| `*barding break*` on a noughtilus right after a provocation | 2 | the general barding break |
+
+- **The scavenger's melee was its large swings.** Calibrate's numbers on the pets (15-21; swing sums to 42) were
+  the large swings, so the sim hit the gravebug ~38 a swing. Its regular hits are 9-14 (`melee_observed`).
+- **Calibration** takes the capture too (`calibration.tags`). On level 1 the nest crab's melee goes 25 -> 12 (n 9 ->
+  24), the manta's swing period 3.0 -> 3.77 s and the mermadon's 1.54 -> 2.52 s; levels 2 and 3 are unchanged.
+- `test_tidal_large_swing`: the cadence, the hit 0.5 s later, the crabs and their cap.
+
+**A runner bug the new spawns showed.** In the first batch, 2 of 8 runs died on the leave at time up. Both deaths
+came at "to the moongate: waiting for the pets", the pets 9 tiles off: a noughtilus killed Logan in 18 s and he
+drank nothing. The wait for the pets ignored attacks; now it fights (docs/HUNT_LOOP.md "Attacked on the way";
+`test_wait_pets_attacked`).
+
+**Runs** (8, seeds 3-10, 30 game minutes from home, `--compare -- --vet-range 5`, AR 133):
+
+| per hour on level 1 | before | after | live 2026-10-26 (902 s, AR 120) |
+|---|---|---|---|
+| kills | 255 | 320 | 355 (247 without the pincer crabs) |
+| damage to Logan | 362 | 695 | 1,149 |
+| heal potions | 5.4 | 11.4 | 20 |
+| runs where Logan died | 0 of 8 | 0 of 8 (2 before the wait fix) | none |
+
+- One run (seed 3) ended inside: its leave at time up fought past the 180 s run.py allows. A live run has no
+  `--timeout`.
+- Time to kill on level 1 matches the user's play now: live medians 4.8-11.9 s a type with these pets, the sim's 3-10 s.
+- **Open:**
+  - Damage to Logan is still 0.6x the live rate. Live he had AR 120, the sim 133.
+  - Live used 160 vet supplies an hour, the sim 50.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its

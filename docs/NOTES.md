@@ -5692,6 +5692,33 @@ the 8 hours between them: the AR seconds (36,280 s at AR 133 for 4,225 s there) 
 They now sum the time in the region (`Session.seconds_in_region`, also in `source.captures`). One visit's numbers are
 unchanged.
 
+## Tidal Tomb: level 1 walked whole (2026-10-26 20:30:34-20:45:36, capture 20261026_183552)
+
+The user played it to check the simulator's level 1 (docs/SIM.md "Level 1 walked whole"). Pets GraveRobber and
+AlaFlambe. AR 120 the whole visit, not 133.
+
+- **In:** at 20:28 he was on Maus 3 (5242, 681); recalls by his tome 0x444AB1F3 followed. At 20:30:29, standing at the
+  DTF guild house (4152, 1432), he used the library tome **"Bad Places II" 0x457BB5CB** in a wooden shelf: gump
+  0x09F5976B, button 110, "Tidal Tomb Inside". Arrival (6653, 2097) at 20:30:34. `ctl runes near 6653 2097 --character
+  "Logan Wolf"` lists no rune of his own books there (the books as last read by `act recall --check`).
+- **Covered:** he stood within 12 tiles of 96 % of the level's floor. He met 106 monsters of 10 types: aquamarine and
+  ruby smallshells, oozing and singing noughtilus, bottomfeeder, dungeon-nest crab, flying manta, lowtide scavenger,
+  mermadon and pincer crab. He killed 89, 27 of them pincer crabs. Damage on him: 13 hits, 288 in all, 6-28 each.
+- **Lowtide scavenger, `*takes large swing*`:** 14 from 5 scavengers in fights, 7.6-8.0 s apart (median 7.86), the
+  first 0.9-4.6 s after it went to war mode.
+  - 0.5 s later a 14-21 (median 18) on its target, GraveRobber each time. Twice AlaFlambe took a 21 / 23 at the
+    same instant.
+  - A pincer crab `*emerges*` beside it at that instant: 9 times, with no nest crab digging at that moment.
+  - Never with 2 of its own crabs up. In capture 20261024_102346 the first two swings of each scavenger brought a
+    crab (13 of 13), the next ones none.
+  - Its regular hits on the gravebug are 9-14, ~3-3.5 s apart.
+- **`*scavenges*`** (15): 14 while it stood idle, every ~10 s, with no damage and no crab. An idle emote [INFERENCE].
+- **Nest crab `*digs*`:** 12, a crab 0.48-0.54 s after 9 of them.
+- Ruby smallshell's Pierce Claw on Logan once; the status AR stayed 120.
+- `*barding break*` over a singing noughtilus twice, each right after a successful provocation on it.
+- An oozing noughtilus came back 144 s after its death, on the same tile (6635, 2018).
+- Kills took 4.8-11.9 s a type (median from the first number to the death), pincer crabs 1.4 s.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

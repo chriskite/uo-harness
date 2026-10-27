@@ -16,9 +16,10 @@
   ],
   "tags": [
    "20261024_102346",
-   "20261024_225113"
+   "20261024_225113",
+   "20261026_183552"
   ],
-  "note": "sim/calibrate.py's region: the three levels Logan walked (map flood fill: level 1 x 6608-6738, y 1932-2109; level 2 x 6817-6967, y 1909-2098; level 3 x 7049-7255, y 1908-2221), the dungeon's box. Captures: his first visit (20261024_102346 10:59:55-11:14:06, levels 1-2, pets GraveRobber and AlaFlambe) and the second (20261024_225113, 2026-10-25 11:21:30-11:36:55, levels 1-3, pets NightmareA, NightmareB and a searing imp): the pets differ, so damage_to_pets mixes their armor (docs/NOTES.md 'Tidal Tomb: the second visit')"
+  "note": "sim/calibrate.py's region: the three levels Logan walked (map flood fill: level 1 x 6608-6738, y 1932-2109; level 2 x 6817-6967, y 1909-2098; level 3 x 7049-7255, y 1908-2221), the dungeon's box. Captures: his first visit (20261024_102346 10:59:55-11:14:06, levels 1-2, pets GraveRobber and AlaFlambe) and the second (20261024_225113, 2026-10-25 11:21:30-11:36:55, levels 1-3, pets NightmareA, NightmareB and a searing imp): the pets differ, so damage_to_pets mixes their armor (docs/NOTES.md 'Tidal Tomb: the second visit'); the user's walk through all of level 1 (20261026_183552 2026-10-26 20:30:34-20:45:36, GraveRobber and AlaFlambe, AR 120) since 2026-10-26"
  },
  "inherit": {
   "from": "mausoleum",
@@ -1032,9 +1033,34 @@
   {"key": "colossal pincer crab", "at": [7217, 2183, -50], "note": "level 3: first seen 2026-10-25 11:34:43 (7217, 2183), capture 20261024_225113"},
   {"key": "clearwater grouper", "at": [6883, 1946, -126], "note": "level 2: first seen 2026-10-25 11:35:19 (6883, 1946), capture 20261024_225113"},
   {"key": "voidfin", "at": [6882, 1985, -126], "note": "level 2: first seen 2026-10-25 11:36:33 (6882, 1985), capture 20261024_225113"},
-  {"key": "biolumen shellpod", "at": [6883, 2001, -106], "note": "level 2: first seen 2026-10-25 11:36:40 (6883, 2001), capture 20261024_225113"}
+  {"key": "biolumen shellpod", "at": [6883, 2001, -106], "note": "level 2: first seen 2026-10-25 11:36:40 (6883, 2001), capture 20261024_225113"},
+  {"key": "aquamarine smallshell", "at": [6648, 2054, -18], "note": "level 1: first seen 2026-10-26 20:30:55 (6648, 2054), 12 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "dungeon-nest crab", "at": [6632, 2054, 20], "note": "level 1: first seen 2026-10-26 20:30:57 (6632, 2054), 18 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "aquamarine smallshell", "at": [6627, 2055, 20], "note": "level 1: first seen 2026-10-26 20:31:01 (6627, 2055), 16 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "pincer crab", "at": [6635, 2039, 20], "note": "level 1: first seen 2026-10-26 20:31:16 (6635, 2039), 10 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "mermadon", "at": [6624, 2044, 29], "note": "level 1: first seen 2026-10-26 20:31:17 (6624, 2044), 19 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "bottomfeeder", "at": [6645, 2023, 19], "note": "level 1: first seen 2026-10-26 20:31:19 (6645, 2023), 13 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "dungeon-nest crab", "at": [6626, 2021, 24], "note": "level 1: first seen 2026-10-26 20:31:19 (6626, 2021), 19 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "pincer crab", "at": [6639, 2020, 20], "note": "level 1: first seen 2026-10-26 20:31:20 (6639, 2020), 14 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "oozing noughtilus", "at": [6634, 2017, 20], "note": "level 1: first seen 2026-10-26 20:31:21 (6634, 2017), 17 tiles from the type's nearest spawn, capture 20261026_183552; another 144 s after its death on the same tile"},
+  {"key": "oozing noughtilus", "at": [6620, 2055, 20], "note": "level 1: first seen 2026-10-26 20:33:27 (6620, 2055), 21 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "bottomfeeder", "at": [6621, 2057, 20], "note": "level 1: first seen 2026-10-26 20:33:28 (6621, 2057), 23 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "mermadon", "at": [6710, 1994, 22], "note": "level 1: first seen 2026-10-26 20:39:42 (6710, 1994), 21 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "ruby smallshell", "at": [6702, 1998, 22], "note": "level 1: first seen 2026-10-26 20:39:43 (6702, 1998), 14 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "oozing noughtilus", "at": [6707, 2030, 19], "note": "level 1: first seen 2026-10-26 20:40:49 (6707, 2030), 16 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "aquamarine smallshell", "at": [6688, 2046, -16], "note": "level 1: first seen 2026-10-26 20:41:16 (6688, 2046), 10 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "dungeon-nest crab", "at": [6671, 2032, 19], "note": "level 1: first seen 2026-10-26 20:41:49 (6671, 2032), 17 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "flying manta", "at": [6723, 2056, 4], "note": "level 1: first seen 2026-10-26 20:43:04 (6723, 2056), 23 tiles from the type's nearest spawn, capture 20261026_183552; an unnamed manta body (2470) idle at (6724, 2058) on 2026-10-24 19:40:49"},
+  {"key": "mermadon", "at": [6722, 2069, -1], "note": "level 1: first seen 2026-10-26 20:43:09 (6722, 2069), 54 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "ruby smallshell", "at": [6723, 2073, -1], "note": "level 1: first seen 2026-10-26 20:43:10 (6723, 2073), 36 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "flying manta", "at": [6713, 2094, 4], "note": "level 1: first seen 2026-10-26 20:43:47 (6713, 2094), 61 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "singing noughtilus", "at": [6698, 2090, -2], "note": "level 1: first seen 2026-10-26 20:43:53 (6698, 2090), 32 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "flying manta", "at": [6693, 2077, -2], "note": "level 1: first seen 2026-10-26 20:44:02 (6693, 2077), 44 tiles from the type's nearest spawn, capture 20261026_183552; an unnamed manta body (2470) idle at (6693, 2076) on 2026-10-24 19:41:10"},
+  {"key": "mermadon", "at": [6692, 2093, 3], "note": "level 1: first seen 2026-10-26 20:44:02 (6692, 2093), 63 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "oozing noughtilus", "at": [6688, 2089, -2], "note": "level 1: first seen 2026-10-26 20:44:03 (6688, 2089), 43 tiles from the type's nearest spawn, capture 20261026_183552"},
+  {"key": "dungeon-nest crab", "at": [6637, 2025, 20], "note": "level 1: first seen 2026-10-24 19:33:47 (6637, 2025), 11 tiles from the type's nearest spawn, capture 20261024_102346 (added 2026-10-26)"}
  ],
- "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept). The first 68 come from the first visit (2026-10-24 10:59:55-11:14:06, levels 1-2): a first look, not the Mausoleum's 41-visit check. The other 58 come from the later visits (2026-10-24 19:32-21:04 and 2026-10-25 11:21-11:36), only where the first visit couldn't see (a first sighting more than 18 tiles from every tile it stood on), so a spawn it had isn't counted twice: 13 on level 1's middle, 39 on level 2's west and north, 6 on level 3's first part. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood; 30 in all), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb'), the recovery dolphin (oxygen.dolphins), 5 monsters whose name never came.",
+ "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept). The first 68 come from the first visit (2026-10-24 10:59:55-11:14:06, levels 1-2): a first look, not the Mausoleum's 41-visit check. The other 58 come from the later visits (2026-10-24 19:32-21:04 and 2026-10-25 11:21-11:36), only where the first visit couldn't see (a first sighting more than 18 tiles from every tile it stood on), so a spawn it had isn't counted twice: 13 on level 1's middle, 39 on level 2's west and north, 6 on level 3's first part. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood; 30 in all), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb'), the recovery dolphin (oxygen.dolphins), 5 monsters whose name never came. 2026-10-26: the user walked all of level 1 (capture 20261026_183552, 20:30-20:45, within 12 tiles of 96 % of its floor); 25 spawns added (86 on level 1 now), one per idle first sighting (not war mode, not '*emerges*') more than 8 tiles from every spawn of its type (spawn_spread 4 and the 2-tile wander keep a spawn's own monster within ~6): 24 of today's, mostly the west rooms (x 6620-6648) and the south-east room (x 6688-6723, y 2056-2094) that had none, and a nest crab of 2026-10-24 19:33:47 the old 18-tile rule had left out (the first visit had seen that spot). Two idle pincer crabs far from any nest crab or scavenger are spawns; three within 3 tiles of one are taken for broodlings. 6 of the 61 earlier level 1 spawns met nothing of their type within 6 tiles today, in view 16-97 s each: kept (a respawn or another player's kill explains that).",
  "specials": {
   "bottomfeeder": [
    {
@@ -1104,7 +1130,18 @@
     ],
     "delay_s": 0.5,
     "max": 2,
-    "note": "capture: 8 pincer crabs (new serials, 500 hits each, every one killed) came into being beside a fight with '*emerges*', each 0.5 s after a dungeon-nest crab's '*digs*' there (5: 11:01:34.4, 11:02:41.6, 11:03:39.2, 11:04:15.6, 11:04:30.8) or a lowtide scavenger's '*takes large swing*' with a nest crab fighting near (3: 11:05:46.4, 11:05:54.1, 11:06:11.5); one nest crab dug twice 15.2 s apart. The wiki's Dig (#14468, the tamed version: a teleport and a hit within 2) isn't the broodling: [INFERENCE: the nest crab broods them, every ~15 s while it fights, at most 2 of its own up]"
+    "note": "capture: 8 pincer crabs (new serials, 500 hits each, every one killed) came into being beside a fight with '*emerges*', each 0.5 s after a dungeon-nest crab's '*digs*' there (5: 11:01:34.4, 11:02:41.6, 11:03:39.2, 11:04:15.6, 11:04:30.8) or a lowtide scavenger's '*takes large swing*' with a nest crab fighting near (3: 11:05:46.4, 11:05:54.1, 11:06:11.5); one nest crab dug twice 15.2 s apart. The wiki's Dig (#14468, the tamed version: a teleport and a hit within 2) isn't the broodling: [INFERENCE: the nest crab broods them, every ~15 s while it fights, at most 2 of its own up]. Capture 20261026_183552 (level 1): 12 digs, a crab 0.48-0.54 s after 9 of them; 8 of the 9 crabs at a large swing came with no dig at that instant, so they are the scavenger's own (its large_swing entry)"
+   }
+  ],
+  "lowtide scavenger": [
+   {
+    "kind": "large_swing",
+    "first_s": [1.0, 5.0],
+    "every_s": [7.6, 8.0],
+    "delay_s": 0.5,
+    "damage": [14, 21, 18],
+    "brood": {"key": "pincer crab", "chance": 0.85, "max": 2},
+    "note": "capture 20261026_183552 (level 1, 2026-10-26 20:30-20:45, GraveRobber and AlaFlambe): 14 '*takes large swing*' from 5 scavengers in fights, each 7.6-8.0 s after its last (median 7.86, n=9), the first 0.9-4.6 s after it went to war mode; 0.5 s later a 14-21 on its target (median 18, n=12, all GraveRobber; twice also a 21 / 23 on AlaFlambe at that instant [INFERENCE: beside it, not modelled]); capture 20261024_102346's 16 put 15-25 on its other pets. A pincer crab '*emerges*' beside it at the hit's instant on 22 of the 26 swings with fewer than 2 of its own crabs up (13 of 13 then; 9 of 13 today), on none of the 4 with 2 up: chance 0.85, at most 2 [INFERENCE: up at once, as the nest crab's brood; a lifetime cap of 2 fits as well]. Its '*scavenges*' (15 today) came every ~10 s while idle (14 of 15) with no damage and no crab: an idle emote, not modelled"
    }
   ],
   "tidal sea serpent": [
@@ -1166,7 +1203,7 @@
     "note": "level 3, 2026-10-25 11:34:13-11:34:50 (the only fight; it killed the three pets): a mage near (7197, 2172-2177); every 5.3-6.1 s (n=6 gaps) one number on each pet 10 tiles from it and on Logan at 8-12, the pets' rising 82-87, 89-95, 97-103, 110-112, 112-118, 123-128, Logan's 41, 32, 40, each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
    }
   ],
-  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'); the lowtide scavenger's '*takes large swing*' (a 15-21 hit 0.5 s later, n=3; 13 in the evening visits) and '*scavenges*' (6; 41); the frenzyfin's '*frenzies*' (9); the Pressure effect (#4646) of the pinching crabs and kraits (none seen resolve); the greater razorfin's steady 18 every ~1.2 s on the tank beside its 36-70 swings (2026-10-24 20:58:26-20:59:45, n~50; calibrate's swing numbers carry both); the giant zoas' spell backlash and scorch (their notes)."
+  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the frenzyfin's '*frenzies*' (9); the Pressure effect (#4646) of the pinching crabs and kraits (none seen resolve); the greater razorfin's steady 18 every ~1.2 s on the tank beside its 36-70 swings (2026-10-24 20:58:26-20:59:45, n~50; calibrate's swing numbers carry both); the giant zoas' spell backlash and scorch (their notes). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs (its entry)."
  },
  "ranged_observed": {
   "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},
@@ -1178,6 +1215,10 @@
   "clearwater grouper": {
    "melee": [19, 45, 37],
    "note": "its single hits on the pets (19, 21, 27, 37, 39, 40, 45); calibrate's swing sums (to 85) added a second monster's number in the same 0.25 s"
+  },
+  "lowtide scavenger": {
+   "melee": [9, 13, 10],
+   "note": "its regular hits on the pets: numbers on a pet with no monster but it and pincer crabs within reach, 7 or more (a crab's are 2-6), not 0.3-0.7 s after a large swing: 9, 9, 9, 10, 11, 11, 13, 14 (capture 20261026_183552, GraveRobber) and 9, 9, 10, 12 (20261024_102346), ~3-3.5 s apart. Calibrate's damage_to_pets (15-21) and swing sums (to 42) were its large swings (specials 'lowtide scavenger') and those sums; with them as its melee the sim hit the gravebug ~38 a swing"
   },
   "oozing noughtilus": {
    "melee": [

@@ -3149,21 +3149,42 @@ class HuntLoop:
         then 'All Follow Me' again and WALK_IN_PETS_S more, else Abort: never through a teleporter
         without them. A pet in view beyond COMMAND_R doesn't hear it: first to within COMMAND_R_GO of it (not beside a
         teleporter: `at` None; fetch_pet). `required` False (the walk out to the gate, which waits for them again
-        beside it): False instead, go on without them. True when they came."""
+        beside it): False instead, go on without them. True when they came. Attacked or hurt meanwhile: the walk's
+        fight (walk_in_fight), then the wait from its start (_wait_together)."""
         log(f"{label}: waiting for the pets ({self.pets_lagging(self.link.state()) or 'not all beside it'})")
         self.doing("enter" if required else "leave", "Waiting for the pets to catch up")
-        if self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_QUIET_S):
+        if self._wait_together(label, at, WALK_IN_QUIET_S, "in" if required else "out"):
             return True
         if at is None:
             self.fetch_pet(label)
         self.team.follow(wait=False)
-        if not self.link.wait(lambda s: self.team.together(s, at=at), WALK_IN_PETS_S):
+        if not self._wait_together(label, at, WALK_IN_PETS_S, "in" if required else "out"):
             if not required:
                 log(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles after {WALK_IN_PETS_S:.0f} s; going on")
                 return False
             raise Abort(f"{label}: the pets aren't within {tamer.FOLLOW_R} tiles "
                         f"{'of it' if at else 'of us'} after {WALK_IN_PETS_S:.0f} s; not going on without them")
         return True
+
+    def _wait_together(self, label, at, seconds: float, way: str) -> bool:
+        """Up to `seconds` for Team.together; a hit on us or an attacker ends it for walk_in_fight (which ends on
+        'All Follow Me'), then the wait starts over; still attacked after the fight (it ran out, WALK_IN_FIGHT_S): False
+        now (the caller's own way on). Simulator 2026-10-26 (tidal_tomb seed 3, the leave at time up): 'waiting for
+        the pets' with both 9 tiles off, an oozing noughtilus took Logan from 100 to dead in 18 s, no potion, before
+        'the pets aren't within 3 tiles after 20 s; going on'."""
+        self.walk_hits = None
+        while True:
+            st = self.link.wait(lambda s: self.team.together(s, at=at) or self.walk_hurt(s) or bool(self.attackers(s)),
+                                seconds)
+            if st is None:
+                return False
+            if self.team.together(st, at=at):
+                return True
+            self.walk_in_fight(label, way)
+            st = self.state()
+            if self.attackers(st):
+                return self.team.together(st, at=at)
+            self.walk_hits = None
 
     def fetch_pet(self, label):
         """The nearest pet in view farther than COMMAND_R: walk to within COMMAND_R_GO of it (re-aimed as it moves) so

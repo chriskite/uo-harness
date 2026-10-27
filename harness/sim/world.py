@@ -119,7 +119,8 @@ TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's l
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
-TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood"}   # ...used on a cooldown while it fights
+TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
+         "large_swing"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
 # a monster's damage kind -> how a pet takes it (sim/pets.taken_factor): physical through its armor, spell through its
@@ -226,6 +227,7 @@ class Mob:
     feed: list | None = None      # a vampire's feed: [next time, ticks left (None: still attempting), target, special]
     pulse: list | None = None     # an ooze aura under way: [next burst time, bursts left, special]
     brood_at: tuple | None = None  # a nest crab's dig: (time its broodling emerges, special)
+    swing_at: tuple | None = None  # a large swing called: (time it lands, target serial, special)
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -1314,7 +1316,11 @@ class World:
         if m.pulse is not None and t >= m.pulse[0]:
             self._pulse_step(m)
         if m.brood_at is not None and t >= m.brood_at[0]:
-            self._emerge(m)
+            _, sp = m.brood_at
+            m.brood_at = None
+            self._emerge(m, sp)
+        if m.swing_at is not None and t >= m.swing_at[0]:
+            self._large_swing(m)
         if m.calm_until > t:
             self._cancel_cast(m, "peace")
             self._warm(m, False)
@@ -1625,8 +1631,8 @@ class World:
 
     def _abilities(self, m: Mob, tgt: Mob, spec: dict):
         """Timed specials while fighting (scenario `specials`, each with its evidence): the Charge, the
-        transfix, the wail, the bursts, the Vanish, the apparition's blink, the vampires' feed; Tidal Tomb's ooze aura
-        and the nest crab's brood."""
+        transfix, the wail, the bursts, the Vanish, the apparition's blink, the vampires' feed; Tidal Tomb's ooze aura,
+        the nest crab's brood and the lowtide scavenger's large swing."""
         t = self.t
         for sp in spec.get("specials", []):
             kind = sp["kind"]
@@ -1734,6 +1740,18 @@ class World:
                 self._ev("ability", by=m.serial, kind=kind, v=None)
                 self._overhead(m, "*digs*")
                 m.brood_at = (t + sp.get("delay_s", 0.5), sp)
+            elif kind == "large_swing":
+                # a lowtide scavenger (Tidal Tomb scenario note): '*takes large swing*', 0.5 s later a hit on its
+                # target beside it, and often a pincer crab '*emerges*' beside it then
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                if m.swing_at is not None or cheb(m.pos, tgt.pos) > 1:
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
+                self._overhead(m, "*takes large swing*")
+                m.swing_at = (t + sp.get("delay_s", 0.5), tgt.serial, sp)
 
     def _pulse_step(self, m: Mob):
         """One burst of an ooze aura under way: a hit on each of us within `radius` (the song cuts it as any
@@ -1745,11 +1763,25 @@ class World:
                           dtype=sp.get("damage_type"), ref=sp.get("ref"))
         m.pulse = [self._due(when, sp["burst_s"]), left - 1, sp] if left > 1 and m.serial in self.mobs else None
 
-    def _emerge(self, m: Mob):
-        """A nest crab's broodling: a `key` monster on a free tile beside it, on its target at once; no spawn of
-        its own (no respawn), a kill as any monster's."""
-        _, sp = m.brood_at
-        m.brood_at = None
+    def _large_swing(self, m: Mob):
+        """A large swing lands: `damage` on its target if still beside it (measured on the gravebug, as the type's
+        melee; on the player one of its melee hits), then a `brood` broodling with its chance, up to its `max` of
+        the scavenger's own."""
+        _, s, sp = m.swing_at
+        m.swing_at = None
+        tgt = self.mobs.get(s)
+        if tgt is not None and tgt.alive and not tgt.ghost and cheb(m.pos, tgt.pos) <= 1 and m.calm_until <= self.t:
+            dmg = self._melee_on(tgt, m.spec) if tgt.kind == "player" else self.roll(sp["damage"])
+            self.hurt(tgt, dmg, m, "melee")
+        b = sp.get("brood")
+        if b and m.alive and self.rng.random() < b["chance"] and sum(
+                1 for o in self.mobs.values() if o.alive and o.kind == "monster"
+                and o.spec.get("summoner") == m.serial) < b.get("max", 1):
+            self._emerge(m, b)
+
+    def _emerge(self, m: Mob, sp: dict):
+        """A broodling (a nest crab's dig, a scavenger's large swing): a `key` monster on a free tile beside it, on
+        its target at once; no spawn of its own (no respawn), a kill as any monster's."""
         spec = {**self.sc["creatures"][sp["key"]], "summoner": m.serial}
         free = [(m.x + dx, m.y + dy) for dx, dy in nav.DIR_DELTA if not self._occupied(m.x + dx, m.y + dy)]
         tiles = [(x, y, self.stand_z(x, y, m.z)) for x, y in free]

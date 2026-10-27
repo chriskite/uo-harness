@@ -3489,6 +3489,56 @@ def test_walk_in_fetch_pet():
           " | ".join(ln for ln in out.splitlines() if "GraveRobber" in ln or "pets" in ln)[-600:])
 
 
+def test_wait_pets_attacked():
+    print("== waiting for lagging pets on the walk out: attacked meanwhile, the walk's fight, not standing in it ==")
+    # simulator 2026-10-26 (tidal_tomb seed 3, the leave at time up): 'to the moongate: waiting for the pets' with both
+    # 9 tiles off, an oozing noughtilus on Logan from 100 to dead in 18 s, no potion, until 'the pets aren't within 3
+    # tiles after 20 s; going on'
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    x, y = TIDAL_L1
+    w = tidal_world(TIDAL_L1, [{"key": "oozing noughtilus", "at": [x + 1, y - 1, -16]}])
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs"], 10)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    lowest, buf = [w.player.hits], io.StringIO()
+    run_until = clock.on_advance
+
+    def advance(now):
+        run_until(now)
+        lowest[0] = min(lowest[0], w.player.hits)
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())                 # both pets beside us: the roster
+            for p in w.pets():                            # then 9 tiles off (up the corridor) and stuck there
+                w._teleport(p, (x + 2, y - 9, -16))
+                w._moved(p)
+                p.spec = {**p.spec, "step_s": 1e9}
+            m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
+            w._warm(m, True)
+            clock.advance(1.0)                            # the client sees the pets' new tiles
+            apart = [sim_cheb(p.pos, w.player.pos) for p in w.pets()]
+            clock.on_advance = advance
+            loop.wait_pets("to the moongate", None, required=False)
+    finally:
+        clock.on_advance = run_until
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("the setup: both pets out of reach at the wait's start", all(d > tamer.FOLLOW_R for d in apart), str(apart))
+    check("the wait ends in the walk's fight ('attacked on the way out'), Logan alive above 40",
+          "attacked on the way out" in out and w.player.alive and not w.player.ghost and lowest[0] > 40,
+          f"lowest {lowest[0]}; " + " | ".join(out.splitlines()[-8:])[-700:])
+
+
 def test_tele_dash():
     print("== attacked on the walk-in within TELE_DASH_R of the teleporter: on and through it, no stand ==")
     import tempfile
@@ -4678,6 +4728,42 @@ def test_tidal_ooze_and_brood():
     check("...at most 2 of its own up at once", 1 <= most <= 2, str(most))
 
 
+def test_tidal_large_swing():
+    print("== Tidal Tomb: a lowtide scavenger's large swing every ~7.8 s, its hit 0.5 s later, its pincer crabs ==")
+    # live 2026-10-26 20:41:52-20:42:28 (capture 20261026_183552): '*takes large swing*' every 7.6-8.0 s, 14-21 on
+    # GraveRobber 0.5 s later, a pincer crab '*emerges*' at that instant while fewer than 2 of its own were up
+    x, y = TIDAL_L1
+    w = tidal_world(TIDAL_L1, [{"key": "lowtide scavenger", "at": [x + 2, y, -16]}])
+    said, rolled, orig = _log_overhead(w), [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if by is not None and by.key == "lowtide scavenger":
+            rolled.append((round(w.t, 2), victim, amount))       # its number before GraveRobber's mitigation
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    sc = next(m for m in w.mobs.values() if m.kind == "monster")
+    sc.hits = sc.hits_max = 100000
+    sc.spec = {**sc.spec, "melee": None}                      # only the large swing hurts
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    sc.target, sc.threat = gb.serial, {gb.serial: 1e6}
+    most = 0
+    for _ in range(600):                                    # 60 s
+        w.run_until(w.t + 0.1)
+        most = max(most, sum(1 for o in w.mobs.values() if o.alive and o.spec.get("summoner") == sc.serial))
+    swings = [t for t, s, text in said if s == sc.serial and text == "*takes large swing*"]
+    gaps = [round(b - a, 2) for a, b in zip(swings, swings[1:])]
+    check("in 60 s: 6+ large swings, 7.6-8.0 s apart", len(swings) >= 6 and all(7.55 <= g <= 8.05 for g in gaps),
+          f"{len(swings)} swings, gaps {gaps}")
+    check("...each lands 0.5 s later on GraveRobber, a 14-21 (the gravebug's live numbers) before its mitigation",
+          all(any(0.45 < t - s < 0.65 and v is gb and 14 <= n <= 21 for t, v, n in rolled) for s in swings[:-1])
+          and len(rolled) <= len(swings), f"{[(t, round(n)) for t, _, n in rolled[:6]]}")
+    crabs = [t for t, s, text in said if text == "*emerges*"]
+    check("...pincer crabs '*emerge*' at a swing's hit, at most 2 of its own up at once",
+          bool(crabs) and all(any(0.45 < c - s < 0.65 for s in swings) for c in crabs) and 1 <= most <= 2,
+          f"emerges {[round(c, 1) for c in crabs]} swings {[round(s, 1) for s in swings]} most {most}")
+
+
 def test_tidal_level3_bursts():
     print("== Tidal Tomb level 3: a sea serpent's area hit on us within 3 only; a giant astral zoa's two bursts both fire ==")
     import collections
@@ -4774,7 +4860,8 @@ def main():
               test_songs,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_tele_dash, test_walk_in_red_first_level,
+              test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,
+              test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
@@ -4784,7 +4871,7 @@ def main():
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_tidal_oxygen, test_tidal_dolphin,
-              test_tidal_ooze_and_brood, test_tidal_level3_bursts,
+              test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

@@ -894,6 +894,12 @@ moongate, and never near a red one).
     tiles): "All Guard Me" and the fight tick's order (stand-off, a potion, the pets' care, the pets at
     what is on us, our kills looted) until nothing attacks us for 4 s (at most 90 s), then "All Follow Me"
     and walk on. Live 22:33:39, with only the pets' care, Logan stood among the mobs dying.
+    **While waiting for the pets too** (`_wait_together`, since 2026-10-26; the walk in's waits and the walk out to
+    the gate's): a hit or an attacker ends the wait for that fight, then the wait starts over; still attacked when the
+    fight's 90 s run out, the walk goes on its own way (the walk in: no pets, Abort; the walk out: on to the gate).
+    Simulator 2026-10-26 (tidal_tomb seed 3, the leave at time up): "to the moongate: waiting for the pets" with
+    both 9 tiles off, an oozing noughtilus took Logan from 100 to dead in 18 s with no potion. test_sim
+    `test_wait_pets_attacked`.
   - **Attacked near the teleporter** (`walk_in_dash`, since 2026-10-20; live 22:57:15-31 Logan stood fighting 13
     steps from 5522,637 until the user walked him through to Maus 3): attacked within `TELE_DASH_R` 15 route steps
     of the teleporter walked to, no stand: "<label>: attacked N steps from it; through it now", "All Follow Me"
