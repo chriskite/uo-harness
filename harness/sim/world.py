@@ -2478,21 +2478,20 @@ class World:
         self._cursor({"kind": skill})
 
     def _ground_point(self, f: dict):
-        """Where a ground target answer points: graphic 0 is the land, at the answer's z (live: every Mausoleum song so,
-        under floor statics) unless the tile's land is invalid (0x244, los.INVALID_LAND): then at that land's own height
-        (RunUO LandTarget), out of sight under the floor; else the static of that graphic at that z on the tile (its
-        top), None when there is none or another static stands on its top (no answer). Live 2026-10-26 21:52-21:54
-        (Tidal Tomb level 1, its land the invalid 0x244 at z -100 under the floor statics): every song at a tile beside
-        Logan with graphic 0 got 500237 "Target cannot be seen." (the same tiles at his z are in sight); the user's own
-        songs there named the floor static (0x8C62 at -18, 0x50B1 at -16) and played; 22:08:16-38 three named the stone
-        block 0x71E/0x71F under the pavers and got no answer at all [INFERENCE: the server drops a static that isn't the
-        tile's top]."""
+        """Where a ground target answer points: graphic 0 is the land at its own height (RunUO LandTarget), whatever z
+        the answer carries: the same as the answer's where the land is the floor (live: every Mausoleum song), out of
+        sight where a floor stands over it: the invalid land 0x244 (los.INVALID_LAND), or valid land under a raised
+        floor; else the static of that graphic at that z on the tile (its top), None when there is none or another
+        static stands on its top (no answer). Live 2026-10-26 21:52-21:54 (Tidal Tomb level 1, its land the invalid 0x244
+        at z -100 under the floor statics): every song at a tile beside Logan with graphic 0 got 500237 "Target cannot be
+        seen." (the same tiles at his z are in sight); the user's own songs there named the floor static (0x8C62 at -18,
+        0x50B1 at -16) and played; 22:08:16-38 three named the stone block 0x71E/0x71F under the pavers and got no answer
+        at all [INFERENCE: the server drops a static that isn't the tile's top]. Live 2026-10-27 01:04:42-01:05:22 (level
+        1's ledge: land at z 19 under the stone 0x71E, the floor 0x51E at 24): four songs at graphic 0, z 24, the same."""
         x, y, z, g = f.get("x"), f.get("y"), f.get("z") or 0, f.get("graphic") or 0
         if not g:
             cell = self.walk.m.land(x, y)
-            if cell is not None and cell[0] in los.INVALID_LAND:
-                return (x, y, cell[1])
-            return (x, y, z)
+            return (x, y, z) if cell is None else (x, y, cell[1])
         statics = list(self.walk.m.statics(x, y) or ())
         for s in statics:
             if s.graphic == g and s.z == z:

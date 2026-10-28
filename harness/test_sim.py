@@ -1859,44 +1859,48 @@ def test_cure_potion():
 
 
 def test_songs_tidal_floor():
-    print("== songs on Tidal Tomb's floor (statics over the invalid land 0x244): the floor static named, in sight ==")
+    print("== songs on Tidal Tomb's floor (statics over the invalid land 0x244, or over valid land under a raised floor): "
+          "the floor static named, in sight ==")
     # live 2026-10-26 21:52-21:54 (hunt-20261026-215149-a52b): every song at a tile beside Logan with graphic 0 got
     # 500237 "Target cannot be seen." (the server takes graphic 0 for the land, at z -100 under the floor)
+    # live 2026-10-27 01:04:42-01:05:22 (hunt-20261027-233648-7e3b): level 1's ledge, land at z 19 under the stone 0x71E
+    # and the floor 0x51E at 24: four songs at graphic 0, z 24, "cannot be seen"
     import tempfile
     import loop_hunt
     import memory
     from sim import run as simrun
-    w = tidal_world(TIDAL_L1)
-    link, clock = link_for(w)
-    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
-    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
-                                             + ["--memory", db, "--seed", "1"])
-    patched = simclock.install(clock)
-    store = memory.Memory(db)
-    buf, sent = io.StringIO(), []
-    act = link.act
+    for where, start, z in (("the arrival", TIDAL_L1, None), ("the ledge", (6675, 2022), 24)):
+        w = tidal_world(start, z=z)
+        link, clock = link_for(w)
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        buf, sent = io.StringIO(), []
+        act = link.act
 
-    def spy(data):
-        if data[:1] == b"\x6c":
-            sent.append(data)
-        return act(data)
-    link.act = spy
-    try:
-        with contextlib.redirect_stdout(buf):
-            loop = loop_hunt.HuntLoop(link, store, args)
-            loop.team.setup(loop.state())
-            end = clock.elapsed + 60
-            while len(w.songs) < 3 and clock.elapsed < end:
-                if not loop.team.song(loop.state()):
-                    clock.advance(0.5)
-    finally:
-        store.close()
-        simclock.uninstall(patched)
-    graphics = [int.from_bytes(d[23:27], "big") for d in sent if d[1] == 1]
-    check("all three songs play at the arrival, at a floor static (graphic not 0), no 'cannot be seen'",
-          set(w.songs) == {"discord", "peace", "provoke"} and graphics and all(graphics)
-          and "cannot be seen" not in buf.getvalue(), f"{w.songs} graphics {[hex(g) for g in graphics]} | "
-          + " | ".join(ln for ln in buf.getvalue().splitlines() if "Song" in ln)[-500:])
+        def spy(data, act=act, sent=sent):
+            if data[:1] == b"\x6c":
+                sent.append(data)
+            return act(data)
+        link.act = spy
+        try:
+            with contextlib.redirect_stdout(buf):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                end = clock.elapsed + 60
+                while len(w.songs) < 3 and clock.elapsed < end:
+                    if not loop.team.song(loop.state()):
+                        clock.advance(0.5)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        graphics = [int.from_bytes(d[23:27], "big") for d in sent if d[1] == 1]
+        check(f"all three songs play at {where}, at a floor static (graphic not 0), no 'cannot be seen'",
+              set(w.songs) == {"discord", "peace", "provoke"} and graphics and all(graphics)
+              and "cannot be seen" not in buf.getvalue(), f"{w.songs} graphics {[hex(g) for g in graphics]} | "
+              + " | ".join(ln for ln in buf.getvalue().splitlines() if "Song" in ln)[-500:])
 
 
 def test_songs():
@@ -1906,6 +1910,10 @@ def test_songs():
     import memory
     from sim import run as simrun
     sc = load()
+    # on Maus 3's land floor where a live song played (18:58:11 2026-10-26), nothing spawned: the arrival (5199, 737, 17)
+    # is the stairs' top over land at 0, and a song there names the land under the stone, refused as on Tidal Tomb's
+    # ledge 2026-10-27
+    sc["player"]["start"], sc["spawns"] = [5232, 651, 0], []
     w = World(sc, seed=1)
     link, clock = link_for(w)
     db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")

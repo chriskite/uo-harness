@@ -5768,6 +5768,12 @@ AlaFlambe. AR 120 the whole visit, not 133.
   The first fix's run (hunt-20261026-220225-0528) played all three, but at 22:08:16-38 three songs named the stone
   block 0x71E/0x71F (height 5) under the pavers at its own z and got no answer at all; flat floor statics (0x051A at
   51) played. Since then it names the flat floor on top.
+  The runner's 2026-10-27 shift (hunt-20261027-233648-7e3b) found the same on level 1's ledge, which is valid land
+  under a raised floor: at 01:04:42-01:05:22 four songs named the land (graphic 0) at z 24, over land at z 19 under
+  the stone 0x71E and the floor 0x51E at 24, and each got "cannot be seen". So the server takes graphic 0 at the land's
+  own height on valid land too. Every live Mausoleum song spot checked (seven, 10-26 18:44-19:13) had the land as
+  its floor. Since then the runner names the land only where the land is the floor, else the flat floor static
+  (docs/HUNT_LOOP.md "Barding songs"). The simulator answers graphic 0 the same way.
 
 ## Tidal Tomb: levels 2 and 3 by hand (2026-10-26 22:36:47-22:48:42, capture 20261026_183552)
 

@@ -525,14 +525,17 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    more damage). One song every 10 s whenever nothing more urgent is due, fights included (a care
    action after the retreat, vet supplies, guard and walk to a hurt pet), each again a minute before
    it ends. The user sang them mid-fight too.
-   **The song's ground tile** (`Team.song_spot`, since 2026-10-26): the nearest tile 1-3 off with a floor within 10 z
-   of ours that we see (los.Sight, eye to the floor). Where the tile's land is valid: the land (graphic 0) at the
-   floor's z, as every Mausoleum song live. Over the invalid land 0x244 (Tidal Tomb, z -100) graphic 0 is the land at
-   its own height, out of sight: live 2026-10-26 21:52-21:54 every song got "Target cannot be seen." (now logged
-   "<song>: (x, y, z) graphic 0x0000 cannot be seen"). There it names the flat floor static (height 0) on top, as the
-   user's 7 songs did; not a block under it (22:08:16-38 three songs named the stone 0x71E/0x71F under the pavers and
-   got no answer), and not a tile with something taller on it. No such tile: "<song>: no floor tile within 3 tiles in
-   our sight; not singing here", the cursor cancelled. test_sim `test_songs_tidal_floor`.
+  **The song's ground tile** (`Team.song_spot`, since 2026-10-26): the nearest tile 1-3 off with a floor within 10 z
+  of ours that we see (los.Sight, eye to the floor). Where that floor is the tile's land and the land is valid: the
+  land (graphic 0), as every Mausoleum song live. Graphic 0 is the land at its own height (RunUO LandTarget), out of
+  sight wherever a floor stands over it: the invalid land 0x244 (Tidal Tomb, z -100; live 2026-10-26 21:52-21:54 every
+  song got "Target cannot be seen.", now logged "<song>: (x, y, z) graphic 0x0000 cannot be seen"), and valid land
+  under a raised floor (since 2026-10-27: live 01:04:42-01:05:22 on Tidal Tomb level 1's ledge, land at z 19 under the
+  stone 0x71E and the floor 0x51E at 24, four songs refused so). There it names the flat floor static (height 0) on
+  top, as the user's 7 songs did; not a block under it (22:08:16-38 three songs named the stone 0x71E/0x71F under the
+  pavers and got no answer), and not a tile with something taller on it. No such tile (the Mausoleum arrival's stairs
+  top): "<song>: no floor tile within 3 tiles in our sight; not singing here", the cursor cancelled. The simulator
+  answers graphic 0 at the land's own height too. test_sim `test_songs_tidal_floor` (the arrival and the ledge).
    **The instrument**: when the one last played is gone (after a death, the lute left on the corpse; worn out:
    "You broke your instrument trying to play it.", cliloc 502079, logged as "the instrument broke") the
    server asks "What instrument shall you play?" (cliloc 500617) with a cursor before every bard skill

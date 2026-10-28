@@ -2910,15 +2910,19 @@ class Team:
             stand = [o for o in objs if o[2] & pathfind.POF_SURFACE and abs(o[3] - z) <= SONG_SPOT_DZ]
             if not stand:
                 continue
-            tz = min(stand, key=lambda o: abs(o[3] - z))[3]
+            top = min(stand, key=lambda o: abs(o[3] - z))
+            tz = top[3]
             if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), (tx, ty, tz)) is not None:
                 continue
             cell = walk.m.land(tx, ty)
-            if cell is not None and cell[0] not in los.INVALID_LAND:
+            if top[4][0] in ("flat", "land") and cell is not None and cell[0] not in los.INVALID_LAND:
                 return tx, ty, tz, 0                     # the land (live: every Mausoleum song so)
-            # over the invalid land: the flat floor static (height 0) on top at that height, the one a click names; a
-            # block under it (stone 0x71E/0x71F, height 5) isn't (live 22:08:16-38 three songs named the stone under
-            # the pavers: no answer; the user's 7 named flat floors), and a tile with something taller on it is skipped
+            # a floor over the land (the invalid land 0x244, or valid land under a raised floor: live 2026-10-27
+            # 01:04-01:05 Tidal Tomb level 1's ledge, land at z 19 under the stone 0x71E and the floor 0x51E at 24, four
+            # songs at graphic 0 "cannot be seen"): the flat floor static (height 0) on top at that height, the one a
+            # click names; a block under it (stone 0x71E/0x71F, height 5) isn't (live 22:08:16-38 three songs named the
+            # stone under the pavers: no answer; the user's 7 named flat floors), and a tile with something taller on it
+            # is skipped
             on = {(s.graphic, s.z) for s in statics(tx, ty) or ()}
             flat = [o for o in objs if o[3] == tz and o[1] == 0 and o[4][0] == "item" and (o[4][1], o[0]) in on]
             if not flat or any(p[0] >= tz and p[1] > 0 and p[2] & pathfind.POF_IMPASSABLE_OR_SURFACE for p in objs):
