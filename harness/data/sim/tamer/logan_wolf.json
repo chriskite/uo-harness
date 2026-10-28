@@ -78,6 +78,14 @@
         {"name": "Soak", "type": "passive", "chance": 0.15, "cripple_per_slot": 0.03, "seconds": 15}
       ],
       "note": "Guide (a tidal mantis) Abilities page; Bleed's ticks every 3 s for 15 s [INFERENCE: the simulator's bleed cadence]; Soak cripples the target's damage by 3 % a control slot"
+    },
+    "incubus": {
+      "class": "utility", "slots": 1, "min_taming": 115, "body": 141, "attack": "spell",
+      "zoology": {"damage": 0, "dr": 0},
+      "abilities": [
+        {"name": "Dreamlull", "type": "passive", "chance": 0.15, "hex_per_slot": 25, "seconds": 15, "hinder_per_slot_s": 1}
+      ],
+      "note": "the user 2026-10-28: Bussin is an incubus (body 141 live, beside Logan with AlaFlambe from the Phoenix/Incubus loadout of 18:25). Wiki 'Incubus' (oldid 26700): utility class, 1 slot, min taming 115, tamed 175 hits, spell 12-15, armor 25, MR 100, wrestling 70, underdog scalar 1.028; Dreamlull 'a 15% chance on spellcast to apply a hex effect of (Control Slots * 25) for 15 seconds. Will also hinder creatures for (Control Slots * 1) seconds'. The simulator doesn't model Dreamlull's hex and hinder (pets.py ignores a passive it doesn't name), and its Opportunity/Punishment rules still give their flat dmg"
     }
   },
   "pets": [
@@ -88,9 +96,10 @@
     {"name": "a searing imp", "serial": 7083513, "species": "searing imp"},
     {"name": "fireminion", "serial": 1906662, "species": "fire minion"},
     {"name": "GirthyEarthy", "serial": 950799, "species": "earth dragon"},
-    {"name": "a tidal mantis", "serial": 5192282, "species": "tidal mantis"}
+    {"name": "a tidal mantis", "serial": 5192282, "species": "tidal mantis"},
+    {"name": "Bussin", "serial": 958543, "species": "incubus"}
   ],
-  "pets_note": "serials: the capture's (tidal_tomb_observed pets.*.serials; 0x000DDEFE GraveRobber ... 0x004F3A5A the mantis)",
+  "pets_note": "serials: the capture's (tidal_tomb_observed pets.*.serials; 0x000DDEFE GraveRobber ... 0x004F3A5A the mantis); Bussin 0x000EA04F from ctl status 2026-10-28 18:40",
   "teams": {
     "phoenix_gravebug": {"pets": ["GraveRobber", "AlaFlambe"], "bestiary": "Phoenix/Gravebug",
                          "note": "live 2026-10-12 to 2026-10-24 (the Mausoleum's calibration and Tidal Tomb levels 1-2)"},
@@ -101,7 +110,9 @@
     "earth_fire": {"pets": ["GirthyEarthy", "fireminion", "a searing imp"], "bestiary": "Random",
                    "note": "live 2026-10-24 20:46 to 2026-10-25 00:39 (Tidal Tomb level 3)"},
     "mantis_earth": {"pets": ["GirthyEarthy", "a tidal mantis"], "bestiary": "Phoenix/Gravebug",
-                     "note": "live 2026-10-24 19:33-20:32"}
+                     "note": "live 2026-10-24 19:33-20:32"},
+    "phoenix_incubus": {"pets": ["AlaFlambe", "Bussin"], "bestiary": "Phoenix/Incubus",
+                        "note": "from 2026-10-28 (the Phoenix/Incubus loadout active from 18:25:02; Bussin's Guide 18:36:52 at level 11)"}
   },
   "teams_note": "the tank first, then the pets in the order the simulator always placed them (beside Logan east, south, west, north, south-east)",
   "bestiary_known": {

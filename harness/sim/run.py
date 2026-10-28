@@ -357,7 +357,8 @@ def main(argv=None):
                          "data/sim/mastery_links.json), e.g. 'current, effective_barding=10' (docs/SIM.md 'Mastery "
                          "Chain links')")
     ap.add_argument("--team", default=None, metavar="TEAM",
-                    help="a team preset (phoenix_gravebug, nightmare_fire, nightmares_minion, earth_fire, mantis_earth) "
+                    help="a team preset (phoenix_gravebug, nightmare_fire, nightmares_minion, earth_fire, mantis_earth, "
+                         "phoenix_incubus) "
                          "or pet names comma-separated")
     ap.add_argument("--bestiary", default=None, metavar="LOADOUT",
                     help="a Taming Bestiary loadout (Phoenix/Gravebug, Random, Nightmare/Fire), none, or a .json file")

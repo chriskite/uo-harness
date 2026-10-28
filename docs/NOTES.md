@@ -6571,7 +6571,9 @@ so a value is read through its element's line index, never by its position in `l
   <id> 1`, `selectitem <id> @Name@`), the active one the item drawn with ` 63 -1 -1`. A Reset (button 9, twice) or a
   new loadout shows 0/20: the scan rebuilds a tab from its views after the last 0/20 one. Active: Phoenix/Gravebug
   from 2026-10-12 21:01, Random from 2026-10-24 20:38, Nightmare/Fire from 2026-10-25 11:01, Phoenix/Gravebug again
-  from 2026-10-25 20:49. Never viewed: the Utility tab of Phoenix/Gravebug (empty, the user 2026-10-25: no
+  from 2026-10-25 20:49, Phoenix/Incubus from 2026-10-28 18:25:02 (Attack Immolate 3, Lethality 3, Primal 3, [Cross]
+  Behemoth 3; Utility Breaker 3, Opportunity 3, Scour 3, [Cross] Primal 3; its Tank tab never viewed: the team has no
+  tank-class pet). Never viewed: the Utility tab of Phoenix/Gravebug (empty, the user 2026-10-25: no
   utility-class pet in that team), Fortress, Manticore/BloodSerp, Water Dragon/Drake, 5 Casters, Flamehounds,
   Drowned/WaterDrake, DebuffBirb; Manticore/Zoon one Attack page only. The perks' texts (each with its numbers per
   rank) are in `harness/data/sim/tamer/logan_wolf.json` `perks`; e.g. Swarm's healing is (1 % / 3 % / 5 %) x the
@@ -6587,7 +6589,8 @@ so a value is read through its element's line index, never by its position in `l
 - **Levels** (the Guide views): GraveRobber and AlaFlambe 11 on 10-14, 15 from 10-17 23:10 (AlaFlambe) and 10-18
   16:48 (GraveRobber); NightmareA/B 13 on 10-23 21:50, 14 from 10-25 11:20, 15 at 20:48; fireminion 13 on 10-24
   20:34, 15 from 10-25 10:56; a searing imp 10 on 10-24 20:34, 13 at 23:41, 14 at 11:43, 15 at 20:48; GirthyEarthy 10
-  until 10-24 20:27 (11), 14 on 10-25 10:56 (not viewed since); the mantis 11 on 10-24 20:32. Level 15 is the top
+  until 10-24 20:27 (11), 14 on 10-25 10:56 (not viewed since); the mantis 11 on 10-24 20:32; Bussin (an incubus, the
+  user 2026-10-28; 0x000EA04F, body 141) 11 on 10-28 18:36. Level 15 is the top
   (knowledge #1204); its Guide shows no xp bar and puts "Level 15" at (209, 90).
 - **Live Mausoleum visits by team** (episodes, loop hunt, the visit's `pets` serials and the loadout active then):
   GraveRobber + AlaFlambe with Phoenix/Gravebug 84 visits, 15.3 h, 10-17 22:10 to 10-24 18:55 (92.6 kills an hour of

@@ -1976,8 +1976,8 @@ absolute numbers pinned to live captures where there are any.
   seen 10-25 10:56 and 10-24 20:32). Rerun it after Logan views a gump in game: the data fills in with no code change.
   `--as-of 'YYYY-MM-DD HH:MM'` prints the gumps as they stood then (how the anchors' loadouts below were read).
 - `data/sim/tamer/logan_wolf.json`: his skills (Taming, Lore, Veterinary, Herding 120; barding 80), his Mastery Chain
-  (`chain`: the gump's totals, "Mastery Chain links"), the 7 species (class, slots, min taming, attack kind,
-  abilities), the 8 pets, the 5 team presets, the perk tables (each perk's numbers per rank and its rule; the gumps'
+  (`chain`: the gump's totals, "Mastery Chain links"), the 8 species (class, slots, min taming, attack kind,
+  abilities), the 9 pets, the 6 team presets, the perk tables (each perk's numbers per rank and its rule; the gumps'
   texts), the class threat (`tank` 4.0, `attack`/`utility` 0.1: the fitted gravebug and phoenix), and the anchors
   (with the chain they were measured under, `anchors.chain`).
 
@@ -2039,11 +2039,19 @@ unless given). A resurrection: `res_hits` 0.10 + Critical Care's 7/21/35 % (the 
 had Critical Care rank 2).
 
 **Choosing** (`run.py --team`, `--bestiary`; the Sim page's two selects): a preset (`phoenix_gravebug` the default,
-`nightmare_fire`, `nightmares_minion`, `earth_fire`, `mantis_earth`) or pet names comma-separated (at most 5 control
+`nightmare_fire`, `nightmares_minion`, `earth_fire`, `mantis_earth`, `phoenix_incubus`) or pet names comma-separated (at most 5 control
 slots); a loadout name (the scan's, or a pinned one of `anchors.loadouts`), `none`, or a .json file of {attack, tank,
 utility} (run.py only). A preset brings its own loadout (the scan's current one); a tab never captured nor known gives
 that class no perks and a warning (`party_warnings`; none with the current data). Summaries and `all:` carry `team`
 and `bestiary`; `pet_damage_dealt` per pet on the level.
+
+**AlaFlambe + Bussin** (`phoenix_incubus`, the user's team from 2026-10-28: Bussin an incubus, utility class, level 11,
+Phoenix/Incubus): Tidal Tomb level 1, 8 runs of 30 min each against `phoenix_gravebug` (seeds 1-8, 2026-10-28). No
+death and no pet death in either; without a tank the monsters' hits go to Logan: 600 a run on him against 137, 52 vet
+uses against 26, 8.4 potions against 1.6; 306 kills an hour against 328, 114k gold an hour against 122k. Seed 1's
+"time is up" leave fought on the way out past the sim's 180 s grace (`aborted`, a sim time limit; live runs have
+none). Dreamlull (15 % a spell: hex 25 a slot for 15 s, hinder 1 s a slot) isn't modelled, and the Opportunity
+and Punishment rules still give their flat damage as for a species without hex or hinder.
 
 **The default team's batch** (98 runs, seed 17, 14 careers, `-- --vet-range 5`; Phoenix/Gravebug as of 10-15):
 

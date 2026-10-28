@@ -180,7 +180,14 @@
     "utility": null
    },
    "Fortress": {
-    "attack": null,
+    "attack": {
+     "decoded": false,
+     "points": 14,
+     "cross": 0,
+     "pages_seen": 1,
+     "evidence": "latest 204/1655 20261028_182147 2026-10-28 18:23:59; 1 views",
+     "note": "the pages viewed since the last reset add to 8 points (0 cross) against the gump's 14 (0): pages spent on before the captures"
+    },
     "tank": null,
     "utility": null
    },
@@ -244,7 +251,7 @@
      "points": 20,
      "cross": 5,
      "pages_seen": 11,
-     "evidence": "latest 195/184758 20261025_210102 2026-10-25 23:18:35; 222 views",
+     "evidence": "latest 204/1592 20261028_182147 2026-10-28 18:23:45; 231 views",
      "perks": {
       "Immolate": 3,
       "Lethality": 3,
@@ -272,6 +279,35 @@
      "pages_seen": 0,
      "evidence": "latest 195/164246 20261025_210102 2026-10-25 23:06:33; 2 views",
      "perks": {}
+    }
+   },
+   "Phoenix/Incubus": {
+    "attack": {
+     "decoded": true,
+     "points": 20,
+     "cross": 5,
+     "pages_seen": 4,
+     "evidence": "latest 204/1854 20261028_182147 2026-10-28 18:24:28; 19 views",
+     "perks": {
+      "Immolate": 3,
+      "Lethality": 3,
+      "Primal": 3,
+      "[Cross] Behemoth": 3
+     }
+    },
+    "tank": null,
+    "utility": {
+     "decoded": true,
+     "points": 20,
+     "cross": 5,
+     "pages_seen": 10,
+     "evidence": "latest 204/2075 20261028_182147 2026-10-28 18:25:02; 30 views",
+     "perks": {
+      "Breaker": 3,
+      "Opportunity": 3,
+      "Scour": 3,
+      "[Cross] Primal": 3
+     }
     }
    },
    "Random": {
@@ -373,6 +409,12 @@
     "from_t": 1792979343.844,
     "from": "2026-10-25 20:49:03",
     "evidence": "194/882624 20261024_225113 2026-10-25 20:49:03"
+   },
+   {
+    "name": "Phoenix/Incubus",
+    "from_t": 1793229902.203,
+    "from": "2026-10-28 18:25:02",
+    "evidence": "204/2075 20261028_182147 2026-10-28 18:25:02"
    }
   ]
  },
@@ -394,7 +436,26 @@
    "magic_resist": 115.9,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "195/1451 20261025_210102 2026-10-25 21:01:41 (Alaflambe the Phoenix)"
+   "evidence": "204/8735 20261028_182147 2026-10-28 18:29:35 (Alaflambe the Phoenix)"
+  },
+  "Bussin": {
+   "species": "incubus",
+   "level": 11,
+   "min_taming": 115.0,
+   "slots": 1,
+   "hits_max": 183,
+   "attack_s": 2.87,
+   "damage_kind": "spell",
+   "damage": [
+    12.9,
+    16.2
+   ],
+   "wrestling": 76.9,
+   "armor": 25.3,
+   "magic_resist": 100.8,
+   "poison_resist": 0.0,
+   "special_resist": 0.0,
+   "evidence": "204/21790 20261028_182147 2026-10-28 18:36:52 (Bussin the Incubus)"
   },
   "GirthyEarthy": {
    "species": "earth dragon",
