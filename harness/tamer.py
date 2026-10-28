@@ -192,7 +192,33 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # Oozing noughtilus (Tidal Tomb, capture 20261024_102346): its Ooze Aura, 4 bursts 0.3 s apart on everyone within 2
 # of it every 7-12 s (Logan 4-7 each, twice its greater poison); user 2026-10-26: "We should not stand next to oozing
 # noughtiluses, they do AOE poison bursts". Stand 3 off, as from the apparition.
-AREA_R = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3, "oozing noughtilus": 3}
+# Since 2026-10-28 every area hitter is treated alike (user: "we should treat all these 'area hitters' the same and
+# avoid standing in their range"): to the hand-set ones below, every type whose hit lands on everyone within `radius`
+# of itself in the simulator's scenarios (the measured specials: burst, ooze, wail, bleed_area; not one centred on its
+# target, not the apparition's blink) adds radius + 1: the fins' spins (2: razorfin, voidfin, frenzyfin, greater
+# razorfin and frenzyfin), the colossal scourgeon's sweep (2), the tidal sea serpent's burst (3), the buccaneer's bleed
+# (1), the corpsebride's wail (2), the bound soul's bleed (1). A hit reaching beyond AREA_MAX_R (the giant zoas' 12)
+# can't be stood out of in a fight: the caster rules keep us from those.
+AREA_MAX_R = 5
+_AREA_HAND = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3, "oozing noughtilus": 3}
+
+
+def _area_r() -> dict:
+    out = dict(_AREA_HAND)
+    for name in ("mausoleum", "tidal_tomb"):
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", f"{name}.json"),
+                  encoding="utf-8") as f:
+            specials = json.load(f).get("specials") or {}
+        for kind, sps in specials.items():
+            for sp in sps if isinstance(sps, list) else ():
+                r = sp.get("radius")
+                if sp["kind"] in ("burst", "ooze", "wail", "bleed_area") and r is not None and r <= AREA_MAX_R \
+                        and sp.get("center") != "target" and not sp.get("on_blink"):
+                    out[kind] = max(out.get(kind, 0), r + 1)
+    return out
+
+
+AREA_R = _area_r()
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 # An apparition's blink (docs/SIM.md audit, n=56): "*phases*" over it, gone (0x1D), then back 1.1-1.6 s later on its

@@ -612,7 +612,14 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (its chain lightning jumps from its target to everyone near, through walls; [INFERENCE] the 3), and an oozing
    noughtilus 3 (Tidal Tomb: its Ooze Aura, 4 bursts on everyone within 2 every 7-12 s; user 2026-10-26: "We should
    not stand next to oozing noughtiluses, they do AOE poison bursts"; simulator level 1, 8 runs: its damage on Logan
-   1,118 -> 421, all damage on him 2,868 -> 1,886). **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
+   1,118 -> 421, all damage on him 2,868 -> 1,886). **Since 2026-10-28 every area hitter alike** (user: "we should
+   treat all these 'area hitters' the same and avoid standing in their range"): `AREA_R` also takes every type whose
+   hit lands on everyone within r of itself in the simulator's scenarios (burst, ooze, wail and bleed_area specials,
+   not one centred on its target), at r + 1. That adds the razorfin, voidfin, frenzyfin, greater razorfin and greater
+   frenzyfin 3 (their spins), the colossal scourgeon 3, the tidal sea serpent 4, the drowned buccaneer 2, the
+   corpsebride 3 and the bound soul 2. Hits reaching beyond `AREA_MAX_R` 5 (the giant zoas' 12) are left to the
+   caster rules. Simulator 2026-10-28 (24 runs, 96 on Maus 3): level 2 damage on Logan 2,017 -> 1,644 an hour, deaths 7
+   -> 5; level 3 3,379 -> 1,971; Maus 3 deaths 7 -> 5, banked +5 %. **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
    behind the ocean bedrock so it doesn't do its spray attack on me"; docs/NOTES.md "The ocean bedrock's spray"). Its
    frontal cone is in the zone at 1 a tile (`Team.spray_cone`, `nav.in_cone`): 90°, 8 tiles, along its 0x77 direction
    and toward each pet beside it. That holds while it is awake, unless it is pacified or provoked onto a monster still

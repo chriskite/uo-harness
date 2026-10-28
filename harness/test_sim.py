@@ -5231,6 +5231,18 @@ def test_tidal_recall_rule():
     check("...and on the Mausoleum's fight level as before", escape.recall_forbidden((5261, 652, 0), 0) is not None)
 
 
+def test_area_hitters():
+    print("== every area hitter alike: a self-centred area hit of radius r up to 5 keeps us r + 1 off; one centred on its "
+          "target or reaching 12 isn't a stand-off ==")
+    got = {k: tamer.AREA_R.get(k) for k in ("razorfin", "voidfin", "greater razorfin", "tidal sea serpent",
+                                             "drowned buccaneer", "corpsebride", "oozing noughtilus", "reanimated daemon",
+                                             "giant astral zoa", "giant combustive zoa", "biolumen shellpod")}
+    want = {"razorfin": 3, "voidfin": 3, "greater razorfin": 3, "tidal sea serpent": 4, "drowned buccaneer": 2,
+            "corpsebride": 3, "oozing noughtilus": 3, "reanimated daemon": 6, "giant astral zoa": None,
+            "giant combustive zoa": None, "biolumen shellpod": None}
+    check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
+
+
 def test_shy_by_ai():
     print("== shy (keep out of its first sight, the pets into it): a mage or ranged AI from difficulty 60, the shadowguard; "
           "not a weak caster, not a melee one ==")
@@ -5353,7 +5365,7 @@ def main():
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
               test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
-              test_shy_by_ai,
+              test_area_hitters, test_shy_by_ai,
               test_walk_in_fought, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

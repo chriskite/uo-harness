@@ -1822,9 +1822,23 @@ be modelled? Yes; the evidence is in docs/NOTES.md "Five more Tidal Tomb special
   | level 3 (old route), after | 11 | 3,379 | 546 | 128,145 |
 
   On level 2 the razorfins now put 2,334 on Logan and the bleeds 1,919 over the 24 runs, against 707 before (their
-  spins with no bleed). Level 2's 2,017 an hour sits between the user's live 1,740 (10-26) and 2,768 (10-27). The
-  runner doesn't keep off the fins' spins (radius 2); `tamer.AREA_R` would take them as it takes the noughtilus
-  (stand 3 off) [not done].
+  spins with no bleed). Level 2's 2,017 an hour sits between the user's live 1,740 (10-26) and 2,768 (10-27).
+- **Every area hitter alike** (the same day; user: "we should treat all these 'area hitters' the same and avoid
+  standing in their range"). `tamer.AREA_R` now also takes, at radius + 1, every type with a self-centred area hit of
+  radius up to 5 in the scenarios (docs/HUNT_LOOP.md). Same seeds, before and after:
+
+  | | runs with a death | damage on Logan an hour | kills an hour | banked gp an hour |
+  |---|---|---|---|---|
+  | level 1, before / after | 0 / 0 | 368 / 368 | 324 / 324 | 121,877 / 121,877 |
+  | level 2 crawl, before / after | 7 / **5** | 2,017 / **1,644** | 167 / 166 | 116,040 / 120,084 |
+  | level 3 (old route), before / after | 11 / 12 | 3,379 / **1,971** | 546 / 517 | 128,145 / 133,004 |
+  | Maus 3 (96), before / after | 7 / **5** | 1,815 / 1,840 | 155 / 156 | 139,600 / **146,756** |
+
+  - Level 1 has none of the new types: the runs are the same.
+  - Level 2: the razorfins' damage on Logan fell from 2,334 to 702, and the bleeds' from 1,919 to 561 (24 runs).
+  - Level 3: the tidal sea serpent's fell from 1,719 to 61. Its deaths stayed (the giant combustive zoa's 12-tile
+    burst, the strip's shooters).
+  - Maus 3: the corpsebride's fell from 17,138 to 15,565.
 
 ## Player armor (2026-10-24)
 
