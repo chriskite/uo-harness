@@ -41,6 +41,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
 | `--return-at` | `auto` | Recall mode: take the loot home once this visit's carried value reaches V\* = r·sqrt(2T/h) (`auto`), a fixed gold value, or never (`off`); a full pack always ("Taking the loot home"). |
 | `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; a drop-off that can't run (not at home, an item out of reach) ends the run at home. |
+| `--repair` / `--no-repair` | on | Before each recall in from home: double-click the house's repair bench (homes.json `repair_bench`): worn armor and the pack's instruments repaired; an empty bench (or no answer) ends the run at home ("Recall in, recall out"). |
 | `--go-home` | off | No hunting: from wherever the character stands, home, then the drop-off; exit 0 at home. Inside a dungeon that allows no recall, the escape's way out ("Guards": an error inside escapes home); elsewhere the recall with `--leave-recall`; at home already, the drop-off only. Give it the hunt's own arguments (the Seer: docs/OVERSEER.md §5's command plus `--go-home`). No pet in view: it goes without them. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
@@ -244,6 +245,16 @@ tome "New Player Locations", 0x57C3DEB6; its default rune is Cambria, by the ban
   Command on arms, chest, …; N Arcane Essence". Live 2026-10-25 21:16:06 the essence ran out mid-run ("Your aspect
   items revert to normal (no arcane essence remaining).", the platemail 1782 -> 2207) and two hours of runs went
   without it. Characters without an armor aspect run with `--no-armor-aspect`; the simulator passes it (no menu).
+  **The repair bench** (`--repair`, on by default since 2026-10-27; `HuntLoop.repair_gear`, user: "double click the
+  repair bench before each trip into a dungeon to repair our equipment (instrument and armor)"): first of the checks
+  before each recall in, at home with a homes.json `repair_bench` (Logan Wolf's 0x5B3BF0CF, 1 tile off the landing;
+  from the landing tile when it's out of reach), one double-click (`repair.run`): the worn armor and the pack's
+  instruments (their uses back to full; an instrument at 0 uses is lost) repaired. Logs "repair bench: Repaired N
+  items." / "… in need of repairs." and writes a `repair` job event (`ok`, `repaired`, `line`, `elapsed_s`). Out of
+  charges: a `low_supplies` juncture (item `repair bench charges`) and the run ends at home ("the repair bench is
+  out of charges …: not going in"); a bench that doesn't answer in 8 s (one more click after 0.6 s of silence)
+  ends it there too. Away from home (no bench): "repair: not at home …: going in without the house's repair
+  bench". `--no-repair` goes without; the simulator has no home, so it only logs that line.
 - **Out** (`--leave-recall BOOK`): every leave rule (hits, two attackers, hostile player, time up,
   done) recalls to the book's default rune instead of walking to an exit. A survival leave
   recalls at once from where it stands: no war-mode toggle, no walk, a spell cursor that is up is

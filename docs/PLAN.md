@@ -2625,6 +2625,17 @@ ocean bedrock's spray"). Decisions:
 - **Rejected:** a separate "behind it" tile chooser, which the zone makes redundant. Also rejected: lowering the fish's
   melee for their spins, which needs a capture that tells spin hits from swings.
 
+## The house's repair bench before each recall in (2026-10-27)
+
+User: "I installed a repair bench in Logan's house. The combat runner should now double click the repair bench before
+each trip into a dungeon to repair our equipment (instrument and armor)." Decision: `HuntLoop.repair_gear`, first of
+the pre-trip checks in `recall_in` (so every trip, the first one from home included), at home only, one double-click
+(`repair.py`, the bench in homes.json `repair_bench`); `--repair` on by default. An empty bench ends the run at home
+with a `low_supplies` juncture, like the other pre-trip checks: recharging it (repair kits) is the user's, and going in
+unrepaired risks the instrument (lost at 0 uses; live 2026-10-25 the only one broke mid-run). Rejected: repairing
+in `home_landed` after the drop-off (misses the first trip of a run started at home); reading the bench's charges
+each trip (a second click for a number the "out of charges" line already covers); a `ctl act repair` (not asked).
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

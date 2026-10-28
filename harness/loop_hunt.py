@@ -145,6 +145,7 @@ import aspects  # noqa: E402
 import combat  # noqa: E402
 import crawl  # noqa: E402
 import dropoff  # noqa: E402
+import repair  # noqa: E402
 import home as home_mod  # noqa: E402
 import hunt_return  # noqa: E402
 import escape as escape_mod  # noqa: E402
@@ -2528,6 +2529,47 @@ class HuntLoop:
                                                   "elapsed_s": round(time.monotonic() - t0, 1)},
                               **self._where(self.state()))
 
+    def repair_gear(self):
+        """--repair, before each recall in: at home (home.at_home) with a homes.json `repair_bench`, double-click it
+        (repair.run; from the landing tile when the bench is out of reach), which repairs every worn item and every
+        item in the pack: the armor, the instruments' uses (user 2026-10-27: "double click the repair bench before
+        each trip into a dungeon to repair our equipment (instrument and armor)"). Away from home: no bench, a log
+        line. An empty bench: a low_supplies juncture (item `repair bench charges`) and the run ends at home, like
+        the other pre-trip checks (an instrument at 0 uses is lost: live 2026-10-25 17:24:23 the only one broke on
+        Maus 3). A bench that doesn't answer ends the run there too. A `repair` job event either way."""
+        if not self.args.repair:
+            return
+        st = self.state()
+        home = home_mod.for_character((st["world"].get("self") or {}).get("name"))
+        if not home or not home.get("repair_bench"):
+            return
+        bench = home["repair_bench"]
+        pos, facet = self.pos(st), (st["world"].get("self") or {}).get("map")
+        if not home_mod.at_home(pos, facet, home):
+            log(f"repair: not at home ({tuple(pos[:2])} facet {facet}): going in without the house's repair bench")
+            return
+        self.doing("equip", "Repairing the gear at the repair bench")
+        t0 = time.monotonic()
+        try:
+            if max(abs(bench["pos"][0] - pos[0]), abs(bench["pos"][1] - pos[1])) > repair.RANGE:
+                landing = tuple(home["landing"][:2])
+                self.mover.walk_to(lambda: landing, 0, "to the home landing tile")
+            out = repair.run(escape_mod.LinkIO(self.link), self.human, bench)
+        except (repair.RepairError, Abort) as e:
+            self.memory.job_event("hunt", "repair", {"ok": False, "error": str(e),
+                                                     "elapsed_s": round(time.monotonic() - t0, 1)},
+                                  **self._where(self.state()))
+            raise Abort(f"repair bench: {e}; not going in (--no-repair to go without)") from e
+        self.memory.job_event("hunt", "repair", {"ok": out["ok"], "repaired": out["repaired"], "line": out["line"],
+                                                 "elapsed_s": round(time.monotonic() - t0, 1)},
+                              **self._where(self.state()))
+        log(f"repair bench: {out['line']}")
+        if out["empty"]:
+            self.memory.juncture("hunt", "low_supplies", "The repair bench is out of charges: not going in",
+                                 "attention", {"item": "repair bench charges", "bench": bench["serial"]})
+            raise Abort("the repair bench is out of charges (a repair kit on it adds uses): not going in "
+                        "(--no-repair to go without)")
+
     def return_reason(self, st):
         """(why, "return") when the carried value reaches V* (hunt_return: r, h and the trip from this place's visits,
         --return-at auto) or --return-at N gold, or the pack is within LOOT_WEIGHT_MARGIN of full; else None. Only
@@ -2566,6 +2608,7 @@ class HuntLoop:
         """Recall to --enter-recall's rune --enter-rune (its default without one), then the walk in (--enter-via).
         The first arrival is the hunt: --spot, --fight-spot and --recall-spot default to it."""
         book, rune = self.args.enter_recall, self.args.enter_rune
+        self.repair_gear()
         self.check_aspect()
         self.check_instrument()
         self.check_charges()
@@ -4093,6 +4136,10 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--armor-aspect", action=argparse.BooleanOptionalAction, default=True,
                     help="no recall in without the worn armor's aspect on and Arcane Essence left (the Aspect Mastery "
                          "menu read at home before each trip, HuntLoop.check_aspect; user 2026-10-25)")
+    ap.add_argument("--repair", action=argparse.BooleanOptionalAction, default=True,
+                    help="before each recall in from home: double-click the house's repair bench (homes.json "
+                         "repair_bench; HuntLoop.repair_gear): worn gear and the pack's instruments repaired; an empty "
+                         "bench ends the run at home (user 2026-10-27)")
     ap.add_argument("--soul-jars", action=argparse.BooleanOptionalAction, default=True,
                     help="Field of Souls: with an empty soul jar in the pack, walk to an eerie corpse in view and "
                          "fill the jar there (soul_jar.py; user 2026-10-17)")

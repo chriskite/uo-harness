@@ -598,6 +598,16 @@ Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
   then `guild_resupply` when the house shelf left something out or the book is short; resupply
   `where` is `home`/`guild`; mining smelts at the house forge (`home_forge`, `smelt` event `at: home`).
 - Memory: #17146 (procedure, pinned: the house as home and how to get there; supersedes #17142).
+- **Repair bench 0x5B3BF0CF** "a repair bench" (graphic 0x72AA) at (3576,3251,6), 1 tile east of the landing,
+  locked down by the user 2026-10-27 (capture 20261027_220057; their uses from repair kits: 20 tailoring kits
+  "You add repair kits into the repair bench (200/5000 uses remaining).", capture 20261027_230843 23:15:15). A
+  double-click (0x06) repairs every worn item and everything in the pack (KB "repair benches") and answers with
+  one system line: "Repaired N item(s)." 2.1 s after it, the hammer (0x54 sound 42) once a second meanwhile (the
+  DTF guild house's public bench 0x40C3A1BD: "Repaired 1 item." 22:03:16, "Repaired 7 items." 23:03:00, its
+  label "[3567/5000 charges remaining]"); "That repair bench is out of charges (use any repair kit on the bench to
+  add additional charges)." 0.05 s after (23:08:12, before the kits); "You do not have any items equipped or in
+  your backpack in need of repairs." 0.04 s after (23:15:24). No gump, no cursor. The hunt runner double-clicks it
+  before each recall in (`repair.py`, docs/HUNT_LOOP.md "Recall in, recall out").
 
 ## Storage shelves (live 2026-10-04/05, Outland Dan)
 
