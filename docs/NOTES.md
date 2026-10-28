@@ -5986,6 +5986,53 @@ analysis is not in the repo.
 - **Barding breaks:** provoked creatures broke at about 0.5 times the expected (difficulty / 100) % a second (36
   against 72.6), pacified ones at 1.55 times (115 against 74.4).
 
+## Five more Tidal Tomb specials (2026-10-28, from the five Tidal Tomb captures)
+
+User 2026-10-28: can the swashbuckler's rope, the buccaneer's bleed, Festering Wound, Glowmark and the razorfin's bleed
+be modelled? Read from captures 20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552 and
+20261027_220057, all hand play. The scratch analysis is not in the repo.
+
+- **The buff packets count stacks exactly.** The server sends pets' and Logan's buffs with one timer per stack:
+
+  | buff | icon | value per stack | each stack |
+  |---|---|---|---|
+  | Bleed, "Damage Every 3 Seconds" | 21 | razorfin 12, greater razorfin 16, buccaneer 24 | 5 ticks 3.0 s apart; stacks run side by side |
+  | Festering Wound, "Healing Amount Reduction" | 234 | 0.05 | 60 s; up to 8 at once; cleared on death |
+  | Glowmark, "Draws Additional Aggro" | 235 | 0.25 | 30 s; up to 4 at once |
+
+- **The fins' bleed rides on their spin, not their swing.** Razorfin: 57 of 57 spin hits started a stack. Logan got 7
+  of 7 with 'Razor-sharp fins cause you to bleed!', and the 35 that hit an already-bleeding victim each added a new
+  stack. Plain swings started one in 4 of 82 (5 %).
+  - Ticks: 9 on the pets, 8-10 on Logan. 'You are no longer bleeding.' came 15.0-15.1 s after his last stack.
+  - The greater razorfin's spin: 45-78 on the pets, every 7.77 s, 13 of 13 hits bleeding, 5 ticks of 18.
+  - The scenario's old greater razorfin bleed (18 every 1.27 s on every hit) was these stacks overlapping.
+- **Drowned swashbuckler, '*adventurers rope*' (n=2):**
+  - Both came 0.43-0.48 s after it went to war, its target 6-7 tiles off. 0.41-0.43 s later it stood on the tile its
+    target held at the rope.
+  - None in ~45 s with its target beside it, and never twice: the cooldown is unmeasured (at least 20 s).
+  - The overhead text marks a rope; animation 9 alone is also an ordinary swing.
+- **Drowned buccaneer (one fought, n=2):** its animation 14, then 0.38 s later a bleed stack on both pets beside it at
+  once, with no number. Logan 6-7 off got none. Twice, 7.66 s apart. Ticks 18, 5 a stack. No shot of its own was seen
+  in the 37 s fight.
+- **Biolumen shellpod, Festering Wound:** 65 applications by its barrage. Its animation 4 is followed 0.23-0.75 s
+  later by 1-2 numbers on its target and a stack.
+  - Numbers: pets 11-30 (median 17), Logan 20-24. Every 7.93 s (median), 0-8 tiles.
+  - The cut can't be measured: the gravebug's devour heals looked uncut, the vet's came to 0.93 ± 0.04 under ~3.3
+    stacks (5 % a stack predicts 0.84), and Logan's two potions under one stack showed nothing. The knowledge base has
+    nothing either.
+- **Glowmark is the lighthouse shellpod's, not the soulcatcher's:** 26 of 26 marks followed the lighthouse shellpod's
+  animation 4 by 0.24-0.64 s, its numbers with it (pets 14-27). Every 8.18 s (median), 1-7 tiles.
+  - Its effect on targeting couldn't be seen: the marked pet was already the tank in 8 of 9 windows (GirthyEarthy
+    took 73 % of the hits marked, 72 % unmarked).
+  - Logan, marked at 2026-10-27 22:51:48, took nothing in the next 30 s.
+- **Modelled 2026-10-28:**
+  - Stacked bleeds: `bleed` with `stack`, and a `bleed` rider on a burst.
+  - The rope kind.
+  - Bursts with no number (`damage_pet` null): the buccaneer's bleed and the shellpods' barrages, whose numbers are
+    already in their swings [INFERENCE].
+  - The `festering` debuff (heals x (1 - 0.05 a stack), devour exempt) and the `glowmark` debuff (threat the marked one
+    draws x (1 + 0.25 a stack)): the buffs' own values, since the captures can't size them.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

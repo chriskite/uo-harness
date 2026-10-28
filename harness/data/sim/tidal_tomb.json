@@ -1290,7 +1290,19 @@
     "radius": 2,
     "damage_player": [9, 36, 28],
     "damage_pet": [9, 36, 28],
-    "note": "its spin, as the voidfin's: 33 in four captures, 7.68 s apart (median, p10-p90 7.52-7.88), within 2 tiles (hit at 1: 43, at 2: 20), 9-36 (median 28)"
+    "note": "its spin, as the voidfin's: 33 in four captures, 7.68 s apart (median, p10-p90 7.52-7.88), within 2 tiles (hit at 1: 43, at 2: 20), 9-36 (median 28). Every spin hit starts a stacked bleed (57 of 57, Logan 7 of 7 with 'Razor-sharp fins cause you to bleed!'; 35 of them on a victim already bleeding, each a new stack, no refresh): buff 21 value 12, ticks 9 on the pets and 8-10 on Logan, 5 of them 3.0 s apart (docs/NOTES.md 'Five more Tidal Tomb specials')",
+    "bleed": {"tick_pet": [9, 9], "tick_player": [8, 10, 9], "every_s": 3.0, "seconds": 15.0, "text": "Razor-sharp fins cause you to bleed!"}
+   },
+   {
+    "kind": "bleed",
+    "stack": true,
+    "chance": 0.05,
+    "tick_pet": [9, 9],
+    "tick_player": [8, 10, 9],
+    "every_s": 3.0,
+    "seconds": 15.0,
+    "text": "Razor-sharp fins cause you to bleed!",
+    "note": "its plain swings start one too, rarely: 4 of 82 sole melee hits (95 % CI ~1-12 %)"
    }
   ],
   "ocean bedrock": [
@@ -1374,7 +1386,61 @@
     "damage_pet": [29, 43, 36],
     "damage_player": [20, 33, 28],
     "damage_type": "physical",
-    "note": "level 3 (capture 20261027_220057): '*ripostes*' (6) with animation 19 and a number on its target in the same packet, 29, 34, 38 / 43, 34, 37 on GraveRobber, 8.5-10.2 s apart; beside its own swings (16-53 on GraveRobber, median 34, n=20; Logan once 33). Not modelled: its '*adventurers rope*' (2, 22:26:58.88 and 22:30:40.34: it lands beside its target 6-8 tiles off and swings 0.4 s later)"
+    "note": "level 3 (capture 20261027_220057): '*ripostes*' (6) with animation 19 and a number on its target in the same packet, 29, 34, 38 / 43, 34, 37 on GraveRobber, 8.5-10.2 s apart; beside its own swings (16-53 on GraveRobber, median 34, n=20; Logan once 33)"
+   },
+   {
+    "kind": "rope",
+    "text": "*adventurers rope*",
+    "action": 9,
+    "first_s": [0.43, 0.48],
+    "range_min": 2,
+    "range_max": 8,
+    "delay_s": [0.41, 0.43],
+    "cooldown_s": 20.0,
+    "note": "capture 20261027_220057, 2 ropes (22:26:58.88, 22:30:40.34), both 0.43-0.48 s after it went to war with its target (GraveRobber) 6-7 tiles off; 0.41-0.43 s later it stood on the tile its target held at the rope, its swings going on (the first number 0-1.8 s after). None while its target was beside it (~45 s of fighting), and never twice: cooldown_s a bound only [INFERENCE: >= 20 s]; range_max [INFERENCE: seen only from 6-7]. The sim lands it beside the target (the charge's landing)"
+   }
+  ],
+  "drowned buccaneer": [
+   {
+    "kind": "burst",
+    "id": "bleed",
+    "first_s": [1.0, 2.0],
+    "every_s": 7.66,
+    "radius": 1,
+    "damage_pet": null,
+    "damage_player": null,
+    "bleed": {"tick_pet": [18, 18], "tick_player": [18, 18], "every_s": 3.0, "seconds": 15.0},
+    "note": "capture 20261027_220057 22:26:28.55 and 22:26:36.21 (one buccaneer, 7.66 s apart, the first 1.2 s after the pets reached it): its animation 14, 0.38 s later a bleed stack (buff 21 value 24) on both pets beside it at once with no number, none on Logan 6-7 off; 5 ticks of 18 3.0 s apart a stack, the two side by side. n=2: radius [INFERENCE: 1, at least 1 and under 6], tick_player [INFERENCE: the pets']. Its shots (ranged AI): none seen in its 37 s fight"
+   }
+  ],
+  "biolumen shellpod": [
+   {
+    "kind": "burst",
+    "id": "barrage",
+    "first_s": [0.4, 3.0],
+    "every_s": 7.93,
+    "center": "target",
+    "reach": 8,
+    "radius": 0,
+    "damage_pet": null,
+    "damage_player": null,
+    "debuff": {"kind": "festering", "per_stack": 0.05, "duration_s": 60.0, "text": "Searing light burns your skin! (penalty to healing)"},
+    "note": "its barrage (65 in five captures): animation 4, 0.23-0.75 s later 1-2 numbers on its target (pets 11-30 median 17, Logan 20-24) and a Festering Wound stack in the same packet, 7.93 s apart (p10-p90 7.56-9.08, n=63), 0-8 tiles. The stack: buff 234 'Healing Amount Reduction' value 0.05, 60 s each (Logan 'You are no longer suffering from a festering wound.' 60.06-60.10 s after), up to 8 at once, cleared on death. The cut can't be measured in the captures (the gravebug's devour heals looked uncut, the vet's 0.93 +/- 0.04 under ~3.3 stacks): the buff's 5 % a stack, devour exempt [INFERENCE]. No number here: its barrage numbers are already in its observed swings [INFERENCE]"
+   }
+  ],
+  "lighthouse shellpod": [
+   {
+    "kind": "burst",
+    "id": "barrage",
+    "first_s": [0.4, 5.6],
+    "every_s": 8.18,
+    "center": "target",
+    "reach": 8,
+    "radius": 0,
+    "damage_pet": null,
+    "damage_player": null,
+    "debuff": {"kind": "glowmark", "per_stack": 0.25, "duration_s": 30.0, "text": "You have been marked (aggro increased)."},
+    "note": "its barrage puts a Glowmark on its target (26 of 26 marks followed its animation 4 by 0.24-0.64 s, the soulcatcher's never): buff 235 'Draws Additional Aggro' value 0.25, 30 s each, up to 4 at once; 8.18 s apart (p10-p90 7.61-9.25, n=34), 1-7 tiles; numbers with it pets 14-27, Logan 20-21. No effect on targeting measurable (the marked pet was already the tank in 8 of 9 windows; Logan marked 2026-10-27 22:51:48: nothing hit him in the next 30 s): the sim takes the buff's 25 % a stack more threat from what the marked one does [INFERENCE]. No number here: as the biolumen's"
    }
   ],
   "giant toxic zoa": [
@@ -1419,7 +1485,7 @@
     "radius": 3,
     "damage_pet": [70, 94, 79],
     "damage_player": [35, 56, 37],
-    "debuff": {"kind": "backlash", "per_stack": 0.3, "duration_s": 30},
+    "debuff": {"kind": "backlash", "per_stack": 0.3, "duration_s": 30, "text": "Astral backlash impacts your ability to concentrate while casting!"},
     "ref": {"pet": "a searing imp", "bestiary": "Random 2026-10-24", "level": 10},
     "note": "its astral spell (docs/NOTES.md 'Backlash'): on its target and everyone of us within 3 of it, not a ring round the zoa: in 70 attacks with positions the victims were at most 3 apart, and 101 of 107 spared within 14 of it stood 4+ from the nearest victim; with the phoenix team it took the tank 19 times, the phoenix 8. Every 4.8-8.9 s (median 5.6, n=59), the first 3.1-3.5 s into the fight; victims up to 9 tiles from it. Pets 70-94 (median 79, n=94), Logan 35-56 (n=8). Every victim gets a Backlash stack: a 0.3 chance on each spellcast to fizzle for 30 s, each stack its own timer (0xFF sub 8 icon 17, cliloc 1110022, sent for pets too; on Logan 'Astral backlash impacts your ability to concentrate while casting!'). Captures 20261024_102346 20:54:55-21:02:49, 20261024_225113 11:32:55-11:33:44, 20261025_210102 21:29:15-21:31:07, 20261026_183552 22:45:55-22:46:42. A mage at (7156-7158, 2193-2196) that never moved; 2 killed at 18,001 (wiki 18,000 hits + 1) in 89-92 s"
    },
@@ -1446,18 +1512,31 @@
     "radius": 3,
     "damage_pet": [42, 60, 45],
     "damage_player": [35, 42, 37],
-    "debuff": {"kind": "backlash", "per_stack": 0.2, "duration_s": 30},
+    "debuff": {"kind": "backlash", "per_stack": 0.2, "duration_s": 30, "text": "Astral backlash impacts your ability to concentrate while casting!"},
     "note": "level 2, the giant's spell smaller: every 6.2-10.9 s (median 7.35, n=21), the first 3.1-3.4 s in; pets 42-60 (median 45, n=47), Logan 35-42 (n=8); a 0.2 Backlash stack on each victim (AlaFlambe fizzled 26 of 88 casts under them). Captures 20261024_102346 19:52:25-20:12:27, 20261025_210102 21:14:01-21:18:24, 20261027_220057 22:45:59-22:53:59"
    }
   ],
   "greater razorfin": [
    {
+    "kind": "burst",
+    "id": "spin",
+    "first_s": [2.0, 8.0],
+    "every_s": 7.77,
+    "radius": 2,
+    "damage_pet": [45, 78, 59],
+    "damage_player": [30, 50, 40],
+    "bleed": {"tick_pet": [18, 18], "tick_player": [16, 18, 17], "every_s": 3.0, "seconds": 15.0},
+    "note": "level 3: its spin, 7.77 s apart (median, 7.55-8.8, n=11), 45-78 on the pets within 2 (median 59), each hit a stacked bleed (13 of 13: buff 21 value 16, 5 ticks of 18 3.0 s apart; 2026-10-24 20:58:27-20:59:31 GirthyEarthy, 2026-10-26 22:47:41-22:48:05 AlaFlambe and GraveRobber). Before 2026-10-28 modelled as a bleed on every hit, 18 every 1.27 s: that was these stacks overlapping. Logan never within 2: damage_player and tick_player [INFERENCE]"
+   },
+   {
     "kind": "bleed",
-    "chance": 1.0,
-    "tick": [18, 18],
-    "every_s": 1.27,
+    "stack": true,
+    "chance": 0.06,
+    "tick_pet": [18, 18],
+    "tick_player": [16, 18, 17],
+    "every_s": 3.0,
     "seconds": 15.0,
-    "note": "level 3, 2026-10-24 20:58:26-20:59:45: an 18 on its target every 1.27 s (n=60, the median gap) from its first swing to 14 s after its death, the swings beside (melee_observed); no bleed text over the pet. [INFERENCE: a bleed on every hit, 15 s]"
+    "note": "its plain swings start one rarely: 1 of 17"
    }
   ],
   "giant combustive zoa": [
@@ -1471,7 +1550,7 @@
     "note": "level 3, 2026-10-25 11:34:13-11:34:50 (the only fight; it killed the three pets): a mage near (7197, 2172-2177); every 5.3-6.1 s (n=6 gaps) one number on each pet 10 tiles from it and on Logan at 8-12, the pets' rising 82-87, 89-95, 97-103, 110-112, 112-118, 123-128, Logan's 41, 32, 40, each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
    }
   ],
-  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the greater razorfin's steady 18 every ~1.2 s on the tank beside its 36-70 swings (2026-10-24 20:58:26-20:59:45, n~50; calibrate's swing numbers carry both); the giant zoas' scorch (their notes), and a combustive zoa's scorch on Logan once on level 2 (2026-10-26 22:38:43, 'The creature scorches you and you become more susceptible to damage from them!'); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's). Capture 20261027_220057, not modelled: the drowned swashbuckler's '*adventurers rope*', the drowned buccaneer's bleed on both pets at once (once, 18 a tick), the giant kelpdweller's 2-tile reach (3 numbers), the biolumen shellpod's Festering Wound (a healing penalty of unmeasured size), the Glowmark (more aggro) from a lighthouse shellpod or the soulcatcher beside it, the razorfin's bleed (9-10 every ~3 s; its chance a hit unmeasured). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte (their entries)."
+  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the giant zoas' scorch (their notes), and a combustive zoa's scorch on Logan once on level 2 (2026-10-26 22:38:43, 'The creature scorches you and you become more susceptible to damage from them!'); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's); the giant kelpdweller's 2-tile reach (3 numbers, capture 20261027_220057). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte; since 2026-10-28 (docs/NOTES.md 'Five more Tidal Tomb specials') the swashbuckler's rope, the buccaneer's bleed, the fins' spin bleeds (the greater razorfin's old every-hit bleed, 18 every ~1.2 s, was these stacks overlapping), Festering Wound and Glowmark (their entries)."
  },
  "ranged_observed": {
   "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},

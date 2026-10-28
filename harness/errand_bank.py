@@ -21,6 +21,7 @@ Run:  python harness/errand_bank.py [--start 1963,2597] [--range 8]
 """
 import argparse
 import os
+import re
 import sys
 import time
 
@@ -30,7 +31,14 @@ from agent_link import Abort, Link, Mover, bank_opened, find_banker, log, same_f
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
-GATING_WORDS = ("razor", "assistant", "macro", "script")
+# System text restricting assistants (ANTICHEAT.md §8 rule 4): "razor" not in "Razor-sharp" (Tidal Tomb's razorfin:
+# "Razor-sharp fins cause you to bleed!", live 2026-10-24..27; it halted 19 of 24 simulator runs on level 2, 2026-10-28)
+GATING = re.compile(r"razor(?!-sharp)|assistant|macro|script")
+
+
+def gating(text: str) -> bool:
+    """A server line that restricts assistants (any case)."""
+    return GATING.search((text or "").lower()) is not None
 
 
 class Errand:
@@ -60,8 +68,8 @@ class Errand:
                 raise Abort(f"hit points dropped ({self.start_hits} -> {hits}); stopping")
         for ev in self.link.events[self.heard_upto:]:
             if ev.get("ev") == "speech_heard" and ev.get("serial") in (None, 0, 0xFFFFFFFF, "0xFFFFFFFF"):
-                text = (ev.get("text") or "").lower()
-                if any(w in text for w in GATING_WORDS):
+                text = ev.get("text") or ""
+                if gating(text):
                     raise Abort(f"server restriction message: {ev.get('text')!r}")
         self.heard_upto = len(self.link.events)
 

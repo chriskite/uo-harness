@@ -5044,6 +5044,95 @@ def test_tidal_backlash():
           rates[0] == 0 and abs(rates[1] - 0.30) < 0.03 and abs(rates[2] - 0.51) < 0.03, str(rates))
 
 
+def test_tidal_specials5():
+    print("== Tidal Tomb: a razorfin's spin stacks a bleed on each of us within 2 (side by side); Festering Wound cuts "
+          "heals 5 % a stack, not the gravebug's devour; a swashbuckler ropes from 6 tiles, not from beside its target; "
+          "a buccaneer bleeds the pets beside it with no number ==")
+    x, y = TIDAL_L1
+    # the spin's bleed: two spins on GraveRobber beside it, two stacks of 5 ticks of 9, 3 s apart, side by side
+    w = tidal_world(TIDAL_L1, [{"key": "razorfin", "at": [x + 3, y, -16]}])
+    fin = next(o for o in w.mobs.values() if o.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 10 ** 6
+    spin = next(s for s in fin.spec["specials"] if s.get("id") == "spin")
+    w._place(gb, (x + 2, y, -16), d=0)
+    ticks, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if kind == "bleed" and victim is gb:
+            ticks.append((round(w.t, 1), amount))
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    t0 = w.t
+    w._burst(fin, spin)
+    w.t += 1.0
+    w._burst(fin, spin)
+    for _ in range(170):
+        w._effects(gb)
+        w.t += 0.1
+    check("two spins, two stacks side by side: 10 ticks of 9, each stack's 3.0 s apart, done by 16 s",
+          len(ticks) == 10 and {n for _, n in ticks} == {9} and len(gb.bleed_stacks) == 0
+          and abs(ticks[0][0] - t0 - 3.0) < 0.15, str(ticks))
+    # Festering Wound: 4 stacks cut a heal to 0.80 of itself, not the devour's
+    w = tidal_world(TIDAL_L1)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits_max, gb.hits = 10 ** 6, 10
+    gb.festering = [[w.t + 60, 0.05]] * 4
+    h0 = gb.hits
+    w.heal(gb, 100)
+    cut = gb.hits - h0
+    w.heal(gb, 100, "devour")
+    whole = gb.hits - h0 - cut
+    base = 100 * (1 + w.song("peace")) * pet_rules_heal_mult(gb)
+    check("4 stacks: a heal at 0.80, the devour whole", abs(cut - round(base * 0.8)) <= 1 and abs(whole - round(base)) <= 1,
+          f"cut {cut} whole {whole} base {base:.1f}")
+    # the swashbuckler's rope: from 6 tiles it lands beside its target; from beside it, no rope
+    out = {}
+    for d in (6, 1):
+        w = tidal_world(TIDAL_L1, [{"key": "drowned swashbuckler", "at": [x + d + 1, y, -16]}])
+        sw = next(o for o in w.mobs.values() if o.kind == "monster")
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        w._place(gb, (x + 1, y, -16), d=0)
+        for o in [sw, *w.pets(), w.player]:
+            o.hits = o.hits_max = 10 ** 6
+        sw.spec = {**sw.spec, "step_s": 99.0}                    # it doesn't walk in: only a rope closes the gap
+        for p in w.pets():
+            p.mode = "stay"
+        sw.target, sw.threat = gb.serial, {gb.serial: 1e9}
+        w._warm(sw, True)
+        said = _log_overhead(w)
+        w.run_until(w.t + 3.0)
+        out[d] = (sum(1 for _, s, txt in said if s == sw.serial and txt == "*adventurers rope*"), sim_cheb(sw.pos, gb.pos))
+    check("from 6 tiles: one rope, then beside its target; from beside it: none", out[6] == (1, 1) and out[1][0] == 0,
+          str(out))
+    # the buccaneer: the pets beside it bleed (18 a tick), no number with it; Logan 6 off doesn't
+    w = tidal_world(TIDAL_L1, [{"key": "drowned buccaneer", "at": [x + 2, y, -16]}])
+    bc = next(o for o in w.mobs.values() if o.kind == "monster")
+    bleed = next(s for s in bc.spec["specials"] if s.get("id") == "bleed")
+    pets = w.pets()
+    for p, xy in zip(pets, ((x + 1, y), (x + 3, y))):
+        w._place(p, (xy[0], xy[1], -16), d=0)
+    w._place(w.player, (x + 8, y, -16), d=0)
+    nums, orig = [], w.hurt
+
+    def hurt2(victim, amount, by, kind="melee", *a, **kw):
+        nums.append((victim.name, kind))
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt2
+    w._burst(bc, bleed)
+    check("both pets a bleed stack of 18, Logan none, no number at the cast",
+          all(len(p.bleed_stacks) == 1 and p.bleed_stacks[0][2] == 18 for p in pets) and not w.player.bleed_stacks
+          and not nums, f"{[(p.name, p.bleed_stacks) for p in pets]} {nums}")
+    from errand_bank import gating
+    check("the runners' restriction guard: not the razorfin's 'Razor-sharp fins cause you to bleed!', still 'Razor'",
+          not gating("Razor-sharp fins cause you to bleed!") and gating("The use of Razor is not allowed here."))
+
+
+def pet_rules_heal_mult(p):
+    from sim import pets as pet_rules
+    return pet_rules.heal_mult(p.spec)
+
+
 def test_tidal_pressure():
     print("== Pressure: each stack lands 30 s after the first, all at once, one number each ==")
     w = tidal_world(TIDAL_L1)
@@ -5263,7 +5352,8 @@ def main():
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
               test_tidal_level3_bursts,
-              test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_avoid_backlash, test_shy_by_ai,
+              test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
+              test_shy_by_ai,
               test_walk_in_fought, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

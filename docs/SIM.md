@@ -1791,6 +1791,41 @@ with the monster not discorded (`on_us_s`); a provoked monster fights its partne
 - **Open:** level 2's strip arrival (the mariners and soulcatchers; their observations didn't change, the mariner
   still 23-43 every 1.57 s); level 3's middle room for a crawl started from the west entrance.
 
+### Five more specials, and a runner halt they showed (2026-10-28)
+
+User 2026-10-28: can the swashbuckler's rope, the buccaneer's bleed, Festering Wound, Glowmark and the razorfin's bleed
+be modelled? Yes; the evidence is in docs/NOTES.md "Five more Tidal Tomb specials".
+
+- **Stacked bleeds** (`World._bleed_stack`): each application its own 5 ticks 3.0 s apart, side by side, on a burst
+  (`bleed` rider) or a hit (`bleed` with `stack`).
+  - Razorfin: every spin hit (9 a tick on a pet, 8-10 on Logan), and 5 % of its swings.
+  - Greater razorfin: a spin of its own (45-78) with 18 a tick, and 6 % of its swings. This replaces the old bleed on
+    every hit, 18 every 1.27 s.
+  - Buccaneer: a no-number burst on everyone beside it, 18 a tick, every 7.66 s.
+- **The rope** (kind `rope`, the charge's landing without a hit): with its target 2-8 tiles off, '*adventurers rope*'
+  and beside it 0.41-0.43 s later. Cooldown 20 s [INFERENCE: seen only twice, never twice by one].
+- **Festering Wound and Glowmark** (`debuff` "festering" / "glowmark" on the shellpods' barrage bursts, no number):
+  - Festering: heals x (1 - 0.05 a stack) for 60 s each, the gravebug's devour exempt.
+  - Glowmark: the marked one's threat x (1 + 0.25 a stack) for 30 s each.
+  - Both are the buffs' own values; the captures can't size either.
+- **A runner halt found here.** The hunt runner's restriction guard (ANTICHEAT.md §8 rule 4) matched "razor" in "Razor-sharp
+  fins cause you to bleed!" and stopped the run: 19 of 24 level 2 runs ended "server restriction message" once the
+  text came. Live it would have done the same at the first razorfin spin on Logan: the runner has never hunted level 2
+  live. `errand_bank.gating` now skips "Razor-sharp" (test in `test_tidal_specials5`).
+- **Runs** (24 each, seeds 4-27; "before" the previous commit, which had neither the bleeds nor the halt):
+
+  | | runs with a death | damage on Logan an hour | kills an hour | banked gp an hour |
+  |---|---|---|---|---|
+  | level 2 crawl, before | 5 | 1,718 | 168 | 106,039 |
+  | level 2 crawl, after | 7 | 2,017 | 167 | 116,040 |
+  | level 3 (old route), before | 8 | 2,456 | 418 | 154,569 |
+  | level 3 (old route), after | 11 | 3,379 | 546 | 128,145 |
+
+  On level 2 the razorfins now put 2,334 on Logan and the bleeds 1,919 over the 24 runs, against 707 before (their
+  spins with no bleed). Level 2's 2,017 an hour sits between the user's live 1,740 (10-26) and 2,768 (10-27). The
+  runner doesn't keep off the fins' spins (radius 2); `tamer.AREA_R` would take them as it takes the noughtilus
+  (stand 3 off) [not done].
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its

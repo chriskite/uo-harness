@@ -162,7 +162,7 @@ import tamer  # noqa: E402
 import task_wrap  # noqa: E402
 from agent_link import (Abort, GatePaused, Link, Mover, WalkFailed, bank_opened, cheb,  # noqa: E402
                         containers_to_open, find_banker, log, same_floor, serial_of)
-from errand_bank import GATING_WORDS  # noqa: E402
+from errand_bank import gating  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
@@ -665,8 +665,8 @@ class HuntLoop:
             self.heard_upto = len(self.link.events)
         for ev in self.link.events[self.heard_upto:]:
             if ev.get("ev") == "speech_heard" and ev.get("serial") in (None, 0, 0xFFFFFFFF, "0xFFFFFFFF"):
-                text = (ev.get("text") or "").lower()
-                if any(w in text for w in GATING_WORDS):
+                text = ev.get("text") or ""
+                if gating(text):
                     self.halt = "a server restriction message"
                     self.memory.juncture("hunt", "server_restriction",
                                          f"Server restriction: {ev.get('text')!r}"[:300], "urgent",

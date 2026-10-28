@@ -121,7 +121,7 @@ GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease", "pressure"}   # scenario specials rolled on a monster's hit
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
-         "large_swing", "spray"}   # ...used on a cooldown while it fights
+         "large_swing", "spray", "rope"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
 # a monster's damage kind -> how a pet takes it (sim/pets.taken_factor): physical through its armor, spell through its
@@ -232,6 +232,9 @@ class Mob:
     spray: dict | None = None     # an ocean bedrock's spray under way (_spray_step): origin, axis, wave start, hits
     backlash: list = field(default_factory=list)   # astral zoas' Backlash stacks on one of us: [[expiry, fizzle chance]]
     pressure: dict | None = None  # Pressure stacks on one of us: {"due": resolve time, "hits": [damage per stack]}
+    bleed_stacks: list = field(default_factory=list)   # stacked bleeds: [[next tick, ticks left, tick, every_s]]
+    festering: list = field(default_factory=list)      # Festering Wound stacks: [[expiry, heal cut]]
+    marks: list = field(default_factory=list)          # Glowmark stacks: [[expiry, extra threat share]]
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -331,7 +334,7 @@ class World:
         self.last_use_t = -1e9
         self.potion_ready = 0.0
         self.vet_end = None                   # the running vet channel's finish time
-        self.heals_due = []                   # (time, Mob, amount): Overheal's ticks, a devour's later ticks
+        self.heals_due = []                   # (time, Mob, amount, source): Overheal's ticks, a devour's later ticks
         self.medic_until = {}                 # serial -> the end of the codex's Combat Medic / Immunize window
         self.last_step_t = 0.0
         self.steps_taken = 0                  # our confirmed steps: a stamina point every STEP_STAM_EVERY of them
@@ -923,6 +926,11 @@ class World:
             victim.damage_by[by.serial] = victim.damage_by.get(by.serial, 0) + n
             if victim.kind == "monster":
                 w = by.spec.get("threat_x", 1.0) if by.kind == "pet" else 1.0
+                if by.marks:
+                    # a lighthouse shellpod's Glowmark on the attacker: the buff's 'Draws Additional Aggro', 25 % a stack
+                    # (no effect measurable in the captures: the tank held anyway)
+                    by.marks = [k for k in by.marks if k[0] > self.t]
+                    w *= 1.0 + sum(v for _, v in by.marks)
                 victim.threat[by.serial] = victim.threat.get(by.serial, 0) + n * w
                 self.metrics["team_damage"] += n if by.kind in ("player", "pet") else 0
         if victim.kind == "player" and self._on_level():
@@ -965,7 +973,7 @@ class World:
             if sp is not None and not victim.hidden_until and self.t >= victim.cd.get("dematerialize", 0.0):
                 self._dematerialize(victim, sp)
 
-    def heal(self, m: Mob, amount: float):
+    def heal(self, m: Mob, amount: float, source: str = ""):
         if not m.alive or m.ghost:
             return
         if m.kind in ("player", "pet"):
@@ -974,6 +982,11 @@ class World:
             amount *= 1 + self.links["healing_received"]   # the chain's Healing Received
         if m.kind == "pet":
             amount *= pet_rules.heal_mult(m.spec)   # the bestiary's healing perks (Mending, Swarm, Menagerie)
+        if m.festering and source != "devour":
+            # a biolumen shellpod's Festering Wound: the buff's 5 % a stack (the captures can't size it: the gravebug's
+            # devour heals looked uncut, the vet's 0.93 +/- 0.04 under ~3.3 stacks; docs/NOTES.md)
+            m.festering = [f for f in m.festering if f[0] > self.t]
+            amount *= max(0.0, 1.0 - sum(v for _, v in m.festering))
         n = int(round(min(amount, m.hits_max - m.hits)))
         m.hits += n
         self._ev("heal", m=m.serial, n=n, h=int(m.hits))
@@ -986,7 +999,7 @@ class World:
     def die(self, m: Mob, by: Mob | None):
         self._ev("die", m=m.serial, by=by.serial if by is not None else None)
         self._cancel_cast(m, "gone")
-        m.diseases, m.pressure, m.backlash = [], None, []
+        m.diseases, m.pressure, m.backlash, m.bleed_stacks, m.festering, m.marks = [], None, [], [], [], []
         if m.kind == "player":
             m.hits, m.ghost = 0, True
             self.metrics["deaths"] += 1
@@ -1121,8 +1134,8 @@ class World:
         if self.heals_due and any(h[0] <= t for h in self.heals_due):
             due = [h for h in self.heals_due if h[0] <= t]
             self.heals_due = [h for h in self.heals_due if h[0] > t]
-            for _, m, amount in due:
-                self.heal(m, amount)
+            for _, m, amount, source in due:
+                self.heal(m, amount, source)
         if self.rope_landing and t >= self.rope_landing[0]:
             _, to = self.rope_landing
             self.rope_landing = None
@@ -1301,6 +1314,15 @@ class World:
                 m.bleed_until = 0.0
                 if m.kind == "player":
                     self._sys("You are no longer bleeding.")
+        for bs in list(m.bleed_stacks):
+            # stacked bleeds (the fish's spins, the buccaneer's): 5 ticks 3.0 s apart each, side by side, no refresh
+            if t >= bs[0]:
+                self.hurt(m, bs[2], None, "bleed")
+                bs[0], bs[1] = bs[0] + bs[3], bs[1] - 1
+                if bs[1] <= 0 and bs in m.bleed_stacks:
+                    m.bleed_stacks.remove(bs)
+                    if not m.bleed_stacks and not m.bleed_until and m.kind == "player":
+                        self._sys("You are no longer bleeding.")
         for dz in list(m.diseases):
             if t >= dz[0]:
                 self.hurt(m, dz[2], None, "disease")
@@ -1628,7 +1650,9 @@ class World:
             chance = sp.get("pet_chance", sp.get("chance", 0)) if tgt.kind == "pet" else sp.get("chance", 0)
             if kind not in ON_HIT or self.rng.random() >= chance:
                 continue
-            if kind == "bleed" and not tgt.bleed_until:
+            if kind == "bleed" and sp.get("stack"):
+                self._bleed_stack(tgt, sp)
+            elif kind == "bleed" and not tgt.bleed_until:
                 self._start_bleed(tgt, sp)
                 if tgt.kind == "player":
                     self._sys("The creature strikes ferociously, causing you to bleed!")
@@ -1670,6 +1694,19 @@ class World:
             o.pressure = {"due": self.t + sp.get("seconds", 30.0), "hits": []}
         o.pressure["hits"].append(n)
         self.count("pressure_stacks", o.name)
+
+    def _bleed_stack(self, o: Mob, sp: dict):
+        """A stacked bleed on `o`: `tick_pet` / `tick_player` (else `tick`) every `every_s` for `seconds`, beside any
+        running one (live the fins' and the buccaneer's: each application its own 5 ticks 3.0 s apart, 15 s, no
+        refresh; docs/NOTES.md "Five more Tidal Tomb specials"); `text` on Logan."""
+        if not o.alive or o.ghost or o.kind not in ("player", "pet"):
+            return
+        tick = self.roll(sp.get("tick_player" if o.kind == "player" else "tick_pet", sp.get("tick")))
+        every = sp.get("every_s", 3.0)
+        o.bleed_stacks.append([self.t + every, max(1, int(round(sp.get("seconds", 15.0) / every))), tick, every])
+        if o.kind == "player" and sp.get("text"):
+            self._sys(sp["text"])
+        self.count("bleed_stacks", o.name)
 
     def _start_bleed(self, o: Mob, sp: dict):
         """A bleed: `tick` damage every `every_s` for `seconds` (the trip: 8-10 every 3 s, 5 ticks, then
@@ -1815,6 +1852,21 @@ class World:
                 self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*takes large swing*")
                 m.swing_at = (t + sp.get("delay_s", 0.5), tgt.serial, sp)
+            elif kind == "rope":
+                # a drowned swashbuckler (Tidal Tomb scenario note): '*adventurers rope*' with its target 2+ tiles off,
+                # then on its target's tile 0.41-0.43 s later; no hit of its own, its swings go on
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                d = cheb(m.pos, tgt.pos)
+                if m.charge_at is not None or d < sp["range_min"] or d > sp["range_max"] or not self.can_see(m, tgt):
+                    continue
+                m.cd[kind] = t + sp["cooldown_s"]
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
+                if m.serial in self.viewing:
+                    self.send(P.animation(m.serial, sp.get("action", 9)))
+                self._overhead(m, sp["text"])
+                m.charge_at = (t + self.rng.uniform(*sp["delay_s"]), tgt.serial, sp)
             elif kind == "spray":
                 # an ocean bedrock (Tidal Tomb scenario note): animation 18, 0.71 s later a wave down its 90-degree
                 # frontal cone, one tile ring a 0.1 s, aimed at what it fights
@@ -1918,8 +1970,10 @@ class World:
         """One area hit on each of us within `radius`, or on `targets` of us there picked at random (`song_pets`
         false: the pets' share isn't cut by the Song of Discordance, as the apparition's live). `center` "target": on
         its target (one of us within `reach`) and each of us within `radius` of that one, not round itself (the astral
-        zoas' spell). A `debuff` "backlash": a stack of `per_stack` fizzle chance for `duration_s` on each victim
-        (`_fizzles`)."""
+        zoas' spell). `damage_pet` null: no number (a debuff or bleed only, or its numbers already in the type's swings).
+        A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`). A `debuff`, a stack of `per_stack` for
+        `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut (`heal`),
+        "glowmark" extra threat drawn (`hurt`)."""
         if sp.get("center") == "target":
             team = self.team()
             if tgt is None or tgt not in team or cheb(m.pos, tgt.pos) > sp["reach"] or not self.can_see(m, tgt):
@@ -1932,15 +1986,26 @@ class World:
             hit = self.rng.sample(hit, sp["targets"])
         db = sp.get("debuff") or {}
         for o in hit:
-            self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
-                      song_pets=sp.get("song_pets", True), dtype=sp.get("damage_type"), ref=sp.get("ref"))
+            if sp.get("damage_pet") is not None:
+                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
+                          song_pets=sp.get("song_pets", True), dtype=sp.get("damage_type"), ref=sp.get("ref"))
+            if not o.alive or o.ghost:
+                continue
             if sp.get("pressure"):
                 self._pressure(o, sp["pressure"])
-            if db.get("kind") == "backlash" and o.alive and not o.ghost:
-                o.backlash = [b for b in o.backlash if b[0] > self.t] + [[self.t + db["duration_s"], db["per_stack"]]]
-                if o.kind == "player":
-                    self._sys("Astral backlash impacts your ability to concentrate while casting!")
-                self.count("backlash", o.name)
+            if sp.get("bleed") and self.rng.random() < sp["bleed"].get("chance", 1.0):
+                self._bleed_stack(o, sp["bleed"])
+            if db:
+                stack = [self.t + db["duration_s"], db["per_stack"]]
+                if db["kind"] == "backlash":
+                    o.backlash = [b for b in o.backlash if b[0] > self.t] + [stack]
+                elif db["kind"] == "festering":
+                    o.festering = [b for b in o.festering if b[0] > self.t] + [stack]
+                elif db["kind"] == "glowmark":
+                    o.marks = [b for b in o.marks if b[0] > self.t] + [stack]
+                if o.kind == "player" and db.get("text"):
+                    self._sys(db["text"])
+                self.count(db["kind"], o.name)
 
     def _fizzles(self, m: Mob) -> bool:
         """A pet's cast under Backlash fizzles: each live stack rolls its own chance (live, AlaFlambe 54 of 140 casts
@@ -2009,7 +2074,8 @@ class World:
 
     def _charge(self, m: Mob, tgt: Mob, sp: dict):
         """Charge (knowledge #14625: teleports up to 12 tiles, hits up to 3 targets within 1 tile; live the
-        jump onto or beside its target 1.0 s after '*charges*', each of us within a tile hit at once)."""
+        jump onto or beside its target 1.0 s after '*charges*', each of us within a tile hit at once). A rope (no
+        `damage`): the jump beside its target only."""
         self._ev("ability", by=m.serial, kind="charge_land", v=tgt.serial)
         if cheb(m.pos, tgt.pos) > 1:
             spots = [(tgt.x + dx, tgt.y + dy) for dx, dy in nav.DIR_DELTA
@@ -2020,6 +2086,8 @@ class World:
             to = min(spots, key=lambda p: cheb(p, m.pos))
             self._teleport(m, (to[0], to[1], tgt.z))
             self._moved(m)
+        if sp.get("damage") is None:
+            return                               # a rope: the landing only
         hit = [tgt] + [o for o in self.team() if o is not tgt and cheb(o.pos, m.pos) <= 1]
         for o in hit[:sp.get("targets", 3)]:
             if cheb(o.pos, m.pos) <= 1:
@@ -2084,8 +2152,8 @@ class World:
                 m.cd["Devour"] = t + pet_rules.cooldown(m.spec, dv["cooldown_s"])
                 self._overhead(m, "*devours corpse*")
                 tick = dv["heal_pct"] * m.hits_max / dv["ticks"]
-                self.heal(m, tick)
-                self.heals_due += [(t + k * dv["tick_s"], m, tick) for k in range(1, dv["ticks"])]
+                self.heal(m, tick, "devour")
+                self.heals_due += [(t + k * dv["tick_s"], m, tick, "devour") for k in range(1, dv["ticks"])]
                 self._swoop(m)
         if t >= m.next_think:
             m.next_think = t + THINK_S
@@ -2905,7 +2973,7 @@ class World:
         """The codex's Overheal: its share of a finish's heal (before the song and the perks) in 3 ticks a second
         apart [INFERENCE: the cadence; live 2026-10-14 22:35:56.17 a '+4' over the gravebug 1.06 s after a finish]."""
         if self.codex["overheal"]:
-            self.heals_due += [(self.t + k, m, amount * self.codex["overheal"] / 3) for k in (1, 2, 3)]
+            self.heals_due += [(self.t + k, m, amount * self.codex["overheal"] / 3, "") for k in (1, 2, 3)]
 
     def _drink(self, s):
         pl, pot = self.player, self.sc["potions"]
