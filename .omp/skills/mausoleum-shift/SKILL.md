@@ -1,6 +1,6 @@
 ---
 name: mausoleum-shift
-description: Run Logan Wolf's Mausoleum crawl shifts through a Seer (overseer) subagent per docs/OVERSEER.md, while this session watches and fixes every issue the Seer or the user reports. Use when the user asks for Mausoleum runs, a Mausoleum shift, or to start the Seer for Logan Wolf.
+description: Run Logan Wolf's Mausoleum crawl shifts through a Seer (overseer) subagent per docs/OVERSEER.md, while this session watches and fixes every issue the Seer or the user reports. Takes the user's shift instructions, e.g. "only level 1" (`/skill:mausoleum-shift only level 1`), and turns them into the runner's command. Use when the user asks for Mausoleum runs, a Mausoleum shift, or to start the Seer for Logan Wolf.
 ---
 
 # Mausoleum shift: the Seer plays, you fix
@@ -13,6 +13,34 @@ issue it or the user reports. You never drive the game while it runs; it never e
 Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts" and §6, docs/HUNT_LOOP.md "Pets",
 "Recall in, recall out", "Crawl".
 
+## 0. The user's instructions
+
+The user may add instructions after the skill name (`/skill:mausoleum-shift only level 1` arrives as
+`User: only level 1`), in the request, or later while the shift runs. They hold for the whole shift, through every
+re-dispatch, until the user changes them. None: the §5 command verbatim (Maus 3). Map each one before dispatch:
+
+1. **A level** ("only level 1", "first level", "Maus 1"): the level's command from docs/OVERSEER.md §5 "Another
+   hunt level by the user's word"; "only" means every run of the shift on it. "Level 1" is the Mausoleum's first
+   level unless the user names Tidal Tomb (then the `tidal-tomb-shift` skill).
+
+   | The user says | Level | State |
+   |---|---|---|
+   | level 1, first level, Maus 1 | Maus 1 | Runnable, never run live. Simulator 3 of 3 runs home with no death. The gold gate's Totem row is [INFERENCE]: tell the user it is the runner's first live run there, then dispatch; watch the first leave. |
+   | level 2, Maus 2 | none | Not runnable: no gate on it, no teleporter back up known, so no way out but on through Maus 3. Tell the user; offer Maus 1 or 3, or the runner work (section 4). |
+   | level 3, Maus 3, nothing | Maus 3 | The §5 command. |
+   | Maus 4 | none | Not in the runner (no route or gate known). Tell the user. |
+
+2. **A runner setting** ("no songs", "stop after 50 kills", "don't provoke", "never pull X"): the flag from `python
+   harness/loop_hunt.py --help` added to the level's command (`--no-songs`, `--kills 50`, `--no-provoke`,
+   `--never-aggro "<type>"`). The flags the §5 command already has stay.
+3. **A shift rule** ("three runs", "stop at 23:00", "home by midnight"): Seer procedure, written into the dispatch
+   (no new run after the Nth; `ctl stop --after-trip` at the time). Pets are the user's to bring: the runner claims
+   the tamed pets beside Logan at the start.
+4. **Nothing maps** (no flag, no procedure, or a level marked not runnable): tell the user before dispatch that it
+   needs runner work (section 4), and ask whether to start without it.
+
+When you dispatch, tell the user the plan in one line: the level, the added flags, the shift rules.
+
 ## 1. Before dispatch
 
 1. Stack up and current: `python harness/stack.py status`. An `external … not ours` service is still old code
@@ -24,9 +52,9 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
    old from another session) already owns Logan; message it (`write agent://<id>`) instead of starting another.
    A parked one may be revived the same way when its context is still small; otherwise dispatch fresh.
 4. Anything off (dead, pets missing, gate paused, a task running): tell the user and dispatch only once they say
-   how to proceed. Alive inside the dungeon with no run: the Seer's first act is the go-home run (§5 step 7: the
-   §5 command plus `--go-home`); say so in the dispatch. §5 step 1: start at home in Logan Wolf's house (the
-   "Logan's House" landing).
+   how to proceed. Alive inside the dungeon with no run: the Seer's first act is the go-home run (§5 step 7) with
+   the command of the level he stands on (§5 "Another hunt level": the levels' boxes) plus `--go-home`; say so in
+   the dispatch. §5 step 1: start at home in Logan Wolf's house (the "Logan's House" landing).
 
 ## 2. Dispatch
 
@@ -43,7 +71,11 @@ shifts') until the user says stop.
 State at dispatch (checked by the parent, <HH:MM>): <hits, pos, facet, at home or where, pets and their hits,
 gold, gate, tasks, open junctures>.
 Runner changes since the last shift (commits <shas>): <what each changes and the log lines it writes>.
-<Any change to §5's command or procedure the user asked for, else "§5 verbatim".>
+Shift instructions from the user, verbatim: <"…", or "none">.
+Command for every run, a restart inside and the go-home run (§5 'Another hunt level by the user's word'): <the
+full ctl run hunt command, or "§5 verbatim">.
+<Shift rules from the instructions (run count, stop time), and any other change to §5's procedure the user asked
+for, else "§5 procedure verbatim".>
 Reporting contract (the parent session fixes code; you never do):
 - Report every issue to the parent at once with `write agent://Main`: a runner error or traceback, a run that
   did something §5 or the user's play rules say it must not, a stuck or confused run, a death, pet_down,
@@ -54,7 +86,7 @@ Reporting contract (the parent session fixes code; you never do):
   start no new hunt while the issue is open, and keep `ctl wait` going. A parent message wakes you; it says
   when the fix is in and what changed, and whether to resume.
 - §5 step 7: an erroneous stop (task_failed) with Logan alive in the dungeon: get him home at once (the
-  runner's own escape, else the go-home run: the §5 command plus `--go-home`); never leave him standing
+  runner's own escape, else the go-home run: the command above, of the level he stands on, plus `--go-home`); never leave him standing
   there waiting for an answer (user 2026-10-24). Deaths and pets lost go to the user too (`ctl say "@user …"`);
   start nothing until they answer.
 - Yield your final report (what .omp/agents/overseer.md asks for) only when the shift ends.
@@ -73,9 +105,12 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
   `overseer_chat_cursor`) and the Seer misses those events. Never `ctl act`, `ctl run` or `ctl stop` while the
   Seer runs: have the Seer do it. Never fight by hand.
 - The user may report to you here (steering) or to the Seer in viz/Telegram (it forwards). Treat both the same.
-- The Seer yielded: read its report, fix what it lists (section 4), then dispatch a fresh Seer (section 2)
-  unless the user ended the shift. Long shifts outgrow a Seer's context (§7): re-dispatch when its transcript
-  gets long, between runs.
+- **A new instruction mid-shift** (e.g. "only level 1 from now on"): map it as in section 0 and message the Seer
+  the new command or rule. It takes effect at the next `ctl run`; a run in progress keeps its arguments. A level
+  change the user wants now: the Seer's `ctl stop --after-trip` first, then the new command from home.
+- The Seer yielded: read its report, fix what it lists (section 4), then dispatch a fresh Seer (section 2, with the
+  shift's instructions and command) unless the user ended the shift. Long shifts outgrow a Seer's context (§7):
+  re-dispatch when its transcript gets long, between runs.
 
 ## 4. Fix
 

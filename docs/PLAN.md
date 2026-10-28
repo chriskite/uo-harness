@@ -2699,6 +2699,25 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   Command aspect's resistance (additive in the model, [INFERENCE] in the pools rule) is the other candidate. Next: more
   aspected hours with this loadout, then fit one with the Random team's GirthyEarthy (1.54x the model's damage) held out.
 
+## Shift skills take the user's instructions; a hunt level per shift (user 2026-10-27)
+
+User: "Make a skill like the Mausoleum skill but for Tidal Tomb. The new skill and the Maus skill should let me add
+instructions like 'only level 1'."
+
+- **Two skills, one Seer procedure.** `.omp/skills/tidal-tomb-shift` is the Mausoleum skill's loop with Tidal Tomb's
+  rune check, levels and simulator; both send the Seer docs/OVERSEER.md §5 "Mausoleum crawl shifts". Rejected: a
+  second Seer procedure for Tidal Tomb, which would drift from the Mausoleum's.
+- **Instructions map to a command, a flag or a shift rule** in the skill (its section 0), before dispatch. The level
+  commands live once, in §5 "Another hunt level by the user's word", and the skills point there. The command replaces
+  §5's for every run, the restart from inside and the go-home run. One that maps to nothing goes back to the user as
+  runner work.
+- **A level is the runner's arguments, not a new flag.** The crawl already keeps to the floor it reached (teleporters
+  are walls), so a level is where `--enter-rune`/`--enter-via` leave Logan and which gate `--leave-gate`/`--leave-via`
+  name. Maus 1: no `--enter-via`, the gold gate beside the arrival (simulator 2026-10-27: 3 of 3 home, no death; its
+  menu's Totem row [INFERENCE]). Maus 2 has no way out of its own, so it is refused until the runner gets one.
+- **Tidal Tomb's levels 2 and 3 need the user's go** after the skill states the evidence (never live by the runner,
+  no oxygen rule, simulator deaths 4 and 5 of 24), rather than being refused: the user plays them by hand and asks.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

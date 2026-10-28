@@ -652,7 +652,39 @@ Paste this (or point the session at this section) to start an overseer.
 >    (its teleporters down to level 2 at (6608-6610, 2060) and (6718, 1984), and the exit at (6656-6657, 2109), are
 >    known walls to the walk rules). Out: the gate on the arrival tile (the user's choice; it holds a golden 0x4003D7B5
 >    and a hue-2820 one 0x4001AA04, either opens the destinations menu [INFERENCE for the second]), Totem, the tome
->    home. Logan anywhere but level 1 (another teleporter column than these, the exit) is an issue for the parent.
+>    home. Logan anywhere but level 1 (another teleporter column than these, the exit) is an issue for the parent,
+>    unless the shift's level (below) is another.
+>    **Another hunt level by the user's word** (since 2026-10-27; the parent passes the user's instruction, e.g. "only
+>    level 1", with the level's command; the rest of this section holds). Each command is the common part `ctl run hunt
+>    --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 --leave-recall 0x444AB1F3 --enter-recall
+>    0x444AB1F3 --gate-dest Totem` plus the level's arguments:
+>    - **Maus 1** (the first level): `--enter-rune "Maus Near 2" --leave-gate 5626 689`, no `--enter-via`. The crawl's
+>      floor is the first level (its teleporter down at (5554, 700) a wall); out by the gold moongate 0x40001CCA beside
+>      the arrival (5626, 688), Totem [INFERENCE: that gate's menu was never opened live; Tidal Tomb's golden gates list
+>      Totem], the tome home. Never run live yet. Simulator 2026-10-27, 3 runs of 30 min: "crawl: dungeon level 1
+>      floor: 4623 tiles", "crawl: the way out is the moongate at (5626, 689)", no death, ~20k gp each, home by the gate.
+>    - **Maus 2**: no command. It has no gate and no known teleporter back up, so a hunt there has no way out but on
+>      through Maus 3; the runner can't leave one. Tell the parent: runner work first.
+>    - **Maus 3**: the step 3 command (the default).
+>    - **Tidal Tomb level 1**: the command above (the default for Tidal Tomb).
+>    - **Tidal Tomb level 2**: `--enter-rune "Tidal Tomb Inside" --enter-via 6718 1984 --leave-gate 6913 2071`. The
+>      walk across level 1 to its teleporter, the crawl from level 2's arrival (6943, 2004), out by the crimson gate
+>      0x4003D7B8 at (6913, 2071) (Logan took it to Totem live 2026-10-24).
+>    - **Tidal Tomb level 3**: `--enter-rune "Tidal Tomb Inside" --enter-via 6609 2060 --enter-via 6884 1929
+>      --fight-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221`. Across level 1 to its west strip, level 2
+>      fought through to its north strip, the crawl on level 3; out up the arrival strip (7161, 2221) and across level 2,
+>      fought, to the crimson gate 0x4003D7B9 at (6897, 1992).
+>    Tidal Tomb's levels 2 and 3 have never been run live by the runner. The runner has no oxygen rule (deprivation
+>    from 732 s under water, Logan and the pets down to 66 %), and in the simulator runs with a death were 4 of 24
+>    (level 2) and 5 of 24 (level 3) against Maus 3's 4 of 96 (docs/SIM.md "Level 2's bedrocks"). Start one only when
+>    the parent passes the user's go for it.
+>    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
+>    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
+>    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
+>    Maus 1 x 5551-5660, Maus 2 x 5490-5550, Maus 3 x 5150-5300, all y 600-760; Tidal Tomb level 1 x 6608-6738,
+>    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221): the go-home run with the command of the level he is on,
+>    then the shift's command from home. The runner never changes level on its own during a hunt: the crawl's
+>    "zones" are depth bands of the one floor, and only a leave, an escape or `--leave-via` crosses a teleporter.
 >    What it does, so the log reads right:
 >    - **In:** the recall to "Maus Near 2", the four teleporters with the pets on "All Follow Me" (a fight on
 >      the way: the pets guard until it's over, unless he is within 15 steps of the teleporter: then he goes through
