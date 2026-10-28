@@ -105,6 +105,11 @@ def test_goal_in_reach_or_hostile_player():
     print("== stop instead: the goal is in a creature's reach, a red is in view; a ghost may walk on ==")
     msg, _ = walk(World((0, 0), [dict(HARPY, x=12, y=0)]), (14, 0))
     check("goal inside the harpy's reach: stopped", "inside the reach of a harpy" in msg, msg)
+    # live 2026-10-27 23:38 (act dropoff in Logan's house): an ogre 9 off, the landing a step away at 10
+    msg, _ = walk(World((3, 0), [dict(HARPY, x=12, y=0)]), (2, 0))
+    check("already in its reach, the goal no nearer it: walked", msg == "arrived", msg)
+    msg, _ = walk(World((3, 0), [dict(HARPY, x=12, y=0)]), (5, 0))
+    check("already in its reach, the goal nearer it: stopped", "inside the reach of a harpy" in msg, msg)
     w = World((0, 0), [dict(RED, x=20, y=5)])
     msg, _ = walk(w, (24, 0))
     check("a red in view: stopped at once", "hostile player red Bastet" in msg and len(w.trace) <= 2, msg)

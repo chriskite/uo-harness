@@ -19,7 +19,10 @@ the Mover guard a goto runs with (agent_link.Mover calls it after every step):
     sheep made a 44-step walk 142 steps (threats.py docstring, "Pets and
     war-mode passive bodies").
   - a goal inside a danger zone stops the walk (Abort): walking into a nest to
-    "arrive" is what killed us.
+    "arrive" is what killed us. Not when the goal lies no nearer the creature
+    than where we stand: stopping there leaves us as near (live 2026-10-27
+    23:38, `act dropoff` in Logan's house: an ogre outside at 9 tiles, the
+    landing a step away at 10, and the drop-off refused).
   - a hostile player in flee range, a red anywhere in view, or "<name> is
     attacking you!" stops the walk: the overseer recalls or decides.
   - under attack with hits below LOW_HITS of max: stop (heal or recall).
@@ -220,8 +223,9 @@ class TravelGuard:
         self.mover.replan_requested = True
         if self.goal is not None:
             g = tuple(self.goal())
+            me = threats.self_pos(st)
             for key, (c, r) in self.mover.danger.items():
-                if cheb(g, c) <= r:
+                if cheb(g, c) <= r and (me is None or cheb(g, c) < cheb(me, c)):
                     m = next((t for t in a.threats if t.serial == key), None)
                     raise Abort(f"the goal {g} is inside the reach of {m.name if m else f'0x{key:08X}'} "
                                 f"at {c}; stopped walking")
