@@ -2606,6 +2606,25 @@ Decisions:
   2's melee killers by the leave gate (ocean bedrock, ironscale grouper) on the leg and on the leave (docs/SIM.md
   "Level 2's shooters").
 
+## Level 2's bedrocks: out of the spray, provocation first, the fought leave (2026-10-26)
+
+User: "Implement your next steps. I stand behind the ocean bedrock so it doesn't do its spray attack on me. In that
+area I'm generally able to keep the mobs provo'd onto each other." The captures were read first (docs/NOTES.md "The
+ocean bedrock's spray"). Decisions:
+
+- **The spray's cone is an area zone, not a new stance rule.** Reusing the stand-off's zone puts every chooser out of
+  it (stand-off, vet tile, loot tile, bard step). The cone's tiles are in it at 1 each, along the bedrock's direction
+  and toward each pet beside it. Its action 18 starts the stand-off at once. "Behind" in the data meant off the line
+  from the bedrock to the tank, not its back: the cone covers exactly that line.
+- **Provocation before Discordance whenever two monsters are in the fight** (`PROVOKE_FIRST` "pairs"), not only for
+  a bedrock ("sprayers"). The A/B in the simulator: "sprayers" left level 3's deaths at 12 of 24, "pairs" brought them
+  to 5, and Maus 3 halved (8 -> 4 of 96).
+- **No loot walk to within 2 of an awake monster** (the seed 6 death).
+- **The planned leave from level 3 fights across level 2** whenever `--fight-via` is given. Fought legs don't count
+  toward the hard timeout; `--timeout` itself still starts the leave.
+- **Rejected:** a separate "behind it" tile chooser, which the zone makes redundant. Also rejected: lowering the fish's
+  melee for their spins, which needs a capture that tells spin hits from swings.
+
 ## Logan's pets, teams and the Healer's Codex in the simulator (user 2026-10-25; built 2026-10-25)
 
 The user: every pet Logan uses replicated (stats, attacks, abilities, bestiary perks) as live; a choice of team and

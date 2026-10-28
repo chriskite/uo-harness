@@ -4919,6 +4919,98 @@ def test_tidal_large_swing():
           f"emerges {[round(c, 1) for c in crabs]} swings {[round(s, 1) for s in swings]} most {most}")
 
 
+BEDROCK = (6886, 1957, -126)    # Tidal Tomb level 2's north strip, a live bedrock spawn (20261024_102346 20:53:13)
+
+
+def test_tidal_bedrock_spray():
+    print("== Tidal Tomb: an ocean bedrock's spray down its frontal cone at what it fights every ~7.8 s; beside it no "
+          "hit; provoked, only on its provoke target ==")
+    # live (docs/NOTES.md "The ocean bedrock's spray"): Logan hit 6 of 6 times in the cone (29-48), 0 of 20 outside;
+    # provoked, its waves hit only the grouper it was set on (11 of ours in them untouched)
+    def setup(logan, grouper=False):
+        spawns = [{"key": "ocean bedrock", "at": list(BEDROCK)}]
+        if grouper:
+            spawns.append({"key": "ironscale grouper", "at": [BEDROCK[0], BEDROCK[1] - 1, BEDROCK[2]]})
+        w = tidal_world(logan, spawns, z=BEDROCK[2])
+        rolled, orig = [], w.hurt
+
+        def hurt(victim, amount, by, kind="melee", *a, **kw):
+            if kind == "spray":
+                rolled.append((round(w.t, 2), victim, amount))
+            orig(victim, amount, by, kind, *a, **kw)
+        w.hurt = hurt
+        mobs = {o.key: o for o in w.mobs.values() if o.kind == "monster"}
+        b = mobs["ocean bedrock"]
+        gb = next(p for p in w.pets() if p.name == "GraveRobber")
+        w._place(gb, (BEDROCK[0], BEDROCK[1] + 1, BEDROCK[2]), d=0)
+        for o in [b, w.player, *w.pets(), *mobs.values()]:
+            o.hits = o.hits_max = 10 ** 6
+        for p in w.pets():
+            p.mode = "stay"
+        if grouper:
+            g = mobs["ironscale grouper"]
+            b.provoke, g.provoke = (g.serial, 1e9), (b.serial, 1e9)
+            b.target, g.target = g.serial, b.serial
+            w._warm(g, True)
+        else:
+            b.target, b.threat = gb.serial, {gb.serial: 1e9}
+        w._warm(b, True)
+        w.run_until(w.t + 40.0)
+        return w, b, rolled
+    w, b, rolled = setup((BEDROCK[0], BEDROCK[1] + 4))
+    on_us = [(t, n) for t, v, n in rolled if v is w.player]
+    on_gb = [t for t, v, n in rolled if v.name == "GraveRobber"]
+    gaps = [round(b_ - a, 2) for a, b_ in zip(on_gb, on_gb[1:])]
+    check("in the cone 4 tiles in front: 4+ sprays in 40 s 7.5-8.0 s apart, each on Logan 29-48 0.3 s after the tank",
+          len(on_gb) >= 4 and all(7.45 <= g <= 8.05 for g in gaps) and len(on_us) == len(on_gb)
+          and all(29 <= n <= 48 for _, n in on_us) and all(abs(t - g - 0.3) < 0.06 for (t, _), g in zip(on_us, on_gb)),
+          f"tank {on_gb} gaps {gaps} us {on_us}")
+    w, b, rolled = setup((BEDROCK[0] + 2, BEDROCK[1]))
+    check("...beside it (2 east, the tank south): the tank sprayed, Logan never",
+          any(v.name == "GraveRobber" for _, v, _ in rolled) and not any(v is w.player for _, v, _ in rolled),
+          str([(t, v.name, round(n)) for t, v, n in rolled][:6]))
+    w, b, rolled = setup((BEDROCK[0], BEDROCK[1] - 4), grouper=True)
+    check("...provoked onto the grouper north of it, Logan 4 north in its waves: only the grouper hit",
+          len(rolled) >= 4 and all(v.key == "ironscale grouper" for _, v, _ in rolled),
+          str([(t, v.name, round(n)) for t, v, n in rolled][:6]))
+
+
+def test_spray_stand_off():
+    print("== the runner keeps out of an awake ocean bedrock's frontal cone (its spray) while the pets fight it ==")
+    # user 2026-10-26: "I stand behind the ocean bedrock so it doesn't do its spray attack on me"
+    w = tidal_world((BEDROCK[0], BEDROCK[1] + 3), [{"key": "ocean bedrock", "at": list(BEDROCK)}], z=BEDROCK[2])
+    b = next(o for o in w.mobs.values() if o.kind == "monster")
+    b.hits = b.hits_max = 10 ** 6
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    w._place(gb, (BEDROCK[0], BEDROCK[1] + 1, BEDROCK[2]), d=0)
+    b.target, b.threat = gb.serial, {gb.serial: 1e9}
+    w._warm(b, True)
+    for p in w.pets():
+        p.hits = p.hits_max = 10 ** 6
+    sprayed, rolled, orig = [], [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if kind == "spray":
+            (rolled if victim is w.player else sprayed).append(round(w.t, 1))
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 40 and w.player.alive:
+                loop.tick()
+            st = loop.state()
+            cone = loop.team.spray_cone(st, b.serial, st["world"]["mobiles"][f"0x{b.serial:08X}"], "ocean bedrock",
+                                        loop.team.pets(st))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("in 40 s the pets were sprayed, Logan never; he ends out of its cone",
+          sprayed and not rolled and tuple(w.player.pos[:2]) not in cone,
+          f"pets sprayed at {sprayed[:5]}, Logan at {rolled}, ends {w.player.pos} facing {b.d}")
+
+
 def test_tidal_level3_bursts():
     print("== Tidal Tomb level 3: a sea serpent's area hit on us within 3 only; a giant astral zoa's two bursts both fire ==")
     import collections
@@ -5091,7 +5183,8 @@ def main():
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
-              test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_level3_bursts,
+              test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
+              test_tidal_level3_bursts,
               test_tidal_recall_rule, test_shy_by_ai, test_walk_in_fought, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))

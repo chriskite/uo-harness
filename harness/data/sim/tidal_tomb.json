@@ -1188,6 +1188,56 @@
     "damage_pet": [20, 33, 26],
     "damage_type": "physical",
     "note": "its '*frenzies*' (the ooze aura's machinery: rounds of a hit on each of us within `radius`): 11 in the captures (20261024_102346 6, 20261024_225113 2, 20261026_183552 2 on level 2). After the emote, besides its swing at that instant, three rounds 0.6, 0.85 and 1.1 s later on every pet beside it: 2026-10-25 11:26:06 NightmareB, NightmareA and the imp each 25-31 in each round; 2026-10-26 22:37:19 and 22:42:40 GraveRobber 20-32 (median 25). 14.6-30 s apart on one frenzyfin (median ~16). Logan was never beside one: his numbers are the pets' [INFERENCE]. The wiki's Frenzyfin page (knowledge #12690) names no ability"
+   },
+   {
+    "kind": "burst",
+    "id": "spin",
+    "first_s": [2.0, 8.0],
+    "every_s": 7.56,
+    "radius": 2,
+    "damage_player": [9, 30, 22],
+    "damage_pet": [9, 30, 22],
+    "note": "its spin (docs/NOTES.md 'The ocean bedrock's spray', other specials): sound 0x090A on its tile, its facing through all 8 directions, 0.27-0.32 s later a number on every one of ours within 2 tiles; 57 in four captures, 7.56 s apart (median), 9-30 (median 22, often doubled with the frenzy's rounds). No usable telegraph: modelled as an instant burst [INFERENCE: its melee numbers may already hold some of these]"
+   }
+  ],
+  "voidfin": [
+   {
+    "kind": "burst",
+    "id": "spin",
+    "first_s": [2.0, 8.0],
+    "every_s": 7.82,
+    "radius": 2,
+    "damage_player": [21, 58, 40],
+    "damage_pet": [21, 58, 40],
+    "note": "its spin: sound 0x090A on its tile, its facing through all 8 directions in ~0.3 s, then a number on every one of ours within 2 tiles (hit at 1: 36, at 2: 41; not hit 12 and 18 there [INFERENCE: moved or dodged]); 58 in four captures (20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552; e.g. 2026-10-26 22:45:18.46 GraveRobber 38, Logan 33, AlaFlambe 45), 7.82 s apart (median, p10-p90 7.57-9.55), 21-58 (median 40) [INFERENCE: its melee numbers (25-79) may already hold some of these]"
+   }
+  ],
+  "razorfin": [
+   {
+    "kind": "burst",
+    "id": "spin",
+    "first_s": [2.0, 8.0],
+    "every_s": 7.68,
+    "radius": 2,
+    "damage_player": [9, 36, 28],
+    "damage_pet": [9, 36, 28],
+    "note": "its spin, as the voidfin's: 33 in four captures, 7.68 s apart (median, p10-p90 7.52-7.88), within 2 tiles (hit at 1: 43, at 2: 20), 9-36 (median 28)"
+   }
+  ],
+  "ocean bedrock": [
+   {
+    "kind": "spray",
+    "first_s": [1.3, 2.7],
+    "every_s": [7.5, 8.0],
+    "telegraph_s": 0.71,
+    "action": 18,
+    "radius": 8,
+    "ring_s": 0.1,
+    "swing_delay_s": 1.0,
+    "damage_player": [29, 48, 38],
+    "damage_pet": [31, 47, 40],
+    "damage_provoked": [251, 296, 285],
+    "note": "its spray (docs/NOTES.md 'The ocean bedrock's spray'; 33 sprays in captures 20261024_102346, 20261024_225113, 20261025_210102): animation action 18 (frames 8) on it, 0.69-0.76 s later the wave starts down its 90-degree frontal cone, 8 tiles, one Chebyshev ring a 0.1 s, walls clipping it, through mobiles; aimed at what it fights (its 0x77 direction). 7.52-7.94 s apart (median 7.77), the first 1.3-2.7 s after it goes to war. Logan 29-48 (median 38, n 6: 6 of 6 times in the cone, 0 of 20 outside), the pets 31-47 (median 40, n 48), no fall-off with distance. Provoked it sprays only the monster it was set on (251-296; 11 of ours in its waves untouched) until that one dies or a barding break; pacified none (one sample); discorded unchanged. Its melee waits ~1 s after a spray"
    }
   ],
   "tidal sea serpent": [
@@ -1261,6 +1311,11 @@
   "pincer crab": {
    "melee": [3, 7, 4],
    "note": "its numbers on the pets with no monster but pincer crabs within reach, not 0.3-0.7 s after a scavenger's large swing: 2-7 (median 4, n=17, one 18; captures 20261026_183552 and 20261024_102346). With 2026-10-26 22:36-22:48 in the observations calibrate's damage_to_pets for it read 3-20 (median 5): the scavengers' large swings and the nest crabs beside them"
+  },
+  "ocean bedrock": {
+   "melee": [20, 33, 25],
+   "swing_s": 3.4,
+   "note": "its swings (animation action 10; a hit adds sound 0x010E): 3.33-3.5 s apart clean (median of 43 gaps 3.47, mode 3.4), ~1 s later when a spray falls between; 20-33 on the tank pet (median 25, n 9; captures 20261024_102346 and 20261025_210102), never on Logan. calibrate's 2.01 s and 21-40 mix its spray numbers in (docs/NOTES.md 'The ocean bedrock's spray')"
   },
   "clearwater grouper": {
    "melee": [19, 45, 37],

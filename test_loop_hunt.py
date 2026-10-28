@@ -1766,14 +1766,15 @@ def pets_run():
           f"{t_of} {aggressive[:2]}")
     skills = [(x[2], next((y[3] for y in log[i + 1:] if y[1] == "target"), None))
               for i, x in enumerate(log) if x[1] == "skill"]
-    check("Discordance at W1 first, then Provocation; no Peacemaking at the provoked W1; W3 discorded, "
-          "then pacified",
-          skills[:2] == [(tamer.SKILL_DISCORD, W1), (tamer.SKILL_PROVO, W2)] and (tamer.SKILL_PEACE, W1) not in skills
+    check("Discordance at W1 first (alone in the fight), then Provocation once W2 joins; no Peacemaking at the provoked "
+          "W1; W3 discorded, then pacified",
+          skills[:2] == [(tamer.SKILL_DISCORD, W1), (tamer.SKILL_PROVO, W1)] and (tamer.SKILL_PEACE, W1) not in skills
           and skills[2:] == [(tamer.SKILL_DISCORD, W3), (tamer.SKILL_PEACE, W3)], str(skills))
     targets = [(x[2], x[3]) for x in log if x[1] == "target"]
     i = next((k for k, (s, _) in enumerate(targets) if s == tamer.SKILL_PROVO), None)
-    check("Provocation: W2 (fighting the phoenix) incited onto W1 (two cursors)",
-          i is not None and targets[i:i + 2] == [(tamer.SKILL_PROVO, W2), (tamer.SKILL_PROVO, W1)], str(targets))
+    check("Provocation of the pair (tamer.PROVOKE_FIRST 'pairs'): our target W1 incited onto W2, fighting the phoenix "
+          "(two cursors)",
+          i is not None and targets[i:i + 2] == [(tamer.SKILL_PROVO, W1), (tamer.SKILL_PROVO, W2)], str(targets))
     vets = [x[0] for x in log if x[1] == "vet"]
     check("vet supplies for the hurt gravebug after W1 engaged, and for us while W3 hit us",
           any(t_of["w1 engages"] <= t < t_of.get("w1 w2 die", 1e9) for t in vets)

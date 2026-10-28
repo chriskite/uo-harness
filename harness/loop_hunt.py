@@ -358,6 +358,8 @@ class HuntLoop:
         self.left_level = False                  # this leave went up through --leave-via teleporters (leave_up)
         self.walk_in_red = None                  # why a hostile player on the walk in sent us on to the leave gate
         self.escaping = False                    # the escape home after an error or --go-home: no overall timeout
+        self.fought_end = None                   # in a --fight-via leg (walk_in_fought) until then: its own time limit
+        self.fought_s = 0.0                      # time spent in fought legs: not counted by the overall timeout's guard
         self.escape_tried = False                # escape_home ran: an error after it ends the run where it stands
         self.halt = None                         # why an error ends the run without the escape (a death, a restriction)
         self.rope_next = 0.0                     # --rope: the next rope jump not before
@@ -451,8 +453,8 @@ class HuntLoop:
 
     # ------------------------------------------------------------ guards
     def check_guards(self, st: dict):
-        if self.args.timeout > 0 and not self.escaping \
-                and time.monotonic() - self.t0 > self.args.timeout + HARD_TIMEOUT_GRACE_S:
+        if self.args.timeout > 0 and not self.escaping and self.fought_end is None \
+                and time.monotonic() - self.t0 - self.fought_s > self.args.timeout + HARD_TIMEOUT_GRACE_S:
             raise Abort(f"overall timeout ({self.args.timeout:.0f}s + {HARD_TIMEOUT_GRACE_S:.0f}s to leave)")
         mv = st["movement"]
         if mv["stalled"]:
@@ -2165,6 +2167,13 @@ class HuntLoop:
             jump["last"] = here
             return jump["through"]
         try:
+            if self.team is not None and severity in PLANNED and self.left_level and self.args.fight_via:
+                # up through --leave-via onto a level the walk in fights through (--fight-via): the walk to the gate is
+                # fought the same way (user 2026-10-26: "in TT we'll always have to fight in 2"; simulator the same
+                # day, level 3: two of nine deaths on the time-up walk across level 2 to its gate)
+                path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
+                if path and len(path) >= 2:
+                    self.walk_in_fought("to the moongate", tuple(path[-2]))
             if self.team is not None:
                 self.team.follow(severity, wait=flee)
                 self.walk_hits, self.walk_hurt_t = None, -1e9
@@ -3300,16 +3309,18 @@ class HuntLoop:
         the walk across level 2, at its arrival among the drowned mariners and soulcatchers). The pets on 'All Guard
         Me'; each round the tick's fighting (combat_step: what's in reach pulled and killed, the back-off from a shy
         one's first sight, 'All Patrol' at one, the hold for what sees us), the pets healed and with us, then on toward
-        `near` (the tile before the teleporter) until fought_stop. Abort when not there after WALK_FOUGHT_S."""
+        `near` (the tile before the teleporter, or before the leave gate on a planned leave up through --leave-via:
+        leave_by_gate) until fought_stop. Abort when not there after WALK_FOUGHT_S (the run's overall timeout guard
+        doesn't count a fought leg's time: fought_end, fought_s)."""
         log(f"{label}: fought through (--fight-via)")
         if self.team is not None:
             self.team.guard_t = -1e9
             self.team.guard()
-        end = time.monotonic() + WALK_FOUGHT_S
+        end = self.fought_end = time.monotonic() + WALK_FOUGHT_S
         try:
             while True:
                 if time.monotonic() > end:
-                    raise Abort(f"{label}: not through after {WALK_FOUGHT_S:.0f} s of fighting")
+                    raise Abort(f"{label}: not there after {WALK_FOUGHT_S:.0f} s of fighting")
                 st = self.state()
                 self.walk_hurt(st)
                 if self.combat_step(st, self.attackers(st), False):
@@ -3329,9 +3340,12 @@ class HuntLoop:
                     continue
                 if cheb(self.pos(st), near) == 0:
                     return
-                self.doing("enter", f"Fighting through to the teleporter at {near[0]},{near[1]}", near)
+                self.doing("enter" if label.startswith("to the teleporter") else "leave", f"Fighting through, {label}",
+                           near)
                 self.mover.walk_to(lambda: near, 0, label, stop=self.fought_stop)
         finally:
+            self.fought_s += time.monotonic() - (end - WALK_FOUGHT_S)
+            self.fought_end = None
             self.disengage("ended")
             if self.team is not None:
                 self.team.follow()

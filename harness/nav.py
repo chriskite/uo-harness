@@ -33,6 +33,7 @@ import glob
 import heapq
 import itertools
 import json
+import math
 import os
 import sys
 from typing import Callable, Iterable
@@ -73,6 +74,25 @@ def step(a: Tile, d: int) -> Tile:
 
 def chebyshev(a: Tile, b: Tile) -> int:
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+
+
+def facing(a: Tile, b: Tile) -> int:
+    """The direction 0..7 nearest the bearing a -> b (a mobile turned toward b); 0 when they are the same tile."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    if dx == 0 and dy == 0:
+        return 0
+    return round(math.atan2(dx, -dy) / (math.pi / 4)) % 8
+
+
+def in_cone(d: int, dx: int, dy: int, r: int) -> bool:
+    """(dx, dy) from a mobile facing `d` lies in its 90-degree frontal cone of Chebyshev reach `r`: within 45 degrees
+    either side of the facing, inclusive (facing a cardinal way a triangle, |lateral| <= forward; a diagonal way the
+    whole quadrant). The ocean bedrock's spray (docs/NOTES.md "The ocean bedrock's spray": 1,720 of 1,780 wave tiles)."""
+    k = max(abs(dx), abs(dy))
+    if k < 1 or k > r:
+        return False
+    fx, fy = DIR_DELTA[d]
+    return (fx * dx + fy * dy) / (math.hypot(fx, fy) * math.hypot(dx, dy)) >= math.cos(math.pi / 4) - 1e-9
 
 
 def _turns(dirs) -> int:

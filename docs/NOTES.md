@@ -5787,6 +5787,51 @@ level 2/3 changes (docs/SIM.md "Levels 2 and 3 by hand").
 - Other players on level 2: iniquitous ("[OG Fallen Lord, -FL-]", casting In Por Ylem, Uus Sanct, In Jux Sanct),
   sirgrundy, Lunar Sniper; none hostile to us.
 
+## The ocean bedrock's spray, and level 2's other specials (2026-10-26, from four captures)
+
+The user (2026-10-26): "I stand behind the ocean bedrock so it doesn't do its spray attack on me. In that area I'm
+generally able to keep the mobs provo'd onto each other." Read from his hand play in captures 20261024_102346 (10-24
+20:51-21:04), 20261024_225113 (10-25 11:28-11:37) and 20261025_210102 (10-25 21:20-21:32). 33 sprays from 11
+bedrocks, all on level 2's north strip (x 6880-6898, y 1934-1996, near the crimson gate). 20261026_183552 has no
+bedrock fight: the one in view fought the player SirGrundy. The scratch analysis is not in the repo.
+
+- **The warning:** animation action 18 (frames 8) on the bedrock (body 0xB3). The wave starts 0.69-0.76 s later
+  (median 0.71; 33 of 35 action-18s; the other two were cut off by its death). No text.
+- **The start and the wave:** sounds 0x0811 and 0x080F at its tile. Then each wave tile gets sound 0x0026 and a 0xC0
+  moving effect with graphic 0xDD8F. One Chebyshev ring of tiles a 0.1 s: ring k lands at +0.1·(k−1) s (1,780 tiles).
+  The runtime drops sounds and effects more than 2 tiles from us, so live only the action 18 (`animation` event) and
+  the bedrock's direction reach the runner.
+- **Shape:** a 90° cone, 8 tiles long, along its facing. Every tile within 45° either side counts, edges included:
+  facing a cardinal way it is a triangle, a diagonal way the whole quadrant. 1,720 of 1,780 wave tiles fit
+  (`nav.in_cone`). Walls clip it. It passes through mobiles.
+- **Its aim:** it faces what it fights: the tank, the creature it was provoked onto, or, while closing in, the way it
+  walks. Its 0x77 direction pointed at that target every time.
+- **Damage:** Logan 29-48 (median 38, n 6), the pets 31-47 (median 40, n 48), with no fall-off with distance. Logan was
+  hit 6 of 6 times he stood in an unprovoked bedrock's cone, and 0 of 20 times he stood outside it.
+- **Provoked, it sprays only its provoke target:** 251-296 on the grouper (49 after that grouper's own barding break).
+  11 of ours standing in those waves took nothing. Normal sprays came back once the target died, or after a barding
+  break right after the provoke (10-25 21:31:38.57). Peacemaking stopped it (one 16 s gap). Discordance did not.
+- **Cadence:** 7.52-7.94 s apart (median 7.77). The first came 1.3-2.7 s after it went to war.
+- **Its melee:** action 10 every ~3.4 s (3.33-3.5 clean), about 1 s later when a spray falls between. It hit the tank
+  for 20-33 (n 9) and never hit Logan. calibrate's 2.01 s and 21-40 mixed the spray in.
+- **Where the user stood:** while an unprovoked bedrock was awake within 12 tiles (167 one-second samples), Logan was
+  beside it 56 %, in the cone 28 %, strictly behind it 9 %, and in front beyond 8 tiles 8 %. So "behind" meant off the
+  line from the bedrock to the tank. The pets were in its cone 81 % of the time: they are what it fights.
+- **His provocations:** the bedrock and the grouper beside it (ironscale or clearwater) onto each other: 6 successes, 3
+  fails, 3 "too far". On level 2 on 10-26 (no bedrock): 2 provocations succeeded (combustive zoa onto lighthouse
+  shellpod; voidfin onto biolumen shellpod), plus 24 Discordance and 17 Peacemaking. The pets were mostly on 'All
+  Guard Me' (27), with 'All Kill' 7 times.
+- **A spin on the fish:** voidfin, razorfin and frenzyfin (and the greater razorfin on level 3) all have it. Sound
+  0x090A on its tile, its facing turning through all 8 directions, then 0.27-0.36 s later a hit on every one of ours
+  within 2 tiles. It comes every ~7.7 s: voidfin 7.82 (21-58, median 40, n 58), razorfin 7.68 (9-36, median 28, n 33),
+  frenzyfin 7.56 (9-30, median 22). No usable warning.
+- **The ironscale grouper's '*deflects*'** (once, 22:45:41) reflected SirGrundy's arrow; it doesn't touch a tamer.
+- **Built 2026-10-26:**
+  - Simulator: the bedrock's `spray` special and its 3.4 s melee; the fish spins as `burst` specials with `id` "spin".
+  - Runner: the cone of an awake bedrock that is neither pacified nor provoked onto a live monster is an area zone
+    (`tamer.Team.spray_cone`). The stand-off steps out of it at once on the bedrock's action 18 (`spray_due`).
+  - Provocation first when two monsters are in the fight (`PROVOKE_FIRST`; docs/SIM.md "Level 2's bedrocks").
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

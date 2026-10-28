@@ -121,14 +121,14 @@ GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
-         "large_swing"}   # ...used on a cooldown while it fights
+         "large_swing", "spray"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
 # a monster's damage kind -> how a pet takes it (sim/pets.taken_factor): physical through its armor, spell through its
 # magic resist, true through neither (the area hits), tick (Tolerance, Immunize), none (oxygen)
 DTYPE = {"melee": "physical", "feed": "physical", "charge": "physical", "transfix": "physical", "spell": "spell",
-         "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "poison": "tick", "bleed": "tick",
-         "disease": "tick", "oxygen": "none", "other": "none"}
+         "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "spray": "true", "poison": "tick",
+         "bleed": "tick", "disease": "tick", "oxygen": "none", "other": "none"}
 PET_OFFSETS = ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1))   # the pets' tiles beside the player at the start, in team order
 TEXT_OXYGEN_REFILLED = "Your oxygen is refilled."   # live, a Recovery Dolphin's refill (20261024_225113 11:30:57)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
@@ -229,6 +229,7 @@ class Mob:
     pulse: list | None = None     # an ooze aura under way: [next burst time, bursts left, special]
     brood_at: tuple | None = None  # a nest crab's dig: (time its broodling emerges, special)
     swing_at: tuple | None = None  # a large swing called: (time it lands, target serial, special)
+    spray: dict | None = None     # an ocean bedrock's spray under way (_spray_step): origin, axis, wave start, hits
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -1340,6 +1341,8 @@ class World:
             self._emerge(m, sp)
         if m.swing_at is not None and t >= m.swing_at[0]:
             self._large_swing(m)
+        if m.spray is not None and t >= m.spray["t0"]:
+            self._spray_step(m)
         if m.calm_until > t:
             self._cancel_cast(m, "peace")
             self._warm(m, False)
@@ -1487,6 +1490,7 @@ class World:
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= 1 and abs(m.z - tgt.z) <= 15:
+            self._face(m, tgt)
             if t >= m.next_swing and spec.get("melee"):
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
                 hit = self.rng.random() < spec.get("hit_chance", 0.8) - (tgt.spec.get("defense", 0.0) if tgt.kind == "pet" else 0.0)
@@ -1771,6 +1775,22 @@ class World:
                 self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
                 self._overhead(m, "*takes large swing*")
                 m.swing_at = (t + sp.get("delay_s", 0.5), tgt.serial, sp)
+            elif kind == "spray":
+                # an ocean bedrock (Tidal Tomb scenario note): animation 18, 0.71 s later a wave down its 90-degree
+                # frontal cone, one tile ring a 0.1 s, aimed at what it fights
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                if m.spray is not None:
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._face(m, tgt)
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
+                if m.serial in self.viewing:
+                    self.send(P.animation(m.serial, sp.get("action", 18), frames=8))
+                only = m.provoke[0] if m.provoke and m.provoke[0] in self.mobs else None
+                m.spray = {"t0": t + sp["telegraph_s"], "c": m.pos, "d": m.d, "sp": sp, "hit": set(), "only": only}
+                m.next_swing = max(m.next_swing, t + sp.get("swing_delay_s", 0.0))
 
     def _pulse_step(self, m: Mob):
         """One burst of an ooze aura under way: a hit on each of us within `radius` (the song cuts it as any
@@ -1781,6 +1801,43 @@ class World:
                 self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "ooze",
                           dtype=sp.get("damage_type"), ref=sp.get("ref"))
         m.pulse = [self._due(when, sp["burst_s"]), left - 1, sp] if left > 1 and m.serial in self.mobs else None
+
+    def _face(self, m: Mob, tgt: Mob):
+        """`m` turns toward `tgt` (a swing, a spray: live the bedrock's 0x77 direction pointed at its combatant)."""
+        d = nav.facing(m.pos, tgt.pos)
+        if d != m.d:
+            m.d = d
+            if m.serial in self.viewing and self._in_view(m):
+                self.send(P.move(m.serial, m.x, m.y, m.z, m.d))
+
+    def _spray_step(self, m: Mob):
+        """An ocean bedrock's spray under way: ring k (Chebyshev k from where it stood) of its 90-degree cone along
+        its facing (nav.in_cone) is reached `ring_s` x (k - 1) after the wave starts; whoever of us stands on a reached
+        tile in its sight then takes `damage_player` / `damage_pet`. Provoked, it sprays only the monster it was set on
+        (`damage_provoked`, as measured: less the provocation's own multiplier `hurt` applies)."""
+        s, t = m.spray, self.t
+        sp = s["sp"]
+        c, d, r, ring = s["c"], s["d"], sp["radius"], sp["ring_s"]
+        if s["only"] is not None:
+            o = self.mobs.get(s["only"])
+            victims = [o] if o is not None and o.alive else []
+        else:
+            victims = self.team()
+        for o in victims:
+            if o.serial in s["hit"]:
+                continue
+            dx, dy = o.x - c[0], o.y - c[1]
+            at = s["t0"] + ring * (max(abs(dx), abs(dy)) - 1)
+            if not nav.in_cone(d, dx, dy, r) or not at <= t < at + ring or not self.can_see(m, o):
+                continue
+            s["hit"].add(o.serial)
+            if o.kind == "monster":
+                dmg = self.roll(sp["damage_provoked"]) / max(1.0, self.sc["bard"].get("provoke_x", 1.0))
+            else:
+                dmg = self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"])
+            self.hurt(o, dmg, m, "spray", ref=sp.get("ref"))
+        if t >= s["t0"] + ring * (r - 1):
+            m.spray = None
 
     def _large_swing(self, m: Mob):
         """A large swing lands: `damage` on its target if still beside it (measured on the gravebug, as the type's

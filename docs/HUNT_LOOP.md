@@ -480,10 +480,13 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    "All Kill"s were dropped 1-5 s later at 52-79 %, and 11 of the 21 corpses seen were ours all the same).
    test_sim `test_theirs_after_kill_sent`.
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
-   tiles, the phoenix's reach): Discordance first, then Provocation of another mob in the fight
-   (the other onto a second other, or onto our target), then Peacemaking on the target (it stops
-   hitting the pets while they kill it). A provoked target isn't pacified. 51 of Logan's 60
-   bard/"All Kill" target answers on the trip were at such a target by this rule; the other 9 were
+   tiles, the phoenix's reach). **Provocation first when two monsters are in the fight** (since 2026-10-26,
+   `tamer.PROVOKE_FIRST` "pairs", `Team.provoke_first`: the target onto the one nearest it). The user on Tidal Tomb's
+   level 2: "In that area I'm generally able to keep the mobs provo'd onto each other". In the simulator, level 3 runs
+   with a death went 12 -> 5 of 24, level 2's damage on Logan 2,192 -> 1,708 an hour, and Maus 3 was no worse. Then
+   Discordance, then Provocation of another mob in the fight (the other onto a second other, or onto our target), then
+   Peacemaking on the target (it stops hitting the pets while they kill it). A provoked target isn't pacified. 51 of
+   Logan's 60 bard/"All Kill" target answers on the trip were at such a target by this rule; the other 9 were
    openers the user now advises against. Cooldowns: one bard skill every 5 s, peace/provoke 10 s
    after a success (wiki Peacemaking); "You must wait a few moments to use another skill."
    (cliloc 500118) moves the clock; "beyond your skill" stops that skill on that creature type;
@@ -595,7 +598,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (its chain lightning jumps from its target to everyone near, through walls; [INFERENCE] the 3), and an oozing
    noughtilus 3 (Tidal Tomb: its Ooze Aura, 4 bursts on everyone within 2 every 7-12 s; user 2026-10-26: "We should
    not stand next to oozing noughtiluses, they do AOE poison bursts"; simulator level 1, 8 runs: its damage on Logan
-   1,118 -> 421, all damage on him 2,868 -> 1,886). **An apparition's blink**
+   1,118 -> 421, all damage on him 2,868 -> 1,886). **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
+   behind the ocean bedrock so it doesn't do its spray attack on me"; docs/NOTES.md "The ocean bedrock's spray"). Its
+   frontal cone is in the zone at 1 a tile (`Team.spray_cone`, `nav.in_cone`): 90°, 8 tiles, along its 0x77 direction
+   and toward each pet beside it. That holds while it is awake, unless it is pacified or provoked onto a monster still
+   alive. Its wind-up (animation action 18, `spray_due`) with us in the cone starts the stand-off at once, past the
+   repeat gap: the wave reaches ring k 0.71 + 0.1·(k−1) s later. **An apparition's blink**
    (since 2026-10-17; user: "when an apparition vanishes we know its going to pop out on the player/pet it
    was aggro'd on ... right now we just wait there to get hit for like -47"): on its "*phases*" the pet it
    fights (its latest swing's defender, else the nearest pet within 2 of it) is where it lands 1.1-1.6 s
@@ -968,6 +976,10 @@ moongate, and never near a red one).
     wait, or `Team.rejoin`), and the walk toward the tile before the teleporter stops on the patrol's stops
     (`fought_stop`). After `WALK_FOUGHT_S` (20 min) without getting there the leg aborts. Then 'All Follow Me' and
     through. Simulator: level 3 runs with a death 15 of 16 -> 9 of 16 (docs/SIM.md "Level 2's shooters").
+    **The planned leave fights the same way** (since 2026-10-26): up through `--leave-via` onto a level the walk in
+    fights through (any `--fight-via` given), the walk to the leave gate is a fought leg to the tile before it
+    (`leave_by_gate`); a hurt leave or a hostile player's still runs. The run's hard overall timeout (`--timeout` +
+    180 s) doesn't count the time spent in fought legs (`fought_s`).
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
@@ -1432,7 +1444,11 @@ counted the corpse's gold as xp. Now (`loop_hunt.loot`):
   hit's reach, every tile within 2 of it too; waiting for the area hitter to die or go" (or "… lies in the shot of
   the awake corpse purger, every tile within 2 of it too; …"), looked at again every
   `LOOT_DEFER_S` 1 s (`HuntLoop.loot_next` passes it over meanwhile, so the fight goes on) and looted as soon as the
-  hitter is dead, gone or out of war mode. Here clear and within reach: looted from here. User 2026-10-21; live
+  hitter is dead, gone or out of war mode. **Nor to beside an awake monster** (since 2026-10-26): not to a tile
+  within 2 of a monster in war mode near the corpse (not a shy one: their shot rule above), as the spacing off the
+  tank. If no tile within 2 of the corpse is that clear it waits ("… lies beside the awake ocean bedrock, every tile
+  within 2 of it too"). In the simulator, Tidal Tomb seed 6 walked "to the corpse" at 100 hits to beside a provoked
+  ocean bedrock and was at 13 seven seconds later. Here clear and within reach: looted from here. User 2026-10-21; live
   hunt-20261021-091743-38b6 09:54:10 "to the corpse" walked to (5242, 676), a tile from the reanimated daemon
   fighting the pets, 8 s before its death. `ctl act loot` doesn't walk. test_sim `test_loot_off_area_hitter`.
   **Nor into an idle shy monster's first sight** (since 2026-10-26): when the loot tile (or the corpse) lies where an idle
@@ -1477,8 +1493,9 @@ kills 4 -> 2 (`lost_kills` 2), xp only from the two opened corpses, gold only th
 Pets run (`python test_loop_hunt.py pets`, in process, ~10 s; tamer clocks shortened): a scripted
 server with our gravebug and phoenix beside us and an idle shade wolf W1 5 tiles off. The first
 packet is "All Guard Me" byte for byte as Logan's Razor sent it; no skill or "All Kill" before the
-pets engage W1; Discordance at W1, then W2 (fighting the phoenix) incited onto W1 with two cursors
-and no peace at the provoked W1; vet supplies for the hurt gravebug and later for us; "All Guard
+pets engage W1; Discordance at W1 (alone in the fight), then once W2 joins against the phoenix the pair provoked,
+W1 incited onto W2 with two cursors (`PROVOKE_FIRST` "pairs"), and no peace at the provoked W1; vet supplies for the
+hurt gravebug and later for us; "All Guard
 Me" after the kills; W3 hitting us gets "All Kill" only after 0.8 s, then Discordance and
 Peacemaking; three kills (W2 never our target); no `0x72`, `0x05` or menu pick; every speech a
 Razor-shaped pet command; the phoenix's ghost flag (`bf 0019`) is a leave reason, `go_back`

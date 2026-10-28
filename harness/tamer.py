@@ -204,6 +204,18 @@ TEXT_BLINK = "*phases*"
 BLINK_S = 2.0                 # the landing's tile stays a zone this long after the emote (lands 1.1-1.6 s later)
 BLINK_TARGET_R = 2            # its target when no swing names it: the nearest pet or us within this of it
 SWING_FRESH_S = 10.0          # a swing this recent names its target (world.swings)
+# The ocean bedrock's spray (docs/NOTES.md "The ocean bedrock's spray"): animation action 18 on it, 0.69-0.76 s later a
+# wave down its 90-degree frontal cone (nav.in_cone) of SPRAY_R tiles along its facing, aimed at what it fights, 29-48
+# on Logan whenever he stood in it (6 of 6, 0 of 20 outside). The user (2026-10-26): "I stand behind the ocean bedrock
+# so it doesn't do its spray attack on me": the cone is an area zone (area_zone) while it is awake and neither pacified
+# nor provoked onto a live monster (provoked it sprays only that one: 11 of ours in its waves untouched).
+SPRAY_R = {"ocean bedrock": 8}
+SPRAY_ACTION = 18
+SPRAY_WARN_S = 1.6            # after its action 18: the wave's last ring lands 0.71 + 0.7 s later
+PROVOKE_FIRST = "pairs"       # bard(): provocation before the discord when two monsters are in the fight ("pairs"; the
+#                               user on Tidal Tomb's level 2: "I'm generally able to keep the mobs provo'd onto each
+#                               other"; simulator 2026-10-26: level 3 runs with a death 12 -> 5 of 24, Maus 3 5 -> 2 of
+#                               48), or only a sprayer onto its neighbour ("sprayers")
 # A fight with --vet-range 4+ (the Healer's Codex "Without Borders"): stand SPACING_R from the pets and from
 # what fights them, every pet within --vet-range - 1 (user 2026-10-15: "Since our healing distance is 5 now I
 # don't see a good reason to be standing next to the tank while it's fighting"; live 20261015_115604 12:08:53
@@ -480,6 +492,7 @@ class Team:
         self.kill_order = None           # the target of an 'All Kill' the pets took: off guard till 'All Guard Me'
         self.attack_t = {}               # serial -> first seen attacking us (this engagement)
         self.blinks = {}                 # apparition serial -> (monotonic time of its "*phases*", target serial)
+        self.spray_t = {}                # sprayer serial -> monotonic time of its action 18 (the spray's wind-up)
         self.poisoned_t = {}             # pet serial -> "*looks violently ill*" over it
         self.seen_t = {}                 # pet serial -> last seen in view
         self.seen_at = {}                # pet serial -> (x, y) where last seen alive (rejoin)
@@ -652,6 +665,10 @@ class Team:
             elif kind == "mobile_death" and s is not None:
                 self.effects.pop(s, None)
                 self.attack_t.pop(s, None)
+            elif kind == "animation" and s is not None and e.get("action") == SPRAY_ACTION and s not in self.roster:
+                m = st["world"]["mobiles"].get(f"0x{s:08X}") or {}
+                if type_key((st["world"].get("labels") or {}).get(f"0x{s:08X}") or m.get("name")) in SPRAY_R:
+                    self.spray_t[s] = now
         self.ev_upto = len(evs)
         self.free_pets(st, now)
         for s in [s for s, (t, _) in self.blinks.items() if now - t > BLINK_S]:
@@ -1584,7 +1601,7 @@ class Team:
     def area_zone(self, st) -> dict:
         """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone
         near it (a charger: CHARGE_SAFE_R; AREA_R's), and each live pet beside one (the one it fights:
-        a Charge lands next to it)."""
+        a Charge lands next to it); each tile of an awake sprayer's frontal cone (spray_cone) at 1."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
@@ -1596,6 +1613,9 @@ class Team:
                     or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
                 continue
             kind = type_key(labels.get(key) or mob.get("name"))
+            if kind in SPRAY_R:
+                for t in self.spray_cone(st, s, mob, kind, pets):
+                    zone[t] = max(zone.get(t, 0), 1)
             r = CHARGE_SAFE_R if kind in self.chargers else AREA_R.get(kind)
             if r is None:
                 continue
@@ -1605,6 +1625,39 @@ class Team:
         for tile, r in self.blink_tiles(st).items():
             zone[tile] = max(zone.get(tile, 0), r)
         return zone
+
+    def spray_cone(self, st, s: int, mob: dict, kind: str, pets: list) -> set:
+        """The tiles an awake sprayer's (SPRAY_R) next wave would cover: its frontal cone along the way it faces (its
+        0x77 direction) and along the way to each live pet beside it (it turns to its combatant: live the wave's axis
+        was its combatant's bearing every time). None while it is pacified or provoked onto a monster still alive
+        (effects: it sprays only that one)."""
+        fx, now = self.effects.get(s) or {}, time.monotonic()
+        if fx.get("calm", 0) > now:
+            onto = fx.get("onto")
+            if onto is None or (f"0x{onto:08X}" in st["world"]["mobiles"] and onto not in self.h.dead):
+                return set()
+        c, r = (mob["x"], mob["y"]), SPRAY_R[kind]
+        axes = {nav.facing(c, (p["x"], p["y"])) for p in pets if cheb((p["x"], p["y"]), c) == 1}
+        if mob.get("direction") is not None:
+            axes.add(mob["direction"] & 7)
+        return {(c[0] + dx, c[1] + dy) for d in axes for dx in range(-r, r + 1) for dy in range(-r, r + 1)
+                if nav.in_cone(d, dx, dy, r)}
+
+    def spray_due(self, st, pos) -> bool:
+        """A sprayer wound up within SPRAY_WARN_S (its action 18) and `pos` lies in its cone (spray_cone)."""
+        now = time.monotonic()
+        for s in [s for s, t in self.spray_t.items() if now - t > SPRAY_WARN_S]:
+            del self.spray_t[s]
+        if not self.spray_t:
+            return False
+        world, pets = st["world"], [p for p in self.pets(st) if not p["dead"]]
+        for s in self.spray_t:
+            mob = world["mobiles"].get(f"0x{s:08X}")
+            if mob is not None and mob.get("x") is not None:
+                kind = type_key((world.get("labels") or {}).get(f"0x{s:08X}") or mob.get("name"))
+                if kind in SPRAY_R and tuple(pos[:2]) in self.spray_cone(st, s, mob, kind, pets):
+                    return True
+        return False
 
     def blink_target(self, st, s: int) -> int | None:
         """Whom apparition `s` blinks onto: the defender of its latest swing, or the pet whose latest swing is at it
@@ -1664,11 +1717,13 @@ class Team:
         Logan's tile and hit him -59; he stood there through a potion and a vet channel and its next hit
         took -60 more (8/100). A step doesn't stop a channel healing us (20261014_221341 22:35:50-55); it
         shortens the reach to a pet to 1 (wiki Veterinary). An apparition's "*phases*" onto a pet (blink_tiles):
-        off that pet at once, past the repeat gap and the tank's heal, before the landing 1.1-1.6 s later."""
+        off that pet at once, past the repeat gap and the tank's heal, before the landing 1.1-1.6 s later. A sprayer's
+        wind-up (its action 18, spray_t) with us in its cone: the same, before its wave's ring reaches us (0.71 s and
+        0.1 s a tile)."""
         h, now = self.h, time.monotonic()
         self.update(st)                   # a "*phases*" just heard: act on it in this tick, before a song or a channel
         pos = h.pos(st)
-        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items())
+        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or self.spray_due(st, pos)
         if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:
             return False
         zone = self.area_zone(st)
@@ -1793,12 +1848,20 @@ class Team:
         v = self.view(st)
         shy = self.shy_awake(v)
         idle_shy = any(m["shy"] and not m["war"] for m in v.mobs)
-        if not zone and not shy and not idle_shy:
+        lr = combat.LOOT_RANGE
+        # an awake monster beside the corpse: a tile within LOOT_RANGE of it and SPACING_R of the monster, as off the tank
+        # (simulator 2026-10-26, Tidal Tomb seed 6: "to the corpse" 5 steps at 100 hits to beside a provoked ocean
+        # bedrock, 13 hits seven seconds later)
+        close = [m for m in v.mobs if m["war"] and not m["shy"] and cheb(m["pos"], spot) < lr + SPACING_R]
+        if not zone and not shy and not idle_shy and not close:
             return None, None
         pos = tuple(self.h.pos(st)[:2])
-        if cheb(pos, spot) <= combat.LOOT_RANGE and not self.zone_depth(zone, pos) and not self.shot_at(v, shy, pos):
+
+        def beside(t) -> list[dict]:
+            return [m for m in close if cheb(m["pos"], t) < SPACING_R]
+        if cheb(pos, spot) <= lr and not self.zone_depth(zone, pos) and not self.shot_at(v, shy, pos) \
+                and not beside(pos):
             return None, None
-        lr = combat.LOOT_RANGE
         if zone and all(self.zone_depth(zone, (spot[0] + dx, spot[1] + dy))
                         for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1)):
             return None, (f"the corpse at {spot} lies {self.zone_depth(zone, spot)} into an area hit's reach, every tile "
@@ -1815,6 +1878,8 @@ class Team:
             # then "to the corpse" 9 steps into the room woke the master reanimator onto Logan (user: "I don't walk over
             # to other mobs while our pets are fighting (i.e. I avoid being sighted by hostiles)")
             return None, f"the corpse at {spot} lies in an idle {first[0]['kind']}'s sight before the pets'"
+        if near := beside(end):
+            return None, f"the corpse at {spot} lies beside the awake {near[0]['kind']}, every tile within {lr} of it too"
         return t, None                    # no walkable clear tile found near: the walk as before, round the reach
 
     @staticmethod
@@ -2384,26 +2449,54 @@ class Team:
             st = self.h.state()
             if not self.bard_sees(st, serial):
                 return True
+        if self.a.provoke and now >= self.calm_ready and (pair := self.provoke_first(st, serial, now)) is not None:
+            # before the discord: a provoked sprayer sprays only the one it was set on (spray_cone); the user on Tidal
+            # Tomb's level 2 (2026-10-26): "In that area I'm generally able to keep the mobs provo'd onto each other",
+            # in the captures always the bedrock and the grouper beside it (6 successes)
+            return self.use(SKILL_PROVO, *pair)
         if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
             return self.use(SKILL_DISCORD, serial)
         if now < self.calm_ready:
             return False
         if self.a.provoke:
-            others = [s for s in self.others(st, serial)
-                      if self.effects.get(s, {}).get("calm", 0) <= now and self.effects.get(s, {}).get("immune", 0) <= now
-                      and self.effects.get(s, {}).get("los", 0) <= now
-                      and (SKILL_PROVO, type_key((st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name")))
-                      not in self.beyond and self.bard_sees(st, s)
-                      # a purger the pets haven't hurt: our skill draws its barrage (sim: "Provocation on a corpse
-                      # purger onto" the patrolled one put the second of the pair on Logan)
-                      and not (aggro.shy(type_key((st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name")))
-                               and not self.engaged(st, s))]
+            others = [s for s in self.others(st, serial) if self.provokable(st, s, now)]
             if len(others) > 1 or (others and self.bard_sees(st, serial)):
                 return self.use(SKILL_PROVO, others[0], others[1] if len(others) > 1 else serial)
         if self.a.peace and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
                 and (SKILL_PEACE, kind) not in self.beyond:
             return self.use(SKILL_PEACE, serial)
         return False
+
+    def provokable(self, st, s: int, now: float) -> bool:
+        """`s` can be provoked now: not calm, not under a break, not out of sight lately, not beyond our skill, in our
+        sight; not a shy monster the pets haven't hurt: our skill draws its barrage (sim: "Provocation on a corpse
+        purger onto" the patrolled one put the second of the pair on Logan)."""
+        fx = self.effects.get(s, {})
+        kind = type_key((st["world"]["mobiles"].get(f"0x{s:08X}") or {}).get("name"))
+        return fx.get("calm", 0) <= now and fx.get("immune", 0) <= now and fx.get("los", 0) <= now \
+            and (SKILL_PROVO, kind) not in self.beyond and self.bard_sees(st, s) \
+            and not (aggro.shy(kind) and not self.engaged(st, s))
+
+    def provoke_first(self, st, serial: int, now: float) -> tuple | None:
+        """A pair to provoke before anything else -> (incited, its victim), or None. PROVOKE_FIRST "sprayers": a
+        sprayer (SPRAY_R) in the fight onto the monster in the fight nearest it; "pairs": any two in the fight, the
+        target onto the nearest other."""
+        pool = [s for s in [serial] + self.others(st, serial) if self.provokable(st, s, now)]
+        if len(pool) < 2:
+            return None
+        mobiles = st["world"]["mobiles"]
+
+        def at(s):
+            m = mobiles.get(f"0x{s:08X}") or {}
+            return (m.get("x"), m.get("y")) if m.get("x") is not None else None
+        if PROVOKE_FIRST == "sprayers":
+            first = next((s for s in pool if type_key((mobiles.get(f"0x{s:08X}") or {}).get("name")) in SPRAY_R), None)
+        else:
+            first = pool[0]
+        if first is None or at(first) is None:
+            return None
+        rest = [s for s in pool if s != first and at(s) is not None]
+        return (first, min(rest, key=lambda s: cheb(at(s), at(first)))) if rest else None
 
     def bard_sees(self, st, serial: int, tile=None) -> bool:
         """We'd see `serial` from `tile` (where we stand) within BARD_RANGE by the server's rule (aggro.View.we_see;
@@ -2637,8 +2730,10 @@ class Team:
         self.count(f"{EFFECT[sid]}_{result}" if result in ("ok", "fail") else f"bard_{result}")
         if result == "ok":
             fx[EFFECT[sid]] = now + secs
+            if sid != SKILL_DISCORD:
+                fx["onto"] = second               # provoked onto it (None: pacified): spray_cone
             if second is not None:
-                self.effects.setdefault(second, {})["calm"] = now + secs
+                self.effects.setdefault(second, {}).update(calm=now + secs, onto=serial)
             if sid != SKILL_DISCORD:
                 self.calm_ready = now + CALM_SUCCESS_S
             log(f"{what}: success ({secs:.0f} s)")

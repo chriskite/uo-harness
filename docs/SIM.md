@@ -1642,9 +1642,63 @@ through, in TT we'll always have to fight in 2 in order to get to 3."
   grouper's corpse at 100 hits with a provoked ocean bedrock beside it and was at 13 seven seconds later. Later: two
   on the leave across level 2 (seed 8 by the bedrocks at (6888, 1968), time up; seed 13 by the gate), seed 12 on
   level 3 (a tidal sea serpent, 137), seed 15 at the strip's arrival.
-- **Open:** the melee killers by the gate. The pets measured an ocean bedrock at 30 a hit every 2 s
-  (`tidal_tomb_observed.json`), so one on Logan kills him in about 7 s. Those deaths are the runner's fight rules
-  (looting beside an awake one, the off-the-tank steps), not the leg.
+- **Open (done in the next section):** the melee killers by the gate. The pets measured an ocean bedrock at 30 a hit
+  every 2 s (`tidal_tomb_observed.json`), so one on Logan kills him in about 7 s. Those deaths are the runner's fight
+  rules (looting beside an awake one, the off-the-tank steps), not the leg.
+
+### Level 2's bedrocks: their spray, provocation, the fought leave (2026-10-26)
+
+User 2026-10-26: "Implement your next steps. I stand behind the ocean bedrock so it doesn't do its spray attack on me.
+In that area I'm generally able to keep the mobs provo'd onto each other." The captures behind it are in
+docs/NOTES.md "The ocean bedrock's spray, and level 2's other specials".
+
+**The simulator:**
+
+- **`spray`** (`World._spray_step`) on `ocean bedrock`. Animation 18, then 0.71 s later a wave down its 90° frontal
+  cone (`nav.in_cone`, 8 tiles, clipped by sight), one ring a 0.1 s, every 7.5-8.0 s. It aims at what it fights:
+  monsters now turn to face their target on a swing (`World._face`, a 0x77 when the facing changes). Damage 29-48 on
+  Logan, 31-47 on a pet. Provoked, it sprays only its provoke target. Its melee is now 20-33 every 3.4 s, about 1 s
+  later after a spray. calibrate's 21-40 every 2.01 s had the spray mixed in.
+- **A spin on the voidfin, razorfin and frenzyfin** (`burst`, `id` "spin", radius 2, every ~7.7 s): 21-58, 9-36 and
+  9-30. [INFERENCE] Their melee numbers may already hold some spin hits: calibrate can't tell them apart.
+- **Tests:** `test_tidal_bedrock_spray` (in the cone hit at every spray, beside it never, provoked only its target).
+
+**The runner:**
+
+- **Out of a bedrock's spray:** its cone is in the stand-off's zone (`Team.spray_cone`), and its wind-up starts the
+  stand-off at once (`spray_due`). Test: `test_spray_stand_off`. Without the cone zone it fails: Logan was sprayed at
+  2.6 and 10.4 s.
+- **Provocation first when two monsters are in the fight** (`tamer.PROVOKE_FIRST`). "sprayers" provokes only a bedrock
+  onto its neighbour first; "pairs", the default, provokes any two.
+- **No loot walk to beside an awake monster** (`Team.loot_tile`).
+- **The planned leave from level 3 fights its way across level 2** to the gate (`leave_by_gate` with `--fight-via`).
+  Fought legs no longer count toward the hard overall timeout. Before, the time-up leave of a 30-minute run aborted
+  on "overall timeout" before the gate.
+
+**Runs** (Tidal Tomb seeds 4-27, 30 min; Maus 3 seeds 17-64 and 101-196). "Before" is the commit before these changes,
+with `--fight-via` on level 3. Gold an hour is looted per hour on the level; banked is per game hour.
+
+| | runs with a death | damage on Logan an hour | kills an hour | banked gp an hour |
+|---|---|---|---|---|
+| level 3, before | 12 of 24 | 2,523 | 482 | 81,609 |
+| level 3, spray + loot + fought leave, "sprayers" | 12 of 24 | 2,798 | 481 | 118,717 |
+| level 3, the same, "pairs" | **5 of 24** | 3,067 | 409 | **151,323** |
+| level 2 crawl, before | 3 of 24 | 2,226 | 167 | 106,737 |
+| level 2 crawl, "sprayers" | 5 of 24 | 2,192 | 156 | 109,371 |
+| level 2 crawl, "pairs" | 4 of 24 | **1,708** | 167 | 94,951 |
+| Maus 3, before (96) | 8 of 96 | 2,147 | 158 | 139,937 |
+| Maus 3, "pairs" (96) | **4 of 96** | 1,939 | 156 | **147,982** |
+
+- **Level 3's level 2 deaths.** Before, 6 of the 12 deaths came in the bedrock area (x 6877-6898, y 1985-2000):
+  bedrocks for 107-141 in 15 s, ironscale groupers. With "sprayers" there were 2 such deaths, with "pairs" none. With
+  "pairs" every level 3 death but one comes on level 3 itself: 3 to the giant astral zoa at the arrival, 1 to a greater
+  razorfin's bleed. The one left on level 2 was at the strip's arrival from level 1 (a frenzyfin and a soulcatcher).
+- **Level 3's damage an hour rose** because more runs reach level 3 and stay there longer (4.35 game hours on it
+  against 2.85); its giant zoas hit hard.
+- **Level 2's crawl with "pairs"** took 23 % less damage for the same kills. Banked gold was lower because more runs
+  ran out of time on the walk to the gate (11 of 24 ended on "overall timeout" before banking, against 9 before).
+- **Maus 3 with "pairs":** half the deaths and 6 % more banked.
+- **Open:** level 3's giant astral zoa at the arrival (7158, 2195), now the main killer there.
 
 ## Player armor (2026-10-24)
 
