@@ -5842,6 +5842,144 @@ bedrock fight: the one in view fought the player SirGrundy. The scratch analysis
     (`tamer.Team.spray_cone`). The stand-off steps out of it at once on the bedrock's action 18 (`spray_due`).
   - Provocation first when two monsters are in the fight (`PROVOKE_FIRST`; docs/SIM.md "Level 2's bedrocks").
 
+## Tidal Tomb: level 3's west entrance and the boss approach (2026-10-27 22:10-22:59, capture 20261027_220057)
+
+The user played it by hand. All C2S came from `client`; the runner never ran in this capture. The other two new
+captures have no Tidal Tomb time: 20261026_230638 is Outland Dan mining and 20261027_230843 is Satanic Panic. The
+scratch analysis is not in the repo.
+
+- **Windows:**
+  - W1 22:10:06-22:13:25, level 1 only.
+  - W2 22:14:07-22:34:05: L1, L2, then L3 by the new entrance, up to the boss approach. He left by a new crimson gate
+    on L3.
+  - W3 22:43:47-22:59:07: L1, L2, L3's old arrival for 28 s, then back to L2 and out by L2's gate. GraveRobber and
+    AlaFlambe were with him throughout.
+- **A second level 3 entrance:** a step N from (6821, 1910) in level 2's north-west corner lands at (7092, 2193, -38)
+  (22:21:37.30). By a map flood fill it is the same level 3 as (7162, 2221), 70 tiles west of it. A Recovery Dolphin
+  0x00004849 stands at (7088, 2185). The way back is taken to be the arrival tile [INFERENCE: not stepped].
+- **Level 3 has its own crimson gate:** 0x4003D7BA at (7107, 2055, -30), in its middle room. He left by it at
+  22:34:05 to Totem (3884, 2901, -40).
+- **The boss approach:**
+  - The way in: a step N from (7104, 1945) at level 3's north end lands at (7321, 2167, 20); a step S from
+    (7321, 2166) goes back.
+  - Dolphin 0x00004932 stands at (7321, 2154). The wiki puts dolphins at level 3's entrances and at boss and
+    mini-boss rooms (#4645).
+  - He stepped 8 tiles in and came back 3.4 s later. No boss was seen; the pets stayed on L3.
+  - The map: a corridor x 7320-7335 y 2105-2167, a large chamber x 7329-7400 y 2060-2108 (the likely boss room
+    [INFERENCE]), and an east corridor x 7374-7395.
+- **Monsters:** every type seen is in the wiki kb. Eight level 3 types are new to the scenario's spawns: colossal
+  scourgeon, drowned buccaneer, drowned swashbuckler, giant kelpdweller, giant toxic zoa, greater frenzyfin, greater
+  voidfin and tidal krait. The idle-sighting rule added 35 spawns (L1 2, L2 10, L3 23).
+- **Damage** (on Logan / GraveRobber / AlaFlambe):
+
+  | level | time | Logan | GraveRobber | AlaFlambe |
+  |---|---|---|---|---|
+  | L1 | 295 s | 296 | 1,352 | 359 |
+  | L2 | 1,186 s | 912 | 6,283 | 3,634 |
+  | L3 | 773 s | 377 | 8,586 (39,976 an hour) | 4,145 |
+
+  GraveRobber died three times and was resurrected each time: twice on L3 to the giant combustive zoa (22:27:43,
+  22:28:15), once on L2 to an ocean bedrock under Festering Wound (22:55:04).
+- **Pressure** (buff icon 286):
+  - A hit adds a stack. Exactly 30 s after the first stack (30.0-30.15 s, n=11) every stack lands at once as equal
+    numbers, and the buff goes.
+  - A colossal scourgeon's hit on every pet within 2 tiles, every 7.5-7.9 s: 67 a stack.
+  - A tidal sea serpent's burst: 67 a stack.
+  - A giant pincer crab's pinch: 35 a stack on the pets, 10 on Logan ('Claws pinch you in place, piercing your armor
+    and applying pressure buildup!', with an entangle).
+  - A scourgeon (L2): 32 a stack.
+  - On L3 Pressure was 1,474 of the pets' 12,731 damage. A pet that dies loses its stacks.
+- **Other specials:**
+  - The giant toxic zoa: Lethal Poison on every hit (icon 134); pets tick 41 every 5.0 s.
+  - The greater frenzyfin: a spin (sound 0x090A twice), plus '*frenzies*' rounds every 15-22 s.
+  - The drowned swashbuckler: '*ripostes*' every 8.5-10.2 s, and '*adventurers rope*' (a jump to its target 6-8
+    tiles off).
+  - The drowned buccaneer: a bleed on both pets at once (seen once).
+  - L2's biolumen shellpod: Festering Wound, a healing penalty ('Searing light burns your skin!').
+  - L2: Glowmark (more aggro), from a lighthouse shellpod or the soulcatcher beside it.
+  - The razorfin: a bleed of 9-10 every ~3 s.
+
+## Backlash: the astral zoas fizzle the casters (2026-10-27)
+
+User 2026-10-27: "The giant astral zoa really sucks because our phoenix gets the Backlash debuff that nerfs its
+spellcasting. Maybe we should just avoid it when our pet team relies on caster(s)." Read from every Tidal Tomb capture
+with an astral zoa fight (20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552, 20261027_220057), all
+hand play. The scratch analysis is not in the repo.
+
+- **What it is:** Outlands buff 0xFF sub 8, icon 17, cliloc 1110022 "Backlash", "Chance to Fizzle on Spellcast". It
+  is sent for pets and other players' pets too. Each stack's value is its fizzle chance: 0.2 from an astral zoa
+  (level 2), 0.3 from a giant astral zoa (level 3).
+- **Stacks:** every hit adds its own 30 s timer. Up to 6 were seen at once; the wiki's "Stackable: No" is wrong. On
+  Logan: "Astral backlash impacts your ability to concentrate while casting!", and "You are no longer suffering spell
+  backlash." 30.0-30.1 s after the last one.
+- **Which attack:** only the zoa's big spell. The giant's: 70-94 on pets, 35-56 on Logan, every 5.6 s (median), the
+  first 3.1-3.5 s into the fight. The level 2 zoa's: 42-60 on pets, 35-42 on Logan, every 7.35 s. Every 70+ number
+  from the giant carried it (92 of 92); its volley and single spells almost never did (2 of 120).
+- **Whom it hits:** one victim and whoever stands within 3 tiles of it, not a ring round the zoa. In 70 attacks the
+  victims were never more than 3 apart, and 101 of 107 we had near it that weren't hit stood 4+ from the nearest
+  victim. With the phoenix team the giant's spell went on the tank 19 times and on the phoenix 8.
+- **The effect:** every caster pet fizzled only under it (imp 78, fireminion 63, AlaFlambe 54, the Nightmares 57; 0
+  without). A fizzle shows as effect 0x3735 on the pet about 1 s after its cast animation. Each stack rolls its own
+  chance, 1 - (1 - v)^n: 52.4 fizzles expected against 54 seen, better than a flat or summed chance.
+
+  | AlaFlambe in Tidal Tomb | casts | fizzled | damage a cast | median gap between casts |
+  |---|---|---|---|---|
+  | under Backlash | 140 | 54 | 383 | 1.62 s |
+  | without | 2,480 | 0 | 629 | 1.60 s |
+
+- **A fizzle costs the whole cast** and changes nothing else: the next cast comes as usual. Epic Barrage never
+  fizzled [INFERENCE: abilities aren't spellcasts].
+- **The giant fights, phoenix team:** 111.2 s with the phoenix hit 7 times (25 fizzles), against 47.0 s with it hit
+  once (3 fizzles).
+- **Logan:** he cast no spell there, so its effect on a spell recall is unmeasured (charge recalls aren't spellcasts
+  [INFERENCE]). His bard skills weren't touched: 17 of 21 succeeded under it.
+- **On 10-27 he avoided the giant.** Another player killed the one at (7081, 2039). At the old L3 arrival he stood 15
+  tiles from the one at (7158, 2197) for 28 s and left. Giant astral zoas have been seen at (7156-7158, 2193-2198),
+  (7081, 2039) and (7221, 2163).
+
+## Bard rates and cooldowns live (2026-10-27)
+
+User 2026-10-27: does the simulator model the provocation chance right, and how does a discord before a provocation
+compare with provoking first? His hypothesis: "the higher fail rate and longer cooldown on provo means we could leave
+our pets fighting undiscorded mobs too long if we focused on provo first." Scanned: every capture from 2026-10-10,
+8,534 bard uses in the Mausoleum and Tidal Tomb, 5,299 of them answered with a known effective skill. The scratch
+analysis is not in the repo.
+
+- **Rates live vs the simulator:**
+
+  | skill | live | sim before | verdict |
+  |---|---|---|---|
+  | Discordance | .718 (2,629/3,661) | .721 | right |
+  | Peacemaking | .666 (862/1,295) | .677 | right, but Tidal Tomb .600 against .688 (its types at the medians) |
+  | Provocation | .615 (211/343) | .518 | too low (z +3.7) |
+
+- **The provocation fit:** a Provocation's d is the mean of the two creatures' Discordance d plus 31.5 (343 answers,
+  log-likelihood -213.8). The per-type provoke fits gave -228.8 and made it fail too often (177.7 expected ok against
+  211). Most provocations live came after a discord: the +25 barded bonus. Provoking an undiscorded pair at E 123 is
+  only about .41-.47.
+- **Fail answers:** "fairly reasonable" 972 / 433 / 118 (discord / peace / provoke), "easy" 73 / 5 / 2, "somewhat
+  challenging" 0 / 3 / 14. Also 237 "cannot be seen", 75 "too far" and 253 `*barding break*` overheads.
+- **Cooldowns: provocation's is not longer.**
+  - The skill timer is 5.0 s from the target answer, for all three skills, success or fail. The next use was
+    accepted from 4.98 s; 500118 refusals came up to 5.0 s.
+  - The calm timer blocks only Peacemaking and Provocation: about 10.5 s after a success (10.42-10.56) and 5 s after
+    a fail.
+  - After a "barding break" refusal there is no timer: the next use went through 1.1-3 s later.
+  - A provocation takes about 0.4-0.5 s longer from use to answer (two cursors).
+- **The runner counted its 5 s from the use, not the answer:** 20-31 % of its next tries were refused (500118) and
+  lost 1 s each.
+- **Durations:** discord 65 / 68 / 71 / 74 s at E 108 / 113 / 118 / 123; peace and provoke 42-45 s barded. These
+  match the simulator.
+- **A failed provocation draws nothing:** the incited creature newly hit Logan after 1 of 132 fails, against 26 of
+  1,032 failed discords. The simulator had turned it on Logan.
+- **A discord's chance gets no +25 on a provoked creature:** 34 of 47, against 33.7 expected without the bonus and
+  44.0 with. Its longer duration stays.
+- **A provoked pair fights briefly:** first hit a median 1.8 s after the answer, last 7.3 s. One of the two is gone a
+  median 6.4 s after (181 of 211). Their hits are big: median 134 in the Mausoleum and 185 in Tidal Tomb, about 7.1
+  times the attacker's hit on a pet (the simulator used 4).
+- **Barding breaks:** provoked creatures broke at about 0.5 times the expected (difficulty / 100) % a second (36
+  against 72.6), pacified ones at 1.55 times (115 against 74.4).
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

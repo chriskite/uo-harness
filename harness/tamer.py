@@ -119,8 +119,8 @@ INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E, 0
 INSTRUMENT_NAME = re.compile(r"\b(lute|harp|drums?|tambourine|psaltery|flute|bagpipes?|shawm|sackbut)\b", re.I)
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 BARD_RANGE = 10               # [INFERENCE] successes seen at 1-9 tiles
-SKILL_GAP_S = 5.0             # wiki Peacemaking; live: the next cursor came 5 s after the last use
-CALM_SUCCESS_S = 10.0         # peace/provoke after a success (wiki Peacemaking)
+SKILL_GAP_S = 5.0             # wiki Peacemaking; live: 5.0 s from the target answer for every skill, ok or fail
+CALM_SUCCESS_S = 10.5         # peace/provoke after a peace/provoke success (wiki Peacemaking); live 10.4-10.6 s
 SKILL_RETRY_S = 1.0
 BREAK_IMMUNE_S = 20.0         # [INFERENCE] a Barding Break lasts CreatureDifficulty / 10 s (patch 2020-04-07)
 LOS_BLOCK_S = 10.0
@@ -268,6 +268,22 @@ FIRE_GRAPHICS = frozenset([0x6D70])
 FIRE_STEPS = 2                # a tile out of the fire within this many steps
 BACKSPAWN_MERGE = 3           # stealther spawn spots closer than this are one (Team.backspawn)
 SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
+TAMER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "tamer")
+
+
+def casters_only(character: str | None, roster) -> bool:
+    """Every attack pet of the team (class "attack" in data/sim/tamer/<character>.json) attacks with spells, and there
+    is one: the phoenix team (the phoenix ~85 % of its damage), the nightmares, the imp and fire minion; not the
+    mantis team. Pets the file doesn't know count as neither. False without the file."""
+    path = os.path.join(TAMER_DIR, "_".join((character or "").lower().split()) + ".json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError:
+        return False
+    kinds = {p["serial"]: data["species"].get(p["species"], {}) for p in data.get("pets", [])}
+    attack = [kinds[s] for s in roster if s in kinds and kinds[s].get("class") == "attack"]
+    return bool(attack) and all(k.get("attack") == "spell" for k in attack)
 
 # The only phrases ever said to the pets, as Logan Wolf's hotkeys say them: Razor's built-in Say hotkeys in its hue
 # 0x03B1; "All Patrol" his recorded macro (Shift+S), in the hue it was recorded in (docs/NOTES.md "All Patrol")
@@ -2480,7 +2496,9 @@ class Team:
     def provoke_first(self, st, serial: int, now: float) -> tuple | None:
         """A pair to provoke before anything else -> (incited, its victim), or None. PROVOKE_FIRST "sprayers": a
         sprayer (SPRAY_R) in the fight onto the monster in the fight nearest it; "pairs": any two in the fight, the
-        target onto the nearest other."""
+        target onto the nearest other; "off": none (Discordance first, as before 2026-10-26)."""
+        if PROVOKE_FIRST == "off":
+            return None
         pool = [s for s in [serial] + self.others(st, serial) if self.provokable(st, s, now)]
         if len(pool) < 2:
             return None
@@ -2728,6 +2746,13 @@ class Team:
             return
         _, result, secs = outcome
         self.count(f"{EFFECT[sid]}_{result}" if result in ("ok", "fail") else f"bard_{result}")
+        if result in ("ok", "fail", "beyond"):
+            # the server's 5 s skill timer runs from the target answer, not the skill's use: counted from the use, 20-31 %
+            # of the next tries live were refused (500118) and lost SKILL_RETRY_S each (docs/NOTES.md "Bard rates and
+            # cooldowns live")
+            self.skill_ready = max(self.skill_ready, now + SKILL_GAP_S)
+        elif result == "immune":
+            self.skill_ready = now + SKILL_RETRY_S   # no skill timer after it: live the next use went 1.1-3 s later
         if result == "ok":
             fx[EFFECT[sid]] = now + secs
             if sid != SKILL_DISCORD:

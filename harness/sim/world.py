@@ -119,7 +119,7 @@ CORPSE_GUMP = 0x09
 TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's layout, escape parses it)
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
-ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease"}   # scenario specials rolled on a monster's hit
+ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease", "pressure"}   # scenario specials rolled on a monster's hit
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
          "large_swing", "spray"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
@@ -128,7 +128,7 @@ UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal 
 # magic resist, true through neither (the area hits), tick (Tolerance, Immunize), none (oxygen)
 DTYPE = {"melee": "physical", "feed": "physical", "charge": "physical", "transfix": "physical", "spell": "spell",
          "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "spray": "true", "poison": "tick",
-         "bleed": "tick", "disease": "tick", "oxygen": "none", "other": "none"}
+         "bleed": "tick", "disease": "tick", "pressure": "none", "oxygen": "none", "other": "none"}
 PET_OFFSETS = ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1))   # the pets' tiles beside the player at the start, in team order
 TEXT_OXYGEN_REFILLED = "Your oxygen is refilled."   # live, a Recovery Dolphin's refill (20261024_225113 11:30:57)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
@@ -230,6 +230,8 @@ class Mob:
     brood_at: tuple | None = None  # a nest crab's dig: (time its broodling emerges, special)
     swing_at: tuple | None = None  # a large swing called: (time it lands, target serial, special)
     spray: dict | None = None     # an ocean bedrock's spray under way (_spray_step): origin, axis, wave start, hits
+    backlash: list = field(default_factory=list)   # astral zoas' Backlash stacks on one of us: [[expiry, fizzle chance]]
+    pressure: dict | None = None  # Pressure stacks on one of us: {"due": resolve time, "hits": [damage per stack]}
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -747,7 +749,8 @@ class World:
         for s, it in self.items.items():
             if it.get("container") is not None:
                 out.append(P.contained(s, it["graphic"], it["amount"], it["container"]))
-        out += [P.hits(pl.serial, int(pl.hits), int(pl.hits_max)), P.mana(pl.serial, pl.mana, pl.mana_max),
+        out += [P.name(pl.serial, pl.name),          # live the 0x11 status names us; the runner reads world.self.name
+                P.hits(pl.serial, int(pl.hits), int(pl.hits_max)), P.mana(pl.serial, pl.mana, pl.mana_max),
                 P.stam(pl.serial, pl.stam, pl.stam_max)]
         self.out += out
         self.last_step_t = self.t
@@ -983,7 +986,7 @@ class World:
     def die(self, m: Mob, by: Mob | None):
         self._ev("die", m=m.serial, by=by.serial if by is not None else None)
         self._cancel_cast(m, "gone")
-        m.diseases = []
+        m.diseases, m.pressure, m.backlash = [], None, []
         if m.kind == "player":
             m.hits, m.ghost = 0, True
             self.metrics["deaths"] += 1
@@ -1197,6 +1200,17 @@ class World:
                     ps[name] = ps.get(name, 0.0) + TICK_S
             if pl.stam < pl.stam_max:
                 self.metrics["stam_below_s"] += TICK_S      # live 22 % of the time on the level (shove_scan)
+            # the bard skills' reach on the fight: monster-seconds on us or a pet, and of those the ones not discorded and
+            # the ones under no bard effect at all (docs/SIM.md "Discord or provoke first")
+            team = {o.serial for o in self.team()}
+            for o in self.mobs.values():
+                if o.kind == "monster" and o.alive and o.target in team:
+                    mt = self.metrics
+                    mt["on_us_s"] = mt.get("on_us_s", 0.0) + TICK_S
+                    if o.discord_until <= t:
+                        mt["on_us_undiscorded_s"] = mt.get("on_us_undiscorded_s", 0.0) + TICK_S
+                        if o.calm_until <= t and not o.provoke:
+                            mt["on_us_unbarded_s"] = mt.get("on_us_unbarded_s", 0.0) + TICK_S
         if not pl.ghost and t - pl.last_hurt_t > 10 and pl.hits < pl.hits_max and int(t / TICK_S) % int(REGEN_S / TICK_S) == 0:
             pl.hits += 1
             self.send(P.hits(pl.serial, int(pl.hits), int(pl.hits_max)))
@@ -1270,8 +1284,14 @@ class World:
     def _effects(self, m: Mob):
         t = self.t
         if m.poison_until > t and t >= m.poison_next:
-            m.poison_next = t + 2.0
+            m.poison_next = t + m.spec.get("_poison_every", 2.0)
             self.hurt(m, m.spec.get("_poison_dmg", 4), None, "poison")
+        if m.pressure is not None and t >= m.pressure["due"]:
+            # all the stacks at once, one number each (live 30.0-30.15 s after the first, n=11; docs/NOTES.md "Pressure")
+            hits, m.pressure = m.pressure["hits"], None
+            for n in hits:
+                if m.alive and not m.ghost:
+                    self.hurt(m, n, None, "pressure")
         if m.kind == "player":
             self._poison_flag()
         if m.bleed_until and t >= m.bleed_next:
@@ -1291,7 +1311,8 @@ class World:
                         self._sys("You are no longer diseased.")
         if (m.calm_until > t or m.provoke) and int(t / TICK_S) % int(1.0 / TICK_S) == 0:
             diff = m.spec.get("difficulty") or 100
-            if self.rng.random() < diff / 100.0 / 100.0:     # (difficulty / 100) % per second (patch 2020-04-07)
+            bx = (self.sc["bard"].get("break_x") or {}).get("provoke" if m.provoke else "peace", 1.0)
+            if self.rng.random() < bx * diff / 100.0 / 100.0:     # (difficulty / 100) % per second (patch 2020-04-07)
                 if self.rng.random() < self.links["break_ignore"]:
                     self._sys(f"Barding break avoided for {m.name}")     # the chain's Break Ignore (live text)
                     self.count("bard", "break_avoided")
@@ -1546,6 +1567,9 @@ class World:
             self._ev("cast_lost", by=m.serial, v=s, why=why)
             m.next_swing = t + ranged["every_s"] * self.rng.uniform(0.85, 1.15)
             return
+        if m.kind == "pet" and self._fizzles(m):
+            m.next_swing = max(m.next_swing, t)                 # live the next cast came on the usual 1.6 s
+            return
         pl = self.player
         if m.kind == "monster" and SHOT_AT_PLAYER_P and victim.kind == "pet" and pl.alive and not pl.ghost \
                 and cheb(m.pos, pl.pos) <= ranged["range"] and self.can_see(m, pl) \
@@ -1618,9 +1642,13 @@ class World:
                         self.hurt(o, self.roll(sp["opener"]), m, "bleed")
                         self._start_bleed(o, sp)
             elif kind == "poison" and tgt.poison_until <= self.t:
-                tgt.poison_until, tgt.poison_next = self.t + sp.get("seconds", 12), self.t + 2
-                tgt.spec = {**tgt.spec, "_poison_dmg": sp.get("damage", 4)}
+                every = sp.get("every_s", 2.0)
+                tgt.poison_until, tgt.poison_next = self.t + sp.get("seconds", 12), self.t + every
+                dmg = sp.get("damage_player" if tgt.kind == "player" else "damage_pet", sp.get("damage", 4))
+                tgt.spec = {**tgt.spec, "_poison_dmg": dmg, "_poison_every": every}
                 self._overhead(tgt, tamer.TEXT_POISONED)
+            elif kind == "pressure":
+                self._pressure(tgt, sp)
             elif kind == "drain":
                 self.hurt(tgt, sp.get("damage", 8), m, "drain")
                 self.heal(m, sp.get("damage", 8))
@@ -1630,6 +1658,18 @@ class World:
                 tgt.diseases.append([self.t + sp["every_s"], sp["ticks"], sp["tick"], sp["every_s"]])
                 if tgt.kind == "player":
                     self._sys("You have contracted a foul disease!")
+
+    def _pressure(self, o: Mob, sp: dict):
+        """A Pressure stack on `o` (`damage_pet` / `damage_player` each, `seconds` after its first stack every stack
+        resolves at once: live 30.0-30.15 s, n=11; a dead pet loses them). Applied by a hit (kind "pressure") or with a
+        burst (its `pressure` block)."""
+        if not o.alive or o.ghost or o.kind not in ("player", "pet"):
+            return
+        n = self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"])
+        if o.pressure is None:
+            o.pressure = {"due": self.t + sp.get("seconds", 30.0), "hits": []}
+        o.pressure["hits"].append(n)
+        self.count("pressure_stacks", o.name)
 
     def _start_bleed(self, o: Mob, sp: dict):
         """A bleed: `tick` damage every `every_s` for `seconds` (the trip: 8-10 every 3 s, 5 ticks, then
@@ -1703,7 +1743,7 @@ class World:
                     m.cd[key] = t + self.rng.uniform(*sp["first_s"])
                     continue
                 m.cd[key] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
-                self._burst(m, sp)
+                self._burst(m, sp, tgt)
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
@@ -1874,16 +1914,51 @@ class World:
         self._overhead(c, "*emerges*")
         self.count("broodlings", sp["key"])
 
-    def _burst(self, m: Mob, sp: dict):
+    def _burst(self, m: Mob, sp: dict, tgt: Mob | None = None):
         """One area hit on each of us within `radius`, or on `targets` of us there picked at random (`song_pets`
-        false: the pets' share isn't cut by the Song of Discordance, as the apparition's live)."""
+        false: the pets' share isn't cut by the Song of Discordance, as the apparition's live). `center` "target": on
+        its target (one of us within `reach`) and each of us within `radius` of that one, not round itself (the astral
+        zoas' spell). A `debuff` "backlash": a stack of `per_stack` fizzle chance for `duration_s` on each victim
+        (`_fizzles`)."""
+        if sp.get("center") == "target":
+            team = self.team()
+            if tgt is None or tgt not in team or cheb(m.pos, tgt.pos) > sp["reach"] or not self.can_see(m, tgt):
+                return
+            hit = [o for o in team if cheb(o.pos, tgt.pos) <= sp["radius"]]
+        else:
+            hit = [o for o in self.team() if cheb(o.pos, m.pos) <= sp["radius"]]
         self._ev("ability", by=m.serial, kind="burst", v=None)
-        hit = [o for o in self.team() if cheb(o.pos, m.pos) <= sp["radius"]]
         if sp.get("targets") and len(hit) > sp["targets"]:
             hit = self.rng.sample(hit, sp["targets"])
+        db = sp.get("debuff") or {}
         for o in hit:
             self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
                       song_pets=sp.get("song_pets", True), dtype=sp.get("damage_type"), ref=sp.get("ref"))
+            if sp.get("pressure"):
+                self._pressure(o, sp["pressure"])
+            if db.get("kind") == "backlash" and o.alive and not o.ghost:
+                o.backlash = [b for b in o.backlash if b[0] > self.t] + [[self.t + db["duration_s"], db["per_stack"]]]
+                if o.kind == "player":
+                    self._sys("Astral backlash impacts your ability to concentrate while casting!")
+                self.count("backlash", o.name)
+
+    def _fizzles(self, m: Mob) -> bool:
+        """A pet's cast under Backlash fizzles: each live stack rolls its own chance (live, AlaFlambe 54 of 140 casts
+        under it, 52.4 expected so, 0 of 2,480 without): no damage, no proc; the 0x3735 sparkle on it."""
+        live = [v for exp, v in m.backlash if exp > self.t]
+        m.backlash = [b for b in m.backlash if b[0] > self.t]
+        if not live:
+            return False
+        keep = 1.0
+        for v in live:
+            keep *= 1.0 - v
+        if self.rng.random() < keep:
+            return False
+        self._ev("fizzle", by=m.serial)
+        self.count("fizzles", m.name)
+        if m.serial in self.viewing:
+            self.send(P.effect(3, m.serial, m.serial, 0x3735, m.x, m.y, m.z, m.x, m.y, m.z, 10, 30, 0, 0, 0, 0))
+        return True
 
     def _dematerialize(self, m: Mob, sp: dict):
         """A banshee hurt with the ability ready: '*dematerializes*', gone for a moment, back `jump` tiles
@@ -2568,14 +2643,18 @@ class World:
         if target is None:
             return
         if kind != "discord" and (target.immune_until > t or (kind == "provoke" and tgt.immune_until > t)):
+            # live: the next use went through 1.1-3 s after such an answer (13 of them): no 5 s skill timer, only the
+            # prompt's 1 s (docs/NOTES.md "Bard rates and cooldowns live")
             self._sys(tamer.TEXT_IMMUNE)
-            self.skill_ready = t + tamer.SKILL_GAP_S
             return
         self._act(target, b["act_threat"])
         diff = target.spec.get("difficulty") or 100.0
         barded = self._barded(target, kind) or (kind == "provoke" and self._barded(tgt, kind))
         e = self.bard_e + (b["barded_bonus"] if barded else 0.0)
-        p = bard_chance(self.sc, kind, target.key, e)   # scenario.bard_chance: the live d per type (bard.chance_note)
+        # the +25 lengthens a barded target's Discordance but doesn't raise its chance (live 34 of 47 on provoked
+        # creatures: 33.7 expected without the bonus, 44.0 with); a Provocation's d is the pair's (bard.provoke_d)
+        p = bard_chance(self.sc, kind, target.key, self.bard_e if kind == "discord" else e,
+                        partner=tgt.key if kind == "provoke" else None)
         self.skill_ready = t + tamer.SKILL_GAP_S
         word = {"discord": "discord your opponent", "peace": "pacify your opponent",
                 "provoke": "incite anger amongst your opponents"}[kind]
@@ -2585,11 +2664,11 @@ class World:
             self._ev("bard", skill=kind, v=target.serial, ok=False)
             return
         if self.rng.random() >= p:
+            # a failed incite draws no more than any failed bard act (act_threat above): live the incited creature newly
+            # hit Logan after 1 of 132 failed provocations, against 26 of 1,032 failed discords
             self._sys(f"You fail to {word}. You estimate the task to be fairly reasonable.")
             self.count("bard", f"{kind}_fail")
             self._ev("bard", skill=kind, v=target.serial, ok=False)
-            if kind == "provoke":
-                target.target = pl.serial          # a failed incite turns it on the bard [INFERENCE]
             return
         self.count("bard", f"{kind}_ok")
         self._ev("bard", skill=kind, v=target.serial, ok=True)

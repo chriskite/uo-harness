@@ -5011,6 +5011,76 @@ def test_spray_stand_off():
           f"pets sprayed at {sprayed[:5]}, Logan at {rolled}, ends {w.player.pos} facing {b.d}")
 
 
+def test_tidal_backlash():
+    print("== Tidal Tomb: a giant astral zoa's spell on its target and those within 3, each a Backlash stack; a caster pet "
+          "under n stacks fizzles 1 - 0.7^n of its casts, none without ==")
+    x, y = TIDAL_L3[0], TIDAL_L3[1] - 6
+    w = tidal_world(TIDAL_L3, [{"key": "giant astral zoa", "at": [x, y, -50]}])
+    z = next(o for o in w.mobs.values() if o.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    w._place(gb, (x, y + 1, -50), d=0)
+    w._place(af, (x + 6, y + 1, -50), d=0)
+    for o in [z, w.player, *w.pets()]:
+        o.hits = o.hits_max = 10 ** 6
+    sp = next(s for s in z.spec["specials"] if s.get("id") == "astral")
+    w._burst(z, sp, gb)
+    stacks = {o.name: len(o.backlash) for o in w.team()}
+    check("on the tank and whoever is within 3 of it, not the phoenix 6 off; a 0.3 stack each",
+          stacks["GraveRobber"] == 1 and stacks["AlaFlambe"] == 0 and gb.backlash[0][1] == 0.3, str(stacks))
+    rates = {}
+    for n in (0, 1, 2):
+        af.backlash = [[w.t + 30, 0.3]] * n
+        rates[n] = sum(w._fizzles(af) for _ in range(4000)) / 4000
+    check("fizzles: none without, ~0.30 under one stack, ~0.51 under two",
+          rates[0] == 0 and abs(rates[1] - 0.30) < 0.03 and abs(rates[2] - 0.51) < 0.03, str(rates))
+
+
+def test_tidal_pressure():
+    print("== Pressure: each stack lands 30 s after the first, all at once, one number each ==")
+    w = tidal_world(TIDAL_L1)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 10 ** 6
+    got, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if kind == "pressure":
+            got.append((round(w.t, 1), victim.name, amount))
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    sp = {"damage_pet": [35, 35], "damage_player": [10, 10], "seconds": 30.0}
+    t0 = w.t
+    w._pressure(gb, sp)
+    w.run_until(t0 + 5.0)
+    w._pressure(gb, sp)
+    w.run_until(t0 + 29.8)
+    before = list(got)
+    w.run_until(t0 + 30.3)
+    check("nothing before 30 s; then 2 x 35 at once", not before and [n for _, _, n in got] == [35, 35]
+          and len({t for t, _, _ in got}) == 1, str(got))
+
+
+def test_avoid_backlash():
+    print("== with every attack pet a caster (the phoenix team) an idle giant astral zoa in pull range isn't pulled; "
+          "with --no-avoid-backlash it is ==")
+    x, y = TIDAL_L3[0], TIDAL_L3[1] - 6
+    picked = {}
+    for extra in ((), ("--no-avoid-backlash",)):
+        w = tidal_world(TIDAL_L3, [{"key": "giant astral zoa", "at": [x, y, -50]}])
+        z = next(o for o in w.mobs.values() if o.kind == "monster")
+        z.calm_until = 1e9                               # stays idle
+        loop, clock, store, patched = hurt_loop(w, 100, extra)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                loop.setup()
+                picked[bool(extra)] = loop.pick_target(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("not picked by default; picked with --no-avoid-backlash", picked[False] is None and picked[True] is not None,
+          str(picked))
+
+
 def test_tidal_level3_bursts():
     print("== Tidal Tomb level 3: a sea serpent's area hit on us within 3 only; a giant astral zoa's two bursts both fire ==")
     import collections
@@ -5046,10 +5116,10 @@ def test_tidal_level3_bursts():
           and {n for _, n, _ in hits} == {"GraveRobber"} and all(d <= 3 for _, _, d in hits), f"{times} {hits[:4]}")
     w, m = setup("giant astral zoa")
     fired, orig_burst = collections.Counter(), w._burst
-    w._burst = lambda mob, sp: (fired.update([sp.get("id")]), orig_burst(mob, sp))
+    w._burst = lambda mob, sp, tgt=None: (fired.update([sp.get("id")]), orig_burst(mob, sp, tgt))
     w.run_until(40.0)
-    check("...its 'astral' (every ~6 s) and 'volley' (~5 s) bursts each on their own cooldown",
-          fired["astral"] >= 4 and fired["volley"] >= 5, str(dict(fired)))
+    check("...its 'astral' (every ~5.6 s) and 'volley' (~5 s) bursts each on their own cooldown",
+          fired["astral"] >= 5 and fired["volley"] >= 5, str(dict(fired)))
 
 
 def test_tidal_recall_rule():
@@ -5185,7 +5255,8 @@ def main():
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
               test_tidal_level3_bursts,
-              test_tidal_recall_rule, test_shy_by_ai, test_walk_in_fought, test_tidal_hunt):
+              test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_avoid_backlash, test_shy_by_ai,
+              test_walk_in_fought, test_tidal_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

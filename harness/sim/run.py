@@ -235,6 +235,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "recalls": m["recalls"], "steps": m["steps"], "denied_steps": m["denied_steps"],
             "shoves": m["shoves"], "shoves_by": m.get("shoves_by", {}), "refresh_potions": m["refresh_potions"],
             "stam_below_s": round(m["stam_below_s"], 1),
+            "on_us_s": {k: round(m.get(f"on_us{s}_s", 0.0), 1)
+                        for k, s in (("all", ""), ("undiscorded", "_undiscorded"), ("unbarded", "_unbarded"))},
+            "backlash": m.get("backlash", {}), "fizzles": m.get("fizzles", {}),
             "death_causes": m.get("death_causes", []),
             "others": {k: m[k] for k in ("others_arrived", "others_kills", "others_kills_in_view", "others_kills_unseen",
                                          "others_view_s",

@@ -154,13 +154,16 @@ def play(sc: dict, name: str) -> None:
 
 
 def bard_difficulty(b: dict, data_dir: str = DATA) -> dict:
-    """{skill: {type: d}, "median": {skill: d}} for World._bard: the live fit (`b["difficulty"]`, sim/bard_scan.py),
-    then the Guide's chances for the types the fit lacks (`b["guide"]` {type: [chance, E]}: d = E - 100 x chance)."""
+    """{skill: {type: d}, "median": {skill: d}} for World._bard: the live fit (`b["difficulty"]`, sim/bard_scan.py, the
+    runner's hunt logs), then the scenario's own fit of the user's hand play (`b["capture_d"]` {skill: {type: d}}), then
+    the Guide's chances for the types neither has (`b["guide"]` {type: [chance, E]}: d = E - 100 x chance)."""
     with open(os.path.join(data_dir, b["difficulty"]), encoding="utf-8") as f:
         fit = json.load(f)["kinds"]
     out = {"median": {k: v["median_d"] for k, v in fit.items()}}
     for kind, v in fit.items():
         d = {ty: e["d"] for ty, e in v["types"].items()}
+        for ty, cd in ((b.get("capture_d") or {}).get(kind) or {}).items():
+            d.setdefault(ty, cd)
         for ty, (p, e) in (b.get("guide") or {}).items():
             d.setdefault(ty, e - 100.0 * p)
         out[kind] = d
@@ -185,12 +188,18 @@ def bard_eff(sc: dict) -> float:
     return b["skill"] + b["instrument_bonus"][b["instrument"]] + sc["chain"]["totals"]["effective_barding"]
 
 
-def bard_chance(sc: dict, kind: str, key: str, e: float) -> float:
+def bard_chance(sc: dict, kind: str, key: str, e: float, partner: str | None = None) -> float:
     """A bard skill's chance at a creature of type `key` with effective skill `e` (bard_eff + any barded bonus):
     max((e - d) / 100, min_chance_factor x e / 100), at most 1 (knowledge #8530/#5239); d from bard_difficulty, else
-    the skill's median."""
+    the skill's median. A Provocation of `key` onto `partner` with `bard.provoke_d`: d is the mean of the two creatures'
+    Discordance d plus its `offset` (bard.provoke_d note: the live answers fit that, not a per-type provoke d)."""
     b = sc["bard"]
-    d = b["d"][kind].get(key, b["d"]["median"][kind])
+    pd = b.get("provoke_d")
+    if kind == "provoke" and pd:
+        ds = [b["d"]["discord"].get(k, b["d"]["median"]["discord"]) for k in (key, partner or key)]
+        d = sum(ds) / len(ds) + pd["offset"]
+    else:
+        d = b["d"][kind].get(key, b["d"]["median"][kind])
     return min(1.0, max((e - d) / 100.0, b["min_chance_factor"] * e / 100.0))
 
 

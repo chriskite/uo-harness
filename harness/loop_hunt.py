@@ -3868,6 +3868,12 @@ class HuntLoop:
                     raise
                 log(f"{e}; going on without the pets")
                 self.team = None
+        if self.team is not None and self.args.avoid_backlash \
+                and tamer.casters_only(st["world"]["self"].get("name"), self.team.roster):
+            never = tuple(self.args.never_aggro or aggro.NEVER_AGGRO)
+            self.args.never_aggro = never + tuple(k for k in aggro.BACKLASH_TYPES if k not in never)
+            log(f"every attack pet casts: never pulling {', '.join(aggro.BACKLASH_TYPES)} (its Backlash fizzles their "
+                f"spells; --no-avoid-backlash to fight it)")
         return st
 
     def run(self):
@@ -4094,6 +4100,10 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="--pets: a creature type (no article) never to wake while alone: its sight is no-go and "
                          "it is never pulled; one that attacks us or the pets is fought (repeat; default "
                          "aggro.NEVER_AGGRO: the elder vampire and the elder vampire countess, user 2026-10-15)")
+    ap.add_argument("--avoid-backlash", action=argparse.BooleanOptionalAction, default=True,
+                    help="--pets: when every attack pet casts (data/sim/tamer/<character>.json), add aggro.BACKLASH_TYPES "
+                         "(the giant astral zoa: its Backlash fizzles spells) to the never-aggro set (user 2026-10-27: "
+                         "'Maybe we should just avoid it when our pet team relies on caster(s)')")
     ap.add_argument("--crawl-avoid-types", action=argparse.BooleanOptionalAction, default=None,
                     help="crawl: avoid creature types the store's fights say cost too much (--crawl-max-hits, "
                          "--crawl-max-fight-s) or were fled from (default on, --pets off: user 2026-10-15)")

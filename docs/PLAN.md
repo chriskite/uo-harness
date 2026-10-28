@@ -2625,6 +2625,31 @@ ocean bedrock's spray"). Decisions:
 - **Rejected:** a separate "behind it" tile chooser, which the zone makes redundant. Also rejected: lowering the fish's
   melee for their spins, which needs a capture that tells spin hits from swings.
 
+## Tidal Tomb level 3's new ground, Backlash, the barding fit (2026-10-27)
+
+User: mine the new runs; "maybe we should just avoid [the giant astral zoa] when our pet team relies on caster(s)";
+does the simulator model provocation right, and discord first or provoke first? Decisions:
+
+- **The barding model follows the live fit.**
+  - A Provocation's d is the pair's mean Discordance d plus 31.5.
+  - A failed Provocation draws nothing.
+  - A Discordance gets no +25 chance on a barded creature.
+  - `provoke_x` 7; break rates by effect; Tidal Tomb's own d from the hand play.
+  - Rejected: keeping the per-type provoke fits. bard_scan's barded rule inflated them, and they made the sim fail
+    provocations too often.
+- **Provoke first stays the default** under the corrected model. Maus 3: deaths 10 -> 7 of 96, damage -12 %, the same
+  kills and gold. Level 2: damage -24 %. The user's worry is real but small: 78 % of the monster time on us
+  undiscorded against 75 %. The cooldowns don't differ: the skill timer is 5 s for every skill. `PROVOKE_FIRST`
+  "off" keeps discord first available.
+- **`--avoid-backlash` on by default:** the giant astral zoa joins the never-aggro set when every attack pet casts.
+  The pets come from the character's sim tamer file, which the runner reads for this. Rejected: a live Backlash-stack
+  rule (break off at a fizzle chance of 0.5), which would need the pets' buff timers read live; the never-aggro set
+  already exists.
+- **Pressure, Backlash and poison are generic sim mechanics** (`pressure`, `debuff`, `center: "target"`), not
+  per-creature code.
+- **The level 3 route stays the old one** (6884, 1929) in the docs' command. The west entrance's crawl died 17 times in
+  24 against 8.
+
 ## The house's repair bench before each recall in (2026-10-27)
 
 User: "I installed a repair bench in Logan's house. The combat runner should now double click the repair bench before

@@ -11,13 +11,14 @@
   "box": [
    6600,
    1900,
-   7260,
+   7401,
    2225
   ],
   "tags": [
    "20261024_102346",
    "20261024_225113",
-   "20261026_183552"
+   "20261026_183552",
+   "20261027_220057"
   ],
   "note": "sim/calibrate.py's region: the three levels Logan walked (map flood fill: level 1 x 6608-6738, y 1932-2109; level 2 x 6817-6967, y 1909-2098; level 3 x 7049-7255, y 1908-2221), the dungeon's box. Captures: his first visit (20261024_102346 10:59:55-11:14:06, levels 1-2, pets GraveRobber and AlaFlambe) and the second (20261024_225113, 2026-10-25 11:21:30-11:36:55, levels 1-3, pets NightmareA, NightmareB and a searing imp): the pets differ, so damage_to_pets mixes their armor (docs/NOTES.md 'Tidal Tomb: the second visit'); the user's walk through all of level 1 (20261026_183552 2026-10-26 20:30:34-20:45:36, GraveRobber and AlaFlambe, AR 120) since 2026-10-26"
  },
@@ -58,6 +59,15 @@
    "colossal pincer crab": [0.485, 113],
    "blightmare": [0.506, 118]
   },
+  "capture_d": {
+   "discord": {"astral zoa": 55.0, "biolumen shellpod": 31.0, "bottomfeeder": 23.0, "clearwater grouper": 36.0, "combustive zoa": 32.5,
+               "drowned mariner": 27.0, "frenzyfin": 54.5, "giant astral zoa": 46.0, "giant pincer crab": 33.0, "ironscale grouper": 36.5,
+               "lighthouse shellpod": 53.5, "ocean bedrock": 64.0, "razorfin": 45.5, "scourgeon": -100.0, "soulcatcher": 24.0,
+               "tidal sea serpent": 44.5, "voidfin": 43.5, "mermadon": -100.0, "ruby smallshell": -100.0, "singing noughtilus": -100.0},
+   "peace": {"combustive zoa": 82.0, "giant astral zoa": 98.0, "giant pincer crab": 98.0, "greater razorfin": 98.0, "ocean bedrock": 99.5,
+             "razorfin": 91.5, "tidal sea serpent": 99.5, "voidfin": 82.0},
+   "note": "maximum-likelihood d of the user's hand play here (the runner's hunt logs, bard_observed, hardly reach Tidal Tomb): captures 20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552, 20261027_220057, 8-39 answers a type; Discordance without the barded bonus, Peacemaking with the sim's rule; -100: every answer a success. Live Peacemaking here went 99 of 165 against the sim's .688 at the medians (docs/NOTES.md 'Bard rates and cooldowns live')"
+  },
   "guide_note": "[chance, E]: the 'Barding Chance' in the game's creature Guide gump (0xC38EC76C) Logan opened live, at the effective barding skill E he had then (the Mausoleum's bard.instrument_note): with the eminently melodious sackbut (E 113) 2026-10-24 11:01:00 ruby smallshell 92.7 %, 11:02:42 dungeon-nest crab 77.3 %, 11:06:29 flying manta 74.1 %, 11:06:48 singing noughtilus 93.7 %, 11:08:08 oozing noughtilus 87.7 %, 19:51:32 mermadon 66.9 %, 21:00:22 colossal pincer crab 48.5 %; with the exceedingly melodious psaltery (E 118) 2026-10-25 11:21:49 oozing noughtilus 94.2 % (its d 23.8 against 25.3 with the sackbut), 13:18:59 a blightmare 50.6 %. World._bard takes d = E - 100 x chance from it for a type with too few live answers (bard_observed.json first). The Guide is not the live rate everywhere: the blightmare's 50.6 % is d 67.4, its 43 live Discordances fit d 44.5"
  },
  "recall": {
@@ -89,7 +99,7 @@
   "box": [
    6600,
    1900,
-   7260,
+   7401,
    2225
   ],
   "gold_gates": [
@@ -125,6 +135,12 @@
     1906,
     7257,
     2223
+   ],
+   [
+    7320,
+    2060,
+    7400,
+    2167
    ]
   ],
   "every_s": 6.0,
@@ -152,7 +168,9 @@
      -50
     ],
     "note": "'recovery dolphin' 0x00004888 (body 151, notoriety 7, '(refills oxygen)'), 11 tiles N of level 3's arrival, the same serial and tile 2026-10-24 20:54:47 and 2026-10-25 11:30:56"
-   }
+   },
+   {"at": [7088, 2185, -50], "note": "'recovery dolphin' 0x00004849 at level 3's west entrance (capture 20261027_220057 22:21:37; a refill 22:21:41.28 at (7090, 2182))"},
+   {"at": [7321, 2154, 20], "note": "'recovery dolphin' 0x00004932 in the boss approach's corridor (capture 20261027_220057 22:32:55.12; a refill 22:32:55.71 at 10 tiles): the wiki puts them 'at the entrances to Level 3 and Boss/Mini-Boss Rooms' (knowledge #4645)"}
   ],
   "dolphin_r": 12,
   "dolphin_r_note": "Chebyshev tiles from the dolphin a refill reaches, 12 since 2026-10-26 (8 before): over the three captures, one-second samples on level 3 with a refill within the next 5.5 s at 7-9 tiles 90 of 96, 10 14 of 27, 11 15 of 18, 12 23 of 30, 13 2 of 23, 14 5 of 113, 15-16 3 of 94 (2026-10-26 22:47:51-22:48:11 refills at 10-12 tiles every ~5.2 s); in its sight or not alike (12 tiles out of sight 16 of 21) [INFERENCE: the 13-14 ones a step's lag]",
@@ -233,9 +251,13 @@
   {"from": [6884, 1929], "to": [7162, 2221, -50]},
   {"from": [6885, 1929], "to": [7163, 2221, -50]},
   {"from": [7161, 2221], "to": [6883, 1929, -126]},
-  {"from": [7162, 2221], "to": [6884, 1929, -126]}
+  {"from": [7162, 2221], "to": [6884, 1929, -126]},
+  {"from": [6821, 1909], "to": [7092, 2193, -38]},
+  {"from": [7092, 2193], "to": [6821, 1909, -103]},
+  {"from": [7104, 1944], "to": [7321, 2167, 20]},
+  {"from": [7321, 2167], "to": [7104, 1944, 0]}
  ],
- "teleporters_note": "capture 20261024_102346, each the tile a step went for when the server moved us ('from'; its 0x21 deny reported the tile we stood on): 11:00:06 S from (6656, 2108) out of the dungeon to (3861, 3585) by the entrance outside, 11:00:51 N from (3861, 3586) back in to (6656, 2109); 11:08:37 S from (6718, 1983) down to level 2 (6943, 2004); 11:13:31 N from (6834, 2080) up to level 1's west end (6609, 2060; oxygen refilled there), 11:13:39 S from (6609, 2059) back to (6834, 2079). The pairs land on each other's tile (2 of 2 seen both ways), so (6943, 2004) -> (6718, 1984) is taken as the level 2 arrival's way back [INFERENCE: not stepped on]. The later visits (calibrate's levels.teleports) show strips that keep the column: S from (6608 / 6610, 2059) to (6833 / 6835, 2079) (2026-10-24 19:52:11, 20:11:08), S from (6657, 2108) out to (3862, 3585) and N back to (6657, 2109) (20:08:10, 20:08:29); level 2 -> 3, N from (6884 / 6885, 1930) to (7162 / 7163, 2221) (2026-10-25 11:30:56; 2026-10-24 20:54:47, 20:58:14); level 3 -> 2, S from (7161 / 7162, 2220) to (6883 / 6884, 1929) (11:35:19; 21:04:20, 20:58:00). The strips' other columns aren't listed [INFERENCE: likely wider]; a landing on a strip's tile doesn't move one again (the step onto it does)",
+ "teleporters_note": "capture 20261024_102346, each the tile a step went for when the server moved us ('from'; its 0x21 deny reported the tile we stood on): 11:00:06 S from (6656, 2108) out of the dungeon to (3861, 3585) by the entrance outside, 11:00:51 N from (3861, 3586) back in to (6656, 2109); 11:08:37 S from (6718, 1983) down to level 2 (6943, 2004); 11:13:31 N from (6834, 2080) up to level 1's west end (6609, 2060; oxygen refilled there), 11:13:39 S from (6609, 2059) back to (6834, 2079). The pairs land on each other's tile (2 of 2 seen both ways), so (6943, 2004) -> (6718, 1984) is taken as the level 2 arrival's way back [INFERENCE: not stepped on]. The later visits (calibrate's levels.teleports) show strips that keep the column: S from (6608 / 6610, 2059) to (6833 / 6835, 2079) (2026-10-24 19:52:11, 20:11:08), S from (6657, 2108) out to (3862, 3585) and N back to (6657, 2109) (20:08:10, 20:08:29); level 2 -> 3, N from (6884 / 6885, 1930) to (7162 / 7163, 2221) (2026-10-25 11:30:56; 2026-10-24 20:54:47, 20:58:14); level 3 -> 2, S from (7161 / 7162, 2220) to (6883 / 6884, 1929) (11:35:19; 21:04:20, 20:58:00). The strips' other columns aren't listed [INFERENCE: likely wider]; a landing on a strip's tile doesn't move one again (the step onto it does). Capture 20261027_220057: 22:21:37.30 N from (6821, 1910) in level 2's north-west corner to (7092, 2193, -38), level 3's west entrance (the same level as (7162, 2221) by a map flood fill, 70 tiles west of it; its way back the arrival tile [INFERENCE: not stepped]); 22:32:55.12 N from (7104, 1945) at level 3's north end to (7321, 2167, 20), the boss approach, and 22:32:58.48 S from (7321, 2166) back to (7104, 1944, 0)",
  "gates": [
   {
    "name": "crimson moongate",
@@ -338,9 +360,19 @@
     {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
     {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3867, 2900, -40]}, {"name": "Corpse Creek"}
    ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1073993658,
+   "at": [7107, 2055, -30],
+   "hue": 2820,
+   "destinations": [
+    {"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"},
+    {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3884, 2901, -40]}, {"name": "Corpse Creek"}
+   ]
   }
  ],
- "gates_note": "the moongates seen (captures): golden 0x4003D7B5 at the arrival (6652, 2095), 0x4003D7B7 (6642, 2062) and 0x4003D7B6 (6685, 2064) on level 1; crimson 0x4003D7B8 (6913, 2071, -100) and 0x4003D7B9 (6897, 1992, -126) on level 2, the second 8 tiles S of the strip down to level 3. Every menu opened (0x4003D7B8 2026-10-24 11:14:05, 20:05:17, 20:20:27; 0x4003D7B6 19:41:11; 0x4003D7B9 21:04:35 and 2026-10-25 11:36:55) listed the same 'Moongate Destinations' rows, Anchor's Rest .. Corpse Creek, and 'Travel to Destination' with Totem put Logan at a different tile each time: (3867, 2900), (3870, 2891), (3846, 2876), (3848, 2867), (3882, 2893), (3859, 2890), z -40 or -19 (the Mausoleum's crimson gate landed at (3859, 2890)); the sim keeps one. The golden gates' rows are the same [INFERENCE for 0x4003D7B5 and 0x4003D7B7, never opened]. A crimson gate 0x4001AA04 (hue 2820, the crimson gates' hue; 2822 the golden ones') stands on the arrival gate's tile too, in all three captures (2026-10-24, -25, -26); the user's in-game map shows both there (2026-10-26). In the sim since 2026-10-26, first on the tile as live (it came first in the captures), its rows the golden one's [INFERENCE: never opened]; World.gates keys the menu by tile, the same rows either way",
+ "gates_note": "the moongates seen (captures): golden 0x4003D7B5 at the arrival (6652, 2095), 0x4003D7B7 (6642, 2062) and 0x4003D7B6 (6685, 2064) on level 1; crimson 0x4003D7B8 (6913, 2071, -100) and 0x4003D7B9 (6897, 1992, -126) on level 2, the second 8 tiles S of the strip down to level 3. Every menu opened (0x4003D7B8 2026-10-24 11:14:05, 20:05:17, 20:20:27; 0x4003D7B6 19:41:11; 0x4003D7B9 21:04:35 and 2026-10-25 11:36:55) listed the same 'Moongate Destinations' rows, Anchor's Rest .. Corpse Creek, and 'Travel to Destination' with Totem put Logan at a different tile each time: (3867, 2900), (3870, 2891), (3846, 2876), (3848, 2867), (3882, 2893), (3859, 2890), z -40 or -19 (the Mausoleum's crimson gate landed at (3859, 2890)); the sim keeps one. The golden gates' rows are the same [INFERENCE for 0x4003D7B5 and 0x4003D7B7, never opened]. A crimson gate 0x4001AA04 (hue 2820, the crimson gates' hue; 2822 the golden ones') stands on the arrival gate's tile too, in all three captures (2026-10-24, -25, -26); the user's in-game map shows both there (2026-10-26). In the sim since 2026-10-26, first on the tile as live (it came first in the captures), its rows the golden one's [INFERENCE: never opened]; World.gates keys the menu by tile, the same rows either way. Level 3 has its own: crimson 0x4003D7BA at (7107, 2055, -30) in its middle room (capture 20261027_220057 22:26:53; the user left by it 22:34:05.46 from (7109, 2054) to Totem (3884, 2901, -40); its rows not decoded, taken as the others' [INFERENCE])",
  "runner": {
   "leave_gate": [6652, 2095],
   "gate_dest": "Totem",
@@ -1058,9 +1090,46 @@
   {"key": "drowned mariner", "at": [6848, 2090, -68], "note": "level 2: first seen 2026-10-24 20:11:08 (6848, 2090), 18 tiles from the type's nearest spawn, idle sightings within 8: 2, capture 20261024_102346 (added 2026-10-26)"},
   {"key": "soulcatcher", "at": [6841, 2098, -28], "note": "level 2: first seen 2026-10-24 20:11:28 (6841, 2098), 19 tiles from the type's nearest spawn, idle sightings within 8: 2, capture 20261024_102346 (added 2026-10-26)"},
   {"key": "ironscale grouper", "at": [6931, 2088, -126], "note": "level 2: first seen 2026-10-26 22:39:03 (6931, 2088), 80 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261026_183552 (added 2026-10-26)"},
-  {"key": "toxic zoa", "at": [6852, 2010, -56], "note": "level 2: first seen 2026-10-26 22:44:00 (6852, 2010), 13 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261026_183552 (added 2026-10-26)"}
+  {"key": "toxic zoa", "at": [6852, 2010, -56], "note": "level 2: first seen 2026-10-26 22:44:00 (6852, 2010), 13 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261026_183552 (added 2026-10-26)"},
+  {"key": "aquamarine smallshell", "at": [6664, 2069, -18], "note": "level 1: first seen 2026-10-27 22:10:12 (6664, 2069), 12 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "ruby smallshell", "at": [6656, 2066, -18], "note": "level 1: first seen 2026-10-27 22:10:13 (6656, 2066), 11 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "biolumen shellpod", "at": [6847, 1983, -56], "note": "level 2: first seen 2026-10-27 22:18:12 (6847, 1983), 36 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "frenzyfin", "at": [6842, 1956, -121], "note": "level 2: first seen 2026-10-27 22:18:34 (6842, 1956), 64 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "frenzyfin", "at": [6820, 1920, -103], "note": "level 2: first seen 2026-10-27 22:19:54 (6820, 1920), 96 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant pincer crab", "at": [6824, 1943, -121], "note": "level 2: first seen 2026-10-27 22:18:58 (6824, 1943), 81 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "kelpdweller", "at": [6843, 1917, -121], "note": "level 2: first seen 2026-10-27 22:19:55 (6843, 1917), 70 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "lighthouse shellpod", "at": [6837, 1911, -103], "note": "level 2: first seen 2026-10-27 22:19:56 (6837, 1911), 69 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "ocean bedrock", "at": [6834, 1923, -121], "note": "level 2: first seen 2026-10-27 22:19:32 (6834, 1923), 49 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "scourgeon", "at": [6827, 1946, -121], "note": "level 2: first seen 2026-10-27 22:18:36 (6827, 1946), 60 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "toxic zoa", "at": [6845, 1945, -121], "note": "level 2: first seen 2026-10-27 22:18:46 (6845, 1945), 49 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "toxic zoa", "at": [6820, 1926, -103], "note": "level 2: first seen 2026-10-27 22:19:04 (6820, 1926), 68 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "colossal pincer crab", "at": [7074, 2118, -50], "note": "level 3: first seen 2026-10-27 22:22:32 (7074, 2118), 102 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "colossal scourgeon", "at": [7093, 2133, -50], "note": "level 3: first seen 2026-10-27 22:21:51 (7093, 2133), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "colossal scourgeon", "at": [7128, 2057, -30], "note": "level 3: first seen 2026-10-27 22:27:34 (7128, 2057), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "colossal scourgeon", "at": [7098, 1957, 0], "note": "level 3: first seen 2026-10-27 22:32:07 (7098, 1957), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "drowned buccaneer", "at": [7093, 2044, -30], "note": "level 3: first seen 2026-10-27 22:31:08 (7093, 2044), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "drowned swashbuckler", "at": [7112, 2057, -30], "note": "level 3: first seen 2026-10-27 22:26:54 (7112, 2057), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "drowned swashbuckler", "at": [7118, 2069, -30], "note": "level 3: first seen 2026-10-27 22:30:18 (7118, 2069), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant combustive zoa", "at": [7116, 2057, -30], "note": "level 3: first seen 2026-10-27 22:26:55 (7116, 2057), 115 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant kelpdweller", "at": [7123, 2024, -30], "note": "level 3: first seen 2026-10-27 22:28:32 (7123, 2024), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant kelpdweller", "at": [7126, 2047, -30], "note": "level 3: first seen 2026-10-27 22:28:34 (7126, 2047), no spawn of its type before, idle sightings within 8: 2, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant kelpdweller", "at": [7127, 1970, 0], "note": "level 3: first seen 2026-10-27 22:31:36 (7127, 1970), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant toxic zoa", "at": [7072, 2101, -50], "note": "level 3: first seen 2026-10-27 22:24:00 (7072, 2101), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant toxic zoa", "at": [7117, 1958, 0], "note": "level 3: first seen 2026-10-27 22:32:06 (7117, 1958), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "greater frenzyfin", "at": [7093, 2128, -50], "note": "level 3: first seen 2026-10-27 22:22:19 (7093, 2128), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "greater frenzyfin", "at": [7141, 2045, -30], "note": "level 3: first seen 2026-10-27 22:29:28 (7141, 2045), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "greater razorfin", "at": [7118, 2000, -30], "note": "level 3: first seen 2026-10-27 22:33:53 (7118, 2000), 171 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "greater voidfin", "at": [7097, 2138, -50], "note": "level 3: first seen 2026-10-27 22:21:49 (7097, 2138), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "greater voidfin", "at": [7057, 2106, -50], "note": "level 3: first seen 2026-10-27 22:24:02 (7057, 2106), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "tidal krait", "at": [7071, 2084, -50], "note": "level 3: first seen 2026-10-27 22:24:29 (7071, 2084), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "tidal krait", "at": [7105, 2024, -30], "note": "level 3: first seen 2026-10-27 22:28:32 (7105, 2024), no spawn of its type before, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "tidal sea serpent", "at": [7073, 2062, -30], "note": "level 3: first seen 2026-10-27 22:25:27 (7073, 2062), 129 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "tidal sea serpent", "at": [7113, 1989, -30], "note": "level 3: first seen 2026-10-27 22:31:18 (7113, 1989), 202 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "tidal sea serpent", "at": [7098, 1965, 0], "note": "level 3: first seen 2026-10-27 22:32:05 (7098, 1965), 226 tiles from the type's nearest spawn, idle sightings within 8: 1, capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant astral zoa", "at": [7081, 2039, -50], "note": "level 3: first seen 2026-10-27 22:26:18 (7081, 2039) fighting the player Daeleus, who killed it 22:26:27 (in war mode at first sight, so outside the idle rule; a giant astral zoa all the same), capture 20261027_220057 (added 2026-10-28)"},
+  {"key": "giant astral zoa", "at": [7221, 2163, -50], "note": "level 3: first seen 2026-10-25 21:26:57 (7221-7222, 2163), idle 2 s, 63 tiles from the type's nearest spawn, capture 20261025_210102 (added 2026-10-28)"}
  ],
- "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept). The first 68 come from the first visit (2026-10-24 10:59:55-11:14:06, levels 1-2): a first look, not the Mausoleum's 41-visit check. The other 58 come from the later visits (2026-10-24 19:32-21:04 and 2026-10-25 11:21-11:36), only where the first visit couldn't see (a first sighting more than 18 tiles from every tile it stood on), so a spawn it had isn't counted twice: 13 on level 1's middle, 39 on level 2's west and north, 6 on level 3's first part. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood; 30 in all), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb'), the recovery dolphin (oxygen.dolphins), 5 monsters whose name never came. 2026-10-26: the user walked all of level 1 (capture 20261026_183552, 20:30-20:45, within 12 tiles of 96 % of its floor); 25 spawns added (86 on level 1 now), one per idle first sighting (not war mode, not '*emerges*') more than 8 tiles from every spawn of its type (spawn_spread 4 and the 2-tile wander keep a spawn's own monster within ~6): 24 of today's, mostly the west rooms (x 6620-6648) and the south-east room (x 6688-6723, y 2056-2094) that had none, and a nest crab of 2026-10-24 19:33:47 the old 18-tile rule had left out (the first visit had seen that spot). Two idle pincer crabs far from any nest crab or scavenger are spawns; three within 3 tiles of one are taken for broodlings. 6 of the 61 earlier level 1 spawns met nothing of their type within 6 tiles today, in view 16-97 s each: kept (a respawn or another player's kill explains that). Later on 2026-10-26 the user's run through level 2 and level 3's first part (22:36:47-22:48:27, the same ground the earlier visits walked: every tile within 12 of one they stood on) brought no new type; by the same rule over all three captures 16 level 2 spawns were added (75 on level 2 now): 14 the old 18-tile rule had dropped (the west entry from the strip, x 6840-6872, y 2053-2098, had no astral zoa, soulcatcher, frenzyfin, razorfin, drowned mariner or shellpod spawn; 10 of them seen idle 2-5 times), 2 seen first that day (an ironscale grouper at (6931, 2088), a toxic zoa at (6852, 2010)). Level 3: none (its 6 types met where the spawns stand).",
+ "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py creatures; sightings of a type within 5 tiles merged, the earliest kept). The first 68 come from the first visit (2026-10-24 10:59:55-11:14:06, levels 1-2): a first look, not the Mausoleum's 41-visit check. The other 58 come from the later visits (2026-10-24 19:32-21:04 and 2026-10-25 11:21-11:36), only where the first visit couldn't see (a first sighting more than 18 tiles from every tile it stood on), so a spawn it had isn't counted twice: 13 on level 1's middle, 39 on level 2's west and north, 6 on level 3's first part. Most first sightings came at 16-18 tiles (the view's edge): the spawn points are where they stood then. Left out: the pincer crabs that '*emerges*' beside a fight (specials 'dungeon-nest crab' brood; 30 in all), other players and their pets (notoriety 1), the red player (docs/NOTES.md 'Tidal Tomb'), the recovery dolphin (oxygen.dolphins), 5 monsters whose name never came. 2026-10-26: the user walked all of level 1 (capture 20261026_183552, 20:30-20:45, within 12 tiles of 96 % of its floor); 25 spawns added (86 on level 1 now), one per idle first sighting (not war mode, not '*emerges*') more than 8 tiles from every spawn of its type (spawn_spread 4 and the 2-tile wander keep a spawn's own monster within ~6): 24 of today's, mostly the west rooms (x 6620-6648) and the south-east room (x 6688-6723, y 2056-2094) that had none, and a nest crab of 2026-10-24 19:33:47 the old 18-tile rule had left out (the first visit had seen that spot). Two idle pincer crabs far from any nest crab or scavenger are spawns; three within 3 tiles of one are taken for broodlings. 6 of the 61 earlier level 1 spawns met nothing of their type within 6 tiles today, in view 16-97 s each: kept (a respawn or another player's kill explains that). Later on 2026-10-26 the user's run through level 2 and level 3's first part (22:36:47-22:48:27, the same ground the earlier visits walked: every tile within 12 of one they stood on) brought no new type; by the same rule over all three captures 16 level 2 spawns were added (75 on level 2 now): 14 the old 18-tile rule had dropped (the west entry from the strip, x 6840-6872, y 2053-2098, had no astral zoa, soulcatcher, frenzyfin, razorfin, drowned mariner or shellpod spawn; 10 of them seen idle 2-5 times), 2 seen first that day (an ironscale grouper at (6931, 2088), a toxic zoa at (6852, 2010)). Level 3: none (its 6 types met where the spawns stand). 2026-10-27 (capture 20261027_220057, hand play 22:10-22:59): the user's run through level 2's north-west, level 3's west entrance and its north up to the boss approach; by the same rule 35 spawns added (level 1 2, level 2 10 on the north-west route x 6820-6847 y 1911-1983, level 3 23 on its west and north, x 7057-7141 y 1957-2138), 8 types new to the spawns (colossal scourgeon, drowned buccaneer, drowned swashbuckler, giant kelpdweller, giant toxic zoa, greater frenzyfin, greater voidfin, tidal krait); an idle pincer crab 3 tiles from a nest crab's spawn left out (a broodling); and two giant astral zoas outside the rule (one first seen fighting another player, one in 20261025_210102, a capture not in calibration.tags)",
  "others": {
   "enabled": false,
   "arrive_per_h": 20.0,
@@ -1251,20 +1320,108 @@
     "damage_type": "physical",
     "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14},
     "damage_type_note": "physical, not an area spell: GirthyEarthy's 85-95 against the Nightmares' 106-126 follows their armor (83 vs 54), not their magic resist (112 vs 135-139)",
-    "note": "level 3 (2026-10-25 11:31:08-11:32:11; 2026-10-24 20:56:43-20:57:37): every 7.5-8.0 s (n=9 gaps, median 7.7) one number on each pet within 3 tiles of it at once, beside its own swings: NightmareA, NightmareB and a searing imp 106-126 (8 times, all three 3 tiles off), GirthyEarthy 85-95 alone beside it (3 times; the casters at 5 got none); Logan at 4-7 tiles never (11 of 11), so radius 3. Its first 2 s into the fight (11:31:10.5). On Logan: never measured, [INFERENCE: the pets' x 0.45, the giant astral zoa's ratio of Logan's hits to the pets']. Twice a second number with it, 48-53 on all three pets (11:31:56.9, 11:32:04.5): not modelled. Three killed at 20,001 in numbers (the wiki's 20,000 hits + 1), in 56-69 s"
+    "note": "level 3 (2026-10-25 11:31:08-11:32:11; 2026-10-24 20:56:43-20:57:37): every 7.5-8.0 s (n=9 gaps, median 7.7) one number on each pet within 3 tiles of it at once, beside its own swings: NightmareA, NightmareB and a searing imp 106-126 (8 times, all three 3 tiles off), GirthyEarthy 85-95 alone beside it (3 times; the casters at 5 got none); Logan at 4-7 tiles never (11 of 11), so radius 3. Its first 2 s into the fight (11:31:10.5). On Logan: never measured, [INFERENCE: the pets' x 0.45, the giant astral zoa's ratio of Logan's hits to the pets']. Twice a second number with it, 48-53 on all three pets (11:31:56.9, 11:32:04.5): not modelled. Three killed at 20,001 in numbers (the wiki's 20,000 hits + 1), in 56-69 s. Each burst number also puts a Pressure stack on its victim, 67 when it resolves (capture 20261027_220057 22:32:23.25, :31.10, :46.60 on GraveRobber at 1: 71, 76, 99, resolved 22:32:48.72 with the colossal scourgeon's three as 6 x 67) [INFERENCE: Logan's stack as the colossal scourgeon's]",
+    "pressure": {"damage_pet": [67, 67], "damage_player": [20, 20], "seconds": 30.0}
+   }
+  ],
+  "colossal scourgeon": [
+   {
+    "kind": "burst",
+    "id": "sweep",
+    "first_s": [1.0, 6.0],
+    "every_s": 7.75,
+    "radius": 2,
+    "damage_pet": [40, 69, 62],
+    "damage_player": [40, 69, 62],
+    "pressure": {"damage_pet": [67, 67], "damage_player": [20, 20], "seconds": 30.0},
+    "note": "level 3 (capture 20261027_220057): every 7.5-7.9 s one number on each pet within 2 at once (AlaFlambe 62-69 n=7, GraveRobber 40-60), each adding a Pressure stack (buff icon 286) that resolved 30.0-30.15 s after the first as 67 a stack (4 on AlaFlambe 22:28:51.71, 3 on GraveRobber 22:28:59.62, 3 + 3 22:33:32.68); its other numbers also from 2 tiles (GraveRobber 34-76, AlaFlambe 60-71) [INFERENCE: its melee reaches 2]. On Logan never within 2: damage_player the pets' [INFERENCE], his stack 20 [INFERENCE: as the giant pincer crab's 10 to the pets' 35, x 2]"
+   }
+  ],
+  "greater frenzyfin": [
+   {
+    "kind": "burst",
+    "id": "spin",
+    "first_s": [2.0, 8.0],
+    "every_s": 7.4,
+    "radius": 2,
+    "damage_pet": [32, 60, 44],
+    "damage_player": [20, 40, 30],
+    "note": "level 3 (capture 20261027_220057): sound 0x090A twice 0.17-0.34 s apart on its tile, every 7.2-9.4 s (n=15 pairs), a number on each pet within 2 0.18-0.44 s after the second: GraveRobber 32-47, AlaFlambe 58-60 at 2; Logan never within 2 (damage_player [INFERENCE])"
+   },
+   {
+    "kind": "ooze",
+    "first_s": [2.0, 8.0],
+    "every_s": [15.0, 22.5],
+    "delay_s": 0.4,
+    "bursts": 3,
+    "burst_s": 0.5,
+    "radius": 2,
+    "damage_pet": [34, 70, 50],
+    "damage_player": [20, 40, 30],
+    "damage_type": "physical",
+    "note": "its '*frenzies*' (6, 15.1-22.4 s apart): rounds at +0.36-0.60, +0.85-1.12 and +1.36-1.42 s on the pets within 2 (GraveRobber 34-50, AlaFlambe 53-70; 22:23:35.94 AlaFlambe 70/59/60/53 at 2); Logan never within 2 (damage_player [INFERENCE])"
+   }
+  ],
+  "drowned swashbuckler": [
+   {
+    "kind": "burst",
+    "id": "riposte",
+    "first_s": [3.0, 9.0],
+    "every_s": 9.35,
+    "center": "target",
+    "reach": 1,
+    "radius": 0,
+    "damage_pet": [29, 43, 36],
+    "damage_player": [20, 33, 28],
+    "damage_type": "physical",
+    "note": "level 3 (capture 20261027_220057): '*ripostes*' (6) with animation 19 and a number on its target in the same packet, 29, 34, 38 / 43, 34, 37 on GraveRobber, 8.5-10.2 s apart; beside its own swings (16-53 on GraveRobber, median 34, n=20; Logan once 33). Not modelled: its '*adventurers rope*' (2, 22:26:58.88 and 22:30:40.34: it lands beside its target 6-8 tiles off and swings 0.4 s later)"
+   }
+  ],
+  "giant toxic zoa": [
+   {
+    "kind": "poison",
+    "chance": 1.0,
+    "seconds": 45.0,
+    "every_s": 5.0,
+    "damage_pet": 41,
+    "damage_player": 25,
+    "note": "level 3 (capture 20261027_220057): its hits carry Lethal Poison (buff icon 134): GraveRobber 22:24:22.53 (-60, melee), AlaFlambe 22:24:30.16 (-72 at 9 tiles), Logan 22:24:46-22:25:01 (-27..-33 at 3, '*begins to spasm uncontrollably*'); the pets' ticks 41 every 5.0 s (AlaFlambe 9 then 4, 533 in all); Logan cured each time 1.8-3.5 s later, so his tick is unmeasured (damage_player [INFERENCE]); seconds [INFERENCE: 9 ticks seen uncured]"
+   }
+  ],
+  "giant pincer crab": [
+   {
+    "kind": "pressure",
+    "chance": 0.5,
+    "damage_pet": [35, 35],
+    "damage_player": [10, 10],
+    "seconds": 30.0,
+    "note": "level 2 (capture 20261027_220057): its pinches (two numbers each, e.g. 27 + 15) put a Pressure stack on its victim, resolved 30 s after the first as 35 a stack on GraveRobber (22:20:09.44 2 x 35; 22:53:32.40 3 x 35) and 10 on Logan (22:51:08.22 2 x 10, with 'Claws pinch you in place, piercing your armor and applying pressure buildup!' and an entangle to 22:50:47.56, not modelled); 4 stacks in 18 s at 22:53:02-:20 [INFERENCE: chance 0.5 a hit]"
+   }
+  ],
+  "scourgeon": [
+   {
+    "kind": "pressure",
+    "chance": 0.25,
+    "damage_pet": [32, 32],
+    "damage_player": [10, 10],
+    "seconds": 30.0,
+    "note": "level 2 (capture 20261027_220057): Pressure stacks with its hits on GraveRobber (22:51:56.26 21, 22:52:03.73 18, 22:52:19.51 28), resolved 22:52:26.25 as 3 x 32 [INFERENCE: chance 0.25 a hit, 3 stacks in ~13 swings; Logan's stack as the giant pincer crab's]"
    }
   ],
   "giant astral zoa": [
    {
     "kind": "burst",
     "id": "astral",
-    "first_s": [1.0, 6.0],
-    "every_s": 6.0,
-    "radius": 7,
-    "damage_pet": [70, 82, 80],
+    "first_s": [3.1, 3.6],
+    "every_s": 5.6,
+    "center": "target",
+    "reach": 11,
+    "radius": 3,
+    "damage_pet": [70, 94, 79],
     "damage_player": [35, 56, 37],
+    "debuff": {"kind": "backlash", "per_stack": 0.3, "duration_s": 30},
     "ref": {"pet": "a searing imp", "bestiary": "Random 2026-10-24", "level": 10},
-    "note": "level 3, a mage standing still at (7156-7158, 2193-2196) the whole fight (2026-10-24 20:54:49-20:56:24, 21:01:02-21:02:49; 2026-10-25 11:32:54-11:33:52): every 5.0-8.0 s (gaps 5.0-5.2 in a row the first evening fight, 6.8-8.0 the second day; median ~6) 78-82 on each pet 5-7 tiles from it (the three of 11:32:58 to 11:33:47, the searing imp and fireminion 2026-10-24) and Logan 35-56 within ~3 of them, each with 'Astral backlash impacts your ability to concentrate while casting!' (8 times; 'You are no longer suffering spell backlash.' ~35 s later: a casting penalty, not modelled). The tank beside it (GirthyEarthy at 1) took none of these but 70-78 alone at the same cadence: in the sim every one of us within 7 gets it. 2 killed at 18,001 (wiki 18,000 hits + 1) in 89-92 s"
+    "note": "its astral spell (docs/NOTES.md 'Backlash'): on its target and everyone of us within 3 of it, not a ring round the zoa: in 70 attacks with positions the victims were at most 3 apart, and 101 of 107 spared within 14 of it stood 4+ from the nearest victim; with the phoenix team it took the tank 19 times, the phoenix 8. Every 4.8-8.9 s (median 5.6, n=59), the first 3.1-3.5 s into the fight; victims up to 9 tiles from it. Pets 70-94 (median 79, n=94), Logan 35-56 (n=8). Every victim gets a Backlash stack: a 0.3 chance on each spellcast to fizzle for 30 s, each stack its own timer (0xFF sub 8 icon 17, cliloc 1110022, sent for pets too; on Logan 'Astral backlash impacts your ability to concentrate while casting!'). Captures 20261024_102346 20:54:55-21:02:49, 20261024_225113 11:32:55-11:33:44, 20261025_210102 21:29:15-21:31:07, 20261026_183552 22:45:55-22:46:42. A mage at (7156-7158, 2193-2196) that never moved; 2 killed at 18,001 (wiki 18,000 hits + 1) in 89-92 s"
    },
    {
     "kind": "burst",
@@ -1276,6 +1433,21 @@
     "damage_pet": [29, 51, 41],
     "damage_player": [29, 39, 34],
     "note": "level 3: a number on 3 (twice 4) of us at once, out to 12 tiles from it, every 3.1-3.6 s in a row (gaps up to 10 between), pets 29-51 (median 41), Logan 29-39 (n=5; 33, 37, 39 at 6-9 tiles); it skipped Logan at 5-10 tiles as often: 3 picked at random"
+   }
+  ],
+  "astral zoa": [
+   {
+    "kind": "burst",
+    "id": "astral",
+    "first_s": [3.0, 3.5],
+    "every_s": 7.35,
+    "center": "target",
+    "reach": 11,
+    "radius": 3,
+    "damage_pet": [42, 60, 45],
+    "damage_player": [35, 42, 37],
+    "debuff": {"kind": "backlash", "per_stack": 0.2, "duration_s": 30},
+    "note": "level 2, the giant's spell smaller: every 6.2-10.9 s (median 7.35, n=21), the first 3.1-3.4 s in; pets 42-60 (median 45, n=47), Logan 35-42 (n=8); a 0.2 Backlash stack on each victim (AlaFlambe fizzled 26 of 88 casts under them). Captures 20261024_102346 19:52:25-20:12:27, 20261025_210102 21:14:01-21:18:24, 20261027_220057 22:45:59-22:53:59"
    }
   ],
   "greater razorfin": [
@@ -1299,18 +1471,24 @@
     "note": "level 3, 2026-10-25 11:34:13-11:34:50 (the only fight; it killed the three pets): a mage near (7197, 2172-2177); every 5.3-6.1 s (n=6 gaps) one number on each pet 10 tiles from it and on Logan at 8-12, the pets' rising 82-87, 89-95, 97-103, 110-112, 112-118, 123-128, Logan's 41, 32, 40, each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
    }
   ],
-  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the Pressure effect (#4646) of the pinching crabs and kraits (none seen resolve); the greater razorfin's steady 18 every ~1.2 s on the tank beside its 36-70 swings (2026-10-24 20:58:26-20:59:45, n~50; calibrate's swing numbers carry both); the giant zoas' spell backlash and scorch (their notes), and a combustive zoa's scorch on Logan once on level 2 (2026-10-26 22:38:43, 'The creature scorches you and you become more susceptible to damage from them!'); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*' (their entries)."
+  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the greater razorfin's steady 18 every ~1.2 s on the tank beside its 36-70 swings (2026-10-24 20:58:26-20:59:45, n~50; calibrate's swing numbers carry both); the giant zoas' scorch (their notes), and a combustive zoa's scorch on Logan once on level 2 (2026-10-26 22:38:43, 'The creature scorches you and you become more susceptible to damage from them!'); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's). Capture 20261027_220057, not modelled: the drowned swashbuckler's '*adventurers rope*', the drowned buccaneer's bleed on both pets at once (once, 18 a tick), the giant kelpdweller's 2-tile reach (3 numbers), the biolumen shellpod's Festering Wound (a healing penalty of unmeasured size), the Glowmark (more aggro) from a lighthouse shellpod or the soulcatcher beside it, the razorfin's bleed (9-10 every ~3 s; its chance a hit unmeasured). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte (their entries)."
  },
  "ranged_observed": {
   "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},
   "soulcatcher": {"damage": [23, 30], "note": "its 4 numbers on the pets in the capture (23 and 26 beside one, 30 twice from range)"},
   "giant astral zoa": {"damage": [36, 54], "every_s": 3.5, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14}, "note": "level 3: its single numbers on the one pet it fought, 35-48 on NightmareB/A 3.4-4.1 s apart (2026-10-25 11:33:00-11:33:52), 38-54 on GirthyEarthy beside it 2.5-5 s apart (2026-10-24 20:54:58-20:56:22): the wiki's spell damage 45-55 less the pet's armor; the defaults' 0.5 x wiki every 6 s made a third of it"},
-  "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14}, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"}
+  "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14}, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"},
+  "giant toxic zoa": {"damage": [35, 78, 46], "every_s": 3.5, "note": "level 3 (capture 20261027_220057): its numbers on GraveRobber beside it 35-69 (median 46, n=25) and on AlaFlambe at 9-10 tiles 36-78, each with its Lethal Poison (specials); every_s as the giant astral zoa's [INFERENCE]; the wiki's 45-55 x the default 0.5 made 22-28"}
  },
  "melee_observed": {
   "pincer crab": {
    "melee": [3, 7, 4],
    "note": "its numbers on the pets with no monster but pincer crabs within reach, not 0.3-0.7 s after a scavenger's large swing: 2-7 (median 4, n=17, one 18; captures 20261026_183552 and 20261024_102346). With 2026-10-26 22:36-22:48 in the observations calibrate's damage_to_pets for it read 3-20 (median 5): the scavengers' large swings and the nest crabs beside them"
+  },
+  "colossal scourgeon": {
+   "melee": [34, 76, 50],
+   "swing_s": 3.0,
+   "note": "level 3 (capture 20261027_220057): its numbers on GraveRobber besides the sweep's (specials), 34-76, from 2 tiles; calibrate's 42-108 every 1.53 s carry the sweep and the 67 Pressure stacks resolving beside it. swing_s the default [INFERENCE: its own period unmeasured]"
   },
   "ocean bedrock": {
    "melee": [20, 33, 25],

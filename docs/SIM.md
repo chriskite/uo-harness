@@ -1700,6 +1700,97 @@ with `--fight-via` on level 3. Gold an hour is looted per hour on the level; ban
 - **Maus 3 with "pairs":** half the deaths and 6 % more banked.
 - **Open:** level 3's giant astral zoa at the arrival (7158, 2195), now the main killer there.
 
+### Level 3's west and north, Backlash, Pressure; discord or provoke first (2026-10-27)
+
+User 2026-10-27: mine the new Tidal Tomb runs (another entrance to level 3, up to the boss room). Also: avoid the
+giant astral zoa when the pet team relies on casters (its Backlash). And: is the provocation chance right, and how
+does discording before provoking compare with provoking first? His hypothesis was that "the higher fail rate and
+longer cooldown on provo means we could leave our pets fighting undiscorded mobs too long". The evidence is in
+docs/NOTES.md "Tidal Tomb: level 3's west entrance and the boss approach", "Backlash" and "Bard rates and cooldowns
+live".
+
+**The scenario:**
+
+- **New ground:** capture 20261027_220057 joins `calibration.tags`, and the observations were regenerated. It adds:
+  - the level 2 -> 3 west entrance (6821, 1909) -> (7092, 2193) and its way back;
+  - the boss approach (7104, 1944) <-> (7321, 2167), a corridor and the unentered chamber;
+  - level 3's crimson gate (7107, 2055);
+  - two more dolphins and the approach's underwater box;
+  - the dungeon and calibration boxes widened to x 7401;
+  - 35 spawns by the idle rule, plus two giant astral zoas. That brings 8 types new to the spawns (colossal
+    scourgeon, drowned buccaneer and swashbuckler, giant kelpdweller, giant toxic zoa, greater frenzyfin, greater
+    voidfin, tidal krait); 204 spawns in all.
+- **Backlash** (`burst` with `center: "target"`, `debuff`; `World._fizzles`): the astral zoas' spell hits their
+  target and whoever is within 3 of it, and puts a stack on each. A pet's cast fizzles 1 - Π(1 - v) of the time: no
+  damage, the cadence unchanged. Test: `test_tidal_backlash`.
+- **Pressure** (`World._pressure`; on a hit, kind "pressure", or with a burst): every stack lands 30 s after the first,
+  all at once. Colossal scourgeon and sea serpent 67 a stack, giant pincer crab 35 (10 on Logan), scourgeon 32. Test:
+  `test_tidal_pressure`.
+- **Also:** the giant toxic zoa's Lethal Poison (41 every 5 s on a pet) and its 35-78 spells, the greater frenzyfin's
+  spin and frenzy, the swashbuckler's riposte, and the colossal scourgeon's sweep and melee.
+- **Not modelled:** the swashbuckler's rope jump, the buccaneer's bleed, the kelpdweller's reach, Festering Wound,
+  Glowmark and the razorfin's bleed (specials note).
+- **The player's name** now comes at login (`P.name`, as the live status gives it). The runner reads it for
+  `--avoid-backlash`.
+
+**The barding model** (the live fit over 8,534 uses; details in NOTES):
+
+- **A Provocation's d** is the mean of the pair's Discordance d plus 31.5 (`bard.provoke_d`), not a per-type
+  provoke fit. Before, the sim's provocation succeeded .518 of the time, against .615 live.
+- **A failed provocation** no longer turns the creature on Logan (live 1 of 132).
+- **A Discordance** gets no +25 chance on a provoked creature (live 34 of 47); its duration keeps the bonus.
+- **No 5 s skill timer** after a "barding break" refusal.
+- **`provoke_x` 4 -> 7:** a provoked pair's hits.
+- **Barding breaks** at 0.5 times the rate for provoked creatures, 1.55 for pacified (`break_x`).
+- **Tidal Tomb's own Discordance and Peacemaking d** from the hand play (`bard.capture_d`).
+- **The runner** now starts its 5 s skill timer at the answer, not the use (live 20-31 % of its next tries were
+  refused), takes no timer after a barding-break answer, and uses `CALM_SUCCESS_S` 10.5 (live 10.4-10.6).
+- **Cooldowns:** live, provocation's cooldown is not longer than discord's. The skill timer is 5 s from the answer
+  for every skill, success or fail. The 10.5 s calm timer after a peace or provoke success blocks only the next peace
+  or provoke, never a discord.
+
+**Runs** (Tidal Tomb seeds 4-27, 30 min; Maus 3 seeds 101-196). "Pairs" provokes any two monsters in the fight before
+Discordance; "off" is Discordance first, the old order. Undiscorded is the share of monster-seconds on us or a pet
+with the monster not discorded (`on_us_s`); a provoked monster fights its partner, so it isn't on us.
+
+| | runs with a death | damage on Logan an hour | kills an hour | banked gp an hour | provocations ok | undiscorded |
+|---|---|---|---|---|---|---|
+| Maus 3, discord first (96) | 10 | 2,104 | 155 | 140,874 | 535 of 854 (.63) | 75 % |
+| Maus 3, provoke first (96) | **7** | **1,861** | 155 | 141,511 | 798 of 1,434 (.56) | 78 % |
+| level 2 crawl, discord first | 6 of 24 | 2,182 | 175 | 115,884 | 140 of 174 | 66 % |
+| level 2 crawl, provoke first | **4 of 24** | **1,655** | 169 | 105,623 | 244 of 301 | 65 % |
+| level 3 (west entrance), discord first | 17 of 24 | 2,373 | 601 | 85,038 | 131 of 166 | 50 % |
+| level 3 (west entrance), provoke first | 17 of 24 | 2,231 | 471 | 86,260 | 257 of 340 | 58 % |
+
+- **The hypothesis holds in part, but provoking first still wins.** With provoke first, a slightly larger share of
+  the monster time on us is undiscorded (Maus 78 % against 75 %). But the provoked pairs take each other off us:
+  monster-seconds on us an hour fell from 3,263 to 3,167. Logan took 12 % less damage on Maus 3 (24 % on level 2),
+  with 7 deaths against 10 and the same kills and banked gold.
+- **The undiscorded share is high either way** (75-78 % on Maus 3): many monsters die or leave before their turn
+  comes. Order isn't the lever there; the 5 s skill timer is.
+- **A provocation of an undiscorded pair** succeeds less often than one after a discord: Maus .56 with provoke first
+  against .63 with discord first, where most provocations follow a discord (+25). Live (mostly discord first) it was
+  .612. Tidal Tomb's monsters are easier to discord (their fitted d 24-64), so their provocations succeed more.
+
+**Level 3's routes and Backlash** (seeds 4-27, provoke first):
+
+| | runs with a death | damage on Logan an hour | banked gp an hour | pet deaths | Backlash stacks / pet fizzles |
+|---|---|---|---|---|---|
+| old route: (6884, 1929), out by level 2's gate via `--leave-via` | **8 of 24** | 2,984 | **152,445** | 17 | 483 / 363 |
+| west entrance (6821, 1909), out by level 3's gate (7107, 2055) | 17 of 24 | 2,231 | 86,260 | 13 | 705 / 503 |
+| west entrance, `--no-avoid-backlash` | 18 of 24 | 2,446 | 77,494 | 11 | 796 / 593 |
+
+- **The west entrance is worse in the simulator.** Its crawl starts in the ground the user found hardest: the
+  colossal scourgeons, the giant combustive zoa in the gate room and the greater frenzyfins. Live, GraveRobber died
+  there twice. 10 of its 17 deaths are on level 3 (7088-7120, 2044-2147), 6 on level 2 and 1 on level 1.
+- **Old route deaths:** 5 of its 8 came on level 2, at the strip's arrival from level 1 and at (6882, 2033), to
+  drowned mariners and soulcatchers. 1 came on level 1, and 2 on level 3 to a tidal sea serpent and its Pressure.
+  None were to the giant astral zoa, now avoided.
+- **`--avoid-backlash`** cut the stacks on us by 11 % and the fizzles by 15 %, and one death fewer (18 -> 17). The
+  level 2 astral zoas still add stacks, and a giant that wakes on its own is still fought.
+- **Open:** level 2's strip arrival (the mariners and soulcatchers; their observations didn't change, the mariner
+  still 23-43 every 1.57 s); level 3's middle room for a crawl started from the west entrance.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its

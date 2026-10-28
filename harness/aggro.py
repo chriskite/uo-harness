@@ -80,6 +80,11 @@ WAR = 0x40
 # suppose the runner can avoid the elder vampires for now". The consort, avoided from 2026-10-13, no longer
 # ("we don't need to avoid any mob specifically", 2026-10-15)
 NEVER_AGGRO = ("elder vampire", "elder vampire countess")
+# A giant astral zoa's spell stacks Backlash on its victims, a 0.3 chance a stack to fizzle each spellcast for 30 s:
+# the phoenix fizzled 54 % of its casts under it and the fight took 111 s against 47 (docs/NOTES.md "Backlash"). User
+# 2026-10-27: "Maybe we should just avoid it when our pet team relies on caster(s)": --avoid-backlash puts these into
+# the never-aggro set when every attack pet of the team casts (tamer.casters_only).
+BACKLASH_TYPES = ("giant astral zoa",)
 CASTER_AI = frozenset(("mage", "meleemage"))
 _KB = None
 
