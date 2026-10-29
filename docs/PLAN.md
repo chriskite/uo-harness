@@ -2821,6 +2821,35 @@ hand"). Decisions:
 - **Not done**, with the evidence for the next session: the six specials not measured enough, other players and reds
   (no `others`/`reds` blocks), the walk-in wait on the ramp (a runner change, not the simulator's).
 
+## Oxygen: a breath on level 1 or a dolphin on level 3 (user 2026-10-28, open, not built)
+
+User, during the first Tidal Tomb level 2 shift: "The fact the runner doesn't handle oxygen is going to become a
+problem. We're fine right now but its going to need to either go back to level 1 for a breath or fight to the dolphins
+on level 3 in the future." Today the runner reads no oxygen. Past 732 s under water, Logan and the pets lose hits every
+6 s down to 66 % (docs/SIM.md "Oxygen"), and after ~24 min [INFERENCE] down to 33 %. That eats the heal margin of a
+long crawl on level 2 or 3. Not built yet, by the user's word ("we're fine right now").
+
+What the rule can stand on, all measured (docs/NOTES.md "Oxygen, measured", "The Recovery Dolphin reaches 12 tiles"):
+
+- **The clock:**
+  - The server's 'Oxygen' gump 0xEC5F8754 comes every 6 s.
+  - Its second bar's art steps down from 28135 every 30.25 s, 24 steps to the deprivation at 732 s.
+  - It is back at 28135 on level 1.
+  - Or the runner counts its own seconds under water since the last refill: the simulator's `oxygen.underwater` boxes.
+- **The refills:**
+  - Level 1 (and the outside).
+  - A Recovery Dolphin within 12 tiles, with "Your oxygen is refilled." every ~5.25 s. Dolphins are known on level 3
+    at (7164, 2210) by the main arrival, (7088, 2185) by the west entrance, and (7321, 2154) by the boss approach.
+- **The two options the user named:**
+  1. **A breath on level 1:** from level 2, the walk back up the arrival's pair to (6718, 1984), a moment on level 1,
+     then back down.
+  2. **The dolphins on level 3:** from level 2, fighting through to a level 3 entrance by the north strip (6884, 1929)
+     or the north-west corner (6821, 1910), each with a dolphin near its arrival. On level 3, back to the nearest
+     dolphin.
+  - Either way it's a timer leg ahead of 732 s, like a leave, with the pets on "All Follow Me".
+- **The simulator models both already:** oxygen, the dolphins and level 1's refill (`World._oxygen`,
+  `test_tidal_oxygen`, `test_tidal_dolphin`). Whichever option is built is measured there first.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
