@@ -5400,6 +5400,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       keeps a wait's time from running during a save (at most `WORLD_SAVE_MAX_S` 15 s). `Link.wait` and the
       book-gump wait in `escape._open` use it, and no re-click goes out during a save (test_escape
       `test_open_through_world_save`).
+    - **The drop-off had the same gap** (hunt-20261029-160655-f26a, 16:57:47, Logan at home, capture
+      20261029_100942). The shelf 0x5656B661's double-click went out at t=…064.10, and "The world is saving, please
+      wait." came 0.04 s later, at 064.14. "World save complete" came at 067.66 and the shelf's 0x24 at 068.28. That was
+      4.2 s after the click, past dropoff's 3 s wait. The run aborted at home with 41,231 gp carried: "the container
+      0x5656B661 holding drop-off items didn't open: ['The world is saving, please wait.']". Since then
+      `dropoff._Flow.wait`, the shelf-contents wait and the chest-move wait use `Deadline`, so a save no longer uses
+      up the wait (test_dropoff "a world save as the shelf opens": failed before with the live message).
   - **When ingots are stored** (user 2026-10-20, "the same way we store boards"; docs/PLAN.md "Store the ingots
     the way lumber stores its boards").
     - At a trip's end, an abort's way home or `stop --after-trip`: always, in the room.

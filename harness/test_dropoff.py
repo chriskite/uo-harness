@@ -5,6 +5,7 @@ Run: python harness/test_dropoff.py"""
 import json
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -79,6 +80,33 @@ class Room:
     def poll(self):
         evs, self.pending = self.pending, []
         return self.state, evs
+
+
+class SavingRoom(Room):
+    """A room whose first double-click lands in a world save: "The world is saving, please wait." at once, the
+    server's answer only after "World save complete" `save_s` later (NOTES: a save holds the server 2-4 s and it
+    answers what came in meanwhile afterwards)."""
+
+    def __init__(self, plan, extra_items, save_s):
+        super().__init__(plan, extra_items)
+        self.save_s, self.held, self.save_end = save_s, None, None
+
+    def send(self, pkt):
+        if pkt[0] == 0x06 and self.save_end is None:
+            self.say("The world is saving, please wait.")
+            self.save_end = time.monotonic() + self.save_s
+            self.sent.append(pkt)
+            self.held = pkt
+            return
+        super().send(pkt)
+
+    def poll(self):
+        if self.held is not None and time.monotonic() >= self.save_end:
+            self.say("World save complete. The entire process took 2.3 seconds.")
+            pkt, self.held = self.held, None
+            super().send(pkt)     # the server's answer now; the click itself went out (and was counted) at send
+            self.sent.pop()
+        return super().poll()
 
 
 def test_dropoff():
@@ -161,6 +189,20 @@ def test_dropoff():
     except dropoff.DropoffError as e:
         check("a tome not in the opened shelf: refused before any menu",
               not any(p[0] == 0xBF for p in room.sent) and "isn't in the container 0x5656B661" in str(e), str(e))
+
+    print("== a world save as the shelf opens (live 2026-10-29 16:57:47, hunt-20261029-160655-f26a) ==")
+    room = SavingRoom(plan, {f"0x{shelf_serial:08X}": inside[f"0x{shelf_serial:08X}"]}, save_s=0.8)
+    for t in tomes:
+        del room.state["world"]["items"][f"0x{t:08X}"]
+    room.contents[shelf_serial] = {k: v for k, v in inside.items() if k != f"0x{shelf_serial:08X}"}
+    try:
+        out = dropoff.run(room, NoHuman(), plan, timeout=0.3)
+    except dropoff.DropoffError as e:
+        out = {"ok": False, "error": str(e)}
+    check("the save outlasts the 0.3 s wait: the shelf's open that comes after 'World save complete' is taken, "
+          "one click, every step picked",
+          out["ok"] and room.sent.count(actions.dclick(shelf_serial)) == 1
+          and len([p for p in room.sent if p[0] == 0xBF and p[4] == 0x15]) == len(plan["steps"]), out.get("error"))
 
 
 def main():

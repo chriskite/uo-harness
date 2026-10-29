@@ -51,12 +51,18 @@ class _Flow:
     def __init__(self, io):
         self.io, self.heard = io, []
 
-    def wait(self, done, timeout: float) -> list:
-        end, got = time.monotonic() + timeout, []
+    def wait(self, done, timeout: float, seen: list = ()) -> list:
+        """The events until one is `done` or the timeout; a world save doesn't use up the timeout (agent_link.Deadline:
+        live 2026-10-29 16:57:47, hunt-20261029-160655-f26a, the shelf's open went out during "The world is saving,
+        please wait." and the 3 s wait gave up before the server answered: the run aborted with 41k gp carried)."""
+        from agent_link import Deadline
+        deadline, got = Deadline(timeout, getattr(self.io, "save_t0", None)), []
+        deadline.see(seen)            # a save's start line heard just before the send
         while True:
             _, evs = self.io.poll()
             got += evs
-            if any(done(e) for e in evs) or time.monotonic() > end:
+            deadline.see(evs)
+            if any(done(e) for e in evs) or deadline.over():
                 self.heard += [e for e in got if e.get("ev") in ("speech_heard", "cliloc")]
                 return got
             time.sleep(0.05)
@@ -68,7 +74,7 @@ class _Flow:
         except Exception as e:
             raise DropoffError(f"{what}: {e}")
         self.heard += [e for e in pre if e.get("ev") in ("speech_heard", "cliloc")]
-        return pre + self.wait(done, timeout)
+        return pre + self.wait(done, timeout, pre)
 
 
 def chest_items(state: dict, rules: dict) -> list[tuple[int, dict]]:
@@ -119,7 +125,7 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
     A step whose item (or `in` container) isn't in view within RANGE stops the drop-off before anything is sent.
     Returns {ok, steps [{serial, name, lines}], chest [{serial, name, amount}], left [serials not moved], error?,
     heard}."""
-    from agent_link import containers_to_open
+    from agent_link import Deadline, containers_to_open
     st, _ = io.poll()
     items, pos = st["world"]["items"], st["movement"].get("pos")
     shut, unseen = [], []
@@ -146,11 +152,12 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
         got = flow.send_wait(actions.dclick(c), opened, f"opening the container 0x{c:08X}", timeout)
         if not any(opened(e) for e in got):
             raise DropoffError(f"the container 0x{c:08X} holding drop-off items didn't open: {_lines(got)}")
-    end = time.monotonic() + timeout
+    deadline = Deadline(timeout, getattr(io, "save_t0", None))
     while unseen:                     # its contents come right after the open (0x3C)
-        st, _ = io.poll()
+        st, evs = io.poll()
+        deadline.see(evs)
         unseen = [s for s in unseen if f"0x{_serial(s['serial']):08X}" not in st["world"]["items"]]
-        if unseen and time.monotonic() > end:
+        if unseen and deadline.over():
             raise DropoffError(f"{unseen[0]['name']} 0x{_serial(unseen[0]['serial']):08X} isn't in the container "
                                f"0x{_serial(unseen[0]['in']):08X}")
         if unseen:
@@ -200,9 +207,10 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
             human.wait("drag")
             flow.send_wait(actions.drop(serial, combat.DROP_AUTO, combat.DROP_AUTO, 0, 0, chest),
                            lambda e: False, "dropping into the chest", 0.0)
-            end = time.monotonic() + timeout
-            while time.monotonic() < end:
-                st, _ = io.poll()
+            deadline = Deadline(timeout, getattr(io, "save_t0", None))
+            while not deadline.over():
+                st, evs = io.poll()
+                deadline.see(evs)
                 now = st["world"]["items"].get(f"0x{serial:08X}")
                 if now is None or _serial(now.get("container") or 0) == chest:
                     break
