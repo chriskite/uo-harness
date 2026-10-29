@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
+import oxygen  # noqa: E402
 import pathfind  # noqa: E402
 import tamer  # noqa: E402
 from sim import clock as simclock  # noqa: E402
@@ -5956,7 +5957,8 @@ def test_oxygen_hop():
             w.under_s = 640.0
             clock.sleep(7.0)
             st = loop.state()
-            el, skipped = loop.oxy.elapsed(clock.monotonic()), loop.oxygen_due(st)
+            el = loop.oxy.elapsed(clock.monotonic())
+            skipped = [s["tile"] for s in oxygen.sites(loop.oxy.ox)]   # the arrival stairs are out of reach from here
             for h in loop.oxy.ox["hops"]:
                 h.pop("skip", None)
             loop.oxy_plan_t = -1e9
@@ -5970,7 +5972,7 @@ def test_oxygen_hop():
     check("the clock follows the gump to within a bar's step (30.1 s) of the world's time under; no leg at 400 s",
           early_el is not None and abs(early_el - 407) <= 33 and early_due is None and el is not None
           and abs(el - 647) <= 33, f"clock {early_el} at 407, {el} at 647; due early {early_due}")
-    check("the hop marked `skip` in the scenario is no refill: no leg at 647 s", skipped is None, str(skipped))
+    check("the west strip's hop, marked `skip` in the scenario, is no refill", (6834, 2079) not in skipped, str(skipped))
     outcome = json.loads(ev[-1][0])["outcome"] if ev else None
     pets_near = all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets())
     check("at 640 s: the hop's leg, up on level 1 and back down on level 2 with both pets, refilled, no deprivation",
@@ -5978,6 +5980,43 @@ def test_oxygen_hop():
           and w._underwater(w.player) and pets_near and not any(k == "oxygen" for _, _, k, _ in hurts),
           f"site {site and site['kind']} outcome {outcome} dry {len(dry)} under {w.under_s:.0f} at {w.player.pos} "
           f"pets {[p.pos for p in w.pets()]} | " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+
+
+def test_oxygen_stairs():
+    print("== oxygen on level 2 as the scenario has it: the fought leg to the arrival stairs (the west strip skipped), up "
+          "to level 1 with the pets and back down, refilled, no deprivation ==")
+    import json
+    w = tidal_world((6942, 2026), z=-117)   # 21 route steps from the stairs up (6943, 2004): N from (x, 2005)
+    w.under_s = 640.0
+    hurts = _log_hurts(w)
+    dry = []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            loop, link, clock, store, patched = _oxygen_loop(w)
+            run_until = clock.on_advance
+
+            def watch(now):
+                run_until(now)
+                if w.player.x < 6800:
+                    dry.append(w.player.pos)
+            clock.on_advance = watch
+            clock.sleep(7.0)
+            st = loop.state()
+            site = loop.oxygen_due(st)
+            if site is not None:
+                loop.oxygen_leg(st, site)
+            ev = store.con.execute("SELECT data FROM job_events WHERE kind='oxygen'").fetchall()
+            store.close()
+    finally:
+        simclock.uninstall(patched)
+    outcome = json.loads(ev[-1][0])["outcome"] if ev else None
+    pets_near = all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets())
+    check("the stairs' leg: up to level 1's row y 1984 and back down to level 2, both pets along, refilled, no deprivation",
+          site is not None and site["tile"] == (6943, 2004) and outcome == "refilled" and dry
+          and all(p[1] == 1984 or p[1] == 1983 for p in dry) and w.under_s < 30 and w._underwater(w.player)
+          and pets_near and not any(k == "oxygen" for _, _, k, _ in hurts),
+          f"site {site and site['tile']} outcome {outcome} dry {sorted(set(dry))[:4]} under {w.under_s:.0f} at "
+          f"{w.player.pos} pets {[p.pos for p in w.pets()]} | " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
 
 
 def test_oxygen_dolphin():
@@ -6184,7 +6223,8 @@ def main():
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
-              test_walk_in_fought, test_oxygen_hop, test_oxygen_dolphin, test_tidal_hunt, test_ossuary_recall_rule,
+              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_dolphin, test_tidal_hunt,
+              test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
         t()

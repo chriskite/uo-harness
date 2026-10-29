@@ -28,7 +28,7 @@ before dispatch:
    | The user says | Level | State |
    |---|---|---|
    | level 1, nothing | TT 1 | The default; the runner's live runs since 2026-10-26. |
-   | level 2 | TT 2 | Never run live by the runner. No oxygen refill on level 2: its one known refill, the west strip, cost deaths in the simulator, so past 732 s under water Logan and the pets sit at 66 % (the heals stop at that floor; docs/HUNT_LOOP.md "Oxygen"). Simulator: 4 of 24 runs with a death (docs/SIM.md "Level 2's bedrocks"); 2026-10-27 seeds 4-5 both home (83k, 74k gp). |
+   | level 2 | TT 2 | Never run live by the runner. The oxygen rule fights back to the arrival stairs and steps up to level 1 and down again before 732 s under water (the simulator: deprived runs 36 -> 4 of 48, deaths 14 -> 11; docs/HUNT_LOOP.md "Oxygen"). Simulator: 4 of 24 runs with a death (docs/SIM.md "Level 2's bedrocks"); 2026-10-27 seeds 4-5 both home (83k, 74k gp). |
    | level 3 | TT 3 | Never run live by the runner. Level 2 fought through on the way (past 732 s under water there in most simulated runs: no refill leg on that walk), the giant astral zoa at the arrival the main killer; on level 3 the oxygen rule fights to the nearest Recovery Dolphin. Simulator: 5 of 24 with a death; 2026-10-27 seeds 4-5 both died (seed 5 on level 1's walk at 70 s). |
 
    **Level 2 or 3:** before the first run, tell the user in one message what the table says for it and wait for

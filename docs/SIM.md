@@ -2046,13 +2046,22 @@ strip's hop taken; net: banked an hour with 30 game minutes added for each death
   steps off, and its arrival (x 6840-6855, y 2073-2098) is the mariners' and soulcatchers' ground. The legs took a
   median 6 min, 26 of 58 stopped short (19 at the run's end, 7 on a leave rule), 10 died, and of the runs that died 8
   died at the strip against none without the rule. The deprivation came anyway. So the scenario's hop carries a
-  `skip` and level 2 runs have no refill leg.
+  `skip`.
 - **Tried and dropped:** legs from 0 s under (`OXY_MIN_S` 0; a tether to the strip): more deprivation damage, not
   less. Without a reach cap (legs of any length): the same picture. The step pace `OXY_STEP_S` 3.0 is the fought
   legs' 75th percentile (119 refilled legs: median 2.2 s a step).
-- **Level 2's arrival pair as a hop** (an experiment: the scenario's way up from (6943, 2004), never seen live): 48
-  runs on an earlier tree, against that tree's off side: runs deprived 40 -> 18, Logan's deprivation damage 7,764 ->
-  3,603, runs with a death 10 -> 13. Worth adding if the pair goes up live (open item 11).
+- **Level 2's arrival stairs** (2026-10-29: the user walked them, up and down, docs/NOTES.md "Oxygen, measured"; the
+  scenario's hop and its two neighbour columns each way). Seeds 4-51, 48 a side, one tree:
+
+  | level 2 | runs with a death | deaths in a leg | Logan's deprivation damage | the pets' | runs deprived | banked an hour | net |
+  |---|---|---|---|---|---|---|---|
+  | off (`--no-oxygen`) | 14 | - | 5,056 | 63,430 | 36 | 128,499 | 96,276 |
+  | on (the stairs) | **11** | 0 | **520** | **6,374** | **4** | 131,820 | 104,235 |
+
+  79 of 84 legs refilled, a median 115 s (the crawl works the arrival's side); 5 stopped short (4 at the run's end, 1
+  on a leave). Damage on Logan an hour 1,389 -> 962, potions 621 -> 529. No run died at the strip.
+  Before the walk, an experiment with the stairs on an earlier tree (when the way up was the scenario's guess) had
+  runs deprived 40 -> 18 and runs with a death 10 -> 13.
 
 ## The Ossuary (2026-10-28)
 
@@ -2765,8 +2774,8 @@ Tidal Tomb (since 2026-10-24; one visit so far):
    monsters on him, not on the pets, and the simulator gives him a quarter of it.
 10. **The golden moongate at the arrival (6652, 2095).** A crimson gate stands on the same tile. Double-click it
     and note which menu opens and its rows. This is the simulated runner's way out.
-11. **A step back onto level 2's arrival (6943, 2004).** Does it lead up to (6718, 1984), as the other pairs do? If
-    it does, it is level 2's refill near the crawl ("Oxygen: the refill legs": one `hops` entry).
+11. ~~A step back onto level 2's arrival (6943, 2004)~~: walked 2026-10-29, stairs up and down 3 tiles wide (docs/NOTES.md
+    "Oxygen, measured"); level 2's refill hop since ("Oxygen: the refill legs").
 12. ~~The oxygen past 10 minutes on level 2~~: captured 2026-10-24 (docs/NOTES.md "Oxygen, measured"; its texts, the
     gump's bars and hits are in the scenario since 2026-10-25 and 2026-10-28). The buff icons are still unread.
 13. **A dungeon-nest crab fighting alone.** Do pincer crabs emerge from it, and how often? The 8 seen came during

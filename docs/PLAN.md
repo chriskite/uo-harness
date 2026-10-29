@@ -2928,8 +2928,10 @@ What the rule can stand on, all measured (docs/NOTES.md "Oxygen, measured", "The
 - **Level 2's west strip is not taken (`skip`).** Measured, 48 runs a side on one tree: its legs walk the crawl from
   the arrival into the strip's arrival, the shooters' ground; runs with a death 12 -> 19 (10 during a leg), the
   deprivation no lower. This goes against the plan's option 1 as written; it keeps the user's point (fight to a refill
-  only if getting there doesn't kill us). So level 2 has no refill leg until its arrival pair is seen going up live
-  (docs/SIM.md open item 11; as an experiment it halved the deprived runs).
+  only if getting there doesn't kill us).
+- **Level 2's arrival stairs are** (2026-10-29: the user walked them both ways on request, 3 tiles wide; option 1 with
+  the stairs the runner already comes down). 48 runs a side: Logan's deprivation damage 5,056 -> 520, runs deprived
+  36 -> 4, runs with a death 14 -> 11, none during a leg, legs a median 115 s.
 - **Level 3's dolphins are.** Logan's deprivation damage 4,452 -> 2,435, the pets' 57,207 -> 29,657, runs with a death
   28 -> 25, banked an hour +13 %.
 - **Open:** the fought walk across level 2 to level 3 (11-20 game minutes in the simulator) runs past 732 s with no

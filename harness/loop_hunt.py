@@ -280,7 +280,8 @@ WALK_FOUGHT_S = 1200.0        # --fight-via: a fought leg not at its teleporter 
 # of the route. A refill whose leg can't end before the deprivation even from OXY_MIN_S is out of reach: no leg to it
 # (simulator 2026-10-28, level 2's crawl from its arrival: legs of ~160 steps across level 2 to the west strip took
 # ~7 min and came too late to spare the deprivation). Level 2's west strip is no refill at all (its `skip` in the
-# scenario: runs with a death 12 -> 19 of 48 with it; docs/SIM.md "Oxygen: the refill legs").
+# scenario: runs with a death 12 -> 19 of 48 with it); its arrival stairs are (2026-10-29: deprived runs 36 -> 4 of 48,
+# deaths 14 -> 11; docs/SIM.md "Oxygen: the refill legs").
 OXY_MIN_S = 300.0             # no refill leg before this long under water
 OXY_MARGIN_S = 120.0          # the leg's estimate is to end this long before the deprivation
 OXY_STEP_S = 3.0              # seconds a route step of a fought leg (simulator 2026-10-28, 119 legs: median 2.2, 75th 3.0)

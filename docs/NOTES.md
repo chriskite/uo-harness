@@ -5710,8 +5710,12 @@ Tomb"):
   when above 66% health).', and 30.1 s after it the first hit's line with the first bar's first step. So the k-th step
   lands at (k - 1) x 30.1 + 10 s under and the first hit at 23 x 30.1 + 10 + 30 = 732 s. Replayed through the runner's
   clock (harness/oxygen.py), that stream put the first hit at 733 s.
-- **No step onto level 2's arrival tile (6943, 2004) in any capture** (2026-10-28, the store's `step` rows: every one
-  from it goes off it after an arrival). Whether it takes you up to level 1 is still open (docs/SIM.md open item 11).
+- **Level 2's arrival is stairs both ways** (the user walked them 2026-10-29 10:40:05-10:40:43, store session 205; the
+  0x21 denies give the tiles). Up: a step N from (x, 2005), x 6942-6944, onto (x, 2004) lands on (x - 225, 1984) on
+  level 1, 5 times. Down: a step S (once SE) from (x, 1983), x 6717-6719, onto (x, 1984) lands on (x + 225, 2004), 6
+  times. Each landing is the other way's row, as at the west strip, so a round trip is a step off and back on. The
+  'Oxygen' gump read 28134 before (10:40:28) and full (28135, 28135) on every return to level 2, after ~1 s on level
+  1. The captures before had none of it: every step there went off the tile after an arrival.
 
 **Barding: the instrument changed between the days** (user 2026-10-25: "Barding depends on the quality of the
 instrument").

@@ -1209,11 +1209,10 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
 - **The refills** (`oxygen.sites`, from data/sim/tidal_tomb.json's `oxygen` block, as `tamer.py` reads the
   Mausoleum's spawn spots): each dolphin, and each `hops` entry without a `skip` (a teleporter up to dry ground and the
   one back down). Only those in our own underwater box count: a level 2 hunt never goes for a level 3 dolphin.
-  - The one hop known, level 2's west strip ((6834, 2079) up, (6609, 2060) down, the round trip seen live), carries a
-    `skip`: in the simulator its legs ran into the strip's arrival, where the shooters are, and cost deaths without
-    sparing the deprivation (below). So on level 2 there is no refill leg, only the healing rule below. Deleting the
-    `skip` takes it again; adding level 2's arrival pair once it is seen going up (docs/SIM.md open item 11) is one
-    more entry.
+  - Level 2: **the arrival stairs** ((6943, 2004) up, a step N from (x, 2005); (6718, 1984) down, a step S from
+    (x, 1983); walked by the user 2026-10-29). Its west strip ((6834, 2079) up, (6609, 2060) down) carries a `skip`: in
+    the simulator its legs ran into the strip's arrival, where the shooters are, and cost deaths without sparing the
+    deprivation (below). Deleting the `skip` takes it again.
 - **The easiest** (`oxygen_site`): the map route to each (onto a hop's teleporter, to within 9 of a dolphin:
   `DOLPHIN_STAND_R`, live 90 of 96 refills at 7-9 tiles), its steps plus `OXY_MOB_STEPS` 25 for each attackable
   monster in view within `OXY_MOB_R` 6 of a route tile. A refill the leg can't reach before the deprivation, even
@@ -1235,10 +1234,11 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
   deprivation's floor (66 %): the drain takes back every hit healed above it, a potion's 25-45 in 30-50 s.
 - **Not covered:** the fought walk in across level 2 to level 3 (11-20 game minutes in the simulator) has no refill
   leg of its own; it ends 11 tiles from the arrival's dolphin, which refills on the first leg there.
-- **Simulator, 2026-10-28** (docs/SIM.md "Oxygen: the refill legs"; 48 runs a side, one tree): level 3, Logan's
-  deprivation damage 4,452 -> 2,435 and the pets' 57,207 -> 29,657, runs with a death 28 -> 25, banked an hour +13 %.
-  Level 2 with the west strip taken: runs with a death 12 -> 19 (10 of them during a leg), Logan's deprivation damage
-  no lower; hence its `skip`.
+- **Simulator** (docs/SIM.md "Oxygen: the refill legs"; 48 runs a side, one tree): level 3, Logan's deprivation
+  damage 4,452 -> 2,435 and the pets' 57,207 -> 29,657, runs with a death 28 -> 25, banked an hour +13 %. Level 2 by
+  the arrival stairs (2026-10-29): Logan's deprivation damage 5,056 -> 520, the pets' 63,430 -> 6,374, runs deprived 36
+  -> 4, runs with a death 14 -> 11 (none during a leg), banked an hour +3 %. Level 2 by the west strip (2026-10-28):
+  runs with a death 12 -> 19 (10 during a leg), the deprivation no lower; hence its `skip`.
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 
