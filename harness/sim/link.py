@@ -80,6 +80,7 @@ class SimLink:
         if text is not None:
             self.intents.append((self.clock.time(), kind, text))
             self.world._ev("intent", kind=kind, text=text, target=extra.get("target_serial"))
+            self.world.intent(kind, text)
 
     # the proxy-independent helpers, as Link has them
     save_t0 = None               # Link.wait's world-save state (the sim has no world saves)

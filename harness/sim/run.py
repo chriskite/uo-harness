@@ -453,7 +453,8 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
     hour, and banked per hour with `downtime_s` of game time added for each death (banked_per_h_net); the player's ARs
     and his damage taken on the level per game hour; the clearwater groupers' bubbles', the ocean bedrocks' spray's, the
     lowtide scavengers' large swings' and the nest crabs' digs' totals (thrown, sprayed or dug, hits and damage on us and
-    on the pets) when any came; Tidal Tomb's oxygen (oxygen_summary) under water."""
+    on the pets) when any came; Tidal Tomb's oxygen (oxygen_summary) under water; the pet deaths' readouts
+    (pet_death_summary) when a pet died."""
     ok = [r for r in results if "sim_s" in r]
     hours = sum(r["sim_s"] for r in ok) / 3600 or 1e-9
     deaths = sum(r["deaths"] for r in ok)
@@ -488,7 +489,22 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
                      for k in sorted({k for r in ok for k in (r.get(key) or {})})}
                for key in ("bubbles", "spray", "large_swing", "dig") if any(r.get(key) for r in ok)},
             **({"oxygen": oxygen_summary(ok)} if any(r.get("oxygen") for r in ok) else {}),
+            **({"pet_deaths": pet_death_summary(ok)} if any(r["pet_deaths"] for r in ok) else {}),
             **({"reds": reds_summary(ok)} if any(r.get("reds") for r in ok) else {})}
+
+
+def pet_death_summary(ok: list[dict]) -> dict:
+    """Across runs, the pet deaths' readouts (World.die): how many, with us beyond the vet supplies' reach of the pet,
+    with a vet heal on it in its last 15 s, and by the source that did it the most damage in those 15 s."""
+    ds = [d for r in ok for d in r["pet_deaths"]]
+    top = {}
+    for d in ds:
+        if hurt := d.get("last_15s"):
+            k = max(hurt, key=hurt.get)
+            top[k] = top.get(k, 0) + 1
+    return {"n": len(ds), "us_out_of_vet_reach": sum(1 for d in ds if d.get("vet_reach") is False),
+            "vet_healed_15s": sum(1 for d in ds if (d.get("healed_15s") or {}).get("vet")),
+            "most_damage_by": dict(sorted(top.items(), key=lambda kv: -kv[1])[:6])}
 
 
 def oxygen_summary(ok: list[dict]) -> dict:

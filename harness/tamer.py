@@ -2031,7 +2031,9 @@ class Team:
             pick = min(pool, key=lambda c: (c[3], c[0], c[4], c[2], c[1]))
         else:
             def best(cs):
-                return min(cs, key=lambda c: (c[0], c[2], c[1], c[3]), default=None)
+                # tiles alike: the lowest (x, y, z), as before 2026-10-28 (tiles_within's walk order, north first, cost
+                # the pets: docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray")
+                return min(cs, key=lambda c: (c[0], c[2], c[1], c[3], c[5]), default=None)
             near, far = best([c for c in cands if not c[4]]), best(cands)
             pick = near if near is not None and near[0] == 0 else far if far[0] == 0 else \
                 best([c for c in (near, far) if c is not None])

@@ -6199,6 +6199,36 @@ has the runner on level 2 (18:35:23 and 18:35:38, 2 hits in the cone at 7 and 5,
 - **Built 2026-10-28:** the cone in the Mover's `avoid` tiles for every walk; a wind-up's stop on the walks and the
   fewest-steps tile out; the hold for an awake bedrock coming on; the loot wait. docs/HUNT_LOOP.md "Pets" (the
   rule), docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray" (the numbers), docs/PLAN.md (the decision).
+- **The pet cost, 2026-10-29 (simulator only).** The change doubled pet deaths in its own 96-run batches (9 -> 18,
+  12 -> 19). The cause is read from 384-run batches of level 2 on HEAD (seeds 1-384), one fbf76ab piece turned off per
+  row, with each pet death's new readout (`World.die`: who hurt it and what healed it in its last 15 s, Logan's
+  distance, who fought it, the runner's intents):
+
+  | fbf76ab on, except | spray hits on Logan | pet deaths |
+  |---|---|---|
+  | nothing (HEAD) | 282 | 88 |
+  | all of it (the baseline) | 493 | 73 |
+  | ties to the lowest tile, as before | 242 | 53 |
+  | `SPRAY_WARN_S=0` | 420 | 54 |
+  | no `Mover.avoid` cone | 281 | 93 |
+  | no hold for an awake bedrock | 317 | 85 |
+  | no `spray_stop` / `spray_wait` | 299 | 94 |
+  | no fewest-steps tile at a wind-up | 345 | 65 |
+  | `SPRAY_AHEAD=0` | 392 | 61 |
+  | ties to the highest tile / the walk order's last / a hash / nearest the pets | 268 / 254 / 276 / 249 | 77 / 78 / 73 / 84 |
+
+  - The pets took 34-36k a hunt hour in every row: no piece hurt them more. Their deaths came at the level's monsters
+    (voidfins, giant pincer crabs, drowned mariners, groupers) with Logan mostly beyond the vet supplies' reach (54-77 %),
+    rarely near a bedrock (its damage in the last 15 s at 2 of HEAD's 88).
+  - Some of the cost is exposure: Logan died less, so the runs hunted longer (155.2 h against 150.4).
+  - **Cause:** fbf76ab dropped the tile from `standoff_tile`'s ranking, so a tie went to `tiles_within`'s walk order
+    (north first) in every stand-off. Before, it went to the lowest (x, y, z). Nearly every stand-off is a tie on the
+    idle eyes (1,376 of 1,396 "seen by 0 idle"). Only the pieces that change the stand-off's tile moved pet deaths. The
+    tie order alone spans 53-88; [INFERENCE] the logs show no mechanism for it.
+  - **Fixed 2026-10-29:** ties to the lowest tile again (`test_standoff_ties`). Over 768 runs (seeds 1-768): spray hits
+    on Logan 952 -> 472 against the baseline (fbf76ab alone 575), pet deaths 153 -> 123 (fbf76ab alone 175), banked an
+    hour 108,583 -> 110,349 (fbf76ab alone 101,119). docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray" has the
+    full tables.
 
 ## Tidal Tomb: dead on level 1 on the way out (2026-10-28 22:53)
 

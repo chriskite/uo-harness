@@ -111,9 +111,11 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
   --jobs 7` ones).
 - Each run prints a row (kills, gold, damage taken, deaths, pet deaths, vet uses, potions, rule
   violations); `all:` aggregates (kills and gold per game hour, deaths per hour, runs with a death /
-  a pet death / a pet left behind, crashes, violations); `--compare` sets the runs per hour on the level
-  beside the live trip's; `--json` prints every run's summary (with `death_causes`: who did the damage
-  in the 15 s before a death, `junctures`, `kills_by`, `bard`, ...).
+  a pet death / a pet left behind, crashes, violations; `pet_deaths`: the pet deaths' readouts summed); `--compare`
+  sets the runs per hour on the level beside the live trip's; `--json` prints every run's summary (with
+  `death_causes`: who did the damage in the 15 s before a death; `pet_deaths`: each pet death's readout, who hurt it
+  and what healed it in its last 15 s, where it and Logan stood, his distance at its hits, `vet_reach`, who fought it,
+  the other pets, the runner's intents meanwhile; `junctures`, `kills_by`, `bard`, ...).
 - Seeds make runs reproducible (the world's randomness and the runner's `--seed`).
 - `--others`: other (blue) players on the fight level (the scenario's `others`, "Other players" below). Off by
   default, so batches stay comparable with the earlier ones; `all:` then adds an `others` block (in-view numbers
@@ -1913,9 +1915,67 @@ docs/NOTES.md "Tidal Tomb: Logan in the bedrock's spray"; the runner's rule in d
   - In 48 runs before, 35 of 55 sprays on him came mid stand-off walk (the 4-5-step tiles). In a 48-run batch of the
     change before the walk waits (`spray_wait` in the walks), 20 of 30 came on the walk out at the wind-up itself, often
     3-5 tiles from the bedrock, where its ring comes 0.9-1.1 s after the wind-up.
-  - **Open:** pet deaths 9 -> 18 and banked an hour -7 %, with more bedrocks fought (712 sprays against 577) and the
-    pets' spray damage up 24 %. [INFERENCE] The fewest-steps tile is often beyond the vet supplies' reach, and the
-    walks to a hurt pet wait out each wave.
+  - Pet deaths 9 -> 18 and banked an hour -7 %: closed 2026-10-29 (below). The cause was the stand-off's tie-break,
+    not the guess then (the fewest-steps tile beyond the vet supplies' reach, the walks to a hurt pet waiting out each
+    wave).
+- **The pet cost (2026-10-29).** The user asked to keep the gain and bring the pet cost down. Each pet death now carries
+  a readout (`World.die`, `--json` `pet_deaths`, `all:` `pet_deaths`: "Running" above; test_sim
+  `test_pet_death_readout`). Measured on HEAD after b485a80, 3ceb024, 40c32ba (oxygen) and bd2b445, the same level 2
+  command, `--json`, 384 runs a row (seeds 1-384). Each row turns off one of fbf76ab's pieces (temporary module
+  constants, removed again):
+
+  | fbf76ab on, except | spray hits on Logan | Logan deaths | pet deaths | pet deaths / hunt h | banked an hour |
+  |---|---|---|---|---|---|
+  | nothing (HEAD) | 282 | 97 | 88 | 0.57 | 102,553 |
+  | all of it (the baseline) | 493 | 111 | 73 | 0.49 | 103,472 |
+  | ties to the lowest tile, as before | **242** | 96 | **53** | 0.34 | 109,068 |
+  | `SPRAY_WARN_S=0` (no wind-up reaction at all) | 420 | 121 | 54 | 0.36 | 101,047 |
+  | no `Mover.avoid` cone | 281 | 109 | 93 | 0.61 | 101,317 |
+  | no hold for an awake bedrock | 317 | 105 | 85 | 0.56 | 99,274 |
+  | no `spray_stop` / `spray_wait` | 299 | 115 | 94 | 0.62 | 101,462 |
+  | no fewest-steps tile at a wind-up | 345 | 101 | 65 | 0.43 | 112,061 |
+  | `SPRAY_AHEAD=0` | 392 | 119 | 61 | 0.42 | 108,042 |
+  | ties to the highest tile | 268 | 104 | 77 | 0.50 | 100,734 |
+  | ties to the walk order's last | 254 | 120 | 78 | 0.52 | 101,720 |
+  | ties by a hash of the tile | 276 | 109 | 73 | 0.48 | 105,298 |
+  | ties to the tile nearest the pets | 249 | 115 | 84 | 0.55 | 98,314 |
+
+  - **No piece puts the pets in more harm.** Their damage taken was 34-36k a hunt hour in every row, the vet supplies
+    150-153 uses an hour. Logan stood beyond the vet supplies' reach (5) at 54-77 % of the pet deaths. The pet had a vet
+    heal in its last 15 s at 4 of HEAD's 88. The killers were the level's (voidfins, giant pincer crabs, drowned
+    mariners, groupers); a bedrock's damage was in the last 15 s of 2 of the 88.
+  - **Part of the cost is exposure.** A Logan death ends the run. With fewer of them HEAD hunted 155.2 h against
+    150.4. Counting only up to the shorter run of each seed's pair, pet deaths were 68 against 63.
+  - **The cause: the stand-off's tie-break.** fbf76ab took the tile out of `standoff_tile`'s ranking. A tie (the same
+    idle eyes and steps; 1,376 of HEAD's 1,396 stand-offs in seeds 97-192 were "seen by 0 idle") then went to
+    `tiles_within`'s walk order, north first, not the lowest (x, y, z). That held in every stand-off, not only a
+    bedrock's: level 2's voidfins, frenzyfins, razorfins and oozing noughtiluses are area hitters too. Turning off the
+    pieces that leave the stand-off's tile alone (the avoid, the hold, the stop/wait) kept pet deaths at HEAD's 85-94.
+    The pieces that change the tile lowered them (fewest steps 65, `SPRAY_AHEAD` 61) but gave back much of the spray
+    gain. Other tie orders landed between, at 73-84, so the tie order moves pet deaths a lot on this level, and the
+    walk order's was the worst found. [INFERENCE] No mechanism shows in the logs (seeds 97-192, 96 runs a side, the
+    walk order against the lowest tile): the stand-offs' count (1,396 and 1,528), their steps and the decisions after
+    them look alike.
+  - **Fixed:** ties go to the lowest tile again (the ranking without a wind-up; test_sim `test_standoff_ties`). The
+    wind-up's fewest-steps pick keeps the walk order. With the tile last there too, 768 runs gave 143 pet deaths and
+    513 spray hits, against 123 and 472.
+
+  | runs | spray hits / damage on Logan | Logan deaths | pet deaths | runs with a pet death | kills an hour | looted an hour | banked an hour |
+  |---|---|---|---|---|---|---|---|
+  | seeds 1-96, without fbf76ab | 109 / 3,074 | 31 | 15 | 13 | 151 | 155,273 | 112,035 |
+  | seeds 1-96, fbf76ab | 70 / 2,059 | 20 | 21 | 16 | 149 | 160,582 | 112,865 |
+  | seeds 1-96, fixed | **47 / 1,334** | 21 | **15** | 14 | 152 | 160,727 | 117,370 |
+  | seeds 97-192, without fbf76ab | 134 / 3,839 | 25 | 16 | 14 | 153 | 159,443 | 117,197 |
+  | seeds 97-192, fbf76ab | 64 / 1,848 | 27 | 23 | 19 | 150 | 159,216 | 95,683 |
+  | seeds 97-192, fixed | **66 / 1,842** | 33 | **8** | 7 | 152 | 157,267 | 109,302 |
+  | seeds 1-768, without fbf76ab | 952 / 27,010 | 208 | 153 | 126 | 151 | 159,562 | 108,583 |
+  | seeds 1-768, fbf76ab | 575 / 16,541 | 204 | 175 | 140 | 150 | 161,164 | 101,119 |
+  | seeds 1-768, fixed | **472 / 13,480** | 202 | **123** | 104 | 152 | 160,177 | 110,349 |
+
+  - Over 768 runs the fix has Logan's spray hits -50 % on the baseline (fbf76ab alone: -40 %), pet deaths -20 % (fbf76ab
+    alone: +14 %), and banked an hour +2 % (fbf76ab alone: -7 %).
+  - The noise is large. Per 96-run block, pet deaths were 8-19 fixed, 18-26 on fbf76ab and 13-25 on the baseline. The
+    fixed runner had fewer than fbf76ab in 7 of the 8 blocks and as many in the eighth.
 
 ### Tidal Tomb: dead on level 1 on the way out (2026-10-28)
 

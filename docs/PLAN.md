@@ -2819,6 +2819,14 @@ bedrock's spray"). Decisions:
 - *An awake bedrock coming on holds the advance* as an idle one that sees us does: it walks at what it fights, facing
   it, so the patrol toward it walked down its cone.
 - *The loot waits* when every tile within 2 of the corpse that we reach lies in a cone: the corpse stays queued.
+- *Ties go to the lowest tile again* (2026-10-29; the user: keep the gain, bring the pet cost down). fbf76ab dropped the
+  tile from the stand-off's ranking in every stand-off, not only a bedrock's: the walk order decided ties. Level 2 in
+  the simulator, 768 runs: pet deaths 175 against the baseline's 153, back to 123 with the old tie-break, and Logan's
+  spray hits 575 -> 472 against the baseline's 952 (docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray"). The rest
+  of fbf76ab stays: turning off the avoid, the hold or the stop/wait left pet deaths as they were; turning off the
+  fewest steps or `SPRAY_AHEAD` lowered them less and gave back spray hits. The wind-up's fewest-steps pick keeps the
+  walk order: with the tile there too, 143 pet deaths and 513 spray hits. The per-pet-death readout (`World.die`) stays
+  in the simulator's summaries.
 
 ## Dead on Tidal Tomb level 1 on the way out (live 2026-10-28 22:53)
 

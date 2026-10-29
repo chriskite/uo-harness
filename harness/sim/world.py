@@ -51,6 +51,7 @@ Not modelled: chat or trades with players, the Society job, item durability, ski
 """
 from __future__ import annotations
 
+import collections
 import math
 import random
 import re
@@ -361,6 +362,8 @@ class World:
         self.recall_at = None                 # (arrival time, destination row)
         self.spawn_due = []                   # (time, spawn index)
         self.player_log = []                  # (time, source, damage, hits after): the last 15 s
+        self.pet_logs = {}                    # pet serial -> [(time, source, damage (a heal < 0), cheb to us)]: 15 s
+        self.intent_log = collections.deque() # (time, kind, text): the runner's intents (SimLink.intent), the last 15 s
         self.flights = []                     # ranged attacks released, on their way: (land time, attacker Mob, victim serial)
         self.delayed = []                     # bursts due later: (time, attacker serial, special, target serial)
         self.trace = None                     # the sim/trace.Tracer recording this run, or None
@@ -953,9 +956,11 @@ class World:
         if victim.kind == "player":
             self.player_log.append((self.t, by.key if by is not None else kind, n, int(victim.hits)))
             self.player_log = [e for e in self.player_log if self.t - e[0] <= 15.0]
-        elif victim.kind == "pet" and self._on_level():
-            self.count("pet_damage_taken", victim.name, n)
-            self.count("pet_damage_by", by.key if by is not None else kind, n)
+        elif victim.kind == "pet":
+            self._pet_log(victim, by.key if by is not None else kind, n)
+            if self._on_level():
+                self.count("pet_damage_taken", victim.name, n)
+                self.count("pet_damage_by", by.key if by is not None else kind, n)
         elif victim.kind == "monster" and by is not None and by.kind == "pet" and self._on_level():
             self.count("pet_damage_dealt", by.name, n)   # its hits, Spellburn, abilities (not its disease's ticks)
         if victim.kind not in OTHERS + ("red",) and (by is None or by.kind not in OTHERS):
@@ -1003,12 +1008,27 @@ class World:
             amount *= max(0.0, 1.0 - sum(v for _, v in m.festering))
         n = int(round(min(amount, m.hits_max - m.hits)))
         m.hits += n
+        if m.kind == "pet" and n > 0:
+            self._pet_log(m, source or "other", -n)
         self._ev("heal", m=m.serial, n=n, h=int(m.hits))
         self._overhead(m, f"+{n}")
         if m.kind == "player":
             self.send(P.hits(m.serial, int(m.hits), int(m.hits_max)))
         elif m.serial in self.viewing:
             self.send(P.hits(m.serial, m.pct(), 100))
+
+    def _pet_log(self, m: Mob, source: str, n: int):
+        """A pet's hurt (`n` > 0) or heal (`n` < 0) and our distance from it, kept 15 s for its death's readout (die)."""
+        log = self.pet_logs.setdefault(m.serial, [])
+        log.append((self.t, source, n, cheb(m.pos, self.player.pos)))
+        while self.t - log[0][0] > 15.0:
+            log.pop(0)
+
+    def intent(self, kind: str | None, text: str):
+        """The runner's intent (SimLink.intent), kept 15 s for a pet death's readout (die)."""
+        self.intent_log.append((self.t, kind, text))
+        while self.t - self.intent_log[0][0] > 15.0:
+            self.intent_log.popleft()
 
     def die(self, m: Mob, by: Mob | None):
         self._ev("die", m=m.serial, by=by.serial if by is not None else None)
@@ -1029,7 +1049,28 @@ class World:
         if m.kind == "pet":
             m.hits, m.ghost, m.target, m.mode = 0, True, None, "follow"
             m.hurt_by, m.dom, m.surge_until, m.swoop_until, m.shield_until = {}, {}, 0.0, 0.0, 0.0
-            self.metrics["pet_deaths"].append({"t": round(self.t, 1), "pet": m.name})
+            # its readout: who hurt it and what healed it in the last 15 s, where it and we stood (and our distance at each
+            # hit), whether the vet supplies reached it, who fought it, the other pets, what the runner said it was doing
+            # (SimLink.intent)
+            log = [e for e in self.pet_logs.pop(m.serial, []) if self.t - e[0] <= 15.0]
+            hurt, healed = {}, {}
+            for _, k, n, _d in log:
+                d = hurt if n > 0 else healed
+                d[k] = d.get(k, 0) + abs(n)
+            dists = [d for _, _, n, d in log if n > 0]
+            doing = {}
+            for t, kind, _ in self.intent_log:
+                if self.t - t <= 15.0:
+                    doing[kind] = doing.get(kind, 0) + 1
+            pl = self.player
+            self.metrics["pet_deaths"].append({
+                "t": round(self.t, 1), "pet": m.name, "at": list(m.pos), "logan_at": list(pl.pos),
+                "dist": cheb(m.pos, pl.pos), "vet_reach": cheb(m.pos, pl.pos) <= self.sc["vet"]["range"],
+                "dist_hit": [min(dists), max(dists)] if dists else None,
+                "last_15s": hurt, "healed_15s": healed,
+                "fighting": sorted(o.key for o in self.mobs.values() if o.target == m.serial and o.alive),
+                "pets": {p.name: "dead" if p.ghost else [p.pct(), cheb(p.pos, pl.pos)] for p in self.pets() if p is not m},
+                "doing_15s": doing, "doing": self.intent_log[-1][2] if self.intent_log else None})
             if m.serial in self.viewing:
                 self.send(P.hits(m.serial, 0, 100), P.pet_dead(m.serial))
             for o in self.mobs.values():
@@ -3164,7 +3205,7 @@ class World:
         for m in patients:
             m.poison_until = 0
             amount = pet_rules.vet_heal(v["skill"], cx, len(patients), self.rng)
-            self.heal(m, amount)
+            self.heal(m, amount, "vet")
             self._overheal(m, amount)
         if hurt_self:
             pl.poison_until = 0

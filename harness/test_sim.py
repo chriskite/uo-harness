@@ -1031,6 +1031,63 @@ def test_standoff_sight():
           (not walked and after == here) or (walked and after >= here), f"walked {walked}, {here} -> {after} tiles")
 
 
+def test_standoff_ties():
+    print("== stand-off tiles that rank alike: the fewest steps, then the lowest tile (x, y, z), not tiles_within's walk "
+          "order ==")
+    # fbf76ab (2026-10-28) left the tile out of standoff_tile's ranking, so a tie went to tiles_within's walk order (north
+    # first) in every stand-off; Tidal Tomb level 2 in the simulator, 768 runs: pet deaths 123 with the lowest tile, 175
+    # in the walk order (docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray")
+    import aggro
+    w = world_with([], seed=7, start=(5268, 648))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    score, first = aggro.View.stand_score, aggro.View.first_on_us
+    aggro.View.stand_score = lambda self, t: 0.0               # no idle eyes anywhere: only the steps and the tile differ
+    aggro.View.first_on_us = lambda self, t, margin=1: []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.3)
+            st = loop.state()
+            x, y = w.player.pos[:2]
+            zone = {(x + 1, y): 2}                             # an area hitter a tile east: the tiles west of us clear
+            to, stay = loop.team.standoff_tile(st, zone)
+            clear = [(k, t) for t, k in tamer.Team.tiles_within(loop.team.view(st), tamer.STANDOFF_MOVES).items()
+                     if tamer.ClearOf(zone)(t)]
+    finally:
+        aggro.View.stand_score, aggro.View.first_on_us = score, first
+        store.close()
+        simclock.uninstall(patched)
+    want, walk_first = min(clear)[1], min(clear, key=lambda c: c[0])[1]
+    check("the clear tile the fewest steps off with the lowest (x, y, z), not the walk order's first",
+          stay is None and to == want and want != walk_first,
+          f"to {to} stay {stay!r}, lowest {want}, walk order's first {walk_first}")
+
+
+def test_pet_death_readout():
+    print("== a pet's death in the run summary (pet_deaths): who hurt it and what healed it in its last 15 s, where it "
+          "and Logan stood, the vet supplies' reach, who fought it, what the runner was doing ==")
+    w = world_with([{"key": "nightstalker", "at": [5268, 655, 0]}], seed=7, start=(5268, 648))
+    ns = next(o for o in w.mobs.values() if o.kind == "monster")
+    link, clock = link_for(w)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    w._place(gb, (5268, 654, 0), d=0)
+    ns.target = gb.serial
+    link.intent("Veterinary supplies: GraveRobber at 50%", "vet")
+    gb.hits = gb.hits_max // 2
+    w.heal(gb, 10, "vet")
+    for _ in range(50):
+        if gb.ghost:
+            break
+        w.hurt(gb, gb.hits_max, ns)
+    d = w.metrics["pet_deaths"][-1] if w.metrics["pet_deaths"] else {}
+    check("GraveRobber's death: the nightstalker's damage, the vet heal, Logan 6 off and the reach by the scenario's vet "
+          "range, the nightstalker fighting it, the intent",
+          len(w.metrics["pet_deaths"]) == 1 and d["pet"] == "GraveRobber" and d["last_15s"].get("nightstalker", 0) > 0
+          and d["healed_15s"].get("vet", 0) > 0 and d["dist"] == 6 and d["vet_reach"] == (6 <= w.sc["vet"]["range"])
+          and d["fighting"] == ["nightstalker"] and d["doing_15s"] == {"vet": 1}
+          and d["doing"] == "Veterinary supplies: GraveRobber at 50%" and len(d["pets"]) == len(w.pets()) - 1,
+          str(d))
+
+
 def test_area_peace():
     print("== two monsters on us within 3: Peacemaking on ourselves, the area pacified for 2 s ==")
     # user 2026-10-15: "in a jam you can peace the area around you by activating Peacemaking and targeting yourself";
@@ -6097,7 +6154,7 @@ def main():
               test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument, test_recall_charges,
-              test_standoff_sight,
+              test_standoff_sight, test_standoff_ties, test_pet_death_readout,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
               test_theirs_passed_over,

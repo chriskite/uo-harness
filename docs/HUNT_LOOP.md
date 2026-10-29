@@ -669,10 +669,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    20261015_171928 18:57:09-19.5: an apparition came onto Logan's tile, -59; he stood there through the
    potion and a vet channel and took -60 more; a step doesn't stop a channel healing us, it only shortens
    its reach to a pet to 1). It goes to the clear tile within 6 steps that the fewest idle monsters would
-   see before a pet, then the one farthest from the nearest of them (`Team.standoff_tile`), within
-   `--vet-range` of the pets when such a tile is out of their sight, else beyond it; when every clear tile
-   is seen by more of them, or nearer one, than here, it stays (live 19:49:40 the nearest clear tile was 10
-   from a second apparition in its sight, and it came onto Logan 5 s later; 20261015_204514 21:02:02 it
+   see before a pet, then the one farthest from the nearest of them, then the fewest steps, then the lowest (x, y, z)
+   (`Team.standoff_tile`; the walk order's ties cost the pets in the simulator, docs/SIM.md "Tidal Tomb: Logan in the
+   bedrock's spray"), within `--vet-range` of the pets when such a tile is out of their sight, else beyond it; when
+   every clear tile is seen by more of them, or nearer one, than here, it stays (live 19:49:40 the nearest clear
+   tile was 10 from a second apparition in its sight, and it came onto Logan 5 s later; 20261015_204514 21:02:02 it
    went 3 tiles from an idle reanimated knight, which woke and hit him -46: the user, "Logan went and stood
    right in front of a reanimated knight while the pets were fighting another mob"; test_sim
    test_standoff_sight: 35e7f83 went from 8 to 6 tiles of it, now 8 to 13). When the tank in the zone needs the
