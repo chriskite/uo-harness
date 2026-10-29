@@ -597,13 +597,15 @@ class Mover:
         self.danger = {}             # key -> ((x, y), radius): tiles to route around (danger_cost)
         self.sticky = set()          # tiles of the route a danger replan left: cost STICKY_X (walk_to)
         self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
+        self.avoid = {}              # key -> {(x, y)}: tiles to route around, DANGER_COST_X flat (tamer.Team.spray_watch)
         self.replan_requested = False   # set by a guard (new danger): replan after this step
         self.walled = set()          # (x, y) walls for this walk_to only: doors that refused us (walk_to)
         self.held_until = 0.0        # monotonic end of a hold on us (held): HELD_TEXT seen, HELD_END_TEXT not yet
         self._held_upto = len(link.events)   # link.events scanned for them (earlier ones are history)
 
     def in_danger(self, tile) -> bool:
-        return tile in self.danger_tiles or any(cheb(tile, c) <= r for c, r in self.danger.values())
+        return tile in self.danger_tiles or any(tile in s for s in self.avoid.values()) \
+            or any(cheb(tile, c) <= r for c, r in self.danger.values())
 
     def held(self, st=None) -> bool:
         """A hold on us now: a transfix (HELD_TEXT seen and neither HELD_END_TEXT nor HELD_MAX_S since), or, given the
@@ -665,8 +667,8 @@ class Mover:
         the rim to the centre, summed over overlapping zones; so a route that can't stay out keeps
         to the rims, as far from the creatures as it can (user, 2026-10-05: "he kept trying to go
         that way instead of going around"; a flat factor made any crossing as good as straight
-        through the middle). Remembered sightings (danger_tiles) cost DANGER_COST_X flat."""
-        f = DANGER_COST_X if tile in self.danger_tiles else 1.0
+        through the middle). Remembered sightings (danger_tiles) and the `avoid` sets cost DANGER_COST_X flat."""
+        f = DANGER_COST_X if tile in self.danger_tiles or any(tile in s for s in self.avoid.values()) else 1.0
         for c, r in self.danger.values():
             d = cheb(tile, c)
             if d <= r:
@@ -1047,7 +1049,7 @@ class Mover:
 
         def cost(a, b):
             return ((noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
-                    * (self.danger_cost(b) if self.danger or self.danger_tiles else 1.0)
+                    * (self.danger_cost(b) if self.danger or self.danger_tiles or self.avoid else 1.0)
                     * (STICKY_X if sticky and b not in sticky else 1.0))
 
         facet = st["world"]["self"].get("map")
@@ -1346,7 +1348,7 @@ class Mover:
                     if i + 1 < len(path) and nav.direction(new, path[i + 1]) == d:
                         # landed facing the next tile: the client's auto-open fires on the step
                         self._open_ahead(path[i + 1], here[2], opened, label, after)
-                    if urgent or self.danger or (self.no_idle is not None and self.no_idle(after)):
+                    if urgent or self.danger or self.avoid or (self.no_idle is not None and self.no_idle(after)):
                         # no idling or sidesteps with a creature's zone set (live 2026-10-05, witcher_23: an
                         # 8.9 s walk pause with an air dragon closing in 10 tiles off, then its breath), or when
                         # the host says so (live 2026-10-17 19:04:08-15: ~7 s still 2 tiles from the leave gate

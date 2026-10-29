@@ -1008,6 +1008,11 @@ class Crawl:
             time.sleep(0.4)
             return
         self.pets_held = None
+        team = getattr(h, "team", None)
+        if team is not None and (why := team.spray_wait(st)):
+            h.doing("wait", why, tuple(pos[:2]))  # a sprayer's wave due beside us: no patrol step into it
+            time.sleep(0.4)
+            return
         h.doing("patrol", f"Patrolling to {w[0]},{w[1]} (zone {self.zone[self.wp]})", w)
         h.patrolling = True
         try:

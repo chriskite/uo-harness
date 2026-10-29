@@ -480,6 +480,8 @@ class HuntLoop:
             self.died(st, "ghost body")
         self.check_restriction()
         self.track(st)
+        if self.team is not None:
+            self.team.spray_watch(st)     # a wind-up mid-walk for its stop (Team.spray_stop); the cones for routes
         self.look(st)
         self.drink_on_the_run(st)
 
@@ -1487,18 +1489,28 @@ class HuntLoop:
             # off (sim seeds 18-22), and after a refused shove one walked 119 steps away from the pets through two
             # rooms and died there (sim 2026-10-21, seed 1019)
             bound = 2 * cheb(self.pos(st), goal) + LOOT_DETOUR_STEPS
+            # a sprayer's wind-up with us in its cone ends the walk (Team.spray_stop): out of it first, the corpse after
+            stop = self.team.spray_stop if self.team is not None else None
             try:
                 try:
                     with self.team.around_areas(st) if self.team is not None else contextlib.nullcontext() as round_:
-                        self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound)
+                        why = self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound, stop=stop)
                 except WalkFailed as e:
                     if not round_ or not str(e).startswith("to the corpse: no route within"):
                         raise
-                    self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound)   # through the reach
+                    # through the reach
+                    why = self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound, stop=stop)
             except Abort as e:
                 if not str(e).startswith("to the corpse"):
                     raise
                 log(f"corpse of {name} at {spot}: {e}; leaving it")   # e.g. on a ledge (sim: 21 runs ended here)
+                return
+            if why:
+                # kept queued for the wave (Team.spray_stop: we stood in or beside its cone), then the walk again
+                log(f"to the corpse: stopped ({why}); looting it after the wave")
+                self.looted.discard(c["corpse"])
+                c["defer_until"] = time.monotonic() + tamer.SPRAY_WARN_S
+                self.corpses.insert(0, c)
                 return
             st = self.state()
         pack = self.backpack(st)

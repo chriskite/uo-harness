@@ -634,7 +634,23 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    frontal cone is in the zone at 1 a tile (`Team.spray_cone`, `nav.in_cone`): 90°, 8 tiles, along its 0x77 direction
    and toward each pet beside it. That holds while it is awake, unless it is pacified or provoked onto a monster still
    alive. Its wind-up (animation action 18, `spray_due`) with us in the cone starts the stand-off at once, past the
-   repeat gap: the wave reaches ring k 0.71 + 0.1·(k−1) s later. **An apparition's blink**
+  repeat gap: the wave reaches ring k 0.71 + 0.1·(k−1) s later. **Out of its cone whatever the walk** (since
+  2026-10-28; user, live hunt-20261028-215803-e48f: "Logan is still standing directly in ocean bedrock spray";
+  docs/NOTES.md "Tidal Tomb: Logan in the bedrock's spray"). Every awake bedrock's cone (`Team.sprayers`: neither
+  pacified nor provoked onto a live monster) is among the Mover's `avoid` tiles (`Team.spray_watch`, each tick and on
+  every step from the hunt's Mover guard), so every route (patrol, approach, loot, vet, spacing, stand-off) bends round
+  it at 30x a tile and crosses it only when there is no other way. A wind-up with us in the cone or a step from it
+  ends a walk under way (`Team.spray_stop`: the stand-off, the walk to a pet, off the tank, the loot walk ("to the
+  corpse: stopped (…); looting it after the wave") and every advance through `pull_check`), and no such walk starts
+  then (`Team.spray_wait`: "ocean bedrock's spray: no walk beside its cone till its wave is past"). On the wind-up the
+  stand-off takes the clear tile the fewest steps off, of those no worse for idle eyes than here: "ocean bedrock's
+  spray: stepping out of its cone to (x, y), N step(s)". Otherwise its tile ranks one within 2 tiles more of a cone
+  (`SPRAY_AHEAD`, the bedrock walks at its target) below one beside or behind the bedrock, as the user stands. An awake
+  bedrock within `HOLD_R` that fights no one else holds an advance like an idle monster that sees us ("holding here:
+  an awake ocean bedrock at N tiles, out of its spray cone: letting it come", `HOLD_S` from first sight): it comes on
+  facing what it fights. A corpse whose every tile within 2 that we reach lies in a cone waits: "not looting X yet: the
+  corpse at (x, y) lies in the ocean bedrock's spray cone, every tile within 2 of it we reach too; …". test_sim
+  `test_spray_windup_fewest_steps`, `test_spray_loot_wait`, `test_spray_hold_awake`. **An apparition's blink**
    (since 2026-10-17; user: "when an apparition vanishes we know its going to pop out on the player/pet it
    was aggro'd on ... right now we just wait there to get hit for like -47"): on its "*phases*" the pet it
    fights (its latest swing's defender, else the nearest pet within 2 of it) is where it lands 1.1-1.6 s

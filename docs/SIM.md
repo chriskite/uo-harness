@@ -1888,6 +1888,34 @@ bubbles on the ground".
 - The runner no longer loots it (`loop_hunt.EMPTY_CORPSES`). A level 1 run (seed 1) had 43 pincer crab kills and
   none looted.
 
+### Tidal Tomb: Logan in the bedrock's spray (2026-10-28)
+
+User 2026-10-28, live on level 2: "Logan is still standing directly in ocean bedrock spray". The evidence is in
+docs/NOTES.md "Tidal Tomb: Logan in the bedrock's spray"; the runner's rule in docs/HUNT_LOOP.md "Pets".
+
+- `run.py`'s summary and `all:` line carry `spray`: the sprays, and the hits and damage on us and on the pets.
+- **Tests:** `test_spray_windup_fewest_steps` (live 22:18:03: before, "stand-off to (6946, 2056): 4 step(s)" and the
+  wave on Logan, 43; after, 3 steps out, no hit), `test_spray_loot_wait` (live 22:18:08: before, "to the corpse"
+  walked into the cone to (6945, 2059), as live; after, kept queued), `test_spray_hold_awake` (live 22:04:46: before,
+  no hold once it woke; after, the hold, and the routes round the cone).
+- **Runs** (level 2, `--scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913
+  2071`, seeds 1-N, `--json`). Before is 0c5114e with only the `spray` counters:
+
+  | runs | spray hits / damage on Logan | on the pets | sprays | deaths | pet deaths | kills an hour | looted an hour | banked an hour |
+  |---|---|---|---|---|---|---|---|---|
+  | 8 before | 10 / 296 | 1,306 | 45 | 4 | 0 | 142 | 153,891 | 92,158 |
+  | 8 after | **5 / 151** | 2,138 | 66 | 2 | 1 | 143 | 156,480 | 135,938 |
+  | 96 before | 114 / 3,163 | 17,787 | 577 | 27 | 9 | 140 | 156,623 | 119,246 |
+  | 96 after | **73 / 2,047** | 21,970 | 712 | 24 | 18 | 144 | 162,141 | 110,609 |
+
+  - Logan's spray hits fell 36 %: 2.6 -> 1.7 a game hour, 19.8 % -> 10.3 % of the waves.
+  - In 48 runs before, 35 of 55 sprays on him came mid stand-off walk (the 4-5-step tiles). In a 48-run batch of the
+    change before the walk waits (`spray_wait` in the walks), 20 of 30 came on the walk out at the wind-up itself, often
+    3-5 tiles from the bedrock, where its ring comes 0.9-1.1 s after the wind-up.
+  - **Open:** pet deaths 9 -> 18 and banked an hour -7 %, with more bedrocks fought (712 sprays against 577) and the
+    pets' spray damage up 24 %. [INFERENCE] The fewest-steps tile is often beyond the vet supplies' reach, and the
+    walks to a hurt pet wait out each wave.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

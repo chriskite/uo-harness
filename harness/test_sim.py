@@ -9,6 +9,7 @@ Run: python harness/test_sim.py
 import contextlib
 import io
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -5181,6 +5182,152 @@ def test_spray_stand_off():
           f"pets sprayed at {sprayed[:5]}, Logan at {rolled}, ends {w.player.pos} facing {b.d}")
 
 
+def _bedrock_case(logan, bedrock, pets, target, spawns=()):
+    """Level 2 as live 2026-10-28 (capture 20261028_182147): Logan at `logan`, an ocean bedrock at `bedrock` in war mode
+    on `target` ("pet": the first pet, "us": Logan) and held in place, no wave until a test sets its cd, the pets at
+    `pets` on stay, everyone tough; `spawns` more monsters (idle)."""
+    w = tidal_world(logan[:2], [{"key": "ocean bedrock", "at": list(bedrock)}, *spawns], z=logan[2])
+    b = next(o for o in w.mobs.values() if o.key == "ocean bedrock")
+    b.hits = b.hits_max = 10 ** 6
+    b.spec = {**b.spec, "step_s": 999.0}                    # it stays where the live one stood
+    b.cd["spray"] = 1e9
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for p, xy in zip(w.pets(), pets):
+        w._place(p, (xy[0], xy[1], logan[2]), d=0)
+        p.hits = p.hits_max = 10 ** 6
+        p.mode = "stay"
+    tgt = w.pets()[0] if target == "pet" else w.player
+    b.target, b.threat = tgt.serial, {tgt.serial: 1e9}
+    w._warm(b, True)
+    w._face(b, tgt)
+    return w, b, loop, clock, store, patched
+
+
+def _cone_of(loop, b):
+    st = loop.state()
+    return loop.team.spray_cone(st, b.serial, st["world"]["mobiles"][f"0x{b.serial:08X}"], "ocean bedrock",
+                                loop.team.pets(st))
+
+
+def test_spray_windup_fewest_steps():
+    print("== an ocean bedrock winds up with Logan 7 down its cone: out by the fewest steps before the wave, not the "
+          "5-step tile by the pets ==")
+    # live 2026-10-28 22:18:03-05 (capture 20261028_182147, hunt-20261028-215803-e48f): the bedrock at (6949, 2059) facing
+    # west at the pets 3 in front of it, Logan at (6942, 2060) 7 down its cone; "stand-off to (6947, 2056): 5 step(s)",
+    # its action 18 at 22:18:04.08 came mid-walk, -42 at 04.97
+    w, b, loop, clock, store, patched = _bedrock_case((6942, 2060, -100), (6949, 2059, -126),
+                                                      ((6946, 2060), (6946, 2060)), "pet")
+    hurts = _log_hurts(w)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            start, cone0 = tuple(w.player.pos[:2]), _cone_of(loop, b)
+            b.cd["spray"] = w.t                                # its wind-up now
+            while b.spray is None:
+                clock.advance(0.05)
+            walked = loop.team.stand_off(loop.state())
+            clock.advance(2.0)                                 # past the wave's last ring
+            cone = _cone_of(loop, b)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln for ln in buf.getvalue().splitlines() if "spray" in ln or "stand-off" in ln]
+    out = next((ln for ln in lines if "ocean bedrock's spray: stepping out of its cone to" in ln), "")
+    steps = int(re.search(r", (\d+) step\(s\)", out).group(1)) if out else None
+    sprayed = [n for _, v, k, n in hurts if k == "spray" and v is w.player]
+    check("from 7 down its cone at the wind-up: 'ocean bedrock's spray: stepping out of its cone to (x, y), N step(s)', "
+          "N at most 3, not the live 5; the wave misses Logan; he ends out of the cone",
+          start in cone0 and walked and steps is not None and steps <= 3 and not sprayed
+          and tuple(w.player.pos[:2]) not in cone, f"{lines[:3]} sprayed {sprayed} at {w.player.pos}")
+
+
+def test_spray_loot_wait():
+    print("== a corpse whose every reachable tile within 2 lies in an awake ocean bedrock's cone: no walk in, kept "
+          "queued ==")
+    # live 2026-10-28 22:18:08-13 (capture 20261028_182147): the shellpod's corpse at (6944, 2060), the bedrock at
+    # (6948, 2060) facing the pets at (6946, 2059-2060); Logan at (6949, 2056), out of the cone, walked "to the corpse" 4
+    # steps to (6945, 2059), 3 down it (the tiles south of the corpse are wall), and its wave took -34
+    w, b, loop, clock, store, patched = _bedrock_case(
+        (6949, 2056, -126), (6948, 2060, -126), ((6946, 2060), (6946, 2059)), "pet",
+        [{"key": "biolumen shellpod", "at": [6944, 2060, -107]}])
+    pod = next(o for o in w.mobs.values() if o.key == "biolumen shellpod")
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            w.die(pod, w.pets()[0])
+            corpse = next(s for s, it in w.items.items() if it.get("kind") == "corpse" and it["owner"] == pod.serial)
+            clock.advance(0.5)
+            start = tuple(w.player.pos[:2])
+            spot, why = loop.team.loot_tile(loop.state(), (6944, 2060))
+            c = {"mob": pod.serial, "name": "a biolumen shellpod", "x": 6944, "y": 2060, "t": tamer.time.monotonic(),
+                 "corpse": corpse}
+            loop.corpses.append(c)
+            loop.loot(c)
+            cone = _cone_of(loop, b)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [ln for ln in buf.getvalue().splitlines() if "looting" in ln or "corpse" in ln]
+    check("loot_tile: a wait, 'the corpse at (6944, 2060) lies in the ocean bedrock's spray cone, ...'",
+          spot is None and bool(why) and why.startswith("the corpse at (6944, 2060) lies in the ocean bedrock's spray "
+                                                        "cone"), f"{spot} {why}")
+    check("the loot: 'not looting ... yet: the corpse at (6944, 2060) lies in the ocean bedrock's spray cone'; kept "
+          "queued, Logan where he stood, out of the cone",
+          any("not looting" in ln and "spray cone" in ln for ln in said) and c in loop.corpses
+          and tuple(w.player.pos[:2]) == start and start not in cone, f"{said[:2]} at {w.player.pos}")
+
+
+def test_spray_hold_awake():
+    print("== an ocean bedrock wakes 10 tiles off coming at Logan: the hold goes on ('letting it come'), no patrol into "
+          "its cone; a walk's route bends round an awake bedrock's cone ==")
+    # live 2026-10-28 22:04:44-48 (capture 20261028_182147): "holding here: ocean bedrock in sight at 10 tiles: letting it
+    # come"; it woke at 22:04:46 facing Logan, the hold ended, "patrol to (6955, 2055): route 7 steps" into its cone,
+    # stopped at the pull range, the stand-off out, the patrol back in; its wave at 46.92, -42 at 48.36
+    import nav
+    w, b, loop, clock, store, patched = _bedrock_case((6958, 2047, -126), (6953, 2057, -126),
+                                                      ((6957, 2047), (6958, 2046)), "us")
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.2)
+            st = loop.state()
+            loop.team.update(st)
+            hold = loop.team.hold_reason(st)
+            stop = loop.team.pull_check(st)                    # the patrol's and an advance's stop
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("hold_reason: 'an awake ocean bedrock at N tiles, out of its spray cone: letting it come'; an advance (the "
+          "patrol, an approach) stops on it",
+          bool(re.fullmatch(r"an awake ocean bedrock at (9|10) tiles, out of its spray cone: letting it come", hold or ""))
+          and stop == hold, f"hold {hold!r} stop {stop!r}")
+    # the north strip (test_spray_stand_off's spawn): the bedrock facing the tank south of it, its cone wall to wall from 5
+    # south; Logan 5 west and 4 south of it beside the cone, bound for 5 east: the straight way, 10 steps, crosses the cone
+    x, y, z = BEDROCK
+    w, b, loop, clock, store, patched = _bedrock_case((x - 5, y + 4, z), BEDROCK, ((x, y + 1), (x, y + 1)), "pet")
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.2)
+            st = loop.state()
+            loop.team.update(st)
+            cone = set(loop.team.spray_tiles(st))
+            avoid = set(loop.mover.avoid.get("spray", ()))
+            goal = (x + 5, y + 4)
+            path, _ = loop.mover.plan(st, nav.within(goal, 0))
+            loop.mover.avoid.clear()
+            straight, _ = loop.mover.plan(st, nav.within(goal, 0))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    inside = [tuple(t[:2]) for t in (path or []) if tuple(t[:2]) in cone]
+    crossed = [tuple(t[:2]) for t in (straight or []) if tuple(t[:2]) in cone]
+    check("the cone among the Mover's avoid tiles; the route to the far side goes round it, at most its edge tile by the "
+          "wall (without them: through it)",
+          bool(cone) and avoid == cone and (x - 5, y + 4) not in cone and goal not in cone and path is not None
+          and len(inside) <= 1 and len(crossed) >= 4,
+          f"{len(cone)} cone tiles, path {path and len(path)} steps, in the cone {inside}; without "
+          f"{straight and len(straight)} steps, {len(crossed)} in it")
+
+
 BUBBLES_AT = (6950, 2010)      # Tidal Tomb level 2: Logan's loot tile when the bubbles hit him (live 2026-10-28 21:13:48-58)
 
 
@@ -5754,6 +5901,7 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
+              test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,

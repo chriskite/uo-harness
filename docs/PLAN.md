@@ -2799,6 +2799,27 @@ item that lands on a tile up to ~5 from the grouper and pops 1.9 s later on ever
 - *Simulator*: the grouper's `bubbles` special, with the volley, the reach, the per-volley single hit and the
   numbers as measured. The before/after batch is in docs/SIM.md "The clearwater grouper's bubbles".
 
+## Out of the ocean bedrock's cone, whatever the walk (user 2026-10-28)
+
+User, live on level 2: "Logan is still standing directly in ocean bedrock spray. Figure out why". The cone was already
+a zone for the choosers (2026-10-26); the three live hits were walks through it (docs/NOTES.md "Tidal Tomb: Logan in the
+bedrock's spray"). Decisions:
+
+- *Routes, not more choosers*. The cone goes among the Mover's `avoid` tiles (a new flat-cost set beside
+  `danger_tiles`), updated each tick and on every step, so every walk bends round it and crosses it only when there is
+  no other way. Per-tile `danger` entries as for fire would put 80-240 entries in every route's cost loop.
+- *No replan request on a cone change*: the bedrock turns with its target, and danger replans count toward "boxed
+  in". A walk already under way stops at a wind-up instead (`spray_stop`, in or a step from the cone), and no walk to a
+  pet, off the tank, of the patrol or to a corpse starts while a wave is due beside us (`spray_wait`). Not a tick-wide
+  wait: with one, 48 simulator runs had pet deaths 3 -> 9 and banked an hour 123k -> 95k [INFERENCE: it held the vet
+  supplies and the bard skills too, 1.6 s a wave].
+- *The fewest steps on a wind-up* (the wave is 0.71-1.41 s off), even beyond the vet supplies' reach; the walk back
+  to the pets comes after the wave. Without a wind-up the stand-off keeps its ranking, with tiles down a cone from a
+  step of the bedrock's ranked below the ones beside or behind it (`SPRAY_AHEAD`).
+- *An awake bedrock coming on holds the advance* as an idle one that sees us does: it walks at what it fights, facing
+  it, so the patrol toward it walked down its cone.
+- *The loot waits* when every tile within 2 of the corpse that we reach lies in a cone: the corpse stays queued.
+
 ## The Ossuary in the simulator (user 2026-10-28: "add it to the combat simulator")
 
 Built from the user's three visits that day (docs/SIM.md "The Ossuary", docs/NOTES.md "The Ossuary: three visits by

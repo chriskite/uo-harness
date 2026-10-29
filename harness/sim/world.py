@@ -1989,6 +1989,7 @@ class World:
                     self.send(P.animation(m.serial, sp.get("action", 18), frames=8))
                 only = m.provoke[0] if m.provoke and m.provoke[0] in self.mobs else None
                 m.spray = {"t0": t + sp["telegraph_s"], "c": m.pos, "d": m.d, "sp": sp, "hit": set(), "only": only}
+                self.count("spray", "sprays")
                 m.next_swing = max(m.next_swing, t + sp.get("swing_delay_s", 0.0))
             elif kind == "bubbles":
                 # a clearwater grouper (Tidal Tomb scenario note): a volley of `count` bubbles `throw_s` apart onto tiles
@@ -2046,7 +2047,12 @@ class World:
                 dmg = self.roll(sp["damage_provoked"]) / max(1.0, self.sc["bard"].get("provoke_x", 1.0))
             else:
                 dmg = self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"])
+            before = o.hits
             self.hurt(o, dmg, m, "spray", ref=sp.get("ref"))
+            if o.kind != "monster":
+                who = "us" if o.kind == "player" else "pets"
+                self.count("spray", f"hits_{who}")
+                self.count("spray", f"damage_{who}", round(before - max(o.hits, 0)))
         if t >= s["t0"] + ring * (r - 1):
             m.spray = None
 

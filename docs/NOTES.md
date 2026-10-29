@@ -6119,6 +6119,42 @@ runner keeps stopping for a while trying to loot them".
 - Built: the runner never queues the corpse (`loop_hunt.EMPTY_CORPSES`); the simulator's pincer crab drops no gold
   (`gold_observed`).
 
+## Tidal Tomb: Logan in the bedrock's spray (2026-10-28)
+
+User 2026-10-28 ~22:20, live run hunt-20261028-215803-e48f (level 2, pets Bussin 0x000EA04F and AlaFlambe 0x0026EF56):
+"Logan is still standing directly in ocean bedrock spray. Figure out why". Read from capture 20261028_182147 (a
+throwaway replay: each bedrock action 18 with the bedrock's tile and 0x77 direction, Logan's tile and his hits 0.5-1.8 s
+later) and the task log. The runner's level 2 runs in it: hunt-20261028-211014-9150 and -215803-e48f; no earlier capture
+has the runner on level 2 (18:35:23 and 18:35:38, 2 hits in the cone at 7 and 5, were the user's hand play).
+
+- **The runner's sprays:** 9 wind-ups 21:15-22:20. Logan stood in the cone at 5 of them and was hit at 3: 22:04:46.92
+  (-42), 22:18:04.08 (-42), 22:18:12.25 (-34). In the cone at 6 and 7 without a hit: 21:15:11.57 (the walk to the
+  moongate) and 22:13:58.12. Out of it at the other 4 (22:04:54, 22:19:52-22:20:16): no hit.
+- **The bedrocks walk at their target.** 0x000EAEEF went (6953, 2057) -> (6955, 2055) -> (6958, 2048) from 22:04:44 on,
+  war mode (flags 0x40) from 22:04:46, facing Logan; 0x000ED280 came (6955, 2056) -> (6950, 2059) -> (6948, 2060)
+  22:18:01-05 at the pets.
+- **22:04:46.92, gap (a), confirmed: the patrol walked back into the cone.** "holding here: ocean bedrock in sight at 10
+  tiles: letting it come" (22:04:44) ended when it woke: the hold was for idle monsters only (`hold_reason`,
+  `View.wakes`). Then "patrol to (6955, 2055): route 7 steps" (the waypoint beside it, in its cone), one step to the
+  pull range ("a target in reach"), the stand-off back out to 9 ("stand-off to (6956, 2047): 1 step(s)"), the patrol
+  in again, twice. Nothing kept a walk's route out of the cone: its tiles were in the zone at 1 (`area_zone`), and
+  `around_areas` puts only reaches over 1 among the Mover's dangers.
+- **22:18:04.08, gap (b), confirmed: a 5-step stand-off down the cone.** The bedrock at (6949, 2059) facing west at the
+  pets 3 in front of it, Logan 7 down its cone at (6942, 2060). "stand-off to (6947, 2056): 5 step(s)" at 22:18:03:
+  `standoff_tile` ranks the steps last, after the idle eyes and the vet reach of the pets, and its walk had no stop at
+  a wind-up. The wave came mid-walk, -42 at 22:18:04.97. Two steps west put him 9 off.
+- **22:18:12.25, gap (c), confirmed: the loot walk into the cone.** The shellpod's corpse at (6944, 2060), the bedrock
+  at (6948, 2060) facing north-west. Logan at (6949, 2056) was out of it; "to the corpse: route 4 steps", arrived at
+  (6945, 2059), 3 down the cone, -34. Every tile within 2 of the corpse that he could reach lay in the cone; the ones
+  out of it are wall. `loot_tile`'s "every tile in reach" check counted the wall tiles as clear, `_reach_tile` found no
+  clear tile, and None fell to the walk "as before".
+- **Proactive positioning:** `vet_tile`, `spacing` and `standoff_tile` never chose a tile in the cone (it is in the
+  zone), but the walks to them went through it. In the simulator (48 level 2 runs, before) 35 of the 55 sprays on Logan
+  came mid stand-off walk, 3 on a walk to a hurt pet, 1 off the tank, 1 to the corpse, 9 while barding.
+- **Built 2026-10-28:** the cone in the Mover's `avoid` tiles for every walk; a wind-up's stop on the walks and the
+  fewest-steps tile out; the hold for an awake bedrock coming on; the loot wait. docs/HUNT_LOOP.md "Pets" (the
+  rule), docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray" (the numbers), docs/PLAN.md (the decision).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

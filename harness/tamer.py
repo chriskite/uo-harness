@@ -237,6 +237,9 @@ SWING_FRESH_S = 10.0          # a swing this recent names its target (world.swin
 SPRAY_R = {"ocean bedrock": 8}
 SPRAY_ACTION = 18
 SPRAY_WARN_S = 1.6            # after its action 18: the wave's last ring lands 0.71 + 0.7 s later
+SPRAY_AHEAD = 2               # standoff_tile: a tile this much farther down a cone ranks below one beside or behind it (the
+#                               bedrock walks at its target and turns with it: live 2026-10-28 22:04:40-48 and 22:18:01-05
+#                               two came on 5-7 tiles; the user stood beside it 56 % of the time, in front beyond 8 only 8 %)
 PROVOKE_FIRST = "pairs"       # bard(): provocation before the discord when two monsters are in the fight ("pairs"; the
 #                               user on Tidal Tomb's level 2: "I'm generally able to keep the mobs provo'd onto each
 #                               other"; simulator 2026-10-26: level 3 runs with a death 12 -> 5 of 24, Maus 3 5 -> 2 of
@@ -545,6 +548,8 @@ class Team:
         self.attack_t = {}               # serial -> first seen attacking us (this engagement)
         self.blinks = {}                 # apparition serial -> (monotonic time of its "*phases*", target serial)
         self.spray_t = {}                # sprayer serial -> monotonic time of its action 18 (the spray's wind-up)
+        self.spray_upto = 0              # link.events scanned for those (spray_watch)
+        self.spray_waited = None         # the wind-up spray_wait last logged for
         self.poisoned_t = {}             # pet serial -> "*looks violently ill*" over it
         self.seen_t = {}                 # pet serial -> last seen in view
         self.seen_at = {}                # pet serial -> (x, y) where last seen alive (rejoin)
@@ -618,7 +623,7 @@ class Team:
         remember(self.h.memory, character, self.roster)
         now = time.monotonic()
         self.seen_t = {s: now for s in self.roster}
-        self.ev_upto = len(self.h.link.events)
+        self.ev_upto = self.spray_upto = len(self.h.link.events)
         self.seed_backspawn(st)
 
     def seed_backspawn(self, st):
@@ -718,11 +723,8 @@ class Team:
             elif kind == "mobile_death" and s is not None:
                 self.effects.pop(s, None)
                 self.attack_t.pop(s, None)
-            elif kind == "animation" and s is not None and e.get("action") == SPRAY_ACTION and s not in self.roster:
-                m = st["world"]["mobiles"].get(f"0x{s:08X}") or {}
-                if type_key((st["world"].get("labels") or {}).get(f"0x{s:08X}") or m.get("name")) in SPRAY_R:
-                    self.spray_t[s] = now
         self.ev_upto = len(evs)
+        self.spray_watch(st)
         self.free_pets(st, now)
         for s in [s for s, (t, _) in self.blinks.items() if now - t > BLINK_S]:
             del self.blinks[s]
@@ -1142,15 +1144,15 @@ class Team:
             c = (round(v.stand_score(t)), k)
             if best_c is None or c < best_c:
                 best, best_c = t, c
-        if best is None:
-            return False
+        if best is None or self.spray_wait(st):
+            return False                  # none, or a wave due beside us: the step after it (spray_wait)
         label = "off the tank"
         h.doing("reposition", f"Stepping off the tank to {best[0]},{best[1]}", best[:2])
         self.count("spacing")
         log(f"keeping off the tank: {best[:2]}, {SPACING_R}+ from the pets and what fights them")
         try:
             h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS, max_route=2 * SPACING_STEPS,
-                            mobile_wait=0)
+                            mobile_wait=0, stop=self.spray_stop)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -1173,7 +1175,8 @@ class Team:
         monster or an idle corpse purger or blightmare (aggro.shy) that would see us before a pet (back_off steps out),
         an awake one whose shot reaches this tile, not one on someone else (shy_threats: walked past; "an awake …
         would see us"; cover steps out, and without this stop the walk went straight back in: live 2026-10-24
-        19:01:21-19:02:55, nine and five rounds), or hold_reason. Its "at once" (more than the budget idle in sight
+        19:01:21-19:02:55, nine and five rounds), a sprayer's wind-up with us in its cone (spray_stop: the stand-off
+        steps out next), or hold_reason. Its "at once" (more than the budget idle in sight
         together) only on a step that adds
         to what sees us: walking out of such a spot goes on (sim fight1949: stopped at every step out, stuck)."""
         budget = self.a.pull_budget
@@ -1210,7 +1213,7 @@ class Team:
                 why = None
         else:
             self.never_last = None
-        why = why or self.hold_reason(st)
+        why = why or self.spray_stop(st) or self.hold_reason(st)
         if why and why != self.pull_why:
             self.count("pull_holds")
             log(f"holding here: {why}")
@@ -1228,7 +1231,11 @@ class Team:
         strict) and within HOLD_R (user 2026-10-17: "Logan is waiting for mobs that can't see him through walls
         to 'come on'"; live 16:12 run, 17 holds: 11 of the 13 within 10 tiles woke in 0.5-3.5 s, two not found in
         the replay; a shadow minion 12 tiles off behind a Wall-only piece and two at 13 never did; the Wall rule
-        would also have passed over the 16:38:21 shadowguard, which woke in 0.7 s)."""
+        would also have passed over the 16:38:21 shadowguard, which woke in 0.7 s). An awake sprayer within HOLD_R
+        that fights no one else holds us the same (spray_tiles: neither pacified nor provoked): it comes on at what it
+        fights, facing it, so an advance walks down its cone. Live 2026-10-28 22:04:44-48 (capture 20261028_182147) the
+        hold for an ocean bedrock ended as it woke at 9-10 tiles, the patrol walked on into its cone, stopped at the
+        pull range ("a target in reach"), the stand-off stepped back out of it, round again, and its wave came, -42."""
         v = self.view(st)
         if not self.a.hold_first_sight or v.engaged():
             return None
@@ -1238,11 +1245,14 @@ class Team:
             if m["shy"]:
                 continue                  # it shoots from where it stands, it doesn't come on (back_off)
             if cheb(m["pos"], v.pos) <= HOLD_R and self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
-                seen.append(m)
+                seen.append((cheb(m["pos"], v.pos), f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles"))
+        for s, mob, kind, _ in self.sprayers(st):
+            d = cheb((mob["x"], mob["y"]), v.pos)
+            if d <= HOLD_R and self.elsewhere(st, mob) is None and self.hold_until.setdefault(s, now + HOLD_S) > now:
+                seen.append((d, f"an awake {kind} at {d} tiles, out of its spray cone"))
         if not seen:
             return None
-        m = min(seen, key=lambda m: cheb(m["pos"], v.pos))
-        return f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles: letting it come"
+        return f"{min(seen)[1]}: letting it come"
 
     def shy_first(self, v, tile) -> list[dict]:
         """Idle corpse purgers and blightmares (aggro.shy) that would see us on `tile` before a pet (first_on_us)."""
@@ -1714,21 +1724,18 @@ class Team:
     def area_zone(self, st) -> dict:
         """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone
         near it (a charger: CHARGE_SAFE_R; AREA_R's), and each live pet beside one (the one it fights:
-        a Charge lands next to it); each tile of an awake sprayer's frontal cone (spray_cone) at 1."""
+        a Charge lands next to it); each tile of an awake sprayer's frontal cone (spray_tiles) at 1."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
         pets = [p for p in self.pets(st) if not p["dead"]]
-        zone = {}
+        zone = dict.fromkeys(self.spray_tiles(st), 1)
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s in self.roster or s in self.h.dead or mob.get("x") is None \
                     or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
                 continue
             kind = type_key(labels.get(key) or mob.get("name"))
-            if kind in SPRAY_R:
-                for t in self.spray_cone(st, s, mob, kind, pets):
-                    zone[t] = max(zone.get(t, 0), 1)
             r = CHARGE_SAFE_R if kind in self.chargers else AREA_R.get(kind)
             if r is None:
                 continue
@@ -1739,38 +1746,119 @@ class Team:
             zone[tile] = max(zone.get(tile, 0), r)
         return zone
 
-    def spray_cone(self, st, s: int, mob: dict, kind: str, pets: list) -> set:
+    def sprayers(self, st) -> list[tuple]:
+        """[(serial, mob, kind, its cone)] of each sprayer (SPRAY_R) in war mode in view whose next wave is ours to keep
+        out of: its cone (spray_cone) not empty, so not pacified or provoked onto a live monster."""
+        import threats
+        world = st["world"]
+        labels = world.get("labels") or {}
+        out, pets = [], None
+        for key, mob in world["mobiles"].items():
+            s = serial_of(key)
+            if s in self.roster or s in self.h.dead or mob.get("x") is None \
+                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
+                continue
+            kind = type_key(labels.get(key) or mob.get("name"))
+            if kind not in SPRAY_R:
+                continue
+            if pets is None:
+                pets = [p for p in self.pets(st) if not p["dead"]]
+            if cone := self.spray_cone(st, s, mob, kind, pets):
+                out.append((s, mob, kind, cone))
+        return out
+
+    def spray_tiles(self, st, ahead: int = 0) -> dict:
+        """{(x, y): sprayer kind} over every awake sprayer's cone (sprayers); `ahead` tiles longer each (a step of
+        its toward its target: spray_cone's `reach`)."""
+        out = {}
+        if not ahead:
+            for _, _, kind, cone in self.sprayers(st):
+                out.update(dict.fromkeys(cone, kind))
+            return out
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        for s, mob, kind, _ in self.sprayers(st):
+            out.update(dict.fromkeys(self.spray_cone(st, s, mob, kind, pets, SPRAY_R[kind] + ahead), kind))
+        return out
+
+    def spray_watch(self, st):
+        """A sprayer's wind-up (its action 18: spray_t) from the events since the last look, and every awake sprayer's
+        cone (spray_tiles) as the Mover's `avoid` tiles: every walk's route bends round them where it can (a patrol,
+        an advance, a loot, a vet or a stand-off step alike; live 2026-10-28 22:18:03 the stand-off walked 5 steps
+        down the cone, the wave landed mid-walk, -42). Each tick (update) and on each step and plan (HuntLoop's Mover
+        guard), so a wind-up mid-walk reaches the walk's stop (spray_stop) before its wave."""
+        if not self.roster:
+            return                        # before setup: the events so far are history
+        evs, now = self.h.link.events, time.monotonic()
+        for e in evs[self.spray_upto:]:
+            s = serial_of(e["serial"]) if e.get("serial") is not None else None
+            if e.get("ev") == "animation" and s is not None and e.get("action") == SPRAY_ACTION and s not in self.roster:
+                m = st["world"]["mobiles"].get(f"0x{s:08X}") or {}
+                if type_key((st["world"].get("labels") or {}).get(f"0x{s:08X}") or m.get("name")) in SPRAY_R:
+                    self.spray_t[s] = now
+        self.spray_upto = len(evs)
+        tiles = set(self.spray_tiles(st))
+        if tiles:
+            self.h.mover.avoid["spray"] = tiles
+        else:
+            self.h.mover.avoid.pop("spray", None)
+
+    def spray_stop(self, st) -> str | None:
+        """A walk's stop (Mover.walk_to `stop`): a sprayer wound up with us in its cone or a step from it (spray_due
+        `near` 1), so the next tick steps out by the fewest steps (stand_off) or waits beside it for the wave
+        (spray_wait) rather than walking on into it. Simulator 2026-10-28, level 2: out of the cone at a wind-up, the walk
+        to a hurt pet the next tick stepped back in under the wave."""
+        if kind := self.spray_due(st, self.h.pos(st), near=1):
+            return f"the {kind} wound up its spray with us in or beside its cone"
+        return None
+
+    def spray_wait(self, st) -> str | None:
+        """No walk while a sprayer's wave is due with us within a step of its cone (spray_due `near` 1): the stand-off
+        took us out of it if we stood in it, any other walk waits up to SPRAY_WARN_S, till the wave is past. -> why
+        (logged once a wind-up), or None."""
+        kind = self.spray_due(st, self.h.pos(st), near=1)
+        if kind is None:
+            return None
+        t = max(self.spray_t.values())
+        if t != self.spray_waited:
+            self.spray_waited = t
+            log(f"{kind}'s spray: no walk beside its cone till its wave is past")
+        return f"Waiting out the {kind}'s spray beside its cone"
+
+    def spray_cone(self, st, s: int, mob: dict, kind: str, pets: list, reach: int | None = None) -> set:
         """The tiles an awake sprayer's (SPRAY_R) next wave would cover: its frontal cone along the way it faces (its
         0x77 direction) and along the way to each live pet beside it (it turns to its combatant: live the wave's axis
         was its combatant's bearing every time). None while it is pacified or provoked onto a monster still alive
-        (effects: it sprays only that one)."""
+        (effects: it sprays only that one). `reach`: tiles long instead of its SPRAY_R."""
         fx, now = self.effects.get(s) or {}, time.monotonic()
         if fx.get("calm", 0) > now:
             onto = fx.get("onto")
             if onto is None or (f"0x{onto:08X}" in st["world"]["mobiles"] and onto not in self.h.dead):
                 return set()
-        c, r = (mob["x"], mob["y"]), SPRAY_R[kind]
+        c, r = (mob["x"], mob["y"]), SPRAY_R[kind] if reach is None else reach
         axes = {nav.facing(c, (p["x"], p["y"])) for p in pets if cheb((p["x"], p["y"]), c) == 1}
         if mob.get("direction") is not None:
             axes.add(mob["direction"] & 7)
         return {(c[0] + dx, c[1] + dy) for d in axes for dx in range(-r, r + 1) for dy in range(-r, r + 1)
                 if nav.in_cone(d, dx, dy, r)}
 
-    def spray_due(self, st, pos) -> bool:
-        """A sprayer wound up within SPRAY_WARN_S (its action 18) and `pos` lies in its cone (spray_cone)."""
+    def spray_due(self, st, pos, near: int = 0) -> str | None:
+        """The kind of a sprayer that wound up within SPRAY_WARN_S (its action 18) with `pos`, or a tile within `near` of
+        it, in its cone (spray_cone), else None."""
         now = time.monotonic()
         for s in [s for s, t in self.spray_t.items() if now - t > SPRAY_WARN_S]:
             del self.spray_t[s]
         if not self.spray_t:
-            return False
+            return None
         world, pets = st["world"], [p for p in self.pets(st) if not p["dead"]]
+        x, y = pos[:2]
+        tiles = {(x + dx, y + dy) for dx in range(-near, near + 1) for dy in range(-near, near + 1)}
         for s in self.spray_t:
             mob = world["mobiles"].get(f"0x{s:08X}")
             if mob is not None and mob.get("x") is not None:
                 kind = type_key((world.get("labels") or {}).get(f"0x{s:08X}") or mob.get("name"))
-                if kind in SPRAY_R and tuple(pos[:2]) in self.spray_cone(st, s, mob, kind, pets):
-                    return True
-        return False
+                if kind in SPRAY_R and tiles & self.spray_cone(st, s, mob, kind, pets):
+                    return kind
+        return None
 
     def blink_target(self, st, s: int) -> int | None:
         """Whom apparition `s` blinks onto: the defender of its latest swing, or the pet whose latest swing is at it
@@ -1832,13 +1920,18 @@ class Team:
         shortens the reach to a pet to 1 (wiki Veterinary). An apparition's "*phases*" onto a pet (blink_tiles):
         off that pet at once, past the repeat gap and the tank's heal, before the landing 1.1-1.6 s later. A sprayer's
         wind-up (its action 18, spray_t) with us in its cone: the same, before its wave's ring reaches us (0.71 s and
-        0.1 s a tile). A clearwater grouper's bubble within reach of us: out of it first, every tick (out_of_bubbles)."""
+        0.1 s a tile), to the tile out of it the fewest steps off (standoff_tile `spray`). Else a stand-off walk stops at
+        such a wind-up (spray_stop) for that; its route bends round the cone (spray_watch). A clearwater grouper's
+        bubble within reach of us: out of it first, every tick (out_of_bubbles)."""
         h, now = self.h, time.monotonic()
         self.update(st)                   # a "*phases*" just heard: act on it in this tick, before a song or a channel
         if self.out_of_bubbles(st):
             return True
+        if self.spray_t:
+            st = h.link.state()           # a wind-up seen: the sprayer's place and facing now (its 0x77 comes with it)
         pos = h.pos(st)
-        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or self.spray_due(st, pos)
+        sprayed = self.spray_due(st, pos)
+        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or sprayed
         if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:
             return False
         zone = self.area_zone(st)
@@ -1868,7 +1961,7 @@ class Team:
                     raise
                 log(f"{label}: {e}")
             return True
-        to, stay = self.standoff_tile(st, zone)
+        to, stay = self.standoff_tile(st, zone, sprayed)
         if stay:
             if stay != self.standoff_stay:
                 log(f"stand-off: {stay}")
@@ -1879,57 +1972,71 @@ class Team:
         label = "out of charge reach"
         h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
         self.count("standoffs")
+        stop = None if sprayed else self.spray_stop
         try:
             if to is not None:
                 h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
-                                max_route=2 * STANDOFF_MOVES, mobile_wait=0)
+                                max_route=2 * STANDOFF_MOVES, mobile_wait=0, stop=stop)
             else:
                 h.mover.walk_to(None, 0, label, goal_fn=ClearOf(zone), urgent=True, max_moves=STANDOFF_MOVES,
-                                max_route=STANDOFF_MOVES, mobile_wait=0)
+                                max_route=STANDOFF_MOVES, mobile_wait=0, stop=stop)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
             log(f"stand-off cut short: {e}")
         return True
 
-    def standoff_tile(self, st, zone: dict):
+    def standoff_tile(self, st, zone: dict, spray: str | None = None):
         """Where to stand off to -> (tile, None), or (None, why) to stay: a tile within STANDOFF_MOVES steps
         clear of `zone` and fire that the fewest idle monsters would see before a pet (aggro.View.stand_score),
-        the nearest of those, within --vet-range of every live pet near when one such is out of their sight,
-        else beyond it. One that more idle monsters would see first than see us here is no stand-off: we stay
-        (an area hit on us is better than a fresh monster on us). Live 20261015_171928 19:49:40 the nearest clear
-        tile was 10 from a second apparition in its sight (it came onto Logan 5 s later, -46); 20261015_204514
-        21:02:02 the only clear tiles in reach of the pets were 3 from an idle reanimated knight: it woke and
-        hit Logan -46 (user: "Logan went and stood right in front of a reanimated knight while the pets were
-        fighting another mob")."""
+        out of the reach of a step forward of every awake sprayer (spray_tiles `ahead` SPRAY_AHEAD: beside or behind
+        it, as the user stands), the nearest of those, within --vet-range of every live pet near when one such is out
+        of their sight, else beyond it. One that more idle monsters would see first than see us here is no stand-off: we
+        stay (an area hit on us is better than a fresh monster on us). `spray` (the kind of a sprayer whose wave is due
+        on us: spray_due): the fewest steps first, among the tiles no worse by those eyes than here. Live 20261015_171928
+        19:49:40 the nearest clear tile was 10 from a second apparition in its sight (it came onto Logan 5 s later,
+        -46); 20261015_204514 21:02:02 the only clear tiles in reach of the pets were 3 from an idle reanimated knight:
+        it woke and hit Logan -46 (user: "Logan went and stood right in front of a reanimated knight while the pets were
+        fighting another mob"). Live 2026-10-28 22:18:03-04.97 (capture 20261028_182147) the tile in reach of the
+        pets was 5 steps off down an ocean bedrock's cone; its wave came mid-walk, -42."""
         v = self.view(st)
         if v.walk is None:
             return None, None
         fire, clear = self.fire_tiles(st), ClearOf(zone)
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 2]
+        ahead = self.spray_tiles(st, SPRAY_AHEAD)
         def closest(t):
             # the nearest idle monster that would see us there first: nearer is likelier to wake (live 21:02:02-07
             # the knight stayed idle 5 s at 6 tiles and woke 5 s after Logan stood 3 from it)
             return min((cheb(m["pos"], t) for m in v.first_on_us(t, margin=1)), default=99)
-        near, far = None, None
+        cands = []                        # (seen by, -nearest idle eye, in front of a sprayer, steps, out of vet reach, t)
         for t, k in self.tiles_within(v, STANDOFF_MOVES).items():
             if not clear(t) or t[:2] in fire:
                 continue
-            c = (round(v.stand_score(t)), -closest(t), k, t)
-            if not any(cheb(t, p) > self.a.vet_range for p in keep):
-                near = c if near is None or c < near else near
-            far = c if far is None or c < far else far
+            cands.append((round(v.stand_score(t)), -closest(t), t[:2] in ahead, k,
+                          any(cheb(t, p) > self.a.vet_range for p in keep), t))
         here = (round(v.stand_score(v.pos)), -closest(v.pos))
-        pick = near if near is not None and near[0] == 0 else far if far is not None and far[0] == 0 else \
-            min((c for c in (near, far) if c is not None), default=None)
-        if pick is None:
+        if not cands:
             return None, None
+        if spray:
+            pool = [c for c in cands if c[:2] <= here] or cands
+            pick = min(pool, key=lambda c: (c[3], c[0], c[4], c[2], c[1]))
+        else:
+            def best(cs):
+                return min(cs, key=lambda c: (c[0], c[2], c[1], c[3]), default=None)
+            near, far = best([c for c in cands if not c[4]]), best(cands)
+            pick = near if near is not None and near[0] == 0 else far if far[0] == 0 else \
+                best([c for c in (near, far) if c is not None])
         if pick[:2] > here:
             return None, (f"every clear tile is nearer an idle monster that would see us before a pet "
                           f"({pick[0] / 10:g} by weight at {-pick[1]} tiles; here {here[0] / 10:g} at {-here[1]}); staying")
-        log(f"stand-off to {pick[3][:2]}: {pick[2]} step(s), seen by {pick[0] / 10:g} idle before a pet"
-            + ("" if pick is near else ", beyond the vet supplies' reach of the pets"))
-        return pick[3], None
+        if spray:
+            log(f"{spray}'s spray: stepping out of its cone to {pick[5][:2]}, {pick[3]} step(s)"
+                + (", beyond the vet supplies' reach of the pets" if pick[4] else ""))
+        else:
+            log(f"stand-off to {pick[5][:2]}: {pick[3]} step(s), seen by {pick[0] / 10:g} idle before a pet"
+                + (", beyond the vet supplies' reach of the pets" if pick[4] else ""))
+        return pick[5], None
 
     @staticmethod
     def zone_depth(zone: dict, t) -> int:
@@ -1960,7 +2067,8 @@ class Team:
         Simulator 2026-10-21, seed 1004: "to the corpse" walked 11 steps into an awake purger's shot at 3-5 tiles, then
         100 -> 6 in 8 s (its shot ~20 and a stacking disease); user 2026-10-21: "stay out of their aggro range". A
         clearwater grouper's bubbles within LOOT_RANGE of the corpse: the same, a tile out of their reach (fire_tiles),
-        else a wait out of it (live 2026-10-28 21:13:48-51 Logan looted from beside two, -40)."""
+        else a wait out of it (live 2026-10-28 21:13:48-51 Logan looted from beside two, -40). An awake sprayer's cone
+        (spray_tiles) over the corpse's tiles with no clear tile reached: a wait too, not the walk in."""
         zone = self.area_zone(st)
         v = self.view(st)
         shy = self.shy_awake(v)
@@ -1992,6 +2100,13 @@ class Team:
                           f"{', '.join(sorted({m['kind'] for m in shy}))}, every tile within {lr} of it too")
         if t is None and hot:
             return None, f"the corpse at {spot} lies in a clearwater grouper's bubbles' reach, every tile within {lr} too"
+        spray = self.spray_tiles(st) if t is None else {}
+        if near := sorted({spray[n] for n in ((spot[0] + dx, spot[1] + dy) for dx in range(-lr, lr + 1)
+                                              for dy in range(-lr, lr + 1)) if n in spray}):
+            # live 2026-10-28 22:18:08-13 (capture 20261028_182147): every tile within 2 of the corpse we could walk to lay
+            # in an ocean bedrock's cone (the ones out of it were wall), "to the corpse" walked in as before, -34
+            return None, (f"the corpse at {spot} lies in the {', '.join(near)}'s spray cone, every tile within {lr} of it "
+                          f"we reach too")
         end = t[:2] if t is not None else spot
         if idle_shy and (first := self.shy_first(v, (end[0], end[1], v.z_at(end)))):
             # an idle shy monster (a caster since 2026-10-26) would see us there before a pet: its first target. Simulator,
@@ -2260,7 +2375,11 @@ class Team:
                 log(f"{label}: {p['name']} ({p['frac']:.0%}) is only in reach {d_there} from the awake {kind}, out of "
                     f"its sight {d_here} off here ({TO_PET_CASTER_AT:.0%} or more); staying out of it")
                 return False
-            stop = None if p["dead"] else purger_first
+            if self.spray_wait(st):
+                return False              # a wave due beside us: the walk after it (spray_wait)
+            # and a sprayer's wind-up with us in or beside its cone ends the walk: the stand-off or the wait next
+            # (simulator 2026-10-28, level 2: walks to a pet down an ocean bedrock's cone took its wave mid-walk)
+            stop = self.spray_stop if p["dead"] else (lambda s: purger_first(s) or self.spray_stop(s))
             if to is not None:
                 log(f"{label}: {to[:2]}, {cheb(to, (p['x'], p['y']))} from {p['name']} (--vet-range "
                     f"{self.a.vet_range}), {self.zone_depth(self.area_zone(st), to)} into an area hit's reach")
