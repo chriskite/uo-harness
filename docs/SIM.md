@@ -1978,7 +1978,8 @@ absolute numbers pinned to live captures where there are any.
 - `data/sim/tamer/logan_wolf.json`: his skills (Taming, Lore, Veterinary, Herding 120; barding 80), his Mastery Chain
   (`chain`: the gump's totals, "Mastery Chain links"), the 8 species (class, slots, min taming, attack kind,
   abilities), the 9 pets, the 6 team presets, the perk tables (each perk's numbers per rank and its rule; the gumps'
-  texts), the class threat (`tank` 4.0, `attack`/`utility` 0.1: the fitted gravebug and phoenix), and the anchors
+  texts), the aggro draw by each pet's Aggro setting (`aggro_threat_x` on 4.0 / off 0.1: the fitted gravebug and
+  phoenix; the setting from the Guide's Abilities page, a preset's `settings` pin over it), and the anchors
   (with the chain they were measured under, `anchors.chain`).
 
 **A pet's build** (`pets.build_pet`, at the run's Command tier):
@@ -2046,12 +2047,20 @@ that class no perks and a warning (`party_warnings`; none with the current data)
 and `bestiary`; `pet_damage_dealt` per pet on the level.
 
 **AlaFlambe + Bussin** (`phoenix_incubus`, the user's team from 2026-10-28: Bussin an incubus, utility class, level 11,
-Phoenix/Incubus): Tidal Tomb level 1, 8 runs of 30 min each against `phoenix_gravebug` (seeds 1-8, 2026-10-28). No
-death and no pet death in either; without a tank the monsters' hits go to Logan: 600 a run on him against 137, 52 vet
-uses against 26, 8.4 potions against 1.6; 306 kills an hour against 328, 114k gold an hour against 122k. Seed 1's
-"time is up" leave fought on the way out past the sim's 180 s grace (`aborted`, a sim time limit; live runs have
-none). Dreamlull (15 % a spell: hex 25 a slot for 15 s, hinder 1 s a slot) isn't modelled, and the Opportunity
-and Punishment rules still give their flat damage as for a species without hex or hinder.
+aggro off; AlaFlambe the tank, aggro on and melee distance; Phoenix/Incubus). Tidal Tomb level 1, 8 runs of 30 min
+each, seeds 1-8, 2026-10-28:
+
+| Team | kills / h | gold / h | on Logan a run | vet a run | potions a run | deaths |
+|---|---|---|---|---|---|---|
+| `phoenix_gravebug` (AlaFlambe off and ranged, pinned) | 328 | 121,579 | 137 | 26 | 1.6 | 0 |
+| `phoenix_incubus`, the phoenix's aggro as class (off): no tank | 306 | 114,109 | 600 | 52 | 8.4 | 0 |
+| `phoenix_incubus`, the phoenix's aggro on (its setting) | 320 | 118,559 | 147 | 74.5 | 2.3 | 0 |
+
+With the phoenix tanking, Logan takes about what he took behind the gravebug; the vet works harder on the phoenix
+(Guide armor 22.6 against the gravebug's 81.6). The no-tank row's seed 1 fought its "time is up" leave
+past the sim's 180 s grace (`aborted`, a sim limit; live runs have none). Dreamlull (15 % a spell: hex 25 a slot for
+15 s, hinder 1 s a slot) isn't modelled, and the Opportunity and Punishment rules still give their flat damage as for
+a species without hex or hinder.
 
 **The default team's batch** (98 runs, seed 17, 14 careers, `-- --vet-range 5`; Phoenix/Gravebug as of 10-15):
 

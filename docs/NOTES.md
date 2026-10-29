@@ -6604,6 +6604,16 @@ so a value is read through its element's line index, never by its position in `l
   resist). They are the *base* values, not levelled (the wiki's level table makes the live hit bars: GirthyEarthy
   448 -> ~1000, NightmareB 228 -> ~480). A wild creature's adds Barding and Taming Chance; a toggle at (212, 127)
   reads "Base" or "Tamed".
+- **The Guide's Abilities page** (its button 3 from the Values page; no title, so the pet is the last Values page's):
+  "Aggro" at (69, 28), "Combat Distance" at (140, 28), "AoE" at (292, 28), each with arrows (buttons 3/4, 5/6, 7/8).
+  Aggro is `tilepichue 64 45 39892 <hue>`: hue 2117 (red) on, 2104 (grey) off; Combat Distance `tilepic 165 ...`:
+  45320 melee, 3643 ranged; AoE 14030 in every view but one (8305 hue 2669 for one click at 18:29:39). Every view
+  2026-10-11..28: aggro on for GraveRobber, GirthyEarthy and NightmareA/B, off for AlaFlambe (until 10-28), the imp,
+  fireminion, the mantis and Bussin; melee distance on the melee species, ranged on the casters. 2026-10-28 18:25:24 the
+  user turned AlaFlambe's aggro on (user: "I switched the aggro setting on AlaFlambe to on, so it is the tank now"),
+  and 18:29:43-44 its Combat Distance to melee. Players' word (docs/research/DISCORD_KB.md): red aggro makes a pet
+  draw the mobs, grey avoids it; "any pet can serve as a tank as long as its aggro setting is configured properly".
+  `sim/tamer_scan.py` reads both settings into the Guide values; the simulator draws aggro by the setting.
 - The supplies at a finish (live): the one resurrection seen (2026-10-14 22:35:55.11, capture 20261014_221341) was
   GraveRobber's, at 31 % with Critical Care rank 2 in its tab; a '+4' over it 1.06 s after that finish was an
   Overheal tick (the codex's tier then is in the scan's history).

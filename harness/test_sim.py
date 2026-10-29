@@ -4295,6 +4295,37 @@ def test_tamer_scan_rows():
     check("a row whose gems and points disagree (2 gems, 1 point) is a ValueError", refused)
 
 
+def test_pet_aggro_setting():
+    print("== a pet's Aggro setting (the Guide's Abilities page) decides its draw; a preset pins the one it played with ==")
+    from sim import pets
+    from sim import tamer_scan as ts
+    # AlaFlambe's Abilities page, 2026-10-28 18:25:23 (seq 2385) and after the toggle 18:25:27, top row verbatim
+    head = ("{ text 10 0 149 0 18 0 1 0 0 0 }{ text 69 28 149 1 18 0 1 0 0 0 }{ button 47 61 2223 2223 1 0 3 }"
+            "{ tilepichue 64 45 39892 HUE }{ button 105 61 2224 2224 1 0 4 }{ text 140 28 149 2 18 0 1 0 0 0 }"
+            "{ button 144 61 2223 2223 1 0 5 }{ tilepic 165 57 TILE }{ button 216 61 2224 2224 1 0 6 }")
+    lines = ["Guide", "Aggro", "Combat Distance"]
+    got = [ts.settings_view(head.replace("HUE", h).replace("TILE", tl), lines)
+           for h, tl in (("2104", "3643"), ("2117", "45320"))]
+    check("Abilities page: grey 2104 off and 3643 ranged, red 2117 on and 45320 melee",
+          got == [{"aggro": False, "combat_distance": "ranged"}, {"aggro": True, "combat_distance": "melee"}], str(got))
+    check("a Values page isn't an Abilities page", ts.settings_view("{ text 75 150 149 1 18 0 1 0 0 0 }",
+                                                                    ["Guide", "Min Taming"]) is None)
+    t = pets.load_tamer()
+    none = {tab: {} for tab in pets.TABS}
+    on = pets.build_pet("AlaFlambe", t, none, "command", 14, ["AlaFlambe"],
+                        settings={"aggro": True, "combat_distance": "melee"})
+    off = pets.build_pet("AlaFlambe", t, none, "command", 14, ["AlaFlambe"],
+                         settings={"aggro": False, "combat_distance": "ranged"})
+    check("the phoenix with aggro on draws as the gravebug (4.0) and casts from beside its target; off 0.1 from 10",
+          (on["threat_x"], on["ranged"]["range"], off["threat_x"], off["ranged"]["range"]) == (4.0, 1, 0.1, 10),
+          str((on["threat_x"], on["ranged"]["range"], off["threat_x"], off["ranged"]["range"])))
+    sc = load()
+    pets.select(sc, "phoenix_gravebug")
+    check("phoenix_gravebug plays AlaFlambe as it was 10-12..10-25 (aggro off, ranged) whatever its Guide says now",
+          [(p["name"], p["threat_x"]) for p in sc["pets"]] == [("GraveRobber", 4.0), ("AlaFlambe", 0.1)]
+          and sc["pets"][1]["ranged"]["range"] == 10, str([(p["name"], p["threat_x"]) for p in sc["pets"]]))
+
+
 def test_party_validation():
     print("== a team and a bestiary loadout are refused with the reason: slots, points, unknown names ==")
     import json
@@ -5356,7 +5387,8 @@ def main():
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
-              test_tamer_scan_rows, test_party_validation, test_pet_builds, test_anchors_pinned, test_pet_mitigation,
+              test_tamer_scan_rows, test_pet_aggro_setting, test_party_validation, test_pet_builds, test_anchors_pinned,
+              test_pet_mitigation,
               test_kdmg_barding, test_parity_team, test_perk_conditions,
               test_vet_codex,
               test_team_run,

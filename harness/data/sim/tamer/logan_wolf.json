@@ -102,7 +102,8 @@
   "pets_note": "serials: the capture's (tidal_tomb_observed pets.*.serials; 0x000DDEFE GraveRobber ... 0x004F3A5A the mantis); Bussin 0x000EA04F from ctl status 2026-10-28 18:40",
   "teams": {
     "phoenix_gravebug": {"pets": ["GraveRobber", "AlaFlambe"], "bestiary": "Phoenix/Gravebug",
-                         "note": "live 2026-10-12 to 2026-10-24 (the Mausoleum's calibration and Tidal Tomb levels 1-2)"},
+                         "settings": {"AlaFlambe": {"aggro": false, "combat_distance": "ranged"}},
+                         "note": "live 2026-10-12 to 2026-10-24 (the Mausoleum's calibration and Tidal Tomb levels 1-2); AlaFlambe's aggro off and ranged then (its Abilities page 2026-10-12 21:14 and 10-25 20:50, 21:01), on and melee from 2026-10-28 18:25-18:29"},
     "nightmare_fire": {"pets": ["NightmareA", "NightmareB", "a searing imp"], "bestiary": "Nightmare/Fire",
                        "note": "live 2026-10-25 (Tidal Tomb level 3)"},
     "nightmares_minion": {"pets": ["NightmareA", "NightmareB", "fireminion"], "bestiary": "Phoenix/Gravebug",
@@ -112,15 +113,15 @@
     "mantis_earth": {"pets": ["GirthyEarthy", "a tidal mantis"], "bestiary": "Phoenix/Gravebug",
                      "note": "live 2026-10-24 19:33-20:32"},
     "phoenix_incubus": {"pets": ["AlaFlambe", "Bussin"], "bestiary": "Phoenix/Incubus",
-                        "note": "from 2026-10-28 (the Phoenix/Incubus loadout active from 18:25:02; Bussin's Guide 18:36:52 at level 11)"}
+                        "note": "from 2026-10-28 (the Phoenix/Incubus loadout active from 18:25:02; Bussin's Guide 18:36:52 at level 11); AlaFlambe the tank (the user: its aggro on, 18:25:24), Bussin's off"}
   },
-  "teams_note": "the tank first, then the pets in the order the simulator always placed them (beside Logan east, south, west, north, south-east)",
+  "teams_note": "the tank first, then the pets in the order the simulator always placed them (beside Logan east, south, west, north, south-east); `settings` pins a pet's Abilities page as the team played (else the Guide's latest, tamer_scan)",
   "bestiary_known": {
     "Phoenix/Gravebug": {"utility": {"perks": {}, "note": "user 2026-10-25: the team has no utility-class pet, so the tab isn't used: empty (the scan saw it first at 2026-10-25 21:05:39, 0/20; this stands for a store without that view)"}}
   },
   "bestiary_known_note": "tabs the scan never saw whole, known otherwise (each with its source); pets.load_tamer fills a null scanned tab from here, a tab the scan decodes wins",
-  "class_threat_x": {"tank": 4.0, "attack": 0.1, "utility": 0.1},
-  "class_threat_note": "the fitted gravebug (4.0) and phoenix (0.1) values the Mausoleum calibrated (of the monsters' attributed hits on 41 live visits the gravebug took 81 %, the phoenix 9.6 %, Logan 9.4 %): the Tank class draws aggro (knowledge #2074); a utility pet as an attack pet [INFERENCE]",
+  "aggro_threat_x": {"on": 4.0, "off": 0.1},
+  "aggro_threat_note": "a pet's draw by its Aggro setting (the Guide's Abilities page, tamer_scan; a pet never viewed: on for a tank-class species). The fitted gravebug (aggro on, 4.0) and phoenix (off, 0.1) values the Mausoleum calibrated (of the monsters' attributed hits on 41 live visits the gravebug took 81 %, the phoenix 9.6 %, Logan 9.4 %); 'any pet can serve as a tank as long as its aggro setting is configured properly' (docs/research/DISCORD_KB.md), so the setting, not the class, decides [INFERENCE: one value for every species with it on]",
   "hit_chance": 0.95,
   "hit_chance_note": "a melee pet's base chance to hit: the gravebug's measured (n=175 attributed hits); the Bestiary's accuracy perks add to it",
   "step_s": 0.21,

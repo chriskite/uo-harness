@@ -436,7 +436,10 @@
    "magic_resist": 115.9,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "204/8735 20261028_182147 2026-10-28 18:29:35 (Alaflambe the Phoenix)"
+   "evidence": "204/8735 20261028_182147 2026-10-28 18:29:35 (Alaflambe the Phoenix)",
+   "aggro": true,
+   "combat_distance": "melee",
+   "settings_evidence": "204/8825 20261028_182147 2026-10-28 18:29:44"
   },
   "Bussin": {
    "species": "incubus",
@@ -455,7 +458,10 @@
    "magic_resist": 100.8,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "204/21790 20261028_182147 2026-10-28 18:36:52 (Bussin the Incubus)"
+   "evidence": "204/21790 20261028_182147 2026-10-28 18:36:52 (Bussin the Incubus)",
+   "aggro": false,
+   "combat_distance": "ranged",
+   "settings_evidence": "204/2344 20261028_182147 2026-10-28 18:25:19"
   },
   "GirthyEarthy": {
    "species": "earth dragon",
@@ -474,7 +480,10 @@
    "magic_resist": 53.9,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/287356 20261024_225113 2026-10-25 10:56:50 (Girthyearthy the Earth Dragon)"
+   "evidence": "194/287356 20261024_225113 2026-10-25 10:56:50 (Girthyearthy the Earth Dragon)",
+   "aggro": true,
+   "combat_distance": "melee",
+   "settings_evidence": "192/791543 20261024_102346 2026-10-24 19:14:19"
   },
   "GraveRobber": {
    "species": "gravebug",
@@ -493,7 +502,10 @@
    "magic_resist": 53.8,
    "poison_resist": 33.0,
    "special_resist": 33.0,
-   "evidence": "194/883146 20261024_225113 2026-10-25 20:51:20 (Graverobber the Gravebug)"
+   "evidence": "194/883146 20261024_225113 2026-10-25 20:51:20 (Graverobber the Gravebug)",
+   "aggro": true,
+   "combat_distance": "melee",
+   "settings_evidence": "194/883152 20261024_225113 2026-10-25 20:51:22"
   },
   "NightmareA": {
    "species": "nightmare",
@@ -512,7 +524,10 @@
    "magic_resist": 73.8,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/882402 20261024_225113 2026-10-25 20:48:30 (Nightmarea the Nightmare)"
+   "evidence": "194/882402 20261024_225113 2026-10-25 20:48:30 (Nightmarea the Nightmare)",
+   "aggro": true,
+   "combat_distance": "ranged",
+   "settings_evidence": "194/359875 20261024_225113 2026-10-25 11:44:41"
   },
   "NightmareB": {
    "species": "nightmare",
@@ -531,7 +546,10 @@
    "magic_resist": 81.4,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/882380 20261024_225113 2026-10-25 20:48:27 (Nightmareb the Nightmare)"
+   "evidence": "194/882380 20261024_225113 2026-10-25 20:48:27 (Nightmareb the Nightmare)",
+   "aggro": true,
+   "combat_distance": "ranged",
+   "settings_evidence": "194/290664 20261024_225113 2026-10-25 11:01:49"
   },
   "a searing imp": {
    "species": "searing imp",
@@ -550,7 +568,10 @@
    "magic_resist": 108.9,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/882420 20261024_225113 2026-10-25 20:48:33 (A Searing Imp)"
+   "evidence": "194/882420 20261024_225113 2026-10-25 20:48:33 (A Searing Imp)",
+   "aggro": false,
+   "combat_distance": "ranged",
+   "settings_evidence": "194/359898 20261024_225113 2026-10-25 11:44:45"
   },
   "a tidal mantis": {
    "species": "tidal mantis",
@@ -569,7 +590,10 @@
    "magic_resist": 47.7,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "192/888924 20261024_102346 2026-10-24 20:32:35 (A Tidal Mantis)"
+   "evidence": "192/888924 20261024_102346 2026-10-24 20:32:35 (A Tidal Mantis)",
+   "aggro": false,
+   "combat_distance": "melee",
+   "settings_evidence": "192/791755 20261024_102346 2026-10-24 19:15:08"
   },
   "fireminion": {
    "species": "fire minion",
@@ -588,7 +612,10 @@
    "magic_resist": 75.0,
    "poison_resist": 0.0,
    "special_resist": 0.0,
-   "evidence": "194/287372 20261024_225113 2026-10-25 10:56:53 (Fireminion the Fire Minion)"
+   "evidence": "194/287372 20261024_225113 2026-10-25 10:56:53 (Fireminion the Fire Minion)",
+   "aggro": false,
+   "combat_distance": "ranged",
+   "settings_evidence": "192/889565 20261024_102346 2026-10-24 20:34:46"
   }
  }
 }

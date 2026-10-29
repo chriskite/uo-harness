@@ -320,14 +320,17 @@ def k_override(name: str, character: str = "logan_wolf") -> float | None:
 
 
 def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: float | None = None,
-              level: int | None = None, chain: dict | None = None) -> dict:
+              level: int | None = None, chain: dict | None = None, settings: dict | None = None) -> dict:
     """The World's spec of pet `name` with the bestiary `loadout` ({tab: perks or None}), Logan's armor aspect and
     tier, in `team` (pet names: Swarm and Menagerie count it). `k`: the damage factor (default its k_override, else
     k_dmg). `level`: another than its Guide's (the anchors: the pet's level when measured). `chain`: the Mastery
-    Chain's totals (sim/chain.py; default the tamer's own chain)."""
+    Chain's totals (sim/chain.py; default the tamer's own chain). `settings`: its Abilities page's {aggro,
+    combat_distance} as a team preset pins them (how the team played then), over the Guide's latest."""
     pet = _pet(name, t)
     sp = t["species"][pet["species"]]
-    g = t["guide"][name] if level is None else {**t["guide"][name], "level": level}
+    g = {**t["guide"][name], **(settings or {})}
+    if level is not None:
+        g["level"] = level
     lv, cmd, tm, lk = _level(g["level"]), _command(aspect, tier), t["tamer"], links(t, chain)
     under = max(0.0, min(1.0, (min(tm["taming"], tm["lore"]) - sp["min_taming"]) / 70.0))
     speed = lv["speed"] + cmd["speed"] + lk["follower_attack_speed"]
@@ -365,14 +368,22 @@ def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: fl
             "defense": lk["follower_accuracy_defense"],
             "shield_armor": shield.get("armor", 0), "shield_bonus": shield.get("melee_bonus", 0.0),
             "codex": {k_: codex[k_] for k_ in ("triage", "combat_medic", "immunize")},
-            "threat_x": t["class_threat_x"][sp["class"]], "step_s": t["step_s"], "follow": t["follow"],
-            "leash": t["leash"], "specials": []}
+            "threat_x": t["aggro_threat_x"]["on" if _aggro(g, sp) else "off"], "step_s": t["step_s"],
+            "follow": t["follow"], "leash": t["leash"], "specials": []}
     if sp["attack"] == "melee":
         spec.update(melee={"lo": lo, "hi": hi}, swing_s=period, hit_chance=t["hit_chance"] + lk["follower_accuracy_defense"])
     else:
         sa = t["anchors"]["speed"].get(name) or {}
-        spec["ranged"] = {"range": t["spell_range"], "every_s": period, "cast_s": [0, 0, 0], "flight_s": [0, 0, 0],
+        # a caster set to melee Combat Distance closes in to cast [INFERENCE: the setting's name; never measured live]
+        spec["ranged"] = {"range": 1 if g.get("combat_distance") == "melee" else t["spell_range"], "every_s": period,
+                          "cast_s": [0, 0, 0], "flight_s": [0, 0, 0],
                           "cast_action": sa["action"] if sa.get("action") is not None else 4, "effect": None}
+    return spec
+
+
+def _aggro(g: dict, sp: dict) -> bool:
+    """The pet's Aggro setting (the Guide's Abilities page); never viewed: on for a tank-class species."""
+    return g["aggro"] if g.get("aggro") is not None else sp["class"] == "tank"
     return spec
 
 
@@ -440,7 +451,9 @@ def select(sc: dict, team: str | None = None, bestiary: str | None = None, level
     if "chain" not in sc:
         chain_mod.apply(sc)
     lk = links(t, sc["chain"]["totals"])
-    sc["pets"] = [build_pet(n, t, loadout, arm["aspect"], arm["tier"], names, level=lv.get(n), chain=lk) for n in names]
+    pins = (t["teams"][preset].get("settings") or {}) if preset else {}
+    sc["pets"] = [build_pet(n, t, loadout, arm["aspect"], arm["tier"], names, level=lv.get(n), chain=lk,
+                            settings=pins.get(n)) for n in names]
     sc["party"] = {"team": names, "preset": preset, "bestiary": label, "loadout": loadout,
                    "levels": {p["name"]: p["level"] for p in sc["pets"]},
                    "codex": dict(t["codex"]["current"]), "warnings": warnings}

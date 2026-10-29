@@ -2699,6 +2699,13 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   or level change into the factors (AlaFlambe 1.221 -> 1.695 for the Attack tab reset, its damage unchanged). Rejected:
   a per-tab history in the scan's output read by date. The copies with their evidence are explicit and few, and
   `--as-of` reproduces them.
+- **A pet's aggro draw follows its Aggro setting, not its class** (2026-10-28, the user: "I switched the aggro setting
+  on AlaFlambe to on, so it is the tank now"): `aggro_threat_x` on 4.0 / off 0.1 (the fitted gravebug and phoenix
+  values) from the Guide's Abilities page (`tamer_scan.py` reads it; never viewed: on for a tank-class species).
+  `class_threat_x` is gone. A team preset pins a setting it played with (`teams.*.settings`: phoenix_gravebug's
+  AlaFlambe off and ranged, as 10-12 to 10-25), so the calibration batches keep their team. The Nightmares had aggro
+  on in every view, so the nightmare presets now draw as tanks where they drew 0.1. A caster on melee Combat Distance
+  casts from range 1 [INFERENCE]. Rejected: an `aggro` flag hand-written per pet (the store has every toggle).
 - **Recalibration is against live play, per team** (docs/SIM.md "Recalibrating"), done 2026-10-25 evening:
   - `k_dmg` keeps the gravebug's live median as its anchor but takes the barding out of it: all 198 hits were under the
     Song of Provocation, 91 on a discorded target, and the World applies both again (1.559 -> 1.2425).
