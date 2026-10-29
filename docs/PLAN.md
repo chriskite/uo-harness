@@ -2991,6 +2991,29 @@ targets and everyone within 3 (157 of 168 there, 0 of 181 farther, eight capture
   susceptibility, a leave or retreat rule for "hurt with an awake caster around" (the leave line would not have fired:
   56, then 62 hits before a 63 in one instant; out of the scorch the lightning alone took 52).
 
+## Tidal Tomb level 2 deaths: the shooters' real hits, the lightning without a zone, the monster on us (2026-10-29)
+
+The simulator's level 2 deaths (38 of 144 after 1ffae37) were mostly drowned mariners and soulcatchers. Measured on
+the nine Tidal Tomb captures (docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the
+shooters' hits"), both hit their target and everyone within 1 of it, every 4.0 s (half of the mariner's missing) and
+5.7 s, 15-39 and 28-37 on Logan, and Logan was their target 3-5 % of the time; the simulator shot one target 2.5 and
+2 times as often, 38-48 on Logan, a fifth of the shots at him. Decisions:
+
+- *Model first, then judge the runner.* The zoas' lightning (every zoa type, on everyone within 4 of its target), the
+  scorch's susceptibility (+8 % a stack from the combustive zoas, refreshed, gone ~17 s after the last) and the shooters'
+  measured hits are in tidal_tomb.json; "before" is HEAD's runner on that model (with HEAD's `TARGET_AREA` pinned: the
+  runner reads its zones from the scenarios). On it level 2's runs with a death fell 42 -> 24 of 144 with no runner
+  change: the shooters' share was the model's. The deaths left are fins on Logan (11 of 24), zoas (6), bedrocks (3).
+- *No zone for the lightning* (`tamer.TARGET_AREA_EVERY_S` 15): keeping 5 off the pets of every awake zoa for a hit
+  every 22-87 s cost more than it saved (24 -> 33 runs with a death, pet deaths 223 -> 271).
+- *The shooters' target areas and the monster beside us as the target, together* (docs/HUNT_LOOP.md): 432 runs, runs
+  with a death 85 with neither, 101 and 93 with one alone, 69 with both; Logan's damage an hour -12 %; pet deaths +3 %,
+  banked an hour -3 %. Alone neither helped; kept as a pair, and the evidence is the simulator's [INFERENCE: how often
+  a fin picks Logan live under the runner is unmeasured; the captures have 6 numbers on him with a fin beside him].
+- *Not built:* a leave or retreat on a predicted next-hit spike. 20 of the 24 deaths went from 50+ hits to 0 within 5 s
+  (a fin's swing, spin and bleeds, a zoa's scorch with its lightning): no hits line that leaves in time would let a
+  fight go on; the rule would be a different fight, not a later leave.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

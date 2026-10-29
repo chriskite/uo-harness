@@ -2097,6 +2097,77 @@ Tomb: level 2 death 2026-10-29 12:36"; the runner's rule in docs/HUNT_LOOP.md "A
   The live death needed the scorch twice and the lightning twice in 8 s with the potion refused; the simulator has the
   scorch and the potion's 500119, not the lightning.
 
+### Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits (2026-10-29)
+
+After 1ffae37, 38 of level 2's 144 runs still ended in a death, mostly to drowned mariners and soulcatchers. The
+measurements (docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits") showed
+the model off on all four, so the model came first and "before" was re-run on it.
+
+- **The world:** each zoa type's `lightning` burst (centre "target", reach 12, radius 4; every 87 s the combustive zoa,
+  40 its giant, 22 the astral and toxic zoas, 29 their giants; the giant astral zoa's old `volley` replaced); the
+  scorch's `susceptible` debuff (`debuff.kind`, `per_stack` 0.08, `duration_s` 17, `from` the two combustive zoas: each
+  new stack refreshes the others; `World.hurt` multiplies what those types do to the victim); the shooters'
+  `ranged_observed`: `every_s` (mariner 4.0, soulcatcher 5.7), `area_r` 1 (everyone within 1 of the victim, the old
+  `fight0038` field), `hit_chance` (0.55, 0.91: a miss lands on nobody), `damage_player` (Logan's own numbers, not
+  `damage_to_player_x` 1.6 a pet's; `World._shot_damage`) and `at_player_p` (0.05, 0.03: the share of shots at a pet
+  sent at Logan, over the global `SHOT_AT_PLAYER_P` 0.2), the soulcatcher's 1.5-2.7 s cast and no projectile.
+- **Logan's death readout** (`World.die`, `--json` `death_causes`): beside `last_15s` and `from_hits`, `hits` (each hit
+  and heal in his last 15 s: seconds before the death, source, kind, damage or heal < 0, his hits after, his distance
+  to the hitter), `healed_15s`, `fighting` (each monster on our side within 14: type, distance, on him, in sight),
+  `pets`, `doing_15s` and his last 12 `intents`. The death breakdowns below come from it.
+- **Tests:** `test_zoa_lightning` (on both pets and Logan 3-4 from them, 8 from the zoa out of its sight; the pets
+  only at 5; 78-96 s apart), `test_scorch_susceptible` (4 scorches, 4 stacks, the zoa's hits x1.32 and a mariner's x1;
+  18 s later x1), `test_shooter_hits` (the mariner's casts 4 s apart and ~55 % landing, the soulcatcher's ~5.7 s and
+  ~91 %, each on both pets and Logan 1 from them, Logan 2 off never), `test_shooter_stand_off` (Logan 1 from the pets
+  under a mariner: after 0.0 s within 1 of them in 30 s, before 12.2 s on the cover's tile), `test_loose_on_us` (a
+  razorfin beside us while the pets fight an astral zoa: before the zoa kept and no "All Kill", after the fin the
+  target and the pets sent at once), `test_tidal_level3_bursts` (the giant astral zoa's `lightning` on the tank alone,
+  Logan and the pets 6 off spared), `test_area_hitters` (`TARGET_AREA` with the shooters and without the lightning).
+- **Deaths before, on the old model** (HEAD 1ffae37, seeds 1-144, the live flags `--team phoenix_incubus -- --enter-via
+  6718 1984 --leave-gate 6913 2071 --vet-range 5 --crawl-learn-s 180`): 42 runs with a death; killers the drowned
+  mariner 15, razorfin 10, soulcatcher 6, astral zoa 3, scourgeon, frenzyfin, bleed 2 each. 34 went from 50+ hits to 0
+  within 5 s (16 took 100+ in those 5 s), 30 spent 3+ s under the leave line (0.5) first, the last intent "leave:
+  walking to the moongate" 12 times; a potion in all 42 last 15 s, the vet supplies on Logan in 25. The mariners' 141-195
+  in 15 s came at 4-11 tiles: one target every 1.57 s at 38-42, a fifth of the shots at a pet sent at him.
+- **Deaths before, on the new model** (HEAD's runner, `TARGET_AREA` pinned to HEAD's: the runner reads its zones from
+  the scenarios): 24. Killers razorfin 6, ocean bedrock, astral zoa, combustive zoa, voidfin 3 each, scourgeon,
+  frenzyfin 2, soulcatcher, biolumen shellpod 1. Patterns: a fin (razorfin, frenzyfin, voidfin) on Logan 11 (7 of them
+  alone on him, the pets at full hits 5-10 off fighting a zoa, the target kept because it fought the pets); melee in a
+  crowd beside the pets 6 (the bedrocks, a scourgeon, the pets at 20-50 %); zoas 6 (crowd fights, one a loot, one the
+  walk out); shooters 1. 20 of 24 went from 50+ to 0 within 5 s; 11 spent 3+ s under the leave line.
+- **Rules, level 2 ablation** (432 runs, seeds 1-432, new model; "shooter zones" `TARGET_AREA` from the shooters'
+  `area_r`, "loose target" `LOOSE_R` 1 and `KILL_AFTER_BUSY_S` 0):
+
+  | 432 runs | runs with a death | pet deaths | damage on Logan / h | mariner | soulcatcher | zoas | fins | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|
+  | neither (HEAD's runner) | 85 | 738 | 1,512 | 82 | 50 | 223 | 259 | 162 | 124,780 |
+  | shooter zones | 101 | 732 | 1,584 | 78 | 44 | 244 | 292 | 165 | 122,640 |
+  | loose target | 93 | 669 | 1,321 | 86 | 53 | 277 | 208 | 160 | 123,319 |
+  | both | **69** | 760 | **1,328** | 74 | 39 | 288 | 195 | 159 | 120,614 |
+
+  A lightning zone (keep 5 off the pets of every awake zoa, 144 runs): runs with a death 24 -> 33, pet deaths 223 ->
+  271: not built (`TARGET_AREA_EVERY_S`). Alone neither rule helped; both are kept as a pair (each one's removal from
+  the pair cost 24 and 32 runs with a death of 432). Earlier 144-run batches (the loose target without its at-once
+  "All Kill") gave 24 / 28 / 20 / 27: a 144-run batch's spread is ~5.
+- **Before/after** (seeds 1-144, the live flags):
+
+  | 144 runs | runs with a death | pet deaths | damage on Logan / h | mariner | soulcatcher | zoas | fins | oxygen | potions | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | HEAD, old model | 42 | 207 | 1,679 | 276 | 196 | 156 | 243 | | 1,561 | 169 | 109,677 |
+  | HEAD, new model (before) | 24 | 223 | 1,445 | 86 | 64 | 200 | 229 | 357 | 1,471 | 163 | 133,043 |
+  | after | **15** | 235 | **1,336** | 80 | 38 | 268 | 190 | 444 | 1,285 | 162 | 117,651 |
+
+  After: killers razorfin 5, voidfin 3, combustive zoa 3, frenzyfin 2, ironscale grouper and giant pincer crab 1; 14 of
+  15 from 50+ to 0 within 5 s. Banked an hour fell 12 % here and 3 % in the 432-run batch: the pets sent at a fin on
+  Logan leave a zoa alone longer (zoa damage on him +34 % here, +29 % in the 432).
+- **Level 1** (`--scenario tidal_tomb --team phoenix_incubus`, seeds 1-48, `-- --vet-range 5 --crawl-learn-s 180`;
+  no zoa or shooter there, so only the loose target acts; HEAD on the old and the new model alike): runs with a death 0
+  -> 1, pet deaths 1 -> 0, damage on Logan an hour 391 -> 440, kills an hour 343 -> 343, banked an hour 111,494 ->
+  114,610. One death in 48 is the earlier batches' rate (fbf76ab: 1 in 48); the +13 % damage is within a 48-run batch's
+  spread [INFERENCE: not checked with more runs].
+- **Not modelled:** a fin's choice of Logan live (6 numbers on him with a fin beside him in all nine captures, against
+  11 of 24 simulated deaths): if live fins pick him less, the loose-target rule matters less there.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

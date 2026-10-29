@@ -130,6 +130,7 @@ ENGAGED_S = 10.0              # a target hurt this recently, a pet within PET_RE
 PET_REACH = 12                # the phoenix's Epic Barrage reaches 12 tiles (patch 2022-03-16); the gravebug melees
 PET_NEAR = 1                  # a war-mode monster this close to a pet that took damage is fighting it
 KILL_AFTER_S = 4.0            # a mob attacking us that the pets haven't hurt for this long: "All Kill"
+KILL_AFTER_BUSY_S = 0.0       # ...while the pets fight another monster: at once (fight; simulator level 2, 2026-10-29)
 ELSEWHERE_R = 2               # a monster in war mode this close to another player or a pet not ours fights them (elsewhere)
 THEIRS_BELOW = 0.8            # a monster on someone else below this share of hits: their kill (the most damage loots)
 KILL_REPEAT_S = 12.0
@@ -230,16 +231,31 @@ AREA_R = _area_r()
 # of that pet, 0 of 181 at 4+. Live 2026-10-29 12:36:47-55 Logan stood 8 from a combustive zoa, out of its sight ("out of
 # its shot", the caster rule), 3 from the pets it fought 10 off: two scorches (-44, -45) and its lightning, dead. So each
 # live pet within `reach` of one in war mode is an area zone of `radius` + 1 (area_zone): the stand-off keeps us off it.
+# Since 2026-10-29 evening (docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters'
+# hits") also a ranged attack landing on everyone within `area_r` of its victim (a scenario `ranged_observed` entry): the
+# drowned mariner's shot and the soulcatcher's spell on everyone within 1 of their target (159 of 161 and 98 of 106 of us
+# there hit, 0 of 132 and 0 of 242 at 2+), 2 off the pets within 11 of them. Only a hit coming at least every
+# TARGET_AREA_EVERY_S: the zoas' lightning (on everyone within 4 of its target, one every 22-87 s) widened their zones
+# to 5 in the simulator and cost more than it saved (level 2, 144 runs: runs with a death 24 -> 33, pet deaths 223 ->
+# 271, docs/SIM.md "Tidal Tomb: the zoas' lightning, ...").
+TARGET_AREA_EVERY_S = 15.0
 
 
 def _target_area() -> dict:
     out = {}
+
+    def add(kind, reach, radius):
+        old = out.get(kind, (0, 0))
+        out[kind] = (max(old[0], reach), max(old[1], radius + 1))
     for sc in aggro.scenarios():
         for kind, sps in (sc.get("specials") or {}).items():
             for sp in sps if isinstance(sps, list) else ():
-                if sp["kind"] == "burst" and sp.get("center") == "target" and (sp.get("radius") or 0) >= 1:
-                    reach, r = out.get(kind, (0, 0))
-                    out[kind] = (max(reach, sp["reach"]), max(r, sp["radius"] + 1))
+                if sp["kind"] == "burst" and sp.get("center") == "target" and (sp.get("radius") or 0) >= 1 \
+                        and sp.get("every_s", 0.0) <= TARGET_AREA_EVERY_S:
+                    add(kind, sp["reach"], sp["radius"])
+        for kind, ro in (sc.get("ranged_observed") or {}).items():
+            if (ro.get("area_r") or 0) >= 1 and ro.get("every_s", 0.0) <= TARGET_AREA_EVERY_S:
+                add(kind, ro["range"], ro["area_r"])
     return out
 
 
@@ -2578,7 +2594,10 @@ class Team:
         # its shot (cover takes us out of it; simulator seed 2072: a 12-step rejoin under a purger, 100 -> 33): it shoots
         # from where it stands and its diseases stack, so 4 s more of it is 40-60 hits; its aggro is on us already (user
         # 2026-10-21: "If you 'All Kill' on a mob that isn't already aggro'd on something else ... it will aggro on us")
-        wait = 0.0 if shy_on else KILL_AFTER_S
+        # One on us while the pets fight another (HuntLoop.pick_target, loop_hunt.LOOSE_R) after KILL_AFTER_BUSY_S:
+        # guarding, they don't turn from their fight to it, and a fin chews through us in 8-10 s
+        busy = on_us and not engaged and any(s != serial and self.engaged(st, s) for s in self.pet_attackers(st))
+        wait = 0.0 if shy_on else KILL_AFTER_BUSY_S if busy else KILL_AFTER_S
         if on_us and not engaged and now - self.attack_t[serial] >= wait \
                 and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S \
                 and not self.kill_unseen(st, serial, now):

@@ -237,6 +237,7 @@ class Mob:
     bleed_stacks: list = field(default_factory=list)   # stacked bleeds: [[next tick, ticks left, tick, every_s]]
     festering: list = field(default_factory=list)      # Festering Wound stacks: [[expiry, heal cut]]
     marks: list = field(default_factory=list)          # Glowmark stacks: [[expiry, extra threat share]]
+    susceptible: list = field(default_factory=list)    # a combustive zoa's scorch stacks: [[expiry, extra damage share, from]]
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
@@ -361,7 +362,7 @@ class World:
         self.gate_last = scenario.get("player", {}).get("gate_last")   # the menu opens with it selected
         self.recall_at = None                 # (arrival time, destination row)
         self.spawn_due = []                   # (time, spawn index)
-        self.player_log = []                  # (time, source, damage, hits after): the last 15 s
+        self.player_log = []                  # (time, source, damage (a heal < 0), hits after, kind, cheb to the hitter): 15 s
         self.pet_logs = {}                    # pet serial -> [(time, source, damage (a heal < 0), cheb to us)]: 15 s
         self.intent_log = collections.deque() # (time, kind, text): the runner's intents (SimLink.intent), the last 15 s
         self.flights = []                     # ranged attacks released, on their way: (land time, attacker Mob, victim serial)
@@ -907,6 +908,12 @@ class World:
             amount = 1                       # Stationary Penalty: our and our followers' damage is 1
         if victim.discord_until > self.t and by is not None and by.kind != "monster":
             amount *= 1 + self.sc["bard"]["discord_taken"]
+        if victim.susceptible and by is not None:
+            # a combustive zoa's scorch: 'you become more susceptible to damage from them', a share a stack on what the
+            # zoas do to it, every stack's time refreshed by the next scorch (docs/NOTES.md "Tidal Tomb: the zoas'
+            # lightning, the scorch's susceptibility, the shooters' hits")
+            victim.susceptible = [s for s in victim.susceptible if s[0] > self.t]
+            amount *= 1 + sum(v for _, v, keys in victim.susceptible if by.key in keys)
         if victim.kind == "monster" and by is not None and by.kind in ("player", "pet") and self.links["damage_to_barded"] \
                 and (victim.discord_until > self.t or victim.calm_until > self.t or victim.provoke):
             amount *= 1 + self.links["damage_to_barded"]   # the chain's Damage to Barded Creatures
@@ -954,7 +961,8 @@ class World:
             self.metrics["player_damage_taken"] += n
             self.count("player_damage_by", by.key if by is not None else kind, n)
         if victim.kind == "player":
-            self.player_log.append((self.t, by.key if by is not None else kind, n, int(victim.hits)))
+            self.player_log.append((self.t, by.key if by is not None else kind, n, int(victim.hits), kind,
+                                    cheb(by.pos, victim.pos) if by is not None else None))
             self.player_log = [e for e in self.player_log if self.t - e[0] <= 15.0]
         elif victim.kind == "pet":
             self._pet_log(victim, by.key if by is not None else kind, n)
@@ -1010,6 +1018,8 @@ class World:
         m.hits += n
         if m.kind == "pet" and n > 0:
             self._pet_log(m, source or "other", -n)
+        elif m.kind == "player" and n > 0:
+            self.player_log.append((self.t, source or "other", -n, int(m.hits), "heal", None))
         self._ev("heal", m=m.serial, n=n, h=int(m.hits))
         self._overhead(m, f"+{n}")
         if m.kind == "player":
@@ -1034,15 +1044,32 @@ class World:
         self._ev("die", m=m.serial, by=by.serial if by is not None else None)
         self._cancel_cast(m, "gone")
         m.diseases, m.pressure, m.backlash, m.bleed_stacks, m.festering, m.marks = [], None, [], [], [], []
+        m.susceptible = []
         if m.kind == "player":
             m.hits, m.ghost = 0, True
             self.metrics["deaths"] += 1
-            by_src = {}
-            for _, k, n, _h in self.player_log:
-                by_src[k] = by_src.get(k, 0) + n
+            # its readout: who hurt him with what in the last 15 s (each hit: seconds before the death, source, kind,
+            # damage (a heal < 0), hits after, his distance to the hitter), the monsters on our side then, the pets,
+            # what the runner said it was doing (SimLink.intent)
+            by_src, healed = {}, {}
+            for _, k, n, _h, _kind, _d in self.player_log:
+                d = by_src if n > 0 else healed
+                d[k] = d.get(k, 0) + abs(n)
+            doing = {}
+            for t, kind, _ in self.intent_log:
+                if self.t - t <= 15.0:
+                    doing[kind] = doing.get(kind, 0) + 1
+            team = {o.serial for o in self.team()}
             self.metrics.setdefault("death_causes", []).append(
-                {"t": round(self.t, 1), "at": list(m.pos), "last_15s": by_src,
-                 "from_hits": max((h + n for _, _, n, h in self.player_log), default=0)})
+                {"t": round(self.t, 1), "at": list(m.pos), "last_15s": by_src, "healed_15s": healed,
+                 "from_hits": max((h + n for _, _, n, h, _k, _d in self.player_log if n > 0), default=0),
+                 "hits": [[round(t - self.t, 1), k, kind, n, h, d] for t, k, n, h, kind, d in self.player_log],
+                 "fighting": sorted([o.key, cheb(o.pos, m.pos), o.target == m.serial, self.can_see(o, m)]
+                                    for o in self.mobs.values() if o.kind == "monster" and o.alive and o.target in team
+                                    and cheb(o.pos, m.pos) <= 14),
+                 "pets": {p.name: "dead" if p.ghost else [p.pct(), cheb(p.pos, m.pos)] for p in self.pets()},
+                 "doing_15s": doing,
+                 "intents": [[round(t - self.t, 1), kind, text] for t, kind, text in list(self.intent_log)[-12:]]})
             self.send(P.hits(m.serial, 0, int(m.hits_max)),
                       P.mobile(m.serial, GHOST_BODY, m.x, m.y, m.z, noto=1, d=m.d))
             return
@@ -1731,9 +1758,10 @@ class World:
             m.next_swing = max(m.next_swing, t)                 # live the next cast came on the usual 1.6 s
             return
         pl = self.player
-        if m.kind == "monster" and SHOT_AT_PLAYER_P and victim.kind == "pet" and pl.alive and not pl.ghost \
+        p = ranged.get("at_player_p", SHOT_AT_PLAYER_P)   # a type's own measured share (the Tidal Tomb shooters')
+        if m.kind == "monster" and p and victim.kind == "pet" and pl.alive and not pl.ghost \
                 and cheb(m.pos, pl.pos) <= ranged["range"] and self.can_see(m, pl) \
-                and self.rng.random() < SHOT_AT_PLAYER_P:
+                and self.rng.random() < p:
             victim = pl
         fl = ranged.get("flight_s")
         land = t + (self.roll(fl) if fl and fl[1] > 0 else 0.0)
@@ -1760,20 +1788,30 @@ class World:
         if m.kind == "pet":
             self._pet_spell(m, victim)
             return
-        self.hurt(victim, self.roll(ranged["damage"]) * self._taken_x(victim, "spell"), m, "spell", ref=ranged.get("ref"))
+        if ranged.get("hit_chance") is not None and self.rng.random() >= ranged["hit_chance"]:
+            return                                   # a miss: no number on anyone (the drowned mariner's 0x7D1 shots)
+        self.hurt(victim, self._shot_damage(ranged, victim), m, "spell", ref=ranged.get("ref"))
         self._specials(m, victim, m.spec)
         for sp in m.spec.get("specials", []):
             if sp["kind"] == "fire_mark":
                 self._fire_mark(victim, sp)
         if ranged.get("area_r"):
-            # `area_r` (no scenario type has it; harness/sim/fight0038.py): the spell lands on every one of our side within
-            # area_r of its victim and the caster's reach too, sight or not (live 2026-10-25 00:38:37.7-44.7: a shadowguard's
-            # fireball and a lightning on Logan and all three pets at once, Logan behind a wall from both by our map)
+            # `area_r`: the spell lands on every one of our side within area_r of its victim and the caster's reach
+            # too, sight or not (live 2026-10-25 00:38:37.7-44.7, harness/sim/fight0038.py: a shadowguard's fireball and
+            # a lightning on Logan and all three pets at once, Logan behind a wall from both by our map; Tidal Tomb's
+            # drowned mariner and soulcatcher: on everyone within 1 of their target)
             for o in [self.player] + self.pets():
                 if o is victim or not o.alive or o.ghost or cheb(o.pos, victim.pos) > ranged["area_r"] \
                         or cheb(o.pos, m.pos) > ranged["range"]:
                     continue
-                self.hurt(o, self.roll(ranged["damage"]) * self._taken_x(o, "spell"), m, "spell", ref=ranged.get("ref"))
+                self.hurt(o, self._shot_damage(ranged, o), m, "spell", ref=ranged.get("ref"))
+
+    def _shot_damage(self, ranged: dict, o: Mob) -> float:
+        """A ranged attack's number on `o`: Logan's own measured numbers (`damage_player`) where the type has them,
+        else the pets' `damage` (x `_taken_x` on him)."""
+        if o.kind == "player" and ranged.get("damage_player"):
+            return self.roll(ranged["damage_player"])
+        return self.roll(ranged["damage"]) * self._taken_x(o, "spell")
 
     def _cancel_cast(self, m: Mob, why: str):
         """A cast under way stops (pacified, no target, hidden, transfixed, dead): nothing is let go."""
@@ -2202,7 +2240,8 @@ class World:
         zoas' spell). `damage_pet` null: no number (a debuff or bleed only, or its numbers already in the type's swings).
         A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`). A `debuff`, a stack of `per_stack` for
         `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut (`heal`),
-        "glowmark" extra threat drawn (`hurt`)."""
+        "glowmark" extra threat drawn (`hurt`), "susceptible" more damage taken from the `from` types (`hurt`; each
+        stack's time refreshed by the next, the combustive zoas' scorch)."""
         if sp.get("center") == "target":
             team = self.team()
             if tgt is None or tgt not in team or cheb(m.pos, tgt.pos) > sp["reach"] or not self.can_see(m, tgt):
@@ -2239,6 +2278,9 @@ class World:
                     o.festering = [b for b in o.festering if b[0] > self.t] + [stack]
                 elif db["kind"] == "glowmark":
                     o.marks = [b for b in o.marks if b[0] > self.t] + [stack]
+                elif db["kind"] == "susceptible":
+                    o.susceptible = [[stack[0], v, keys] for exp, v, keys in o.susceptible if exp > self.t] \
+                        + [stack + [tuple(db["from"])]]
                 if o.kind == "player" and db.get("text"):
                     self._sys(db["text"])
                 self.count(db["kind"], o.name)
@@ -3212,7 +3254,7 @@ class World:
             # flagged in PvP the supplies healed Logan 15-22 (median 18, n 8) against 5-39 (29, n 129) otherwise
             # (docs/NOTES.md "Red players met live"; no rule found for it)
             amount = self.roll(v["heal_self_pvp"] if self.flagged() and v.get("heal_self_pvp") else v["heal_self"])
-            self.heal(pl, amount)
+            self.heal(pl, amount, "vet")
             self._overheal(pl, amount)
         if cx["combat_medic"] or cx["immunize"]:
             for m in patients + ([pl] if hurt_self else []):
@@ -3243,7 +3285,7 @@ class World:
         n = int(round(self.roll(pot["heal_pvp"]))) if self.flagged() and pot.get("heal_pvp") else self.rng.randint(*pot["heal"])
         self._ev("potion", kind="heal", ok=True, n=n)
         self.send(P.cliloc(1008158, str(n).encode("utf-16-le")))
-        self.heal(pl, n)
+        self.heal(pl, n, "potion")
         if self.rng.random() < pot.get("satchel_save", 0.0):
             self._sys("Potion satchel used.")
         else:

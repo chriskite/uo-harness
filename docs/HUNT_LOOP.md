@@ -650,7 +650,18 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    of the pet it targets; keeping 4+ off the pets within 12 of it". The stand-off steps out of it, the routes bend
    round its tiles (the Mover's `avoid` "target_area", as the cone), and the cover, the reposition and the bard step
    no longer pick a tile inside any area zone (they checked only its centres, so the stand-off walked us back out of
-   where they put us). With `--vet-range` 5 the vet supplies reach the pets from 4-5. **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
+   where they put us). With `--vet-range` 5 the vet supplies reach the pets from 4-5. **The Tidal Tomb shooters' target
+   areas** (since 2026-10-29 evening; docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the
+   shooters' hits"): the drowned mariner's shot and the soulcatcher's spell land on their target, a pet 1-11 off, and on
+   each of us within 1 of it, so `TARGET_AREA` also takes every scenario `ranged_observed` entry with an `area_r` (reach
+   its `range` 11, keep 2): "area hit on its target: the awake drowned mariner 0x... at (x, y) hits each of us within 1
+   of the pet it targets; keeping 2+ off the pets within 11 of it". Only a hit coming at least every
+   `TARGET_AREA_EVERY_S` 15 s makes a zone: the zoas' lightning (everyone within 4 of its target, one every 22-87 s)
+   does not, since keeping 5 off the pets of every awake zoa cost more than the hits it saved (simulator level 2, 144
+   runs: runs with a death 24 -> 33, pet deaths 223 -> 271). **Ablation** (level 2, 432 runs, seeds 1-432, the new
+   model): with neither rule 85 runs with a death; this one alone 101, the next one alone 93, both 69; Logan's damage an
+   hour 1,512 / 1,584 / 1,321 / 1,328 (docs/SIM.md "Tidal Tomb: the zoas' lightning, ..."). Kept together only.
+   **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
    behind the ocean bedrock so it doesn't do its spray attack on me"; docs/NOTES.md "The ocean bedrock's spray"). Its
    frontal cone is in the zone at 1 a tile (`Team.spray_cone`, `nav.in_cone`): 90°, 8 tiles, along its 0x77 direction
    and toward each pet beside it. That holds while it is awake, unless it is pacified or provoked onto a monster still
@@ -864,6 +875,13 @@ monster's shot isn't walked to ("to a hurt pet: GraveRobber (70%) is only in rea
 staying out of it"); it is vetted once the shooter is dead or the pet comes out. Below `--pet-leave-at`, or a
 ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and cover walked him out each time
 (docs/NOTES.md "Dead on the walk in to a red", the follow-up).
+**A monster beside us that the pets aren't fighting is the target** (`HuntLoop.pick_target`, `loop_hunt.LOOSE_R` 1, since
+2026-10-29): a monster within 1 attacking us that no pet has hurt lately, while the current target isn't on us, takes
+the target over, logged "a razorfin 0x... on us and the pets on 0x...: it is the target now". `Team.fight` then says
+"All Kill" at it at once when the pets fight another monster (`KILL_AFTER_BUSY_S` 0, not `KILL_AFTER_S` 4: guarding,
+they don't turn from their fight to it). Before, `pick_target` kept a target that fought the pets even with another
+monster on us (its docstring said otherwise): in the simulator 7 of level 2's 24 deaths (144 runs) were a fin alone on
+Logan, the pets at full hits 5-10 off on a zoa. Ablation with the target areas above.
 **No walk to a hurt pet from out of an awake caster's sight into its reach** (`Team.to_pet`, since 2026-10-25): with
 an awake caster or ranged monster (not a corpse purger or blightmare: their shot rule above; the casters made shy on
 2026-10-26 keep this rule, test_sim `test_to_pet_not_into_caster_reach`) that doesn't see us here (`CASTER_R` 12,

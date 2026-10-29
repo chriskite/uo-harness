@@ -5445,6 +5445,209 @@ def test_patrol_refused_hold():
           f"{len(lines)} lines, {spent:.1f} s, at {w.player.pos}")
 
 
+def test_zoa_lightning():
+    print("== Tidal Tomb: a zoa's lightning on its target and on everyone of us within 4 of it at once, its sight of them "
+          "not needed; none at 5; its own cooldown (~87 s for the combustive zoa) ==")
+    # live (docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits"): 45 casts,
+    # Logan struck 22 of 22 times within 4 of its target, 0 of 23 at 5+; 2026-10-29 12:36:51.56 and 54.90 -34 and -18, 8
+    # from the combustive zoa and out of its sight, 3 from the pets. Before: not modelled (the giant astral zoa's
+    # 'volley' on 3 of us at random within 12 of it)
+    import collections
+    struck = {}
+    for d in (3, 4, 5):
+        w, z, rolled, _ = _zoa_case((PETS_L2[0] - 2, PETS_L2[1] + d))
+        sp = next(s for s in z.spec["specials"] if s.get("id") == "lightning")
+        w._burst(z, sp, w.mobs[z.target])
+        struck[d] = {(v.name, round(n)) for _, v, n in rolled}
+    names = {d: {n for n, _ in v} for d, v in struck.items()}
+    pets = {p.name for p in w.pets()}
+    logan = [n for d in (3, 4) for name, n in struck[d] if name == w.player.name]
+    check("Logan 3 and 4 from the pets it targets (8-9 from it, out of its sight) struck with both pets (21-34); 5 off, "
+          "the pets only",
+          names[3] == names[4] == pets | {w.player.name} and names[5] == pets and len(logan) == 2
+          and all(21 <= n <= 34 for n in logan), f"{struck}")
+    w, z, rolled, _ = _zoa_case(LOGAN_L2)
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    fired, orig_burst = collections.defaultdict(list), w._burst
+    w._burst = lambda mob, sp, tgt=None: (fired[sp.get("id")].append(round(w.t, 1)), orig_burst(mob, sp, tgt))
+    w.run_until(w.t + 200.0)
+    gaps = [round(b - a, 1) for a, b in zip(fired["lightning"], fired["lightning"][1:])]
+    check("...in 200 s of the fight its lightning 2-3 times, 78-96 s apart, beside its scorch every ~7.4 s",
+          2 <= len(fired["lightning"]) <= 3 and all(78 <= g <= 96 for g in gaps) and len(fired["scorch"]) >= 24,
+          f"lightning {fired['lightning']} scorches {len(fired['scorch'])}")
+
+
+def test_scorch_susceptible():
+    print("== Tidal Tomb: each scorch makes its victims 8 % more susceptible to the combustive zoas a stack, each "
+          "stack's time refreshed by the next, all gone 17 s after the last; a drowned mariner's hits unchanged ==")
+    # live (the scorch's note): a pet's scorches in a row x1.10, 1.17, 1.24-1.31, 1.37-1.45, 1.41-1.48, 1.52 the first
+    # after 1-6 before; back to the first after a gap of 27-35 s; the mariners' and soulcatchers' numbers on scorched pets
+    # 24.4 against 22.4-25.0, 27.0 against 27-28. Before: not modelled (every scorch at the same range)
+    import dataclasses
+    w, z, rolled, _ = _zoa_case(LOGAN_L2)
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    mariner = dataclasses.replace(z, key="drowned mariner", serial=z.serial + 1)
+
+    def taken(by):
+        before = w.player.hits
+        w.hurt(w.player, 1000, by, "spell")
+        return before - w.player.hits
+    w.run_until(w.t + 31.0)
+    k = len([s for s in w.player.susceptible if s[0] > w.t])
+    on_us = len([1 for _, v, _ in rolled if v is w.player])
+    ratio = taken(z) / taken(mariner)
+    z.cd["scorch"] = 1e9                                   # no more scorches
+    w.run_until(w.t + 18.0)
+    after = taken(z) / taken(mariner)
+    check("after 4+ scorches on Logan (3 from the pets) as many stacks: the zoa's hits x1 + 0.08 a stack, the mariner's "
+          "x1; 18 s after the last none, x1",
+          on_us >= 4 and k == on_us and abs(ratio - (1 + 0.08 * k)) <= 0.01 and abs(after - 1.0) <= 0.01,
+          f"scorches on us {on_us}, stacks {k}, ratio {ratio:.3f}, after {after:.3f}")
+
+
+def _shooter_case(key, logan, loop_hits=None, extra=()):
+    """The 12:36 layout (_zoa_case) with a Tidal Tomb shooter at ZOA_L2 in war mode on the first pet, held in place, its
+    shots not diverted to Logan (at_player_p 0) -> (world, shooter, [(t, victim, number rolled)] of its, the loop or
+    None)."""
+    w = tidal_world(logan, [{"key": key, "at": list(ZOA_L2)}], z=ZOA_L2[2], team="phoenix_incubus")
+    m = next(x for x in w.mobs.values() if x.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    m.spec = {**m.spec, "step_s": 999.0, "ranged": {**m.spec["ranged"], "at_player_p": 0.0}}
+    run = hurt_loop(w, loop_hits, extra) if loop_hits is not None else None
+    for p in w.pets():
+        w._place(p, (PETS_L2[0], PETS_L2[1], ZOA_L2[2]), d=0)
+        p.hits = p.hits_max = 10 ** 6
+        p.mode = "stay"
+        p.next_step = 1e9
+    tgt = w.pets()[0]
+    m.target, m.threat = tgt.serial, {tgt.serial: 1e9}
+    w._warm(m, True)
+    hits, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if by is m:
+            hits.append((round(w.t, 2), victim, amount))
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    return w, m, hits, run
+
+
+def test_shooter_hits():
+    print("== Tidal Tomb: a drowned mariner's shot every 4.0 s, 55 % of them hitting, and a soulcatcher's spell every "
+          "~5.7 s, on their target and on everyone of us within 1 of it; Logan at 2 never; Logan's own numbers ==")
+    # live (docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits"): the mariner
+    # 202 shots 4.0 s apart, 112 hitting, 159 of 161 of us within 1 of its target hit, 0 of 132 at 2+, Logan 15-39; the
+    # soulcatcher 98 of 106 within 1, 0 of 242 at 2+, Logan 28-37. Before: one target, the mariner every 1.57 s (38-42
+    # on Logan), the soulcatcher every 2.73 s (37-48)
+    for key, every, lo, hi, share in (("drowned mariner", 4.0, 15, 39, (0.35, 0.75)),
+                                       ("soulcatcher", 5.7, 28, 37, (0.75, 1.0))):
+        out = {}
+        for d in (1, 2):
+            w, m, hits, _ = _shooter_case(key, (PETS_L2[0] - d, PETS_L2[1] + d))
+            for o in w.team():
+                o.hits = o.hits_max = 10 ** 6
+            casts = []
+            orig_cast = w._cast
+            w._cast = lambda mob, tgt, ranged: (casts.append(round(w.t, 2)), orig_cast(mob, tgt, ranged))
+            w.run_until(w.t + 120.0)
+            out[d] = (casts, hits)
+        casts, hits = out[1]
+        gaps = [b - a for a, b in zip(casts, casts[1:])]
+        lands = sorted({t for t, _, _ in hits})
+        logan = [n for _, v, n in hits if v.kind == "player"]
+        pet_t = [t for t, v, _ in hits if v.kind == "pet"]
+        check(f"{key}: casts every ~{every} s; {share[0]:.0%}-{share[1]:.0%} of them land, each on both pets and on "
+              f"Logan 1 from them ({lo}-{hi}); Logan 2 off never",
+              len(casts) >= 120 / every * 0.8 and all(every * 0.8 <= g <= every * 1.2 for g in gaps)
+              and share[0] <= len(lands) / len(casts) <= share[1] and len(pet_t) == 2 * len(lands)
+              and len(logan) == len(lands) and all(lo - 1 <= n <= hi + 1 for n in logan)
+              and not any(v.kind == "player" for _, v, _ in out[2][1]) and out[2][1],
+              f"casts {len(casts)} lands {len(lands)} Logan {logan[:6]} at 2: "
+              f"{sum(1 for _, v, _ in out[2][1] if v.kind == 'player')} of {len(out[2][1])}")
+
+
+def test_shooter_stand_off():
+    print("== a drowned mariner fighting the pets 10 off, Logan 1 from them: the stand-off takes him 2+ off the pets "
+          "(tamer.TARGET_AREA from its ranged_observed area_r), out of its hits on them ==")
+    # live: 13 of 14 of Logan's mariner hits came with him within 1 of its target, a pet (docs/NOTES.md "Tidal Tomb: the
+    # zoas' lightning, the scorch's susceptibility, the shooters' hits"). Before: TARGET_AREA had the zoas only, and the
+    # cover out of its sight took him to (6895, 2063), 1 from the pets, for 12 s of its shots
+    from agent_link import cheb
+    w, m, hits, (loop, clock, store, patched) = _shooter_case("drowned mariner", (PETS_L2[0] - 1, PETS_L2[1] + 1),
+                                                              loop_hits=100, extra=("--no-peace",))
+    buf, near = io.StringIO(), 0.0
+    try:
+        with contextlib.redirect_stdout(buf):
+            t0 = last = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 30 and w.player.alive:
+                loop.tick()
+                now = tamer.time.monotonic()
+                if cheb(w.player.pos, PETS_L2) <= 1:
+                    near += now - last
+                last = now
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    on_us = [(t, round(n)) for t, v, n in hits if v.kind == "player"]
+    check("in 30 s Logan stands within 1 of the pets under 2 s (the first tick's step out) and ends 2+ off; 'area hit on "
+          "its target: the awake drowned mariner ... keeping 2+ off the pets within 11 of it' (before: 12 s at 1 from "
+          "them, the cover's tile)",
+          tamer.TARGET_AREA.get("drowned mariner") == (11, 2) and tamer.TARGET_AREA.get("soulcatcher") == (11, 2)
+          and near < 2.0 and cheb(w.player.pos, PETS_L2) >= 2
+          and "area hit on its target: the awake drowned mariner" in out and "keeping 2+ off the pets within 11" in out,
+          f"within 1 for {near:.1f} s, Logan hit {on_us}, ends {w.player.pos} ({cheb(w.player.pos, PETS_L2)} from the "
+          f"pets) {[ln for ln in out.splitlines() if 'stand-off' in ln or 'area hit' in ln or 'cover:' in ln][:3]}")
+    check("...the zoas' lightning (one every 22-87 s) widens no zone: the zoas keep their 4 (TARGET_AREA_EVERY_S)",
+          tamer.TARGET_AREA.get("combustive zoa") == (12, 4) and tamer.TARGET_AREA.get("astral zoa") == (11, 4)
+          and "toxic zoa" not in tamer.TARGET_AREA, str(tamer.TARGET_AREA))
+
+
+def test_loose_on_us():
+    print("== a razorfin beside us attacking us while the pets fight a zoa beside them: it becomes the target and gets "
+          "'All Kill' at once ==")
+    # simulator level 2 (docs/SIM.md "Tidal Tomb: the zoas' lightning, ..."): 7 of 24 deaths a fin alone on Logan, the
+    # pets at full hits 5-10 off on a zoa they fought: the target stayed the zoa (it fought the pets) and nobody went at
+    # the fin. Before: pick_target kept the zoa
+    import loop_hunt
+    w = tidal_world(LOGAN_L2, [{"key": "astral zoa", "at": [PETS_L2[0] + 1, PETS_L2[1], ZOA_L2[2]]},
+                               {"key": "razorfin", "at": [LOGAN_L2[0] - 1, LOGAN_L2[1], ZOA_L2[2]]}],
+                    z=ZOA_L2[2], team="phoenix_incubus")
+    zoa = next(x for x in w.mobs.values() if x.key == "astral zoa")
+    fin = next(x for x in w.mobs.values() if x.key == "razorfin")
+    loop, clock, store, patched = hurt_loop(w, 100, ("--no-peace",))
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            for p in w.pets():
+                w._place(p, (PETS_L2[0], PETS_L2[1], ZOA_L2[2]), d=0)
+                p.mode, p.next_step = "stay", 1e9
+            for x in (zoa, fin):
+                x.hits = x.hits_max = 10 ** 6
+                x.spec = {**x.spec, "step_s": 999.0}
+                w._warm(x, True)
+            zoa.target, fin.target = w.pets()[0].serial, w.player.serial
+            clock.advance(0.5)
+            now = tamer.time.monotonic()
+            loop.hurt_t.update({zoa.serial: now, w.pets()[0].serial: now, w.player.serial: now})
+            loop.engaged = zoa.serial
+            st = loop.state()
+            picked = loop.pick_target(st)
+            loop.fight(picked)
+            said = [p.kill for p in w.pets()]
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the razorfin on us is the target (not the zoa the pets fight) and the pets are sent at it at once: "
+          "'... on us and the pets on ...: it is the target now' (before: the zoa kept)",
+          picked == fin.serial and fin.serial in said and "it is the target now" in buf.getvalue()
+          and loop_hunt.LOOSE_R == 1,
+          f"picked {picked:#x} (fin {fin.serial:#x}, zoa {zoa.serial:#x}), the pets' kill {said}, "
+          f"{buf.getvalue().splitlines()[-3:]}")
+
+
 BEDROCK = (6886, 1957, -126)    # Tidal Tomb level 2's north strip, a live bedrock spawn (20261024_102346 20:53:13)
 
 
@@ -5985,11 +6188,25 @@ def test_tidal_level3_bursts():
           len(times) >= 3 and all(6.8 <= b - a <= 8.6 for a, b in zip(times, times[1:]))
           and {n for _, n, _ in hits} == {"GraveRobber"} and all(d <= 3 for _, _, d in hits), f"{times} {hits[:4]}")
     w, m = setup("giant astral zoa")
-    fired, orig_burst = collections.Counter(), w._burst
-    w._burst = lambda mob, sp, tgt=None: (fired.update([sp.get("id")]), orig_burst(mob, sp, tgt))
-    w.run_until(40.0)
-    check("...its 'astral' (every ~5.6 s) and 'volley' (~5 s) bursts each on their own cooldown",
-          fired["astral"] >= 5 and fired["volley"] >= 5, str(dict(fired)))
+    fired, struck, cur, orig_burst = collections.Counter(), collections.defaultdict(set), [None], w._burst
+
+    def burst(mob, sp, tgt=None):
+        fired.update([sp.get("id")])
+        cur[0] = sp.get("id")
+        orig_burst(mob, sp, tgt)
+        cur[0] = None
+    w._burst, orig_hurt = burst, w.hurt
+
+    def hurt_burst(victim, amount, by, kind="melee", song_pets=True, **kw):
+        if kind == "burst" and cur[0]:
+            struck[cur[0]].add(victim.name)
+        orig_hurt(victim, amount, by, kind, song_pets, **kw)
+    w.hurt = hurt_burst
+    w.run_until(70.0)
+    check("...its 'astral' (every ~5.6 s) and 'lightning' (~29 s) bursts each on their own cooldown, the lightning on "
+          "its target and everyone within 4 of it (Logan and the pets 6 off spared)",
+          fired["astral"] >= 10 and fired["lightning"] >= 2 and struck["lightning"] == {"GraveRobber"},
+          f"{dict(fired)} {dict(struck)}")
 
 
 def test_tidal_recall_rule():
@@ -6017,8 +6234,10 @@ def test_area_hitters():
             "giant combustive zoa": None, "combustive zoa": None, "biolumen shellpod": None,
             "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None}
     check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
-    want = {"astral zoa": (11, 4), "giant astral zoa": (11, 4), "combustive zoa": (12, 4), "giant combustive zoa": (12, 4)}
-    check("...the zoas' spell and scorch round the pet they target, nothing else (not a shellpod's barrage, radius 0)",
+    want = {"astral zoa": (11, 4), "giant astral zoa": (11, 4), "combustive zoa": (12, 4), "giant combustive zoa": (12, 4),
+            "drowned mariner": (11, 2), "soulcatcher": (11, 2)}
+    check("...the zoas' spell and scorch round the pet they target, the shooters' hits on everyone within 1 of theirs; "
+          "nothing else (not a shellpod's barrage, radius 0; not the zoas' lightning, one every 22-87 s)",
           tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
 
 
@@ -6391,6 +6610,7 @@ def main():
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
+              test_zoa_lightning, test_scorch_susceptible, test_shooter_hits, test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,

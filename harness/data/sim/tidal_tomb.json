@@ -1486,6 +1486,32 @@
     "damage_pet": 41,
     "damage_player": 25,
     "note": "level 3 (capture 20261027_220057): its hits carry Lethal Poison (buff icon 134): GraveRobber 22:24:22.53 (-60, melee), AlaFlambe 22:24:30.16 (-72 at 9 tiles), Logan 22:24:46-22:25:01 (-27..-33 at 3, '*begins to spasm uncontrollably*'); the pets' ticks 41 every 5.0 s (AlaFlambe 9 then 4, 533 in all); Logan cured each time 1.8-3.5 s later, so his tick is unmeasured (damage_player [INFERENCE]); seconds [INFERENCE: 9 ticks seen uncured]"
+   },
+   {
+    "kind": "burst",
+    "id": "lightning",
+    "first_s": [1.2, 29.0],
+    "every_s": 29.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 4,
+    "damage_pet": [32, 51, 43],
+    "damage_player": [26, 33, 30],
+    "note": "the zoas' lightning (the combustive zoa's entry): 2 seen (2026-10-27 22:24:20.8, 22:24:43.2, GraveRobber -44, -46); the giant zoas' numbers and the giant astral zoa's rate [INFERENCE]"
+   }
+  ],
+  "toxic zoa": [
+   {
+    "kind": "burst",
+    "id": "lightning",
+    "first_s": [1.2, 22.0],
+    "every_s": 22.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 4,
+    "damage_pet": [21, 33, 25],
+    "damage_player": [21, 34, 31],
+    "note": "the zoas' lightning (the combustive zoa's entry): 5 seen (2026-10-24 19:57:27.9 GirthyEarthy -23, the mantis -26, Logan -28 at 4 from them; 20:00:23.5, 20:00:28.6; 2026-10-27 22:20:49.7, 22:20:56.5 Logan -29); the plain zoas' numbers and the astral zoa's rate [INFERENCE]"
    }
   ],
   "giant pincer crab": [
@@ -1525,14 +1551,15 @@
    },
    {
     "kind": "burst",
-    "id": "volley",
-    "first_s": [1.0, 6.0],
-    "every_s": 5.0,
-    "radius": 12,
-    "targets": 3,
-    "damage_pet": [29, 51, 41],
-    "damage_player": [29, 39, 34],
-    "note": "level 3: a number on 3 (twice 4) of us at once, out to 12 tiles from it, every 3.1-3.6 s in a row (gaps up to 10 between), pets 29-51 (median 41), Logan 29-39 (n=5; 33, 37, 39 at 6-9 tiles); it skipped Logan at 5-10 tiles as often: 3 picked at random"
+    "id": "lightning",
+    "first_s": [1.2, 29.0],
+    "every_s": 29.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 4,
+    "damage_pet": [32, 51, 43],
+    "damage_player": [26, 33, 30],
+    "note": "its lightning, the zoas' (the combustive zoa's entry): 14 seen, 14 per its 72 astral spells (5.6 s apart: one every ~29 s), in runs every second cast (6.7 s apart); on its target and everyone of us within 4 of it: 2026-10-24 20:55:25-20:56:09 four times the three pets 1-5 from it, Logan 6-8 from it and 5+ from them spared; 2026-10-24 11:33:17 all four. The giant zoas' numbers: pets 32-51 (p10-p90, median 43, n=39), Logan 26-33 (median 30, n=7). Before 2026-10-29 modelled as a 'volley' on 3 of us at random within 12 every 5 s ('it skipped Logan at 5-10 tiles as often': he stood 5+ from its target)"
    }
   ],
   "astral zoa": [
@@ -1548,6 +1575,18 @@
     "damage_player": [35, 42, 37],
     "debuff": {"kind": "backlash", "per_stack": 0.2, "duration_s": 30, "text": "Astral backlash impacts your ability to concentrate while casting!"},
     "note": "level 2, the giant's spell smaller: every 6.2-10.9 s (median 7.35, n=21), the first 3.1-3.4 s in; pets 42-60 (median 45, n=47), Logan 35-42 (n=8); a 0.2 Backlash stack on each victim (AlaFlambe fizzled 26 of 88 casts under them). Captures 20261024_102346 19:52:25-20:12:27, 20261025_210102 21:14:01-21:18:24, 20261027_220057 22:45:59-22:53:59"
+   },
+   {
+    "kind": "burst",
+    "id": "lightning",
+    "first_s": [1.2, 22.0],
+    "every_s": 22.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 4,
+    "damage_pet": [21, 33, 25],
+    "damage_player": [21, 34, 31],
+    "note": "its lightning, the zoas' (the combustive zoa's entry): 12 seen, 12 per its 36 astral spells (7.35 s apart: one every ~22 s); 2026-10-24 19:59:09-20:11:31 seven times on the mantis, GirthyEarthy and Logan at 7-13 from it (Logan -31..-35), 2026-10-25 21:15:23 and 21:16:17 on all three, 21:17:42 GraveRobber and Logan (-21) with AlaFlambe 11 off spared"
    }
   ],
   "greater razorfin": [
@@ -1584,7 +1623,20 @@
     "radius": 3,
     "damage_pet": [40, 70, 53],
     "damage_player": [30, 48, 36],
-    "note": "its scorch (docs/NOTES.md 'Tidal Tomb: level 2 death 2026-10-29 12:36'; captures 20261024_102346, 20261024_225113, 20261026_183552, 20261027_220057, 20261028_182147, 20261029_100942, 58 scorches of 14 zoas): sound 0x0A70 on its target's tile, always a pet of ours (one on a tile, the rest moved), 1-10 tiles from it (reach 12: its spell range [INFERENCE for 11-12]), and 0x0A72 with a number on each of us within 3 of that tile: 86 of 97 at 0-3, 0 of 97 at 4+ (Logan 14 of 18 and 0 of 40), its sight of us not needed (live 12:36:47 and 55 Logan 8 from it, no line of sight by los.Sight, 3 from the pets: -44, -45). 'The creature scorches you and you become more susceptible to damage from them!' with each on Logan. Every 6.4-10.1 s (median 7.4, p10-p90 7.0-9.4, n=40 gaps), the first 1.1-8.5 s after it went to war (median ~4, n=16 of 20). Pets 40-70 (median 53, n=70), rising fight-long with the susceptibility (46, 41, 50, 55, 63, 68, 70 on one pet: not modelled), Logan 30-48 (median 36, n=14)"
+    "debuff": {"kind": "susceptible", "per_stack": 0.08, "duration_s": 17, "from": ["combustive zoa", "giant combustive zoa"], "text": "The creature scorches you and you become more susceptible to damage from them!"},
+    "note": "its scorch (docs/NOTES.md 'Tidal Tomb: level 2 death 2026-10-29 12:36'; captures 20261024_102346, 20261024_225113, 20261026_183552, 20261027_220057, 20261028_182147, 20261029_100942, 58 scorches of 14 zoas): sound 0x0A70 on its target's tile, always a pet of ours (one on a tile, the rest moved), 1-10 tiles from it (reach 12: its spell range [INFERENCE for 11-12]), and 0x0A72 with a number on each of us within 3 of that tile: 86 of 97 at 0-3, 0 of 97 at 4+ (Logan 14 of 18 and 0 of 40), its sight of us not needed (live 12:36:47 and 55 Logan 8 from it, no line of sight by los.Sight, 3 from the pets: -44, -45). 'The creature scorches you and you become more susceptible to damage from them!' with each on Logan. Every 6.4-10.1 s (median 7.4, p10-p90 7.0-9.4, n=40 gaps), the first 1.1-8.5 s after it went to war (median ~4, n=16 of 20). Pets 40-70 (median 53, n=70), rising fight-long with the susceptibility (46, 41, 50, 55, 63, 68, 70 on one pet), Logan 30-48 (median 36, n=14). The susceptibility (docs/NOTES.md 'Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits'; no buff icon for it): a pet's scorches in a row were x1.10, 1.17, 1.24-1.31, 1.37-1.45, 1.41-1.48, 1.52 its first after 1-6 before (medians, plain and giant alike, 31 rows): 0.08 a stack; still rising after gaps up to 12.7 s (7 of 7), mixed at 14-20 s (4 kept, 4 back to the first), back at 27-35 s (5 of 5): duration_s 17 [INFERENCE], each stack refreshed by the next. The mariners' and soulcatchers' numbers on scorched pets didn't rise (24.4 against 22.4-25.0, 27.0 against 27-28): 'from them' is the combustive zoas (their other spells too [INFERENCE: the lightning's few numbers on scorched pets, 27 then 74]). Logan's own rise is unmeasured (44 then 45 live, the giant's three runs of 3 noisy) [INFERENCE: as the pets']"
+   },
+   {
+    "kind": "burst",
+    "id": "lightning",
+    "first_s": [1.2, 87.0],
+    "every_s": 87.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 4,
+    "damage_pet": [21, 33, 25],
+    "damage_player": [21, 34, 31],
+    "note": "the zoas' lightning (docs/NOTES.md 'Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits'; 45 casts in captures 20261024_102346..20261029_100942): every zoa type casts every 3.37 s (two animation-4s 1.5 s apart, the spell 1.2 s after the second), the lightning one of its spells: bolts (0xC0 type 1, sound 0x29) on its target and on everyone of us within 4 of it at once, a number on each 0.24 s later. In all 45 the struck stood within 4 of the best-fitting victim and none spared within 4 (Logan 22 of 22 within 4 of its target, 0 of 23 at 5+; 4 of 4 of us once); its target 1-11 from the zoa, its sight of the others not needed (live 12:36:51.56 and 54.90 Logan 8 from the zoa, out of its sight, 3 from the pets). No buff with it (not the astral zoas' Backlash spell). The plain zoas' numbers: pets 21-33 (p10-p90, median 25, n=40; 74 on a scorched one), Logan 21-34 (median 31, n=15; 18 live at 12:36:55). This zoa's: 5 seen against its 59 scorches (7.4 s apart: one every ~87 s); 2026-10-29 12:36 twice in 3.35 s"
    }
   ],
   "giant combustive zoa": [
@@ -1598,14 +1650,27 @@
     "radius": 3,
     "damage_pet": [82, 128, 105],
     "damage_player": [32, 50, 40],
-    "note": "level 3, 2026-10-25 11:34:13-11:34:50 (it killed the three pets) and four fights since (captures 20261025_210102, 20261027_220057, 20261028_165135 twice; 50 scorches in the five): the plain zoa's scorch, bigger (that entry): on its target, a pet 1-12 tiles from it, and on each of us within 3 of that pet, 71 of 71 there and 0 of 84 at 4+ (Logan 11 of 11, 0 of 39). Before 2026-10-29 modelled as a ring of 12 round the zoa: 'Logan at 8-12' was Logan within 3 of the pets it hit. Every 4.5-8.6 s (median 5.6, n=44 gaps), the first 0.8-6.6 s after it went to war (n=7). Its first fight's pets rose 82-87, 89-95, 97-103, 110-112, 112-118, 123-128 (all fights 29-148, median 93, n=60), Logan's 32-50 (median 40, n=11), each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
+    "debuff": {"kind": "susceptible", "per_stack": 0.08, "duration_s": 17, "from": ["combustive zoa", "giant combustive zoa"], "text": "The creature scorches you and you become more susceptible to damage from them!"},
+    "note": "level 3, 2026-10-25 11:34:13-11:34:50 (it killed the three pets) and four fights since (captures 20261025_210102, 20261027_220057, 20261028_165135 twice; 50 scorches in the five): the plain zoa's scorch, bigger (that entry, its susceptibility too): on its target, a pet 1-12 tiles from it, and on each of us within 3 of that pet, 71 of 71 there and 0 of 84 at 4+ (Logan 11 of 11, 0 of 39). Before 2026-10-29 modelled as a ring of 12 round the zoa: 'Logan at 8-12' was Logan within 3 of the pets it hit. Every 4.5-8.6 s (median 5.6, n=44 gaps), the first 0.8-6.6 s after it went to war (n=7). Its first fight's pets rose 82-87, 89-95, 97-103, 110-112, 112-118, 123-128 (all fights 29-148, median 93, n=60), Logan's 32-50 (median 40, n=11), each of his with 'The creature scorches you and you become more susceptible to damage from them!' (Nusero's Scorching Breath, #7518, is +10 % for 60 s, max +30 %; here +8 % a stack past +50 %, the plain zoa's note). damage_pet spans the rise as before (the stacks now on top [INFERENCE: its first scorches 82-89]). Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
+   },
+   {
+    "kind": "burst",
+    "id": "lightning",
+    "first_s": [1.2, 40.0],
+    "every_s": 40.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 4,
+    "damage_pet": [32, 51, 43],
+    "damage_player": [26, 33, 30],
+    "note": "the zoas' lightning (the combustive zoa's entry): 7 seen against its 50 scorches (5.6 s apart: one every ~40 s); 2026-10-27 22:27:48 and 2026-10-28 17:02:54, 17:06:36 GraveRobber 1 from it and Logan 3-4 from him (-29, -32, -30), AlaFlambe 9-12 off spared; the giant zoas' numbers (the giant astral zoa's entry)"
    }
   ],
-  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the scorch's rising susceptibility (the combustive zoas' notes); a combustive zoa's lightning on up to 3 of us at once (bolts 0xC0 type 1 on each, a number 0.24 s later: 2026-10-24 20:50:36 GirthyEarthy and Logan -33, 2026-10-25 11:23:30 three pets, Logan 6 off spared, 2026-10-29 12:36:51.6 and 54.9 Logan -34 and -18 at 8 tiles, AlaFlambe, Bussin; 4 in the ~7 min of fighting its 58 scorches came in: rarer than the giant astral zoa's volley); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's); the giant kelpdweller's 2-tile reach (3 numbers, capture 20261027_220057). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte; since 2026-10-28 (docs/NOTES.md 'Five more Tidal Tomb specials') the swashbuckler's rope, the buccaneer's bleed, the fins' spin bleeds (the greater razorfin's old every-hit bleed, 18 every ~1.2 s, was these stacks overlapping), Festering Wound and Glowmark (their entries); since 2026-10-29 the combustive zoas' scorch on everyone within 3 of their target (the giant's was a ring of 12 round it)."
+  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's); the giant kelpdweller's 2-tile reach (3 numbers, capture 20261027_220057). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte; since 2026-10-28 (docs/NOTES.md 'Five more Tidal Tomb specials') the swashbuckler's rope, the buccaneer's bleed, the fins' spin bleeds (the greater razorfin's old every-hit bleed, 18 every ~1.2 s, was these stacks overlapping), Festering Wound and Glowmark (their entries); since 2026-10-29 the combustive zoas' scorch on everyone within 3 of their target (the giant's was a ring of 12 round it), and later that day (docs/NOTES.md 'Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits') every zoa's lightning on everyone within 4 of its target (the giant astral zoa's 'volley' was it), the scorch's susceptibility, the drowned mariner's and soulcatcher's hits on everyone within 1 of their target (ranged_observed)"
  },
  "ranged_observed": {
-  "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},
-  "soulcatcher": {"damage": [23, 30], "note": "its 4 numbers on the pets in the capture (23 and 26 beside one, 30 twice from range)"},
+  "drowned mariner": {"damage": [12, 38, 23], "damage_player": [15, 39, 22], "every_s": 4.0, "range": 11, "area_r": 1, "hit_chance": 0.55, "at_player_p": 0.05, "cast_s": [0, 0], "cast_action": 19, "flight_s": [0, 0], "effect": {"graphic": 31173, "speed": 10, "duration": 0, "hue": 0, "render": 0, "explode": 0}, "note": "its shot (docs/NOTES.md 'Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits'; 9 captures 2026-10-24..29, 202 shots): one every 4.0 s (4.00-4.07 p10-p90, n=169 gaps), its animation 12/14/19 and the 0x79C5 effect to its target 0.24 s after the numbers; 112 hit (sound 0x85B, the numbers at once), 90 missed (sound 0x7D1, no number on anyone): hit_chance 0.55. A hit lands on its target, one of us 1-11 from it, and on everyone of us within 1 of that one: 159 of 161 at 0-1, 0 of 132 at 2+ (Logan 13 of 14 at 0-1, 0 of 79 at 2+). Pets 12-38 (median 23, n=146), Logan 15-39 (median 22, n=13): his own numbers, not 1.6x a pet's. Logan its target 3 times in the 96 hits with him within 10 of it: at_player_p 0.05 (the global SHOT_AT_PLAYER_P 0.2 was fitted on the Mausoleum's casters). Its melee swing (action 20, every 1.77 s beside a pet) left no number of its own. Before: every 1.57 s (its swing period), 24-26 a shot from the capture's 3 numbers, 38-42 on Logan, one target"},
+  "soulcatcher": {"damage": [23, 38, 26], "damage_player": [28, 37, 30], "every_s": 5.7, "range": 11, "area_r": 1, "hit_chance": 0.91, "at_player_p": 0.03, "cast_s": [1.52, 2.71, 2.16], "cast_action": 11, "flight_s": [0, 0], "effect": null, "note": "its spell (docs/NOTES.md 'Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits'; 9 captures 2026-10-24..29, 100 spells): its animation 11, then 1.52-2.71 s later (p10-p90, median 2.16, n=98) sound 0x9FE on its target's tile and 0x8E4 with a number on each victim, no projectile; every 5.7 s (median 5.68, 4.56-7.15, n=75 gaps). On its target, one of us 1-11 from it, and on everyone of us within 1 of that one: 98 of 106 at 0-1, 0 of 242 at 2+ (Logan 8 of 8 at 0-1, 0 of 95 at 2+); with one of us on the target's tile 75 of 82 had a number (hit_chance 0.91). Pets 23-38 (median 26, n=90), Logan 28-37 (median 30, n=8). Logan its target 2 times in its 80 spells with him within 11 of it: at_player_p 0.03. Before: every 2.73 s, 23-30 from the capture's 4 numbers, 37-48 on Logan, one target"},
   "giant astral zoa": {"damage": [36, 54], "every_s": 3.5, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14}, "note": "level 3: its single numbers on the one pet it fought, 35-48 on NightmareB/A 3.4-4.1 s apart (2026-10-25 11:33:00-11:33:52), 38-54 on GirthyEarthy beside it 2.5-5 s apart (2026-10-24 20:54:58-20:56:22): the wiki's spell damage 45-55 less the pet's armor; the defaults' 0.5 x wiki every 6 s made a third of it"},
   "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14}, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"},
   "giant toxic zoa": {"damage": [35, 78, 46], "every_s": 3.5, "note": "level 3 (capture 20261027_220057): its numbers on GraveRobber beside it 35-69 (median 46, n=25) and on AlaFlambe at 9-10 tiles 36-78, each with its Lethal Poison (specials); every_s as the giant astral zoa's [INFERENCE]; the wiki's 45-55 x the default 0.5 made 22-28"}

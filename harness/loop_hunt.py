@@ -203,6 +203,7 @@ CASTER_REACH = 10            # a caster in war mode this close while we take dam
 RANGED_REACH = 13            # ...a ranged one (aggro.ranged): the purger's barrage reaches 12, a calamity cast from 13
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
+LOOSE_R = 1                  # a monster this close attacking us that the pets aren't fighting becomes the target (pick_target)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 GATE_CLICK_TRIES = 3          # the gate's double-click again after 500119 (an item use just before it)...
@@ -862,13 +863,15 @@ class HuntLoop:
         return sorted(out, key=lambda a: a["dist"])
 
     def pick_target(self, st, pull: bool = True):
-        """The serial to fight now, or None: keep the current one while it's valid and
-        nothing else is attacking us; else an attacker with the lowest hits; else (pull)
-        the nearest within --pull-range of the anchor (the fight spot; crawling, us). A
-        target dropped as pinned is passed over until its skip ends, unless it attacks us;
+        """The serial to fight now, or None: a monster beside us attacking us that the pets aren't fighting (LOOSE_R)
+        while the current one isn't on us; else keep the current one while it's valid and nothing else is attacking
+        us; else an attacker with the lowest hits; else (pull) the nearest within --pull-range of the anchor (the fight
+        spot; crawling, us). A target dropped as pinned is passed over until its skip ends, unless it attacks us;
         crawling, so is a creature type the crawl avoids (too strong or too slow for us)."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
-        on_us = {serial_of(a["serial"]) for a in self.attackers(st)}
+        atts = self.attackers(st)
+        on_us = {serial_of(a["serial"]) for a in atts}
+        beside = {serial_of(a["serial"]) for a in atts if a["dist"] <= LOOSE_R}
         attacking = set(on_us)
         if self.team is not None:
             attacking |= self.team.pet_attackers(st)
@@ -898,6 +901,16 @@ class HuntLoop:
                 # picked, dropped as pinned and picked again every 15 s while the walk stood its whole 90 s)
                 continue
             cands.append((s, mob))
+        if self.team is not None and self.engaged not in on_us and (
+                loose := [(s, m) for s, m in cands if s in beside and not self.team.engaged(st, s)]):
+            # the pets on one monster while another chews on us: it becomes the target, so Team.fight's "All Kill" at a
+            # mob on us they leave alone sends them at it (simulator level 2, 144 runs: 7 of 24 deaths a fin alone on
+            # Logan, the pets at full hits 5-10 off on a zoa, the target kept because it fought the pets)
+            s, m = min(loose, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))
+            if self.engaged is not None and s != self.engaged:
+                log(f"{m.get('name') or 'a monster'} 0x{s:08X} on us and the pets on 0x{self.engaged:08X}: "
+                    "it is the target now")
+            return s
         if pull and self.engaged is not None and any(s == self.engaged for s, _ in cands) \
                 and (self.engaged in attacking or not attacking):
             return self.engaged

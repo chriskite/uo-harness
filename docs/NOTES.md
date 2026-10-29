@@ -6360,6 +6360,67 @@ tick walked again at once.
   (`Crawl.stop_last`). docs/HUNT_LOOP.md (the rules), docs/SIM.md "Tidal Tomb: the combustive zoa's scorch" (the
   numbers), docs/PLAN.md (the decision).
 
+## Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits (2026-10-29)
+
+The three gaps 1ffae37 left ("not modelled"), and the level 2 shooters' real numbers, measured over the nine Tidal Tomb
+captures (20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552, 20261026_213634, 20261027_220057,
+20261028_165135, 20261028_182147, 20261029_100942) with `replay.timed_packets` and `world.runtime.WorldRuntime`: every
+effect, sound, animation, overhead number, buff (0xFF sub 8) and war flag while Logan stood in the dungeon, with the
+mobiles within 20 of him at each. "Ours" is Logan and his named pets (other players' pets left out).
+
+- **The zoas' lightning is every zoa type's spell, cast like their others.** Every zoa (astral, toxic, combustive and
+  their giants) casts every 3.37 s (median of 498 gaps): animation 4, again 1.5 s later, the spell 1.2 s after the
+  second (1.18-1.27 s). The lightning is one of its spells: bolts (0xC0 type 1, graphic 0, sound 0x29) on several of us
+  at once and a number on each 0.24 s later, no buff (not the astral zoas' Backlash spell). 45 casts with one of ours
+  struck. Before this the caster was [INFERENCE] by elimination; now the double animation-4 of one zoa 2.75 and 1.22 s
+  before each bolt names it (live 12:36:51.56 and 54.90: the combustive zoa 0x70BB4).
+- **Its shape: on its target and everyone of us within 4 of it.** For each cast the victims fit within 4 of one
+  victim (r_in 0-4 in 45 of 45), none spared within 4 (the nearest spared 5-14 off, 31 casts with one spared); Logan
+  struck 22 of 22 times within 4 of its target, 0 of 23 at 5+; four of four of us once (2026-10-24 11:33:17). Its target
+  1-11 from the zoa; its sight of the others not needed (12:36 Logan 8 from the zoa and out of its sight, 3 from the
+  pets). The giant astral zoa's "volley" (modelled as 3 of us at random within 12) was this: Logan "skipped at 5-10" stood
+  5+ from its target.
+- **Its numbers and rate.** Plain zoas: pets 21-33 (p10-p90, median 25, n=40; 74 on a scorched one), Logan 21-34
+  (median 31, n=15; 18 at 12:36:55). Giants: pets 32-51 (median 43, n=39), Logan 26-33 (median 30, n=7). Rate against
+  each zoa's own clock: the combustive zoa 5 per its 59 scorches (7.4 s apart: one every ~87 s), the giant 7 per 50
+  (~40 s), the astral zoa 12 per its 36 astral spells (Backlash buffs on ours, 7.35 s apart: ~22 s), the giant astral
+  14 per 72 (~29 s); the toxic zoas 5 and 2 seen, no clock of their own (the astral pair's rates [INFERENCE]). It comes
+  in runs, every second cast (6.7 s apart) or the next (3.35 s: 12:36:51.56 and 54.90).
+- **The scorch's susceptibility: +8 % a stack on what the combustive zoas do to its victim.** No buff icon comes with
+  "The creature scorches you and you become more susceptible to damage from them!". A pet's scorches in a row (31
+  chains, plain and giant alike) were x1.10, 1.17, 1.24-1.31, 1.37-1.45, 1.41-1.48, 1.52 its first after 1-6 before
+  (medians): ~0.08 a stack. Gaps: still rising after 10.2-12.7 s (7 of 7), mixed at 14-20 s (4 kept, 4 back to the
+  first), back to the first at 27-35 s (5 of 5): every stack refreshed by the next, gone ~17 s after the last
+  [INFERENCE: 17 between 12.7 and 27]. A pet joining late starts at the first (GraveRobber 71 at the giant's 5th
+  scorch, 2026-10-25 21:23:45): per victim, not a ramp of the zoa's. "From them" is the combustive zoas: the mariners'
+  hits on scorched pets 22.4-25.0 (n=19) against 24.4 unscorched (n=127), the soulcatchers' 27-28 against 27.0; their
+  other spells [INFERENCE: the lightning's few numbers on scorched pets, 27 then 74; the giant's single hits 40 -> 74].
+  Logan's own rise is unmeasured (44 then 45 live, the giant's three runs of 3 noisy) [INFERENCE: as the pets'].
+- **The drowned mariner: a shot every 4.0 s on its target and everyone within 1 of it, half of them missing.** 202
+  shots (animation 12, 14 or 19), 4.00-4.07 s apart (p10-p90, n=169 gaps); 112 hit (sound 0x85B, the numbers at once),
+  90 missed (sound 0x7D1, no number on anyone); both kinds send its 0x79C5 effect to the target 0.24 s after. On a hit,
+  159 of 161 of us within 1 of its target took a number, 0 of 132 at 2+ (Logan 13 of 14 at 0-1, 0 of 79 at 2+); its
+  target 1-11 from it. Pets 12-38 (median 23, n=146), Logan 15-39 (median 22, n=13). Logan was its target 3 times in the
+  96 hits with him within 10 of it (2026-10-27 22:14:52, 2026-10-29 10:40:07 and 11). Its swing beside a pet (action
+  20, every 1.77 s) left no number of its own. The simulator had it shooting one target every 1.57 s (its swing
+  period) for 24-26, 1.6x that on Logan, and a fifth of its shots at a pet sent at him (`SHOT_AT_PLAYER_P`, fitted on
+  the Mausoleum's casters).
+- **The soulcatcher: a spell every 5.7 s on its target and everyone within 1 of it.** Animation 11, then 1.52-2.71 s
+  later (median 2.16, n=98) sound 0x9FE on its target's tile and 0x8E4 with a number on each victim, no projectile;
+  every 5.68 s (4.56-7.15, n=75 gaps). 98 of 106 of us within 1 of its target hit, 0 of 242 at 2+ (Logan 8 of 8, 0 of
+  95); with one of us on the target's tile 75 of 82 took a number. Pets 23-38 (median 26, n=90), Logan 28-37 (median
+  30, n=8); Logan its target 2 times in its 80 spells with him within 11 of it. Simulated before: one target every
+  2.73 s, 37-48 on Logan.
+- **Fins on Logan live: rare.** In all nine captures Logan took 6 numbers with a fin beside him (voidfin 27-40, one
+  razorfin 33), while the simulator's level 2 deaths are now mostly fins on him (docs/SIM.md "Tidal Tomb: the zoas'
+  lightning, ..."): how often they pick Logan live under the runner is unmeasured.
+- **Built 2026-10-29:** all four in the simulator (harness/data/sim/tidal_tomb.json: each zoa's `lightning` burst,
+  the scorch's `susceptible` debuff, the shooters' `ranged_observed` with `area_r`, `hit_chance`, `damage_player`,
+  `at_player_p`; `World.hurt`, `_burst`, `_release`, `_impact`, `_shot_damage`), Logan's death readout (`World.die`:
+  each hit in his last 15 s with its source, kind, his hits after and his distance to the hitter, the monsters on our
+  side, the pets, the runner's last intents), and the runner rules in docs/HUNT_LOOP.md (the shooters' target areas,
+  no zone for the lightning, a monster beside us the pets aren't fighting).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and
