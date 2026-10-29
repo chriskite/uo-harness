@@ -114,7 +114,7 @@ FAIL_TEXTS = {
 
 
 # Dungeons where a recall is only allowed beside a gold moongate (user 2026-10-13: "never near a red one"):
-# every simulator scenario's `dungeon` (the Mausoleum's, Tidal Tomb's box and gold gates), shared with the simulator
+# every simulator scenario's `dungeon` (the Mausoleum's, Tidal Tomb's, the Ossuary's boxes and gold gates), shared with the simulator
 # (World.recall_allowed).
 _DUNGEONS = None
 
@@ -126,10 +126,14 @@ def _dungeons() -> list[dict]:
     return _DUNGEONS
 
 
+def in_boxes(pos, boxes) -> bool:
+    """pos (x, y, ...) inside one of the inclusive (x0, y0, x1, y1) boxes (a dungeon's `boxes`: its levels' regions)."""
+    return any(x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1 for x0, y0, x1, y1 in boxes)
+
+
 def _dungeon_at(pos, facet) -> dict | None:
     for d in _dungeons():
-        x0, y0, x1, y1 = d["box"]
-        if d.get("facet", 0) == (facet or 0) and x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1:
+        if d.get("facet", 0) == (facet or 0) and in_boxes(pos, d["boxes"]):
             return d
     return None
 

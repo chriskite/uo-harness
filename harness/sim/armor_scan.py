@@ -38,8 +38,9 @@ for p in (HARNESS, HERE):
 import armor  # noqa: E402
 import calibrate  # noqa: E402
 import tamer  # noqa: E402
+from sim import scenario  # noqa: E402
 
-SCENARIOS = ("mausoleum", "tidal_tomb")
+SCENARIOS = ("mausoleum", "tidal_tomb", "ossuary")
 SONG = re.compile(r"Song of Discordance \((\d+(?:\.\d+)?)% reduced damage")
 BLEED_START = ("causing you to bleed", "They begin to draw blood from you!")
 BLEED_END = "You are no longer bleeding."
@@ -58,9 +59,8 @@ def _kb():
 
 
 def _bard(sc):
-    with open(os.path.join(calibrate.SCENARIO_DIR, "mausoleum.json" if sc == "tidal_tomb" else f"{sc}.json"),
-              encoding="utf-8") as f:
-        return json.load(f)["bard"]
+    """The scenario's bard block with its `inherit` resolved (Tidal Tomb's and the Ossuary's are the Mausoleum's)."""
+    return scenario._read(sc, calibrate.SCENARIO_DIR)["bard"]
 
 
 def _windows(sess):

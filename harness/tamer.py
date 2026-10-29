@@ -197,18 +197,17 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # of itself in the simulator's scenarios (the measured specials: burst, ooze, wail, bleed_area; not one centred on its
 # target, not the apparition's blink) adds radius + 1: the fins' spins (2: razorfin, voidfin, frenzyfin, greater
 # razorfin and frenzyfin), the colossal scourgeon's sweep (2), the tidal sea serpent's burst (3), the buccaneer's bleed
-# (1), the corpsebride's wail (2), the bound soul's bleed (1). A hit reaching beyond AREA_MAX_R (the giant zoas' 12)
-# can't be stood out of in a fight: the caster rules keep us from those.
+# (1), the corpsebride's wail (2), the bound soul's bleed (1); the Ossuary's deathbringer's rain of death (4). A hit
+# reaching beyond AREA_MAX_R (the giant zoas' 12, the phantasm's lament 12, the spectral terror's 11) can't be stood
+# out of in a fight: the caster rules keep us from those.
 AREA_MAX_R = 5
 _AREA_HAND = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3, "oozing noughtilus": 3}
 
 
 def _area_r() -> dict:
     out = dict(_AREA_HAND)
-    for name in ("mausoleum", "tidal_tomb"):
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", f"{name}.json"),
-                  encoding="utf-8") as f:
-            specials = json.load(f).get("specials") or {}
+    for sc in aggro.scenarios():
+        specials = sc.get("specials") or {}
         for kind, sps in specials.items():
             for sp in sps if isinstance(sps, list) else ():
                 r = sp.get("radius")

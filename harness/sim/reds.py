@@ -38,6 +38,7 @@ import collections
 import math
 import random
 
+import escape
 from sim import packets as P
 
 VIEW = 18
@@ -60,7 +61,7 @@ class Graph:
     def __init__(self, world):
         sc = world.sc
         walk = world.walk
-        box = sc["dungeon"]["box"]
+        boxes = sc["dungeon"]["boxes"]
         self.tps = {tuple(tp["from"][:2]): tuple(tp["to"]) for tp in sc.get("teleporters", [])}
         seeds = [tp["to"] for tp in sc.get("teleporters", [])]
         seeds += [r["at"] for r in sc["recall"]["rows"]] + [s["at"] for s in sc.get("spawns", [])]
@@ -69,7 +70,7 @@ class Graph:
             seeds.append(sc["reds"]["entry"])
 
         def inside(t):
-            return box[0] <= t[0] <= box[2] and box[1] <= t[1] <= box[3]
+            return escape.in_boxes(t, boxes)
 
         self.adj: dict[tuple, list] = {}
         q = collections.deque()

@@ -2778,6 +2778,28 @@ kills, we can loot the corpse, but we shouldn't as that is rude." Decisions (doc
   isn't looted if an ally was seen on it. Rejected: reading loot rights from the corpse's notoriety (an ally's kill can
   show grey to us: the user says we can loot it).
 
+## The Ossuary in the simulator (user 2026-10-28: "add it to the combat simulator")
+
+Built from the user's three visits that day (docs/SIM.md "The Ossuary", docs/NOTES.md "The Ossuary: three visits by
+hand"). Decisions:
+
+- **Level 3 is the hunting level.** Logan spent 1,355 of his 2,649 s inside there; levels 1-2 are the way in, level 4
+  (322 s) a side trip. Levels 2 and 4 run with `--area` and the runner flags in the scenario's `runner.note`.
+- **A dungeon is a list of boxes** (`dungeon.boxes`, `calibration.boxes`), every scenario cut over. Level 4 lies 700
+  tiles from the rest; one box over all four would take in Nusero, Pulma and Covetous and forbid recalls there.
+  Rejected: a second scenario for level 4 (one dungeon, one recall rule, one teleporter graph for the reds).
+- **The emote-then-hit specials are `burst`s with `delay_s`, `repeat` and `chance`**, not a kind each. Six of the
+  nine measured specials are one area or target hit a fixed time after an emote; the hierarch's channel is that hit
+  repeated. One new kind, `death_brood`, for the apophite spirit's asps (a death has no cooldown to hang on).
+- **Our pets walk through each other and us, in every scenario.** Live they share a tile half the time; here they
+  blocked each other, and on level 1's one-wide ramp the walk in deadlocked in 6 of 8 runs. This changes the other
+  scenarios' runs a little (no batch rerun of them for it).
+- **The kb's missing types by hand** (huntress, fire priest, spirit asp, pocket beetle, plague frog), each with its
+  evidence and `missing` fields, as the Mausoleum's Maus 4 entries were. A `kb_scan` rerun drops them; re-add them
+  then.
+- **Not done**, with the evidence for the next session: the six specials not measured enough, other players and reds
+  (no `others`/`reds` blocks), the walk-in wait on the ramp (a runner change, not the simulator's).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

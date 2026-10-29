@@ -4564,7 +4564,7 @@ def test_parity_team():
                               "VALUES(?, 'hunt', ?, 0, 5230, 700, ?, 1)", (t, kind, json.dumps(d)))
     store.close()
     visits, fights = parity.live_visits(db, 0, 1, [0, 0, 0, 0], until=3050, pets={0x000DDEFE, 0x0026EF56},
-                                        dungeon=[5150, 600, 5760, 760])
+                                        dungeon=[[5150, 600, 5760, 760]])
     check("ours up to --until: one visit, its fight, no death (the other team's death 500 s after its end)",
           [v["t_start"] for v in visits] == [1000] and not visits[0]["_deaths"]
           and [f["name"] for f in fights] == ["a shade wolf"], f"{[(v['t_start'], v['_deaths']) for v in visits]} {fights}")
@@ -5398,10 +5398,12 @@ def test_area_hitters():
           "target or reaching 12 isn't a stand-off ==")
     got = {k: tamer.AREA_R.get(k) for k in ("razorfin", "voidfin", "greater razorfin", "tidal sea serpent",
                                              "drowned buccaneer", "corpsebride", "oozing noughtilus", "reanimated daemon",
-                                             "giant astral zoa", "giant combustive zoa", "biolumen shellpod")}
+                                             "giant astral zoa", "giant combustive zoa", "biolumen shellpod",
+                                             "ossuarian deathbringer", "phantasm", "hierarch")}
     want = {"razorfin": 3, "voidfin": 3, "greater razorfin": 3, "tidal sea serpent": 4, "drowned buccaneer": 2,
             "corpsebride": 3, "oozing noughtilus": 3, "reanimated daemon": 6, "giant astral zoa": None,
-            "giant combustive zoa": None, "biolumen shellpod": None}
+            "giant combustive zoa": None, "biolumen shellpod": None, "ossuarian deathbringer": 5, "phantasm": None,
+            "hierarch": None}
     check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
 
 
@@ -5530,10 +5532,127 @@ def main():
               test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
-              test_walk_in_fought, test_tidal_hunt):
+              test_walk_in_fought, test_tidal_hunt, test_ossuary_recall_rule, test_ossuary_delayed_bursts,
+              test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
+
+OSS_L3 = (5622, 1085)         # the Ossuary: an open room on level 3 (the hunting level)
+
+
+def ossuary_world(start, spawns=(), seed=1, z=0):
+    sc = load("ossuary")
+    sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
+    sc["player"]["start"] = [start[0], start[1], z]
+    return World(sc, seed=seed)
+
+
+def _hold_on(w, m, victim):
+    """`m` fights `victim` for good: unkillable, no melee or spells of its own, so its specials are all it does."""
+    m.hits = m.hits_max = 100000
+    m.spec = {**m.spec, "melee": None, "ranged": None}
+    victim.hits = victim.hits_max = 100000
+    m.target, m.threat = victim.serial, {victim.serial: 1e6}
+
+
+def test_ossuary_recall_rule():
+    print("== the recall rule over a dungeon of two boxes: the Ossuary's levels 1-3 and its level 4 far off, its golden "
+          "gates; outside, the tome's 'Ossuary' row ==")
+    import escape
+    check("a recall at the tome's 'Ossuary' landing outside is allowed", escape.recall_forbidden((1213, 2816, 31), 0) is None)
+    check("...beside level 1's golden gates too", escape.recall_forbidden((5926, 1324, 0), 0) is None
+          and escape.recall_forbidden((5871, 1311, 5), 0) is None)
+    why = escape.recall_forbidden((*OSS_L3, 0), 0)
+    check("...on level 3 it is refused", why is not None and "Ossuary" in why, str(why))
+    check("...and on level 4 (the second box)", escape.recall_forbidden((4900, 2000, 0), 0) is not None)
+    check("...but not between the boxes (Darkmire's 5216, 1953)", escape.recall_forbidden((5216, 1953, 0), 0) is None)
+
+
+def test_ossuary_delayed_bursts():
+    print("== the Ossuary's emote-then-hit specials: a phantasm's lament on each of us within 12 tiles 1.5 s after "
+          "'*laments*', none beyond; a hierarch's channelled fire, 6 ticks 0.5 s apart on its target from 1.0 s ==")
+    x, y = OSS_L3
+    # Logan and the phoenix (following him) 14 tiles east of the phantasm, GraveRobber on it by "All Kill"
+    w = ossuary_world((x + 17, y), [{"key": "phantasm", "at": [x + 3, y, 0]}])
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    _hold_on(w, m, gb)
+    gb.mode, gb.kill = "kill", m.serial
+    m.spec = {**m.spec, "specials": [{**m.spec["specials"][0], "chance": 1.0}], "step_s": 1e9}   # it stays put
+    ph = next(p for p in w.pets() if p.name == "AlaFlambe")
+    w.run_until(40.0)
+    cues = [t for t, s, text in said if s == m.serial and text == "*laments*"]
+    hits = [(t, v) for t, v, k, _ in hurts if k == "burst"]
+    check("2+ laments ~15 s apart, each followed 1.5 s later by a hit on GraveRobber beside it, none on Logan and the "
+          "phoenix 13+ off, none sooner", len(cues) >= 2 and sim_cheb(w.player.pos, m.pos) > 12
+          and sim_cheb(ph.pos, m.pos) > 12 and all({v.serial for t, v in hits if abs(t - c - 1.5) < 0.06} == {gb.serial}
+                                                   for c in cues)
+          and all(any(abs(t - c - 1.5) < 0.06 for c in cues) for t, _ in hits),
+          f"cues {cues} hits {[(t, v.name) for t, v in hits]} us {sim_cheb(w.player.pos, m.pos)} "
+          f"phoenix {sim_cheb(ph.pos, m.pos)}")
+    w = ossuary_world(OSS_L3, [{"key": "hierarch", "at": [x + 3, y, 0]}])
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    _hold_on(w, m, gb)
+    w.run_until(12.0)
+    cue = next((t for t, s, text in said if s == m.serial and text == "*channels ancient fire*"), None)
+    ticks = [t for t, v, k, _ in hurts if k == "burst" and cue is not None and cue < t <= cue + 4.0]
+    check("its channel: 6 hits on GraveRobber alone, 1.0 s after the emote and 0.5 s apart",
+          cue is not None and len(ticks) == 6 and all(v is gb for t, v, k, _ in hurts if k == "burst")
+          and all(abs(t - (cue + 1.0 + 0.5 * i)) < 0.06 for i, t in enumerate(ticks)), f"cue {cue} ticks {ticks}")
+
+
+def test_ossuary_death_brood():
+    print("== an apophite spirit's death: 5 spirit asps beside it on its target, gone 5-10 s later; one kill, no asp's ==")
+    x, y = OSS_L3
+    w = ossuary_world(OSS_L3, [{"key": "apophite spirit", "at": [x + 3, y, 0]}])
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    gb.hits = gb.hits_max = 100000
+    m.target, m.threat = gb.serial, {gb.serial: 1e6}
+    w.run_until(1.0)
+    kills = w.metrics["kills"]
+    w.hurt(m, m.hits + 1, gb)
+    asps = [o for o in w.mobs.values() if o.alive and o.key == "spirit asp"]
+    check("5 spirit asps within a tile of its corpse, on GraveRobber",
+          len(asps) == 5 and all(sim_cheb(o.pos, m.pos) <= 1 and o.target == gb.serial for o in asps),
+          f"{[(o.pos, o.target) for o in asps]}")
+    w.run_until(w.t + 4.9)
+    early = sum(1 for o in asps if o.serial in w.mobs)
+    w.run_until(w.t + 5.3)
+    check("...all still up at 4.9 s, all gone by 10.2 s, the spirit the only kill",
+          early == 5 and not any(o.serial in w.mobs for o in asps) and w.metrics["kills"] == kills + 1,
+          f"up at 4.9 s {early}, kills {w.metrics['kills'] - kills}")
+
+
+def test_pets_pass_through():
+    print("== our pets walk through each other and us, as live: the phoenix down the Ossuary's one-wide ramp past the "
+          "gravebug behind Logan ==")
+    w = ossuary_world((5889, 1327), z=-13)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    ph = next(p for p in w.pets() if p.name == "AlaFlambe")
+    w._teleport(gb, (5889, 1326, -10))
+    w._teleport(ph, (5890, 1318, 0))
+    for p in (gb, ph):
+        p.mode = "follow"
+    w.run_until(8.0)
+    check("the phoenix within 2 of Logan in 8 s (before 2026-10-28 it waited at the top, 9 off)",
+          sim_cheb(ph.pos, w.player.pos) <= 2, f"phoenix {ph.pos} gravebug {gb.pos} us {w.player.pos}")
+
+
+def test_ossuary_hunt():
+    print("== an Ossuary hunt from home: recall outside, in by the entrance and levels 1-2, kills on level 3, out by its "
+          "crimson moongate to Totem, home ==")
+    from sim import run as simrun
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        r = simrun.run_once(3, [], scenario="ossuary", minutes=10)
+    check("done, kills on level 3, the gold banked at home", r["outcome"] == "done" and r["kills"] > 0
+          and r["gold_banked"] > 0 and r["hunt_s"] > 120,
+          f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
 
 
 if __name__ == "__main__":

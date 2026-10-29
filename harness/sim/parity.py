@@ -66,7 +66,7 @@ def live_visits(db: str, since: float, serial: int, box: list, until: float | No
                 pets: set | None = None, dungeon: list | None = None) -> tuple[list[dict], list[dict]]:
     """The live pets visits from `since` to `until` (with their deaths and leaves, and `_eerie`: the eerie corpses the
     proxy first saw in them within `box`, its `eerie_corpse` events) and the fights in them. `pets`: only the visits
-    with exactly these pet serials (the visit's `pets`); `dungeon`: only those whose spot lies in this box."""
+    with exactly these pet serials (the visit's `pets`); `dungeon`: only those whose spot lies in one of these boxes."""
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     visits = [json.loads(d) for (d,) in con.execute(
         "SELECT data FROM episodes WHERE loop='hunt' AND t_start>=? AND (char_serial=? OR char_serial IS NULL) "
@@ -101,8 +101,8 @@ def live_visits(db: str, since: float, serial: int, box: list, until: float | No
     if pets is not None:
         visits = [v for v in visits if {int(s, 16) for s in (v.get("pets") or {})} == pets]
     if dungeon is not None:
-        visits = [v for v in visits if v.get("spot") and dungeon[0] <= v["spot"][0] <= dungeon[2]
-                  and dungeon[1] <= v["spot"][1] <= dungeon[3]]
+        visits = [v for v in visits if v.get("spot") and any(x0 <= v["spot"][0] <= x1 and y0 <= v["spot"][1] <= y1
+                                                             for x0, y0, x1, y1 in dungeon)]
     return visits, [f for v in visits for f in v["_fights"]]
 
 
@@ -463,7 +463,7 @@ def main(argv=None) -> int:
     spots = sc["eerie"]["spots"]
     box = [min(s[0] for s in spots) - VIEW, min(s[1] for s in spots) - VIEW,
            max(s[0] for s in spots) + VIEW, max(s[1] for s in spots) + VIEW]
-    live, live_fights = live_visits(a.db, since, me, box, until, set(pets), sc["dungeon"]["box"])
+    live, live_fights = live_visits(a.db, since, me, box, until, set(pets), sc["dungeon"]["boxes"])
     scan = [] if a.no_scan else live_scan(a.logs, live, me, pets, sc["area"], set(sc["creatures"]))
     with open(a.sim, encoding="utf-8") as f:
         results = [json.loads(line) for line in f if line.strip().startswith("{")]

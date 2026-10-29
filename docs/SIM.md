@@ -1,4 +1,4 @@
-# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb
+# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary
 
 An offline game world for the hunt runner (user request 2026-10-13: "train our combat runner in the
 emulated game world ... run tests much faster"). It is not an Outlands server: it is the one dungeon
@@ -7,7 +7,8 @@ pets and mechanics the `--pets` runner meets there, each number calibrated from 
 wiki. The runner under test is the unmodified `loop_hunt.HuntLoop` (`tamer.Team`), on virtual time:
 a 30-minute hunt takes 2–5 s of wall time (260–670× real time), and 24 runs take under 20 s on 7
 processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
-Logan's first visit there; everything below that names no dungeon is the Mausoleum's.
+Logan's first visit there, and since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below);
+everything below that names no dungeon is the Mausoleum's.
 
 ```mermaid
 flowchart LR
@@ -56,6 +57,9 @@ python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --
     --fight-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221   # ... its level 3, level 2 fought through
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument "eminently melodious"
                                                                        # ... with another instrument quality (+15 barding)
+python harness/sim/run.py --scenario ossuary --runs 24 --compare      # the Ossuary's level 3 ("The Ossuary" below)
+python harness/sim/run.py --scenario ossuary --area 5581 1225 5689 1363 -- --enter-via 1205 2816 --enter-via 5786 1327 \
+    --leave-gate 5672 1277                                             # ... its level 2
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
 python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
@@ -153,6 +157,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
 | `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the observations of captures 20261024_102346 and 20261024_225113, three levels (calibrate). |
+| `data/sim/ossuary.json`, `_kb.json`, `_observed.json` | The Ossuary ("The Ossuary" below): four levels in two boxes, 214 spawns, 12 specials; the wiki's 88 creatures (kb_scan) and 5 by hand; the user's three visits of 2026-10-28 (calibrate). |
 | `data/sim/tamer/logan_wolf.json`, `_observed.json` | Logan the tamer: skills, species, the 8 pets, 5 team presets, the live anchors, the perk tables (hand-authored, each block with its evidence); the scan's codex, loadouts and Guide values (generated, committed). |
 
 ## Calibration (2026-10-13)
@@ -1840,6 +1845,92 @@ be modelled? Yes; the evidence is in docs/NOTES.md "Five more Tidal Tomb special
     burst, the strip's shooters).
   - Maus 3: the corpsebride's fell from 17,138 to 15,565.
 
+## The Ossuary (2026-10-28)
+
+User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third
+scenario, `harness/data/sim/ossuary.json`, is built from his three visits that day (captures `20261028_165135` and
+`20261028_182147`; docs/NOTES.md "The Ossuary: three visits by hand" has the facts). Every number carries its evidence
+in the scenario's notes.
+
+```mermaid
+flowchart LR
+  Home -- "tome row 'Ossuary'" --> Out["outside (1213, 2816)"]
+  Out -- "entrance (1205, 2816-2817)" --> L1["level 1 (5927, 1316)<br/>golden gates (5926, 1326), (5870, 1310)"]
+  L1 -- "west end (5786, 1326-1329)" --> L2["level 2 (5689, 1248)<br/>crimson gate (5672, 1277)"]
+  L2 -- "south end (5683-5684, 1363)" --> L3["level 3 (5668, 1123): the hunt<br/>crimson gate (5577, 1095)"]
+  L3 -- "north strip (5588-5590, 985)" --> L4["level 4 (4853, 2073)"]
+  L4 -- "arrival row (4850-4854, 2073)" --> L3
+  L2 -- crimson gate --> Totem
+  L3 -- "crimson gate: the runner's leave" --> Totem
+  Totem -- recall --> Home
+```
+
+**What was built:**
+
+- **Four levels by a map flood fill**, all of Logan's steps walkable: level 1 (141 s there, walked through), level 2
+  (831 s), level 3 (1,355 s; the hunting level, `area`), level 4 (322 s) at x 4825-5000, y 1744-2073, far from the
+  rest. 14 teleporter tiles (also in `teleporters.json`), 2 golden and 2 crimson moongates.
+- **A dungeon of two boxes.** A scenario's `dungeon.boxes` and `calibration.boxes` are now lists of boxes (the
+  Mausoleum's and Tidal Tomb's one each): one box round levels 1-4 would take in Nusero, Pulma and Covetous. The recall
+  rule (`escape.recall_forbidden`, `World.recall_allowed`), calibrate's region, the reds' walk graph and parity's
+  dungeon filter read them.
+- **214 spawns** from the first sightings (level 1 40, level 2 52, level 3 107, level 4 15). Two days' play, not the
+  Mausoleum's 41-visit check.
+- **`ossuary_kb.json`** (`kb_scan.py --location Ossuary`): 88 creatures. By hand, with their evidence: the ossuarian
+  huntress (the hunter's row: her kills took 6,001) and fire priest (the priestess's), the spirit asp, the pocket
+  beetle (its Tameables row, 4,000 hits from the capture), the plague frog.
+- **`ossuary_observed.json`** (`calibrate.py --scenario ossuary`): 63 creature types.
+- **Barding:** `bard.capture_d`, the maximum-likelihood d of the user's Discordances on 14 types with 3+ answers, all at
+  E 123.
+- **The way:** the tome row "Ossuary" lands outside; `runner.enter_via` the entrance, level 1's west end and level 2's
+  south end, as Logan went 3 of 3 times; out by level 3's crimson gate to Totem, as he left twice.
+
+**Specials** (scenario `specials`, each with its numbers in docs/NOTES.md):
+
+- **Emote, then the hit `delay_s` later** (`burst` with `text` and `delay_s`; new: `World.delayed`): the phantasm's
+  lament (out to 12, 1.5 s), the spectral terror's terror (11, 1.65 s), the sightless seer's plumb (12, at most 2 of us,
+  1.03 s), the jackal spirit's ritual strike and the executioner's execution (on the one beside it, 0.75 s and 2.02 s),
+  the deathbringer's rain of death (4, 2.25 s, a stacked bleed).
+- **`repeat`:** the hierarch's channelled fire, 6 hits 0.5 s apart on its target from 1.0 s.
+- **`chance`** on a burst: each of us in reach hit with it (the lament's 0.72: 38 of 53 at 6-12 tiles).
+- **`death_brood`** (new): 5 spirit asps at an apophite spirit's death, gone 5-10 s later, no kill and no loot.
+- **Existing kinds:** the khamsin's charge, the rag witch's dematerialize, the brood beetle's pocket beetles and the
+  plaguecaller's plague frogs (`brood`, its `*digs*` cue now optional: `cue` "").
+- `tamer.AREA_R` now reads every scenario: the deathbringer's rain gives a stand-off of 5. The lament (12) and the
+  terror (11) reach too far to stand out of.
+- **Not modelled** (listed in `specials.note`): the anubite's blight, the hunters' nets, the lion warrior's spell
+  parry, the firebrand's ignite, the embalmer's mixture, the discguard's disc.
+
+**Our pets walk through each other and us** (`World._passes`, every scenario). Live they share a tile much of the time
+(docs/NOTES.md); here they blocked each other. On level 1's one-wide ramp (5889, 1321-1329) the phoenix waited behind
+the gravebug behind Logan until the walk in gave up: 6 of the first 8 runs.
+
+**Runs** (24, seeds 3-26, from home, 30 game minutes, GraveRobber and AlaFlambe; 8.5 h on level 3):
+
+| per hour on level 3 | sim | Logan's visits (22.6 min) |
+|---|---|---|
+| kills | 169 | 186 |
+| damage to us | 1,294 | 4,669 |
+| vet supplies | 95 | 213 |
+| heal potions | 45 | 82 |
+| discord success | 0.82 | 0.82 |
+
+- 1 death in 24 runs (leaving with 50,695 gp: a jackal spirit, a sightless seer, a phantasm and an embalmer in its
+  last 15 s); a pet died in 3. Banked 83,505 gp a game hour.
+- 17 done, 7 aborted: 2 "the pets aren't within 3 tiles" at the first teleporter on a second visit's walk in (a
+  skeletal archer on the ramp between them and Logan), 2 "AlaFlambe out of view for 30 s", 2 leaves past the 180 s
+  grace (level 3's gate is 70-85 steps west of the crawl, through fights), 1 death.
+
+**Open on the Ossuary:**
+
+- **Damage to Logan is 28 % of the user's.** The user stood in the casters' reach (the laments alone put 1,268 an hour
+  on him); the runner keeps out of their sight.
+- **The walk in stops on the ramp** (5889, 1321-1329) to wait for the pets, where one monster blocks them. A four-wide
+  stair is beside it (5882-5886, 1330-1333).
+- **Other players** (25 and 12 seen; 4 reds on level 2) are not measured: no `others` or `reds` block, so `--others`
+  and `--reds` are refused here.
+- Level 4 has no gate seen; its leave walks back up the strip.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
@@ -2432,3 +2523,11 @@ Tidal Tomb (since 2026-10-24; one visit so far):
     The simulator has the patch notes' numbers only.
 13. **A dungeon-nest crab fighting alone.** Do pincer crabs emerge from it, and how often? The 8 seen came during
     digs and large swings with several monsters fighting.
+
+The Ossuary (since 2026-10-28; three visits):
+
+14. **The specials not modelled**, one type at a time if possible: the anubite's exhale ("ancient blight": a
+    damage-over-time or a debuff?), a huntress's net (how long are the pets entangled; can they fight?), the lion
+    warrior's spell parry (how much of a phoenix's spell does it stop?), the firebrand's ignite and the embalmer's
+    mixture.
+15. **Level 3 walked whole**, as Tidal Tomb's level 1 was: 107 spawns from two visits.

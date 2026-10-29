@@ -357,6 +357,7 @@ class World:
         self.spawn_due = []                   # (time, spawn index)
         self.player_log = []                  # (time, source, damage, hits after): the last 15 s
         self.flights = []                     # ranged attacks released, on their way: (land time, attacker Mob, victim serial)
+        self.delayed = []                     # bursts due later: (time, attacker serial, special, target serial)
         self.trace = None                     # the sim/trace.Tracer recording this run, or None
         self.reds = Reds(self, seed, TICK_S)  # red players (sim/reds.py; arrivals only with the scenario's `reds` on)
         self._build()
@@ -1074,6 +1075,12 @@ class World:
                 o.kill, o.mode = None, "follow"     # "All Kill": back to the owner after the kill
             if o.provoke and o.provoke[0] == m.serial:
                 o.provoke = None
+        for sp in m.spec.get("specials", []):
+            if sp["kind"] == "death_brood":
+                # an apophite spirit's spirit asps (patch 2020-11-21, knowledge #7925): `count` on free tiles beside it,
+                # on its target, gone `lifetime_s` later with no loot (not a kill: `expires`)
+                for _ in range(sp["count"]):
+                    self._emerge(m, sp)
         if m.spawn is not None:
             lo_s, hi_s = self._respawn_s(m.spawn)
             self.spawn_due.append((self.t + self.rng.uniform(lo_s, hi_s), m.spawn))
@@ -1087,7 +1094,7 @@ class World:
             return False
         if m.path:
             nxt = m.path.pop(0)
-            if not self._occupied(nxt[0], nxt[1], m.serial) and cheb(nxt, m.pos) == 1:
+            if not self._blocked(m, nxt[0], nxt[1]) and cheb(nxt, m.pos) == 1:
                 self._place(m, nxt)
                 return True
             m.path = []
@@ -1095,7 +1102,7 @@ class World:
         best = None
         for d in TELEPORT_DIRS:
             to = self.walk.can_walk(m.x, m.y, m.z, d)
-            if to is None or self._occupied(to[0], to[1], m.serial):
+            if to is None or self._blocked(m, to[0], to[1]):
                 continue
             score = (cheb(to, goal), math.hypot(to[0] - goal[0], to[1] - goal[1]))
             if best is None or score < best[0]:
@@ -1106,7 +1113,8 @@ class World:
             return True
         m.stuck += 1
         if m.stuck >= 2:
-            occ = {(o.x, o.y) for o in self.mobs.values() if o.alive and not o.ghost and o.serial != m.serial}
+            occ = {(o.x, o.y) for o in self.mobs.values() if o.alive and not o.ghost and o.serial != m.serial
+                   and not self._passes(m, o)}
             path = pathfind.plan(self.walk, m.pos, nav.within(goal, radius), occupied=occ - {tuple(goal[:2])},
                                  max_expand=4000, max_steps=40)
             m.stuck = 0
@@ -1115,6 +1123,18 @@ class World:
                 self._place(m, tuple(path[1]))
                 return True
         return False
+
+    @staticmethod
+    def _passes(m: Mob, o: Mob) -> bool:
+        """`m` walks through `o`: our pets through each other and us. Live (capture 20261012_210013, 1,300 s with both
+        pets in view) GraveRobber and AlaFlambe stood on one tile 54 % of the time and a pet on Logan's 25 %; before
+        2026-10-28 they blocked each other here, and on the Ossuary's one-wide ramp (5889, 1321-1329) the phoenix waited
+        behind the gravebug behind Logan until the walk in gave up (6 of 8 runs)."""
+        return m.kind == "pet" and o.kind in ("pet", "player")
+
+    def _blocked(self, m: Mob, x, y) -> bool:
+        return any(o.alive and not o.ghost and o.x == x and o.y == y and o.serial != m.serial and not self._passes(m, o)
+                   for o in self.mobs.values())
 
     def _place(self, m: Mob, to, d=None):
         m.d = tile_dir(m.pos, to) if d is None else d
@@ -1188,6 +1208,14 @@ class World:
                 self.next_other_t = t + self.orng.expovariate(self.sc["others"]["arrive_per_h"] / 3600.0)
             near_others = [(o.x, o.y) for o in self.mobs.values() if o.kind in OTHERS]
         near_others += [(o.x, o.y) for o in self.mobs.values() if o.kind == "red" and not o.hidden_until]
+        if self.delayed:
+            due = [b for b in self.delayed if b[0] <= t + 1e-6]       # a hit due this tick lands on it
+            if due:
+                self.delayed = [b for b in self.delayed if b[0] > t + 1e-6]
+                for _due, ms, sp, ts in due:
+                    m = self.mobs.get(ms)
+                    if m is not None and m.alive and not m.hidden_until and m.calm_until <= t:
+                        self._burst(m, sp, self.mobs.get(ts))
         if self.flights:
             landed = [f for f in self.flights if f[0] <= t]
             if landed:
@@ -1800,7 +1828,15 @@ class World:
                     m.cd[key] = t + self.rng.uniform(*sp["first_s"])
                     continue
                 m.cd[key] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
-                self._burst(m, sp, tgt)
+                if sp.get("text"):
+                    self._overhead(m, sp["text"])        # the Ossuary's: its emote, the hit `delay_s` later
+                if sp.get("delay_s") or sp.get("repeat"):
+                    # `repeat` hits `repeat_s` apart (a hierarch's channelled fire): each one checks its reach then
+                    for i in range(sp.get("repeat", 1)):
+                        self.delayed.append((t + sp.get("delay_s", 0.0) + i * sp.get("repeat_s", 0.0), m.serial, sp,
+                                             tgt.serial))
+                else:
+                    self._burst(m, sp, tgt)
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
@@ -1858,7 +1894,8 @@ class World:
                     continue
                 m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
                 self._ev("ability", by=m.serial, kind=kind, v=None)
-                self._overhead(m, "*digs*")
+                if sp.get("cue", "*digs*"):
+                    self._overhead(m, sp.get("cue", "*digs*"))   # the Ossuary's summoners show none ("cue": "")
                 m.brood_at = (t + sp.get("delay_s", 0.5), sp)
             elif kind == "large_swing":
                 # a lowtide scavenger (Tidal Tomb scenario note): '*takes large swing*', 0.5 s later a hit on its
@@ -1968,8 +2005,9 @@ class World:
             self._emerge(m, b)
 
     def _emerge(self, m: Mob, sp: dict):
-        """A broodling (a nest crab's dig, a scavenger's large swing): a `key` monster on a free tile beside it, on
-        its target at once; no spawn of its own (no respawn), a kill as any monster's."""
+        """A broodling (a nest crab's dig, a scavenger's large swing, an apophite spirit's death): a `key` monster on a
+        free tile beside it, on its target at once; no spawn of its own (no respawn), a kill as any monster's unless
+        `lifetime_s` (then it vanishes after that, no kill); `text` its emote (default '*emerges*', "" none)."""
         spec = {**self.sc["creatures"][sp["key"]], "summoner": m.serial}
         free = [(m.x + dx, m.y + dy) for dx, dy in nav.DIR_DELTA if not self._occupied(m.x + dx, m.y + dy)]
         tiles = [(x, y, self.stand_z(x, y, m.z)) for x, y in free]
@@ -1981,9 +2019,12 @@ class World:
         c = Mob(self._serial(), "monster", sp["key"], spec["name"], spec["body"], x, y, z, hits=hp, hits_max=hp,
                 noto=spec.get("notoriety", 3), spec=spec, home=(x, y, z))
         c.target, c.next_think = m.target, self.t + THINK_S
+        if sp.get("lifetime_s"):
+            c.expires = self.t + self.rng.uniform(*sp["lifetime_s"])
         self.mobs[c.serial] = c
         self._view()
-        self._overhead(c, "*emerges*")
+        if sp.get("text", "*emerges*"):
+            self._overhead(c, sp.get("text", "*emerges*"))
         self.count("broodlings", sp["key"])
 
     def _burst(self, m: Mob, sp: dict, tgt: Mob | None = None):
@@ -2004,6 +2045,8 @@ class World:
         self._ev("ability", by=m.serial, kind="burst", v=None)
         if sp.get("targets") and len(hit) > sp["targets"]:
             hit = self.rng.sample(hit, sp["targets"])
+        if sp.get("chance") is not None:
+            hit = [o for o in hit if self.rng.random() < sp["chance"]]     # each one in reach hit with this chance
         db = sp.get("debuff") or {}
         for o in hit:
             if sp.get("damage_pet") is not None:
@@ -3143,8 +3186,7 @@ class World:
         d = self.sc.get("dungeon")
         if not d:
             return True
-        x0, y0, x1, y1 = d["box"]
-        if not (x0 <= pos[0] <= x1 and y0 <= pos[1] <= y1):
+        if not escape.in_boxes(pos, d["boxes"]):
             return True
         return any(cheb(pos, g) <= d.get("recall_r", 2) for g in d.get("gold_gates", []))
 

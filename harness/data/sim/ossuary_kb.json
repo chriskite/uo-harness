@@ -1,0 +1,4064 @@
+{
+ "creatures": {
+  "anubite": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 6,
+    "graphics": [
+     "0x18b"
+    ],
+    "serials": 7,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 177.7,
+   "gold_value": 1778,
+   "graphic": 395,
+   "hits": 10000,
+   "knowledge_ids": [
+    10740,
+    15246
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an anubite",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.6,
+   "wrestling": 100
+  },
+  "anubrian": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 484.3,
+   "gold_value": 4844,
+   "hits": 32000,
+   "knowledge_ids": [
+    10773,
+    12877
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    80,
+    90
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an anubrian",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 140
+  },
+  "apophite spirit": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x15",
+     "0x4f"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 137.9,
+   "gold_value": 1379,
+   "graphic": 21,
+   "hits": 7000,
+   "knowledge_ids": [
+    10827,
+    15247
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an apophite spirit",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": "80%",
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 130
+  },
+  "basilisk": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 329.7,
+   "gold_value": 3298,
+   "hits": 20000,
+   "knowledge_ids": [
+    10513,
+    10575,
+    12878,
+    14466
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a basilisk",
+   "parry": null,
+   "poison": "Lethal",
+   "poison_resist": "80%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14466; that the wild creature uses it is [INFERENCE]] Basilisk Breath (Cooldown): Fires projectiles in a cone, hitting up to 3 targets. Inflicts (DamageMax * 0.75) damage that ignores half of target's armor, with the first target hit taking +50% damage. Each target hit has a (5% * Control Slot) chance to be Hindered for 3 seconds if a creature, or Hamstrung for 2 seconds if a player."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 130
+  },
+  "black cat": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 56.4,
+   "gold_value": 564,
+   "hits": 3000,
+   "knowledge_ids": [
+    10513,
+    10588,
+    14468,
+    14482,
+    14590
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a black cat",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14482; that the wild creature uses it is [INFERENCE]] Frenzy (Passive): Has a 15% chance on melee attack to increase attack speed by 10% for 30 seconds (cannot stack).",
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Bad Luck (Passive): Has a 15% chance when taking damage to inflict that damage (ignoring half of target's armor) also onto the attacker, with damage amount capped at (DamageMax * 1.0)"
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 110
+  },
+  "blightwalker": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x9e"
+    ],
+    "serials": 10,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 122.1,
+   "gold_value": 1222,
+   "graphic": 158,
+   "hits": 10000,
+   "knowledge_ids": [
+    10839,
+    15248
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a blightwalker",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 90
+  },
+  "bone blade": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 48.1,
+   "gold_value": 481,
+   "hits": 4000,
+   "knowledge_ids": [
+    10604,
+    16263
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 0,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a bone blade",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 130
+  },
+  "brood beetle": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0xc3"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 239.9,
+   "gold_value": 2399,
+   "graphic": 195,
+   "hits": 16000,
+   "knowledge_ids": [
+    10513,
+    10568,
+    12881,
+    14483
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a brood beetle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Beetlemania (Innate): Melee damage is increased by 5% for each control slot worth of followers controller has within 12 tiles that has Beetlemania (including itself)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 130
+  },
+  "bugman": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x59"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 300.1,
+   "gold_value": 3001,
+   "graphic": 89,
+   "hits": 24000,
+   "knowledge_ids": [
+    10795,
+    12884
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a bugman",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 120
+  },
+  "cave bat": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x13d"
+    ],
+    "serials": 8,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 37.2,
+   "gold_value": 373,
+   "graphic": 317,
+   "hits": 3000,
+   "knowledge_ids": [
+    10513,
+    10588,
+    14480,
+    14667
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cave bat",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14480; that the wild creature uses it is [INFERENCE]] Bleed (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) bleed damage over 15 seconds."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 110
+  },
+  "colossal blazing beetle": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x5c"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 208.5,
+   "gold_value": 2086,
+   "graphic": 92,
+   "hits": 14000,
+   "knowledge_ids": [
+    10514,
+    10578,
+    14483,
+    14487,
+    14714
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal blazing beetle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14487; that the wild creature uses it is [INFERENCE]] Fiery Charge (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 3 tiles. Inflicts (DamageMax * 0.9) damage, with the first target hit taking +75% damage",
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Flamestrike (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) damage."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 90
+  },
+  "colossal sandroach": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 132.5,
+   "gold_value": 1326,
+   "hits": 8000,
+   "knowledge_ids": [
+    10801,
+    14927
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal sandroach",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 90
+  },
+  "colossal searing scorpion": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 74.0,
+   "gold_value": 741,
+   "hits": 5000,
+   "knowledge_ids": [
+    10514,
+    10562,
+    14483,
+    14929
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal searing scorpion",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Flamestrike (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) damage."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 90
+  },
+  "creeping pestilence": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.9,
+   "gold_value": 780,
+   "hits": 6000,
+   "knowledge_ids": [
+    10788,
+    15367
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a creeping pestilence",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 90
+  },
+  "cryptwing": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 60.1,
+   "gold_value": 602,
+   "hits": 4000,
+   "knowledge_ids": [
+    10514,
+    10544,
+    14482,
+    14754
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cryptwing",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14482; that the wild creature uses it is [INFERENCE]] Frenzy (Passive): Has a 15% chance on melee attack to increase attack speed by 10% for 30 seconds (cannot stack)."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "desert wind": {
+   "ai": "meleemage",
+   "armor": 0,
+   "attack_speed": 45,
+   "difficulty": 418.7,
+   "gold_value": 4187,
+   "hits": 24000,
+   "knowledge_ids": [
+    10664,
+    12885
+   ],
+   "location": "Ossuary",
+   "magery": 200,
+   "magic_resist": 225,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [],
+   "name": "a desert wind",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    40,
+    50
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 140
+  },
+  "desiccated husk": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 74.9,
+   "gold_value": 749,
+   "hits": 5000,
+   "knowledge_ids": [
+    10843,
+    15371
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a desiccated husk",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 85
+  },
+  "dune revenant": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 283.0,
+   "gold_value": 2830,
+   "hits": 20000,
+   "knowledge_ids": [
+    10833,
+    12886
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a dune revenant",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 120
+  },
+  "dust storm": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 542.9,
+   "gold_value": 5429,
+   "hits": 40000,
+   "knowledge_ids": [
+    10653,
+    12887
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a dust storm",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.8,
+   "wrestling": 140
+  },
+  "fiery leaper": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x176"
+    ],
+    "serials": 10,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 93.3,
+   "gold_value": 933,
+   "graphic": 374,
+   "hits": 6000,
+   "knowledge_ids": [
+    10515,
+    10585,
+    14466,
+    14483,
+    14704
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a fiery leaper",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14466; that the wild creature uses it is [INFERENCE]] Fire Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, dealing (DamageMax * 1.5) damage.",
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Flamestrike (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) damage."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "fire ant": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x2e2"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 18.7,
+   "gold_value": 187,
+   "graphic": 738,
+   "hits": 1500,
+   "knowledge_ids": [
+    10515,
+    10550,
+    14483,
+    14544
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a fire ant",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Flamestrike (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) damage."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 70
+  },
+  "fire cobra": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 304.5,
+   "gold_value": 3046,
+   "hits": 20000,
+   "knowledge_ids": [
+    10568,
+    12888
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a fire cobra",
+   "parry": null,
+   "poison": "Lethal",
+   "poison_resist": "80%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 140
+  },
+  "firebite scorpion": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x62"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 131.3,
+   "gold_value": 1314,
+   "graphic": 98,
+   "hits": 8000,
+   "knowledge_ids": [
+    10515,
+    10568,
+    12889,
+    14465
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a firebite scorpion",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14465; that the wild creature uses it is [INFERENCE]] Firebite (Passive): Has a 15% chance on melee attack against a poisoned target (greater poison or higher) to inflict (DamageMax * 2.5) damage over 5 seconds that ignores half of target's armor. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "flame adderman": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 267.2,
+   "gold_value": 2672,
+   "hits": 20000,
+   "knowledge_ids": [
+    10752,
+    12892
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a flame adderman",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 140
+  },
+  "gargantua strider": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 472.7,
+   "gold_value": 4727,
+   "hits": 40000,
+   "knowledge_ids": [
+    10567,
+    12893
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    90,
+    100
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargantua strider",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "gaunt form": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 61.7,
+   "gold_value": 618,
+   "hits": 5000,
+   "knowledge_ids": [
+    10815,
+    15401
+   ],
+   "location": "Ossuary",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gaunt form",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 90
+  },
+  "ghoul": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x1a"
+    ],
+    "serials": 8,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 11.1,
+   "gold_value": 112,
+   "graphic": 26,
+   "hits": 1000,
+   "knowledge_ids": [
+    10834,
+    15409
+   ],
+   "location": "Ossuary",
+   "magery": 25,
+   "magic_resist": 50,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a ghoul",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    5,
+    15
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 50
+  },
+  "giant scorpion": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x30"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 25.7,
+   "gold_value": 257,
+   "graphic": 48,
+   "hits": 2500,
+   "knowledge_ids": [
+    10569,
+    14935
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant scorpion",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 75
+  },
+  "hierarch": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 6,
+    "graphics": [
+     "0x186"
+    ],
+    "serials": 8,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 127.1,
+   "gold_value": 1272,
+   "graphic": 390,
+   "hits": 6000,
+   "knowledge_ids": [
+    10688,
+    15414
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a hierarch",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 80
+  },
+  "jackal spirit": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 7,
+    "graphics": [
+     "0x187"
+    ],
+    "serials": 10,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 117.2,
+   "gold_value": 1173,
+   "graphic": 391,
+   "hits": 8000,
+   "knowledge_ids": [
+    10848,
+    15249
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a jackal spirit",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 100
+  },
+  "jade androsphinx": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 359.7,
+   "gold_value": 3597,
+   "hits": 14000,
+   "knowledge_ids": [
+    10516,
+    10607,
+    12894,
+    14464,
+    14479
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 250,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a jade androsphinx",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Reactive Armor (Cooldown): Applies the reactive armor spell to the creature, with 100 total damage reduction.",
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Resonate (Passive): When controller performs a barding song within 12 tiles, increases attack speed by 15% for 30 seconds (cannot stack)."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 140
+  },
+  "jade scorpion": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 280.1,
+   "gold_value": 2802,
+   "hits": 10000,
+   "knowledge_ids": [
+    10516,
+    10567,
+    12897,
+    14464
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 200,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a jade scorpion",
+   "parry": null,
+   "poison": "Lethal",
+   "poison_resist": "80%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Resonate (Passive): When controller performs a barding song within 12 tiles, increases attack speed by 15% for 30 seconds (cannot stack)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 130
+  },
+  "khamsin": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": 60,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0xd"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 133.4,
+   "gold_value": 1335,
+   "graphic": 13,
+   "hits": 7000,
+   "knowledge_ids": [
+    10652,
+    15251
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [],
+   "name": "a khamsin",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 120
+  },
+  "lich": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 9,
+    "graphics": [
+     "0x18"
+    ],
+    "serials": 11,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 45.2,
+   "gold_value": 453,
+   "graphic": 24,
+   "hits": 3000,
+   "knowledge_ids": [
+    10819,
+    15252
+   ],
+   "location": "Ossuary",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lich",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 90
+  },
+  "lich magus": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 17,
+    "graphics": [
+     "0x18"
+    ],
+    "serials": 24,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 84.8,
+   "gold_value": 849,
+   "graphic": 24,
+   "hits": 6000,
+   "knowledge_ids": [
+    10826,
+    15256
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lich magus",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 85
+  },
+  "mummy": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 6,
+    "graphics": [
+     "0x9a"
+    ],
+    "serials": 11,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 70.0,
+   "gold_value": 700,
+   "graphic": 154,
+   "hits": 6000,
+   "knowledge_ids": [
+    10840,
+    15257
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a mummy",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 70
+  },
+  "necromancer": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x94"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 33.1,
+   "gold_value": 331,
+   "graphic": 148,
+   "hits": 2500,
+   "knowledge_ids": [
+    10842,
+    15427
+   ],
+   "location": "Ossuary",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a necromancer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 60
+  },
+  "nightmare": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0xcc"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 67.8,
+   "gold_value": 679,
+   "graphic": 204,
+   "hits": 4000,
+   "knowledge_ids": [
+    10517,
+    10827,
+    14470,
+    14639
+   ],
+   "location": "Ossuary",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a nightmare",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14470; that the wild creature uses it is [INFERENCE]] Spellburn (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 1.0) damage that ignores half of target's armor"
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "ossuarian cataphract": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x190"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 225.1,
+   "gold_value": 2252,
+   "graphic": 400,
+   "hits": 22000,
+   "knowledge_ids": [
+    10706,
+    12900
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian cataphract",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "SuperFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.8,
+   "wrestling": 130
+  },
+  "ossuarian champion": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 305.1,
+   "gold_value": 3052,
+   "hits": 24000,
+   "knowledge_ids": [
+    10711,
+    12901
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    80,
+    90
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian champion",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.5,
+   "wrestling": 150
+  },
+  "ossuarian deathbringer": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 8,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 81.3,
+   "gold_value": 814,
+   "graphic": 400,
+   "hits": 8000,
+   "knowledge_ids": [
+    10679,
+    15258
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian deathbringer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 110
+  },
+  "ossuarian dervish": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": 75,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 41.6,
+   "gold_value": 416,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10677,
+    15259
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [],
+   "name": "an ossuarian dervish",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 100
+  },
+  "ossuarian discguard": {
+   "ai": "ranged",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 115.6,
+   "gold_value": 1157,
+   "graphic": 400,
+   "hits": 14000,
+   "knowledge_ids": [
+    10726,
+    12902
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian discguard",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 130
+  },
+  "ossuarian embalmer": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 8,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 70.1,
+   "gold_value": 702,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10678,
+    15260
+   ],
+   "location": "Ossuary",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian embalmer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 95
+  },
+  "ossuarian executioner": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 55.9,
+   "gold_value": 560,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10697,
+    15261
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian executioner",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 100
+  },
+  "ossuarian fire priest": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x190"
+    ],
+    "note": "added by hand 2026-10-28: no wiki row; the fire priestess's stands for him (one kill took 4,456 in numbers seen, under her 5,000 hits) [INFERENCE: the priestess's male body]",
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 94.4,
+   "gold_value": 944,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10709
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian fire priest",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 85
+  },
+  "ossuarian fire priestess": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x191"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 94.4,
+   "gold_value": 944,
+   "graphic": 401,
+   "hits": 5000,
+   "knowledge_ids": [
+    10709
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian fire priestess",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 85
+  },
+  "ossuarian firebrand": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": 45,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 10,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 117.9,
+   "gold_value": 1180,
+   "graphic": 400,
+   "hits": 8000,
+   "knowledge_ids": [
+    10721,
+    15262
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [],
+   "name": "an ossuarian firebrand",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "ossuarian hunter": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": 45,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x190"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 51.7,
+   "gold_value": 517,
+   "graphic": 400,
+   "hits": 6000,
+   "knowledge_ids": [
+    10728
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [],
+   "name": "an ossuarian hunter",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 100
+  },
+  "ossuarian huntress": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": 45,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x191"
+    ],
+    "note": "added by hand 2026-10-28: the wiki's Creatures List has no huntress; the ossuarian hunter's row (its knowledge id) stands for her: 5 of her kills took 6,001 in numbers where she died in view (the hunter's 6,000 hits + 1), her gold 473-550 (n=3) against the hunter's 517, both '*readies net*' ~16 s apart [INFERENCE: the hunter's female body]",
+    "serials": 10,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 51.7,
+   "gold_value": 517,
+   "graphic": 401,
+   "hits": 6000,
+   "knowledge_ids": [
+    10728
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [],
+   "name": "an ossuarian huntress",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 100
+  },
+  "ossuarian lion warrior": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 51.0,
+   "gold_value": 510,
+   "graphic": 400,
+   "hits": 6000,
+   "knowledge_ids": [
+    10728,
+    15263
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian lion warrior",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 110
+  },
+  "ossuarian phalanx": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 113.1,
+   "gold_value": 1131,
+   "graphic": 400,
+   "hits": 14000,
+   "knowledge_ids": [
+    10693,
+    12903
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian phalanx",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 130
+  },
+  "ossuarian plaguecaller": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x191"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 296.6,
+   "gold_value": 2966,
+   "graphic": 401,
+   "hits": 14000,
+   "knowledge_ids": [
+    10706,
+    12904
+   ],
+   "location": "Ossuary",
+   "magery": 250,
+   "magic_resist": 275,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian plaguecaller",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    50,
+    60
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "ossuarian pyromancer": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 14,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 20,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 98.3,
+   "gold_value": 983,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10729,
+    15264
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian pyromancer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 90
+  },
+  "ossuarian shade": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 243.8,
+   "gold_value": 2439,
+   "hits": 14000,
+   "knowledge_ids": [
+    10706,
+    12905
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian shade",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 25,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 3.0,
+   "wrestling": 140
+  },
+  "ossuarian sightless seer": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 8,
+    "graphics": [
+     "0x191"
+    ],
+    "serials": 11,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 170.1,
+   "gold_value": 1702,
+   "graphic": 401,
+   "hits": 8000,
+   "knowledge_ids": [
+    10681,
+    15265
+   ],
+   "location": "Ossuary",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian sightless seer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 90
+  },
+  "ossuarian skirmisher": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 41.4,
+   "gold_value": 415,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10727,
+    15267
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian skirmisher",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.05,
+   "wrestling": 110
+  },
+  "ossuarian slinger": {
+   "ai": "ranged",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 7,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 61.3,
+   "gold_value": 614,
+   "graphic": 400,
+   "hits": 5000,
+   "knowledge_ids": [
+    10727,
+    15268
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian slinger",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 90
+  },
+  "ossuarian spirit guide": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x191"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 296.6,
+   "gold_value": 2966,
+   "graphic": 401,
+   "hits": 14000,
+   "knowledge_ids": [
+    10725,
+    12906
+   ],
+   "location": "Ossuary",
+   "magery": 250,
+   "magic_resist": 275,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ossuarian spirit guide",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    50,
+    60
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "ossuarian tombguard": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": 60,
+   "difficulty": 158.2,
+   "gold_value": 1583,
+   "hits": 18000,
+   "knowledge_ids": [
+    10705,
+    12907
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [],
+   "name": "an ossuarian tombguard",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 140
+  },
+  "phantasm": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 7,
+    "graphics": [
+     "0x78"
+    ],
+    "serials": 11,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 124.7,
+   "gold_value": 1248,
+   "graphic": 120,
+   "hits": 6000,
+   "knowledge_ids": [
+    10848,
+    15269
+   ],
+   "location": "Ossuary",
+   "magery": 125,
+   "magic_resist": 150,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a phantasm",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 90
+  },
+  "phoenix": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x340"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 194.4,
+   "gold_value": 1944,
+   "graphic": 832,
+   "hits": 8000,
+   "knowledge_ids": [
+    10517,
+    10548,
+    14463,
+    14470,
+    14482,
+    14946
+   ],
+   "location": "Ossuary",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a phoenix",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14463; that the wild creature uses it is [INFERENCE]] Epic Barrage (Cooldown): Fires projectiles at a target up to 12 tiles away, dealing 3 hits that each inflict (DamageMax * 0.6) damage that ignores half of target's armor",
+    "[tamed-version follower ability, knowledge #14470; that the wild creature uses it is [INFERENCE]] Spellburn (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 1.0) damage that ignores half of target's armor",
+    "[tamed-version follower ability, knowledge #14482; that the wild creature uses it is [INFERENCE]] Spellsurge (Passive): Has a 15% chance on spellcast to increase Damage of the next spellcast within 10 seconds by 125%."
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 90
+  },
+  "plague frog": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x51"
+    ],
+    "note": "added by hand 2026-10-28: no wiki row; an ossuarian plaguecaller's summons (10 in 38 s beside one on level 4, 20:55:21-20:55:58), none killed in view. Hits 1000, armor and resist 25, melee 10-20 on Logan [INFERENCE]; their 4 numbers on the pets 2-46 are the capture's",
+    "serials": 10,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": null,
+   "gold_value": 0,
+   "graphic": 81,
+   "hits": 1000,
+   "knowledge_ids": [],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "hits",
+    "difficulty",
+    "melee_damage",
+    "armor",
+    "magic_resist"
+   ],
+   "name": "a plague frog",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": null
+  },
+  "plague of locusts": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x18c"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 105.4,
+   "gold_value": 1054,
+   "graphic": 396,
+   "hits": 8000,
+   "knowledge_ids": [
+    10464,
+    10788
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a plague of locusts",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 130
+  },
+  "pocket beetle": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 7,
+    "graphics": [
+     "0xc3"
+    ],
+    "note": "added by hand 2026-10-28: no Creatures List row; its Tameables List row (#10517, #12920): melee 16-20, armor 75, resist 50, wrestling 75 [INFERENCE: the wild one's as the tamed]; hits 4,000 from the capture (4 of 5 killed in view took 4,001 in numbers), no gold lifted (7 kills). The brood beetles' broods on Ossuary level 4",
+    "serials": 7,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": null,
+   "gold_value": 0,
+   "graphic": 195,
+   "hits": 4000,
+   "knowledge_ids": [
+    10517,
+    12920
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 50,
+   "melee_damage": [
+    16,
+    20
+   ],
+   "missing": [
+    "difficulty"
+   ],
+   "name": "a pocket beetle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.057,
+   "wrestling": 75
+  },
+  "radiant burrowbug": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x313"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 114.8,
+   "gold_value": 1149,
+   "graphic": 787,
+   "hits": 8000,
+   "knowledge_ids": [
+    10517,
+    10565,
+    14481,
+    14483,
+    14726
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a radiant burrowbug",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14481; that the wild creature uses it is [INFERENCE]] Fiery Dig (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 2 tiles. Inflicts (DamageMax * 1.1) damage against, with the first target hit taking +50% damage",
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Flamestrike (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) damage."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 90
+  },
+  "rag witch": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x2e4"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 77.5,
+   "gold_value": 775,
+   "graphic": 740,
+   "hits": 4000,
+   "knowledge_ids": [
+    10832,
+    15270
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rag witch",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": true,
+   "unique_scaler": 1.2,
+   "wrestling": 80
+  },
+  "remnant": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x88"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 259.2,
+   "gold_value": 2593,
+   "graphic": 136,
+   "hits": 20000,
+   "knowledge_ids": [
+    10832,
+    12908
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a remnant",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 130
+  },
+  "revenant": {
+   "ai": "meleemage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 57.6,
+   "gold_value": 576,
+   "hits": 4000,
+   "knowledge_ids": [
+    10848,
+    15452
+   ],
+   "location": "Ossuary",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a revenant",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 110
+  },
+  "sand crawler": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x13b"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 57.1,
+   "gold_value": 571,
+   "graphic": 315,
+   "hits": 5000,
+   "knowledge_ids": [
+    10517,
+    10583,
+    14463,
+    14729
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a sand crawler",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14463; that the wild creature uses it is [INFERENCE]] Crush (Passive): Has a 15% chance on melee attack to apply a pierce effect of (10 * Control Slots) for 15 seconds. If successful, has a (10% * Control Slot) chance to Hinder creatures for 3 seconds or Hamstring players for 2 seconds. Chances are reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds"
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 85
+  },
+  "sand muck": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x33"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 56.8,
+   "gold_value": 569,
+   "graphic": 51,
+   "hits": 4000,
+   "knowledge_ids": [
+    10518,
+    10803,
+    14470,
+    14476,
+    14479,
+    14988
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a sand muck",
+   "parry": 25,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Sandblast (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 2 tiles. Inflicts (DamageMax * 0.5) damage and applies a pierce effect of (Control Slots * 10) for 15 seconds",
+    "[tamed-version follower ability, knowledge #14470; that the wild creature uses it is [INFERENCE]] Regeneration (Passive): If below 66% hit points, will restore 5% of maximum health (has 15 second cooldown).",
+    "[tamed-version follower ability, knowledge #14476; that the wild creature uses it is [INFERENCE]] Elusive Form (Innate): Creature has an innate 25 parry skill against melee attacks."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "sandshark": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 434.7,
+   "gold_value": 4348,
+   "hits": 20000,
+   "knowledge_ids": [
+    10795,
+    12909
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a sandshark",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 2.2,
+   "wrestling": 130
+  },
+  "scarab": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0xa9"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 57.5,
+   "gold_value": 576,
+   "graphic": 169,
+   "hits": 4000,
+   "knowledge_ids": [
+    10518,
+    10609,
+    14464,
+    14479,
+    14922
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a scarab",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Reactive Armor (Cooldown): Applies the reactive armor spell to the creature, with 100 total damage reduction.",
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Magic Reflect (Cooldown): Applies the magic reflect spell to the creature."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 80
+  },
+  "scorpion": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x2cd"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 15.1,
+   "gold_value": 151,
+   "graphic": 717,
+   "hits": 1500,
+   "knowledge_ids": [
+    10587,
+    14931
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a scorpion",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 70
+  },
+  "shriveled corpse": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 72.6,
+   "gold_value": 727,
+   "hits": 6000,
+   "knowledge_ids": [
+    10847,
+    15453
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a shriveled corpse",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 75
+  },
+  "skeletal archer": {
+   "ai": "ranged",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x17e"
+    ],
+    "serials": 12,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 15.8,
+   "gold_value": 158,
+   "graphic": 382,
+   "hits": 1500,
+   "knowledge_ids": [
+    10843,
+    15274
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal archer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 60
+  },
+  "skeletal dragon": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 127.4,
+   "gold_value": 1274,
+   "hits": 10000,
+   "knowledge_ids": [
+    10518,
+    10849,
+    14484,
+    14890
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal dragon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14484; that the wild creature uses it is [INFERENCE]] Massive Bone Breath (Cooldown): Fires projectiles in a cone, hitting up to 3 targets. Inflicts (DamageMax * 0.75) damage, with the first target hit taking +50% damage. Applies a pierce effect of (Control Slots * 10) for 15 seconds."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 100
+  },
+  "skeletal fiend": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 84.5,
+   "gold_value": 846,
+   "hits": 6000,
+   "knowledge_ids": [
+    10833,
+    15275
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal fiend",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 80
+  },
+  "skeletal guardian": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x135"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 32.7,
+   "gold_value": 328,
+   "graphic": 309,
+   "hits": 3000,
+   "knowledge_ids": [
+    10827,
+    15279
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal guardian",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 75
+  },
+  "skeletal knight": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x39"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 31.9,
+   "gold_value": 319,
+   "graphic": 57,
+   "hits": 3000,
+   "knowledge_ids": [
+    10847,
+    15280
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal knight",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 85
+  },
+  "skeletal mage": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x32"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 27.4,
+   "gold_value": 274,
+   "graphic": 50,
+   "hits": 2000,
+   "knowledge_ids": [
+    10836,
+    15283
+   ],
+   "location": "Ossuary",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal mage",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 75
+  },
+  "skeletal marksman": {
+   "ai": "ranged",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x17e"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 29.4,
+   "gold_value": 295,
+   "graphic": 382,
+   "hits": 2500,
+   "knowledge_ids": [
+    10828,
+    15286
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeletal marksman",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 70
+  },
+  "skeleton": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x38"
+    ],
+    "serials": 7,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 9.0,
+   "gold_value": 91,
+   "graphic": 56,
+   "hits": 1000,
+   "knowledge_ids": [
+    10828,
+    15289
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a skeleton",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 40
+  },
+  "smouldering lich": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 90.7,
+   "gold_value": 908,
+   "hits": 5000,
+   "knowledge_ids": [
+    10822,
+    15454
+   ],
+   "location": "Ossuary",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a smouldering lich",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "speaker for the dead": {
+   "ai": "mage",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 857.1,
+   "gold_value": 50000,
+   "hits": 100000,
+   "knowledge_ids": [
+    10690,
+    12088
+   ],
+   "location": "Ossuary",
+   "magery": 125,
+   "magic_resist": 150,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a speaker for the dead",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "stealth": false,
+   "unique_scaler": 1.8,
+   "wrestling": 90
+  },
+  "spectral terror": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x17f"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": 205.8,
+   "gold_value": 2058,
+   "graphic": 383,
+   "hits": 12000,
+   "knowledge_ids": [
+    10849,
+    15292
+   ],
+   "location": "Ossuary",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral terror",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 110
+  },
+  "spectraldile": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 341.5,
+   "gold_value": 3416,
+   "hits": 24000,
+   "knowledge_ids": [
+    10519,
+    10541,
+    12910,
+    14463
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectraldile",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14463; that the wild creature uses it is [INFERENCE]] Crush (Passive): Has a 15% chance on melee attack to apply a pierce effect of (10 * Control Slots) for 15 seconds. If successful, has a (10% * Control Slot) chance to Hinder creatures for 3 seconds or Hamstring players for 2 seconds. Chances are reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds"
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 130
+  },
+  "sphinx": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 59.7,
+   "gold_value": 598,
+   "hits": 4000,
+   "knowledge_ids": [
+    10519,
+    10618,
+    14464,
+    14479,
+    14983
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a sphinx",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Reactive Armor (Cooldown): Applies the reactive armor spell to the creature, with 100 total damage reduction.",
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Magic Reflect (Cooldown): Applies the magic reflect spell to the creature."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "spirit asp": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x2d7"
+    ],
+    "note": "added by hand 2026-10-28: patch 2020-11-21 (knowledge #7925) 'Apophite Spirits when killed will spawn Spirit Asps ... die 5-10 seconds later and not generate loot'; live 5 asps at each of 3 apophite deaths, gone 2.4-10.3 s later. Hits 1000, armor and resist 25, melee 10-20 on Logan [INFERENCE: no wiki row, none killed; their 3 numbers on the pets 8-55 are the capture's]; steps 0.33 s apart in war (n=78): VeryFast",
+    "serials": 15,
+    "tags": [
+     "20261028_165135",
+     "20261028_182147"
+    ]
+   },
+   "difficulty": null,
+   "gold_value": 0,
+   "graphic": 727,
+   "hits": 1000,
+   "knowledge_ids": [
+    7925
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "hits",
+    "difficulty",
+    "melee_damage",
+    "armor",
+    "magic_resist"
+   ],
+   "name": "a spirit asp",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Reptilian",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": null
+  },
+  "temple guardian": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 93.5,
+   "gold_value": 936,
+   "hits": 6000,
+   "knowledge_ids": [
+    10519,
+    10605,
+    14464,
+    14468,
+    14475,
+    14479,
+    14985
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a temple guardian",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Vanish (Cooldown): Creature immediately enters stealth.",
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Reactive Armor (Cooldown): Applies the reactive armor spell to the creature, with 100 total damage reduction.",
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Magic Reflect (Cooldown): Applies the magic reflect spell to the creature.",
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Backstab (Innate): If stealthed, creature's next melee attack gains +25% accuracy and deals +150% damage."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.35,
+   "wrestling": 90
+  },
+  "the forgotten king": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 1387.0,
+   "gold_value": 100000,
+   "hits": 200000,
+   "knowledge_ids": [
+    10847,
+    11076
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a the forgotten king",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 100
+  },
+  "withering bowman": {
+   "ai": "ranged",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 64.0,
+   "gold_value": 640,
+   "hits": 5000,
+   "knowledge_ids": [
+    10824,
+    15477
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a withering bowman",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "zombie dragon": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 92.0,
+   "gold_value": 920,
+   "hits": 8000,
+   "knowledge_ids": [
+    10821,
+    12326
+   ],
+   "location": "Ossuary",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a zombie dragon",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 90
+  }
+ },
+ "mechanics": {},
+ "source": "harness/sim/kb_scan.py --location 'Ossuary' (wiki rows of the memory store)"
+}

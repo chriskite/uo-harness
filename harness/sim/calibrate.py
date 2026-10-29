@@ -4,8 +4,8 @@
 
 Replays each capture (logs/session_<TAG>.*, default the scenario's `calibration.tags`) through
 world.runtime.WorldRuntime with replay.timed_packets and writes what happened while our
-player stood in the scenario's region (`calibration.facet` / `.box`: the Mausoleum's facet 0,
-x 5150-5650, y 600-760; Tidal Tomb's x 6600-6975, y 1900-2115) to
+player stood in the scenario's region (`calibration.facet` / `.boxes`: the Mausoleum's facet 0,
+x 5150-5650, y 600-760; Tidal Tomb's x 6600-7401, y 1900-2225; the Ossuary's two) to
 harness/data/sim/<NAME>_observed.json: levels and teleporter jumps, per creature type
 (bodies, notoriety, first-seen spots, movement cadence, damage dealt to the pets / us,
 swing period, time to kill, damage the pets dealt, gold, aggro), per pet, the player,
@@ -45,20 +45,19 @@ DEFAULT_SCENARIO = "mausoleum"
 DEFAULT_LOGS = os.path.join(REPO, "logs")
 SCENARIO_DIR = os.path.join(HARNESS, "data", "sim")
 
-# The region of the scenario configure() last read (the Mausoleum's until then: sim/cast_scan.py's in_region)
+# The region of the scenario configure() last read (the Mausoleum's until then: sim/cast_scan.py's in_region):
+# inclusive (x0, y0, x1, y1) boxes on FACET
 FACET = 0
-X_RANGE = (5150, 5650)
-Y_RANGE = (600, 760)
+BOXES = ((5150, 600, 5650, 760),)
 
 
 def configure(name: str) -> list[str]:
-    """Read scenario `name`'s `calibration` block (facet, box, tags): the region in_region tests from now on;
+    """Read scenario `name`'s `calibration` block (facet, boxes, tags): the region in_region tests from now on;
     its default capture tags."""
-    global FACET, X_RANGE, Y_RANGE
+    global FACET, BOXES
     with open(os.path.join(SCENARIO_DIR, f"{name}.json"), encoding="utf-8") as f:
         cal = json.load(f)["calibration"]
-    x0, y0, x1, y1 = cal["box"]
-    FACET, X_RANGE, Y_RANGE = cal.get("facet", 0), (x0, x1), (y0, y1)
+    FACET, BOXES = cal.get("facet", 0), tuple(tuple(b) for b in cal["boxes"])
     return list(cal["tags"])
 
 
@@ -102,7 +101,7 @@ SKILLS = tamer.SKILL_NAMES
 
 def in_region(x, y, facet):
     return (facet == FACET and x is not None and y is not None
-            and X_RANGE[0] <= x <= X_RANGE[1] and Y_RANGE[0] <= y <= Y_RANGE[1])
+            and any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in BOXES))
 
 
 def cheb(ax, ay, bx, by):
@@ -958,8 +957,8 @@ def build(tags, logs, scanned=None):
             "scan": scanned,
             "generator": "harness/sim/calibrate.py",
         },
-        "rules": {"region": f"facet {FACET}, x {X_RANGE[0]}-{X_RANGE[1]}, y {Y_RANGE[0]}-{Y_RANGE[1]}; only packets while "
-                            "our player stood inside count.", **RULES},
+        "rules": {"region": f"facet {FACET}, " + "; ".join(f"x {x0}-{x1}, y {y0}-{y1}" for x0, y0, x1, y1 in BOXES)
+                            + "; only packets while our player stood inside count.", **RULES},
         "damage_number_hues": damage_hues(sessions),
         "levels": levels(sessions),
         "creatures": creatures(sessions),

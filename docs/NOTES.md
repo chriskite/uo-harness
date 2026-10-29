@@ -6052,6 +6052,75 @@ be modelled? Read from captures 20261024_102346, 20261024_225113, 20261025_21010
   - The `festering` debuff (heals x (1 - 0.05 a stack), devour exempt) and the `glowmark` debuff (threat the marked one
     draws x (1 + 0.25 a stack)): the buffs' own values, since the captures can't size them.
 
+## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
+
+The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and
+AlaFlambe, 20:34:27-21:03:36 (levels 1-4) with AlaFlambe and Bussin; AR 120. The evidence behind the simulator's
+`ossuary` scenario (docs/SIM.md "The Ossuary").
+
+**Getting in and out:**
+
+- **The rune.** Logan's "A Rune Tome" (0x444AB1F3) has an "Ossuary" row (its gump at 17:13:29). It lands **outside**
+  at (1213, 2816, 31), the rune libraries' "Ossuary Outside". Outland Dan's runebook "Ossuary" and the libraries'
+  "Ossuary" (5870, 1307-1308) land inside, beside a golden gate.
+- **The entrance:** a step W from (1206, 2816-2817) onto (1205, 2816-2817) puts one on level 1 at (5927, 1316-1317,
+  37) (17:13:43, 17:32:01, 20:34:27).
+- **Level 1 -> 2:** a step W onto (5786, 1326-1329) lands at (5689, 1248-1250, 0) (3 of 3 visits).
+- **Level 2's stairs** (5634, 1309) hop to (5638, 1300, -40) on the same level; the walk round them joins the two
+  ends as well (20:35-20:39).
+- **Level 2 -> 3:** a step S onto (5683-5684, 1363) lands at (5667-5668, 1123, 37).
+- **Level 3 <-> 4:** level 3's north strip (5588-5590, 985), a step N from y 986, lands on level 4 at (4851-4853,
+  2073, -3), far from the rest (x 4825-5000, y 1744-2073). Level 4's arrival row (4850-4854, 2073) leads back to
+  (5587-5590, 985, -8); stepping W/E along either row bounced Logan between them five times in 8 s (20:58:15-23).
+- **Moongates:** golden (hue 2822) 0x40001A02 (5926, 1326, 0) beside level 1's arrival and 0x40001A04 (5870, 1310, 5);
+  crimson (hue 2820) 0x4004A43E (5672, 1277, 0) on level 2 and 0x493E7470 (5577, 1095, 0) on level 3. The menu
+  (0xE0E675B8) is Tidal Tomb's; Totem landed Logan at (3884, 2901, -40) all three times (17:26:28 and 21:03:36 by
+  level 3's gate, 17:37:37 by level 2's). No recall was tried inside.
+- All 14 teleporter tiles are in `harness/data/teleporters.json`.
+
+**The levels** (map flood fill from each arrival; all of Logan's steps walk): level 1 x 5785-5935, y 1270-1381
+(9,259 tiles, 141 s there), level 2 x 5581-5689, y 1225-1363 (6,668; 831 s), level 3 x 5527-5739, y 950-1156 (11,364;
+1,355 s), level 4 x 4825-5000, y 1744-2073 (21,141; 322 s). Level 1's way west has a one-wide ramp at (5889,
+1321-1329) beside a four-wide stair at (5882-5886, 1330-1333).
+
+**Our pets share tiles.** In the Mausoleum trip (20261012_210013, 1,300 s with both pets known) GraveRobber and
+AlaFlambe stood on one tile 54 % of the time and a pet on Logan's tile 25 %; in 20261028_165135 3,775 of 8,483 pet
+moves landed on a tile another of ours held. They walk through each other and us.
+
+**Monster specials** (each emote's period per creature; the numbers on our side after it with no other monster beside
+the victim):
+
+| type | emote | every | then |
+|---|---|---|---|
+| phantasm | `*laments*` (28) | 15.17 s | 0.8-2.2 s later (median 1.48) one hit on each of us out to 12 tiles (38 of 53 at 6-12, 0 of 19 at 13+): pets 26-31, Logan 26-33 |
+| spectral terror | `*terrifies*` (8) | 7.86 s | 1.2-1.9 s later one on each of us out to 11 (12 of 14 at 7-11): pets 55-56, Logan 37-46 |
+| hierarch | `*channels ancient fire*` (22) | 7.96 s | from 0.6-1.3 s a hit every 0.50 s on its target, 5-7 of them, 12-20 |
+| ossuarian sightless seer | `*plumbs the darkness*` (28) | 8.24 s | 1.01-1.05 s later one on 1-2 of us out to 12 (patch 2020-05-12, #8441: at most 2 targets): pets 31-56, Logan 24-26 |
+| jackal spirit | `*ritual strike*` (17) | 7.78 s | 0.73-0.80 s later on the pet beside it, 29-53 (12 of 17) |
+| ossuarian executioner | `*prepares execution*` (8) | 8.06 s | 2.01-2.04 s later on the pet beside it, 29-48 (5 of 8) |
+| ossuarian deathbringer | `*begins rain of death*` (2) | 8.44 s | 2.25 s later on each of us within 4: Logan 35 and "A rain of deadly strikes hit you, causing you to bleed!", then 12 every 3.0 s five times (the pets 8) |
+| khamsin | `*charges*` (6) | 7.58 s | 0.53 s later 32-35 beside its landing |
+| rag witch | `*dematerializes*` (5) | 8.4-18 s | `*evasive*` 1.5 s later, `*materializes*` 6.4-6.8 s after it |
+
+- **Summons:** 5 spirit asps at each apophite spirit's death (3 seen), gone 2.4-10.3 s later, as the 2020-11-21 patch
+  says (#7925: "die 5-10 seconds later and not generate loot"). Level 4: a plaguecaller's plague frogs every 3.1-6.9 s
+  (10 in 38 s), the brood beetles' pocket beetles 2.3-36 s apart (4,000 hits: 4 of 5 killed in view took 4,001).
+- **Seen, not measured enough:** the anubite's `*exhales*` ("You have been struck by an ancient blight!"), the
+  huntress's and hunter's `*readies net*` (`*entangled*` over the pets, "You have been entangled in a net!"), the lion
+  warrior's `*parries spell*`, the firebrand's `*ignites*`, the embalmer's `*prepares mixture*`, the discguard's "A
+  razor-sharp disc cuts and causes you to bleed!" (level 4).
+- **The wiki's list lacks** the ossuarian huntress (her kills took the hunter's 6,000 + 1), the fire priest (the
+  priestess's), the summons and the "mummified remains" (level 4).
+- **Ostards:** 6, each first seen 3-8 tiles from Logan beside hunters and huntresses, dead soon after, no gold:
+  dismounted riders' mounts [INFERENCE].
+
+**Logan on level 3** (22.6 min): 70 kills, 1,757 damage on him (4,669 an hour; the phantasm's laments 477 of it, the
+seer's 160, the spectral terror's 122), 31 heal potions, 80 vet uses, 43,867 gold lifted. Discordance 42 of 51 at E
+123 (every song 18.4 %), Provocation 6 of 9, Peacemaking 3 of 4.
+
+**Other players:** 25 and 12 seen; four reds (Dfence, Monex, I Make Bodies, Saint Natalie) at 18 tiles on level 2's
+stairs at 17:17:52-57 (Logan took the stairs at 17:18:01 and went on to level 3).
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp
