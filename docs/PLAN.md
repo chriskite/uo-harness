@@ -2841,12 +2841,21 @@ What the rule can stand on, all measured (docs/NOTES.md "Oxygen, measured", "The
   - A Recovery Dolphin within 12 tiles, with "Your oxygen is refilled." every ~5.25 s. Dolphins are known on level 3
     at (7164, 2210) by the main arrival, (7088, 2185) by the west entrance, and (7321, 2154) by the boss approach.
 - **The two options the user named:**
-  1. **A breath on level 1:** from level 2, the walk back up the arrival's pair to (6718, 1984), a moment on level 1,
-     then back down.
+  1. **A breath on level 1:** from level 2, up a pair to level 1, a moment there, then back down. The pair measured
+     live is the west strip: up from (6834, 2080) at 11:13:31, down from (6609, 2059) at 11:13:39, the gump full on
+     level 1 (docs/NOTES.md "Tidal Tomb"). The arrival pair's way up to (6718, 1984) is the scenario's guess, not seen
+     live (docs/SIM.md open item 11).
   2. **The dolphins on level 3:** from level 2, fighting through to a level 3 entrance by the north strip (6884, 1929)
      or the north-west corner (6821, 1910), each with a dolphin near its arrival. On level 3, back to the nearest
      dolphin.
-  - Either way it's a timer leg ahead of 732 s, like a leave, with the pets on "All Follow Me".
+  - **The leg to a refill is fought, not walked like a leave** (user 2026-10-28: "I get the sense the runner will die
+    to the gauntlet of mobs on the way that it probably can't just run past. I would prefer it just fight normally to
+    the easiest oxygen refill to get to"). The same evidence: the walk-in across level 2 killed all 8 level 3 runs
+    before `--fight-via` (2026-10-26), and the time-up walk across it 2 of 9. So it is `walk_in_fought`'s leg with
+    the refill as its end: pets on "All Guard Me", `combat_step` each round, the crawl's rejoin, "All Follow Me" only
+    at the hop once nothing fights. "Easiest" is the ground to cross (what's alive or respawned on it), not the
+    distance. Deprivation is capped (66 % until the major stage, ~24 min [INFERENCE]), so the leg starts early and may
+    arrive deprived rather than break off fights.
 - **The simulator models both already:** oxygen, the dolphins and level 1's refill (`World._oxygen`,
   `test_tidal_oxygen`, `test_tidal_dolphin`). Whichever option is built is measured there first.
 
