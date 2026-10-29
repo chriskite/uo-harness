@@ -1549,8 +1549,9 @@ def _act_loot(a) -> dict:
         last_ok = -1e9                                   # our last lift the server took (combat.LIFT_GAP_S)
         for k, it in order[:a.max_items]:
             me = stc.state()["world"]["self"]
-            if me.get("weight") is not None and me.get("weight_max") and me["weight"] >= me["weight_max"]:
-                stopped = f"weight {me['weight']}/{me['weight_max']}"
+            wmax = (me.get("stats") or {}).get("weight_max")
+            if me.get("weight") is not None and wmax and me["weight"] >= wmax:
+                stopped = f"weight {me['weight']}/{wmax}"
                 break
             s, moved = _serial(k), False
             for _ in range(combat.LIFT_TRIES):

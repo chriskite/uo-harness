@@ -707,7 +707,10 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (`combat.worth_looting`, test_combat.py). **Weight**: an item that would bring us
    within 10 stones of the limit (`LOOT_WEIGHT_MARGIN`; tiledata weight, gold ~0.01 a coin
    [INFERENCE]) is left; at the limit looting stops until the weight drops. Live 20261015_181807 the
-   take-everything loot reached 471/450 and Logan couldn't move.
+   take-everything loot reached 471/450 and Logan couldn't move. The weight limit is the world model's
+   `self.stats.weight_max` (`loop_hunt.weight_max`): until 2026-10-28 the guard read a top-level `weight_max` that
+   doesn't exist and never fired; live 2026-10-28 20:08-20:09 Logan looted four corpses on the leave's walk from
+   447/450 to 462/450, and the server refused every step ("You are carrying too much weight and are unable to move").
 9. **Never a pet's release or transfer** (user 2026-10-12: the pets are expensive): the commands
    are a fixed list (`tamer.COMMANDS`: All Guard Me, All Follow Me, All Kill, All Stop, All Stay,
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is

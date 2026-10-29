@@ -1488,6 +1488,42 @@ def rights():
     check("every corpse handled once (never retried)", loop.looted == set(RIGHTS) and not loop.corpses, str(loop.looted))
 
 
+def weight_guard():
+    print("\n== a pack at its weight limit less LOOT_WEIGHT_MARGIN: no lift, then no more corpses opened ==")
+    # live 2026-10-28 20:08-20:11 (hunt-20261028-184111-a3b8): the leave at 447/450, then four more corpses looted on
+    # the way out to 462/450, "You are carrying too much weight and are unable to move": the guards read a top-level
+    # weight_max the world model doesn't have (it is under stats) and never fired
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(RightsLink, name, getattr(Link, name))
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = RightsLink()
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 100, BACKPACK))
+    for corpse in (GOOD_C, REJECT_C):
+        mob, g, n, noto = RIGHTS[corpse]
+        link.feed(mob_pkt(mob, SPOT[0], SPOT[1] - 1), ground_item(corpse, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 1),
+                  display_death(mob, corpse), delete(mob), corpse_flags(corpse, mob, noto=noto),
+                  contained(g, combat.GOLD_GRAPHIC, n, corpse))
+    me = link.rt.state.self
+    me.weight, me.stats["weight_max"] = 450 - loop_hunt.LOOT_WEIGHT_MARGIN, 450
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    loop.state()
+    for corpse in (GOOD_C, REJECT_C):
+        loop.corpses.append({"mob": RIGHTS[corpse][0], "name": "a mongbat", "x": SPOT[0], "y": SPOT[1] - 1,
+                             "t": time.monotonic()})
+    while loop.corpses:
+        loop.loot(loop.corpses[0])
+    store.close()
+    lifts = [p for p in link.sent if p[0] == 0x07]
+    opened = [int.from_bytes(p[1:5], "big") for p in link.sent if p[0] == 0x06]
+    check("no lift at 440/450; the second corpse never opened; no gold counted",
+          lifts == [] and REJECT_C not in opened and loop.totals["gold"] == 0,
+          f"lifts {len(lifts)} opened {[hex(o) for o in opened]} gold {loop.totals['gold']}")
+
+
 class SoulLink(RightsLink):
     """A forgotten soul's corpse: a monster on a human body (0x190), its corpse unnamed when we reach it."""
     SOUL, SOUL_C, SOUL_G, PLAYER_C, PLAYER_G = 0x0008EF35, 0x4275218A, 0x4275218B, 0x4275F19D, 0x4275F19E
@@ -1984,6 +2020,7 @@ if __name__ == "__main__":
         if not only or "rights" in only:
             rights()
             soul_corpse()
+            weight_guard()
         if not only or "pets" in only:
             pets_run()
             elsewhere_run()

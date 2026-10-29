@@ -209,7 +209,9 @@ GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far fro
 GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
 FLOOR_Z_TOL = 10              # ...ending within this of its surface z (live: a vampire on a ledge 20 above, 11 steps round)
-LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450)
+LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450), and
+#                              at it plus one we can't move at all ("You are carrying too much weight and are unable to
+#                              move (462/450)", live 2026-10-28 20:09-20:11)
 HEAL_IN_PLACE_FLOOR = 0.15    # --heal-in-place: below this share the hits leave fires even with a heal coming
 HEAL_SOON_S = 3.0             # --heal-in-place: a heal potion ready this soon is a heal coming
 DAMAGE_TEXT = re.compile(r"^-\d+$")   # Outlands' overhead damage number ("-25"), no 0x0B live
@@ -331,6 +333,12 @@ class WalkInFled(Exception):
 
 def key_of(serial: int) -> str:
     return f"0x{serial:08X}"
+
+
+def weight_max(me: dict):
+    """The world model's self `stats.weight_max` (the 0x11 status), None until it came. Not a top-level key: the loot
+    guards read `me["weight_max"]` until 2026-10-28 and never fired (Logan looted to 462/450 on a leave, stuck)."""
+    return (me.get("stats") or {}).get("weight_max")
 
 
 class HuntLoop:
@@ -1369,12 +1377,12 @@ class HuntLoop:
                  and serial_of(k) not in self.looted
                  and c["x"] is not None and cheb((it["x"], it["y"]), (c["x"], c["y"])) <= 1), None)
         me = st["world"]["self"]
-        if self.overweight and me.get("weight") is not None and me.get("weight_max") \
-                and me["weight"] >= me["weight_max"] - LOOT_WEIGHT_MARGIN:
+        wmax = weight_max(me)
+        if self.overweight and me.get("weight") is not None and wmax and me["weight"] >= wmax - LOOT_WEIGHT_MARGIN:
             self.corpses.remove(c)
             if c.get("corpse") is not None:
                 self.looted.add(c["corpse"])
-            log(f"weight {me['weight']}/{me['weight_max']}: not looting the {c['name']}")
+            log(f"weight {me['weight']}/{wmax}: not looting the {c['name']}")
             return
         self.overweight = False
         corpse = st["world"]["items"].get(key_of(c["corpse"])) if c["corpse"] is not None else None
@@ -1483,11 +1491,12 @@ class HuntLoop:
                 break
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
                 me = self.state()["world"]["self"]
-            if me.get("weight") is not None and me.get("weight_max") \
-                    and me["weight"] + combat.item_weight(it) > me["weight_max"] - LOOT_WEIGHT_MARGIN:
-                log(f"weight {me['weight']}/{me['weight_max']}: no room for {combat.item_name(it)} "
+            wmax = weight_max(me)
+            if me.get("weight") is not None and wmax \
+                    and me["weight"] + combat.item_weight(it) > wmax - LOOT_WEIGHT_MARGIN:
+                log(f"weight {me['weight']}/{wmax}: no room for {combat.item_name(it)} "
                     f"(~{combat.item_weight(it):.0f} stones); leaving it")
-                if it.get("graphic") == combat.GOLD_GRAPHIC or me["weight"] >= me["weight_max"] - LOOT_WEIGHT_MARGIN:
+                if it.get("graphic") == combat.GOLD_GRAPHIC or me["weight"] >= wmax - LOOT_WEIGHT_MARGIN:
                     self.overweight = True
                     break
                 continue
@@ -2577,7 +2586,7 @@ class HuntLoop:
         if self.args.leave_recall is None or self.args.return_at == "off":
             return None
         me = st["world"]["self"]
-        wmax = (me.get("stats") or {}).get("weight_max")
+        wmax = weight_max(me)
         if wmax and (me.get("weight") or 0) >= wmax - LOOT_WEIGHT_MARGIN:
             return f"taking the loot home: the pack is full ({me.get('weight')}/{wmax} stones)", "return"
         c = hunt_return.carried(st, self.prices)

@@ -5905,6 +5905,25 @@ scratch analysis is not in the repo.
   - L2: Glowmark (more aggro), from a lighthouse shellpod or the soulcatcher beside it.
   - The razorfin: a bleed of 9-10 every ~3 s.
 
+## Tidal Tomb: overweight on the leave, the loot guard dead (live 2026-10-28 20:08-20:11, hunt-20261028-184111-a3b8)
+
+Level 1 shift, pets AlaFlambe (the tank) and Bussin. Visit 5, 40,369 gp carried (visits 1-4 left at 43-51k gp by the
+return rule, never by weight):
+- 20:08:19 "LEAVING by the moongate: taking the loot home: the pack is full (447/450 stones)" (`hunt_return`: weight
+  >= limit - `LOOT_WEIGHT_MARGIN`). The walk out was attacked twice; the walk-in fight loots its kills, and four corpses
+  were looted at 20:08:52-20:09:35 (+387, +451, +377, +425 gp and items).
+- The server then said "Weight limit exceeded (454/450)" .. "(462/450)" and refused every step: 66 `walk_deny` in
+  20:08:15-20:11:20, with "You are carrying too much weight and are unable to move (461/450)" / "(462/450)" 58 times
+  (the store's speech_heard). The runner read them as blocked moves: "move N from (x, y) blocked" in all 8 directions,
+  shoves denied at stamina 0-1/25, stamina potions to shove, rope jumps refused (cliloc 500237), then "too many
+  blocked moves (21 in this walk)", the escape's walk to the gold moongate the same, and the user paused the gate at
+  20:11:14.
+- Cause: the loot guards (`HuntLoop.loot`'s corpse skip and its per-item room check) and `ctl act loot`'s stop read
+  `me["weight_max"]`, but the world model has it only under `me["stats"]`; both were dead since they were written
+  (2026-10-15 fa8db6b): no hunt log ever has "no room for" or "not looting the". The return rule read it right.
+- Fix: `loop_hunt.weight_max` (and ctl) read `stats.weight_max`; test_loop_hunt `weight_guard` (fails before: two
+  lifts, the second corpse opened). Not done: a reading of "unable to move" in the walker to drop loot.
+
 ## Backlash: the astral zoas fizzle the casters (2026-10-27)
 
 User 2026-10-27: "The giant astral zoa really sucks because our phoenix gets the Backlash debuff that nerfs its
