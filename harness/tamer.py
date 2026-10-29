@@ -195,11 +195,16 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # Since 2026-10-28 every area hitter is treated alike (user: "we should treat all these 'area hitters' the same and
 # avoid standing in their range"): to the hand-set ones below, every type whose hit lands on everyone within `radius`
 # of itself in the simulator's scenarios (the measured specials: burst, ooze, wail, bleed_area; not one centred on its
-# target, not the apparition's blink) adds radius + 1: the fins' spins (2: razorfin, voidfin, frenzyfin, greater
+# target) adds radius + 1: the fins' spins (2: razorfin, voidfin, frenzyfin, greater
 # razorfin and frenzyfin), the colossal scourgeon's sweep (2), the tidal sea serpent's burst (3), the buccaneer's bleed
 # (1), the corpsebride's wail (2), the bound soul's bleed (1); the Ossuary's deathbringer's rain of death (4). A hit
 # reaching beyond AREA_MAX_R (the giant zoas' 12, the phantasm's lament 12, the spectral terror's 11) can't be stood
-# out of in a fight: the caster rules keep us from those.
+# out of in a fight: the caster rules keep us from those. Since 2026-10-28 22:53 (Logan dead on Tidal Tomb level 1
+# beside both, docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out") also a hit on everyone within `radius` of its
+# target beside it or of where it comes up on its target's tile, as the zone is round it and the pet beside it (the
+# one it fights): the lowtide scavenger's large swing (radius 1: 306 of 314 of us within 1 of the tile it faces hit, 0
+# of 137 elsewhere within 3) and the dungeon-nest crab's Dig (an on_blink burst, radius 1: 316 of 317 within 1 of where
+# it came up, 4 of 48 at 2), both 2; the apparition's blink 3, as its hand value.
 AREA_MAX_R = 5
 _AREA_HAND = {"apparition": 3, "reanimated daemon": 6, "corpse purger": 3, "master reanimator": 3, "oozing noughtilus": 3}
 
@@ -211,8 +216,8 @@ def _area_r() -> dict:
         for kind, sps in specials.items():
             for sp in sps if isinstance(sps, list) else ():
                 r = sp.get("radius")
-                if sp["kind"] in ("burst", "ooze", "wail", "bleed_area") and r is not None and r <= AREA_MAX_R \
-                        and sp.get("center") != "target" and not sp.get("on_blink"):
+                if (sp["kind"] in ("burst", "ooze", "wail", "bleed_area") and sp.get("center") != "target"
+                        or sp["kind"] == "large_swing") and r is not None and r <= AREA_MAX_R:
                     out[kind] = max(out.get(kind, 0), r + 1)
     return out
 

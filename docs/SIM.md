@@ -1916,6 +1916,40 @@ docs/NOTES.md "Tidal Tomb: Logan in the bedrock's spray"; the runner's rule in d
     pets' spray damage up 24 %. [INFERENCE] The fewest-steps tile is often beyond the vet supplies' reach, and the
     walks to a hurt pet wait out each wave.
 
+### Tidal Tomb: dead on level 1 on the way out (2026-10-28)
+
+Live 22:53 Logan died on a time-up walk out on level 1 (docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out"; the
+runner's rules in docs/HUNT_LOOP.md "Out"). Two mechanics were missing or wrong here:
+
+- **The large swing's reach** (`World._large_swing`): it lands on each of us within the special's `radius` 1 of its
+  target beside it (live: everyone within 1 of the tile it faces, 306 of 314; 0 of 137 elsewhere within 3), the
+  player taking `damage_player` 20-33 (Logan's live numbers; before, one of its melee hits) and a pet `damage`. Before,
+  only its target was hit.
+- **The nest crab's Dig** (`brood` with `surface_s`, `Mob.dig`): every dig (whatever its broodlings; the broodling is
+  the one capped at `max`) takes it under at the broodling's 0.5 s (0x1D) and back on its target's tile 1.52-2.06 s
+  after the dig, the blink's way, with its `on_blink` burst `dig`: each of us within 1, Logan 18-34, the gravebug
+  14-22. Before, the dig only bred.
+- `run.py`'s summary and `all:` line carry `large_swing` and `dig` (digs, hits and damage on us and on the pets; a burst
+  with `count` counts its own).
+- **Tests:** `test_tidal_large_swing` (each of us within 1 of its target hit, none farther), `test_tidal_dig`,
+  `test_tidal_leave_coming` (the live leave: the walk stops at 9-10 tiles and Logan stays 8+ off until the pets hurt
+  it, where the old runner walked to 1 of it; beside it at 31 the potion, the stand-off out of its reach, then the vet
+  supplies, no "walking out past" area peace; before, the guard's area peace, potion and vet supplies came first).
+- **Runs** (level 1, `--scenario tidal_tomb`, seeds 1-N, both on fbf76ab with the new mechanics; before is the runner
+  without the change):
+
+  | runs | deaths (/h) | damage on Logan /h | large swing on Logan | Dig on Logan | kills /h | looted /h | banked /h | area peaces |
+  |---|---|---|---|---|---|---|---|---|
+  | 8 before | 0 (0.00) | 593 | 8 / 161 | 50 / 972 | 334.9 | 119,074 | 119,074 | 55 |
+  | 8 after | 0 (0.00) | **361** | 3 / 61 | 39 / 789 | 330.4 | 121,673 | 121,673 | 0 |
+  | 48 before | 1 (0.04) | 540 | 44 / 893 | 252 / 4,843 | 334.5 | 120,409 | 116,946 | 274 |
+  | 48 after | 1 (0.04) | **449** | 38 / 793 | 217 / 4,245 | 340.1 | 121,120 | 114,914 | 12 |
+
+  - Damage on Logan fell 17 % (48 runs) to 39 % (8). Each batch's one death (seed 21 before, 33 after) had a nest
+    crab's 75-84 in its last 15 s: its Dig onto Logan, which no stand-off steps out of (it comes up on its target).
+  - The area peaces all but went: kept out of the two monsters' reach Logan is rarely in a jam [INFERENCE].
+  - Banked an hour -2 % with one death each: within a batch's spread.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

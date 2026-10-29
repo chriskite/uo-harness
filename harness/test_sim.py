@@ -5054,24 +5054,146 @@ def test_tidal_ooze_and_brood():
     check("...at most 2 of its own up at once", 1 <= most <= 2, str(most))
 
 
+def test_tidal_dig():
+    print("== Tidal Tomb: a nest crab's Dig: '*digs*', gone at its broodling's 0.5 s, up on its target's tile 1.52-2.06 s "
+          "after the dig with a number on each of us within 1 there ==")
+    # live (docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out", six captures): 230 digs, back 1.52-2.06 s later
+    # (median 1.76) on its target's tile 0-16 tiles off; 316 of 317 of us within 1 of it hit, 4 of 48 at 2, 0 of 99 at
+    # 3-4. Live 2026-10-28 22:53:18.84 '*digs*' beside Logan, 19.35 gone, 20.38 up on his tile: -23, -22, -24
+    x, y = TIDAL_L1
+    w = tidal_world(TIDAL_L1, [{"key": "dungeon-nest crab", "at": [x + 6, y, -16]}])
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    crab = next(m for m in w.mobs.values() if m.kind == "monster")
+    crab.hits = crab.hits_max = 100000
+    crab.spec = {**crab.spec, "melee": None, "step_s": 999.0}     # only the Dig hurts; it stays where it stands
+    gb, ala = (next(p for p in w.pets() if p.name == n) for n in ("GraveRobber", "AlaFlambe"))
+    w._place(gb, (x + 1, y, w.player.z), d=0)
+    w._place(ala, (x - 3, y, w.player.z), d=0)
+    for o in w.team():
+        o.hits = o.hits_max = 100000
+        if o is not w.player:
+            o.mode = "stay"
+    crab.target, crab.threat = w.player.serial, {w.player.serial: 1e9}
+    w._warm(crab, True)
+    crab.cd["brood"] = w.t + 0.2
+    seen = []
+    for _ in range(50):                                     # 5 s
+        w.run_until(w.t + 0.1)
+        seen.append((round(w.t, 2), crab.serial in w.viewing, crab.pos[:2]))
+    dig = next((t for t, s, text in said if s == crab.serial and text == "*digs*"), None)
+    gone = next((t for t, vis, _ in seen if dig is not None and t > dig and not vis), None)
+    back = next((t for t, vis, _ in seen if gone is not None and t > gone and vis), None)
+    up_at = next((p for t, _, p in seen if t == back), None)
+    hits = [(round(t, 2), v.name, round(n)) for t, v, k, n in hurts if k == "burst"]
+    check("'*digs*', gone (0x1D) 0.5 s later, back 1.52-2.06 s after the dig on Logan's tile 6 off",
+          dig is not None and gone is not None and 0.45 <= gone - dig <= 0.6 and back is not None
+          and 1.5 <= back - dig <= 2.1 and up_at == w.player.pos[:2], f"dig {dig} gone {gone} back {back} at {up_at}")
+    check("...at that instant a number on Logan (18-34) and GraveRobber beside him, none on AlaFlambe 3 off; counted",
+          sorted(n for _, n, _ in hits) == ["GraveRobber", "Logan Wolf"] and len({t for t, _, _ in hits}) == 1
+          and all(18 <= d for _, n, d in hits if n == "Logan Wolf")
+          and w.metrics.get("dig", {}).get("hits_us") == 1 and w.metrics["dig"].get("digs") == 1, f"{hits} "
+          f"{w.metrics.get('dig')}")
+
+
+LEAVE_L1 = (6670, 2039, 19)    # Tidal Tomb level 1: Logan's tile at the stop (live 2026-10-28 22:53:01)
+SCAV_L1 = (6679, 2029, 19)     # ...the lowtide scavenger in war mode from 22:53:04.5, up the leave route's first steps
+
+
+def test_tidal_leave_coming():
+    print("== Tidal Tomb level 1 (live 22:53 death): a planned walk out with a lowtide scavenger coming in war mode up "
+          "its route stops and the pets guard; beside it at 30 hits: the potion, then out of its large swing's reach "
+          "before any vet supplies, no area peace from the walk's guard ==")
+    # live 2026-10-28 22:53:01-21.9 (capture 20261028_182147; docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out"):
+    # the route ran 3 steps north-east into the scavenger with the pets on follow; beside it the guard's area peace
+    # (6 s), then its potion and the vet supplies on Bussin (89 %) before walk_in_fight's order; dead at 21.93
+    import loop_hunt
+    from agent_link import cheb
+    w = tidal_world(LEAVE_L1[:2], [{"key": "lowtide scavenger", "at": list(SCAV_L1)}], z=LEAVE_L1[2])
+    sc = next(m for m in w.mobs.values() if m.key == "lowtide scavenger")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    loop.link.send(tamer.command("all follow me"))           # live: on follow from 22:53:01.7
+    sc.target, sc.threat = w.player.serial, {w.player.serial: 1.0}
+    w._warm(sc, True)
+    hurts, near, tick0 = _log_hurts(w), [], clock.on_advance
+
+    def tick(now):
+        tick0(now)
+        if sc.alive and not any(v is sc for _, v, _, _ in hurts):
+            near.append(cheb(w.player.pos, sc.pos))          # Logan to it until a pet first hurts it
+    clock.on_advance = tick
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            res = loop.leave_by_gate("info")
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("'to the moongate: lowtide scavenger in war mode N tiles off coming on the way out; the pets guard'; Logan "
+          "5+ from it until the pets hurt it (before: 1, beside it); through the gate alive",
+          bool(re.search(r"to the moongate: lowtide scavenger in war mode \d+ tiles off coming on the way out; the pets "
+                         r"guard", out)) and near and min(near) >= 5 and res.get("ok") and w.player.alive,
+          f"nearest {min(near) if near else None} ok {res.get('ok')} {[ln for ln in out.splitlines() if 'moongate' in ln][:2]}")
+    x, y, z = LEAVE_L1[0] + 3, LEAVE_L1[1] - 3, LEAVE_L1[2]  # live 22:53:17.5: Logan at (6673, 2036), it north of him
+    w = tidal_world((x, y), [{"key": "lowtide scavenger", "at": [x, y - 1, z]}], z=z)
+    sc = next(m for m in w.mobs.values() if m.key == "lowtide scavenger")
+    sc.hits = sc.hits_max = 10 ** 6
+    sc.spec = {**sc.spec, "step_s": 999.0}
+    loop, clock, store, patched = hurt_loop(w, 31)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    w._place(gb, (x, y + 1, z), d=0)
+    gb.hits = int(gb.hits_max * 0.89)
+    sc.target, sc.threat = w.player.serial, {w.player.serial: 1.0}
+    w._warm(sc, True)
+    w._face(sc, w.player)
+    w.hurt(w.player, 1, sc)
+    loop.walking_out = loop.walk_out_fought = True            # as leave_by_gate's planned walk sets them
+    loop.walk_hits, loop.walk_hurt_t = None, -1e9
+    saved, loop_hunt.WALK_IN_FIGHT_S = loop_hunt.WALK_IN_FIGHT_S, 4.0
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            clock.advance(0.2)
+            loop.walk_in_fight("to the moongate", "out")
+    finally:
+        loop_hunt.WALK_IN_FIGHT_S = saved
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln.split(" ", 1)[-1] for ln in buf.getvalue().splitlines()
+             if any(k in ln for k in ("heal potion", "stand-off to", "vet supplies (", "area peace", "retreating"))]
+    first = [next((i for i, ln in enumerate(lines) if ln.startswith(k)), 99) for k in ("heal potion", "stand-off to",
+                                                                                         "vet supplies (")]
+    check("beside it at 31: 'heal potion' first, then 'stand-off to' out of its reach (AREA_R 2), the vet supplies after; "
+          "no 'area peace (walking out past ...)' (before: the guard's area peace, potion and vet supplies first)",
+          tamer.AREA_R.get("lowtide scavenger") == 2 and tamer.AREA_R.get("dungeon-nest crab") == 2
+          and first[0] < first[1] < first[2] and not any("walking out past" in ln for ln in lines), str(lines[:5]))
+
+
 def test_tidal_large_swing():
-    print("== Tidal Tomb: a lowtide scavenger's large swing every ~7.8 s, its hit 0.5 s later, its pincer crabs ==")
+    print("== Tidal Tomb: a lowtide scavenger's large swing every ~7.8 s, its hit 0.5 s later on each of us within 1 of "
+          "its target, its pincer crabs ==")
     # live 2026-10-26 20:41:52-20:42:28 (capture 20261026_183552): '*takes large swing*' every 7.6-8.0 s, 14-21 on
-    # GraveRobber 0.5 s later, a pincer crab '*emerges*' at that instant while fewer than 2 of its own were up
+    # GraveRobber 0.5 s later, a pincer crab '*emerges*' at that instant while fewer than 2 of its own were up. Its reach
+    # (docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out", six captures): everyone within 1 of the tile it faces
+    # (its target's), 306 of 314 there, 0 of 137 elsewhere within 3; Logan 20-33
+    from agent_link import cheb
     x, y = TIDAL_L1
     w = tidal_world(TIDAL_L1, [{"key": "lowtide scavenger", "at": [x + 2, y, -16]}])
     said, rolled, orig = _log_overhead(w), [], w.hurt
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
 
     def hurt(victim, amount, by, kind="melee", *a, **kw):
         if by is not None and by.key == "lowtide scavenger":
-            rolled.append((round(w.t, 2), victim, amount))       # its number before GraveRobber's mitigation
+            # its number before GraveRobber's mitigation, and who of us stood within 1 of the gravebug then
+            rolled.append((round(w.t, 2), victim, amount,
+                           frozenset(o.serial for o in w.team() if cheb(o.pos, gb.pos) <= 1)))
         orig(victim, amount, by, kind, *a, **kw)
     w.hurt = hurt
     sc = next(m for m in w.mobs.values() if m.kind == "monster")
     sc.hits = sc.hits_max = 100000
     sc.spec = {**sc.spec, "melee": None}                      # only the large swing hurts
-    gb = next(p for p in w.pets() if p.name == "GraveRobber")
-    gb.hits = gb.hits_max = 100000
+    for o in w.team():
+        o.hits = o.hits_max = 100000
     sc.target, sc.threat = gb.serial, {gb.serial: 1e6}
     most = 0
     for _ in range(600):                                    # 60 s
@@ -5082,8 +5204,15 @@ def test_tidal_large_swing():
     check("in 60 s: 6+ large swings, 7.6-8.0 s apart", len(swings) >= 6 and all(7.55 <= g <= 8.05 for g in gaps),
           f"{len(swings)} swings, gaps {gaps}")
     check("...each lands 0.5 s later on GraveRobber, a 14-21 (the gravebug's live numbers) before its mitigation",
-          all(any(0.45 < t - s < 0.65 and v is gb and 14 <= n <= 21 for t, v, n in rolled) for s in swings[:-1])
-          and len(rolled) <= len(swings), f"{[(t, round(n)) for t, _, n in rolled[:6]]}")
+          all(any(0.45 < t - s < 0.65 and v is gb and 14 <= n <= 21 for t, v, n, _ in rolled) for s in swings[:-1]),
+          f"{[(t, v.name, round(n)) for t, v, n, _ in rolled[:6]]}")
+    lands = sorted({t for t, *_ in rolled})
+    hit = {t: {v.serial for u, v, _, _ in rolled if u == t} for t in lands}
+    near = {t: next(b for u, _, _, b in rolled if u == t) for t in lands}
+    logan = [n for _, v, n, _ in rolled if v is w.player]
+    check("...and at that instant on each of us within 1 of it, none farther (Logan's own 20-33)",
+          all(hit[t] == near[t] for t in lands) and logan and all(20 <= n <= 33 for n in logan),
+          f"{[(t, sorted(hit[t]) == sorted(near[t])) for t in lands[:4]]} Logan {[round(n) for n in logan]}")
     crabs = [t for t, s, text in said if text == "*emerges*"]
     check("...pincer crabs '*emerge*' at a swing's hit, at most 2 of its own up at once",
           bool(crabs) and all(any(0.45 < c - s < 0.65 for s in swings) for c in crabs) and 1 <= most <= 2,
@@ -5900,7 +6029,8 @@ def main():
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
-              test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
+              test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_large_swing,
+              test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,

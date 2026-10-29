@@ -253,8 +253,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             if world.sc.get("oxygen") else None,
             "broodlings": m.get("broodlings", {}),
             # clearwater groupers' bubbles: thrown, and the hits and damage on us and on the pets; ocean bedrocks' spray
-            # the same (sprays)
+            # the same (sprays); lowtide scavengers' large swings and dungeon-nest crabs' digs the same (digs)
             "bubbles": m.get("bubbles", {}), "spray": m.get("spray", {}),
+            "large_swing": m.get("large_swing", {}), "dig": m.get("dig", {}),
             "met": m.get("met", {}),
             "violations": m["violations"], "junctures": juncs,
             "runner_totals": dict(loop.totals) if loop is not None else None,
@@ -446,8 +447,9 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
     """Across runs: game hours, kills per game hour, deaths per game hour, the share of runs with a death, a pet
     death, a pet left behind, a crash or a rule violation; gold looted and gold banked (what reached home) per game
     hour, and banked per hour with `downtime_s` of game time added for each death (banked_per_h_net); the player's ARs
-    and his damage taken on the level per game hour; the clearwater groupers' bubbles' and the ocean bedrocks' spray's
-    totals (thrown or sprayed, hits and damage on us and on the pets) when any came."""
+    and his damage taken on the level per game hour; the clearwater groupers' bubbles', the ocean bedrocks' spray's, the
+    lowtide scavengers' large swings' and the nest crabs' digs' totals (thrown, sprayed or dug, hits and damage on us and
+    on the pets) when any came."""
     ok = [r for r in results if "sim_s" in r]
     hours = sum(r["sim_s"] for r in ok) / 3600 or 1e-9
     deaths = sum(r["deaths"] for r in ok)
@@ -480,7 +482,7 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             **({"others": others_summary(ok)} if any(r.get("others") for r in ok) else {}),
             **{key: {k: sum((r.get(key) or {}).get(k, 0) for r in ok)
                      for k in sorted({k for r in ok for k in (r.get(key) or {})})}
-               for key in ("bubbles", "spray") if any(r.get(key) for r in ok)},
+               for key in ("bubbles", "spray", "large_swing", "dig") if any(r.get(key) for r in ok)},
             **({"reds": reds_summary(ok)} if any(r.get("reds") for r in ok) else {})}
 
 

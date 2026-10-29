@@ -2820,6 +2820,26 @@ bedrock's spray"). Decisions:
   it, so the patrol toward it walked down its cone.
 - *The loot waits* when every tile within 2 of the corpse that we reach lies in a cone: the corpse stays queued.
 
+## Dead on Tidal Tomb level 1 on the way out (live 2026-10-28 22:53)
+
+A `stop --after-trip` started a planned walk out while a lowtide scavenger came at Logan; he died beside it and a
+dungeon-nest crab (docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out"). Decisions:
+
+- *A planned walk out stops for what comes, as the hunt holds for it* (`HuntLoop.coming`, `COMING_R` 10 = `HOLD_R`,
+  `COMING_S` 5 s = `HOLD_S`), and stands with the pets on guard (`walk_in_fight`) until it stops coming. Rejected: a
+  route round it (it comes at us whatever the route) and a fought leave on level 1 (the user's "all follow me to run
+  out"; the stand is only for what comes).
+- *The walk's guard stays out of the stand* (`walk_fighting`): one order in a fight, `walk_in_fight`'s, where the
+  stand-off and the retreat come before the vet supplies on a pet. Not a "self before a pet" rule: the channel is the
+  same either way.
+- *No area peace on a planned walk out* (`walk_out_fought`): it buys 2 s to walk on, and that walk stops for what
+  attacks it anyway. Kept for hurt leaves and flights (fight1949).
+- *A guard that acted means a fresh read* (`HuntLoop.state`, the Mover), not a fix per caller.
+- *The large swing and the Dig as area hits* (`AREA_R` 2 each, from the scenario specials as the other area hitters).
+- **Open:** the Dig onto Logan himself can't be stood out of (it comes up on its target): both 48-run deaths had a
+  nest crab's 75-84 in their last 15 s. [INFERENCE] A step away at its '*digs*' doesn't help; a potion or the retreat
+  timed to its 1.5-2.1 s might.
+
 ## The Ossuary in the simulator (user 2026-10-28: "add it to the combat simulator")
 
 Built from the user's three visits that day (docs/SIM.md "The Ossuary", docs/NOTES.md "The Ossuary: three visits by

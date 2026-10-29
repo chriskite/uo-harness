@@ -556,7 +556,8 @@ class Mover:
     held-key step cadence, run/walk routes, pauses and sidesteps. Plans on
     map data when the facet has it (use_map), else on walk memory.
 
-    guard(st) is called after every step outcome (timeouts, HP, stalls...).
+    guard(st) is called after every step outcome (timeouts, HP, stalls...); a truthy return says it acted
+    (seconds may have gone by): the walk reads the state again before its stop and plan.
 
     Spell fields (FIELD_GRAPHICS) are walls for every plan. `dispel(serial, item) -> bool`, when
     given, is called when fields cut the route and no way round exists within the walk's bound
@@ -730,7 +731,8 @@ class Mover:
         if after[:2] != before[:2] and nav.chebyshev(tuple(before[:2]), tuple(after[:2])) == 1 \
                 and st["world"]["self"].get("map") == facet_before:
             self._guard_entries(facet_before, before, after)   # before guard(): a flight stops on it
-        self.guard(st)
+        if self.guard(st):
+            self._after = None                   # the guard acted (seconds may have gone by): no reuse of this state
         if after[:2] != before[:2]:
             self.steps += 1
             facet_after = st["world"]["self"].get("map")
@@ -1179,7 +1181,8 @@ class Mover:
         mobile_wait_until = None
         while True:
             st = self.link.state()
-            self.guard(st)
+            if self.guard(st):
+                st = self.link.state()           # the guard acted (the hunt's potion on the way out): read again
             self.replan_requested = False        # this plan sees whatever the guard just set
             if stop is not None and (why := stop(st)):
                 return why

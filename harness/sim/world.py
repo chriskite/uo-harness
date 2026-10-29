@@ -228,6 +228,7 @@ class Mob:
     feed: list | None = None      # a vampire's feed: [next time, ticks left (None: still attempting), target, special]
     pulse: list | None = None     # an ooze aura under way: [next burst time, bursts left, special]
     brood_at: tuple | None = None  # a nest crab's dig: (time its broodling emerges, special)
+    dig: tuple | None = None      # ...with its Dig (`surface_s`): (time it comes up, the target whose tile it comes up on)
     swing_at: tuple | None = None  # a large swing called: (time it lands, target serial, special)
     spray: dict | None = None     # an ocean bedrock's spray under way (_spray_step): origin, axis, wave start, hits
     backlash: list = field(default_factory=list)   # astral zoas' Backlash stacks on one of us: [[expiry, fizzle chance]]
@@ -1435,7 +1436,17 @@ class World:
         if m.brood_at is not None and t >= m.brood_at[0]:
             _, sp = m.brood_at
             m.brood_at = None
-            self._emerge(m, sp)
+            if sum(1 for o in self.mobs.values() if o.alive and o.kind == "monster"
+                   and o.spec.get("summoner") == m.serial) < sp.get("max", 1):
+                self._emerge(m, sp)
+            if m.dig is not None:
+                # its Dig: under now (0x1D), up on its target's tile at m.dig[0] with its on_blink burst (the blink's way)
+                m.hidden_until, m.blink_to = max(m.dig[0], t + 0.05), m.dig[1]
+                m.dig = None
+                if m.serial in self.viewing:
+                    self.send(P.delete(m.serial))
+                    self.viewing.discard(m.serial)
+                return
         if m.swing_at is not None and t >= m.swing_at[0]:
             self._large_swing(m)
         if m.spray is not None and t >= m.spray["t0"]:
@@ -1935,18 +1946,24 @@ class World:
                 m.pulse = [t + sp.get("delay_s", 0.0), sp["bursts"], sp]
             elif kind == "brood":
                 # a dungeon-nest crab (Tidal Tomb scenario note): '*digs*', and a pincer crab '*emerges*'
-                # beside it 0.5 s later and joins the fight
+                # beside it 0.5 s later and joins the fight, up to `max` of its own. With `surface_s` (its Dig) it digs
+                # whatever its broodlings, goes under at the emerge and comes up on its target's tile that long after
+                # the dig, its `on_blink` burst on each of us within reach there
                 if kind not in m.cd:
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
                     continue
-                if m.brood_at is not None or sum(1 for o in self.mobs.values() if o.alive and o.kind == "monster"
-                                                 and o.spec.get("summoner") == m.serial) >= sp.get("max", 1):
+                if m.brood_at is not None or (not sp.get("surface_s") and sum(
+                        1 for o in self.mobs.values() if o.alive and o.kind == "monster"
+                        and o.spec.get("summoner") == m.serial) >= sp.get("max", 1)):
                     continue
                 m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
                 self._ev("ability", by=m.serial, kind=kind, v=None)
                 if sp.get("cue", "*digs*"):
                     self._overhead(m, sp.get("cue", "*digs*"))   # the Ossuary's summoners show none ("cue": "")
                 m.brood_at = (t + sp.get("delay_s", 0.5), sp)
+                if sp.get("surface_s"):
+                    m.dig = (t + self.rng.uniform(*sp["surface_s"]), tgt.serial)
+                    self.count("dig", "digs")
             elif kind == "large_swing":
                 # a lowtide scavenger (Tidal Tomb scenario note): '*takes large swing*', 0.5 s later a hit on its
                 # target beside it, and often a pincer crab '*emerges*' beside it then
@@ -2057,15 +2074,27 @@ class World:
             m.spray = None
 
     def _large_swing(self, m: Mob):
-        """A large swing lands: `damage` on its target if still beside it (measured on the gravebug, as the type's
-        melee; on the player one of its melee hits), then a `brood` broodling with its chance, up to its `max` of
+        """A large swing lands, if its target is still beside it: on each of us within `radius` of the target's tile (live
+        everyone within 1 of the tile it faces, its target's: docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out"),
+        `damage_player` on the player (measured on Logan; without it one of its melee hits) and `damage` on a pet
+        (measured on the gravebug, as the type's melee); then a `brood` broodling with its chance, up to its `max` of
         the scavenger's own."""
         _, s, sp = m.swing_at
         m.swing_at = None
         tgt = self.mobs.get(s)
         if tgt is not None and tgt.alive and not tgt.ghost and cheb(m.pos, tgt.pos) <= 1 and m.calm_until <= self.t:
-            dmg = self._melee_on(tgt, m.spec) if tgt.kind == "player" else self.roll(sp["damage"])
-            self.hurt(tgt, dmg, m, "melee")
+            team = self.team()
+            for o in [o for o in team if cheb(o.pos, tgt.pos) <= sp.get("radius", 0)] if tgt in team else [tgt]:
+                if o.kind == "player":
+                    dmg = self.roll(sp["damage_player"]) if sp.get("damage_player") else self._melee_on(o, m.spec)
+                else:
+                    dmg = self.roll(sp["damage"])
+                before = o.hits
+                self.hurt(o, dmg, m, "melee")
+                if o in team:
+                    who = "us" if o.kind == "player" else "pets"
+                    self.count("large_swing", f"hits_{who}")
+                    self.count("large_swing", f"damage_{who}", round(before - max(o.hits, 0)))
         b = sp.get("brood")
         if b and m.alive and self.rng.random() < b["chance"] and sum(
                 1 for o in self.mobs.values() if o.alive and o.kind == "monster"
@@ -2118,8 +2147,13 @@ class World:
         db = sp.get("debuff") or {}
         for o in hit:
             if sp.get("damage_pet") is not None:
+                before = o.hits
                 self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
                           song_pets=sp.get("song_pets", True), dtype=sp.get("damage_type"), ref=sp.get("ref"))
+                if sp.get("count"):              # run.py's totals for it (the nest crab's dig): hits and damage
+                    who = "us" if o.kind == "player" else "pets"
+                    self.count(sp["count"], f"hits_{who}")
+                    self.count(sp["count"], f"damage_{who}", round(before - max(o.hits, 0)))
             if not o.alive or o.ghost:
                 continue
             if sp.get("pressure"):

@@ -568,7 +568,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    within 8 tiles, 2 s pacified each, the usual cooldowns; live 20261015_171928 17:22:01 the user's own
    answered "You play successfully, briefly pacifying one or more nearby creatures."): `Team.area_peace`
    when two or more attack us within 3, or one while we're below `--retreat-at`, or on the walk out to the
-   gate past anything in war mode within 3 (first in the care order; on the walk out between steps).
+   gate past anything in war mode within 3 (first in the care order; on the walk out between steps; since 2026-10-28
+   not on a planned walk out, which stops and fights what attacks it: "Something coming on a planned walk out" below).
    fight1949, 24 seeds: deaths 1 -> 0, damage on Logan 147 -> 83, lowest hits 0 -> 39.
 3. **"All Kill" only at a mob already on us** that the pets leave alone for 4 s (its aggro is on us
    anyway), or at the pets' target when a live pet within 12 of it stands out of war mode for 5 s
@@ -629,7 +630,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    frenzyfin 3 (their spins), the colossal scourgeon 3, the tidal sea serpent 4, the drowned buccaneer 2, the
    corpsebride 3 and the bound soul 2. Hits reaching beyond `AREA_MAX_R` 5 (the giant zoas' 12) are left to the
    caster rules. Simulator 2026-10-28 (24 runs, 96 on Maus 3): level 2 damage on Logan 2,017 -> 1,644 an hour, deaths 7
-   -> 5; level 3 3,379 -> 1,971; Maus 3 deaths 7 -> 5, banked +5 %. **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
+   -> 5; level 3 3,379 -> 1,971; Maus 3 deaths 7 -> 5, banked +5 %. **Since 2026-10-28 22:53** (Logan dead on Tidal Tomb
+   level 1 beside both) also a hit on everyone within r of its target beside it or of where it comes up on its target:
+   the lowtide scavenger's large swing (everyone within 1 of the tile it faces) and the dungeon-nest crab's Dig (it goes
+   under and comes up on its target's tile 1.5-2.1 s later, a hit within 1), both `AREA_R` 2 (docs/NOTES.md "Tidal
+   Tomb: dead on level 1 on the way out"). **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
    behind the ocean bedrock so it doesn't do its spray attack on me"; docs/NOTES.md "The ocean bedrock's spray"). Its
    frontal cone is in the zone at 1 a tile (`Team.spray_cone`, `nav.in_cone`): 90°, 8 tiles, along its 0x77 direction
    and toward each pet beside it. That holds while it is awake, unless it is pacified or provoked onto a monster still
@@ -1061,6 +1066,23 @@ moongate, and never near a red one).
   - **Attacked near the gate** (live 19:04, dead 2 tiles from it while the pets guarded): a planned walk out that is
     attacked within `GATE_DASH_R` 8 tiles of the gate doesn't stand and fight (`walk_in_fight`) but goes through at
     once: "All Follow Me" without waiting for the pets, the gate at its macro's pace. Farther out it still stands.
+  - **Something coming on a planned walk out** (since 2026-10-28; live 22:53 Logan died on Tidal Tomb level 1, docs/NOTES.md
+    "Tidal Tomb: dead on level 1 on the way out"): the walk also stops for a monster in war mode within `COMING_R` 10
+    that sees us, fights no one else and comes on (not a shy shooter) while it keeps coming nearer (`COMING_S` 5 s;
+    `HuntLoop.coming`): "to the moongate: lowtide scavenger in war mode 9 tiles off coming on the way out; the pets
+    guard". Then the stand as when attacked (`walk_in_fight`: 'All Guard Me', the fight tick's order), which on the
+    way out also goes on while one still comes; within `GATE_DASH_R` of the gate, through it instead ("... coming 5
+    tiles from it; through it now"). Live the route's first 3 steps went up a scavenger's way with the pets on follow
+    behind Logan; in the simulator (test_sim `test_tidal_leave_coming`) the walk now stops at 9-10 tiles and the pets
+    take it with Logan 8+ off (before: 1).
+  - **The walk's guard stays out of the stand** (`walk_fighting`): `drink_on_the_run` (potion, vet supplies, area
+    peace between steps) doesn't run inside `walk_in_fight`, whose own order puts the stand-off and the retreat before
+    the vet supplies on a pet (live 22:53:17.6-21.1 the guard drank and started the vet supplies on Bussin at 89 % with
+    Logan at 29, then 6; the retreat came after his death). A planned walk out doesn't play the area peace "walking
+    out past ..." (`walk_out_fought`): it stops for what attacks it anyway (live 22:53:08.8-14.6 the play cost 6 s
+    beside the scavenger, -11, -33, -12, the pets on follow); a hurt leave or a flight still does. A guard that acted
+    makes `HuntLoop.state()` and the Mover read the state again (live 22:53:22 "retreating ... at 31/100 hits" was read
+    before the guard's potion and vet supplies, at 17.6).
   - **No walk pauses in a fight or on the way out** (`HuntLoop.no_idle` → `Mover.no_idle`): no humanize look-around
     or sidestep while walking out or with a monster in war mode in view (the same 19:04 death began with an 8.5 s
     pause 2 tiles from the gate).

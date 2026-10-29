@@ -6161,6 +6161,67 @@ has the runner on level 2 (18:35:23 and 18:35:38, 2 hits in the cone at 7 and 5,
   fewest-steps tile out; the hold for an awake bedrock coming on; the loot wait. docs/HUNT_LOOP.md "Pets" (the
   rule), docs/SIM.md "Tidal Tomb: Logan in the bedrock's spray" (the numbers), docs/PLAN.md (the decision).
 
+## Tidal Tomb: dead on level 1 on the way out (2026-10-28 22:53)
+
+Run hunt-20261028-222328-f677 (Logan with Bussin and AlaFlambe, level 1, `--vet-range 5 --heal-in-place`), capture
+20261028_182147. The user asked to go home; the Seer sent `stop --after-trip`; Logan died at (6673, 2036) at
+22:53:21.93 ("ABORTED: died (unknown): ghost body (leaving: done)" at 22:53:26). The pets lived. The capture replayed
+through `world.runtime.WorldRuntime` (scratch scripts, not kept):
+
+- **22:53:00** "holding here: lowtide scavenger in sight at 10 tiles: letting it come" (0xF2544, idle at (6679, 2029)).
+- **22:53:01** "LEAVING by the moongate: done", "All Follow Me" (01.70; the pets' war flags off at 02.07). The
+  scavenger went to war mode at 04.49, 10 tiles off. "to the moongate: route 90 steps" at 06. The route runs north-east
+  first (the simulator's map: (6670, 2039) -> (6679, 2030) in 9 steps, 91 to the gate): up the scavenger's way.
+- **22:53:07.45-08.80** three steps north-east to (6673, 2036); the scavenger came 6, 4, 3 tiles off meanwhile. The
+  walk's stop knew only hits and swings ("under attack"). **Cause: the walk walked into a monster coming at it, the
+  pets on follow behind Logan.**
+- **22:53:08.80** the step's guard (`drink_on_the_run`) played the area peace "walking out past 1 in war mode within
+  3": the skill at 10.07, its cursor at 10.80, the target at 13.59, "You play successfully" at 14.57 (6 s). Meanwhile
+  -11 (09.18), the large swing -33 (10.34, Bussin -21 and AlaFlambe -24 beside him at once), -12 (13.59). Pacified
+  for 2 s, but the walk stopped anyway ("attacked on the way out" at 17; no step after 08.80). **Cause: an area peace
+  meant for walking on through, on a walk that stops for what attacks it.** [INFERENCE] The 2.8 s from cursor to
+  target and the 2.5 s from the play to the stop are runner latency (pauses or a busy machine); nothing in the log
+  names them.
+- **22:53:17.5** -15; "All Guard Me" 17.60 (the pets in war mode 17.85). A dungeon-nest crab came beside him at 17.10,
+  -12 at 17.92 (31 -> 19).
+- **22:53:17.6-21.1** `walk_in_fight`'s first state read ran the guard again: a heal potion (click 18.20, +37 at
+  18.81, then at once the scavenger's second large swing -27 and both pets -24 / -21: "heal potion: 31 -> 29"), then
+  the vet supplies "Bussin at 89%" (click 20.73, begun 21.12) with Logan at 29, then 6 after the nest crab's Dig
+  (18.84 '*digs*', gone 19.35, back on Logan's tile 20.38: -23 on him, -22 and -24 on the pets). **Cause: the guard's
+  potion and vet supplies ran before walk_in_fight's own order (stand-off, retreat); the channel kept him standing.**
+- **22:53:21.93** -8 (a pincer crab, anim 31), 7 -> 0. **22:53:22** "retreating 7 tiles from a lowtide scavenger, a
+  dungeon-nest crab at 31/100 hits": decided on the state read at 17.6, before the guard's potion and vet (**cause:
+  stale state**); logged after he died, so it never stepped.
+
+The suspected gaps, checked:
+
+1. **The walk walked into the coming monster: confirmed** (above; the route's first steps lead up its way).
+2. **The large swing and the Dig are area hits and weren't in `tamer.AREA_R`: confirmed.** Measured over the six
+   Tidal Tomb captures 20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552, 20261027_220057 and
+   20261028_182147 ("-N" numbers over each of us at the instant, positions from the replay):
+   - **The large swing** (239 that landed on one of us, 0.46-0.52 s after '*takes large swing*'): everyone within 1
+     of the tile it faces (its 0x77 direction; its target's tile): 306 of 314 of us in that 3x3 hit (the front tile 272
+     of 277, its own tile 11 of 12), 0 of 137 elsewhere within 3 (behind it, 2 to a side, the 2-ahead corners).
+     Logan 20-33 (median 27, n 9); GraveRobber 3-23 (median 17), AlaFlambe 4-34 (median 24), Bussin 5-30 (23).
+   - **The Dig** (230 '*digs*' with animation 18): the crab is deleted (0x1D) at its broodling's 0.5 s and is back
+     1.52-2.06 s after the dig (median 1.76, n 224) with animation 27 on its target's tile, 0-16 tiles from where it
+     dug (median 6). Every one of us within 1 of it then is hit: 316 of 317 at 0-1, 4 of 48 at 2, 0 of 99 at 3-4.
+     Logan 18-34 (median 28, n 89, 40 of them on his own tile: it came up on him); GraveRobber 4-22 (median 17.5).
+     The scenario's note had called the wiki's Dig "not the broodling"; it is both.
+3. **Stale state, wrong priority at low hits: confirmed, one cause.** The guard inside `HuntLoop.state()` acted for
+   ~3.5 s and the state it returned was from before; the vet supplies on a pet came from the guard, ahead of the
+   retreat. Refuted as separate bugs: "self before a pet" (one channel heals every pet in reach and us; the label names
+   the first need) and "the retreat never moved" (Logan died at 21.93, before its decision was logged).
+4. **Anything else on a stop mid-approach: the area peace on a planned walk out** (above). Not a runner decision: the
+   "died (unknown)" label (no attacker in the ghost's state 4 s later).
+
+- **Built 2026-10-28:** the planned walk out's stop for a monster coming (`HuntLoop.coming`, `COMING_R` 10), the stand
+  going on while one comes; no `drink_on_the_run` inside `walk_in_fight` (`walk_fighting`) and no area peace on a
+  planned walk out (`walk_out_fought`); a fresh state after a guard that acted (`HuntLoop.state`, the Mover); the
+  large swing and the Dig in `AREA_R` (2 each). Simulator: the large swing on each of us within 1 of its target
+  (Logan's own numbers), the Dig (`surface_s`, the crab's `dig` burst). docs/HUNT_LOOP.md "Out" and the area hitters
+  (the rules), docs/SIM.md "Tidal Tomb: dead on level 1 on the way out" (the numbers), docs/PLAN.md (the decision).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

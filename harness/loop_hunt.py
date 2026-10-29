@@ -260,6 +260,10 @@ WALK_IN_ARRIVED_R = 3         # --enter-via: this close to a teleporter's known 
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
 WALK_IN_FIGHT_S = 90.0        # --enter-via: attacked on the way, stand this long at most while the guarding pets take it
 WALK_IN_CALM_S = 4.0          # ...until nothing attacks us and no hit has come for this long
+COMING_R = 10                 # a planned walk out stops (and its stand goes on) for a monster in war mode this close coming
+#                               at us (HuntLoop.coming): tamer.HOLD_R, the hunt's "letting it come" (live 2026-10-28
+#                               22:53:04.5: the lowtide scavenger went to war mode 10 tiles off; the walk met it 3 steps on)
+COMING_S = 5.0                # ...while it came nearer within this long (tamer.HOLD_S: one that stops coming is passed over)
 COMMAND_R_GO = 8              # wait_pets/fetch_pet: a pet out of a command's reach is walked to this close first
 TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fewer from the teleporter walked to: on and
 #                               through it, no stand (live 2026-10-20 22:57:15: attacked again 13 steps from 5522,637, the
@@ -369,6 +373,9 @@ class HuntLoop:
         self.fleeing = False                     # recall mode: leaving; the threat checks are off
         self.walking_out = False                 # on the walk to --leave-gate: heal potions between steps
         self.pk_flight = False                   # walking out from a hostile player: no bard skill on the way
+        self.walk_out_fought = False             # a planned walk to --leave-gate: it stops for what comes (walk_in_fight)
+        self.walk_fighting = False               # in walk_in_fight: its own order, no drink_on_the_run
+        self.coming_seen = {}                    # serial -> (monotonic time it was last nearer, its least distance)
         self.walking_in = False                  # on the walk in (walk_in): the hostile-player checks are on (look)
         self.left_level = False                  # this leave went up through --leave-via teleporters (leave_up)
         self.walk_in_red = None                  # why a hostile player on the walk in sent us on to the leave gate
@@ -469,7 +476,9 @@ class HuntLoop:
             self.visit[what] = self.visit.get(what, 0) + n
 
     # ------------------------------------------------------------ guards
-    def check_guards(self, st: dict):
+    def check_guards(self, st: dict) -> bool:
+        """The checks every state read and every step of a walk runs (Mover guard). True when one acted (a potion, the
+        vet supplies, an area peace on the way out: seconds may have gone by, `st` is old)."""
         if self.args.timeout > 0 and not self.escaping and self.fought_end is None \
                 and time.monotonic() - self.t0 - self.fought_s > self.args.timeout + HARD_TIMEOUT_GRACE_S:
             raise Abort(f"overall timeout ({self.args.timeout:.0f}s + {HARD_TIMEOUT_GRACE_S:.0f}s to leave)")
@@ -483,9 +492,9 @@ class HuntLoop:
         if self.team is not None:
             self.team.spray_watch(st)     # a wind-up mid-walk for its stop (Team.spray_stop); the cones for routes
         self.look(st)
-        self.drink_on_the_run(st)
+        return self.drink_on_the_run(st)
 
-    def drink_on_the_run(self, st):
+    def drink_on_the_run(self, st) -> bool:
         """On the walk out to --leave-gate, a red's flight included (Mover guard, between steps): a heal potion
         when hurt below --heal-at and one is ready (user 2026-10-13: banshees catch real players on the way to the
         gate too; 'I just run and heal and hope for the best, with pets guarding'), and (--pets) the vet supplies on
@@ -494,24 +503,33 @@ class HuntLoop:
         vet while fleeing": a channel whenever we are hurt at all, not only below --heal-at). A step doesn't stop the
         channel healing us: it only shortens the reach to the pets to 1 (live 20261014_221341 22:35:50-55 Logan
         walked 2 tiles mid-channel and its finish still healed him and resurrected GraveRobber; 20261017
-        16:38:43.97-49.21 begun, 25 steps, +32)."""
-        if not self.walking_out or self._drinking:
-            return
+        16:38:43.97-49.21 begun, 25 steps, +32). True when something went out.
+        Not while a planned walk out stands to fight (walk_fighting: walk_in_fight's own order, the retreat before the
+        vet supplies on a pet), and the area peace only on a walk that goes on through what attacks it (not
+        walk_out_fought): live 2026-10-28 22:53:08.8-14.6 a planned walk out played it 1 tile from a lowtide scavenger
+        (-11, -33, -12 meanwhile, the pets on follow) and stopped to fight anyway; 22:53:17.6-20.7 this guard drank and
+        started the vet supplies on Bussin (89 %) at 29 then 6 hits before walk_in_fight's retreat, which then read the
+        hits from before both ("at 31/100") and came after Logan's death."""
+        if not self.walking_out or self._drinking or self.walk_fighting:
+            return False
         me = st["world"]["self"]
         self._drinking = True
         try:
-            if self.team is not None and not self.pk_flight and self.team.area_peace(st, walking_out=True):
-                return                    # through monsters on the way out: a 2 s peace on them (Team.area_peace)
+            if self.team is not None and not self.pk_flight and not self.walk_out_fought \
+                    and self.team.area_peace(st, walking_out=True):
+                return True               # through monsters on the way out: a 2 s peace on them (Team.area_peace)
             #                               (not from a red: live 20261017_133304 13:40:56 it stopped 1.5 s to play
             #                               while Tugarin zmey's Explosions landed, -32 more, dead 2 s later)
-            self.cure(st)
+            acted = self.cure(st)
             if me.get("hits") is None or me.get("hits_max") is None or me["hits"] >= me["hits_max"]:
-                return
+                return acted
             if self.frac(me) < self.args.heal_at and self.potions.ready(time.monotonic()) \
                     and healing.heal_potions(st["world"], self.me(st)):
                 self.heal(st, potions=True)
+                acted = True
             if self.team is not None and time.monotonic() >= self.team.vet_busy_until:
-                self.team.vet(self.link.state(), us_below=1.0)
+                acted = self.team.vet(self.link.state(), us_below=1.0) or acted
+            return acted
         finally:
             self._drinking = False
 
@@ -711,7 +729,11 @@ class HuntLoop:
 
     def state(self):
         st = self.link.state()
-        self.check_guards(st)
+        if self.check_guards(st):
+            # a guard acted (a potion, the vet supplies, an area peace: seconds): what follows decides on now, not on
+            # the read before it (live 2026-10-28 22:53:22 "retreating ... at 31/100 hits", read at 17.6 before the
+            # guard's potion and vet supplies; Logan was at 6 by then and dead at 21.93)
+            st = self.link.state()
         self.scan_events(st)
         return st
 
@@ -2263,7 +2285,8 @@ class HuntLoop:
                 return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                         "dest": self.args.gate_dest}
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
-        self.walking_out, self.pk_flight = True, flee
+        self.walking_out, self.pk_flight, self.walk_out_fought = True, flee, severity in PLANNED
+        self.coming_seen = {}
         t_walk = time.monotonic()
         jump = {"last": tuple(self.pos(self.link.state())[:2]), "through": False}
         dash = False                    # attacked near the gate on a planned walk out: through it at once
@@ -2299,6 +2322,8 @@ class HuntLoop:
                         return self.leave_called_off(s, severity)
                     if self.walk_hurt(s) or self.attackers(s):
                         return "under attack"
+                    if who := self.coming(s):
+                        return f"coming: {who}"
                     return self.pets_lagging(s) if lag["wait"] else None
                 if flee:
                     if near is not None:
@@ -2312,16 +2337,18 @@ class HuntLoop:
                         if why == "through the gate" or through(self.link.state()):
                             break
                         if why and severity in PLANNED:
-                            if why == "under attack" and cheb(self.pos(self.link.state()), gate) <= GATE_DASH_R:
+                            coming = why[len("coming: "):] if why.startswith("coming: ") else None
+                            if (why == "under attack" or coming) \
+                                    and (d := cheb(self.pos(self.link.state()), gate)) <= GATE_DASH_R:
                                 # live 2026-10-17 19:04:15: attacked 2 tiles from the gate, the pets guarded and Logan
                                 # stood in an apparition's hits there, dead 3.5 s later (user: "We were at the gate
                                 # and Logan just stood there dying instead of going through")
-                                log(f"to the moongate: attacked {cheb(self.pos(self.link.state()), gate)} tiles from "
+                                log(f"to the moongate: {f'{coming} coming' if coming else 'attacked'} {d} tiles from "
                                     f"it; through it now")
                                 dash = True
                                 break
-                            if why == "under attack":
-                                self.walk_in_fight("to the moongate", "out")
+                            if why == "under attack" or coming:
+                                self.walk_in_fight("to the moongate", "out", coming=coming)
                             elif not self.wait_pets("to the moongate", None, required=False):
                                 lag["wait"] = False
                             continue
@@ -2376,7 +2403,7 @@ class HuntLoop:
             return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                     "dest": self.args.gate_dest}
         finally:
-            self.walking_out = self.pk_flight = self.left_level = False
+            self.walking_out = self.pk_flight = self.left_level = self.walk_out_fought = False
 
     def leave_up(self, severity: str):
         """--leave-via: the leave gate a level or more above the hunt's (Tidal Tomb's level 3, its crimson gate on level
@@ -3320,6 +3347,30 @@ class HuntLoop:
             self.walk_hurt_t = time.monotonic()
         return fell
 
+    def coming(self, st) -> str | None:
+        """A planned walk out's stop (leave_by_gate) and what keeps its stand going (walk_in_fight): a monster in war
+        mode within COMING_R that sees us, fights no one else (Team.elsewhere) and comes on (not aggro.shy: it shoots from
+        where it stands), while it comes nearer (nearer than ever within the last COMING_S) -> "<kind> in war mode N
+        tiles off", the nearest, else None. Live 2026-10-28 22:53:04.5-09.2 (hunt-20261028-222328-f677): the time-up
+        walk's route ran north-east up a lowtide scavenger's way, in war mode from 10 tiles; three steps took Logan
+        beside it with the pets on follow behind him, and he died there 12.7 s later."""
+        if self.team is None:
+            return None
+        v, world, now = self.team.view(st), st["world"], time.monotonic()
+        best = None
+        for m in v.mobs:
+            d = cheb(m["pos"], v.pos)
+            if not m["war"] or m["shy"] or d > COMING_R or not v.sees(m, v.pos, COMING_R) \
+                    or self.team.elsewhere(st, world["mobiles"].get(key_of(m["serial"])) or {}):
+                continue
+            t, least = self.coming_seen.get(m["serial"], (now, d))
+            if d < least:
+                t, least = now, d
+            self.coming_seen[m["serial"]] = (t, least)
+            if now - t <= COMING_S and (best is None or d < best[0]):
+                best = (d, m["kind"])
+        return f"{best[1]} in war mode {best[0]} tiles off" if best else None
+
     def pets_lagging(self, st) -> str | None:
         """A pet of the roster out of view or farther than WALK_IN_LAG_R."""
         if self.team is None:
@@ -3406,15 +3457,27 @@ class HuntLoop:
         except (WalkFailed, Abort) as e:
             log(f"{label}: to {p['name']}: {e}")
 
-    def walk_in_fight(self, label, way: str = "in"):
+    def walk_in_fight(self, label, way: str = "in", coming: str | None = None):
         """Attacked on the way in (or out, `way`, a planned walk to the gate): 'All Guard Me' and the fight
         tick's order until nothing attacks us and no hit came for WALK_IN_CALM_S (up to WALK_IN_FIGHT_S): out
         of an area hit, a potion below --heal-at, the team's care (vet supplies, retreat, off the tank), the
         pets at what's on us (Team.fight: bard skills, "All Kill" on one they leave alone), then our kills
         looted; then 'All Follow Me' and walk on. Live 22:33:39 the care alone left Logan standing among the
-        mobs, dying (the user took over); on follow the pets would let it hit us all the way."""
-        log(f"{label}: attacked on the way {way}; the pets guard")
-        self.doing("enter" if way == "in" else "leave", f"Attacked on the way {way}: the pets take it")
+        mobs, dying (the user took over); on follow the pets would let it hit us all the way. `coming` (the walk out's
+        stop, HuntLoop.coming): no attack yet, a monster in war mode coming at us; on the way out the stand goes on while
+        one comes (live 2026-10-28 22:53:04-09: the walk out went 3 steps up a lowtide scavenger's way, the pets on
+        follow behind Logan; dead 12.7 s later). drink_on_the_run stays out of it (walk_fighting): its potion and vet
+        supplies came before this order's retreat (live 22:53:17.6-21.1)."""
+        self.walk_fighting = True
+        try:
+            self._walk_in_fight(label, way, coming)
+        finally:
+            self.walk_fighting = False
+
+    def _walk_in_fight(self, label, way: str, coming: str | None):
+        log(f"{label}: {f'{coming} coming' if coming else 'attacked'} on the way {way}; the pets guard")
+        self.doing("enter" if way == "in" else "leave", f"{'Something coming' if coming else 'Attacked'} on the way "
+                                                        f"{way}: the pets take it")
         self.team.guard_t = -1e9
         self.team.guard()
         end = time.monotonic() + WALK_IN_FIGHT_S
@@ -3436,7 +3499,8 @@ class HuntLoop:
             if target is not None:
                 self.fight(target)
                 continue
-            if not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S:
+            if not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S \
+                    and not (way == "out" and self.coming(st)):
                 if (c := self.loot_next()) is not None:
                     self.loot(c)
                     continue

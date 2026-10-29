@@ -1220,7 +1220,18 @@
     ],
     "delay_s": 0.5,
     "max": 2,
-    "note": "capture: 8 pincer crabs (new serials, 500 hits each, every one killed) came into being beside a fight with '*emerges*', each 0.5 s after a dungeon-nest crab's '*digs*' there (5: 11:01:34.4, 11:02:41.6, 11:03:39.2, 11:04:15.6, 11:04:30.8) or a lowtide scavenger's '*takes large swing*' with a nest crab fighting near (3: 11:05:46.4, 11:05:54.1, 11:06:11.5); one nest crab dug twice 15.2 s apart. The wiki's Dig (#14468, the tamed version: a teleport and a hit within 2) isn't the broodling: [INFERENCE: the nest crab broods them, every ~15 s while it fights, at most 2 of its own up]. Capture 20261026_183552 (level 1): 12 digs, a crab 0.48-0.54 s after 9 of them; 8 of the 9 crabs at a large swing came with no dig at that instant, so they are the scavenger's own (its large_swing entry)"
+    "surface_s": [1.52, 2.06],
+    "note": "capture: 8 pincer crabs (new serials, 500 hits each, every one killed) came into being beside a fight with '*emerges*', each 0.5 s after a dungeon-nest crab's '*digs*' there (5: 11:01:34.4, 11:02:41.6, 11:03:39.2, 11:04:15.6, 11:04:30.8) or a lowtide scavenger's '*takes large swing*' with a nest crab fighting near (3: 11:05:46.4, 11:05:54.1, 11:06:11.5); one nest crab dug twice 15.2 s apart. The wiki's Dig (#14468, the tamed version: a teleport and a hit within 2) isn't the broodling: [INFERENCE: the nest crab broods them, every ~15 s while it fights, at most 2 of its own up]. Capture 20261026_183552 (level 1): 12 digs, a crab 0.48-0.54 s after 9 of them; 8 of the 9 crabs at a large swing came with no dig at that instant, so they are the scavenger's own (its large_swing entry). Its Dig all the same (docs/NOTES.md 'Tidal Tomb: dead on level 1 on the way out', the six Tidal Tomb captures 20261024_102346-20261028_182147): 230 digs (animation 18 with '*digs*'); the crab goes (0x1D) at the broodling's 0.5 s and is back 1.52-2.06 s after the dig (median 1.76, n 224) with animation 27 on its target's tile, 0-16 tiles from where it dug (median 6): surface_s, and its 'dig' burst below. It digs whatever its crabs: the broodling is the one capped at max"
+   },
+   {
+    "kind": "burst",
+    "id": "dig",
+    "on_blink": true,
+    "radius": 1,
+    "damage_player": [18, 34, 28],
+    "damage_pet": [14, 22, 18],
+    "count": "dig",
+    "note": "where its Dig comes up (brood's surface_s): a number on each of us within 1 of it at its animation 27, at once: 316 of 317 of us on its tile or beside it hit, 4 of 48 at 2, 0 of 99 at 3-4 (six captures 20261024_102346-20261028_182147). Logan 18-34 (median 28, n 89), GraveRobber 4-22 (median 17.5, n 76), AlaFlambe 22-35, Bussin 21-33. Live 2026-10-28 22:53:20.38 it came up on Logan's tile and hit him and both pets beside him: -23, -22, -24"
    }
   ],
   "lowtide scavenger": [
@@ -1230,8 +1241,10 @@
     "every_s": [7.6, 8.0],
     "delay_s": 0.5,
     "damage": [14, 21, 18],
+    "radius": 1,
+    "damage_player": [20, 33, 27],
     "brood": {"key": "pincer crab", "chance": 0.85, "max": 2},
-    "note": "capture 20261026_183552 (level 1, 2026-10-26 20:30-20:45, GraveRobber and AlaFlambe): 14 '*takes large swing*' from 5 scavengers in fights, each 7.6-8.0 s after its last (median 7.86, n=9), the first 0.9-4.6 s after it went to war mode; 0.5 s later a 14-21 on its target (median 18, n=12, all GraveRobber; twice also a 21 / 23 on AlaFlambe at that instant [INFERENCE: beside it, not modelled]); capture 20261024_102346's 16 put 15-25 on its other pets. A pincer crab '*emerges*' beside it at the hit's instant on 22 of the 26 swings with fewer than 2 of its own crabs up (13 of 13 then; 9 of 13 today), on none of the 4 with 2 up: chance 0.85, at most 2 [INFERENCE: up at once, as the nest crab's brood; a lifetime cap of 2 fits as well]. Its '*scavenges*' (15 today) came every ~10 s while idle (14 of 15) with no damage and no crab: an idle emote, not modelled"
+    "note": "capture 20261026_183552 (level 1, 2026-10-26 20:30-20:45, GraveRobber and AlaFlambe): 14 '*takes large swing*' from 5 scavengers in fights, each 7.6-8.0 s after its last (median 7.86, n=9), the first 0.9-4.6 s after it went to war mode; 0.5 s later a 14-21 on its target (median 18, n=12, all GraveRobber; twice also a 21 / 23 on AlaFlambe at that instant [INFERENCE: beside it, not modelled]); capture 20261024_102346's 16 put 15-25 on its other pets. A pincer crab '*emerges*' beside it at the hit's instant on 22 of the 26 swings with fewer than 2 of its own crabs up (13 of 13 then; 9 of 13 today), on none of the 4 with 2 up: chance 0.85, at most 2 [INFERENCE: up at once, as the nest crab's brood; a lifetime cap of 2 fits as well]. Its '*scavenges*' (15 today) came every ~10 s while idle (14 of 15) with no damage and no crab: an idle emote, not modelled. Its reach (docs/NOTES.md 'Tidal Tomb: dead on level 1 on the way out', 239 swings that landed on one of us in the six captures 20261024_102346-20261028_182147): everyone within 1 of the tile it faces, its target's (radius): 306 of 314 of us there hit, 0 of 137 elsewhere within 3 (behind it, 2 to its side, 2 ahead on a diagonal). Logan 20-33 there (damage_player, median 27, n 9); live 2026-10-28 22:53:10.34 and 18.82 Logan -33 / -27 with both pets beside him -21..-24"
    }
   ],
   "frenzyfin": [
