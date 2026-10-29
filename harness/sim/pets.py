@@ -25,7 +25,9 @@ Its numbers on a monster (`melee_numbers`, `spell_numbers`, `ability_numbers`): 
 perks' damage bonus) x Lethality x the monster's mitigation: physical x armor.taken(AR - Breaker on a melee hit)
 (#11677, #11669), spells x (1 - U(12.5 %, 37.5 %) x MR / 100) (patch #5221, Breaker #4223); Spellburn and Epic Barrage
 are physical against half the armor (#4271, #4259); an ignore effect against nothing left to ignore gives +15 %
-(#11687). Bonuses add within a pool, the pools
+(#11687). A hex on the monster (Dreamlull's) lowers its magic resist for every caster's spells (wiki StatusEffects
+"Hex: Reduces Magic Resist on the target"; Arcane Staff: "a Hex effect reducing the creature's Magic Resist by 50"),
+with Breaker's at most 150 off in all (#4223). Bonuses add within a pool, the pools
 multiply [INFERENCE]. Its damage taken (`taken_factor`): the monsters' numbers stand for a reference pet
 (`sc["pet_ref"]`: the scenario's defaults.pet_ref, or a creature entry's own `ref`); a pet takes them x its own
 mitigation over the reference's (armor for physical, magic resist for spells) x (1 - its DR) / (1 - the reference's).
@@ -57,7 +59,7 @@ VET_LORE = 0.2
 DR_CAP = 0.75                       # damage resistance at most (#4653)
 SPEED_CAP = 0.5                     # attack speed bonus at most; the rest becomes damage (#4661)
 BREAKER_AR_CAP = 75                 # armor ignored at most (#11669)
-BREAKER_MR_CAP = 150                # magic resist ignored at most (#4223)
+MR_REDUCE_CAP = 150                 # a creature's magic resist lowered by at most this, Breaker's and hexes (#4223)
 IGNORE_ZERO_BONUS = 0.15            # an ignore effect with nothing left to ignore (#11687)
 SPELL_RESIST = (0.125, 0.375)       # a spell loses U(lo, hi) x MR/100 (patch #5221)
 HURT_S = 10.0                       # Cornered, Aggression: hurt by a creature within this
@@ -72,6 +74,8 @@ DOMINANCE_RESET_S = 15.0
 SWOOP_S = 10.0
 TRIAGE_LOW = 0.33
 ANCHOR_N = 20000
+OPPORTUNITY_S = 10.0                # Opportunity: a hinder of this pet's on the target within this
+DEBUFF_FROM, DEBUFF_SPAN, DEBUFF_CUT, DEBUFF_MIN = 100, 900, 0.7, 0.3   # debuffs on a creature of difficulty >= 100 (#5947)
 
 
 @dataclass
@@ -97,6 +101,8 @@ class HitCtx:
     swoop: bool = False             # within SWOOP_S of its cooldown ability, not yet spent
     surge: bool = False             # a Spellsurge is waiting for its next cast
     dom_hits: int = 0               # its hits on this target in the Dominance window
+    target_hex: float = 0.0         # the hex on its target now (magic resist off)
+    hinder_10s: bool = False        # it hindered its target within OPPORTUNITY_S
     now: float = 0.0
 
 
@@ -361,7 +367,8 @@ def build_pet(name: str, t: dict, loadout: dict, aspect, tier, team: list, k: fl
             "damage": [lo, hi], "damage_max": hi, "dmg_static": dmg_static, "dr_static": dr_static, "period": period,
             "abilities": abilities, "perks": perks, "ranks": ranks, "pv": pv,
             "has": {"bleed": "Bleed" in names, "disease": "Disease" in names, "soak": "Soak" in names,
-                    "spellburn": "Spellburn" in names,
+                    "spellburn": "Spellburn" in names, "hex": any(a.get("hex_per_slot") for a in abilities),
+                    "hinder": any(a.get("hinder_per_slot_s") for a in abilities),
                     "cooldown": any(a["type"] == "cooldown" for a in abilities),
                     "passive": any(a["type"] == "passive" for a in abilities)},
             "team_pets": len(team), "team_types": len(team_species), "heal_bonus": heal_bonus,
@@ -469,9 +476,12 @@ def select(sc: dict, team: str | None = None, bestiary: str | None = None, level
 # ------------------------------------------------------------ per hit (World and the anchor)
 def _dmg_perk(name: str, v: dict, s: dict, c: HitCtx) -> float:
     has = s["has"]
-    if name in ("Ambush", "Feral", "Heavy Breathing", "Debilitate", "Deep Lungs", "Frostbite", "Opportunity",
-                "Punishment"):
+    if name in ("Ambush", "Feral", "Heavy Breathing", "Debilitate", "Deep Lungs", "Frostbite"):
         return v["dmg"]
+    if name == "Opportunity":
+        return (v["dmg_cond"] if c.hinder_10s else 0.0) if has["hinder"] else v["dmg"]
+    if name == "Punishment":
+        return 0.0 if has["hex"] else v["dmg"]          # with a hex: its number at the hex's end (punishment)
     if name in ("Cornered",):
         return v["dmg_cond"] if c.hurt_10s else v["dmg"]
     if name == "Feed":
@@ -499,7 +509,7 @@ def _dmg_perk(name: str, v: dict, s: dict, c: HitCtx) -> float:
     if name == "Metabolism":
         return v["dmg_cond"] if c.hp_frac >= 1.0 else 0.0
     if name == "Scour":
-        return 0.0 if has["soak"] else v["dmg"]
+        return 0.0 if has["soak"] or has["hex"] else v["dmg"]
     if name == "Swoop":
         return (v["swoop"] if c.swoop else 0.0) if has["cooldown"] else v["dmg"]
     if name == "Adrenaline":
@@ -604,16 +614,34 @@ def physical_mitigation(spec: dict, tgt_spec: dict, rng: random.Random, half: bo
     return armor.taken(ar, rng)
 
 
-def spell_mitigation(spec: dict, tgt_spec: dict, rng: random.Random) -> float:
-    """The share of a pet's spellcast the monster keeps: its magic resist (less Breaker's: "Spellcasts ignore (10 /
-    30 / 50) Magic Resist")."""
+def spell_mitigation(spec: dict, tgt_spec: dict, rng: random.Random, hex_: float = 0.0) -> float:
+    """The share of a pet's spellcast the monster keeps: its magic resist less a hex on it (`hex_`) and Breaker's
+    ("Spellcasts ignore (10 / 30 / 50) Magic Resist"), at most MR_REDUCE_CAP off in all; Breaker with nothing left to
+    ignore: +15 % (#11687). No creature's Magic Resist Minimum is known (#5435): 0 [INFERENCE]."""
     mr = tgt_spec.get("magic_resist") or 0
     brk = spec["pv"].get("Breaker")
-    if brk is not None:
-        mr = max(0.0, mr - min(brk["mr"], BREAKER_MR_CAP))
+    off = min(MR_REDUCE_CAP, hex_ + (brk["mr"] if brk is not None else 0.0))
+    mr = max(0.0, mr - off)
     if brk is not None and mr <= 0:
         return 1 + IGNORE_ZERO_BONUS
     return max(0.0, 1 - rng.uniform(*SPELL_RESIST) * mr / 100)
+
+
+def debuff_scale(difficulty) -> float:
+    """A debuff's share (hex, hinder, ...) on a creature of this difficulty: (100 % - 70 % x (difficulty - 100) / 900),
+    at least 30 %, from difficulty 100 up (patch 2023-05-22, #5947)."""
+    d = difficulty or 0
+    if d < DEBUFF_FROM:
+        return 1.0
+    return max(DEBUFF_MIN, 1 - DEBUFF_CUT * (d - DEBUFF_FROM) / DEBUFF_SPAN)
+
+
+def punishment(spec: dict) -> float:
+    """Punishment's number when this pet's hex ends on a target: DamageMax x (0.5 / 1.5 / 2.5) (the gump's text), 0
+    without the perk. Neither its armor nor its resist is named [INFERENCE: unmitigated; the 2023 text 'ignores
+    Armor']."""
+    v = spec["pv"].get("Punishment")
+    return spec["damage_max"] * v["punish"] if v is not None and spec["has"]["hex"] else 0.0
 
 
 def _passives(spec: dict, ctx: HitCtx, rng: random.Random) -> list:
@@ -641,7 +669,7 @@ def melee_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -
             eff.append(("bleed", {"tick": dm * a["mult"] / n, "every_s": a["every_s"], "seconds": a["seconds"]}))
         elif a["name"] == "Soak":
             eff.append(("soak", {"cripple": a["cripple_per_slot"] * spec["slots"]
-                                 * (1 + pv.get("Scour", {}).get("cripple", 0.0)), "seconds": a["seconds"]}))
+                                 * (1 + pv.get("Scour", {}).get("amount", 0.0)), "seconds": a["seconds"]}))
     heal = pv.get("Metabolism", {}).get("heal", 0.0)
     if spec["has"]["bleed"] and ctx.target_bleeding and ctx.dist <= NEAR_TARGET_R:
         heal += pv.get("Feed", {}).get("heal", 0.0)
@@ -655,16 +683,18 @@ def melee_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -
 
 
 def spell_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -> tuple[list, list]:
-    """One cast landing: ([(amount, label)], [(effect, params)]): the spell (x the Spellsurge waiting, if any), a
-    Spellburn proc's own number: damage_max x its mult x (1 + bonus + Immolate), physical, half the target's armor
-    (#4271, knowledge #2794). Effects: surge {window_s} (the next cast's bonus)."""
+    """One cast landing: ([(amount, label)], [(effect, params)]): the spell (x the Spellsurge waiting, if any; against
+    the target's magic resist less its hex), a Spellburn proc's own number: damage_max x its mult x (1 + bonus +
+    Immolate), physical, half the target's armor (#4271, knowledge #2794). Effects: surge {window_s} (the next cast's
+    bonus); dreamlull {hex, seconds, hinder_s}: its hex (25 a slot x Scour's amount) and hinder (1 s a slot), both x
+    debuff_scale of the target."""
     pv = spec["pv"]
     bonus = damage_bonus(spec, ctx)
     lo, hi = spec["damage"]
     surge = next((a for a in spec["abilities"] if a["name"] == "Spellsurge"), None)
     sx = 1 + surge["bonus"] if surge is not None and ctx.surge else 1.0
-    nums = [(rng.uniform(lo, hi) * (1 + bonus) * lethality(spec, rng) * sx * spell_mitigation(spec, tgt_spec, rng),
-             "spell")]
+    nums = [(rng.uniform(lo, hi) * (1 + bonus) * lethality(spec, rng) * sx
+             * spell_mitigation(spec, tgt_spec, rng, ctx.target_hex), "spell")]
     eff = []
     for a in _passives(spec, ctx, rng):
         if a["name"] == "Spellburn":
@@ -674,6 +704,10 @@ def spell_numbers(spec: dict, tgt_spec: dict, ctx: HitCtx, rng: random.Random) -
                          "spellburn"))
         elif a["name"] == "Spellsurge":
             eff.append(("surge", {"window_s": a["window_s"]}))
+        elif a["name"] == "Dreamlull":
+            x, n = debuff_scale(tgt_spec.get("difficulty")), spec["slots"]
+            eff.append(("dreamlull", {"hex": a["hex_per_slot"] * n * (1 + pv.get("Scour", {}).get("amount", 0.0)) * x,
+                                      "seconds": a["seconds"], "hinder_s": a["hinder_per_slot_s"] * n * x}))
     return nums, eff
 
 
@@ -687,7 +721,7 @@ def ability_numbers(spec: dict, ab: dict, tgt_spec: dict, ctx: HitCtx, rng: rand
         return [(base * lethality(spec, rng)
                  * physical_mitigation(spec, tgt_spec, rng, ab.get("half_armor", False), breaker=False), "melee")
                 for _ in range(ab.get("hits", 1))]
-    return [(base * lethality(spec, rng) * spell_mitigation(spec, tgt_spec, rng), "spell")
+    return [(base * lethality(spec, rng) * spell_mitigation(spec, tgt_spec, rng, ctx.target_hex), "spell")
             for _ in range(ab.get("hits", 1))]
 
 

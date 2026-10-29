@@ -6659,6 +6659,36 @@ so a value is read through its element's line index, never by its position in `l
 - Behemoth's text: "Follower Damage increased by (8% / 24% / 40%) and Damage Resistance by (1.5% / 4.5% / 7.5%) if
   follower takes 3 or more Control Slots" (knowledge #4243, #10236); an older one, "Melee and Spell Damage increased by
   (10% / 20% / 30%)" (#5808).
+- **Dreamlull live** (2026-10-28, Bussin 0x000EA04F, capture 20261028_182147 read 18:26:13-19:24:12 while the shift
+  ran; `replay.timed_packets`, 0x6E and 0xC0 parsed; docs/SIM.md "Dreamlull"). Bussin cast 832 times (action 4, median
+  1.74 s apart over 701 gaps under 3 s); 542 casts show an effect in his hue 2605 (projectiles 0x36E4 187 and 0x36D4
+  186, 0x374A on the target 169), the other 290 none of his hue (hue-0 lightning can't be told apart [INFERENCE]).
+  - **No packet marks a proc.** No overhead or system line for it (searched: hex, hinder, lull, sleep, dream, stun,
+    root; the "[Hex]" lines are the player Valentino Rossi's title, the 3 "You are no longer hindered." Logan's own);
+    the 83 0x17 health-bar rows are all type 1 (poison: 70 on Logan and the pets, 5 on other players, 8 on monsters);
+    no 0xDF buff packet at all; against the Phoenix/Gravebug capture 20261027_220057 the new 0xC0 graphics are
+    Bussin's spells, sourceless ground effects (0x0EB3 from each song on, 0x0E9E, 0x5418, a 0x377A) and one 0x377A on
+    a pincer crab (1 in 832 casts: not a 30 % proc). The 0x376A sparkle on monsters (543 by 19:13) isn't his: 2,376 in
+    20261027_220057 and 654 in 20261028_165135, before he was claimed (18:25:05). Outlands' 0xC0 carries the graphic as
+    a u32 at bytes 10-13 (the jsonl hex [24:28]). So the proc rate isn't countable; the model's 15 % x Primal 3 = 30 %
+    would be ~250 of the 832 [INFERENCE].
+  - **The 1 s hinder is too short to see in an hour.** A monster walking (2+ steps in the second before) took its next
+    step 0.9 s or more after one of Bussin's landings 11 times in 37 (30 %), after one of AlaFlambe's (no hinder) 4 in
+    21 (19 %): Fisher p 0.28. Swings: the regular 3.36 s swingers (pincer crabs, nest crabs, giant pincer crab, singing
+    noughtilus) had only 5 gaps with a Bussin landing in the second before the swing was due, none late.
+  - **What hex and hinder are** (no live number): hex lowers the target's magic resist (wiki Template:StatusEffects
+    oldid 30885 "Reduces Magic Resist on the target"; Arcane Staff oldid 31888 "a Hex effect reducing the creature's
+    Magic Resist by 50"; Buff Bar #13536 "Hex: Reduce Magic Resist Skill; Stackable: No"); hinder "Roots the target in
+    place and stuns them" (StatusEffects). Debuffs on creatures of difficulty 100+ are cut to 1 - 70 % x (difficulty -
+    100) / 900, at least 30 % (#5947); magic resist goes down at most 150 in all (#4223), not below a creature's Magic
+    Resist Minimum (#5435, values unknown). The players' archery Hinder "pauses a mob for about 8 seconds" (#3072).
+  - The Bestiary's texts (gump 1353229584, session 105 seq 1621, 20261012_210013 21:01:50.62): Opportunity "Follower
+    Damage increased by (20%, 60%, 100%) if follower has applied an Entangle or Hinder effect to the target within last
+    10 seconds. Follower Damage increased by (5% / 15% / 25%) if follower cannot inflict Entangle or Hinder effects with
+    abilities."; Punishment "When follower's Pierce or Hex effects expire on a target, will inflict (DamageMax * (0.5 /
+    1.5 / 2.5)) Damage onto them. ... (5% / 15% / 25%) if follower cannot inflict Pierce or Hex effects."; Scour "When
+    applying Weaken, Cripple, Pierce, or Hex effects the amount of the effect is increased by (20% / 60% / 100%) of
+    normal. ... (5% / 15% / 25%) if follower cannot inflict any of these effects."
 
 ## Network observations
 

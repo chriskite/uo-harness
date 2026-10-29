@@ -2730,6 +2730,15 @@ Taming Bestiary loadout in `run.py` and on the viz Sim page; the Healer's Codex 
   resistance would match it but moves the codex's and every tab's too, without a mechanism; the stacking with the
   Command aspect's resistance (additive in the model, [INFERENCE] in the pools rule) is the other candidate. Next: more
   aspected hours with this loadout, then fit one with the Random team's GirthyEarthy (1.54x the model's damage) held out.
+- **Dreamlull and the hex/hinder perks follow the texts; live gives no proc to fit on** (2026-10-28, Bussin the
+  incubus, docs/SIM.md "Dreamlull", docs/NOTES.md "Dreamlull live"): a proc (15 % x Primal's) hexes the target (its
+  magic resist off 25 a slot x Scour for 15 s, for every caster: wiki StatusEffects and Arcane Staff) and hinders it
+  (1 s a slot: no step, swing, cast), both cut on difficulty 100+ (#5947). Opportunity (+100 % within 10 s of the pet's
+  hinder), Punishment (DamageMax x 0.5/1.5/2.5 when its hex ends) and Scour (x2 on the hex) take their gump rules for a
+  species with the mechanic; the flat 5/15/25 % stays for one without. Rejected: fitting the rate or the pause on the
+  captures: Dreamlull leaves no packet (no text, effect, buff or health-bar flag; 832 casts searched) and the monsters'
+  swing and step timing around Bussin's landings is too thin to see a 1 s root (11 of 37 against the phoenix's 4 of 21,
+  p 0.28). Open: Bussin's own numbers against the model's (his and the phoenix's numbers interleave on one target).
 
 ## Shift skills take the user's instructions; a hunt level per shift (user 2026-10-27)
 

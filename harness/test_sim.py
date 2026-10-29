@@ -4579,6 +4579,100 @@ def test_perk_conditions():
           abs(ch - base - 0.15) < 1e-9 and abs(low - base - 0.30) < 1e-9, f"{base:.3f} {ch:.3f} {low:.3f}")
 
 
+def test_dreamlull():
+    print("== the incubus' Dreamlull: 15 % x Primal of its landed casts hex the target (25 a slot x Scour, its magic resist "
+          "off for every caster) and hinder it 1 s a slot (no step, swing or cast); less on a creature of difficulty 100+ ==")
+    import random
+    from sim import pets
+    sc = load()
+    pets.select(sc, "phoenix_incubus")
+    ph, bus = sc["pets"]
+    pv = bus["pv"]
+    rng, low = random.Random(3), {"armor": 25, "magic_resist": 25, "difficulty": 50}
+    effs = [e for _ in range(20000) for e in pets.spell_numbers(bus, low, pets.REF_CASTER, rng)[1] if e[0] == "dreamlull"]
+    want = 0.15 * (1 + pv["Primal"]["passive"])
+    p = effs[0][1] if effs else {}
+    check(f"a proc on {want:.0%} of the casts (15 % x (1 + Primal's {pv['Primal']['passive']:.0%}))",
+          abs(len(effs) / 20000 - want) < 0.012, f"{len(effs)} of 20000")
+    check("...each a hex of 25 x (1 + Scour's amount) for 15 s and a 1 s hinder (1 slot)",
+          p.get("hex") == 25 * (1 + pv["Scour"]["amount"]) and p.get("seconds") == 15 and p.get("hinder_s") == 1, str(p))
+    hard = next((e[1] for _ in range(200) for e in pets.spell_numbers(bus, {**low, "difficulty": 190}, pets.REF_CASTER,
+                                                                       rng)[1] if e[0] == "dreamlull"), {})
+    check("on difficulty 190 both x (1 - 70 % x 90 / 900) = 0.93 (#5947)",
+          abs(hard.get("hinder_s", 0) - 0.93) < 1e-9 and abs(hard.get("hex", 0) - p.get("hex", 0) * 0.93) < 1e-9, str(hard))
+    r = random.Random(1)
+    keep = (pets.spell_mitigation(ph, {"magic_resist": 50}, r, 50.0), pets.spell_mitigation(ph, {"magic_resist": 250}, r, 200.0),
+            pets.spell_mitigation(bus, {"magic_resist": 200}, random.Random(2), 150.0),
+            pets.spell_mitigation(bus, {"magic_resist": 200}, random.Random(2)))
+    check("a hex takes the resist off every caster's spell: 50 hexed 50 keeps all; at most 150 off with Breaker's (#4223)",
+          keep[0] == 1.0 and keep[1] < 1.0 and abs(keep[2] - keep[3]) > 1e-9
+          and abs(keep[2] - pets.spell_mitigation(bus, {"magic_resist": 200}, random.Random(2), 100.0)) < 1e-12, str(keep))
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 1, FLOOR[1], 0]}], team="phoenix_incubus")
+    mon = next(m for m in w.mobs.values() if m.kind == "monster")
+    b = next(m for m in w.pets() if m.name == "Bussin")
+    for m in w.pets():
+        m.mode, m.target = "stay", None
+        m.x, m.y = w.player.x - 15, w.player.y          # out of the fight
+    w.run_until(1.0)
+    mon.target, mon.next_think, mon.next_swing = w.player.serial, 1e9, w.t
+    w._pet_effects(b, mon, [("dreamlull", {"hex": 50.0, "seconds": 15, "hinder_s": 1.0})])
+    t0, due, at = w.t, mon.next_swing, mon.pos
+    w.run_until(t0 + 0.9)
+    held = (mon.next_swing == due, mon.pos == at)
+    w.run_until(t0 + 1.2)
+    check("hindered 1 s beside Logan with its swing due: no swing in 0.9 s, the swing at its end",
+          held == (True, True) and mon.next_swing > due, f"{held} next swing {due:.2f} -> {mon.next_swing:.2f}")
+    mon.x, mon.y, mon.path = w.player.x + 4, w.player.y, []
+    mon.next_step = w.t
+    w._pet_effects(b, mon, [("dreamlull", {"hex": 50.0, "seconds": 15, "hinder_s": 1.0})])
+    t0, at = w.t, mon.pos
+    w.run_until(t0 + 0.9)
+    still = mon.pos == at
+    w.run_until(t0 + 1.5)
+    check("...4 tiles off on Logan: rooted 1 s, then it closes in", still and mon.pos != at, f"{at} -> {mon.pos}")
+    ctx = w._pet_ctx(w.pets()[0], mon)
+    check("the hex (50) is on it for the phoenix's casts too", ctx.target_hex == 50.0, str(ctx.target_hex))
+
+
+def test_opportunity_punishment():
+    print("== Opportunity and Punishment by the gump's text: for the incubus (hinder, hex) their conditions, for a "
+          "species without them the flat damage ==")
+    from sim import pets
+    t = pets.load_tamer()
+    perks = {"Opportunity": 3, "Punishment": 2}
+    ph = pets.build_pet("AlaFlambe", t, {"attack": perks}, "command", 14, ["AlaFlambe"])
+    bus = pets.build_pet("Bussin", t, {"utility": perks}, "command", 14, ["Bussin"])
+    hot, cold = pets.HitCtx(hinder_10s=True), pets.HitCtx()
+    check("the phoenix (no hinder, no hex): +25 % and +15 % flat, hindered or not; no number at a hex's end",
+          abs(pets.damage_bonus(ph, cold) - 0.40) < 1e-9 and abs(pets.damage_bonus(ph, hot) - 0.40) < 1e-9
+          and pets.punishment(ph) == 0.0, f"{pets.damage_bonus(ph, cold):.3f} {pets.damage_bonus(ph, hot):.3f}")
+    check("the incubus: Opportunity +100 % only within 10 s of its hinder on the target, else 0; Punishment no bonus",
+          abs(pets.damage_bonus(bus, hot) - 1.00) < 1e-9 and abs(pets.damage_bonus(bus, cold)) < 1e-9,
+          f"{pets.damage_bonus(bus, hot):.3f} {pets.damage_bonus(bus, cold):.3f}")
+    check("...Punishment: DamageMax x 1.5 when its hex ends", abs(pets.punishment(bus) - bus["damage_max"] * 1.5) < 1e-9,
+          f"{pets.punishment(bus):.1f} of max {bus['damage_max']:.1f}")
+    w = world_with([{"key": "shade wolf", "at": [FLOOR[0] + 3, FLOOR[1], 0]}], team="phoenix_incubus")
+    w.run_until(1.0)
+    mon = next(m for m in w.mobs.values() if m.kind == "monster")
+    b = next(m for m in w.pets() if m.name == "Bussin")
+    for m in w.pets():
+        m.mode, m.target = "stay", None
+        m.x, m.y = w.player.x - 15, w.player.y          # out of the fight: no cast of its own refreshes the hex
+    b.hindered = {mon.serial: w.t - 5}
+    near = w._pet_ctx(b, mon).hinder_10s
+    b.hindered = {mon.serial: w.t - 11}
+    check("the World: a hinder 5 s ago counts, 11 s ago not", near and not w._pet_ctx(b, mon).hinder_10s)
+    b.spec = {**b.spec, "pv": {**b.spec["pv"], "Punishment": {"punish": 1.5, "dmg": 0.15}}}
+    mon.hits = mon.hits_max = 1e6
+    hurts = _log_hurts(w)
+    w._pet_effects(b, mon, [("dreamlull", {"hex": 50.0, "seconds": 15, "hinder_s": 1.0})])
+    t0 = w.t
+    w.run_until(t0 + 15.3)
+    pun = [h for h in hurts if h[1] is mon and h[2] == "punishment"]
+    check("...its hex ends 15 s on: one Punishment number on the monster", len(pun) == 1 and abs(pun[0][0] - t0 - 15) < 0.2
+          and mon.hex == 0.0, f"{[(h[0], h[3]) for h in pun]} hex from {t0:.1f}")
+
+
 def test_vet_codex():
     print("== the supplies' heal: the wiki's formula x Specialist and Without Borders x the pet's healing perks; "
           "Overheal 40 % more in 3 ticks ==")
@@ -5389,7 +5483,7 @@ def main():
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
               test_tamer_scan_rows, test_pet_aggro_setting, test_party_validation, test_pet_builds, test_anchors_pinned,
               test_pet_mitigation,
-              test_kdmg_barding, test_parity_team, test_perk_conditions,
+              test_kdmg_barding, test_parity_team, test_perk_conditions, test_dreamlull, test_opportunity_punishment,
               test_vet_codex,
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,

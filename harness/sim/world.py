@@ -260,6 +260,11 @@ class Mob:
     dom: dict = field(default_factory=dict)       # a pet's Dominance: target serial -> [hits, time of the first]
     cripple: float = 0.0          # a monster's damage cut by a pet's Soak ...
     cripple_until: float = 0.0    # ... until then
+    hex: float = 0.0              # a monster's magic resist off by a pet's hex (Dreamlull) ...
+    hex_until: float = 0.0        # ... until then
+    hex_by: int | None = None     # ... the pet whose hex it is (Punishment at its end)
+    hinder_until: float = 0.0     # a monster hindered (no step, swing or cast) until then
+    hindered: dict = field(default_factory=dict)  # a pet: target serial -> its last hinder on it (Opportunity)
 
     @property
     def pos(self):
@@ -1346,6 +1351,11 @@ class World:
                     self._act(m, self.sc["bard"]["break_threat"], count=False)
         if m.provoke and m.provoke[1] <= t:
             m.provoke = None
+        if m.hex_until and t >= m.hex_until:
+            by = self.mobs.get(m.hex_by)
+            m.hex, m.hex_until, m.hex_by = 0.0, 0.0, None
+            if by is not None and by.alive and not by.ghost:
+                self.hurt(m, pet_rules.punishment(by.spec), by, "punishment")   # 0 without the perk: nothing
 
     # ------------------------------------------------------------ monsters
     def _monster(self, m: Mob):
@@ -1386,6 +1396,8 @@ class World:
             self._large_swing(m)
         if m.spray is not None and t >= m.spray["t0"]:
             self._spray_step(m)
+        if m.hinder_until > t:
+            return                               # hindered (Dreamlull): rooted and stunned, its timers run on
         if m.calm_until > t:
             self._cancel_cast(m, "peace")
             self._warm(m, False)
@@ -2265,7 +2277,9 @@ class World:
             channel=self.vet_end is not None and cheb(m.pos, pl.pos) <= self.sc["vet"]["range"],
             medic=self.medic_until.get(m.serial, 0.0) > t, immunized=self.medic_until.get(m.serial, 0.0) > t,
             shield=m.shield_until > t, swoop=m.swoop_until > t, surge=m.surge_until > t,
-            dom_hits=dom[0] if dom is not None and t - dom[1] <= pet_rules.DOMINANCE_RESET_S else 0, now=t)
+            dom_hits=dom[0] if dom is not None and t - dom[1] <= pet_rules.DOMINANCE_RESET_S else 0,
+            target_hex=tgt.hex if tgt is not None and tgt.hex_until > t else 0.0,
+            hinder_10s=tgt is not None and t - m.hindered.get(tgt.serial, -1e9) <= pet_rules.OPPORTUNITY_S, now=t)
 
     def _patient_dr(self, m: Mob) -> float:
         """Logan as his own patient: the codex's Triage while a channel runs (doubled below 33 % hits), Combat Medic
@@ -2306,7 +2320,7 @@ class World:
     def _pet_effects(self, m: Mob, tgt: Mob, eff: list):
         """A pet attack's effects (sim/pets.melee_numbers / spell_numbers): its heals (Metabolism, Feed, Carrion), a
         Spellsurge armed; on the target: Disease (its ticks as a monster's disease; Toxic's two at once), Bleed, Soak's
-        cripple; Trample's numbers on up to 2 other monsters near it."""
+        cripple, Dreamlull's hex and hinder (a cast under way lost); Trample's numbers on up to 2 other monsters near it."""
         t = self.t
         for kind, p in eff:
             if kind == "heal":
@@ -2329,6 +2343,13 @@ class World:
                     tgt.bleed_until, tgt.bleed_next = t + p["seconds"], t + p["every_s"]
             elif kind == "soak":
                 tgt.cripple, tgt.cripple_until = p["cripple"], t + p["seconds"]
+            elif kind == "dreamlull":
+                if tgt.hex_until <= t or p["hex"] >= tgt.hex:   # not stackable (Buff Bar #13536): the larger kept
+                    tgt.hex, tgt.hex_until, tgt.hex_by = p["hex"], t + p["seconds"], m.serial
+                tgt.hinder_until = max(tgt.hinder_until, t + p["hinder_s"])
+                m.hindered[tgt.serial] = t
+                self._cancel_cast(tgt, "hinder")
+                self._ev("ability", by=m.serial, kind="dreamlull", v=tgt.serial)
             elif kind == "trample":
                 near = sorted((o for o in self.mobs.values() if o.kind == "monster" and o.alive and o is not tgt
                                and not o.hidden_until and cheb(o.pos, tgt.pos) <= pet_rules.NEAR_TARGET_R),

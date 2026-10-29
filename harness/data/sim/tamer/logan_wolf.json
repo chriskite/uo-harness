@@ -85,7 +85,7 @@
       "abilities": [
         {"name": "Dreamlull", "type": "passive", "chance": 0.15, "hex_per_slot": 25, "seconds": 15, "hinder_per_slot_s": 1}
       ],
-      "note": "the user 2026-10-28: Bussin is an incubus (body 141 live, beside Logan with AlaFlambe from the Phoenix/Incubus loadout of 18:25). Wiki 'Incubus' (oldid 26700): utility class, 1 slot, min taming 115, tamed 175 hits, spell 12-15, armor 25, MR 100, wrestling 70, underdog scalar 1.028; Dreamlull 'a 15% chance on spellcast to apply a hex effect of (Control Slots * 25) for 15 seconds. Will also hinder creatures for (Control Slots * 1) seconds'. The simulator doesn't model Dreamlull's hex and hinder (pets.py ignores a passive it doesn't name), and its Opportunity/Punishment rules still give their flat dmg"
+      "note": "the user 2026-10-28: Bussin is an incubus (body 141 live, beside Logan with AlaFlambe from the Phoenix/Incubus loadout of 18:25). Wiki 'Incubus' (oldid 26700): utility class, 1 slot, min taming 115, tamed 175 hits, spell 12-15, armor 25, MR 100, wrestling 70, underdog scalar 1.028; Dreamlull 'a 15% chance on spellcast to apply a hex effect of (Control Slots * 25) for 15 seconds. Will also hinder creatures for (Control Slots * 1) seconds'. Modelled (pets.spell_numbers, World._pet_effects): on a landed cast, its chance x Primal's (1 + passive); the hex lowers the target's magic resist by 25 a slot x (1 + Scour's amount) for every caster's spells (wiki StatusEffects 'Hex: Reduces Magic Resist on the target', oldid 30885; Arcane Staff 'a Hex effect reducing the creature's Magic Resist by 50'; Buff Bar #13536 'Stackable: No': a new one replaces it, the larger kept [INFERENCE]), the hinder (StatusEffects 'Roots the target in place and stuns them') stops its steps, swings and casts for 1 s a slot, both x pets.debuff_scale (#5947). Live 2026-10-28 (docs/NOTES.md 'Dreamlull live'): no packet marks a proc"
     }
   },
   "pets": [
@@ -202,9 +202,9 @@
       "Dominance": {"tab": "utility", "hit": [0.03, 0.09, 0.15], "rule": "melee hit chance + hit until 5 hits on that target, re-armed 15 s after its first"},
       "Frostbite": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no chill: dmg"},
       "Metabolism": {"tab": "utility", "heal": [0.005, 0.015, 0.025], "dmg_cond": [0.04, 0.12, 0.20], "rule": "a melee hit heals heal x max hits; at max hits dmg_cond"},
-      "Opportunity": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no entangle/hinder: dmg"},
-      "Punishment": {"tab": "utility", "dmg": [0.05, 0.15, 0.25], "rule": "no pierce/hex: dmg"},
-      "Scour": {"tab": "utility", "cripple": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Soak: its cripple x (1 + cripple); else dmg"},
+      "Opportunity": {"tab": "utility", "dmg_cond": [0.20, 0.60, 1.00], "dmg": [0.05, 0.15, 0.25], "rule": "a species with entangle/hinder: dmg_cond while it hindered (or entangled) the target within the last 10 s, else nothing; without: dmg"},
+      "Punishment": {"tab": "utility", "punish": [0.5, 1.5, 2.5], "dmg": [0.05, 0.15, 0.25], "rule": "a species with pierce/hex: when its hex ends on a target, damage_max x punish on it (pets.punishment); without: dmg"},
+      "Scour": {"tab": "utility", "amount": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with weaken/cripple/pierce/hex (Soak's cripple, Dreamlull's hex): the amount x (1 + amount); else dmg"},
       "Swoop": {"tab": "utility", "swoop": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with a cooldown ability: its next attack within 10 s of a cooldown use + swoop; else dmg"},
       "Toxic": {"tab": "utility", "double_first": [0.2, 0.6, 1.0], "dmg": [0.05, 0.15, 0.25], "rule": "a species with Disease: this chance its first tick lands twice at once; else dmg"},
       "Adrenaline": {"tab": "tank", "dmg_cond": [0.10, 0.30, 0.50], "dr_cond": [0.04, 0.12, 0.20], "dmg": [0.04, 0.12, 0.20], "dr": [0.01, 0.03, 0.05], "rule": "within 15 s of a resurrection: dmg_cond and dr_cond, else dmg and dr"},
@@ -222,7 +222,7 @@
       "Tolerance": {"tab": "tank", "skip": [0.08, 0.24, 0.40], "dr": [0.01, 0.03, 0.05], "rule": "this chance a bleed, disease or poison tick on it is skipped; not afflicted: dr"},
       "Trample": {"tab": "tank", "trample": [0.06, 0.18, 0.30], "dmg": [0.05, 0.15, 0.25], "rule": "a melee hit: damage_max x trample on up to 2 other monsters within 2 of the target; a caster: dmg"}
     },
-    "bestiary_note": "per rank 1/2/3 (1, 3 and 5 points); the gump's texts (Taming Bestiary, gump 1353229584, sessions 192/194) and wiki #16334-16345. A rule's 'else' is for a species without the mechanic named: here Disease (gravebug), Bleed and Soak (tidal mantis), Spellburn (every caster), cooldown abilities (gravebug, phoenix, earth dragon); none has stealth, frenzy, poison, chill, entangle/hinder, pierce/hex, flamestrike or a multi-target ability. Bonuses add within a pool; the pools multiply [INFERENCE]",
+    "bestiary_note": "per rank 1/2/3 (1, 3 and 5 points); the gump's texts (Taming Bestiary, gump 1353229584, sessions 192/194; Opportunity, Punishment and Scour verbatim at session 105 seq 1621, 20261012_210013 21:01:50.62) and wiki #16334-16345. A rule's 'else' is for a species without the mechanic named: here Disease (gravebug), Bleed and Soak (tidal mantis), Spellburn (every caster), cooldown abilities (gravebug, phoenix, earth dragon), hex and hinder (the incubus' Dreamlull, from 2026-10-28); none has stealth, frenzy, poison, chill, entangle, pierce, flamestrike or a multi-target ability. Bonuses add within a pool; the pools multiply [INFERENCE]",
     "codex": {
       "Combat Medic": {"dr": [0.02, 0.06, 0.10], "seconds": 15, "rule": "patients dr for 15 s after a finish"},
       "Immunize": {"tick": [0.08, 0.24, 0.40], "seconds": 15, "rule": "bleed and disease ticks on patients - tick for 15 s after a finish (poison levels aren't modelled)"},

@@ -2055,12 +2055,36 @@ each, seeds 1-8, 2026-10-28:
 | `phoenix_gravebug` (AlaFlambe off and ranged, pinned) | 328 | 121,579 | 137 | 26 | 1.6 | 0 |
 | `phoenix_incubus`, the phoenix's aggro as class (off): no tank | 306 | 114,109 | 600 | 52 | 8.4 | 0 |
 | `phoenix_incubus`, the phoenix's aggro on (its setting) | 320 | 118,559 | 147 | 74.5 | 2.3 | 0 |
+| ...with Dreamlull, Opportunity, Punishment and Scour's hex (below) | 326 | 120,230 | 194 | 75.4 | 2.4 | 0 (1 pet death) |
 
 With the phoenix tanking, Logan takes about what he took behind the gravebug; the vet works harder on the phoenix
 (Guide armor 22.6 against the gravebug's 81.6). The no-tank row's seed 1 fought its "time is up" leave
-past the sim's 180 s grace (`aborted`, a sim limit; live runs have none). Dreamlull (15 % a spell: hex 25 a slot for
-15 s, hinder 1 s a slot) isn't modelled, and the Opportunity and Punishment rules still give their flat damage as for
-a species without hex or hinder.
+past the sim's 180 s grace (`aborted`, a sim limit; live runs have none).
+
+**Dreamlull** (2026-10-28; decision: docs/PLAN.md "Logan's pets, teams and the Healer's Codex in the simulator"; the
+live search: docs/NOTES.md "Dreamlull live"). On each of Bussin's landed casts, 15 % x Primal's (1 + passive) (Primal 3
+cross-class in his Utility tab: 30 %) the target is **hexed** and **hindered** (`pets.spell_numbers` effect
+`dreamlull`, `World._pet_effects`):
+- the hex lowers the monster's magic resist by 25 a slot x (1 + Scour's amount) (Scour 3: 50) for 15 s, for every
+  caster's spells on it (the phoenix's too; `HitCtx.target_hex`, `pets.spell_mitigation`), with Breaker's at most 150
+  off in all (#4223). Source: wiki Template:StatusEffects (oldid 30885) "Hex: Reduces Magic Resist on the target";
+  Arcane Staff (oldid 31888) "a Hex effect reducing the creature's Magic Resist by 50"; Buff Bar (#13536) "Hex:
+  Reduce Magic Resist Skill; Stackable: No" (a new hex replaces a smaller one and restarts its 15 s [INFERENCE]);
+- the hinder ("Roots the target in place and stuns them", the same template) stops the monster's steps, swings, casts
+  and abilities for 1 s a slot; a cast under way is lost [INFERENCE]; its swing timer runs on, so a swing due meanwhile
+  comes at the hinder's end [INFERENCE];
+- both x `pets.debuff_scale`: 1 - 70 % x (difficulty - 100) / 900 from difficulty 100, at least 30 % (patch
+  2023-05-22, #5947); no creature's Magic Resist Minimum (#5435) is known: 0.
+
+The perks by the gump's text (session 105 seq 1621): **Opportunity** +20/60/100 % while the pet hindered (or
+entangled) the target within the last 10 s (`HitCtx.hinder_10s`, the pet's `Mob.hindered`), nothing otherwise, for a
+species with hinder/entangle; **Punishment**, for a species with pierce/hex, DamageMax x 0.5/1.5/2.5 on the target
+when the pet's hex on it ends (`pets.punishment`, unmitigated [INFERENCE]; Bussin's loadout has none); **Scour** x (1 +
+20/60/100 %) on the hex as on Soak's cripple. Species without the mechanic keep the flat 5/15/25 %. Bussin's damage
+moved little (112,875 -> 106,320 an hour of the batch): Opportunity's +100 % reaches only casts after a proc on that
+target (fights of ~11 s, a cast every ~1.75 s), and it replaces Opportunity's and Scour's flat +25 % each; the
+phoenix's rose 812,804 -> 841,158 (the hex on the level's magic resist 25). Logan's 147 -> 194 a run is within
+these 8 runs' spread (seed 1: 290 -> 456).
 
 **The default team's batch** (98 runs, seed 17, 14 careers, `-- --vet-range 5`; Phoenix/Gravebug as of 10-15):
 
@@ -2196,11 +2220,14 @@ the levels of the live bars, the phoenix : gravebug ratios with the 10-15 loadou
 resist, Spellburn and the barrage against half the armor), `test_kdmg_barding` (the live barding out of `k_dmg`),
 `test_parity_team` (one team's visits up to `--until`, another team's death kept with its visit, the kill-time ratio's
 weights), `test_perk_conditions` (Cornered, Pelt, Aggression, Triage through `World._pet_ctx`, on pinned loadouts),
-`test_vet_codex` (a finish's heal and its Overheal), `test_team_run` (`run_once(team="nightmare_fire")`).
+`test_dreamlull` (the proc's rate, its hex and hinder, the debuff scale, the hex on every caster's resist, a hindered
+monster's held swing and step), `test_opportunity_punishment` (both perks for the incubus and the phoenix, Opportunity's
+10 s through the World, Punishment's number at the hex's end), `test_vet_codex` (a finish's heal and its Overheal),
+`test_team_run` (`run_once(team="nightmare_fire")`).
 
 **Not modelled**: poison and special resist (recorded from the Guide; the area hits' live phoenix = gravebug
 contradicts special resist), the Command aspect's Inspiration, poison levels (Immunize), the bestiary's stealth,
-frenzy, chill, entangle/hinder, pierce/hex and multi-target mechanics (none of these species has them).
+frenzy, chill, entangle, pierce and multi-target mechanics (none of these species has them).
 
 ## Mastery Chain links (2026-10-26)
 
