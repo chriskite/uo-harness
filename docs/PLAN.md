@@ -2969,6 +2969,28 @@ and player houses" and "z while walking comes from the map"). Decisions:
   (`Walkers.get`). Rejected: a `SERVER_ONLY_MOVES` entry per move (the server's map isn't different, the test's was)
   and every capture's items at once (a house gone later would stand in other sessions' moves).
 
+## A hit centred on its target: keep 4 off the pets a zoa can target (Logan dead on Tidal Tomb level 2, 2026-10-29)
+
+Live 12:36:55 Logan died 3 from his pets, 8 from a combustive zoa that couldn't see him: its scorch lands on the pet it
+targets and everyone within 3 (157 of 168 there, 0 of 181 farther, eight captures), and its lightning took the rest
+(docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-29 12:36"). Decisions:
+
+- *Each live pet within a target-centred area hitter's reach is an area zone of radius + 1* (`tamer.TARGET_AREA` from
+  the scenarios' `center: "target"` bursts with a radius: the combustive and astral zoas, plain and giant). It reuses
+  the stand-off, `ClearOf` and the Mover's `avoid` tiles, as the bedrock's cone does; no new mover. The astral zoas come
+  with it: the same shape, no rule before. Rejected: a larger caster reach for the zoa (its shot isn't what hit him; 8
+  out of its sight was already "out of its shot"), and keeping Logan beyond 12 of an awake zoa (beyond the vet
+  supplies' reach of pets fighting it from 10).
+- *The cover, the reposition and the bard step pick tiles clear of every area zone*, not only off its centres: in the
+  simulator they put Logan back 3 from the pets and the stand-off walked him out again, round and round.
+- *A heal potion refused with 500119 is clicked again and never counted as a drink* (the moongate's rule since
+  2026-10-19). Rejected for now: a gap before every item use (the vet supplies, the potion and the cure each click on
+  their own; one retry covers the refusal at the cost of 0.6 s).
+- *A patrol refused again before a step holds 0.4 s*, as every other crawl wait.
+- *Not built:* the zoa's lightning (4 volleys seen, up to 3 of us at once, no warning), the scorch's rising
+  susceptibility, a leave or retreat rule for "hurt with an awake caster around" (the leave line would not have fired:
+  56, then 62 hits before a 63 in one instant; out of the scorch the lightning alone took 52).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

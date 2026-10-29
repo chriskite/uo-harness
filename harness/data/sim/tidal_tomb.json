@@ -1573,18 +1573,35 @@
     "note": "its plain swings start one rarely: 1 of 17"
    }
   ],
+  "combustive zoa": [
+   {
+    "kind": "burst",
+    "id": "scorch",
+    "first_s": [1.1, 8.5],
+    "every_s": 7.4,
+    "center": "target",
+    "reach": 12,
+    "radius": 3,
+    "damage_pet": [40, 70, 53],
+    "damage_player": [30, 48, 36],
+    "note": "its scorch (docs/NOTES.md 'Tidal Tomb: level 2 death 2026-10-29 12:36'; captures 20261024_102346, 20261024_225113, 20261026_183552, 20261027_220057, 20261028_182147, 20261029_100942, 58 scorches of 14 zoas): sound 0x0A70 on its target's tile, always a pet of ours (one on a tile, the rest moved), 1-10 tiles from it (reach 12: its spell range [INFERENCE for 11-12]), and 0x0A72 with a number on each of us within 3 of that tile: 86 of 97 at 0-3, 0 of 97 at 4+ (Logan 14 of 18 and 0 of 40), its sight of us not needed (live 12:36:47 and 55 Logan 8 from it, no line of sight by los.Sight, 3 from the pets: -44, -45). 'The creature scorches you and you become more susceptible to damage from them!' with each on Logan. Every 6.4-10.1 s (median 7.4, p10-p90 7.0-9.4, n=40 gaps), the first 1.1-8.5 s after it went to war (median ~4, n=16 of 20). Pets 40-70 (median 53, n=70), rising fight-long with the susceptibility (46, 41, 50, 55, 63, 68, 70 on one pet: not modelled), Logan 30-48 (median 36, n=14)"
+   }
+  ],
   "giant combustive zoa": [
    {
     "kind": "burst",
-    "first_s": [2.0, 7.0],
-    "every_s": 5.8,
-    "radius": 12,
+    "id": "scorch",
+    "first_s": [0.8, 6.6],
+    "every_s": 5.6,
+    "center": "target",
+    "reach": 12,
+    "radius": 3,
     "damage_pet": [82, 128, 105],
-    "damage_player": [32, 41, 40],
-    "note": "level 3, 2026-10-25 11:34:13-11:34:50 (the only fight; it killed the three pets): a mage near (7197, 2172-2177); every 5.3-6.1 s (n=6 gaps) one number on each pet 10 tiles from it and on Logan at 8-12, the pets' rising 82-87, 89-95, 97-103, 110-112, 112-118, 123-128, Logan's 41, 32, 40, each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
+    "damage_player": [32, 50, 40],
+    "note": "level 3, 2026-10-25 11:34:13-11:34:50 (it killed the three pets) and four fights since (captures 20261025_210102, 20261027_220057, 20261028_165135 twice; 50 scorches in the five): the plain zoa's scorch, bigger (that entry): on its target, a pet 1-12 tiles from it, and on each of us within 3 of that pet, 71 of 71 there and 0 of 84 at 4+ (Logan 11 of 11, 0 of 39). Before 2026-10-29 modelled as a ring of 12 round the zoa: 'Logan at 8-12' was Logan within 3 of the pets it hit. Every 4.5-8.6 s (median 5.6, n=44 gaps), the first 0.8-6.6 s after it went to war (n=7). Its first fight's pets rose 82-87, 89-95, 97-103, 110-112, 112-118, 123-128 (all fights 29-148, median 93, n=60), Logan's 32-50 (median 40, n=11), each of his with 'The creature scorches you and you become more susceptible to damage from them!' [INFERENCE: +~10 % on its target per hit, as Nusero's Scorching Breath (#7518: +10 % for 60 s, max +30 %); here past +50 %; not modelled, the range kept]. Its single hits on a pet rose too, 40 -> 74 (ranged_observed)"
    }
   ],
-  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the giant zoas' scorch (their notes), and a combustive zoa's scorch on Logan once on level 2 (2026-10-26 22:38:43, 'The creature scorches you and you become more susceptible to damage from them!'); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's); the giant kelpdweller's 2-tile reach (3 numbers, capture 20261027_220057). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte; since 2026-10-28 (docs/NOTES.md 'Five more Tidal Tomb specials') the swashbuckler's rope, the buccaneer's bleed, the fins' spin bleeds (the greater razorfin's old every-hit bleed, 18 every ~1.2 s, was these stacks overlapping), Festering Wound and Glowmark (their entries)."
+  "note": "Seen live, not modelled: the ruby smallshell's 'A ruby-sharp strike temporarily reduces your armor!' (its Pierce Claw, #14469: the tamed one's pierce is control slots x 10 AR for 15 s) on Logan twice, 30 s each ('Your armor is no longer pierced.'; the 0x11 status AR stayed 133 throughout, so the wild one's size is unmeasured and Logan keeps his full AR, docs/SIM.md 'Player armor'), once more on 2026-10-26 (AR 120 throughout); the lowtide scavenger's '*scavenges*' (6; 41; 15 on 2026-10-26, 14 of them idle: an idle emote); the scorch's rising susceptibility (the combustive zoas' notes); a combustive zoa's lightning on up to 3 of us at once (bolts 0xC0 type 1 on each, a number 0.24 s later: 2026-10-24 20:50:36 GirthyEarthy and Logan -33, 2026-10-25 11:23:30 three pets, Logan 6 off spared, 2026-10-29 12:36:51.6 and 54.9 Logan -34 and -18 at 8 tiles, AlaFlambe, Bussin; 4 in the ~7 min of fighting its 58 scorches came in: rarer than the giant astral zoa's volley); an ironscale grouper's '*deflects*' once (2026-10-26 22:45:41, no number near it: a reflected arrow of another player's); the giant kelpdweller's 2-tile reach (3 numbers, capture 20261027_220057). Modelled since 2026-10-26: the lowtide scavenger's '*takes large swing*' and its pincer crabs, the frenzyfin's '*frenzies*'; since 2026-10-27 the astral zoas' Backlash, Pressure (the giant pincer crab, scourgeon, colossal scourgeon, tidal sea serpent), the giant toxic zoa's Lethal Poison, the greater frenzyfin, the swashbuckler's riposte; since 2026-10-28 (docs/NOTES.md 'Five more Tidal Tomb specials') the swashbuckler's rope, the buccaneer's bleed, the fins' spin bleeds (the greater razorfin's old every-hit bleed, 18 every ~1.2 s, was these stacks overlapping), Festering Wound and Glowmark (their entries); since 2026-10-29 the combustive zoas' scorch on everyone within 3 of their target (the giant's was a ring of 12 round it)."
  },
  "ranged_observed": {
   "drowned mariner": {"damage": [24, 26], "note": "its 3 numbers on the pets in the capture (24 beside a pet, 25-26 with no monster but it within 12: calibrate damage_ranged_sole); without them the wiki's 60-70 melee x 0.5 made 30-35 a shot, before Logan's multipliers (sim 2026-10-24: 133 of the 160 that killed Logan on level 2 in 15 s)"},

@@ -1387,7 +1387,7 @@ Tomb: the later visits and level 3"; every number is in the scenario's notes.
   |---|---|---|
   | tidal sea serpent | swings 49-71 / 3.4 s; every 7.7 s 85-126 on each pet within 3 | melee override; `burst` radius 3 |
   | giant astral zoa | 78-82 on pets at 5-7, Logan 35-56, every ~6 s; 29-51 on 3 of us within 12 every 3-5 s; 35-54 singles / 3.5 s | two `burst`s (`astral`, `volley` with `targets` 3); spell override |
-  | giant combustive zoa | 82 -> 128 on every pet, Logan 32-41 within 12, every 5.8 s; singles 40 -> 74 | `burst` radius 12 (no stacking); spell override |
+  | giant combustive zoa | 82 -> 128 on every pet, Logan 32-41 within 12, every 5.8 s; singles 40 -> 74 | `burst` radius 12 (no stacking); spell override; since 2026-10-29 its scorch on its target and each of us within 3 ("Tidal Tomb: the combustive zoa's scorch") |
   | greater razorfin | swings 36-70 / 3.4 s; an 18 every 1.27 s that outlived it by 14 s | melee override; `bleed` on every hit |
   | colossal pincer crab | 29-69 singles | melee override |
 
@@ -1466,7 +1466,7 @@ depends on the quality of the instrument"):
 - The walk in through level 2 kills Logan in the sim as the level 2 runs do. Live, the user fought through it.
 - Level 3 kills Logan in the sim; live, 822 s there cost the pets 7 deaths and him none.
 - Level 3's creatures are the first part's only; the boss rooms and their dolphins are unknown.
-- Not modelled: the combustive zoa's stacking scorch, the astral zoa's spell backlash (a casting penalty: does it
+- Not modelled: the combustive zoa's stacking scorch (its scorch itself since 2026-10-29), the astral zoa's spell backlash (a casting penalty: does it
   touch the recall?), the serpent's occasional second 48-53.
 - `--compare`'s kills, vet and potion rows on a level with a long walk in (above).
 - `--compare`'s `trip` is the first visit's, played with the sackbut.
@@ -1587,7 +1587,7 @@ and 3 by hand".
 - **The pincer crab's melee** stays 3-7 (`melee_observed`): with this capture calibrate's numbers for it took in the
   scavengers' large swings (3-20). The rest of the regenerated observations moved a little (drowned mariner 34 a hit
   and 1.57 s a swing, from 40 and 2.84).
-- Not modelled (one each): a combustive zoa's scorch on Logan, an ironscale grouper's '*deflects*'.
+- Not modelled (one each): a combustive zoa's scorch on Logan (modelled 2026-10-29, below), an ironscale grouper's '*deflects*'.
 
 **Runs** (8 each, seeds 4-11, 30 min from home):
 
@@ -2062,6 +2062,40 @@ strip's hop taken; net: banked an hour with 30 game minutes added for each death
   on a leave). Damage on Logan an hour 1,389 -> 962, potions 621 -> 529. No run died at the strip.
   Before the walk, an experiment with the stairs on an earlier tree (when the way up was the scenario's guess) had
   runs deprived 40 -> 18 and runs with a death 10 -> 13.
+
+### Tidal Tomb: the combustive zoa's scorch (2026-10-29)
+
+Live 12:36:55 Logan died on level 2, 3 from his pets, 8 from a combustive zoa out of its sight (docs/NOTES.md "Tidal
+Tomb: level 2 death 2026-10-29 12:36"; the runner's rule in docs/HUNT_LOOP.md "A hit centred on its target").
+
+- **The world:** the combustive zoa's `scorch`, a `burst` with `center` "target" (as the astral zoas' spell): reach 12,
+  radius 3, every 7.4 s, the first 1.1-8.5 s in, pets 40-70, Logan 30-48. The giant combustive zoa's burst was a ring
+  of 12 round it; it is now the same shape (every 5.6 s, Logan 32-50, its pets' numbers kept). The scorch's rising
+  susceptibility and the zoa's lightning on up to 3 of us are not modelled (the specials note).
+- **Tests:** `test_tidal_scorch` (the scorch on its target 10 off and on Logan 3 from it, out of the zoa's sight; none
+  at 4), `test_scorch_stand_off` (the live layout: before, 5 of 5 scorches on Logan, 2-3 from the pets; after, at most
+  2, on the bard step's walks to see the zoa and back, and he ends 4+ off), `test_potion_after_vet` (500119: clicked
+  again and drunk; on its only try not counted), `test_patrol_refused_hold` (20 refusals: 20 lines and no time before,
+  one line and 0.4 s holds after), `test_area_hitters` (`TARGET_AREA`).
+- **Runs** (level 2, `--scenario tidal_tomb --area 6815 1907 6969 2100 --team phoenix_incubus --json -- --enter-via
+  6718 1984 --leave-gate 6913 2071 --vet-range 5 --crawl-learn-s 180`, the live run's flags, seeds 1-144, the scorch
+  modelled on every side; before is HEAD b87b1d7's runner, "no TARGET_AREA" is the new runner with
+  `--set tamer.TARGET_AREA={}`: the potion, the patrol hold and the movers clear of area zones only):
+
+  | 144 runs | runs with a death | pet deaths | damage on Logan / hunt h | combustive zoa on Logan | astral zoa | drowned mariner | potions | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|
+  | before | 39 | 173 | 1,565 | 2,921 | 7,184 | 15,631 | 1,563 | 171 | 123,362 |
+  | no `TARGET_AREA` | 39 | 186 | 1,643 | 3,343 | 9,457 | 14,949 | 1,665 | 168 | 119,948 |
+  | after | **38** | 176 | **1,511** | **2,003** | **3,822** | 15,331 | 1,549 | 172 | 117,058 |
+
+  - The zoas' damage on Logan fell: the combustive zoa's -31 % (its ranged spell is in the number too), the astral
+    zoas' -47 %. Deaths whose last 15 s held a combustive zoa: 2 before, 1 after (4 without `TARGET_AREA`).
+  - Runs with a death didn't move (39 -> 38): level 2's killers stay the mariners and soulcatchers (15k on Logan a side),
+    whose shots no stand-off changes. Pet deaths and banked an hour moved within the batches' noise: the first 48 seeds
+    alone gave pet deaths 40 -> 71, the other 96 133 -> 105 (docs above: 8-19 a 96-run block).
+
+  The live death needed the scorch twice and the lightning twice in 8 s with the potion refused; the simulator has the
+  scorch and the potion's 500119, not the lightning.
 
 ## The Ossuary (2026-10-28)
 

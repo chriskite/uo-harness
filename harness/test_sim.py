@@ -4904,8 +4904,11 @@ TIDAL_L2 = (6943, 2004)       # ...level 2's arrival (under water: the scenario'
 TIDAL_L3 = (7162, 2221)       # ...level 3's arrival, 11 tiles from its Recovery Dolphin (7164, 2210)
 
 
-def tidal_world(start, spawns=(), seed=1, z=None):
+def tidal_world(start, spawns=(), seed=1, z=None, team=None):
     sc = load("tidal_tomb")
+    if team:
+        from sim import pets
+        pets.select(sc, team, None)
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
     sc["player"]["start"] = [start[0], start[1], z if z is not None else {TIDAL_L1: -16, TIDAL_L3: -50}.get(start, -38)]
@@ -5275,6 +5278,171 @@ def test_tidal_large_swing():
     check("...pincer crabs '*emerge*' at a swing's hit, at most 2 of its own up at once",
           bool(crabs) and all(any(0.45 < c - s < 0.65 for s in swings) for c in crabs) and 1 <= most <= 2,
           f"emerges {[round(c, 1) for c in crabs]} swings {[round(s, 1) for s in swings]} most {most}")
+
+
+ZOA_L2 = (6885, 2068, -100)     # Tidal Tomb level 2, live 2026-10-29 12:36:38-55: the combustive zoa Logan died to...
+PETS_L2 = (6895, 2062)          # ...the pets it fought, 10 off...
+LOGAN_L2 = (6893, 2065)         # ...and Logan, 3 from them, 8 from it and out of its sight (los.Sight)
+
+
+def _zoa_case(logan, loop_hits=None, extra=()):
+    """The live 12:36 layout: a combustive zoa at ZOA_L2 in war mode on the first pet and held in place, the live team
+    (AlaFlambe and Bussin) held at PETS_L2, 10 off, as live, Logan at `logan`, everyone but Logan tough; with `loop_hits`
+    a HuntLoop there at those hits (hurt_loop, runner arguments `extra`).
+    -> (world, zoa, the scorch's hits [(t, victim, amount)], the loop's (loop, clock, store, patched) or None)."""
+    w = tidal_world(logan, [{"key": "combustive zoa", "at": list(ZOA_L2)}], z=ZOA_L2[2], team="phoenix_incubus")
+    z = next(m for m in w.mobs.values() if m.kind == "monster")
+    z.hits = z.hits_max = 10 ** 6
+    z.spec = {**z.spec, "step_s": 999.0}                    # it stays where the live one stood
+    run = hurt_loop(w, loop_hits, extra) if loop_hits is not None else None
+    for p in w.pets():
+        w._place(p, (PETS_L2[0], PETS_L2[1], ZOA_L2[2]), d=0)
+        p.hits = p.hits_max = 10 ** 6
+        p.mode = "stay"
+        p.next_step = 1e9                                   # they stood there live (12:36:42-55), casting
+    tgt = w.pets()[0]
+    z.target, z.threat = tgt.serial, {tgt.serial: 1e9}
+    w._warm(z, True)
+    rolled, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if kind == "burst" and by is z:
+            rolled.append((round(w.t, 2), victim, amount))
+        orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    return w, z, rolled, run
+
+
+def test_tidal_scorch():
+    print("== Tidal Tomb: a combustive zoa's scorch every ~7.4 s on the pet it targets 10 off and on each of us within 3 "
+          "of that pet, its sight of us not needed; none at 4+ ==")
+    # live 2026-10-29 12:36:47.02 and 55.14 (docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-29 12:36"): Logan 3 from the
+    # pets, 8 from it and out of its sight, -44 and -45; six captures: 86 of 97 of us within 3 of its target hit, 0 of 97
+    # at 4+, Logan 30-48
+    from agent_link import cheb
+    w, z, rolled, _ = _zoa_case(LOGAN_L2)
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    w.run_until(w.t + 40.0)
+    lands = sorted({t for t, _, _ in rolled})
+    gaps = [round(b - a, 2) for a, b in zip(lands, lands[1:])]
+    logan = [n for _, v, n in rolled if v is w.player]
+    check("in 40 s: 4+ scorches 6.6-8.2 s apart, each on both pets and on Logan 3 from them (30-48), 8 from the zoa "
+          "and out of its sight",
+          len(lands) >= 4 and all(6.6 <= g <= 8.2 for g in gaps) and len(rolled) == 3 * len(lands)
+          and len(logan) == len(lands) and all(30 <= n <= 48 for n in logan)
+          and cheb(w.player.pos, z.pos) == 8 and not w.sight.can_see(z.pos, w.player.pos),
+          f"lands {lands} gaps {gaps} hits {len(rolled)} Logan {[round(n) for n in logan]}")
+    w, z, rolled, _ = _zoa_case((LOGAN_L2[0], LOGAN_L2[1] + 1))
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    w.run_until(w.t + 40.0)
+    check("...Logan 4 from the pets (8 from the zoa, out of its sight): the pets scorched, Logan never",
+          len(rolled) >= 8 and not any(v is w.player for _, v, _ in rolled)
+          and cheb(w.player.pos, (PETS_L2[0], PETS_L2[1])) == 4,
+          str([(t, v.name, round(n)) for t, v, n in rolled][:6]))
+
+
+def test_scorch_stand_off():
+    print("== the live 12:36 layout: a combustive zoa fighting the pets 10 off, Logan 3 from them and out of its sight: "
+          "the stand-off takes him 4+ off the pets, no scorch on him ==")
+    # live 2026-10-29 12:36:42-55 (hunt-20261029-122604-bc07): "keeping out of the reach of the awake combustive zoa"
+    # (its sight of our tile: none), "waiting out of it" 3 from the pets; scorched -44 and -45 (and its lightning), dead.
+    # Before tamer.TARGET_AREA no rule kept us off the pets of a hit centred on its target: he stood there and was
+    # scorched every ~7.4 s. No Peacemaking here: a peace on it stops the scorch for 45 s and the test with it
+    from agent_link import cheb
+    w, z, rolled, (loop, clock, store, patched) = _zoa_case(LOGAN_L2, loop_hits=100, extra=("--no-peace",))
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 40 and w.player.alive:
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    on_us = [(t, round(n)) for t, v, n in rolled if v is w.player]
+    lands = {t for t, _, _ in rolled}
+    check("in 40 s the pets were scorched 4+ times, Logan at most twice (on the bard step's walks through the reach to "
+          "see the zoa and the cover's back out); he ends 4+ from the pets; 'area hit on its target: the awake combustive "
+          "zoa ... keeping 4+ off the pets within 12 of it' (before: he stood 2-3 off, scorched every time, 5 of 5)",
+          len(lands) >= 4 and len(on_us) <= 2 and w.player.alive
+          and cheb(w.player.pos, (PETS_L2[0], PETS_L2[1])) >= 4
+          and "area hit on its target: the awake combustive zoa" in out and "keeping 4+ off the pets within 12" in out,
+          f"Logan scorched {on_us}, ends {w.player.pos} ({cheb(w.player.pos, (PETS_L2[0], PETS_L2[1]))} from the pets) "
+          f"{[ln for ln in out.splitlines() if 'stand-off' in ln or 'area hit' in ln][:3]}")
+
+
+def test_potion_after_vet():
+    print("== a heal potion right after another item use (the vet supplies' click): refused with 500119, clicked again "
+          "and drunk; a refusal is no drink for the potion clock ==")
+    # live 2026-10-29 12:36:47.30 the vet supplies' click, 47.56 the potion's, "You must wait to perform another action."
+    # at 47.61; the runner logged "heal potion: 56 -> 56 hits", its clock counted a drink and no potion went out again
+    # before the death at 55.1 (23 hits at 51.8)
+    import healing
+    import loop_hunt
+    from agent_link import serial_of
+    w = world_with([], seed=7, start=(5209, 697))
+    loop, clock, store, patched = hurt_loop(w, 56)
+    buf = io.StringIO()
+    out = {}
+    try:
+        with contextlib.redirect_stdout(buf):
+            clock.advance(1.0)
+            st = loop.state()
+            potion = serial_of(healing.heal_potions(st["world"], loop.me(st))[0][0])
+            w.last_use_t = w.t                           # an item use just now
+            out["drunk"] = loop.drink(st, potion)
+            out["hits"] = w.player.hits
+            clock.advance(1.0)
+            w.last_use_t = w.t
+            saved, loop_hunt.DRINK_TRIES = loop_hunt.DRINK_TRIES, 1
+            try:
+                loop.potions.last = None
+                out["once"] = loop.drink(loop.state(), potion)
+                out["ready"] = loop.potions.ready(tamer.time.monotonic())
+            finally:
+                loop_hunt.DRINK_TRIES = saved
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    log = buf.getvalue()
+    check("refused, 'clicking it again in 0.6 s', drunk: 56 -> 80+ (before: 'heal potion: 56 -> 56 hits', nothing drunk)",
+          out["drunk"] and out["hits"] >= 80 and "clicking it again in 0.6 s" in log, f"{out} {log.splitlines()[-4:]}")
+    check("...refused on its only try: 'heal potion not drunk', the clock still ready (before: counted as drunk, no "
+          "potion for its cooldown)",
+          out["once"] is False and out["ready"] and "heal potion not drunk: 'You must wait" in log, str(out))
+
+
+def test_patrol_refused_hold():
+    print("== a patrol walk refused before its first step for the same reason again: one 'stopped' line and a hold, "
+          "not the walk again at once ==")
+    # live 2026-10-29 12:36:42-43 (hunt-20261029-122604-bc07): "patrol to (6861, 2054): stopped (would wake 0.4 more onto
+    # 3.0 (budget 3))" 100 times in a second, 329 at 12:35:39-42: no other rule takes that refusal up, so the tick
+    # walked again at once
+    import crawl
+    w = world_with([], seed=7, start=(5253, 653))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            loop.patrol_stop = lambda st: "would wake 0.4 more onto 3.0 (budget 3)"
+            start = tuple(w.player.pos[:2])
+            t0 = tamer.time.monotonic()
+            for _ in range(20):
+                c.idle(loop.state())
+            spent = tamer.time.monotonic() - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln for ln in buf.getvalue().splitlines() if ": stopped (would wake 0.4 more" in ln]
+    check("20 refused walks: one 'stopped' line, a 0.4 s hold on each repeat, Logan where he stood (before: 20 lines, "
+          "no time spent)",
+          len(lines) == 1 and spent >= 0.4 * 18 and tuple(w.player.pos[:2]) == start,
+          f"{len(lines)} lines, {spent:.1f} s, at {w.player.pos}")
 
 
 BEDROCK = (6886, 1957, -126)    # Tidal Tomb level 2's north strip, a live bedrock spawn (20261024_102346 20:53:13)
@@ -5838,16 +6006,20 @@ def test_tidal_recall_rule():
 
 def test_area_hitters():
     print("== every area hitter alike: a self-centred area hit of radius r up to 5 keeps us r + 1 off; one centred on its "
-          "target or reaching 12 isn't a stand-off ==")
+          "target or reaching 12 isn't a stand-off from it; one centred on its target with a radius keeps us radius + 1 "
+          "off each pet in its reach (TARGET_AREA) ==")
     got = {k: tamer.AREA_R.get(k) for k in ("razorfin", "voidfin", "greater razorfin", "tidal sea serpent",
                                              "drowned buccaneer", "corpsebride", "oozing noughtilus", "reanimated daemon",
-                                             "giant astral zoa", "giant combustive zoa", "biolumen shellpod",
-                                             "ossuarian deathbringer", "phantasm", "hierarch")}
+                                             "giant astral zoa", "giant combustive zoa", "combustive zoa",
+                                             "biolumen shellpod", "ossuarian deathbringer", "phantasm", "hierarch")}
     want = {"razorfin": 3, "voidfin": 3, "greater razorfin": 3, "tidal sea serpent": 4, "drowned buccaneer": 2,
             "corpsebride": 3, "oozing noughtilus": 3, "reanimated daemon": 6, "giant astral zoa": None,
-            "giant combustive zoa": None, "biolumen shellpod": None, "ossuarian deathbringer": 5, "phantasm": None,
-            "hierarch": None}
+            "giant combustive zoa": None, "combustive zoa": None, "biolumen shellpod": None,
+            "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None}
     check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
+    want = {"astral zoa": (11, 4), "giant astral zoa": (11, 4), "combustive zoa": (12, 4), "giant combustive zoa": (12, 4)}
+    check("...the zoas' spell and scorch round the pet they target, nothing else (not a shellpod's barrage, radius 0)",
+          tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
 
 
 def test_shy_by_ai():
@@ -6218,6 +6390,7 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_large_swing,
+              test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,

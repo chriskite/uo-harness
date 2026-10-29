@@ -6295,6 +6295,71 @@ The suspected gaps, checked:
   (Logan's own numbers), the Dig (`surface_s`, the crab's `dig` burst). docs/HUNT_LOOP.md "Out" and the area hitters
   (the rules), docs/SIM.md "Tidal Tomb: dead on level 1 on the way out" (the numbers), docs/PLAN.md (the decision).
 
+## Tidal Tomb: level 2 death 2026-10-29 12:36
+
+Run hunt-20261029-122604-bc07 (Logan with AlaFlambe 0x0026EF56 and Bussin 0x000EA04F, level 2, `--vet-range 5
+--heal-in-place`, leave line 0.5), capture 20261029_100942, decoded with `replay.timed_packets` -> `WorldRuntime` plus
+the raw 0x54 / 0x6E / 0xC0 (scratch scripts, not kept). Logan died at (6893, 2065) at 12:36:55.15 (t 1793295415.15).
+
+- **12:35:30-12:36:47 Logan at 100/100 throughout.** The "100 -> 56" was one hit, at 12:36:47.02.
+- **12:36:38.57** a combustive zoa 0x00070BB4 at (6885, 2068) in war mode. 12:36:41.70 a drowned mariner 0x00071482
+  at (6900, 2067), war. 12:36:42 Logan "back behind the pets" at (6893, 2065): 8 from the zoa, 6 from the mariner, 3
+  from the pets at (6895, 2062), who stayed there to the end (10 from the zoa, 4 from the mariner) casting at it.
+  By the runner's sight (los.Sight) the zoa could not see (6893, 2065): "keeping out of the reach of the awake
+  combustive zoa", then "every way on runs through ...; waiting out of it".
+- **12:36:47.02 the zoa's scorch**: sound 0x0A70 on the pets' tile, 0x0A72 on each victim's tile, 'The creature
+  scorches you and you become more susceptible to damage from them!', Logan -44 (100 -> 56), AlaFlambe -52, Bussin
+  -50. Its 0.07 s earlier action 4 is its usual swing animation.
+- **12:36:47.30** the vet supplies' click ("vet supplies (115 left): AlaFlambe at 92%"); **47.56** the heal potion's;
+  **47.61** "You must wait to perform another action." (500119). Nothing was drunk; the runner logged "heal potion:
+  56 -> 56 hits" at 12:36:49 and its potion clock counted a drink, so no potion went out again.
+- **12:36:51.56** a lightning bolt (0xC0 type 1) on Logan, AlaFlambe and Bussin at once; 51.80 Logan -34 (57 -> 23),
+  AlaFlambe -27, Bussin -19. **52.51** the vet channel's finish: Logan +30 (53), the pets +147 / +86. **53.10** the
+  vet again ("us at 53/100"), +4, +4.
+- **12:36:54.90** bolts on all three again; **55.14** the second scorch (8.12 s after the first, 0x0A70/0x0A72 and the
+  same line): Logan -45 (62 -> 17), AlaFlambe -57, Bussin -56; **55.15** the bolts' numbers: Logan -18 (17 -> 0),
+  AlaFlambe -74, Bussin -30. Dead.
+- **Logan's 141 damage:** the zoa's scorch 89 (44, 45), its lightning 52 (34, 18). Nothing from the mariner reached
+  him: its shots (moving effect 0x79C5 after its action 14/19) went to AlaFlambe. The "combustive zoa -108" the journal
+  showed is the pets' damage on the zoa (10,000 hits; -1,008 and -1,046 in single numbers).
+- **The bolts are the zoa's** [INFERENCE: by elimination, the only other awake monster was the mariner]: over the
+  seven Tidal Tomb captures with the runner's era, a bolt on several of ours at once came only with zoas awake (astral,
+  toxic, combustive, the giants); 2026-10-25 11:23:30 with a combustive zoa alone at this same spawn, three pets struck
+  and Logan 6 off spared. The combustive zoa's: 4 volleys (Logan -33, -34, -18) in ~7 min of its fights. Not modelled.
+
+**The scorch, measured** (captures 20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552,
+20261027_220057, 20261028_165135, 20261028_182147, 20261029_100942): 58 scorches of 14 combustive zoas, 50 of 5 giant
+ones.
+
+- It lands on the zoa's target, always a pet of ours (0x0A70 on its tile 89 of 89 times one of ours stood there),
+  1-10 tiles from a combustive zoa, 1-12 from a giant one, and hits each of us **within 3 of that pet: 157 of 168
+  there, 0 of 181 at 4+** (Logan 25 of 29 and 0 of 79). By distance from the target's tile: 0 122/127, 1 7/11, 2 8/8, 3
+  20/22, 4-19 0/184. Not a ring round the zoa: the scenario's giant had radius 12 ("Logan at 8-12" was Logan within 3
+  of the pets). Its sight of us doesn't matter (12:36:47 and 55).
+- Every 6.4-10.1 s (median 7.4, n=40 gaps; the giant 5.6, n=44), the first 1.1-8.5 s after it went to war.
+- Pets 40-70 (median 53), rising fight-long ("more susceptible": 46, 41, 50, 55, 63, 68, 70 on one pet; not
+  modelled); Logan 30-48 (median 36, n=14; the giant's 32-50). A combustive zoa scorched Logan 14 times since 2026-10-24,
+  twice in the runner's own run 2026-10-28 18:34 (-47, -48).
+
+**Why he stood there:** the zoa's reach was its shot (a caster, `tamer.CASTER_R` 12, its sight of our tile), and the
+runner's sight said it had none of (6893, 2065); no rule knew a hit centred on its target, so 3 from the pets was "out
+of it". The astral zoas' spell has the same shape (docs/SIM.md "Backlash") and had no runner rule either. At 56 hits he
+was above the leave line (0.5) and the retreat's (an attacker beside us); the potion was refused and counted; 23 hits
+lasted 0.7 s, and the last 63 came in one instant at 62.
+
+**The log spam:** "patrol to (6861, 2054): stopped (would wake 0.4 more onto 3.0 (budget 3))" 100 times at
+12:36:42-43 and "patrol to (6904, 2065): stopped (would wake 2.7 more onto 2.5 (budget 3))" 329 times at 12:35:39-42:
+with a fight on, the patrol's stop for an overpull has no other rule take it up, the waypoint was kept and the next
+tick walked again at once.
+
+- **Built 2026-10-29:** the scorch in the simulator (the combustive zoa's `scorch` burst, centre "target", reach 12,
+  radius 3; the giant's ring of 12 corrected to the same shape); the runner's `tamer.TARGET_AREA` and
+  `Team.target_zone` (each live pet in reach of an awake zoa a zone of 4: the stand-off, routes round it, and the
+  cover, reposition and bard step clear of every area zone, not only its centres); the potion's 500119 clicked again
+  (`loop_hunt.DRINK_TRIES`) and never counted as a drink; the crawl's hold on a patrol refused again
+  (`Crawl.stop_last`). docs/HUNT_LOOP.md (the rules), docs/SIM.md "Tidal Tomb: the combustive zoa's scorch" (the
+  numbers), docs/PLAN.md (the decision).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

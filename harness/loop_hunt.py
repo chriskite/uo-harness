@@ -207,6 +207,8 @@ LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 GATE_CLICK_TRIES = 3          # the gate's double-click again after 500119 (an item use just before it)...
 GATE_CLICK_WAIT_S = 0.6       # ...as read this long after each (the refusal came 0.07 s after the click live)
+DRINK_TRIES = 2               # a heal potion's double-click again after 500119 (live 2026-10-29 12:36:47.56: 0.26 s after the
+#                              vet supplies' click, refused; counted as drunk, no potion again at 56-23 hits, dead at 55.1)
 GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
 GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
@@ -1347,20 +1349,35 @@ class HuntLoop:
         casts instead. "You are already at full health." (healing.CLILOC_FULL_HEALTH: a heal landed between the
         choice and the click) drinks nothing and leaves the clock where it was (ServUO BaseHealPotion: the lock is taken
         only on a drink; live 2026-10-25 00:38:38.9 a vet finish took Logan 72 -> 100 just before the click, the clock
-        counted a drink, and at 65 and 45 hits no potion was tried until he died 6 s later)."""
+        counted a drink, and at 65 and 45 hits no potion was tried until he died 6 s later). "You must wait to perform
+        another action." (tamer.CLILOC_ACTION_WAIT: an item use just before, the server's action delay) drinks nothing
+        either: the click again USE_RETRY_S later, DRINK_TRIES in all, and the clock where it was (live 2026-10-29
+        12:36:47.56 the potion 0.26 s after the vet supplies' click was refused, logged "heal potion: 56 -> 56 hits" and
+        counted as drunk; no potion went out again before the death 7.6 s later, at 23 hits for one)."""
         me = st["world"]["self"]
         self.doing("heal", f"Drinking a heal potion ({me.get('hits')}/{me.get('hits_max')} hits)")
         self.human.wait("hotkey")                     # the user's Razor "Drink Heal Potion" hotkey
-        mark = len(self.link.events)
-        self.link.act(actions.dclick(serial))
-        answers = (healing.CLILOC_HEALED, healing.CLILOC_FULL_HEALTH)
-        self.wait_for(lambda s: any((e.get("ev") == "cliloc" and e.get("cliloc") in answers)
-                                    or healing.potion_wait(e) is not None for e in self.link.events[mark:]), 2.0)
-        heard = {e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"}
+        answers = (healing.CLILOC_HEALED, healing.CLILOC_FULL_HEALTH, tamer.CLILOC_ACTION_WAIT)
+        for n in range(1, DRINK_TRIES + 1):
+            mark = len(self.link.events)
+            self.link.act(actions.dclick(serial))
+            self.wait_for(lambda s: any((e.get("ev") == "cliloc" and e.get("cliloc") in answers)
+                                        or healing.potion_wait(e) is not None for e in self.link.events[mark:]), 2.0)
+            heard = {e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"}
+            if tamer.CLILOC_ACTION_WAIT not in heard or healing.CLILOC_HEALED in heard:
+                break
+            if n < DRINK_TRIES:
+                log(f"heal potion: 'You must wait to perform another action.' (an item use just before); clicking it "
+                    f"again in {tamer.USE_RETRY_S:g} s")
+                time.sleep(tamer.USE_RETRY_S)
         now = time.monotonic()
         hits = self.link.last["world"]["self"].get("hits")
         if healing.CLILOC_FULL_HEALTH in heard and healing.CLILOC_HEALED not in heard:
             log(f"heal potion not drunk: already at full health ({me.get('hits')} -> {hits} hits before the click)")
+            return False
+        if tamer.CLILOC_ACTION_WAIT in heard and healing.CLILOC_HEALED not in heard:
+            log(f"heal potion not drunk: 'You must wait to perform another action.' {DRINK_TRIES} times "
+                f"({hits}/{me.get('hits_max')} hits); the potion clock as it was")
             return False
         self.potions.started(now)
         wait = next((w for e in self.link.events[mark:] if (w := healing.potion_wait(e)) is not None), None)

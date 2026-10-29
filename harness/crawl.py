@@ -462,6 +462,7 @@ class Crawl:
         self.glance_s = 0.0
         self.pets_held = None        # why the last patrol waited for the pets (HuntLoop.patrol_hold), logged once
         self.shot_held = None        # the awake shy kinds whose shot covers every way on (idle holds), logged once
+        self.stop_last = None        # (waypoint, why) of the last patrol walk's stop: refused again before a step, a hold
         self.seek_for = None         # serial of the monster in view the patrol is heading for (seek), else None
         self.looked = None           # the waypoint a patrol leg saw from within SEEN_R and stopped short of (interrupt)
         self.seek_t = -1e9           # the patrol's last look for one (interrupt)
@@ -1015,11 +1016,20 @@ class Crawl:
             return
         h.doing("patrol", f"Patrolling to {w[0]},{w[1]} (zone {self.zone[self.wp]})", w)
         h.patrolling = True
+        start, hold = tuple(pos[:2]), False
         try:
             why = h.mover.walk_to(lambda: w, 1, f"patrol to {w}", stop=h.patrol_stop,
                                   max_moves=max(250, 2 * max(self.floor.dist_exit.values())))
+            # refused again before a step, the same waypoint for the same reason: one the tick's other rules don't take
+            # up ("would wake 0.4 more onto 3.0 (budget 3)", a fight on): a hold here, not the walk again at once (live
+            # 2026-10-29 12:35:39-42 and 12:36:42-43, 329 and 100 "stopped" lines, the tick spinning on the same walk)
+            last = h.link.last
+            again = bool(why) and self.stop_last == (self.wp, why) and last is not None \
+                and tuple(h.pos(last)[:2]) == start
+            self.stop_last = (self.wp, why) if why else None
             if why:
-                log(f"patrol to {w}: stopped ({why})")
+                if not again:
+                    log(f"patrol to {w}: stopped ({why})")
                 if " in view at " in why:
                     self.wp = None          # Crawl.seek chooses the waypoint by it on the next idle
                 if "at once" in why:
@@ -1041,6 +1051,7 @@ class Crawl:
                     log(f"crawl: the way to {w} goes nearer {why.split(' ', 1)[1][:-len(' would see us')]}; "
                         f"patrolling elsewhere")
                     self.wp = None
+            hold = again and self.wp is not None
         except Abort as e:
             if "no route" not in str(e) and "cut by mobiles" not in str(e):
                 raise
@@ -1049,6 +1060,9 @@ class Crawl:
             self.wp = None
         finally:
             h.patrolling = False
+        if hold:
+            h.doing("hold", f"Holding: {why}", start)
+            time.sleep(0.4)
 
     def summary(self) -> dict:
         """The episode row's `crawl` block: the dungeon level (`floor`), this visit's zone

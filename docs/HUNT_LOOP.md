@@ -96,6 +96,12 @@ Each tick re-reads the proxy state and decides, in this order:
      choice and the click) is no drink: the clock stays where it was ("heal potion not drunk: already at
      full health"; ServUO's potion lock is taken only on a drink). Before 2026-10-25 it counted as one,
      and live 00:38:38.9 it left Logan without a potion at 65 and 45 hits for the 6 s to his death.
+    "You must wait to perform another action." (cliloc 500119: an item use just before, the server's action delay)
+    is no drink either: "heal potion: 'You must wait to perform another action.' (an item use just before); clicking it
+    again in 0.6 s", `loop_hunt.DRINK_TRIES` 2 clicks in all, then "heal potion not drunk: 'You must wait to perform
+    another action.' 2 times (N/M hits); the potion clock as it was". Before 2026-10-29 it was logged as a drink ("heal
+    potion: 56 -> 56 hits") and counted on the clock: live 12:36:47.56, 0.26 s after the vet supplies' click, Logan went
+    without a potion through 56 -> 23 -> 62 hits to his death 7.6 s later.
    - **Otherwise a spell by the missing hits**: Greater Heal ((40–50) × Magery/100 for 11 mana)
      once the missing hits reach `--gheal-min-missing`, else Heal ((10–12) × Magery/100 for 4
      mana; wiki Magery). The default threshold is the mana break-even, where Greater Heal
@@ -629,13 +635,22 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    hit lands on everyone within r of itself in the simulator's scenarios (burst, ooze, wail and bleed_area specials,
    not one centred on its target), at r + 1. That adds the razorfin, voidfin, frenzyfin, greater razorfin and greater
    frenzyfin 3 (their spins), the colossal scourgeon 3, the tidal sea serpent 4, the drowned buccaneer 2, the
-   corpsebride 3 and the bound soul 2. Hits reaching beyond `AREA_MAX_R` 5 (the giant zoas' 12) are left to the
+   corpsebride 3 and the bound soul 2. Hits reaching beyond `AREA_MAX_R` 5 (the phantasm's lament 12) are left to the
    caster rules. Simulator 2026-10-28 (24 runs, 96 on Maus 3): level 2 damage on Logan 2,017 -> 1,644 an hour, deaths 7
    -> 5; level 3 3,379 -> 1,971; Maus 3 deaths 7 -> 5, banked +5 %. **Since 2026-10-28 22:53** (Logan dead on Tidal Tomb
    level 1 beside both) also a hit on everyone within r of its target beside it or of where it comes up on its target:
    the lowtide scavenger's large swing (everyone within 1 of the tile it faces) and the dungeon-nest crab's Dig (it goes
    under and comes up on its target's tile 1.5-2.1 s later, a hit within 1), both `AREA_R` 2 (docs/NOTES.md "Tidal
-   Tomb: dead on level 1 on the way out"). **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
+   Tomb: dead on level 1 on the way out"). **A hit centred on its target, a pet up to 12 off** (since 2026-10-29; Logan
+   dead on Tidal Tomb level 2, docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-29 12:36"): the combustive zoas' scorch
+   and the astral zoas' spell land on the pet they target and on each of us within 3 of it, wherever the zoa stands
+   and whether or not it sees us. `tamer.TARGET_AREA` takes every scenario `burst` with `center` "target" and a radius
+   (reach 12 or 11, keep 4); `Team.target_zone` makes each live pet within that reach of one in war mode a zone of 4,
+   logged once a monster: "area hit on its target: the awake combustive zoa 0x... at (x, y) hits each of us within 3
+   of the pet it targets; keeping 4+ off the pets within 12 of it". The stand-off steps out of it, the routes bend
+   round its tiles (the Mover's `avoid` "target_area", as the cone), and the cover, the reposition and the bard step
+   no longer pick a tile inside any area zone (they checked only its centres, so the stand-off walked us back out of
+   where they put us). With `--vet-range` 5 the vet supplies reach the pets from 4-5. **An ocean bedrock's spray** (since 2026-10-26; user: "I stand
    behind the ocean bedrock so it doesn't do its spray attack on me"; docs/NOTES.md "The ocean bedrock's spray"). Its
    frontal cone is in the zone at 1 a tile (`Team.spray_cone`, `nav.in_cone`): 90°, 8 tiles, along its 0x77 direction
    and toward each pet beside it. That holds while it is awake, unless it is pacified or provoked onto a monster still
@@ -885,7 +900,7 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. With nothing fighting, a step that shows us to two or more idle monsters worth more than it together stops the patrol and rests the waypoints within 15 tiles (`crawl`: "patrolling elsewhere"); walking out of such a spot goes on. The pull spot puts us where they don't all wake together. 0 = off. |
+| `--pull-budget` | `3.0` | While the pets fight monsters worth E, an advance (patrol, approach) stops where more would wake (W, idle monsters that would see us within 15 tiles) when E + W is above it. With nothing fighting, a step that shows us to two or more idle monsters worth more than it together stops the patrol and rests the waypoints within 15 tiles (`crawl`: "patrolling elsewhere"); walking out of such a spot goes on. The pull spot puts us where they don't all wake together. A patrol walk refused again before its first step for the same reason (the first, "would wake 0.4 more onto 3.0 (budget 3)", logged once) holds 0.4 s a time (`Crawl.stop_last`, since 2026-10-29: live 12:35:39-42 and 12:36:42-43 the tick walked again at once, 329 and 100 "stopped" lines). 0 = off. |
 | `--never-aggro TYPE` | the elder vampire, the elder vampire countess | Never wake it alone (repeat for other types; any given replaces the default). The vampiric consort until 2026-10-15; the user then: "we don't need to avoid any mob specifically, we should be able to handle everything on Maus 3 with enough care. The consort and elder vampires areas can get a little sketchy but it's all doable" (the code still avoided the consort by default until the next change); after the eleventh live run (an elder vampire countess froze both pets and killed Logan): "I suppose the runner can avoid the elder vampires for now". One that attacks us or the pets is fought like any other (run from until 2026-10-24). |
 | `--avoid-backlash` / `--no-avoid-backlash` | on | When every attack pet of the team casts (`tamer.casters_only` from `harness/data/sim/tamer/<character>.json`: the phoenix team, the nightmares, the imp and fire minion; not the mantis team), the giant astral zoa (`aggro.BACKLASH_TYPES`) joins the never-aggro set: never pulled, its sight no-go, fought only if it attacks. Its spell stacks Backlash, a 0.3 chance a stack to fizzle each spellcast for 30 s; under it AlaFlambe lost 54 of 140 casts, and the giant's fight took 111 s against 47 (user 2026-10-27: "Maybe we should just avoid it when our pet team relies on caster(s)"; docs/NOTES.md "Backlash"). |
 | `--crawl-avoid-types` / `--no-crawl-avoid-types` | on (`--pets` off) | The crawl avoids creature types the store's fights say cost too much or were fled from (live 20261015_171928 it set the vampire countess aside after one leave). |

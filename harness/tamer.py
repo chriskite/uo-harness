@@ -198,8 +198,8 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # target) adds radius + 1: the fins' spins (2: razorfin, voidfin, frenzyfin, greater
 # razorfin and frenzyfin), the colossal scourgeon's sweep (2), the tidal sea serpent's burst (3), the buccaneer's bleed
 # (1), the corpsebride's wail (2), the bound soul's bleed (1); the Ossuary's deathbringer's rain of death (4). A hit
-# reaching beyond AREA_MAX_R (the giant zoas' 12, the phantasm's lament 12, the spectral terror's 11) can't be stood
-# out of in a fight: the caster rules keep us from those. Since 2026-10-28 22:53 (Logan dead on Tidal Tomb level 1
+# reaching beyond AREA_MAX_R (the phantasm's lament 12, the spectral terror's 11) can't be stood out of in a fight: the
+# caster rules keep us from those. Since 2026-10-28 22:53 (Logan dead on Tidal Tomb level 1
 # beside both, docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out") also a hit on everyone within `radius` of its
 # target beside it or of where it comes up on its target's tile, as the zone is round it and the pet beside it (the
 # one it fights): the lowtide scavenger's large swing (radius 1: 306 of 314 of us within 1 of the tile it faces hit, 0
@@ -223,6 +223,27 @@ def _area_r() -> dict:
 
 
 AREA_R = _area_r()
+# A hit on its target, one of us up to `reach` off, and on everyone within `radius` of that one (a scenario `burst` with
+# `center` "target" and a radius): the astral zoas' spell and the combustive zoas' scorch. Its reach is round the pet it
+# targets, not round itself, and its sight of us doesn't matter (docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-29
+# 12:36"): the scorch landed on a pet of ours 89 of 89 times, 1-12 tiles from the zoa, and hit 157 of 168 of us within 3
+# of that pet, 0 of 181 at 4+. Live 2026-10-29 12:36:47-55 Logan stood 8 from a combustive zoa, out of its sight ("out of
+# its shot", the caster rule), 3 from the pets it fought 10 off: two scorches (-44, -45) and its lightning, dead. So each
+# live pet within `reach` of one in war mode is an area zone of `radius` + 1 (area_zone): the stand-off keeps us off it.
+
+
+def _target_area() -> dict:
+    out = {}
+    for sc in aggro.scenarios():
+        for kind, sps in (sc.get("specials") or {}).items():
+            for sp in sps if isinstance(sps, list) else ():
+                if sp["kind"] == "burst" and sp.get("center") == "target" and (sp.get("radius") or 0) >= 1:
+                    reach, r = out.get(kind, (0, 0))
+                    out[kind] = (max(reach, sp["reach"]), max(r, sp["radius"] + 1))
+    return out
+
+
+TARGET_AREA = _target_area()   # {kind: (reach, tiles to keep from each pet within that reach of it)}
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 # An apparition's blink (docs/SIM.md audit, n=56): "*phases*" over it, gone (0x1D), then back 1.1-1.6 s later on its
@@ -568,6 +589,7 @@ class Team:
         self.spot_for = frozenset()      # the monsters the last pull spot was chosen for
         self.standoff_t = -1e9
         self.standoff_stay = None        # why the last stand-off stayed put (logged once)
+        self.target_area_seen = set()   # serials of TARGET_AREA hitters whose zone round the pets was logged
         self.bubble_stay = None          # the bubble no tile out of reach was found from (logged once)
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
@@ -1089,10 +1111,10 @@ class Team:
         if v.walk is None or not shy or not self.shot_at(v, shy, v.pos):
             return False
         self.cover_t = now
-        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)    # out of every area hit's reach, as bard_step
         best, best_c = None, None
         for t, k in self.tiles_within(v, COVER_STEPS).items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or self.shot_at(v, shy, t):
+            if k == 0 or not clear(t) or t[:2] in fire or self.shot_at(v, shy, t):
                 continue
             c = (round(v.stand_score(t)), k)
             if best_c is None or c < best_c:
@@ -1636,8 +1658,8 @@ class Team:
 
     def reposition(self, st) -> bool:
         """--reposition, in a fight: a tile within REPOSITION_STEPS that keeps the pets near us within
-        --vet-range, out of a Charge's reach, with a lower aggro.View.stand_score (fewer idle monsters
-        that would see us, fewer casters in war mode with sight of us) by REPOSITION_GAIN; never
+        --vet-range, out of every area hit's reach (area_zone, as bard_step), with a lower aggro.View.stand_score
+        (fewer idle monsters that would see us, fewer casters in war mode with sight of us) by REPOSITION_GAIN; never
         mid-channel, unless a caster in war mode sees us within its spell reach: then mid-channel too and
         up to CASTER_STEPS (sim fight1949: a second banshee cast at Logan for 20 s, -20 every 3.4 s, while the
         pets killed the first and the vet channels kept him from stepping out of its sight)."""
@@ -1655,7 +1677,7 @@ class Team:
             return False
         pos = v.pos
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
-        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)
         spaced = [m["pos"][:2] for m in v.mobs if m["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
         steps = self.tiles_within(v, CASTER_STEPS if casting else REPOSITION_STEPS)
         here = v.stand_score(pos)
@@ -1663,7 +1685,7 @@ class Team:
         far = self.shy_beyond(v, pos)
         best, best_s, best_c = None, here, None
         for t, k in steps.items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
+            if k == 0 or not clear(t) or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in keep) \
                     or any(cheb(t, n) < SPACING_R for n in spaced):       # spacing's rule: not onto the tank
                 continue
             s = v.stand_score(t) + 0.3 * k
@@ -1729,12 +1751,15 @@ class Team:
     def area_zone(self, st) -> dict:
         """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone
         near it (a charger: CHARGE_SAFE_R; AREA_R's), and each live pet beside one (the one it fights:
-        a Charge lands next to it); each tile of an awake sprayer's frontal cone (spray_tiles) at 1."""
+        a Charge lands next to it); each live pet within the reach of one whose hit lands on its target and everyone near
+        that one (target_zone); each tile of an awake sprayer's frontal cone (spray_tiles) at 1."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
         pets = [p for p in self.pets(st) if not p["dead"]]
         zone = dict.fromkeys(self.spray_tiles(st), 1)
+        for t, r in self.target_zone(st).items():
+            zone[t] = max(zone.get(t, 0), r)
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s in self.roster or s in self.h.dead or mob.get("x") is None \
@@ -1749,6 +1774,33 @@ class Team:
                 zone[t] = max(zone.get(t, 0), r)
         for tile, r in self.blink_tiles(st).items():
             zone[tile] = max(zone.get(tile, 0), r)
+        return zone
+
+    def target_zone(self, st) -> dict:
+        """{(x, y): tiles to keep from it}: each live pet within the reach of a monster in war mode in view whose hit
+        lands on its target, one of us, and on everyone within its radius of that one (TARGET_AREA: the zoas' scorch and
+        astral spell, always on a pet), at radius + 1. Logged once a monster."""
+        import threats
+        world = st["world"]
+        labels = world.get("labels") or {}
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        zone = {}
+        for key, mob in world["mobiles"].items():
+            s = serial_of(key)
+            if s in self.roster or s in self.h.dead or mob.get("x") is None \
+                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
+                continue
+            kind = type_key(labels.get(key) or mob.get("name"))
+            if (ta := TARGET_AREA.get(kind)) is None:
+                continue
+            c = (mob["x"], mob["y"])
+            near = [p for p in pets if cheb(p, c) <= ta[0]]
+            if near and s not in self.target_area_seen:
+                self.target_area_seen.add(s)
+                log(f"area hit on its target: the awake {kind} 0x{s:08X} at {c} hits each of us within {ta[1] - 1} of "
+                    f"the pet it targets; keeping {ta[1]}+ off the pets within {ta[0]} of it")
+            for t in near:
+                zone[t] = max(zone.get(t, 0), ta[1])
         return zone
 
     def sprayers(self, st) -> list[tuple]:
@@ -1789,7 +1841,9 @@ class Team:
         """A sprayer's wind-up (its action 18: spray_t) from the events since the last look, and every awake sprayer's
         cone (spray_tiles) as the Mover's `avoid` tiles: every walk's route bends round them where it can (a patrol,
         an advance, a loot, a vet or a stand-off step alike; live 2026-10-28 22:18:03 the stand-off walked 5 steps
-        down the cone, the wave landed mid-walk, -42). Each tick (update) and on each step and plan (HuntLoop's Mover
+        down the cone, the wave landed mid-walk, -42). So the tiles within reach of the pets a target-centred area hit
+        may land on (target_zone): the simulator's live 12:36 layout had the walks between two tiles 4 off the pets
+        through one 3 off, scorched there. Each tick (update) and on each step and plan (HuntLoop's Mover
         guard), so a wind-up mid-walk reaches the walk's stop (spray_stop) before its wave."""
         if not self.roster:
             return                        # before setup: the events so far are history
@@ -1801,11 +1855,13 @@ class Team:
                 if type_key((st["world"].get("labels") or {}).get(f"0x{s:08X}") or m.get("name")) in SPRAY_R:
                     self.spray_t[s] = now
         self.spray_upto = len(evs)
-        tiles = set(self.spray_tiles(st))
-        if tiles:
-            self.h.mover.avoid["spray"] = tiles
-        else:
-            self.h.mover.avoid.pop("spray", None)
+        for key, tiles in (("spray", set(self.spray_tiles(st))),
+                           ("target_area", {(cx + dx, cy + dy) for (cx, cy), r in self.target_zone(st).items()
+                                            for dx in range(1 - r, r) for dy in range(1 - r, r)})):
+            if tiles:
+                self.h.mover.avoid[key] = tiles
+            else:
+                self.h.mover.avoid.pop(key, None)
 
     def spray_stop(self, st) -> str | None:
         """A walk's stop (Mover.walk_to `stop`): a sprayer wound up with us in its cone or a step from it (spray_due
@@ -2761,8 +2817,8 @@ class Team:
     def bard_step(self, st, serial: int, peek: bool = False) -> bool:
         """A bard skill is due at `serial` and we don't see it: step (up to REPOSITION_STEPS, at most once every
         REPOSITION_S) to the tile that sees it with the fewest eyes on us (aggro.View.stand_score), under the
-        reposition's rules (the pets within --vet-range, out of a Charge's reach and fire, not onto the tank),
-        and no more eyes on us than here (stand_score plus 0.3 a step: allowing REPOSITION_GAIN more cost the
+        reposition's rules (the pets within --vet-range, out of every area hit's reach (area_zone) and fire, not onto
+        the tank), and no more eyes on us than here (stand_score plus 0.3 a step: allowing REPOSITION_GAIN more cost the
         simulator 9 runs with a death in 144, docs/NOTES.md "Bard skills at targets out of sight"). Never
         mid-channel. True when we stepped.
         `peek` (the target isn't on us): up to PEEK_STEPS; only the eyes that would wake to us count (idle monsters
@@ -2785,7 +2841,10 @@ class Team:
         if v.walk is None or m is None:
             return False
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
-        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        # clear of every area zone, not only its centres: a step back into one has the stand-off walk us out again, round
+        # and round (simulator, the live 2026-10-29 12:36 layout: "stepping to (6892, 2063)" 3 from the pets a combustive
+        # zoa scorched, every 6-8 s, test_scorch_stand_off)
+        clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)
         spaced = [o["pos"][:2] for o in v.mobs if o["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
         in_range = keep if not peek or now < self.vet_busy_until else []
 
@@ -2800,7 +2859,7 @@ class Team:
         here = score(v.pos)
         best, best_s, best_c = None, None, None
         for t, k in self.tiles_within(v, steps).items():
-            if k == 0 or t[:2] in zone or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in in_range) \
+            if k == 0 or not clear(t) or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in in_range) \
                     or any(cheb(t, n) < SPACING_R for n in spaced) or not v.we_see(m, t, BARD_RANGE):
                 continue
             c = score(t)
