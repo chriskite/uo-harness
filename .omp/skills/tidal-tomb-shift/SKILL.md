@@ -28,8 +28,8 @@ before dispatch:
    | The user says | Level | State |
    |---|---|---|
    | level 1, nothing | TT 1 | The default; the runner's live runs since 2026-10-26. |
-   | level 2 | TT 2 | Never run live by the runner. No oxygen rule (deprivation from 732 s under water: Logan and the pets down to 66 %). Simulator: 4 of 24 runs with a death (docs/SIM.md "Level 2's bedrocks"); 2026-10-27 seeds 4-5 both home (83k, 74k gp). |
-   | level 3 | TT 3 | Never run live by the runner. Level 2 fought through on the way, no oxygen rule, the giant astral zoa at the arrival the main killer. Simulator: 5 of 24 with a death; 2026-10-27 seeds 4-5 both died (seed 5 on level 1's walk at 70 s). |
+   | level 2 | TT 2 | Never run live by the runner. No oxygen refill on level 2: its one known refill, the west strip, cost deaths in the simulator, so past 732 s under water Logan and the pets sit at 66 % (the heals stop at that floor; docs/HUNT_LOOP.md "Oxygen"). Simulator: 4 of 24 runs with a death (docs/SIM.md "Level 2's bedrocks"); 2026-10-27 seeds 4-5 both home (83k, 74k gp). |
+   | level 3 | TT 3 | Never run live by the runner. Level 2 fought through on the way (past 732 s under water there in most simulated runs: no refill leg on that walk), the giant astral zoa at the arrival the main killer; on level 3 the oxygen rule fights to the nearest Recovery Dolphin. Simulator: 5 of 24 with a death; 2026-10-27 seeds 4-5 both died (seed 5 on level 1's walk at 70 s). |
 
    **Level 2 or 3:** before the first run, tell the user in one message what the table says for it and wait for
    their go; then dispatch with it. Their go stands for the shift.
@@ -110,9 +110,10 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
   older than 90 s, a run idling ("Nothing to patrol to; waiting" outside the dungeon), or Logan on another level than
   the shift's (the boxes in §5 "Another hunt level") is an issue too: message the Seer (`write agent://<id>`) or
   check `history://<id>` for what it is doing.
-- **Levels 2 and 3:** the runner reads no oxygen. Past 732 s under water Logan and the pets lose hits every 6 s down
-  to 66 %, which no song or heal stops (docs/SIM.md "Oxygen"): expected, not a new bug, but it eats the heal
-  margin. A death there goes to the user like any other.
+- **Levels 2 and 3:** the runner's oxygen rule (docs/HUNT_LOOP.md "Oxygen") fights its way to the easiest refill
+  before 732 s under water: a "oxygen: to the dolphin/teleporter up ..." intent and an `oxygen` job event per leg are
+  expected, not a new bug. Past 732 s anyway (a long fought leg, the walk across level 2 to level 3) Logan and the pets
+  lose hits every 6 s down to 66 %, which no song or heal stops. A death there goes to the user like any other.
 - **Never** `ctl wait` for Logan: it advances the Seer's shared cursors (`overseer_juncture_cursor`,
   `overseer_chat_cursor`) and the Seer misses those events. Never `ctl act`, `ctl run` or `ctl stop` while the
   Seer runs: have the Seer do it. Never fight by hand.

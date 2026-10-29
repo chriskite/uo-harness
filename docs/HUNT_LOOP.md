@@ -43,6 +43,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; a drop-off that can't run (not at home, an item out of reach) ends the run at home. |
 | `--repair` / `--no-repair` | on | Before each recall in from home: double-click the house's repair bench (homes.json `repair_bench`): worn armor and the pack's instruments repaired; an empty bench (or no answer) ends the run at home ("Recall in, recall out"). |
 | `--go-home` | off | No hunting: from wherever the character stands, home, then the drop-off; exit 0 at home. Inside a dungeon that allows no recall, the escape's way out ("Guards": an error inside escapes home); elsewhere the recall with `--leave-recall`; at home already, the drop-off only. Give it the hunt's own arguments (the Seer: docs/OVERSEER.md §5's command plus `--go-home`). No pet in view: it goes without them. |
+| `--no-oxygen` | off | No oxygen rule under water (Tidal Tomb's levels 2+; "Oxygen" below): no refill legs to the dolphins, `--heal-at` as given while deprived. |
 | `--heal-at` | `0.75` (`--pets` 0.80) | Heal below this share of max hits (healing.py: a heal potion if one can be drunk, else a spell). |
 | `--gheal-min-missing` | the mana break-even for your Magery (19 at 60) | Missing hits from which the heal spell is Greater Heal; below it, Heal. |
 | `--leave-at` | `0.60` (`--pets` 0.50) | Leave below this share of max hits (plus the fight spot's route margin). |
@@ -1188,6 +1189,55 @@ moongate, and never near a red one).
 **Not built**: claiming or stabling the pets, a corpse run of our own, and Herding (Logan double-clicked
 his shepherd's crook once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since
 2026-10-13.
+
+## Oxygen (Tidal Tomb's levels 2+; `harness/oxygen.py`; user request 2026-10-28)
+
+Under water, from 732 s since the last refill, Logan and the pets lose hits every 6 s down to 66 % of their max
+(docs/NOTES.md "Oxygen, measured"). The user: "its going to need to either go back to level 1 for a breath or fight to
+the dolphins on level 3", and, on the plan, "I would prefer it just fight normally to the easiest oxygen refill to get
+to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
+
+- **The clock** (`oxygen.Clock`, fed by `scan_events` with every new event and our position):
+  - Our seconds under water count from the last refill: dry ground (outside every `oxygen.underwater` box), or the
+    system line "Your oxygen is refilled." (a Recovery Dolphin).
+  - The server's 'Oxygen' gump 0xEC5F8754 (every 6 s under water) holds it to what its bars allow. The second bar's
+    k-th step comes at (k - 1) x 30.1 + 10 s, ± 3 s (scenario `oxygen.gump`, fitted on the store's gumps). A count off
+    by less than a step goes to the nearer edge, by more (a run started under water) to the middle.
+  - The deprivation's warning line sets it to 726 s, its hit line to 732 s at least.
+  - Replayed through the clock, the live stream of 2026-10-24 put the first hit at 733 s (live 732).
+- **The refills** (`oxygen.sites`, from data/sim/tidal_tomb.json's `oxygen` block, as `tamer.py` reads the
+  Mausoleum's spawn spots): each dolphin, and each `hops` entry without a `skip` (a teleporter up to dry ground and the
+  one back down). Only those in our own underwater box count: a level 2 hunt never goes for a level 3 dolphin.
+  - The one hop known, level 2's west strip ((6834, 2079) up, (6609, 2060) down, the round trip seen live), carries a
+    `skip`: in the simulator its legs ran into the strip's arrival, where the shooters are, and cost deaths without
+    sparing the deprivation (below). So on level 2 there is no refill leg, only the healing rule below. Deleting the
+    `skip` takes it again; adding level 2's arrival pair once it is seen going up (docs/SIM.md open item 11) is one
+    more entry.
+- **The easiest** (`oxygen_site`): the map route to each (onto a hop's teleporter, to within 9 of a dolphin:
+  `DOLPHIN_STAND_R`, live 90 of 96 refills at 7-9 tiles), its steps plus `OXY_MOB_STEPS` 25 for each attackable
+  monster in view within `OXY_MOB_R` 6 of a route tile. A refill the leg can't reach before the deprivation, even
+  starting at `OXY_MIN_S` (more than (732 - 120 - 300) / `OXY_STEP_S` = 104 route steps), is out of reach.
+- **When** (`oxygen_due`, in the tick after the fighting, the vet and the blink hold, before the patrol): from
+  `OXY_MIN_S` 300 s under, once our time reaches 732 - `OXY_MARGIN_S` 120 - the route steps x `OXY_STEP_S` 3.0 (the
+  simulator's fought legs: median 2.2 s a step, 75th percentile 3.0). Routes are planned again every `OXY_PLAN_S` 15 s.
+- **The leg** (`oxygen_leg`) is a fought leg, never a leave's walk: `walk_in_fought` to the refill, the pets on 'All
+  Guard Me', each round the tick's fighting (`combat_step`), the crawl's rejoin for a lagging pet. Unlike the walk in,
+  the leave rules stay on (`oxygen_bail`: a leave rule, failed walks, the run's time up stop it short; the tick
+  then leaves).
+  - A hop (`oxygen_hop`): onto the teleporter with the pets beside it (`onto_teleporter`), `OXY_DRY_S` 2 s on dry
+    ground, a step off the landing tile (itself the teleporter down) and back onto it.
+  - A dolphin (`oxygen_dolphin`): the tick's fighting until its refill line, `OXY_DOLPHIN_WAIT_S` 12 s; none, to
+    within 4 and the same wait again.
+  - A failed leg (an Abort) hunts on and tries again after `OXY_RETRY_S` 120 s. Every leg leaves an `oxygen` job event
+    (refill kind, tile, seconds under at the start, route steps, monsters near it, seconds, outcome, hits).
+- **Healing while deprived** (`heal_at_now`, `Team.heal_at`): `--heal-at` and `--pet-heal-at` go no higher than the
+  deprivation's floor (66 %): the drain takes back every hit healed above it, a potion's 25-45 in 30-50 s.
+- **Not covered:** the fought walk in across level 2 to level 3 (11-20 game minutes in the simulator) has no refill
+  leg of its own; it ends 11 tiles from the arrival's dolphin, which refills on the first leg there.
+- **Simulator, 2026-10-28** (docs/SIM.md "Oxygen: the refill legs"; 48 runs a side, one tree): level 3, Logan's
+  deprivation damage 4,452 -> 2,435 and the pets' 57,207 -> 29,657, runs with a death 28 -> 25, banked an hour +13 %.
+  Level 2 with the west strip taken: runs with a death 12 -> 19 (10 of them during a leg), Logan's deprivation damage
+  no lower; hence its `skip`.
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 

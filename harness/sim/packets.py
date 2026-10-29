@@ -126,6 +126,11 @@ def gump(serial, gump_id, layout, lines=()):
     return var(0xB0, body)
 
 
+def close_gump(gump_id, button=0):
+    """0xBF sub 0x04: the server closes a gump of this id (live before each new 'Oxygen' gump: `gump_close` by server)."""
+    return var(0xBF, u16(0x04) + u32(gump_id) + u32(button))
+
+
 def pet_dead(serial, dead=True):
     """0xBF sub 0x19 bonded status: a bonded pet's ghost (live `bf000b 0019 00 <serial> 01`)."""
     return var(0xBF, u16(0x19) + b"\x00" + u32(serial) + (b"\x01" if dead else b"\x00"))

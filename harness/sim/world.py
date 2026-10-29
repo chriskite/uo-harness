@@ -350,6 +350,8 @@ class World:
         self.under_s = 0.0                    # scenario `oxygen`: seconds under water since it was last refilled
         self.oxygen_due = None                # ... the next deprivation hit, once deprived
         self.dolphin_due = None               # scenario `oxygen.dolphins`: their next refill tick
+        self.oxygen_gump_due = None           # scenario `oxygen.gump`: the next 'Oxygen' gump (under water only)
+        self.oxygen_warned = set()            # ... stages whose `warn` line went out since the last refill
         self.bubble_throws = []               # clearwater groupers' bubbles in the air: (land time, grouper serial, tile, special)
         self.bubble_hit_t = {}                # serial -> time a bubble last hit it (one hit a volley)
         self.gump_n = 0x7700
@@ -1295,15 +1297,16 @@ class World:
         """Tidal Tomb's oxygen (scenario `oxygen`, knowledge #4641-4645, the live numbers in its note): our time under
         water (its levels 2+) adds up and a step out of it refills it; from a stage's `after_s` on, every `every_s`, we
         lose `player` hits and each pet `pet_pct` of its max, never below `above` of the max (unpreventable: no song
-        cuts it). A Recovery Dolphin (`dolphins`) refills it on its tick every `dolphin_every_s` when we stand within
-        `dolphin_r` of it, with the live line "Your oxygen is refilled.". The live oxygen bar and buff icons aren't
-        sent (the runner reads neither)."""
+        cuts it), with the stage's `text` to us on each hit on us. A Recovery Dolphin (`dolphins`) refills it on its
+        tick every `dolphin_every_s` when we stand within `dolphin_r` of it, with the live line "Your oxygen is
+        refilled.". The live 'Oxygen' gump goes out every `gump.every_s` under water (_oxygen_gump); the buff icons
+        aren't sent."""
         ox = self.sc.get("oxygen")
         if not ox:
             return
         pl = self.player
         if pl.ghost or not self._underwater(pl):
-            self.under_s, self.oxygen_due = 0.0, None
+            self.under_s, self.oxygen_due, self.oxygen_warned = 0.0, None, set()
             return
         if ox.get("dolphins"):
             if self.dolphin_due is None:
@@ -1311,12 +1314,19 @@ class World:
             if self.t >= self.dolphin_due:
                 self.dolphin_due = self._due(self.dolphin_due, ox["dolphin_every_s"])
                 if any(cheb(pl.pos, tuple(d["at"][:2])) <= ox["dolphin_r"] for d in ox["dolphins"]):
-                    self.under_s, self.oxygen_due = 0.0, None
+                    self.under_s, self.oxygen_due, self.oxygen_warned = 0.0, None, set()
                     self.count("dolphin_refills")
                     self._sys(TEXT_OXYGEN_REFILLED)
+                    self._oxygen_gump(ox)
                     return
         self.under_s += TICK_S
         self.count("underwater_s", n=TICK_S)
+        self._oxygen_gump(ox)
+        for s in ox["stages"]:
+            # live the stage's warning came 6 s (one hit's gap) before its first hit (session 192: +24.1 s, +30.1 s)
+            if s.get("warn") and s["name"] not in self.oxygen_warned and self.under_s >= s["after_s"] - ox["every_s"]:
+                self.oxygen_warned.add(s["name"])
+                self._sys(s["warn"])
         stage = next((s for s in reversed(ox["stages"]) if self.under_s >= s["after_s"]), None)
         if stage is None:
             return
@@ -1331,12 +1341,32 @@ class World:
             n = min(stage["player"], pl.hits - floor)
             self.hurt(pl, n, None, "oxygen")
             self.count("oxygen_damage", "player", max(1, round(n)))
+            if stage.get("text"):
+                self._sys(stage["text"])
         for p in self.pets():
             floor = stage["above"] * p.hits_max
             if p.alive and not p.ghost and p.hits > floor:
                 n = min(stage["pet_pct"] * p.hits_max, p.hits - floor)
                 self.hurt(p, n, None, "oxygen")
                 self.count("oxygen_damage", p.name, max(1, round(n)))
+
+    def _oxygen_gump(self, ox: dict):
+        """The server's 'Oxygen' gump every `gump.every_s` under water, the old one closed first, as live (scenario
+        `oxygen.gump`): the second bar (y 64) loses its first art `first_step_s` under, then one every `step_s` down to
+        `empty`; the first bar (y 50) its first with the deprivation's first hit, then one a `step_s` [INFERENCE: its
+        pace]. Read by the runner's oxygen clock."""
+        gp = ox.get("gump")
+        if not gp or (self.oxygen_gump_due is not None and self.t < self.oxygen_gump_due):
+            return
+        self.oxygen_gump_due = self.t + gp["every_s"]
+        steps = 0 if self.under_s < gp["first_step_s"] else 1 + int((self.under_s - gp["first_step_s"]) // gp["step_s"])
+        second = max(gp["empty"], gp["full"] - steps)
+        past = self.under_s - ox["stages"][0]["after_s"]
+        first = gp["full"] if past < 0 else max(gp["empty"], gp["full"] - 1 - int(past // gp["step_s"]))
+        layout = ("{ resizepic 13 13 11571 117 85 }{ checkertrans 16 16 108 77 }{ text 50 26 2655 0 18 0 1 0 0 0 }"
+                  f"{{ tilepic 17 39 50284 }}{{ tilepichue 58 50 {first} 2904 }}{{ tilepichue 58 64 {second} 2904 }}")
+        self.send(P.close_gump(gp["id"]))
+        self.send(P.gump(self.player.serial, gp["id"], layout, ["Oxygen"]))
 
     def _on_level(self) -> bool:
         """Whether we stand on the hunting level (scenario `area`): the time and the damage counted per hour on it,

@@ -674,10 +674,12 @@ Paste this (or point the session at this section) to start an overseer.
 >      --fight-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221`. Across level 1 to its west strip, level 2
 >      fought through to its north strip, the crawl on level 3; out up the arrival strip (7161, 2221) and across level 2,
 >      fought, to the crimson gate 0x4003D7B9 at (6897, 1992).
->    Tidal Tomb's levels 2 and 3 have never been run live by the runner. The runner has no oxygen rule (deprivation
->    from 732 s under water, Logan and the pets down to 66 %), and in the simulator runs with a death were 4 of 24
->    (level 2) and 5 of 24 (level 3) against Maus 3's 4 of 96 (docs/SIM.md "Level 2's bedrocks"). Start one only when
->    the parent passes the user's go for it.
+>    Tidal Tomb's levels 2 and 3 have never been run live by the runner. Its oxygen rule (docs/HUNT_LOOP.md "Oxygen")
+>    fights to the nearest Recovery Dolphin on level 3 before 732 s under water; level 2 has no refill it takes (the
+>    west strip's legs cost deaths in the simulator, docs/SIM.md "Oxygen: the refill legs"), so there Logan and the
+>    pets sit at 66 % past 732 s. In the simulator runs with a death were 4 of 24 (level 2) and 5 of 24 (level 3)
+>    against Maus 3's 4 of 96 (docs/SIM.md "Level 2's bedrocks"). Start one only when the parent passes the user's go
+>    for it.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:

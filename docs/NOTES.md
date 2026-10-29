@@ -5673,6 +5673,15 @@ Tomb"):
 - The 'Oxygen' gump's second bar stepped 28135 -> 28111, one step every 30.25 s: 24 steps to the deprivation. Then the
   first bar started down (28134 at 20:04:23). [INFERENCE: major deprivation when the first bar runs out too, ~24 min.]
 - On 2026-10-25 the level 2 -> 3 strip at 7.6 min under and the dolphin beside level 3's arrival kept it from coming.
+- **The gump's bars, fitted** (2026-10-28, the store's 644 'Oxygen' gumps of session 204 and the deprivation of session
+  192; `tidal_tomb.json` `oxygen.gump`): the second bar's first art goes ~10 s under water (the full gump at -701.3 s
+  before the empty one, 28134 at -695.8), then one every 30.1 s (14 steps in 421.1 s; 23 in 695.6 s), not 30.25.
+  24.1 s after the last step came 'You are now experiencing minor oxygen deprivation! (continuous minor health loss
+  when above 66% health).', and 30.1 s after it the first hit's line with the first bar's first step. So the k-th step
+  lands at (k - 1) x 30.1 + 10 s under and the first hit at 23 x 30.1 + 10 + 30 = 732 s. Replayed through the runner's
+  clock (harness/oxygen.py), that stream put the first hit at 733 s.
+- **No step onto level 2's arrival tile (6943, 2004) in any capture** (2026-10-28, the store's `step` rows: every one
+  from it goes off it after an arrival). Whether it takes you up to level 1 is still open (docs/SIM.md open item 11).
 
 **Barding: the instrument changed between the days** (user 2026-10-25: "Barding depends on the quality of the
 instrument").

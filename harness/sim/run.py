@@ -206,8 +206,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     visits = [json.loads(d) for (d,) in store.con.execute(
         "SELECT data FROM episodes WHERE loop='hunt' AND id>? ORDER BY id", (first_ep,))]
     records = [{"kind": k, "x": x, "y": y, **json.loads(d)} for k, x, y, d in store.con.execute(
-        "SELECT kind, x, y, data FROM job_events WHERE job='hunt' AND kind IN ('fight', 'death', 'leave') AND id>? "
-        "ORDER BY id", (first_ev,))]
+        "SELECT kind, x, y, data FROM job_events WHERE job='hunt' AND kind IN ('fight', 'death', 'leave', 'oxygen') "
+        "AND id>? ORDER BY id", (first_ev,))]
     store.close()
     m = world.metrics
     pl = world.player
@@ -248,8 +248,12 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
                        if k in m} if world.others_on else None,
             "eerie": {k: m.get(k, 0) for k in ("eerie_spawned", "eerie_seen", "soul_jars")} if world.eerie_on else None,
             "reds": world.reds.summary() if world.reds.on else None,
-            # Tidal Tomb's: seconds under water, oxygen deprivation damage by victim, broodlings by type
-            "oxygen": {"underwater_s": round(m.get("underwater_s", 0.0), 1), "damage": m.get("oxygen_damage", {})}
+            # Tidal Tomb's: seconds under water, oxygen deprivation damage by victim, the dolphin's refills, the runner's
+            # refill legs (its `oxygen` job events); broodlings by type
+            "oxygen": {"underwater_s": round(m.get("underwater_s", 0.0), 1), "damage": m.get("oxygen_damage", {}),
+                       "dolphin_refills": m.get("dolphin_refills", 0),
+                       "legs": [{k: r.get(k) for k in ("refill", "tile", "under_s", "steps", "mobs", "s", "outcome")}
+                                for r in records if r["kind"] == "oxygen"]}
             if world.sc.get("oxygen") else None,
             "broodlings": m.get("broodlings", {}),
             # clearwater groupers' bubbles: thrown, and the hits and damage on us and on the pets; ocean bedrocks' spray
@@ -449,7 +453,7 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
     hour, and banked per hour with `downtime_s` of game time added for each death (banked_per_h_net); the player's ARs
     and his damage taken on the level per game hour; the clearwater groupers' bubbles', the ocean bedrocks' spray's, the
     lowtide scavengers' large swings' and the nest crabs' digs' totals (thrown, sprayed or dug, hits and damage on us and
-    on the pets) when any came."""
+    on the pets) when any came; Tidal Tomb's oxygen (oxygen_summary) under water."""
     ok = [r for r in results if "sim_s" in r]
     hours = sum(r["sim_s"] for r in ok) / 3600 or 1e-9
     deaths = sum(r["deaths"] for r in ok)
@@ -483,7 +487,26 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             **{key: {k: sum((r.get(key) or {}).get(k, 0) for r in ok)
                      for k in sorted({k for r in ok for k in (r.get(key) or {})})}
                for key in ("bubbles", "spray", "large_swing", "dig") if any(r.get(key) for r in ok)},
+            **({"oxygen": oxygen_summary(ok)} if any(r.get("oxygen") for r in ok) else {}),
             **({"reds": reds_summary(ok)} if any(r.get("reds") for r in ok) else {})}
+
+
+def oxygen_summary(ok: list[dict]) -> dict:
+    """Across runs: hours under water, the deprivation's damage on Logan and on the pets, the dolphin's refills, the
+    runner's refill legs by kind and outcome, their median seconds, and the runs that died during one (an outcome
+    "failed: died ..." or "stopped": the leg's job event written on the way out of a death)."""
+    legs = [g for r in ok for g in (r.get("oxygen") or {}).get("legs", [])]
+    dmg = [(r.get("oxygen") or {}).get("damage", {}) for r in ok]
+    return {"underwater_h": round(sum((r.get("oxygen") or {}).get("underwater_s", 0) for r in ok) / 3600, 2),
+            "damage_player": sum(d.get("player", 0) for d in dmg),
+            "damage_pets": sum(v for d in dmg for k, v in d.items() if k != "player"),
+            "runs_deprived": sum(1 for d in dmg if d),
+            "dolphin_refills": sum((r.get("oxygen") or {}).get("dolphin_refills", 0) for r in ok),
+            "legs": {f"{k} {o}": sum(1 for g in legs if g["refill"] == k and str(g["outcome"]).split(":")[0] == o)
+                     for k, o in sorted({(g["refill"], str(g["outcome"]).split(":")[0]) for g in legs})},
+            "leg_s_median": _median([g["s"] for g in legs]),
+            "runs_dead_in_a_leg": sum(1 for r in ok if r["deaths"] and any(
+                g["outcome"] == "stopped" or "died" in str(g["outcome"]) for g in (r.get("oxygen") or {}).get("legs", [])))}
 
 
 def _median(xs):

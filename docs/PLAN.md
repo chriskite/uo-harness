@@ -2862,13 +2862,13 @@ hand"). Decisions:
 - **Not done**, with the evidence for the next session: the six specials not measured enough, other players and reds
   (no `others`/`reds` blocks), the walk-in wait on the ramp (a runner change, not the simulator's).
 
-## Oxygen: a breath on level 1 or a dolphin on level 3 (user 2026-10-28, open, not built)
+## Oxygen: a breath on level 1 or a dolphin on level 3 (user 2026-10-28; built the same day)
 
 User, during the first Tidal Tomb level 2 shift: "The fact the runner doesn't handle oxygen is going to become a
 problem. We're fine right now but its going to need to either go back to level 1 for a breath or fight to the dolphins
 on level 3 in the future." Today the runner reads no oxygen. Past 732 s under water, Logan and the pets lose hits every
 6 s down to 66 % (docs/SIM.md "Oxygen"), and after ~24 min [INFERENCE] down to 33 %. That eats the heal margin of a
-long crawl on level 2 or 3. Not built yet, by the user's word ("we're fine right now").
+long crawl on level 2 or 3. The user then asked for it built ("Agreed. Implement this plan."); decisions below.
 
 What the rule can stand on, all measured (docs/NOTES.md "Oxygen, measured", "The Recovery Dolphin reaches 12 tiles"):
 
@@ -2899,6 +2899,33 @@ What the rule can stand on, all measured (docs/NOTES.md "Oxygen, measured", "The
     arrive deprived rather than break off fights.
 - **The simulator models both already:** oxygen, the dolphins and level 1's refill (`World._oxygen`,
   `test_tidal_oxygen`, `test_tidal_dolphin`). Whichever option is built is measured there first.
+
+**Built** (docs/HUNT_LOOP.md "Oxygen", `harness/oxygen.py`; docs/SIM.md "Oxygen: the refill legs"):
+
+- **The clock from the server's gump, held by our own count.** The count since the last refill (dry ground, the refill
+  line) is clamped to what the 'Oxygen' gump's bars allow, with the bars' timing fitted on the store's 644 gumps
+  ((k - 1) x 30.1 + 10 s; replayed, the live deprivation came out at 733 s for 732). Rejected: our count alone (a run
+  started under water, the overseer's restart from inside, would read 0) and the bars alone (30 s steps; the count is
+  finer between them).
+- **The refills are data in the simulator's scenario** (`oxygen.hops`, `oxygen.dolphins`), read by the runner as
+  `tamer.py` reads the Mausoleum's spawn spots: one copy of the boxes and the evidence. Rejected: a runner data file
+  (two copies of the boxes to keep in step) and runner flags (a forgotten flag live is no rule).
+- **Only refills in our own underwater box.** A level 2 hunt never goes down to a level 3 dolphin: the level 3 arrival
+  is where the giant astral zoa killed most simulated level 3 runs.
+- **A reach cap:** a refill whose leg can't end before the deprivation even from 300 s under is none; the step pace
+  (3.0 s) is the fought legs' 75th percentile.
+- **The leave rules stay on during a leg** (`oxygen_bail`), unlike the walk in's fought legs: the leg is on the hunting
+  level, where a hurt Logan leaves.
+- **Heals capped at the deprivation's floor while deprived**: above 66 % the drain takes back what a potion gives.
+- **Level 2's west strip is not taken (`skip`).** Measured, 48 runs a side on one tree: its legs walk the crawl from
+  the arrival into the strip's arrival, the shooters' ground; runs with a death 12 -> 19 (10 during a leg), the
+  deprivation no lower. This goes against the plan's option 1 as written; it keeps the user's point (fight to a refill
+  only if getting there doesn't kill us). So level 2 has no refill leg until its arrival pair is seen going up live
+  (docs/SIM.md open item 11; as an experiment it halved the deprived runs).
+- **Level 3's dolphins are.** Logan's deprivation damage 4,452 -> 2,435, the pets' 57,207 -> 29,657, runs with a death
+  28 -> 25, banked an hour +13 %.
+- **Open:** the fought walk across level 2 to level 3 (11-20 game minutes in the simulator) runs past 732 s with no
+  refill leg; the major stage (~24 min, 33 %) is unmeasured.
 
 ## Simulator speed: two caches, no Rust port (user 2026-10-28)
 

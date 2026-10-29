@@ -1307,7 +1307,8 @@ flowchart LR
   - From 732 s on: -5 every 6 s, and each pet -5 % of its max, never below 66 %.
   - From 1464 s on [INFERENCE]: -10 / -10 %, never below 33 %.
   - No song cuts this damage (`UNPREVENTABLE`).
-  - Live: the 'Oxygen' gump came every 6 s, its bar a step every 30 s. The simulator doesn't send it.
+  - Live: the 'Oxygen' gump came every 6 s, its bar a step every 30 s. Since 2026-10-28 the simulator sends it too, with
+    its fitted bars and the deprivation's two lines ("Oxygen: the refill legs").
   - Before 2026-10-25 these were the patch notes' numbers: 10 and 20 minutes, every 5 s, a hit while above the floor.
 - **Ooze aura** (oozing noughtilus, special `ooze`): 4 bursts 0.3 s apart on everyone within 2 tiles, every 7-12 s.
   The capture had 9 bursts, and the wiki's Ooze Aura matches.
@@ -1949,6 +1950,49 @@ runner's rules in docs/HUNT_LOOP.md "Out"). Two mechanics were missing or wrong 
     crab's 75-84 in its last 15 s: its Dig onto Logan, which no stand-off steps out of (it comes up on its target).
   - The area peaces all but went: kept out of the two monsters' reach Logan is rarely in a jam [INFERENCE].
   - Banked an hour -2 % with one death each: within a batch's spread.
+
+### Oxygen: the refill legs (2026-10-28)
+
+User 2026-10-28: the runner should "either go back to level 1 for a breath or fight to the dolphins on level 3", and
+"just fight normally to the easiest oxygen refill to get to". The runner's rule is in docs/HUNT_LOOP.md "Oxygen", the
+decision in docs/PLAN.md "Oxygen".
+
+**The world:**
+
+- **The 'Oxygen' gump** (`World._oxygen_gump`, scenario `oxygen.gump`): every 6 s under water, the old one closed
+  first (`P.close_gump`, 0xBF sub 4), its bars fitted on the store's gumps (docs/NOTES.md "Oxygen, measured"): the
+  second bar's k-th step at (k - 1) x 30.1 + 10 s, the first bar's from the deprivation on.
+- **The deprivation's lines**: the stage's `warn` 6 s before its first hit, its `text` with each hit on us, as live.
+- `run.py`'s summary `oxygen` adds `dolphin_refills` and `legs` (the runner's `oxygen` job events); `all:` adds
+  `oxygen`: hours under water, the deprivation's damage, runs deprived, legs by refill and outcome, the median leg,
+  runs dead during a leg.
+- Tests: `test_oxygen_hop` (the clock against the gump; a hop with a `skip` is no refill; without it, the leg up the
+  west strip and back down with the pets, no deprivation), `test_oxygen_dolphin`.
+
+**Runs** (seeds 4-51, 30 min, 48 a side, every side on the same tree; "on" is the rule as first built, the west
+strip's hop taken; net: banked an hour with 30 game minutes added for each death):
+
+| | runs with a death | deaths in a leg | Logan's deprivation damage | the pets' | runs deprived | banked an hour | net |
+|---|---|---|---|---|---|---|---|
+| level 2, off (`--no-oxygen`) | 12 | - | 6,637 | 83,029 | 40 | 115,686 | 91,969 |
+| level 2, on (west strip) | 19 | 10 | 7,169 | 82,958 | 35 | 127,232 | 88,800 |
+| level 3, off | 28 | - | 4,452 | 57,207 | 26 | 113,975 | 65,005 |
+| level 3, on (dolphins) | 25 | 0 | **2,435** | **29,657** | 25 | 128,618 | 76,230 |
+
+- **Level 3: the dolphins pay.** 41 of 42 legs refilled, a median 11 s: the crawl stays near the arrival's dolphin.
+  The deprivation that's left comes on the fought walk across level 2 (level 3 reached at 650-950 s under), which has
+  no refill leg; the first leg on arrival is 2 steps.
+- **Level 2: the west strip doesn't.** The level 2 crawl hunts from the arrival in the east; the strip is ~160 route
+  steps off, and its arrival (x 6840-6855, y 2073-2098) is the mariners' and soulcatchers' ground. The legs took a
+  median 6 min, 26 of 58 stopped short (19 at the run's end, 7 on a leave rule), 10 died, and of the runs that died 8
+  died at the strip against none without the rule. The deprivation came anyway. So the scenario's hop carries a
+  `skip` and level 2 runs have no refill leg.
+- **Tried and dropped:** legs from 0 s under (`OXY_MIN_S` 0; a tether to the strip): more deprivation damage, not
+  less. Without a reach cap (legs of any length): the same picture. The step pace `OXY_STEP_S` 3.0 is the fought
+  legs' 75th percentile (119 refilled legs: median 2.2 s a step).
+- **Level 2's arrival pair as a hop** (an experiment: the scenario's way up from (6943, 2004), never seen live): 48
+  runs on an earlier tree, against that tree's off side: runs deprived 40 -> 18, Logan's deprivation damage 7,764 ->
+  3,603, runs with a death 10 -> 13. Worth adding if the pair goes up live (open item 11).
 
 ## The Ossuary (2026-10-28)
 
@@ -2661,9 +2705,10 @@ Tidal Tomb (since 2026-10-24; one visit so far):
    monsters on him, not on the pets, and the simulator gives him a quarter of it.
 10. **The golden moongate at the arrival (6652, 2095).** A crimson gate stands on the same tile. Double-click it
     and note which menu opens and its rows. This is the simulated runner's way out.
-11. **A step back onto level 2's arrival (6943, 2004).** Does it lead up to (6718, 1984), as the other pairs do?
-12. **The oxygen past 10 minutes on level 2**, if a safe spot allows it: the deprivation's texts, buff icons and hits.
-    The simulator has the patch notes' numbers only.
+11. **A step back onto level 2's arrival (6943, 2004).** Does it lead up to (6718, 1984), as the other pairs do? If
+    it does, it is level 2's refill near the crawl ("Oxygen: the refill legs": one `hops` entry).
+12. ~~The oxygen past 10 minutes on level 2~~: captured 2026-10-24 (docs/NOTES.md "Oxygen, measured"; its texts, the
+    gump's bars and hits are in the scenario since 2026-10-25 and 2026-10-28). The buff icons are still unread.
 13. **A dungeon-nest crab fighting alone.** Do pincer crabs emerge from it, and how often? The 8 seen came during
     digs and large swings with several monsters fighting.
 

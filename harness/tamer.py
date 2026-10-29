@@ -1065,7 +1065,7 @@ class Team:
                 f"'All Guard Me' due")
             self.follow_called, self.guard_needed = False, True
         me = st["world"]["self"]
-        low = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
+        low = me.get("hits") is not None and self.h.frac(me) < self.h.heal_at_now()
         calm = not self.view(st).engaged()
         return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
             or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st, calm=calm)) \
@@ -1910,8 +1910,11 @@ class Team:
         """The hits share below which pet `p` gets the vet supplies: --pet-heal-at, but only
         --standoff-vet-at for a pet a charger fights while our supplies don't reach CHARGE_SAFE_R
         (stepping in to heal it puts us in the Charge's reach: user 2026-10-13). --vet-range 3+ (the
-        Healer's Codex 'Without Borders') heals it from outside. `calm` (no fight on): CALM_HEAL_AT at most."""
+        Healer's Codex 'Without Borders') heals it from outside. `calm` (no fight on): CALM_HEAL_AT at most. Deprived of
+        oxygen (HuntLoop.oxygen_floor): never above its floor, which the drain takes every pet back down to."""
         at = self.a.pet_heal_at
+        if (floor := self.h.oxygen_floor()) is not None:
+            at = min(at, floor)
         if self.a.vet_range < CHARGE_SAFE_R and (p["x"], p["y"]) in zone:
             at = min(at, self.a.standoff_vet_at)
         return min(at, CALM_HEAL_AT) if calm else at

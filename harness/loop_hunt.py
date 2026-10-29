@@ -156,6 +156,7 @@ import los  # noqa: E402
 import nav  # noqa: E402
 import pathfind  # noqa: E402
 import moongate  # noqa: E402
+import oxygen  # noqa: E402
 import threats  # noqa: E402
 import soul_jar  # noqa: E402
 import stationary  # noqa: E402
@@ -271,6 +272,24 @@ TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fe
 #                               the user walked him through. 13 plus a 2-step margin, ~3 s running against a stand of up
 #                               to WALK_IN_FIGHT_S; GATE_DASH_R's rule for the leave gate)
 WALK_FOUGHT_S = 1200.0        # --fight-via: a fought leg not at its teleporter after this long aborts (the escape)
+# Tidal Tomb's oxygen (oxygen.py, docs/HUNT_LOOP.md "Oxygen"; user 2026-10-28: "I would prefer it just fight normally to
+# the easiest oxygen refill to get to"): from OXY_MIN_S under water, a leg to the easiest refill in our underwater box
+# once our time under reaches the deprivation (732 s) - OXY_MARGIN_S - the leg's estimate: its route steps x OXY_STEP_S.
+# The leg is a fought one (walk_in_fought), never a leave's walk: the walk across level 2 killed every simulated level 3
+# run before --fight-via (2026-10-26). "Easiest": route steps + OXY_MOB_STEPS for each monster in view within OXY_MOB_R
+# of the route. A refill whose leg can't end before the deprivation even from OXY_MIN_S is out of reach: no leg to it
+# (simulator 2026-10-28, level 2's crawl from its arrival: legs of ~160 steps across level 2 to the west strip took
+# ~7 min and came too late to spare the deprivation). Level 2's west strip is no refill at all (its `skip` in the
+# scenario: runs with a death 12 -> 19 of 48 with it; docs/SIM.md "Oxygen: the refill legs").
+OXY_MIN_S = 300.0             # no refill leg before this long under water
+OXY_MARGIN_S = 120.0          # the leg's estimate is to end this long before the deprivation
+OXY_STEP_S = 3.0              # seconds a route step of a fought leg (simulator 2026-10-28, 119 legs: median 2.2, 75th 3.0)
+OXY_MOB_STEPS = 25           # a monster in view near the route costs as many route steps
+OXY_MOB_R = 6                 # ... within this many tiles of a tile of it
+OXY_PLAN_S = 15.0             # the refills' routes are planned again this often (a map route each)
+OXY_RETRY_S = 120.0           # a leg that failed (walk_in_fought's Abort) is tried again after this long
+OXY_DRY_S = 2.0               # on dry ground after the hop up: this long, then back down (live 8 s up and down)
+OXY_DOLPHIN_WAIT_S = 12.0     # by a dolphin: its refill line within this (every ~5.25 s), else one step closer, then give up
 GOLD_GATE_STEPS = 120        # --enter-via: a hostile player on the walk in: flee to a gold moongate this many route steps
 #                               off at most and recall home (walk_in_threat; user 2026-10-22 after Botan's kill: "Flee to a
 #                               gold gate, recall home"); none that near (past the first teleporter: gold gates are on a
@@ -382,6 +401,12 @@ class HuntLoop:
         self.escaping = False                    # the escape home after an error or --go-home: no overall timeout
         self.fought_end = None                   # in a --fight-via leg (walk_in_fought) until then: its own time limit
         self.fought_s = 0.0                      # time spent in fought legs: not counted by the overall timeout's guard
+        ox = None if args.no_oxygen else oxygen.load()
+        self.oxy = oxygen.Clock(ox) if ox else None   # Tidal Tomb's oxygen clock (oxygen.py; --no-oxygen: none)
+        self.oxy_site = None                     # the refill the last plan chose (oxygen_site), and when
+        self.oxy_plan_t = -1e9
+        self.oxy_retry_t = -1e9                  # no refill leg before this (a failed one)
+        self.oxy_why = None                      # why the last refill leg stopped short (oxygen_bail)
         self.escape_tried = False                # escape_home ran: an error after it ends the run where it stands
         self.halt = None                         # why an error ends the run without the escape (a death, a restriction)
         self.rope_next = 0.0                     # --rope: the next rope jump not before
@@ -1068,6 +1093,8 @@ class HuntLoop:
                     self.disengage("lost")
             elif kind == "damage" or (kind == "speech_heard" and DAMAGE_TEXT.match(ev.get("text") or "")):
                 self.hurt_t[serial_of(ev["serial"])] = time.monotonic()
+        if self.oxy is not None and (pos := self.pos(st)) is not None:
+            self.oxy.update(tuple(pos[:2]), new, time.monotonic(), st["world"]["self"].get("map") or 0)
         self.ev_upto = len(self.link.events)
 
     def on_kill(self, st, serial, mob=None):
@@ -1574,7 +1601,7 @@ class HuntLoop:
             if self.leave_reason(st):
                 log("a leave rule fired while looting: leaving the rest")
                 break
-            if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+            if me.get("hits") is not None and self.frac(me) < self.heal_at_now() and self.heal(st):
                 me = self.state()["world"]["self"]
             wmax = weight_max(me)
             if me.get("weight") is not None and wmax \
@@ -3490,7 +3517,7 @@ class HuntLoop:
                 continue
             if self.cure(st):
                 continue
-            if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+            if me.get("hits") is not None and self.frac(me) < self.heal_at_now() and self.heal(st):
                 self.human.wait("hotkey")
                 continue
             if self.team.care(st):
@@ -3520,16 +3547,18 @@ class HuntLoop:
             return "a target in reach"
         return self.team.pull_check(st) or self.patrol_hold(st) if self.team is not None else None
 
-    def walk_in_fought(self, label, near):
+    def walk_in_fought(self, label, near, kind: str | None = None, bail=None) -> bool:
         """--fight-via: the leg to this teleporter fought through as on the hunt level, not walked (user 2026-10-26:
         "in TT we'll always have to fight in 2 in order to get to 3"; simulator 2026-10-26: all 8 level 3 runs died on
         the walk across level 2, at its arrival among the drowned mariners and soulcatchers). The pets on 'All Guard
         Me'; each round the tick's fighting (combat_step: what's in reach pulled and killed, the back-off from a shy
         one's first sight, 'All Patrol' at one, the hold for what sees us), the pets healed and with us, then on toward
         `near` (the tile before the teleporter, or before the leave gate on a planned leave up through --leave-via:
-        leave_by_gate) until fought_stop. Abort when not there after WALK_FOUGHT_S (the run's overall timeout guard
-        doesn't count a fought leg's time: fought_end, fought_s)."""
-        log(f"{label}: fought through (--fight-via)")
+        leave_by_gate; a refill: oxygen_leg) until fought_stop. Abort when not there after WALK_FOUGHT_S (the run's
+        overall timeout guard doesn't count a fought leg's time: fought_end, fought_s). `kind`: the viz intent's (else
+        "enter" or "leave" by the label); `bail(st)`: a reason to stop short (False back), checked each round. True
+        when there."""
+        log(f"{label}: fought through")
         if self.team is not None:
             self.team.guard_t = -1e9
             self.team.guard()
@@ -3539,6 +3568,9 @@ class HuntLoop:
                 if time.monotonic() > end:
                     raise Abort(f"{label}: not there after {WALK_FOUGHT_S:.0f} s of fighting")
                 st = self.state()
+                if bail is not None and (why := bail(st)):
+                    log(f"{label}: {why}; stopping short")
+                    return False
                 self.walk_hurt(st)
                 if self.combat_step(st, self.attackers(st), False):
                     continue
@@ -3556,9 +3588,9 @@ class HuntLoop:
                     time.sleep(POLL_S)
                     continue
                 if cheb(self.pos(st), near) == 0:
-                    return
-                self.doing("enter" if label.startswith("to the teleporter") else "leave", f"Fighting through, {label}",
-                           near)
+                    return True
+                self.doing(kind or ("enter" if label.startswith("to the teleporter") else "leave"),
+                           f"Fighting through, {label}", near)
                 self.mover.walk_to(lambda: near, 0, label, stop=self.fought_stop)
         finally:
             self.fought_s += time.monotonic() - (end - WALK_FOUGHT_S)
@@ -3566,6 +3598,178 @@ class HuntLoop:
             self.disengage("ended")
             if self.team is not None:
                 self.team.follow()
+
+    # ------------------------------------------------------------ oxygen (Tidal Tomb's levels 2+)
+    def oxygen_floor(self) -> float | None:
+        """The deprivation's floor share (0.66) while we are deprived under water, else None (oxygen.Clock)."""
+        return self.oxy.floor if self.oxy is not None and self.oxy.deprived(time.monotonic()) else None
+
+    def heal_at_now(self) -> float:
+        """--heal-at, but deprived of oxygen never above the deprivation's floor: its drain takes back every hit healed
+        above it, 5 every 6 s (a potion's 25-45 gone in 30-50 s)."""
+        floor = self.oxygen_floor()
+        return self.args.heal_at if floor is None else min(self.args.heal_at, floor)
+
+    def oxygen_site(self, st) -> dict | None:
+        """The easiest refill in our underwater box (oxygen.sites): a hop's teleporter up (the route onto it, `near` the
+        tile its step goes from) or a dolphin (the route to within oxygen.DOLPHIN_STAND_R of it), by route steps plus
+        OXY_MOB_STEPS for each attackable monster in view within OXY_MOB_R of a route tile: the ground to fight across,
+        not the distance (user 2026-10-28). None when no refill there has a route that its leg can walk before the
+        deprivation from OXY_MIN_S on (`reach` route steps)."""
+        pos = tuple(self.pos(st)[:2])
+        box = oxygen.box_of(self.oxy.ox, pos, st["world"]["self"].get("map") or 0)
+        if box is None:
+            return None
+        world = st["world"]
+        mobs = [(m["x"], m["y"]) for k, m in world["mobiles"].items()
+                if m.get("x") is not None and combat.attackable(world, k)[0]]
+        best = None
+        reach = int((self.oxy.limit_s - OXY_MARGIN_S - OXY_MIN_S) / OXY_STEP_S)
+        for s in oxygen.sites(self.oxy.ox):
+            if s["box"] != box:
+                continue
+            r = 0 if s["kind"] == "hop" else oxygen.DOLPHIN_STAND_R
+            if s["kind"] == "dolphin" and cheb(pos, s["tile"]) <= r:
+                path = [pos]
+            else:
+                path, _ = self.mover.plan(st, nav.within(s["tile"], r), mobiles=False, max_steps=reach)
+                if not path or (s["kind"] == "hop" and len(path) < 2) or len(path) - 1 > reach:
+                    continue
+            n = sum(1 for m in mobs if any(cheb(m, p) <= OXY_MOB_R for p in path))
+            site = {**s, "near": tuple(path[-2] if s["kind"] == "hop" else path[-1]), "steps": len(path) - 1,
+                    "mobs": n, "cost": len(path) - 1 + OXY_MOB_STEPS * n}
+            if best is None or site["cost"] < best["cost"]:
+                best = site
+        return best
+
+    def oxygen_due(self, st) -> dict | None:
+        """The refill to go to now (oxygen_site), else None: under water OXY_MIN_S or longer and past the deprivation
+        less OXY_MARGIN_S and the leg's estimate (its route steps x OXY_STEP_S); no leg before oxy_retry_t."""
+        if self.oxy is None:
+            return None
+        now = time.monotonic()
+        el = self.oxy.elapsed(now)
+        if el is None or el < OXY_MIN_S or now < self.oxy_retry_t:
+            return None
+        if now - self.oxy_plan_t >= OXY_PLAN_S:
+            self.oxy_site, self.oxy_plan_t = self.oxygen_site(st), now
+        s = self.oxy_site
+        if s is None or el < self.oxy.limit_s - OXY_MARGIN_S - s["steps"] * OXY_STEP_S:
+            return None
+        return s
+
+    def oxygen_bail(self, st) -> str | None:
+        """oxygen_leg's reason to stop short (kept in oxy_why): a leave rule, the hunt's failed walks, the run's end (the
+        tick takes it)."""
+        why = None
+        if (reason := self.leave_reason(st)) is not None:
+            why = f"a leave ({reason[0]})"
+        elif self.walk_trouble is not None:
+            why = self.walk_trouble
+        elif self.finished() or self.timed_out():
+            why = "the run's time is up"
+        self.oxy_why = why
+        return why
+
+    def oxygen_leg(self, st, site):
+        """Fight our way to the easiest refill and take it (user 2026-10-28: "I would prefer it just fight normally to
+        the easiest oxygen refill to get to"): walk_in_fought to it (the pets on guard, what's in reach fought, the
+        leave rules on: oxygen_bail), then up the hop and back down (oxygen_hop) or the dolphin's refill
+        (oxygen_dolphin). A failed leg (Abort) hunts on and tries again after OXY_RETRY_S. An `oxygen` job event."""
+        t0 = time.monotonic()
+        site = self.oxygen_site(st) or site
+        el = self.oxy.elapsed(t0) or 0.0
+        refills = self.oxy.refills
+        what = "the teleporter up" if site["kind"] == "hop" else "the dolphin"
+        label = f"oxygen: to {what} at {site['tile'][0]},{site['tile'][1]}"
+        log(f"{label}: {el:.0f} s under water; {site['steps']} route steps, {site['mobs']} monsters in view near it")
+        self.count("oxygen_legs")
+        outcome = "stopped"
+        self.walk_hits, self.walk_hurt_t = None, -1e9    # walk_hurt's baseline (set by walk_in_legs on the way in)
+        try:
+            if not self.walk_in_fought(label, site["near"], kind="oxygen", bail=self.oxygen_bail):
+                outcome = f"stopped short: {self.oxy_why}"
+            else:
+                (self.oxygen_hop if site["kind"] == "hop" else self.oxygen_dolphin)(label, site)
+                outcome = "refilled" if self.oxy.refills > refills else "not refilled"
+        except Abort as e:
+            outcome = f"failed: {e}"
+            log(f"{label}: {e}; hunting on from here")
+        finally:
+            if outcome != "refilled":
+                self.oxy_retry_t = time.monotonic() + OXY_RETRY_S
+            self.oxy_plan_t = -1e9
+            if self.team is not None:
+                self.team.guard_needed = True
+            if self.crawl is not None:
+                self.crawl.wp, self.crawl.arrived_t = None, None
+            st2 = self.link.state()
+            self.memory.job_event("hunt", "oxygen", {
+                "refill": site["kind"], "tile": list(site["tile"]), "under_s": round(el, 1), "steps": site["steps"],
+                "mobs": site["mobs"], "s": round(time.monotonic() - t0, 1), "outcome": outcome, "visit": self.visit_n,
+                "hits": [st2["world"]["self"].get("hits"), st2["world"]["self"].get("hits_max")]}, **self._where(st2))
+            log(f"{label}: {outcome} after {time.monotonic() - t0:.0f} s")
+
+    def oxygen_hop(self, label, site):
+        """Up the hop's teleporter to dry ground with the pets, OXY_DRY_S there, back down by its `back` teleporter
+        (live 2026-10-24 11:13:31-39: up from level 2's west strip, down again 8 s later, the gump full)."""
+        self.onto_teleporter(label, site["tile"])
+        st = self.state()                                # the clock sees dry ground
+        if self.team is not None:
+            self.team.landed(st, "oxygen up")
+        self.doing("oxygen", "A breath on dry ground", site["back"])
+        time.sleep(OXY_DRY_S)
+        self.onto_teleporter(label, site["back"])
+        st = self.state()
+        if self.team is not None:
+            self.team.landed(st, "oxygen down")
+
+    def onto_teleporter(self, label, tile):
+        """From near it onto the teleporter `tile` with the pets beside it (walk_in_legs' last steps). Standing on it
+        (a hop lands on its way back): a step off to a free tile first."""
+        st = self.link.state()
+        here = tuple(self.pos(st)[:2])
+        if here == tuple(tile):
+            tps = self.mover.teleporter_tiles(st["world"]["self"].get("map") or 0)
+            for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (1, -1), (-1, 1), (1, 1)):
+                off = (here[0] + dx, here[1] + dy)
+                path, _ = self.mover.plan(st, nav.within(off, 0), mobiles=False)
+                if off not in tps and path and len(path) == 2:
+                    self.mover.walk_to(lambda: off, 0, f"{label}: off the teleporter")
+                    break
+            else:
+                raise Abort(f"{label}: no free tile beside the teleporter at {tile}")
+        path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+        if not path or len(path) < 2:
+            raise Abort(f"{label}: no route onto the teleporter at {tile}")
+        near = tuple(path[-2])
+        self.mover.walk_to(lambda: near, 0, label)
+        if self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
+            self.wait_pets(label, tile[:2])
+        here = tuple(self.pos(self.link.state())[:2])
+        self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+
+    def oxygen_dolphin(self, label, site):
+        """Within oxygen.DOLPHIN_STAND_R of the dolphin: fight what comes until its refill line (every ~5.25 s); none in
+        OXY_DOLPHIN_WAIT_S, within 4 of it and the same wait again, then Abort."""
+        refills = self.oxy.refills
+        for closer in (False, True):
+            if closer:
+                path, _ = self.mover.plan(self.link.state(), nav.within(site["tile"], 4), mobiles=False)
+                if not path:
+                    break
+                if not self.walk_in_fought(f"{label} (closer)", tuple(path[-1]), kind="oxygen", bail=self.oxygen_bail):
+                    return
+            end = time.monotonic() + OXY_DOLPHIN_WAIT_S
+            while time.monotonic() < end:
+                st = self.state()
+                if self.oxy.refills > refills or self.oxygen_bail(st):
+                    return
+                if self.combat_step(st, self.attackers(st), False):
+                    continue
+                self.doing("oxygen", "Waiting for the dolphin's refill", site["tile"])
+                time.sleep(POLL_S)
+        raise Abort(f"{label}: no refill from the dolphin in {2 * OXY_DOLPHIN_WAIT_S:.0f} s")
 
     def wait_pk(self):
         """After leaving from a hostile player: stay home until --pk-wait has passed."""
@@ -3957,6 +4161,9 @@ class HuntLoop:
             self.doing("hold", "Waiting for a monster that blinked out to come back")
             time.sleep(POLL_S)
             return False
+        if (site := self.oxygen_due(st)) is not None:
+            self.oxygen_leg(st, site)
+            return False
         if self.crawl is not None:
             self.crawl.idle(st)
             return False
@@ -3980,7 +4187,7 @@ class HuntLoop:
             return True                   # out of an area hit first, unless a potion is ready: it goes at once
         if self.cure(st):
             return True
-        if me.get("hits") is not None and self.frac(me) < self.args.heal_at and self.heal(st):
+        if me.get("hits") is not None and self.frac(me) < self.heal_at_now() and self.heal(st):
             self.human.wait("hotkey")
             return True
         if self.team is not None and self.team.care(st):
@@ -4195,6 +4402,9 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="the --enter-via teleporters (repeat) whose leg is fought through as on the hunt level rather "
                          "than walked: the pets on guard, what's in reach pulled and killed, the shy shooters' first "
                          "sight kept on the pets, then on (Tidal Tomb's level 2 on the way to 3: 6884 1929)")
+    ap.add_argument("--no-oxygen", action="store_true",
+                    help="no oxygen rule under water (Tidal Tomb's levels 2+, oxygen.py): no refill legs, --heal-at as "
+                         "given while deprived (the simulator's 'off' arm)")
     ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
                     help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
                          "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "

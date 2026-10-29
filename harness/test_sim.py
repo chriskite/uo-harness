@@ -5857,6 +5857,98 @@ def test_walk_in_fought():
           + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
 
 
+def _oxygen_loop(w, extra=()):
+    """A HuntLoop on world `w` (Tidal Tomb) with its own store, for the oxygen tests: (loop, link, clock, store, patched)."""
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--no-songs", *extra], 10, at_hunt=False)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    loop = loop_hunt.HuntLoop(link, store, args)
+    loop.team.setup(loop.state())
+    return loop, link, clock, store, patched
+
+
+def test_oxygen_hop():
+    print("== oxygen on level 2: the clock read off the 'Oxygen' gump; the west strip's hop skipped as the scenario says; "
+          "with its skip gone, past the deprivation less the leg, the fought leg there, up to level 1 with the pets and "
+          "back down, no deprivation; not before ==")
+    import json
+    w = tidal_world((6850, 2071), z=-10)    # 38 route steps from the west strip's teleporter up
+    w.under_s = 400.0                       # 400 s under: the gump says so; no leg yet (it goes from 732 - 120 - leg)
+    hurts = _log_hurts(w)
+    dry = []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            loop, link, clock, store, patched = _oxygen_loop(w)
+            run_until = clock.on_advance
+
+            def watch(now):
+                run_until(now)
+                if w.player.x < 6800:
+                    dry.append(w.t)
+            clock.on_advance = watch
+            clock.sleep(7.0)                # one gump at least
+            st = loop.state()
+            early_el, early_due = loop.oxy.elapsed(clock.monotonic()), loop.oxygen_due(st)
+            w.under_s = 640.0
+            clock.sleep(7.0)
+            st = loop.state()
+            el, skipped = loop.oxy.elapsed(clock.monotonic()), loop.oxygen_due(st)
+            for h in loop.oxy.ox["hops"]:
+                h.pop("skip", None)
+            loop.oxy_plan_t = -1e9
+            site = loop.oxygen_due(st)
+            if site is not None:
+                loop.oxygen_leg(st, site)
+            ev = store.con.execute("SELECT data FROM job_events WHERE kind='oxygen'").fetchall()
+            store.close()
+    finally:
+        simclock.uninstall(patched)
+    check("the clock follows the gump to within a bar's step (30.1 s) of the world's time under; no leg at 400 s",
+          early_el is not None and abs(early_el - 407) <= 33 and early_due is None and el is not None
+          and abs(el - 647) <= 33, f"clock {early_el} at 407, {el} at 647; due early {early_due}")
+    check("the hop marked `skip` in the scenario is no refill: no leg at 647 s", skipped is None, str(skipped))
+    outcome = json.loads(ev[-1][0])["outcome"] if ev else None
+    pets_near = all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets())
+    check("at 640 s: the hop's leg, up on level 1 and back down on level 2 with both pets, refilled, no deprivation",
+          site is not None and site["kind"] == "hop" and outcome == "refilled" and dry and w.under_s < 30
+          and w._underwater(w.player) and pets_near and not any(k == "oxygen" for _, _, k, _ in hurts),
+          f"site {site and site['kind']} outcome {outcome} dry {len(dry)} under {w.under_s:.0f} at {w.player.pos} "
+          f"pets {[p.pos for p in w.pets()]} | " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+
+
+def test_oxygen_dolphin():
+    print("== oxygen on level 3: the fought leg to within reach of the Recovery Dolphin, its refill, no deprivation ==")
+    import json
+    w = tidal_world((7173, 2175), z=-50)    # 26 route steps from within 9 of the arrival's dolphin (7164, 2210)
+    w.under_s = 650.0
+    hurts = _log_hurts(w)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            loop, link, clock, store, patched = _oxygen_loop(w)
+            clock.sleep(7.0)
+            st = loop.state()
+            site = loop.oxygen_due(st)
+            if site is not None:
+                loop.oxygen_leg(st, site)
+            ev = store.con.execute("SELECT data FROM job_events WHERE kind='oxygen'").fetchall()
+            store.close()
+    finally:
+        simclock.uninstall(patched)
+    outcome = json.loads(ev[-1][0])["outcome"] if ev else None
+    check("the dolphin's leg, its refill line, no deprivation",
+          site is not None and site["kind"] == "dolphin" and outcome == "refilled"
+          and w.metrics.get("dolphin_refills", 0) >= 1 and not any(k == "oxygen" for _, _, k, _ in hurts),
+          f"site {site and (site['kind'], site['tile'])} outcome {outcome} refills {w.metrics.get('dolphin_refills')} "
+          f"at {w.player.pos} | " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+
+
 def test_tidal_hunt():
     print("== a Tidal Tomb hunt from home: recall in, kills on level 1, out by the golden moongate to Totem, home ==")
     from sim import run as simrun
@@ -6035,7 +6127,8 @@ def main():
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
-              test_walk_in_fought, test_tidal_hunt, test_ossuary_recall_rule, test_ossuary_delayed_bursts,
+              test_walk_in_fought, test_oxygen_hop, test_oxygen_dolphin, test_tidal_hunt, test_ossuary_recall_rule,
+              test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
