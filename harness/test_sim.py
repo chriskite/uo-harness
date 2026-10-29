@@ -5590,63 +5590,6 @@ def test_tidal_hunt():
           and r["hunt_s"] > 200, f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
 
 
-
-def main():
-    if pathfind.Walkers().get(0) is None:
-        print("SKIP: no map files (install dir)")
-        return 0
-    for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials,
-              test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
-              test_vet_tile_off_tank, test_calm_heal,
-              test_stairs, test_boss_room_door, test_backspawn,
-              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
-              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,
-              test_red_out_of_view,
-              test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
-              test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
-              test_ledge_attacker,
-              test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
-              test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
-              test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
-              test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
-              test_patrol_after_pass_over, test_vet_channel_not_ours,
-              test_restart_inside, test_walk_in_through_neighbour,
-              test_instrument, test_recall_charges,
-              test_standoff_sight,
-              test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
-              test_theirs_passed_over,
-              test_theirs_after_kill_sent,
-              test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
-              test_others_corpse_not_looted,
-              test_area_peace, test_audit_mechanics, test_blink_stepoff,
-              test_heal_in_place,
-              test_songs, test_songs_tidal_floor, test_cure_potion,
-              test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
-              test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,
-              test_walk_in_red_first_level,
-              test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
-              test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
-              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
-              test_tamer_scan_rows, test_pet_aggro_setting, test_party_validation, test_pet_builds, test_anchors_pinned,
-              test_pet_mitigation,
-              test_kdmg_barding, test_parity_team, test_perk_conditions, test_dreamlull, test_opportunity_punishment,
-              test_vet_codex,
-              test_team_run,
-              test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
-              test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
-              test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
-              test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
-              test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
-              test_area_hitters, test_shy_by_ai,
-              test_walk_in_fought, test_tidal_hunt, test_ossuary_recall_rule, test_ossuary_delayed_bursts,
-              test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
-        t()
-    print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
-    return 1 if FAILURES else 0
-
 OSS_L3 = (5622, 1085)         # the Ossuary: an open room on level 3 (the hunting level)
 
 
@@ -5762,6 +5705,63 @@ def test_ossuary_hunt():
     check("done, kills on level 3, the gold banked at home", r["outcome"] == "done" and r["kills"] > 0
           and r["gold_banked"] > 0 and r["hunt_s"] > 120,
           f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
+
+
+def main():
+    if pathfind.Walkers().get(0) is None:
+        print("SKIP: no map files (install dir)")
+        return 0
+    for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials,
+              test_hunt,
+              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
+              test_vet_tile_off_tank, test_calm_heal,
+              test_stairs, test_boss_room_door, test_backspawn,
+              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
+              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,
+              test_red_out_of_view,
+              test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
+              test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
+              test_ledge_attacker,
+              test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
+              test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
+              test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
+              test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
+              test_patrol_after_pass_over, test_vet_channel_not_ours,
+              test_restart_inside, test_walk_in_through_neighbour,
+              test_instrument, test_recall_charges,
+              test_standoff_sight,
+              test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
+              test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
+              test_theirs_passed_over,
+              test_theirs_after_kill_sent,
+              test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
+              test_others_corpse_not_looted,
+              test_area_peace, test_audit_mechanics, test_blink_stepoff,
+              test_heal_in_place,
+              test_songs, test_songs_tidal_floor, test_cure_potion,
+              test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
+              test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
+              test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,
+              test_walk_in_red_first_level,
+              test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
+              test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
+              test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
+              test_tamer_scan_rows, test_pet_aggro_setting, test_party_validation, test_pet_builds, test_anchors_pinned,
+              test_pet_mitigation,
+              test_kdmg_barding, test_parity_team, test_perk_conditions, test_dreamlull, test_opportunity_punishment,
+              test_vet_codex,
+              test_team_run,
+              test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
+              test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
+              test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
+              test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
+              test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
+              test_area_hitters, test_shy_by_ai,
+              test_walk_in_fought, test_tidal_hunt, test_ossuary_recall_rule, test_ossuary_delayed_bursts,
+              test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
+        t()
+    print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
+    return 1 if FAILURES else 0
 
 
 if __name__ == "__main__":
