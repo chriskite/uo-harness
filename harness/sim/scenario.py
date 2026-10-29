@@ -84,6 +84,7 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
         ranged.setdefault("cast_action", df["ranged_cast_action"])
         ranged.setdefault("effect", df["ranged_effect"])
     gold = kb.get("gold_value") or 0
+    gold_seen = (sc.get("gold_observed", {}).get(key) or {}).get("gold")   # measured live over the kb's (wiki's) value
     noto = 3
     graphics = (obs.get("graphics") or [kb.get("graphic")])
     return {"key": key, "name": kb.get("name") or f"a {key}", "body": graphics[0] if graphics and graphics[0] else 400,
@@ -95,7 +96,7 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
             if ai != "mage" and kb.get("melee_damage") else None,
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
             "aggro_range": (sc.get("aggro_observed", {}).get(key) or {}).get("range", df["aggro_range"]),
-            "ranged": ranged, "gold": [round(gold * 0.9), round(gold * 1.15)],
+            "ranged": ranged, "gold": gold_seen if gold_seen is not None else [round(gold * 0.9), round(gold * 1.15)],
             "specials": sc.get("specials", {}).get(key, []), "source": src}
 
 

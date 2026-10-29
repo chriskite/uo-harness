@@ -1569,6 +1569,12 @@
   "giant combustive zoa": {"damage": [40, 74], "every_s": 3.4, "ref": {"pet": "NightmareB", "bestiary": "Nightmare/Fire 2026-10-25 11:02", "level": 14}, "note": "level 3: its single numbers on NightmareB then NightmareA, 40, 55, 42, 57, 57, 71, 74, 66, 2.3-5.1 s apart (2026-10-25 11:34:17-11:34:44), rising with its scorch"},
   "giant toxic zoa": {"damage": [35, 78, 46], "every_s": 3.5, "note": "level 3 (capture 20261027_220057): its numbers on GraveRobber beside it 35-69 (median 46, n=25) and on AlaFlambe at 9-10 tiles 36-78, each with its Lethal Poison (specials); every_s as the giant astral zoa's [INFERENCE]; the wiki's 45-55 x the default 0.5 made 22-28"}
  },
+ "gold_observed": {
+  "pincer crab": {
+   "gold": [0, 0],
+   "note": "its corpse always empty: 245 of 245 opened by the hunt runner through 2026-10-28 held nothing (0x3C of 0 items; live 22:08:48 corpse 0x4483F872); user 2026-10-28: a nest crab's broodling, 'its corpse cannot be looted'. The kb's gold_value 64 is the wiki's"
+  }
+ },
  "melee_observed": {
   "pincer crab": {
    "melee": [3, 7, 4],

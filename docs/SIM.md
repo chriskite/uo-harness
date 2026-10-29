@@ -1880,6 +1880,14 @@ bubbles on the ground".
   - Banked an hour fell while looted rose: what a death leaves on the corpse varies by when it comes [INFERENCE].
   - The pets' bubble damage hardly changes: they stand where they fight.
 
+### The pincer crab's empty corpse (2026-10-28)
+
+- **`gold_observed`** (scenario key, like `melee_observed`): a type's corpse gold measured live, over the kb's
+  `gold_value`. The pincer crab's is `[0, 0]`: 245 of 245 corpses opened live were empty (docs/NOTES.md "Tidal Tomb: a
+  pincer crab's corpse is always empty"). Before, the simulator dropped 58-74 gold in each.
+- The runner no longer loots it (`loop_hunt.EMPTY_CORPSES`). A level 1 run (seed 1) had 43 pincer crab kills and
+  none looted.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

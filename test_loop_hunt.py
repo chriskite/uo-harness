@@ -1610,6 +1610,26 @@ def ally_courtesy():
           f"opened {[hex(o) for o in opened]} totals {loop.totals['kills']}/{loop.totals['lost_kills']}")
 
 
+def empty_corpses():
+    print("\n== a pincer crab's kill (a nest crab's broodling, its corpse always empty): never queued for the loot ==")
+    # user 2026-10-28: "its corpse cannot be looted, but the runner keeps stopping for a while trying to loot them";
+    # 245 of 245 opened were empty, each ~4-5 s (the open, then CONTAINER_WAIT_S for contents that never come)
+    import loop_hunt
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = RightsLink()
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15))
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    st = loop.state()
+    for serial, name in ((0x002C7101, "a pincer crab"), (0x002C7102, "a giant pincer crab")):
+        loop.on_kill(st, serial, {"name": name, "x": SPOT[0], "y": SPOT[1] - 1})
+    store.close()
+    check("the pincer crab counted as a kill but its corpse not queued; the giant pincer crab's queued",
+          [c["name"] for c in loop.corpses] == ["a giant pincer crab"] and loop.totals["kills"] == 2,
+          f"queued {[c['name'] for c in loop.corpses]} kills {loop.totals['kills']}")
+
+
 class SoulLink(RightsLink):
     """A forgotten soul's corpse: a monster on a human body (0x190), its corpse unnamed when we reach it."""
     SOUL, SOUL_C, SOUL_G, PLAYER_C, PLAYER_G = 0x0008EF35, 0x4275218A, 0x4275218B, 0x4275F19D, 0x4275F19E
@@ -2108,6 +2128,7 @@ if __name__ == "__main__":
             soul_corpse()
             weight_guard()
             ally_courtesy()
+            empty_corpses()
             overweight_drop()
         if not only or "pets" in only:
             pets_run()

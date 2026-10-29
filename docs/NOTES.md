@@ -6105,6 +6105,20 @@ mechanics have only the decorative "Bouncing Air Bubble" loot) nor the wiki name
   - docs/HUNT_LOOP.md "Fire and bubbles on the ground"; docs/SIM.md "The clearwater grouper's bubbles" (the
     numbers).
 
+## Tidal Tomb: a pincer crab's corpse is always empty (2026-10-28)
+
+User 2026-10-28: "'a pincer crab' is a mob summoned by the dungeon-nest crabs and its corpse cannot be looted, but the
+runner keeps stopping for a while trying to loot them".
+
+- All 245 pincer crab corpses the hunt runner opened (every `logs/tasks/hunt-*.log` through 2026-10-28) gave "looted
+  0 item(s) from a pincer crab: +0 gold".
+- The open is answered (capture 20261028_182147, 22:08:48.79: 0x06 on corpse 0x4483F872, then 0x24 and a 0x3C of 0
+  items). The runner's open waits for contents that never come (`CONTAINER_WAIT_S` 3 s) on top of the walk and the
+  use pause: ~4-5 s a corpse (live 22:08:47 -> 22:08:52 -> 22:08:56, two of them).
+- The giant and colossal pincer crabs aren't broodlings and drop gold as usual.
+- Built: the runner never queues the corpse (`loop_hunt.EMPTY_CORPSES`); the simulator's pincer crab drops no gold
+  (`gold_observed`).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

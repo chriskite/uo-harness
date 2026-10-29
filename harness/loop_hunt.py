@@ -240,6 +240,11 @@ NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot b
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
 LOOT_DEFER_S = 1.0            # a corpse in an area hitter's reach (tamer.Team.loot_tile): looked at again this soon
 CONTAINER_WAIT_S = 3.0
+# Kills whose corpse never holds anything: never walked to or opened. The pincer crab is brooded by a dungeon-nest crab
+# mid-fight (docs/SIM.md "Tidal Tomb"); user 2026-10-28: "its corpse cannot be looted, but the runner keeps stopping for
+# a while trying to loot them". All 245 opened through 2026-10-28 were empty (0x3C of 0 items, then the full
+# CONTAINER_WAIT_S wait: ~4-5 s a corpse, live 22:08:47-22:08:56)
+EMPTY_CORPSES = frozenset({"pincer crab"})
 LOOT_DETOUR_STEPS = 8         # a loot walk round an area hit's reach: at most twice the distance plus this many steps
 # Loot rights go to whoever did the most damage; opening another player's kill is refused
 # (captures 20261003_113952/_123614/_125556: all 35 refused opens were blue corpses, all 90
@@ -1054,7 +1059,9 @@ class HuntLoop:
         self.memory.job_event("hunt", "kill", {"serial": key_of(serial), "name": name,
                                                "hits_max": mob.get("hits_max"), "visit": self.visit_n},
                               **self._where(st))
-        if self.args.loot:
+        if self.args.loot and aggro.type_key(name) in EMPTY_CORPSES:
+            self.kill_gold({"name": name, "x": mob.get("x"), "y": mob.get("y")}, 0)
+        elif self.args.loot:
             self.corpses.append({"mob": serial, "name": name, "x": mob.get("x"), "y": mob.get("y"),
                                  "t": time.monotonic()})
         if self.crawl is not None and mob.get("x") is not None:

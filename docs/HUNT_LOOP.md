@@ -1491,6 +1491,10 @@ counted the corpse's gold as xp. Now (`loop_hunt.loot`):
 - An **ally's kill** (the monster was seen in an ally's fight, `ally_fought`; "Someone else's fight" above) is skipped
   the same way even when its corpse is grey and the server would let us open it (user 2026-10-28: "we can loot the
   corpse, but we shouldn't as that is rude"), refused as "ally".
+- A kill whose corpse is **always empty** (`EMPTY_CORPSES`: the pincer crab, a dungeon-nest crab's broodling; since
+  2026-10-28) is never queued for the loot: no walk, no open (each cost ~4-5 s, 245 of 245 empty: docs/NOTES.md
+  "Tidal Tomb: a pincer crab's corpse is always empty"). It still counts as a kill, with a gold-model sample of 0.
+  test_loop_hunt `empty_corpses`.
 - **No loot walk into an area hitter's reach or a shy monster's shot** (`--pets`, `Team.loot_tile`, since
   2026-10-21). With an area hitter (`tamer.AREA_R`, a charger) or an awake corpse purger or blightmare (in war mode,
   `Team.shy_awake`; its shot: sight within 12 or 13, `Team.shot_at`) in view, the corpse is looted from a tile clear
