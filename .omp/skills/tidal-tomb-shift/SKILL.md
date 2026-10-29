@@ -28,11 +28,11 @@ before dispatch:
    | The user says | Level | State |
    |---|---|---|
    | level 1, nothing | TT 1 | The default; the runner's live runs since 2026-10-26. |
-   | level 2 | TT 2 | Never run live by the runner. The oxygen rule fights back to the arrival stairs and steps up to level 1 and down again before 732 s under water (the simulator: deprived runs 36 -> 4 of 48, deaths 14 -> 11; docs/HUNT_LOOP.md "Oxygen"). Simulator: 4 of 24 runs with a death (docs/SIM.md "Level 2's bedrocks"); 2026-10-27 seeds 4-5 both home (83k, 74k gp). |
+   | level 2 | TT 2 | Runnable: the runner has run it live (user 2026-10-29). The oxygen rule fights back to the arrival stairs and steps up to level 1 and down again before 732 s under water (the simulator: deprived runs 36 -> 4 of 48, deaths 14 -> 11; docs/HUNT_LOOP.md "Oxygen"). Simulator: 4 of 24 runs with a death (docs/SIM.md "Level 2's bedrocks"); 2026-10-27 seeds 4-5 both home (83k, 74k gp). |
    | level 3 | TT 3 | Never run live by the runner. Level 2 fought through on the way (past 732 s under water there in most simulated runs: no refill leg on that walk), the giant astral zoa at the arrival the main killer; on level 3 the oxygen rule fights to the nearest Recovery Dolphin. Simulator: 5 of 24 with a death; 2026-10-27 seeds 4-5 both died (seed 5 on level 1's walk at 70 s). |
 
-   **Level 2 or 3:** before the first run, tell the user in one message what the table says for it and wait for
-   their go; then dispatch with it. Their go stands for the shift.
+   **Level 3:** before the first run, tell the user in one message what the table says for it and wait for their go;
+   then dispatch with it. Their go stands for the shift. Level 2 needs no go (user 2026-10-29).
 2. **A runner setting** ("no songs", "stop after 50 kills", "don't provoke", "never pull the zoa"): the flag from
    `python harness/loop_hunt.py --help` added to the level's command (`--no-songs`, `--kills 50`, `--no-provoke`,
    `--never-aggro "giant astral zoa"`, `--avoid-backlash`). The flags the level's command already has stay.
@@ -82,7 +82,7 @@ gold, gate, tasks, open junctures; the tome's charges and its "Tidal Tomb Inside
 Runner changes since the last shift (commits <shas>): <what each changes and the log lines it writes>.
 Shift instructions from the user, verbatim: <"…", or "none">.
 Command for every run, a restart inside and the go-home run: <the full ctl run hunt command of the level>.
-<Shift rules from the instructions (run count, stop time), the user's go for level 2 or 3 with its time, and any
+<Shift rules from the instructions (run count, stop time), the user's go for level 3 with its time, and any
 other change to §5's procedure the user asked for, else "§5 procedure verbatim".>
 Reporting contract (the parent session fixes code; you never do):
 - Report every issue to the parent at once with `write agent://Main`: a runner error or traceback, a run that

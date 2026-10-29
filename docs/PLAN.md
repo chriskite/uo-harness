@@ -2756,8 +2756,9 @@ instructions like 'only level 1'."
   are walls), so a level is where `--enter-rune`/`--enter-via` leave Logan and which gate `--leave-gate`/`--leave-via`
   name. Maus 1: no `--enter-via`, the gold gate beside the arrival (simulator 2026-10-27: 3 of 3 home, no death; its
   menu's Totem row [INFERENCE]). Maus 2 has no way out of its own, so it is refused until the runner gets one.
-- **Tidal Tomb's levels 2 and 3 need the user's go** after the skill states the evidence (never live by the runner,
-  no oxygen rule, simulator deaths 4 and 5 of 24), rather than being refused: the user plays them by hand and asks.
+- **Tidal Tomb's level 3 needs the user's go** after the skill states the evidence (never live by the runner,
+  simulator deaths 5 of 24), rather than being refused: the user plays it by hand and asks. Level 2 needed one too
+  until the user dropped it (2026-10-29: "the runner actually has done it live before"); it runs on the word "level 2".
 
 ## Overweight: drop gold; an ally's fight and kill left alone (user 2026-10-28)
 
