@@ -5181,6 +5181,115 @@ def test_spray_stand_off():
           f"pets sprayed at {sprayed[:5]}, Logan at {rolled}, ends {w.player.pos} facing {b.d}")
 
 
+BUBBLES_AT = (6950, 2010)      # Tidal Tomb level 2: Logan's loot tile when the bubbles hit him (live 2026-10-28 21:13:48-58)
+
+
+def test_tidal_bubbles():
+    print("== Tidal Tomb: a clearwater grouper's volleys of 8 bubbles 7.5-9 s apart; each pops ~1.9 s after it lands, on "
+          "each of us within 1 of it, once a volley ==")
+    # live (docs/NOTES.md "Tidal Tomb: the clearwater grouper's bubbles"): 282 pops, 1.88-2.04 s after the landing; the
+    # 52 hits all within 1 of the bubble, none on one of us hit by a bubble in the 2.5 s before
+    x, y = BUBBLES_AT
+    w = tidal_world(BUBBLES_AT, [{"key": "clearwater grouper", "at": [x - 1, y + 3, -126]}], z=-126)
+    g = next(o for o in w.mobs.values() if o.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    w._place(gb, (x - 1, y + 2, -126), d=0)
+    for o in [g, w.player, *w.pets()]:
+        o.hits = o.hits_max = 10 ** 6
+    for p in w.pets():
+        p.mode = "stay"
+    g.target, g.threat = gb.serial, {gb.serial: 1e9}
+    w._warm(g, True)
+    lands, pops, hits = [], [], []
+    land0, pop0, hurt0 = w._bubble_land, w._bubble_pop, w.hurt
+
+    def land(ms, tile, sp):
+        lands.append((w.t, tile[:2]))
+        land0(ms, tile, sp)
+
+    def pop(it):
+        pops.append((w.t, (it["x"], it["y"])))
+        pop0(it)
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if kind == "bubble":
+            hits.append((w.t, victim, victim.pos[:2], amount))
+        hurt0(victim, amount, by, kind, *a, **kw)
+    w._bubble_land, w._bubble_pop, w.hurt = land, pop, hurt
+    w.run_until(w.t + 40.0)
+    volleys = []
+    for t, _ in lands:
+        if volleys and t - volleys[-1][-1] < 3.0:
+            volleys[-1].append(t)
+        else:
+            volleys.append([t])
+    gaps = [round(b[0] - a[0], 2) for a, b in zip(volleys, volleys[1:])]
+    check("4+ volleys in 40 s of 6-8 bubbles over under 0.8 s, 7.5-9.0 s apart",
+          len(volleys) >= 4 and all(6 <= len(v) <= 8 and v[-1] - v[0] < 0.8 for v in volleys)
+          and all(7.4 <= gp <= 9.1 for gp in gaps), f"sizes {[len(v) for v in volleys]} gaps {gaps}")
+    life = [round(pt - lt, 2) for (lt, lt_tile), (pt, pt_tile) in zip(lands, pops)]
+    check("each bubble pops 1.88-2.04 s after it lands", len(pops) >= len(lands) - 8
+          and all(1.85 <= s <= 2.1 for s in life), f"{len(lands)} landed, {len(pops)} popped, lives {sorted(life)[:3]}"
+          f"..{sorted(life)[-3:]}")
+    near = all(any(abs(pt - t) < 1e-6 and max(abs(pos[0] - b[0]), abs(pos[1] - b[1])) <= 1 for pt, b in pops)
+               for t, v, pos, n in hits)
+    again = [(v.name, round(b - a, 2)) for i, (a, v, _, _) in enumerate(hits) for b, u, _, _ in hits[i + 1:]
+             if u is v and b - a < 2.5]
+    check("hits on us, each within 1 of a popping bubble, none on one of us twice within 2.5 s",
+          hits and near and not again and w.metrics["bubbles"]["thrown"] == len(lands),
+          f"{len(hits)} hits ({sorted({v.name for _, v, _, _ in hits})}), near {near}, again {again[:3]}")
+
+
+def test_bubbles_step_off():
+    print("== a clearwater grouper's bubble lands beside us mid-fight, mid-channel: out of its reach before it pops "
+          "(stand_off), the pets kept in vet reach; a corpse in its reach looted from a tile out of it ==")
+    # live 2026-10-28 21:13:48-58 (capture 20261028_182147, hunt-20261028-211014-9150): Logan looted from (6950, 2010)
+    # with bubbles landing at (6950, 2011) and (6949, 2010); -40 and -42 as they popped 1.9 s later. User: "Standing in
+    # the clearwater group's exploding bubbles is no good"
+    x, y = BUBBLES_AT
+    w = tidal_world(BUBBLES_AT, [{"key": "clearwater grouper", "at": [x - 1, y + 3, -126]}], z=-126)
+    g = next(o for o in w.mobs.values() if o.kind == "monster")
+    g.hits = g.hits_max = 10 ** 6
+    g.cd["bubbles"] = 1e9                    # no volley of its own: the one bubble below
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for p in w.pets():
+        p.hits = p.hits_max = 10 ** 6
+    sp = next(s for s in g.spec["specials"] if s["kind"] == "bubbles")
+    hurts = _log_hurts(w)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            here = tuple(w.player.pos)
+            bubble = (here[0], here[1] + 1)
+            reach = {(bubble[0] + dx, bubble[1] + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)}   # a pop's: 1 tile
+            w._bubble_land(g.serial, (*bubble, here[2]), sp)
+            clock.advance(0.1)
+            st = loop.state()
+            shown = [it for it in st["world"]["items"].values() if (it.get("x"), it.get("y")) == bubble
+                     and it.get("hue") == 0x0B40]
+            loot_at, why = loop.team.loot_tile(st, here[:2])   # a corpse on our tile, the grouper idle: only the bubble
+            g.target, g.threat = gb.serial, {gb.serial: 1e9}
+            w._warm(g, True)                                     # then the fight on the tank
+            loop.team.vet_busy_until = tamer.time.monotonic() + 5.0    # mid-channel: out all the same
+            walked = loop.team.stand_off(loop.state())
+            pos = tuple(w.player.pos[:2])
+            clock.advance(2.5)                   # the pop
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    popped = [n for _, v, k, n in hurts if k == "bubble" and v is w.player]
+    pets = [p for p in w.pets() if p.alive]
+    check("the bubble in our world model, its reach on us; a step out of it before the pop, no hit on us",
+          shown and walked and pos not in reach and not popped and all(cheb_(w.player, p) <= 5 for p in pets),
+          f"shown {len(shown)} walked {walked} at {pos} popped {popped}")
+    check("the log: 'bubbles at (x, y): stepping to (x, y)'",
+          f"bubbles at {bubble}: stepping to {pos}" in buf.getvalue(),
+          [ln for ln in buf.getvalue().splitlines() if "bubble" in ln][:2])
+    check("looting a corpse on our tile in the bubble's reach: from a tile out of it",
+          why is None and loot_at is not None and loot_at[:2] not in reach, f"loot_at {loot_at} why {why}")
+
+
 def test_tidal_backlash():
     print("== Tidal Tomb: a giant astral zoa's spell on its target and those within 3, each a Backlash stack; a caster pet "
           "under n stacks fizzles 1 - 0.7^n of its casts, none without ==")
@@ -5529,7 +5638,7 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_large_swing, test_tidal_bedrock_spray, test_spray_stand_off,
-              test_tidal_level3_bursts,
+              test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
               test_walk_in_fought, test_tidal_hunt, test_ossuary_recall_rule, test_ossuary_delayed_bursts,

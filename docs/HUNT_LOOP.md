@@ -640,7 +640,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    fights (its latest swing's defender, else the nearest pet within 2 of it) is where it lands 1.1-1.6 s
    later with the hit, so that pet's tile is in the zone for 2 s (`Team.blink_tiles`) and the stand-off goes at
    once, past its 2 s repeat gap and the tank's heal; one blinking onto Logan follows him, so nothing to step
-   from. The stand-off comes first
+   from. **A clearwater grouper's bubble** within 1 of us (since 2026-10-28; "Fire and bubbles on the ground"
+   below): out of its reach before anything else in the stand-off, every tick (`Team.out_of_bubbles`). The stand-off
+   comes first
    in each decision, mid-channel too, after only a heal potion that is ready (it goes at once) (live
    20261015_171928 18:57:09-19.5: an apparition came onto Logan's tile, -59; he stood there through the
    potion and a vet channel and took -60 more; a step doesn't stop a channel healing us, it only shortens
@@ -1122,10 +1124,25 @@ moongate, and never near a red one).
     it even with something on us.
   - Until then: the vet supplies, potions and the retreat.
   - Logan never left mid-trip: he vetted, drank and ran 18 tiles from the countess' copies.
-- **Fire on the ground** (`tamer.FIRE_GRAPHICS`, the forgotten souls' 0x6D70; user 2026-10-14: "learning
-  not to stand in fire"): never a pull spot or a repositioning tile, a danger tile for routes, and stepped
-  off (`Team.out_of_fire`, within 2 steps, the pets kept within `--vet-range`) when under us, never
-  mid-channel. Live it hurt no one standing on or beside it (docs/NOTES.md "Logan Wolf's run through Maus 4").
+- **Fire and bubbles on the ground** (`Team.fire_tiles`). Fire is `tamer.FIRE_GRAPHICS`, the forgotten souls' 0x6D70
+  (user 2026-10-14: "learning not to stand in fire"). It is never a pull spot or a repositioning tile, it is a danger
+  tile for routes, and the runner steps off it (`Team.out_of_fire`, within 2 steps, the pets kept within
+  `--vet-range`) when it is under us, never mid-channel. Live it hurt no one standing on or beside it (docs/NOTES.md
+  "Logan Wolf's run through Maus 4").
+  - **A clearwater grouper's bubbles** (Tidal Tomb level 2+, since 2026-10-28; user: "Standing in the clearwater
+    group's exploding bubbles is no good"; docs/NOTES.md "Tidal Tomb: the clearwater grouper's bubbles"):
+    - A bubble is a ground item, graphic 0xDD8F-0xDDAE (`BUBBLE_GRAPHICS`) with hue 0x0B40 (`BUBBLE_HUE`). It pops
+      1.88-2.04 s after it lands and hits each of us within 1 (`BUBBLE_R`): 31-45 on Logan.
+    - For that life, every tile within 1 of it (`Team.bubble_tiles`) counts as fire. It is never a tile to step to,
+      stand off to, loot from (`loot_tile`) or heal from (`vet_tile`), and routes go round it.
+    - Standing in that reach, `Team.out_of_bubbles` takes a tile within 3 steps (`BUBBLE_STEPS`) out of every
+      bubble's reach and fire, and off every area hit's centre tile. It ranks them by the depth in an area hit's reach
+      (`area_zone`), then by keeping the pets within `--vet-range` (and when looting, the corpse within 2), then by the
+      fewest steps.
+    - It runs first in `stand_off`: mid-fight, mid-channel, and before a potion unless one is ready (`potion_first`).
+      It also runs between a loot's lifts, and from `out_of_fire` in the care.
+    - Log: "bubbles at (x, y): stepping to (x, y)", the bubble's tile and ours. With no such tile, once per bubble:
+      "bubbles at (x, y): no tile out of their reach within 3 steps; staying".
 - **`--crawl-avoid X0 Y0 X1 Y1`** (repeat): no waypoint in the box, and its tiles cost routes
   `DANGER_COST_X` (they keep out where they can). For the Mausoleum, `5170 690 5188 718` is the
   nightstalker room Logan never went into (user 2026-10-13: stay out for now).
@@ -1502,6 +1519,11 @@ counted the corpse's gold as xp. Now (`loop_hunt.loot`):
   lies in an idle master reanimator's sight before the pets'"); the patrol pull or the fight wakes it on the pets first.
   Simulator, the live 19:30 room (test_sim `test_caster_room_pets_first`): the shadowguard patrolled and killed from the
   doorway, then "to the corpse" 9 steps into the room woke the reanimator onto Logan.
+  **Nor from a clearwater grouper's bubbles' reach** (since 2026-10-28; "Fire and bubbles on the ground" above): a
+  corpse with a bubble within 2 is looted from a tile out of every bubble's reach. When every tile within 2 is in reach,
+  the loot waits ("… lies in a clearwater grouper's bubbles' reach, every tile within 2 too"); a bubble lasts ~2 s. A
+  bubble landing beside us mid-loot steps us out between lifts, keeping the corpse within 2 (live 2026-10-28
+  21:13:48-51: Logan looted from beside one, -40).
 - Our open answered by "Players cannot commit aggressive actions in that location." or "You may not
   loot this corpse." (the server's 0xAE system text; the client's Auto Open Corpses got the latter,
   ANTICHEAT.md A14) **stops at once**: no lift. The runner waits for the corpse's `0x24` or such a

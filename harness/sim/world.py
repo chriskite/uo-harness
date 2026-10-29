@@ -121,14 +121,14 @@ GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease", "pressure"}   # scenario specials rolled on a monster's hit
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
-         "large_swing", "spray", "rope"}   # ...used on a cooldown while it fights
+         "large_swing", "spray", "rope", "bubbles"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
 # a monster's damage kind -> how a pet takes it (sim/pets.taken_factor): physical through its armor, spell through its
 # magic resist, true through neither (the area hits), tick (Tolerance, Immunize), none (oxygen)
 DTYPE = {"melee": "physical", "feed": "physical", "charge": "physical", "transfix": "physical", "spell": "spell",
-         "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "spray": "true", "poison": "tick",
-         "bleed": "tick", "disease": "tick", "pressure": "none", "oxygen": "none", "other": "none"}
+         "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "spray": "true", "bubble": "true",
+         "poison": "tick", "bleed": "tick", "disease": "tick", "pressure": "none", "oxygen": "none", "other": "none"}
 PET_OFFSETS = ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1))   # the pets' tiles beside the player at the start, in team order
 TEXT_OXYGEN_REFILLED = "Your oxygen is refilled."   # live, a Recovery Dolphin's refill (20261024_225113 11:30:57)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
@@ -349,6 +349,8 @@ class World:
         self.under_s = 0.0                    # scenario `oxygen`: seconds under water since it was last refilled
         self.oxygen_due = None                # ... the next deprivation hit, once deprived
         self.dolphin_due = None               # scenario `oxygen.dolphins`: their next refill tick
+        self.bubble_throws = []               # clearwater groupers' bubbles in the air: (land time, grouper serial, tile, special)
+        self.bubble_hit_t = {}                # serial -> time a bubble last hit it (one hit a volley)
         self.gump_n = 0x7700
         self.gate_n = 0x7800                  # moongate menus' serials
         self.gate_gump = None                 # (serial, gate, picked destination) of the menu up
@@ -821,15 +823,15 @@ class World:
                     # to 19 tiles, 17:37:13.63 Botan); the client model would keep it at its last tile to 24
                     self.send(P.delete(s))
         for s, it in self.items.items():
-            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx"):
+            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx", "bubble"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
                     if it["kind"] == "eerie" and not it.get("seen"):
                         it["seen"] = True
                         self.count("eerie_seen")
-                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx"):
-                        self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"]))
+                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx", "bubble"):
+                        self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"], hue=it.get("hue", 0)))
                     else:
                         self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
                                   P.corpse_flags(s, it["owner"], it["name"], it["noto"]))
@@ -1179,11 +1181,17 @@ class World:
         for s, it in list(self.items.items()):
             if it.get("kind") == "corpse" and t - it["t"] > CORPSE_DECAY_S:
                 self._remove_corpse(s)
-            elif it.get("kind") == "fire" and t >= it["until"]:
+            elif it.get("kind") in ("fire", "bubble") and t >= it["until"]:
                 del self.items[s]
                 if s in self.viewing_items:
                     self.viewing_items.discard(s)
                     self.send(P.delete(s))
+                if it["kind"] == "bubble":
+                    self._bubble_pop(it)
+        if self.bubble_throws:
+            for b in [b for b in self.bubble_throws if b[0] <= t]:
+                self.bubble_throws.remove(b)
+                self._bubble_land(*b[1:])
         if not self.penalty and t - self.last_step_t >= PENALTY_STILL_S:
             self._apply_penalty()
         if self.player.held_until and t >= self.player.held_until:
@@ -1777,6 +1785,48 @@ class World:
             self.send(P.ground_item(s, sp["graphic"], 1, tgt.x, tgt.y, tgt.z))
         self.count("fire_marks", "on us" if tgt.kind == "player" else tgt.name)
 
+    def _bubble_tile(self, m: Mob, sp: dict):
+        """Where one of a grouper's bubbles lands: a standable tile at Chebyshev distance d from it, d drawn by `ring_w`
+        (live, from the throw's origin a tile off the grouper: 0 7, 1 40, 2 90, 3 89, 4 61 of 287 throws), or None."""
+        rng = self.rng
+        for _ in range(8):
+            d = rng.choices(range(len(sp["ring_w"])), weights=sp["ring_w"])[0]
+            ring = [(dx, dy) for dx in range(-d, d + 1) for dy in range(-d, d + 1) if max(abs(dx), abs(dy)) == d]
+            dx, dy = rng.choice(ring)
+            x, y = m.x + dx, m.y + dy
+            z = self.stand_z(x, y, m.z)
+            if abs(z - m.z) <= 10 and any(self.walk.can_walk(x, y, z, k) for k in range(8)):
+                return x, y, z
+        return None
+
+    def _bubble_land(self, ms: int, tile: tuple, sp: dict):
+        """A thrown bubble lands: a ground item (`graphic`, `hue`) that pops `lifetime_s` later (_bubble_pop)."""
+        s = self._item_serial()
+        x, y, z = tile
+        self.items[s] = {"kind": "bubble", "graphic": sp["graphic"], "hue": sp["hue"], "x": x, "y": y, "z": z,
+                         "until": self.t + self.rng.uniform(*sp["lifetime_s"]), "by": ms, "sp": sp}
+        if cheb((x, y), self.player.pos) <= VIEW:
+            self.viewing_items.add(s)
+            self.send(P.ground_item(s, sp["graphic"], 1, x, y, z, hue=sp["hue"]))
+        self.count("bubbles", "thrown")
+
+    def _bubble_pop(self, it: dict):
+        """A bubble pops: each of us within `radius` of it not hit by a bubble in the last `immune_s` (live: none of 50
+        within 2.5 s of a hit) takes `damage_player` / `damage_pet` with `chance`[distance]."""
+        sp, m = it["sp"], self.mobs.get(it["by"])
+        for o in self.team():
+            d = cheb((it["x"], it["y"]), o.pos)
+            if d > sp["radius"] or self.t - self.bubble_hit_t.get(o.serial, -1e9) < sp["immune_s"] \
+                    or self.rng.random() >= sp["chance"][d]:
+                continue
+            self.bubble_hit_t[o.serial] = self.t
+            before = o.hits
+            self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]),
+                      m if m is not None and m.alive else None, "bubble", ref=sp.get("ref"))
+            who = "us" if o.kind == "player" else "pets"
+            self.count("bubbles", f"hits_{who}")
+            self.count("bubbles", f"damage_{who}", round(before - max(o.hits, 0)))
+
     def _abilities(self, m: Mob, tgt: Mob, spec: dict):
         """Timed specials while fighting (scenario `specials`, each with its evidence): the Charge, the
         transfix, the wail, the bursts, the Vanish, the apparition's blink, the vampires' feed; Tidal Tomb's ooze aura,
@@ -1940,6 +1990,18 @@ class World:
                 only = m.provoke[0] if m.provoke and m.provoke[0] in self.mobs else None
                 m.spray = {"t0": t + sp["telegraph_s"], "c": m.pos, "d": m.d, "sp": sp, "hit": set(), "only": only}
                 m.next_swing = max(m.next_swing, t + sp.get("swing_delay_s", 0.0))
+            elif kind == "bubbles":
+                # a clearwater grouper (Tidal Tomb scenario note): a volley of `count` bubbles `throw_s` apart onto tiles
+                # round it (`ring_w`: the share at each distance), each popping `lifetime_s` after it lands (_bubble_pop)
+                if kind not in m.cd:
+                    m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                m.cd[kind] = t + self.rng.uniform(*sp["every_s"])
+                self._ev("ability", by=m.serial, kind=kind, v=tgt.serial)
+                for i in range(sp["count"]):
+                    tile = self._bubble_tile(m, sp)
+                    if tile is not None:
+                        self.bubble_throws.append((t + i * sp["throw_s"] + sp.get("flight_s", 0.0), m.serial, tile, sp))
 
     def _pulse_step(self, m: Mob):
         """One burst of an ooze aura under way: a hit on each of us within `radius` (the song cuts it as any

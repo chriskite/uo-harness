@@ -6052,6 +6052,59 @@ be modelled? Read from captures 20261024_102346, 20261024_225113, 20261025_21010
   - The `festering` debuff (heals x (1 - 0.05 a stack), devour exempt) and the `glowmark` debuff (threat the marked one
     draws x (1 + 0.25 a stack)): the buffs' own values, since the captures can't size them.
 
+## Tidal Tomb: the clearwater grouper's bubbles (2026-10-28, from five captures)
+
+User 2026-10-28 ~21:15, live run hunt-20261028-211014-9150 (Logan with Bussin and AlaFlambe, level 2): "Standing in
+the clearwater group's exploding bubbles is no good". Read from captures 20261024_102346, 20261024_225113,
+20261025_210102, 20261027_220057 and 20261028_182147: every capture with a clearwater grouper in a fight. There were
+36 volleys and 282 bubbles. The scratch decoder (`world.parsers` and `world.runtime.WorldRuntime` replayed over the
+jsonl) is not in the repo. Neither the knowledge base (`tidal_tomb_kb.json`: the grouper's `specials` is empty; its
+mechanics have only the decorative "Bouncing Air Bubble" loot) nor the wiki names the ability.
+
+- **The throw:** 0xC0 type 0 (moving), graphic 0xDD8F, hue 0, speed 1, duration 0, source and target serial 0. It
+  flies from a tile beside the grouper to the bubble's tile. In all 36 volleys the throw's origin was 1 tile from a
+  clearwater grouper; none came from an ironscale grouper on its own. The ocean bedrock's spray wave uses the same
+  moving graphic (above), so the throw alone doesn't identify a bubble.
+- **The bubble:** 0.06 s after the throw, a ground item (0xF3) with graphic 0xDD8F and **hue 0x0B40** appears on that
+  tile. Re-sends of the same serial step its graphic through the frames 0xDD8F-0xDDAE (~0.03 s a frame) and loop. It
+  is deleted (0x1D) **1.88-2.04 s after it lands** (median 1.94, n=282): that is the pop. The 0xDD8F-0xDDAE range with
+  hue 0x0B40 appeared only as bubbles: 3,640 updates in 20261024_102346 alone. With hue 0 it appeared 1-45 times a
+  capture, never as a bubble.
+- **The pop:** sound 0x09CA on the bubble's tile. Each mobile hit gets sound 0x09C8 on its own tile, then its number.
+  A splash, 0xAB7C hue 0x07C9, is drawn a tile south-east of the bubble; 0x7B5C hue 0x0B3E and 0x122A-0x122F appear on
+  the victim's tile.
+- **Reach: 1 tile.** Of the 52 hit sounds, 32 were on the bubble's tile and 20 one tile off. None were 2 or more off:
+  0 of 22 times for Logan and 0 of 48 for the pets standing 2 off.
+  - Not everyone within 1 is hit. Of us not hit by a bubble in the 2.5 s before, 29 of 39 on the tile were hit, and 21
+    of 50 one tile off.
+  - Nobody was hit twice in a volley: 0 of 50 within 2.5 s of their last bubble hit.
+  - Monsters beside a bubble take its pop too (0x09C8 on a giant pincer crab's tile, 10-24 11:09:37.88).
+- **Damage:** Logan 31-45 (median 41, n=6), the pets 34-49 (median 45, n=15).
+- **Volleys:** 8 bubbles in 34 of 38 volleys, thrown 0.1 s apart (a volley spreads over 0.59-0.92 s).
+  - Tiles 0-4 from the throw's origin: 7, 40, 90, 89 and 61 bubbles at Chebyshev distance 0, 1, 2, 3 and 4.
+  - Volleys come every 7.5-9.0 s (median 7.9, n=25).
+  - The first came 1.2-6.1 s after the grouper went to war (10 of 11 groupers; one at 9.9 s).
+- **The live hits (capture 20261028_182147, the grouper 0x000E1FED):**
+  - 21:13:35, -44: on the bubble's tile (6951, 2015).
+  - 21:13:43, -34: one tile off.
+  - 21:13:50.85, -40: the bubble at (6950, 2011) beside his loot tile (6950, 2010). The hunt log 21:13:47-51 has "to
+    the corpse: looting from (6950, 2010)" and the loot. The bubble had shown at 21:13:48.91, 1.94 s before.
+  - 21:13:58.75, -42: the bubble at (6949, 2010).
+- **Not the bubbles: the 0x36D4 / 0x3709 bursts of hue 0x0B16.** At 21:13:21 a moving 0x36D4 went from (6948, 2010) to
+  the tiles round it, and a fixed 0x3709 landed on each. (6948, 2010) is the tile of the ironscale grouper AlaFlambe
+  fought; Logan stood 16 tiles off. The same pattern comes from the tile of whatever the phoenix fights: ruby
+  smallshells and dungeon-nest crabs on level 1, 4,572 of them in 20261028_182147. It appears only in captures with
+  AlaFlambe out (12,327 in 20261024_102346, 1,128 in 20261028_165135; none in 20261024_221001, 20261026_105736,
+  20261026_213634 or 20261027_230843). Its hue 0x0B16 is on the phoenix's own 0x374A effects too. [INFERENCE] It is
+  the phoenix's area attack, not a monster's.
+- **Built 2026-10-28:**
+  - Runner: a bubble's reach (`tamer.Team.bubble_tiles`) is fire for the bubble's life (`fire_tiles`). It is never
+    a tile to step to, loot from or heal from, and routes go round it. Standing in it, `Team.out_of_bubbles` steps out
+    at once, from `stand_off` (mid-fight, mid-channel, before a potion) and between a loot's lifts.
+  - Simulator: the grouper's `bubbles` special.
+  - docs/HUNT_LOOP.md "Fire and bubbles on the ground"; docs/SIM.md "The clearwater grouper's bubbles" (the
+    numbers).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

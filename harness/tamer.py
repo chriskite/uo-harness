@@ -291,6 +291,17 @@ PATROL_NOTE_S = 30.0          # patrol_note: the same reason for no patrol logge
 # souls"): never a tile to step to, costly to route through, and stepped off when we stand on one.
 FIRE_GRAPHICS = frozenset([0x6D70])
 FIRE_STEPS = 2                # a tile out of the fire within this many steps
+# A clearwater grouper's bubbles (Tidal Tomb level 2+; docs/NOTES.md "Tidal Tomb: the clearwater grouper's bubbles"):
+# every 7.5-9.0 s a volley of 8 thrown over 0.6-0.9 s onto tiles up to 5 from it, each a ground item 0xDD8F-0xDDAE
+# (its animation frames) of hue 0x0B40 that pops 1.88-2.04 s after it lands, hitting each of us within BUBBLE_R once a
+# volley (Logan 31-45, the pets 34-49; 282 pops in captures 20261024_102346 .. 20261028_182147, none of 70 on one of
+# us 2 off). User 2026-10-28: "Standing in the clearwater group's exploding bubbles is no good". Its reach is fire's
+# (fire_tiles: never a tile to step to, routed round) for its life, and standing in it we step out at once, mid-channel
+# and before a potion too (out_of_bubbles from stand_off), between a loot's lifts as well.
+BUBBLE_GRAPHICS = range(0xDD8F, 0xDDAF)
+BUBBLE_HUE = 0x0B40
+BUBBLE_R = 1                  # a pop hits within this many tiles of the bubble
+BUBBLE_STEPS = 3              # a tile out of every bubble's reach within this many steps
 BACKSPAWN_MERGE = 3           # stealther spawn spots closer than this are one (Team.backspawn)
 SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
 TAMER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "tamer")
@@ -547,6 +558,7 @@ class Team:
         self.spot_for = frozenset()      # the monsters the last pull spot was chosen for
         self.standoff_t = -1e9
         self.standoff_stay = None        # why the last stand-off stayed put (logged once)
+        self.bubble_stay = None          # the bubble no tile out of reach was found from (logged once)
         self.songs = {}                  # song skill -> monotonic time it runs out
         self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
         self.at_once_at = []             # [((x, y), monotonic)] where "at once" stopped a patrol lately
@@ -746,9 +758,25 @@ class Team:
 
     @staticmethod
     def fire_tiles(st) -> set:
-        """(x, y) of the fire on the ground (FIRE_GRAPHICS) now."""
+        """(x, y) never to stand on now: the fire on the ground (FIRE_GRAPHICS) and each tile within BUBBLE_R of a
+        clearwater grouper's bubble (bubble_tiles)."""
         return {(it["x"], it["y"]) for it in st["world"]["items"].values()
-                if it.get("graphic") in FIRE_GRAPHICS and it.get("container") is None and it.get("x") is not None}
+                if it.get("graphic") in FIRE_GRAPHICS and it.get("container") is None and it.get("x") is not None} \
+            | set(Team.bubble_tiles(st))
+
+    @staticmethod
+    def bubble_tiles(st) -> dict:
+        """{(x, y): the bubble's (x, y)} for each tile within BUBBLE_R of a clearwater grouper's bubble on the ground
+        (BUBBLE_GRAPHICS of BUBBLE_HUE): where its pop lands."""
+        out = {}
+        for it in st["world"]["items"].values():
+            if it.get("graphic") in BUBBLE_GRAPHICS and it.get("hue") == BUBBLE_HUE and it.get("container") is None \
+                    and it.get("x") is not None:
+                b = (it["x"], it["y"])
+                for dx in range(-BUBBLE_R, BUBBLE_R + 1):
+                    for dy in range(-BUBBLE_R, BUBBLE_R + 1):
+                        out.setdefault((b[0] + dx, b[1] + dy), b)
+        return out
 
     # ------------------------------------------------------------ what the pets are doing
     def engaged(self, st, serial: int) -> bool:
@@ -1515,10 +1543,54 @@ class Team:
             frontier = nxt
         return out
 
+    def out_of_bubbles(self, st, near=None) -> bool:
+        """Standing within BUBBLE_R of a clearwater grouper's bubble (bubble_tiles): the nearest tile within BUBBLE_STEPS
+        out of every bubble's reach and fire, off an area hitter's tile, the least deep in an area hit's reach
+        (area_zone, as the stand-off's tiles), then keeping the pets within --vet-range where one does and, looting,
+        within `near` (the corpse's tile, the loot range) where one does; mid-channel too
+        (a pop is 31-45 on Logan; a step shortens the channel's reach to 1, wiki Veterinary). Live 2026-10-28
+        21:13:48-58 (capture 20261028_182147) Logan looted at (6950, 2010) while bubbles landed beside him: -40 at
+        21:13:50.85, -42 at 21:13:58.75, each 1.9 s after its bubble showed."""
+        h = self.h
+        bub = self.bubble_tiles(st)
+        if not bub:
+            return False
+        v = self.view(st)
+        if v.walk is None or v.pos[:2] not in bub:
+            return False
+        at = bub[v.pos[:2]]
+        fire, zone = self.fire_tiles(st), self.area_zone(st)
+        keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range]
+        ok = [(self.zone_depth(zone, t), near is not None and cheb(t, near[0]) > near[1],
+               any(cheb(t, p) > self.a.vet_range for p in keep), k, t)
+              for t, k in self.tiles_within(v, BUBBLE_STEPS).items()
+              if k and t[:2] not in fire and t[:2] not in zone]
+        if not ok:
+            if self.bubble_stay != at:
+                log(f"bubbles at {at}: no tile out of their reach within {BUBBLE_STEPS} steps; staying")
+            self.bubble_stay = at
+            return False
+        self.bubble_stay = None
+        best = min(ok)[4]
+        label = "out of the bubbles"
+        h.doing("reposition", f"Stepping out of the bubbles to {best[0]},{best[1]}", best[:2])
+        self.count("bubble_steps")
+        log(f"bubbles at {at}: stepping to {best[:2]}")
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * BUBBLE_STEPS,
+                            max_route=2 * BUBBLE_STEPS, mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"out of the bubbles: {e}")
+        return True
+
     def out_of_fire(self, st) -> bool:
-        """Standing on fire (FIRE_GRAPHICS): the nearest tile within FIRE_STEPS out of it and out of a
-        Charge's reach, keeping the pets within --vet-range where one does; never mid-channel (a step
-        breaks the channel's reach, and the fire hasn't been seen to hurt)."""
+        """Standing in a bubble's reach: out_of_bubbles. Standing on fire (FIRE_GRAPHICS): the nearest tile within
+        FIRE_STEPS out of it and out of a Charge's reach, keeping the pets within --vet-range where one does; never
+        mid-channel (a step breaks the channel's reach, and the fire hasn't been seen to hurt)."""
+        if self.out_of_bubbles(st):
+            return True
         h = self.h
         fire = self.fire_tiles(st)
         if not fire or time.monotonic() < self.vet_busy_until:
@@ -1760,9 +1832,11 @@ class Team:
         shortens the reach to a pet to 1 (wiki Veterinary). An apparition's "*phases*" onto a pet (blink_tiles):
         off that pet at once, past the repeat gap and the tank's heal, before the landing 1.1-1.6 s later. A sprayer's
         wind-up (its action 18, spray_t) with us in its cone: the same, before its wave's ring reaches us (0.71 s and
-        0.1 s a tile)."""
+        0.1 s a tile). A clearwater grouper's bubble within reach of us: out of it first, every tick (out_of_bubbles)."""
         h, now = self.h, time.monotonic()
         self.update(st)                   # a "*phases*" just heard: act on it in this tick, before a song or a channel
+        if self.out_of_bubbles(st):
+            return True
         pos = h.pos(st)
         landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or self.spray_due(st, pos)
         if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:
@@ -1884,7 +1958,9 @@ class Team:
         (vet_tile's chooser). User 2026-10-21, live 09:54:10: "to the corpse" walked to (5242, 676), a tile from the
         reanimated daemon at (5241, 675) still fighting the pets, in its bone burst's reach (6), 8 s before its death.
         Simulator 2026-10-21, seed 1004: "to the corpse" walked 11 steps into an awake purger's shot at 3-5 tiles, then
-        100 -> 6 in 8 s (its shot ~20 and a stacking disease); user 2026-10-21: "stay out of their aggro range"."""
+        100 -> 6 in 8 s (its shot ~20 and a stacking disease); user 2026-10-21: "stay out of their aggro range". A
+        clearwater grouper's bubbles within LOOT_RANGE of the corpse: the same, a tile out of their reach (fire_tiles),
+        else a wait out of it (live 2026-10-28 21:13:48-51 Logan looted from beside two, -40)."""
         zone = self.area_zone(st)
         v = self.view(st)
         shy = self.shy_awake(v)
@@ -1894,14 +1970,16 @@ class Team:
         # (simulator 2026-10-26, Tidal Tomb seed 6: "to the corpse" 5 steps at 100 hits to beside a provoked ocean
         # bedrock, 13 hits seven seconds later)
         close = [m for m in v.mobs if m["war"] and not m["shy"] and cheb(m["pos"], spot) < lr + SPACING_R]
-        if not zone and not shy and not idle_shy and not close:
+        bub = self.bubble_tiles(st)
+        hot = any((spot[0] + dx, spot[1] + dy) in bub for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1))
+        if not zone and not shy and not idle_shy and not close and not hot:
             return None, None
         pos = tuple(self.h.pos(st)[:2])
 
         def beside(t) -> list[dict]:
             return [m for m in close if cheb(m["pos"], t) < SPACING_R]
         if cheb(pos, spot) <= lr and not self.zone_depth(zone, pos) and not self.shot_at(v, shy, pos) \
-                and not beside(pos):
+                and not beside(pos) and pos not in bub:
             return None, None
         if zone and all(self.zone_depth(zone, (spot[0] + dx, spot[1] + dy))
                         for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1)):
@@ -1912,6 +1990,8 @@ class Team:
         if t is None and shy:
             return None, (f"the corpse at {spot} lies in the shot of the awake "
                           f"{', '.join(sorted({m['kind'] for m in shy}))}, every tile within {lr} of it too")
+        if t is None and hot:
+            return None, f"the corpse at {spot} lies in a clearwater grouper's bubbles' reach, every tile within {lr} too"
         end = t[:2] if t is not None else spot
         if idle_shy and (first := self.shy_first(v, (end[0], end[1], v.z_at(end)))):
             # an idle shy monster (a caster since 2026-10-26) would see us there before a pet: its first target. Simulator,

@@ -81,9 +81,9 @@ def contained(serial, graphic, amount, container, x=50, y=60, hue=0):
             + u32(container) + u16(hue) + u32(0))
 
 
-def ground_item(serial, graphic, amount, x, y, z=0):
+def ground_item(serial, graphic, amount, x, y, z=0, hue=0):
     return (b"\xf3\x00\x01\x00" + u32(serial) + u32(graphic) + b"\x00" + u16(amount) + b"\x00\x00"
-            + u32(x) + u32(y) + i32(z) + b"\x00" + u16(0) + u32(0) + u16(0))
+            + u32(x) + u32(y) + i32(z) + b"\x00" + u16(hue) + u32(0) + u16(0))
 
 
 def open_container(serial, gump):

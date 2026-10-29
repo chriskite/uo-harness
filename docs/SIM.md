@@ -1845,6 +1845,41 @@ be modelled? Yes; the evidence is in docs/NOTES.md "Five more Tidal Tomb special
     burst, the strip's shooters).
   - Maus 3: the corpsebride's fell from 17,138 to 15,565.
 
+### The clearwater grouper's bubbles (2026-10-28)
+
+User 2026-10-28, live on level 2: "Standing in the clearwater group's exploding bubbles is no good". The evidence is in
+docs/NOTES.md "Tidal Tomb: the clearwater grouper's bubbles"; the runner's rule is in docs/HUNT_LOOP.md "Fire and
+bubbles on the ground".
+
+- **The `bubbles` special** (`World._bubble_tile`, `_bubble_land`, `_bubble_pop`): from 1.2-6.1 s into its fight and
+  every 7.5-9.0 s after, 8 bubbles thrown 0.1 s apart. Each lands 0.06 s after its throw on a tile at distance 0-4
+  from the grouper (`ring_w` 7/40/90/89/61). Each is a ground item 0xDD8F of hue 0x0B40 that pops 1.88-2.04 s
+  later. The pop hits each of us within 1 not hit by a bubble in the last 2.5 s, with chance 0.74 on its tile and
+  0.42 a tile off: Logan 31-45, the pets 34-49 ("true" damage). Its pops on monsters aren't modelled.
+- `run.py`'s summary and `all:` line carry `bubbles`: thrown, and the hits and damage on us and on the pets.
+- **Runs** (level 2, `--scenario tidal_tomb --runs 8 --compare --area 6815 1907 6969 2100 -- --enter-via 6718 1984
+  --leave-gate 6913 2071`). "Before" is the same batch with the runner blind to the bubbles (`--set
+  tamer.BUBBLE_HUE=-1`, the runner as it was):
+
+  | 8 runs (seeds 1-8) | bubble hits / damage on Logan | deaths | pet deaths | kills an hour | gold looted | banked an hour |
+  |---|---|---|---|---|---|---|
+  | before | 27 / 744 | 2 | 4 | 141 | 609,469 | 116,389 |
+  | after | **2 / 62** | 3 | 0 | 134 | 518,488 | 124,585 |
+
+  Any change of the runner sends every seed down another path, so 8 runs can't show deaths. The same in 96 runs
+  (seeds 1-96, `--json`):
+
+  | 96 runs | bubble hits / damage on Logan | on the pets | deaths | pet deaths | kills an hour | looted an hour | banked an hour |
+  |---|---|---|---|---|---|---|---|
+  | before | 215 / 5,914 | 17,178 | 26 | 21 | 145 | 156,537 | 122,694 |
+  | after | **17 / 490** | 16,743 | 26 | 17 | 143 | 160,621 | 103,642 |
+
+  - Logan stepped out of the bubbles 380 times. His bubble damage fell 92 %.
+  - Deaths stayed level. In the after batch's 13 deaths of seeds 1-48, each came 2.6+ min after the last step out:
+    razorfin and drowned mariner deaths on the south strip.
+  - Banked an hour fell while looted rose: what a death leaves on the corpse varies by when it comes [INFERENCE].
+  - The pets' bubble damage hardly changes: they stand where they fight.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

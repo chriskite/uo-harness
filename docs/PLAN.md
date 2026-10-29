@@ -2778,6 +2778,27 @@ kills, we can loot the corpse, but we shouldn't as that is rude." Decisions (doc
   isn't looted if an ally was seen on it. Rejected: reading loot rights from the corpse's notoriety (an ally's kill can
   show grey to us: the user says we can loot it).
 
+## A clearwater grouper's bubbles are fire for their life (user 2026-10-28)
+
+User, live on Tidal Tomb level 2: "Standing in the clearwater group's exploding bubbles is no good". The captures
+(docs/NOTES.md "Tidal Tomb: the clearwater grouper's bubbles") show a delayed hit on tiles. Each bubble is a ground
+item that lands on a tile up to ~5 from the grouper and pops 1.9 s later on everyone within 1 of it. Decisions
+(docs/HUNT_LOOP.md "Fire and bubbles on the ground"):
+- *The fire model*, not an area hitter's. The hit is centred on each bubble's tile, which shows 1.9 s ahead. So the
+  reach of a bubble on the ground (`Team.bubble_tiles`) joins `fire_tiles` for its life, and every chooser and route
+  that keeps off fire keeps off it.
+  - Rejected: an `AREA_R` round the grouper. Its bubbles land up to 5 off at random, so a stand-off would keep Logan 6+
+    from every awake clearwater grouper and out of `--vet-range` 5 of the tank beside it.
+  - Rejected: the corpse purger's target-centred barrage. The bubbles don't follow the grouper's target.
+- *Out at once*: `Team.out_of_bubbles` runs first in `stand_off`, mid-channel too, unlike fire's step. The fire
+  hasn't been seen to hurt; a pop costs Logan 31-45, and a step only shortens a channel's reach to 1. It also runs
+  between a loot's lifts, since the live hits came while Logan looted.
+- *The bubble's own item, not its throw*. The 0xDD8F moving effect is also the ocean bedrock's spray wave, and the
+  runtime drops effects more than 2 tiles from us. The item (0xDD8F-0xDDAE with hue 0x0B40) comes to the world model
+  whole.
+- *Simulator*: the grouper's `bubbles` special, with the volley, the reach, the per-volley single hit and the
+  numbers as measured. The before/after batch is in docs/SIM.md "The clearwater grouper's bubbles".
+
 ## The Ossuary in the simulator (user 2026-10-28: "add it to the combat simulator")
 
 Built from the user's three visits that day (docs/SIM.md "The Ossuary", docs/NOTES.md "The Ossuary: three visits by

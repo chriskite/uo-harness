@@ -1326,6 +1326,26 @@
     "pressure": {"damage_pet": [67, 67], "damage_player": [20, 20], "seconds": 30.0}
    }
   ],
+  "clearwater grouper": [
+   {
+    "kind": "bubbles",
+    "first_s": [1.2, 6.1],
+    "every_s": [7.5, 9.0],
+    "count": 8,
+    "throw_s": 0.1,
+    "flight_s": 0.06,
+    "ring_w": [7, 40, 90, 89, 61],
+    "graphic": 56719,
+    "hue": 2880,
+    "lifetime_s": [1.88, 2.04],
+    "radius": 1,
+    "chance": [0.74, 0.42],
+    "immune_s": 2.5,
+    "damage_player": [31, 45, 41],
+    "damage_pet": [34, 49, 45],
+    "note": "its bubbles (docs/NOTES.md 'Tidal Tomb: the clearwater grouper's bubbles'; captures 20261024_102346, 20261024_225113, 20261025_210102, 20261027_220057, 20261028_182147: 36 volleys, 282 pops): a volley of 8 (34 of 38) moving effects 0xC0 type 0 graphic 0xDD8F, 0.1 s apart (spread 0.59-0.92 s), from a tile beside the grouper onto tiles 0-4 from there (7, 40, 90, 89, 61 at Chebyshev 0-4), each a ground item 0xF3 graphic 0xDD8F (56719) hue 0x0B40 (2880) 0.06 s later that cycles its frames 0xDD8F-0xDDAE and is deleted 1.88-2.04 s (median 1.94) after it lands: the pop, sound 0x9CA on its tile, sound 0x9C8 and a number on each one hit. Volleys 7.5-9.0 s apart (median 7.9, n=25), the first 1.2-6.1 s after it goes to war (10 of 11; one 9.9). Hits only within 1 of the bubble (52 of 52 hit sounds at 0-1; 0 of 70 of us 2 off): of us not hit by a bubble in the 2.5 s before, 29 of 39 at 0 and 21 of 50 at 1 hit; none of 50 within 2.5 s of a hit. Logan 31-45 (median 41, n=6), the pets 34-49 (median 45, n=15). Monsters beside it take the pops too (the giant pincer crab): not modelled"
+   }
+  ],
   "colossal scourgeon": [
    {
     "kind": "burst",

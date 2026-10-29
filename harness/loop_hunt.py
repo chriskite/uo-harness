@@ -1527,6 +1527,8 @@ class HuntLoop:
             if stop:
                 break
             st = self.state()
+            if self.team is not None and self.team.out_of_bubbles(st, near=(spot, combat.LOOT_RANGE)):
+                st = self.state()          # a grouper's bubble beside us: out of its reach first, the corpse kept in reach
             me = st["world"]["self"]
             if self.leave_reason(st):
                 log("a leave rule fired while looting: leaving the rest")
