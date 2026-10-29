@@ -25,9 +25,10 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   - Confirmed: map0.uoo's header is 1344×768 blocks = 10752×6144 tiles.
 - **Client settings the harness assumes (user, 2026-10-01):** Always Run **on** (the client default; agent routes always run, `ctl act walk` runs unless `--walk`) and Auto Open Doors **off**. With the proxy re-anchoring the client after every agent step, Auto Open Doors would send a second open-door request next to the Mover's and shut the door again (ANTICHEAT.md §10 A11).
 - **Client data drift seen 2026-10-08 (not investigated):** `test_uomap` now counts 71376 artdata
-  records (it pins 71292), and `test_pathfind` finds 9 of 53689 server-confirmed moves
-  unwalkable around (3958..3961, 515..520). Neither test touches code changed that day
-  (multi-character work), so the installed client's map/art files have probably been patched.
+  records (it pins 71292; 72522 on 2026-10-28, artdata.uoo dated 2026-10-27 20:36). The
+  `test_pathfind` part of this note was not drift: its 9 (later 34) unwalkable moves around
+  (3954..3961, 513..521) are on a player house's floor ("Mounted movement and player houses":
+  the Anchors Rest house, found 2026-10-28).
 
 ## Login & identity
 
@@ -131,6 +132,20 @@ Facts learned during the 2026-09-27 research session that don't belong in the re
   - Steps the rules can't place count as `movement.z_misses`, and z stays until the next
     anchor.
   - Facets without map data (rental rooms, facet 3) keep the anchor-only z.
+  - **A surface at exactly z -128 holds (found 2026-10-28).** Upstream's CalculateNewZ marks "no
+    surface" with resultZ -128 (sbyte z); `Walk.new_z` copied it, so a tile standing only at
+    -128 refused every step. Outlands' z is an int: the client sent and the server confirmed
+    SE (6886,1980) -> (6887,1981) (session 20261024_225113, 2026-10-25 11:29:48.843, z -126)
+    and NW back (20261025_210102, 21:20:58.591, z -127), both past the corner (6887,1980),
+    underwater sand at land z -128 and nothing else (Tidal Tomb). A diagonal needs both corners
+    (CanWalk), so those two moves were the only ones of the 275,040 in walk memory our rules
+    refused there. `new_z` now returns None for "none". Map0's land and statics never go below
+    -128, so the other -128 starts don't matter [INFERENCE: the decompile
+    `decompiled/map_formats.c` named in pathfind.py is not in the repo to read the int version's
+    sentinel]. 117,223 land cells (0.18 %) sit at -128, 101,149 of them impassable (0x244 void
+    mostly); the 16,074 others (underwater sand, "vulkan") now stand. No capture has a server z
+    of -128 (the lowest is -127), and none walked onto one of the 1293 tiles of the Tidal Tomb box
+    (6800-7049, 1900-2099) that stand only at -128.
   - `--no-map-z` turns it off.
 - **The server auto-retaliates (live 2026-09-30, New Player Dungeon):** when monsters (mongbats)
   attacked TestWorth, it fought back and killed them with war mode off. In the 10 minutes before,
@@ -318,6 +333,21 @@ Times are seconds after 1790911000 (22:16:40 local).
 - **0xF3 z is signed** (i32): `ffffffe7` = −25 for an item below ground; the Horseshoe Bay houses sit at −5. The layout read u32 until 2026-10-02.
 - **The world model used to drop houses the client keeps.** The server sends a house from beyond the 18-tile view: the Corpse Creek house came at 22 tiles at 17:38:42, 17:41:11 and 17:44:15. The client keeps a multi while it is within view range + the multi's reach (HouseManager.IsHouseInRange; reach = the max |dx|/|dy| of its multi.mul records, 4 for 0x154). The harness pruned it at the next `0xFF` sub 5. Replaying the session, the house was missing from the model at all 12 denies; with the client's rule (`StateStore.prune_range`, since 2026-10-02) it is there at all 12. Without this, the walk-rule fix above would never have seen that house.
 - Houses are only known once in view (18 tiles), so a long route can still be planned through one. The Mover's per-step map check then refuses the step and replans, with no server deny. Live check (2026-10-02, the agent at (865,1570) with houses 0xA2 at (880,1566) and 0x16D at (881,1580) in view): the house pieces add 49 blocked tiles around 0xA2. A route to (881,1566) now goes in through the front, (879,1568) → (880,1567), not through the north wall.
+- **A house floor carries walks the map calls water: the Anchors Rest house (found 2026-10-28).** `test_pathfind`'s
+  "all server-confirmed moves are walkable" checked walk memory on the bare map. 34 of its 36 refusals (2026-10-28,
+  275,040 facet-0 moves; 9 of them on 2026-10-08, filed as client data drift) are Logan's walks at Anchors Rest in 13
+  sessions, 2026-10-07 21:28 to 10-27 22:04, all client-sent (`src` client); in 20261027_220057 from his arrival at
+  (3961,519,z2) (0x20 22:04:28.781). They cross player house multi 0x1B4 (serial 0x53082186) at (3956,516,z-4), 817
+  multi.mul pieces over x 3951-3961, y 509-523, sent as 0xF3 data_type 2 1-5 s before each crossing (e.g.
+  20261027_220057 22:04:28.780, the first step 22:04:29.218). Its ground floor is "wooden planks" (0x4C7-0x4C9 on the
+  tiles looked at; Surface, z 1) on water land (z -5, Impassable), entered through the door items 0x6EF/0x6F0 at
+  (3960,520)/(3961,519).
+  The server puts Logan at z 1 on it: 0x20 (3960,520,z1) at 22:04:29.423 there, and all 18 0x21 denies inside it (3
+  sessions, at (3956,518), (3958,517), (3957,519)) carry z 1. With the house and the session's ground items
+  (`pathfind.Walkers.get`) every one of the 34 walks at z 1. Not a rule bug: the test left out what the client is
+  sent. The other two refusals were the z -128 sentinel ("z while walking comes from the map"). `test_pathfind` now
+  checks a move the bare map refuses again with the ground items and houses (0xF3, test_uomap `scan_session`) of the
+  sessions that confirmed it (`nav.build_from_logs(sources=...)`), and pins five of the house moves.
 
 ## PK death in the Terran wilds (live 2026-10-02, 19:43; the user's death experiment)
 

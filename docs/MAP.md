@@ -243,7 +243,9 @@ pile 0x0EEF is 44×32 with box (7, 1, 38, 24).
   This is the same as upstream. The full decompile of CalculateMinMaxZ, CalculateNewZ, CanWalk
   and CreateItemList is in `decompiled/map_formats.c` for the pathfinder port.
 - **z width.** Map z is i16 on disk and handled as int in the client (`GetTileZ` returns a
-  short). Upstream is sbyte.
+  short). Upstream is sbyte, where CalculateNewZ's resultZ -128 means "no surface"; here a
+  surface at -128 holds (client-sent, server-confirmed Tidal Tomb diagonals past one, docs/NOTES.md
+  "z while walking comes from the map"), so `pathfind.Walk.new_z` returns None for "none".
 
 ## The CSV route
 

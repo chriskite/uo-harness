@@ -2943,6 +2943,21 @@ Python runner it drives. Decisions:
 - *Rejected for now*: `pathfind` as a compiled extension (PyO3). After the caches it is the next candidate; profile
   again first.
 
+## Walk rules: a surface at z -128 stands; confirmed moves are checked with what the server sent (2026-10-28)
+
+`test_pathfind`'s "all server-confirmed moves are walkable" failed with 36 of 275,040 (docs/NOTES.md "Mounted movement
+and player houses" and "z while walking comes from the map"). Decisions:
+
+- *`pathfind.Walk.new_z` returns None for "no surface", not -128.* Upstream's sbyte sentinel refused a tile standing
+  only at -128; Outlands' z is an int, and the client sent and the server confirmed two Tidal Tomb diagonals past
+  such a corner (6887,1980). Live and simulated walks may now use the 16,074 non-impassable land cells at -128 (39 of
+  them reachable from Tidal Tomb's walked floor). Rejected: a server-only exception for the two moves (the client
+  sent them, so the client's rules allow them).
+- *A confirmed move the bare map refuses is checked with the ground items and houses of a session that confirmed it.*
+  34 of the 36 were on a player house's floor at Anchors Rest; the runners already walk with houses
+  (`Walkers.get`). Rejected: a `SERVER_ONLY_MOVES` entry per move (the server's map isn't different, the test's was)
+  and every capture's items at once (a house gone later would stand in other sessions' moves).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

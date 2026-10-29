@@ -380,10 +380,18 @@ def _size(path: str) -> int:
         return 0
 
 
-def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None) -> WalkMemory:
+def _session_name(path: str) -> str:
+    """`<name>` of logs/session_<name>.jsonl / .s2c.raw."""
+    return os.path.basename(path).split(".", 1)[0][len("session_"):]
+
+
+def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None,
+                    sources: dict | None = None) -> WalkMemory:
     """WalkMemory from every capture pair with a non-empty c2s.raw plus every
     jsonl step/blocked row under logdir. Unreadable or garbage files add nothing.
     `stats`, if given, receives the reconstruct_session counters plus `rows`.
+    `sources`, if given, receives {(a, b): {session name}}: for every confirmed
+    move, the sessions (session_<name>.*) whose capture pair or step rows hold it.
     The capture pairs are decoded in worker processes (at most UO_TEST_WORKERS
     when set, as harness/run_tests.py does); their moves are applied in file
     order, then the rows, so the memory (set insertion order included) is the
@@ -412,8 +420,9 @@ def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None) -> 
         ex = None
         results = (_session_steps(*p) for p in pairs)
     try:
-        rows = []  # parsed while the workers decode
+        rows = []  # (session name, row), parsed while the workers decode
         for jl in sorted(glob.glob(os.path.join(logdir, "session_*.jsonl"))):
+            name = _session_name(jl)
             try:
                 with open(jl, encoding="utf-8", errors="replace") as f:
                     for line in f:
@@ -424,24 +433,33 @@ def build_from_logs(logdir: str = DEFAULT_LOGDIR, stats: dict | None = None) -> 
                         except ValueError:
                             continue
                         if isinstance(row, dict):
-                            rows.append(row)
+                            rows.append((name, row))
             except OSError:
                 continue
-        for res in results:
+        for pair, res in zip(pairs, results):
             if res is None:
                 continue
             steps, session_st = res
             for a, b in steps:
                 memory.add_step(a, b)
+                if sources is not None:
+                    sources.setdefault(_edge(a, b), set()).add(_session_name(pair[1]))
             for k, v in session_st.items():
                 st[k] = st.get(k, 0) + v
     finally:
         if ex is not None:
             ex.shutdown(cancel_futures=True)
-    for row in rows:
+    for name, row in rows:
         if apply_log_row(memory, row):
             st["rows"] += 1
+            if sources is not None and row["ev"] == "step":
+                sources.setdefault(_edge(row["from"], row["to"]), set()).add(name)
     return memory
+
+
+def _edge(a, b) -> tuple[Tile, Tile]:
+    """The move a -> b as WalkMemory.add_step stores it."""
+    return (int(a[0]), int(a[1])), (int(b[0]), int(b[1]))
 
 
 # ---------------------------------------------------------------------------

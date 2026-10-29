@@ -2,7 +2,8 @@
 
 Ground truth is server evidence:
 - every server-confirmed move in walk memory built from the committed
-  captures (logs/, facet 0) must be walkable under the client rules from some standing z
+  captures (logs/, facet 0) must be walkable under the client rules from some standing z,
+  on the bare map or with the ground items and houses (0xF3) of a session that confirmed it
 - the live agent run of 2026-09-29 was put upstairs in the Shelter inn at
   (1938, 2584, z 20) and could not get out on 2D walk memory; a 3D route
   down to the innkeeper's floor must exist
@@ -35,6 +36,12 @@ FAILURES = []
 # the server's map has no wall there [INFERENCE].
 SERVER_ONLY_MOVES = {((1616, 1518), (1615, 1519))}
 
+# Logan's walks from the Anchors Rest moongate to the bank (13 sessions, 2026-10-07..27) cross the
+# ground floor (z 1) of a player house on the water: 0xF3 multi 0x1B4 at (3956,516,z-4). The bare map
+# is water there; the client walks on the house's multi.mul pieces, as pathfind.Walkers.get places them.
+HOUSE_MOVES = {((3956, 515), (3957, 516)), ((3958, 520), (3957, 519)), ((3956, 514), (3957, 514)),
+               ((3957, 514), (3958, 514)), ((3958, 518), (3958, 517))}
+
 
 def check(name, cond, detail=""):
     print(f"  {'PASS' if cond else 'FAIL'} {name}{'' if cond else ' ' + detail}")
@@ -46,24 +53,58 @@ def standing_zs(walk, x, y):
     return {o[3] for o in walk.objects(x, y) if o[2] & (pathfind.POF_SURFACE | pathfind.POF_BRIDGE)}
 
 
+def walkable(walk, a, b):
+    """The move a -> b is a step under the client rules from some standing z on a."""
+    d = nav.direction(a, b)
+    return any((walk.can_walk(a[0], a[1], z, d, door_corners=False) or (None, None))[:2] == b
+               for z in standing_zs(walk, *a))
+
+
+def session_ground(name, facet=0):
+    """Walkers.get's `ground`: the ground items and multis (0xF3) session_<name>.jsonl shows on `facet`."""
+    import test_uomap
+    if not os.path.exists(os.path.join(ROOT, "logs", f"session_{name}.jsonl")):
+        return []
+    items = test_uomap.scan_session(name)[2]
+    return [(x, y, g, z, dt == 2) for f, dt, g, x, y, z in dict.fromkeys(items) if f == facet and dt in (0, 2)]
+
+
 def main():
     import cpu_budget
     cpu_budget.limit()                # build_from_logs' worker processes inherit it: two CPUs left to the game
     walk = pathfind.Walk(uomap.UoMap(0))
     print("== walk memory agrees with the client rules ==")
-    mem = nav.build_from_logs(os.path.join(ROOT, "logs"))
+    sources = {}
+    mem = nav.build_from_logs(os.path.join(ROOT, "logs"), sources=sources)
     edges = [(a, b) for a, b in mem.edges if a[0] >= 1000]      # facet 0 (rooms are facet 3)
     check("the server-only moves are among the confirmed ones",
           SERVER_ONLY_MOVES <= mem.edges, sorted(SERVER_ONLY_MOVES - mem.edges))
     edges = [e for e in edges if e not in SERVER_ONLY_MOVES]
-    bad = []
-    for a, b in edges:
-        d = nav.direction(a, b)
-        if not any((walk.can_walk(a[0], a[1], z, d, door_corners=False) or (None, None))[:2] == b
-                   for z in standing_zs(walk, *a)):
-            bad.append((a, b))
-    check(f"all {len(edges)} server-confirmed moves are walkable", not bad and len(edges) > 1000,
-          f"{len(bad)} disagree, e.g. {bad[:5]}")
+    # A move the bare map refuses must be a step with the ground items and houses the server sent in a
+    # session that confirmed it (the client walks on what it was sent).
+    bare = [e for e in edges if not walkable(walk, *e)]
+    by_session = {}
+    for e in bare:
+        for name in sources[e]:
+            by_session.setdefault(name, []).append(e)
+    walkers, on_items = pathfind.Walkers(), set()
+    for name, moves in sorted(by_session.items()):
+        w = walkers.get(0, session_ground(name))
+        on_items.update(e for e in moves if walkable(w, *e))
+    bad = [e for e in bare if e not in on_items]
+    check(f"all {len(edges)} server-confirmed moves are walkable ({len(on_items)} on their session's items)",
+          not bad and len(edges) > 1000, f"{len(bad)} disagree, e.g. {bad[:5]}")
+    check("the Anchors Rest house moves are confirmed, refused by the bare map, walkable on the house",
+          HOUSE_MOVES <= mem.edges and HOUSE_MOVES <= set(bare) and HOUSE_MOVES <= on_items,
+          str(sorted(HOUSE_MOVES - (mem.edges & set(bare) & on_items))))
+
+    print("== a surface at z -128 holds (Outlands z is an int) ==")
+    # Tidal Tomb: the client sent and the server confirmed SE (6886,1980) -> (6887,1981) (20261024_225113,
+    # t 1792945788.843, z -126) and NW back (20261025_210102, t 1792981258.591, z -127). Their corner
+    # (6887,1980) is underwater sand at land z -128, nothing else; upstream's sbyte "no surface" -128 refused it.
+    check("the corner (6887,1980) stands at z -128", walk.new_z(6887, 1980, -126, 2) == -128)
+    check("SE (6886,1980,z-126) -> (6887,1981) past it", walk.can_walk(6886, 1980, -126, 3) == (6887, 1981, -127))
+    check("NW (6887,1981,z-127) -> (6886,1980) past it", walk.can_walk(6887, 1981, -127, 7) == (6886, 1980, -126))
 
     print("== live agent denies upstairs (session 20260929_204225) are walls in the model ==")
     import json

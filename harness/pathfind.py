@@ -311,13 +311,18 @@ class Walk:
         return min_z, max_z + 2
 
     def new_z(self, x, y, z, d):
-        """CalculateNewZ: the z the player stands at on (x, y), or None."""
+        """CalculateNewZ: the z the player stands at on (x, y), or None.
+
+        Upstream's sbyte z marks "no surface" with resultZ -128; Outlands' z is an int and a surface at
+        exactly -128 holds: the client sent and the server confirmed both diagonals (6886,1980)<->(6887,1981)
+        in Tidal Tomb, whose corner (6887,1980) is underwater sand at land z -128 and nothing else
+        (captures 20261024_225113 and 20261025_210102). So "none" is None here, not a z value."""
         min_z, max_z = self._min_max_z(x, y, z, d)
         objs = self.objects(x, y)
         if not objs:
             return None
         objs = objs + [(128, 128, POF_IMPASSABLE_OR_SURFACE, 128, ("cap", None))]
-        result, best_delta, current = -128, 1000000, -128
+        result, best_delta, current = None, 1000000, -128
         z = max(z, min_z)
         for i, (oz, oh, of, oavg, _k) in enumerate(objs):
             if not of & POF_IMPASSABLE_OR_SURFACE:
@@ -334,7 +339,7 @@ class Walk:
                             best_delta, result = delta, tavg
             min_z = max(min_z, oavg)
             current = max(current, oavg)
-        return None if result == -128 else result
+        return result
 
     def door_on(self, x, y, z) -> bool:
         """A door (static or ground item with the tiledata Door flag) stands on
