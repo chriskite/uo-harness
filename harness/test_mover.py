@@ -204,7 +204,7 @@ class GridWalk:
         self.open = set(open_tiles)
         self.dynamic = None
 
-    def clear(self):
+    def set_ground(self, index):
         pass
 
     def can_walk(self, x, y, z, d):
@@ -491,7 +491,7 @@ class LayeredWalk:
         self.levels = levels
         self.dynamic = None
 
-    def clear(self):
+    def set_ground(self, index):
         pass
 
     def can_walk(self, x, y, z, d):

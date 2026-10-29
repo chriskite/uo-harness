@@ -5,8 +5,8 @@ emulated game world ... run tests much faster"). It is not an Outlands server: i
 level Logan Wolf fought on (2026-10-12, capture `20261012_210013`), on the real map, with the creatures,
 pets and mechanics the `--pets` runner meets there, each number calibrated from that capture or the
 wiki. The runner under test is the unmodified `loop_hunt.HuntLoop` (`tamer.Team`), on virtual time:
-a 30-minute hunt takes 2–5 s of wall time (260–670× real time), and 24 runs take under 20 s on 7
-processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
+a 30-minute hunt takes 16-24 s of CPU on a loaded desktop (75-115× real time; "Speed" below), and a batch spreads its careers over
+`--jobs` processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
 Logan's first visit there, and since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below);
 everything below that names no dungeon is the Mausoleum's.
 
@@ -2479,6 +2479,44 @@ each):
   Ranking combos needs several seed blocks per arm, as "Provocation never went out" did.
 - Live at E 123 (task logs since 2026-10-25 17:36): discord 0.765, peace 0.758, provoke 0.63 (n = 655, 211, 57). The
   simulated provoke rate is lower [INFERENCE: the simulated runner provokes other pairs than live; not checked].
+
+## Speed (2026-10-28)
+
+The user asked what a Rust port would gain (decision: docs/PLAN.md "Simulator speed"). cProfile of one 30-min
+Mausoleum run (seed 5, `run_once` in one process, 85 s CPU under the profiler), self time by area:
+
+| Area | Share |
+|---|---|
+| `pathfind.plan` -> `Walk.can_walk` / `new_z` (1,258 plans, 1.4 M steps tried) | ~28 % |
+| `speech.get_keywords` (258 calls: `actions.razor_say` checks each pet command twice) | ~26 % |
+| the simulated world (`World.run_until`, `_tick`, the clock, reds) | ~15 % |
+| `SimLink.state` (the runner's state snapshots) | ~7 % |
+| the rest of the runner (the crawl's BFS, threats, tamer, loop_hunt) | ~25 % |
+
+cProfile inflates code made of many small calls; the shares are a ranking, not a forecast. Two fixes followed, both
+exact (the answers can't change, only when they are computed):
+
+- `speech.get_keywords` keeps its answer per text (`speech.KEYWORDS_CACHED` texts). One scan of the 6,113 entries
+  is 10-35 ms; a hunt says a handful of distinct commands.
+- `pathfind.Walk` keeps `can_walk`'s answer per start tile, and `Walkers.get` (each Mover state read) passes the
+  ground items to `Walk.set_ground`, which drops only the tiles whose items changed and the steps from within 1 of
+  them (a step reads its start tile, its landing and a diagonal's two corners). A changed `locked` drops the steps
+  beside its door tiles. Before, every `Walkers.get` emptied the tile cache: 14,121 times in a run. Both caches start
+  over at `pathfind.CACHE_TILES` tiles. Guarded by test_pathfind's "the house gone ... walks again" and "a door on a
+  diagonal's corner" checks (they fail without the per-tile drop).
+
+Before and after (CPU s of one `run_once`, each in its own process, the two trees side by side four at a time while
+other batches loaded the desktop; every summary field identical but the timing):
+
+| Run | Before | After | Speed-up |
+|---|---|---|---|
+| Mausoleum seed 5 | 34.5 | 20.3 | 1.70x |
+| Mausoleum seed 6 | 26.2 | 16.6 | 1.58x |
+| Mausoleum seed 7 | 28.3 | 16.5 | 1.71x |
+| Mausoleum seed 8 | 24.5 | 16.0 | 1.53x |
+| Tidal Tomb seed 4 | 37.6 | 24.2 | 1.55x |
+| Tidal Tomb seed 5 | 36.1 | 22.5 | 1.60x |
+| all six | 187.2 | 116.1 | 1.61x |
 
 ## Limits
 

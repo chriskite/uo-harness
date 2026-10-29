@@ -2088,6 +2088,12 @@ Dir: `ClassicUO/Data/Plugins/Assistant/` = `Profiles/*.xml` + `chars.lst`, `Scri
   D (`--kills 2`, the run's end) before the scripted client drink at the last drink + 10.5 s, a race the
   hotkey-paced casts had made likelier; the fake world now keeps D alive until that drink. The suite run after:
   test_loop_hunt ok; test_uomap, test_pathfind and test_world_replay fail as before the change (client data).
+- **Simulator speed (2026-10-28, docs/SIM.md "Speed"): 1.61x less CPU a run from two caches.** Profile a run with
+  cProfile around `sim.run.run_once` in one process (no pool) and group self time by file; compare CPU time
+  (`time.process_time`), not wall time: with other batches on the desktop the same run's wall time varied 24-36 s.
+  Check a speed change for exactness by comparing whole run summaries (minus `wall_s`/`speed_x`) on fixed seeds:
+  the simulator is deterministic per seed. test_pathfind's "all N server-confirmed moves are walkable" fails with 36
+  moves near (3957, 516) before and after the change (the same list); it isn't the caches.
 
 ## Backups (NAS, since 2026-10-01)
 

@@ -161,6 +161,16 @@ def main():
     plain = walkers.get(0, ground)
     check("no walker tile given (z tracking, ctl): nothing locked, and the door tile is a step like any door",
           not plain.locked and plain.can_walk(943, 780, 2, 0) is not None, str(plain.can_walk(943, 780, 2, 0)))
+    # the Walk is cached and reused (Walkers.get only drops the steps beside changed tiles): what the house refused
+    # walks again once it's gone, and an item on a diagonal's corner alone refuses and frees that diagonal
+    gone = walkers.get(0)
+    back = [m for m in denied if gone.can_walk(*m[0], 2, m[1]) is None]
+    check("the house gone (the same cached Walk): every move it refused walks again", not back, str(back))
+    corner = walkers.get(0, [(942, 779, door_g, 2, False)])
+    refused = corner.can_walk(941, 779, 2, 1)
+    freed = walkers.get(0).can_walk(941, 779, 2, 1)
+    check("a door on a diagonal's corner refuses the cached diagonal; gone, it walks again",
+          refused is None and freed == (942, 778, 2), f"{refused} then {freed}")
 
     print("== a house whose rect holds its yard and outside stairs (live 2026-10-11 16:43, session 20261011_124101) ==")
     # Multi 0xE9 (1966 pieces) at (4235,802,z0) and its door items (serials 0x6B847EA5-0x6B847EB0,

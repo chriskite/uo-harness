@@ -32,6 +32,8 @@ DEFAULT_BLOCK_HEIGHT = 16
 DX = (0, 1, 1, 1, 0, -1, -1, -1)
 DY = (-1, -1, 0, 1, 1, 1, 0, -1)
 MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are blank; docs/MAP.md)
+CACHE_TILES = 100_000        # Walk: tiles a cache holds before it starts over (a long live session's memory)
+_MISS = object()
 
 
 class Walkers:
@@ -79,9 +81,8 @@ class Walkers:
             else:
                 index.setdefault((x, y), []).append((g, z))
                 singles.append((x, y, g))
-        w.dynamic = lambda x, y: index.get((x, y), ())
+        w.set_ground(index)
         w.locked = frozenset()
-        w.clear()
         if inside is None or not houses:
             return w
         td = uomap.tiledata()
@@ -162,13 +163,57 @@ class Walk:
         self.m = umap
         self.td = umap.tiledata
         self.dynamic = dynamic or (lambda x, y: ())
-        self.locked = frozenset()    # door tiles of houses we're outside of (Walkers.get `inside`)
+        self._locked = frozenset()
+        self._ground = None          # set_ground's last index
         self._objs = {}
+        self._steps = {}             # (x, y) -> {(z, d, door_corners): can_walk's answer} for steps from that tile
         self._land = {}
 
+    @property
+    def locked(self) -> frozenset:
+        """Door tiles of houses we're outside of (Walkers.get `inside`): no step onto them."""
+        return self._locked
+
+    @locked.setter
+    def locked(self, tiles):
+        tiles = frozenset(tiles)
+        if tiles != self._locked:
+            self._drop_steps(tiles ^ self._locked)
+            self._locked = tiles
+
     def clear(self):
-        """Drop cached tile lists (dynamic items changed)."""
+        """Drop every cached tile list and step (`dynamic` replaced by hand)."""
         self._objs.clear()
+        self._steps.clear()
+        self._ground = None
+
+    def set_ground(self, index: dict):
+        """The ground items: {(x, y): [(graphic, z), ...]} as `dynamic`. Only the tiles whose items changed since
+        the last call lose their cached lists and the steps that read them (Walkers.get calls this on every state
+        read; dropping everything each time cost the simulator a third of its route planning)."""
+        old = self._ground
+        if old is not None and old == index:
+            return                   # `dynamic` stays the same object: los.Sight keeps its item cache too
+        self.dynamic = lambda x, y: index.get((x, y), ())
+        if old is None:
+            self.clear()
+        else:
+            changed = [t for t in old.keys() | index.keys() if old.get(t) != index.get(t)]
+            for t in changed:
+                self._objs.pop(t, None)
+            self._drop_steps(changed)
+        self._ground = index
+
+    def _drop_steps(self, tiles):
+        """Forget the steps that read `tiles`: a step from (x, y) reads that tile, the one it lands on and a
+        diagonal's two corners, all within 1 of (x, y)."""
+        steps = self._steps
+        if not steps:
+            return
+        for tx, ty in tiles:
+            for x in (tx - 1, tx, tx + 1):
+                for y in (ty - 1, ty, ty + 1):
+                    steps.pop((x, y), None)
 
     # ---------------------------------------------------------------- tiles
     def _land_info(self, x, y):
@@ -240,6 +285,8 @@ class Walk:
             avg = z + (height // 2 if f & uomap.BRIDGE else height)
             objs.append((z, height, flags, avg, ("item", graphic)))
         objs.sort(key=lambda o: (o[0], o[1]))
+        if len(self._objs) >= CACHE_TILES:
+            self._objs.clear()
         self._objs[key] = objs
         return objs
 
@@ -308,7 +355,20 @@ class Walk:
         (door_corners): door items are impassable for the client, open or closed,
         so it never sends that diagonal (live 20260930_182751: a diagonal past a
         closed double-door leaf was denied). The proxy's z tracking of
-        server-confirmed steps passes door_corners=False."""
+        server-confirmed steps passes door_corners=False. Answers are cached per
+        start tile (set_ground and `locked` drop the ones a change reads)."""
+        at = self._steps.get((x, y))
+        if at is None:
+            if len(self._steps) >= CACHE_TILES:
+                self._steps.clear()
+            at = self._steps[(x, y)] = {}
+        key = (z, d, door_corners)
+        r = at.get(key, _MISS)
+        if r is _MISS:
+            r = at[key] = self._can_walk(x, y, z, d, door_corners)
+        return r
+
+    def _can_walk(self, x, y, z, d, door_corners):
         nx, ny = x + DX[d], y + DY[d]
         if (nx, ny) in self.locked:
             return None

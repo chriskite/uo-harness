@@ -2880,6 +2880,22 @@ What the rule can stand on, all measured (docs/NOTES.md "Oxygen, measured", "The
 - **The simulator models both already:** oxygen, the dolphins and level 1's refill (`World._oxygen`,
   `test_tidal_oxygen`, `test_tidal_dolphin`). Whichever option is built is measured there first.
 
+## Simulator speed: two caches, no Rust port (user 2026-10-28)
+
+The user asked how much faster the simulator would run ported to Rust. A cProfile of one 30-min Mausoleum run
+(docs/SIM.md "Speed") put the simulated world (`World.run_until` and its ticks) at ~15 % of the CPU; the rest is the
+Python runner it drives. Decisions:
+
+- *No Rust port of `harness/sim/`*: even a world that took no time at all saves ~15 % (Amdahl). Porting the runner too
+  would end the simulator's point (the unmodified `loop_hunt.HuntLoop` under test) unless the live runner moved with it.
+- *Fix the two hot spots in Python, exactly*: `speech.get_keywords` caches its answer per text (it scanned all 6,113
+  speech.mul entries on every pet command, ~26 % of the CPU); `pathfind.Walk` caches `can_walk` per start tile and
+  `Walkers.get` drops only the tiles whose ground items changed (it dropped the whole tile cache on every state read,
+  14,121 times a run). Both are deterministic: 6 runs on two scenarios came out identical before and after, 1.61x less
+  CPU. Live code shares both (the proxy's z tracking, the Mover's planner), so it gets the same speed-up.
+- *Rejected for now*: `pathfind` as a compiled extension (PyO3). After the caches it is the next candidate; profile
+  again first.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -25,6 +25,8 @@ import struct
 SPEECH_MUL_PATH = "C:/Program Files (x86)/Ultima Online Outlands/speech.mul"
 
 _CACHE = {}  # path -> tuple[SpeechEntry, ...]
+_KEYWORDS = {}  # (path, text) -> tuple of keyword ids (get_keywords)
+KEYWORDS_CACHED = 1024  # texts get_keywords keeps before it starts over
 
 
 class SpeechEntry:
@@ -117,9 +119,16 @@ def get_keywords(text: str, path: str = None) -> list:
     SpeechesLoader.GetKeywords): one id per matching speech.mul entry,
     duplicates kept, sorted by KeywordID. [] means unencoded speech."""
     text = text.strip(" ")  # C#: TrimStart(' ').TrimEnd(' ')
-    ids = [e.keyword_id for e in load(path) if is_match(text, e)]
-    ids.sort()
-    return ids
+    # one scan of the 6,113 entries is 10-35 ms, and the pet commands repeat a few lines (a quarter of a simulated
+    # hunt's CPU before this cache, docs/SIM.md "Speed")
+    path = path or SPEECH_MUL_PATH
+    ids = _KEYWORDS.get((path, text))
+    if ids is None:
+        ids = tuple(sorted(e.keyword_id for e in load(path) if is_match(text, e)))
+        if len(_KEYWORDS) >= KEYWORDS_CACHED:
+            _KEYWORDS.clear()
+        _KEYWORDS[(path, text)] = ids
+    return list(ids)
 
 
 def encode_keywords(ids) -> bytes:
