@@ -129,6 +129,7 @@ Run:  python harness/loop_hunt.py [--kills 5] [--enter] [--fight-spot X Y | --cr
 """
 import argparse
 import contextlib
+import math
 import os
 import re
 import signal
@@ -406,6 +407,7 @@ class HuntLoop:
         self.spell_block = {}        # serial -> monotonic time until spells at it are skipped
         self.no_reagents = set()     # spell ids the server refused for reagents this visit (502630)
         self.skip = {}               # serial -> monotonic time until pick_target passes it over (pinned)
+        self.ally_fought = {}        # serial -> the ally seen fighting it (ally_seen): not our target, its corpse not ours
         self.floor_seen = {}         # serial -> (its tile, our tile, on our floor?) (on_our_floor's cache)
         self.progress_t = 0.0        # monotonic: the engaged target was last adjacent or hurt
         self.hurt_t = {}             # serial -> monotonic time of its latest damage (event or "-N")
@@ -422,6 +424,7 @@ class HuntLoop:
         self.refresh_t = -1e9        # monotonic time of our last stamina potion (refresh_potion)
         self.cure_t = -1e9           # ... of our last cure potion (cure)
         self.mover.refresh = self.refresh_potion
+        self.mover.unload = self.drop_gold
         self.mover.no_idle = self.no_idle
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
@@ -820,6 +823,10 @@ class HuntLoop:
                 continue
             if self.skip.get(s, 0) > mono and s not in attacking:
                 continue
+            if (who := self.ally_fight(st, mob)) is not None:
+                self.ally_seen(s, mob, who)     # its corpse is theirs whoever ends up killing it (loot)
+                if s not in attacking:
+                    continue                    # an ally's fight: never our target (the tick drops an engaged one)
             if self.crawl is not None and s not in attacking and s != self.engaged \
                     and self.crawl.avoid(st, key, mob):
                 continue
@@ -847,6 +854,35 @@ class HuntLoop:
         anchor = self.anchor(st)
         near = [(s, m) for s, m in cands if cheb(anchor, (m["x"], m["y"])) <= self.args.pull_range]
         return min(near, key=lambda sm: cheb(pos, (sm[1]["x"], sm[1]["y"])))[0] if near else None
+
+    def ally_fight(self, st, mob: dict) -> str | None:
+        """The name of an ally fighting `mob` (threats.ally: green to us, or our guild's tag; or an ally's pet): `mob`
+        in war mode with one of them within tamer.ELSEWHERE_R, as Team.elsewhere reads anyone's fight. None when no
+        ally is on it. Our own pets never count."""
+        if not (mob.get("flags") or 0) & threats.FLAG_WARMODE or mob.get("x") is None:
+            return None
+        world = st["world"]
+        labels, me = world.get("labels") or {}, world["self"]
+        ours = {self.me(st)} | (set(self.team.roster) if self.team is not None else set())
+        best = None
+        for key, o in world["mobiles"].items():
+            s = serial_of(key)
+            if s in ours or o.get("x") is None or o.get("dead") or not threats.ally(o, me):
+                continue
+            d = cheb((o["x"], o["y"]), (mob["x"], mob["y"]))
+            if d > tamer.ELSEWHERE_R or (best is not None and d >= best[0]):
+                continue
+            _, player, _ = threats.identify(o, labels.get(key))
+            if player or o.get("pet"):
+                best = (d, labels.get(key) or o.get("name") or key)
+        return best[1] if best else None
+
+    def ally_seen(self, serial: int, mob: dict, who: str) -> None:
+        """An ally is fighting `serial` (user 2026-10-28: no kill stealing from DTF or an allied guild): remembered in
+        `ally_fought`, so it is never our target while they fight it and its corpse is never looted (loot)."""
+        if serial not in self.ally_fought:
+            log(f"leaving {mob.get('name') or 'it'} 0x{serial:08X} to {who} (an ally is fighting it)")
+        self.ally_fought[serial] = who
 
     def on_our_floor(self, st, serial: int, mob: dict) -> bool:
         """At our height (its map surface within FLOOR_Z_TOL of our z), or else a short walk reaches a tile beside
@@ -1420,6 +1456,12 @@ class HuntLoop:
             log(f"corpse of {name} is someone else's kill (blue): not looted")
             self.refused(c, "blue", st)
             return
+        if (who := self.ally_fought.get(c["mob"])) is not None:
+            # an ally's kill isn't ours to loot even when the server lets us (user 2026-10-28: "Even if we don't damage
+            # a mob an ally kills, we can loot the corpse, but we shouldn't as that is rude")
+            log(f"corpse of {name}: {who} (an ally) was fighting it; not looted")
+            self.refused(c, "ally", st)
+            return
         spot = (corpse["x"], corpse["y"])
         # A crawl fights where it meets things and the target may die well away from where we
         # stand (spells reach 10 tiles, mobs flee), so it walks up to twice the pull range for
@@ -1573,6 +1615,44 @@ class HuntLoop:
         self.memory.job_event("hunt", "loot", {"corpse": key_of(c["corpse"]), "mob": key_of(c["mob"]),
                                                "name": c["name"], "gold": 0, "xp": 0, "items": [],
                                                "refused": why, "visit": self.visit_n}, **self._where(st))
+
+    def drop_gold(self, st) -> bool:
+        """Mover.unload: over the weight limit (Mover.overloaded) every step is denied, so drop gold at our feet, the
+        largest pile's, enough to come to weight_max with a stone to spare (combat.GOLD_WEIGHT_PER a coin), as the user
+        asked 2026-10-28 after Logan stood at 462/450 on a Tidal Tomb leave with 40k gold on him. True once the pack
+        holds less gold than before (the Mover then plans again and sheds more if the server still refuses)."""
+        me = st["world"]["self"]
+        wmax, w = weight_max(me), me.get("weight")
+        piles = sorted(self.pack_items(st, combat.GOLD_GRAPHIC), key=lambda p: -(p[1].get("amount") or 1))
+        if not piles or not wmax or w is None:
+            log(f"overweight ({w}/{wmax}): no gold in the pack to drop")
+            return False
+        s, it = piles[0]
+        n = min(it.get("amount") or 1, max(1, math.ceil((max(w - wmax, 0) + 1) / combat.GOLD_WEIGHT_PER)))
+        x, y, z = self.pos(st)[:3]
+        log(f"overweight ({w}/{wmax}): dropping {n} gold at our feet so we can move")
+        self.doing("unload", f"Too heavy to move: dropping {n} gold")
+        before = self.pack_gold(st)
+        self.human.wait("drag")
+        if (gap := self.lift_ok_t + combat.LIFT_GAP_S - time.monotonic()) > 0:
+            time.sleep(gap)
+        mark, sent = len(self.link.events), time.monotonic()
+        self.link.act(actions.lift(s, n))
+        self.link.act(actions.drop(s, x, y, z))
+        st2 = self.wait_for(lambda s2: self.pack_gold(s2) < before
+                            or any(e.get("ev") == "lift_reject" for e in self.link.events[mark:]), CONTAINER_WAIT_S)
+        dropped = before - self.pack_gold(st2 or self.state())
+        if dropped <= 0:
+            log(f"overweight: the drop of {n} gold didn't leave the pack")
+            return False
+        self.lift_ok_t = sent
+        self.wait_for(lambda s2: (s2["world"]["self"].get("weight") or 0) < w, CONTAINER_WAIT_S)
+        me2 = self.state()["world"]["self"]
+        log(f"dropped {dropped} gold: weight {me2.get('weight')}/{wmax}")
+        self.count("gold_dropped", dropped)
+        self.memory.job_event("hunt", "gold_dropped", {"gold": dropped, "weight": [w, me2.get("weight")],
+                                                       "weight_max": wmax, "visit": self.visit_n}, **self._where(st))
+        return True
 
     def kill_gold(self, c, gold, at=None):
         """Crawling: a kill's gold for the model (0 when its corpse never showed: a pet or

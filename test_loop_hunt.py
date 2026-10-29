@@ -1524,6 +1524,92 @@ def weight_guard():
           f"lifts {len(lifts)} opened {[hex(o) for o in opened]} gold {loop.totals['gold']}")
 
 
+class HeavyLink(RightsLink):
+    """Gold dropped on the ground leaves the pack's pile and the weight (gold ~0.01 a stone, combat.GOLD_WEIGHT_PER)."""
+
+    def act(self, p):
+        self.sent.append(p)
+        self.rt.feed_packet("c2s", p)
+        if p[0] == 0x07:
+            self.lifted = (int.from_bytes(p[1:5], "big"), int.from_bytes(p[5:7], "big"))
+        elif p[0] == 0x08 and int.from_bytes(p[18:22], "big") == 0xFFFFFFFF:
+            s, n = self.lifted
+            self.gold -= n
+            x, y = int.from_bytes(p[5:9], "big"), int.from_bytes(p[9:13], "big")
+            self.feed(contained(s, combat.GOLD_GRAPHIC, self.gold, BACKPACK),
+                      ground_item(0x4FE20001, combat.GOLD_GRAPHIC, n, x, y))
+            self.rt.state.self.weight -= int(n * combat.GOLD_WEIGHT_PER)
+
+
+def overweight_drop():
+    print("\n== over the weight limit (462/450): drop gold at our feet, enough to move ==")
+    # user 2026-10-28: "Have it drop gold when its overweight" (live 20:09-20:11 Logan at 462/450 with 40k gold, every
+    # step denied: "You are carrying too much weight and are unable to move")
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(HeavyLink, name, getattr(Link, name))
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = HeavyLink()
+    link.gold = 40000
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 40000, BACKPACK))
+    me = link.rt.state.self
+    me.weight, me.stats["weight_max"] = 462, 450
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    ok = loop.drop_gold(loop.state())
+    st = loop.state()
+    store.close()
+    lifts = [(int.from_bytes(p[1:5], "big"), int.from_bytes(p[5:7], "big")) for p in link.sent if p[0] == 0x07]
+    drops = [(int.from_bytes(p[5:9], "big"), int.from_bytes(p[9:13], "big"), int.from_bytes(p[18:22], "big"))
+             for p in link.sent if p[0] == 0x08]
+    check("1,300 gold lifted from the pile and dropped on our tile; 449/450 after; counted",
+          ok and lifts == [(PACK_GOLD, 1300)] and drops == [(SPOT[0], SPOT[1], 0xFFFFFFFF)]
+          and st["world"]["self"]["weight"] == 449 and loop.totals.get("gold_dropped") == 1300,
+          f"ok {ok} lifts {lifts} drops {drops} weight {st['world']['self']['weight']} totals {loop.totals.get('gold_dropped')}")
+
+
+def ally_courtesy():
+    print("\n== a monster an ally (green) is fighting: not our target, its corpse not looted even though it's grey ==")
+    # user 2026-10-28: "detect when a player already killing a mob is an ally (member of DTF or an allied guild, a
+    # 'green' player) and not attack that mob ... we can loot the corpse, but we shouldn't as that is rude"
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(RightsLink, name, getattr(Link, name))
+    mob, ally, corpse, gold = 0x002C7001, 0x0001F0F0, 0x4FE00031, 0x4FE10031
+    stranger, other = 0x0001F0F1, 0x002C7002
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = RightsLink()
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 100, BACKPACK),
+              mobile20(mob, SPOT[0], SPOT[1] - 2, MONGBAT, noto=3, flags=0x40), name_pkt(mob, "a mongbat"),  # in war
+              mobile20(ally, SPOT[0] + 1, SPOT[1] - 3, 0x190, noto=2, flags=0x60),    # mode beside a green player
+              name_pkt(ally, "Friendly Fred"),
+              mobile20(other, SPOT[0] - 4, SPOT[1], MONGBAT, noto=3, flags=0x40), name_pkt(other, "a mongbat"),
+              mobile20(stranger, SPOT[0] - 5, SPOT[1], 0x190, noto=1, flags=0x60))    # ...beside a blue one
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db, "--pull-range", "8"])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    st = loop.state()
+    picked = loop.pick_target(st)
+    check("the ally's monster isn't picked; the one on a blue player still is (Team.elsewhere's rules)",
+          picked == other and loop.ally_fought == {mob: "Friendly Fred"},
+          f"picked {picked and hex(picked)} ally_fought {loop.ally_fought}")
+    link.feed(display_death(mob, corpse), delete(mob), corpse_flags(corpse, mob, noto=3),     # grey: the server would
+              ground_item(corpse, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 2),     # let us open it
+              contained(gold, combat.GOLD_GRAPHIC, 40, corpse))
+    loop.state()
+    loop.count("kills")
+    loop.corpses.append({"mob": mob, "name": "a mongbat", "x": SPOT[0], "y": SPOT[1] - 2, "t": time.monotonic()})
+    loop.loot(loop.corpses[0])
+    store.close()
+    opened = [int.from_bytes(p[1:5], "big") for p in link.sent if p[0] == 0x06]
+    check("the ally's kill: its grey corpse never opened, the kill credit taken back",
+          corpse not in opened and not loop.corpses and (loop.totals["kills"], loop.totals["lost_kills"]) == (0, 1),
+          f"opened {[hex(o) for o in opened]} totals {loop.totals['kills']}/{loop.totals['lost_kills']}")
+
+
 class SoulLink(RightsLink):
     """A forgotten soul's corpse: a monster on a human body (0x190), its corpse unnamed when we reach it."""
     SOUL, SOUL_C, SOUL_G, PLAYER_C, PLAYER_G = 0x0008EF35, 0x4275218A, 0x4275218B, 0x4275F19D, 0x4275F19E
@@ -2021,6 +2107,8 @@ if __name__ == "__main__":
             rights()
             soul_corpse()
             weight_guard()
+            ally_courtesy()
+            overweight_drop()
         if not only or "pets" in only:
             pets_run()
             elsewhere_run()

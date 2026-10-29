@@ -2325,7 +2325,9 @@ each):
 - Eerie corpses (`--eerie`) lie at the 11 live spots only; their level-wide rate and how long one lies are
   [INFERENCE], set to the live in-view rate. Other players fill jars at them only by standing within 2.
 - Other players since 2026-10-19 ("Other players" below), blue only (reds: "Red players"), no chat, trades or
-  guild/party play, no greens or greys (3.6 % of the sightings), and they never die.
+  guild/party play, no greys (3.6 % of the sightings), and they never die. A green one (an ally) only by a test's
+  `add_other(..., noto=2)` (2026-10-28): its kills' corpses grey to us [INFERENCE: the user, "we can loot the corpse"];
+  the `others` block counts `kill_on_allies` ("All Kill" at a monster on one) and `ally_corpse_opens`.
   Their routes (spawn area to spawn area, standing about each), damage cadence and reach, the monsters they pick (not
   one on our party) and their pets' share are [INFERENCE]. No item loot beyond gold, no skill gain,
   no pet levels or xp, no Society job. The countess' drain and the poisons are generic (the wiki's; no

@@ -297,6 +297,14 @@ def friendly(t, me: dict) -> bool:
                 or (t.faction and t.faction == me.get("faction")))
 
 
+def ally(mob: dict, me: dict) -> bool:
+    """A mobile of our guild or alliance, whose fights and kills we leave alone (user 2026-10-28: "a player already
+    killing a mob is an ally (member of DTF or an allied guild, a 'green' player)"): notoriety 2 (green; an ally's pet
+    too [INFERENCE: the server shows a guildmate's pet green, as it does ours]), or its guild tag ours. Not a faction
+    mate of another guild (friendly counts those for the flight rules)."""
+    return mob.get("notoriety") == ALLY_NOTORIETY or bool(mob.get("guild") and mob.get("guild") == me.get("guild"))
+
+
 @dataclass(frozen=True)
 class Params:
     run_s_per_tile: float = 0.2          # MovementSpeed.cs:11

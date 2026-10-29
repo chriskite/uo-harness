@@ -314,7 +314,8 @@ class World:
             self.metrics.update({"others_arrived": 0, "others_kills": 0, "others_kills_in_view": 0, "others_view_s": {},
                                  "others_dwell": [],
                                  "kill_on_others": 0, "blue_corpse_opens": 0, "wait_on_others_s": 0.0,
-                                 "wait_on_others_mobs": 0, "others_kills_unseen": 0})
+                                 "wait_on_others_mobs": 0, "others_kills_unseen": 0,
+                                 "kill_on_allies": 0, "ally_corpse_opens": 0})
         ee = scenario.get("eerie") or {}
         self.eerie_on = bool(ee.get("enabled"))     # the Field of Souls' eerie corpses (off by default)
         self.erng = random.Random(seed * 104729 + 5)  # their own draws: the rest of the world's stay put
@@ -550,15 +551,17 @@ class World:
             if r.random() < o.get("pet_share", 0.0) else None
         self.add_other(at[0], at[1], z, pet=pk, stay=stay if stay is not None else self._oroll(o["stay_s"]))
 
-    def add_other(self, x, y, z, name=None, pet=None, stay=None, dps=None) -> Mob:
+    def add_other(self, x, y, z, name=None, pet=None, stay=None, dps=None, noto=None) -> Mob:
         """Another player at (x, y, z) (and `pet`, a scenario `others.pets` row, beside it); `stay` seconds on the
-        level, `dps` its damage rate (else drawn)."""
+        level, `dps` its damage rate (else drawn), `noto` its notoriety to us (else the scenario's; 2: an ally, green,
+        of our guild or alliance: its kills' corpses are ours to open too [INFERENCE: the user 2026-10-28, "we can loot
+        the corpse, but we shouldn't"])."""
         o, r = self.sc["others"], self.orng
         used = {m.name for m in self.mobs.values() if m.kind == "other"}
         name = name or r.choice([n for n in o["names"] if n not in used] or o["names"])
         hp = o.get("hits", 1000)
         m = Mob(self._other_serial(), "other", "other player", name, r.choice(o.get("bodies", [0x190])), x, y, z,
-                hits=hp, hits_max=hp, noto=o.get("notoriety", 1), spec=o)
+                hits=hp, hits_max=hp, noto=o.get("notoriety", 1) if noto is None else noto, spec=o)
         m.dps = self._oroll(o["dps"]) if dps is None else dps
         m.leave_t = self.t + (stay if stay is not None else self._oroll(o["stay_s"]))
         m.next_think = self.t + r.uniform(0, THINK_S)
@@ -1035,8 +1038,13 @@ class World:
         noto = 3 if ours * 2 >= sum(m.damage_by.values()) else 1
         theirs = sum(v for s, v in m.damage_by.items() if s in self.other_serials)   # another player's, here or gone
         others = noto == 1 and theirs > ours
+        allies = sum(v for s, v in m.damage_by.items() if s in self.mobs and self.mobs[s].kind in OTHERS
+                     and self.mobs[s].noto == 2)
+        ally = others and allies * 2 >= theirs     # an ally's kill: grey to us, the open allowed (add_other `noto`)
+        if ally:
+            noto, others = 3, False
         self.items[corpse] = {"kind": "corpse", "x": m.x, "y": m.y, "z": m.z, "body": m.body, "owner": m.serial,
-                              "name": f"{m.name} corpse", "noto": noto, "t": self.t, "others": others}
+                              "name": f"{m.name} corpse", "noto": noto, "t": self.t, "others": others, "ally": ally}
         lo, hi = m.spec.get("gold", [0, 0])
         gold = round(self.rng.randint(int(lo), int(hi)) * (1 + self.links["gold_drop"])) if hi else 0
         if gold:
@@ -1049,7 +1057,7 @@ class World:
             self.viewing_items.add(corpse)
             self.send(P.ground_item(corpse, combat.CORPSE_GRAPHIC, m.body, m.x, m.y, m.z),
                       P.corpse_flags(corpse, m.serial, f"{m.name} corpse", noto))
-        if others:
+        if others or ally:
             self.count("others_kills")                   # another player's kill: blue to us, not ours
             if cheb(m.pos, self.player.pos) <= VIEW and not self.player.ghost:
                 self.count("others_kills_in_view")
@@ -2674,6 +2682,8 @@ class World:
         if kind == "kill":
             if tgt.target in self.mobs and self.mobs[tgt.target].kind in OTHERS:
                 self.count("kill_on_others")         # "All Kill" at a monster fighting another player
+                if self.mobs[tgt.target].noto == 2:
+                    self.count("kill_on_allies")     # ... an ally (user 2026-10-28: never)
             for m in self.pets():
                 if m.alive and not m.ghost:
                     m.mode, m.kill, m.target = "kill", serial, serial
@@ -2794,6 +2804,8 @@ class World:
                 self.count("blue_corpse_opens")
                 self._sys(TEXT_NOT_YOURS)
                 return
+            if it.get("ally"):
+                self.count("ally_corpse_opens")      # an ally's kill: the server lets us, the user doesn't
             self._open(s, CORPSE_GUMP)
             return
         if kind == "bag":

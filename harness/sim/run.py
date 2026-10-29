@@ -244,7 +244,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
                                          "others_view_s",
                                          "others_dwell",
                                          "kill_on_others", "blue_corpse_opens", "wait_on_others_s",
-                                         "wait_on_others_mobs") if k in m} if world.others_on else None,
+                                         "wait_on_others_mobs", "kill_on_allies", "ally_corpse_opens")
+                       if k in m} if world.others_on else None,
             "eerie": {k: m.get(k, 0) for k in ("eerie_spawned", "eerie_seen", "soul_jars")} if world.eerie_on else None,
             "reds": world.reds.summary() if world.reds.on else None,
             # Tidal Tomb's: seconds under water, oxygen deprivation damage by victim, broodlings by type
@@ -586,6 +587,8 @@ def others_summary(ok: list[dict]) -> dict:
             "their_kills_in_view_per_h": round(sum(o.get("others_kills_in_view", 0) for o in rs) / (secs / 3600), 1),
             "kill_on_others": sum(o["kill_on_others"] for o in rs),
             "blue_corpse_opens": sum(o["blue_corpse_opens"] for o in rs),
+            "kill_on_allies": sum(o.get("kill_on_allies", 0) for o in rs),
+            "ally_corpse_opens": sum(o.get("ally_corpse_opens", 0) for o in rs),
             "wait_on_others_s": round(sum(o["wait_on_others_s"] for o in rs)),
             "wait_on_others_mobs": sum(o["wait_on_others_mobs"] for o in rs),
             "lost_kills": sum((r.get("runner_totals") or {}).get("lost_kills", 0) for r in ok)}

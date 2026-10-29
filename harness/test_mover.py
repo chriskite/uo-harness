@@ -676,6 +676,52 @@ def test_held_at_door():
           f"at {link.here}, walled {mv.walled}, error {err}")
 
 
+class HeavyLink(FakeLink):
+    """Over the weight limit every step is denied with the server's line (live 2026-10-28 20:09-20:11); the state's
+    weight may lag it (`shown`)."""
+
+    def __init__(self, *a, weight, shown, **kw):
+        super().__init__(*a, **kw)
+        self.weight, self.shown = weight, shown
+
+    def send(self, pkt):
+        if pkt[0] == 0x02 and self.weight > 450 and (pkt[1] & 7) == self.facing:
+            self.denies.append(nav.step(tuple(self.here), pkt[1] & 7))
+            self.events.append({"ev": "speech_heard", "serial": 0xFFFFFFFF,
+                                "text": f"You are carrying too much weight and are unable to move ({self.weight}/450)."})
+            return "OK"
+        return super().send(pkt)
+
+    def state(self):
+        st = super().state()
+        st["world"]["self"].update(weight=self.shown, stats={"weight_max": 450})
+        return st
+
+
+def test_overweight_unload():
+    print("== over the weight limit: the host's unload (dropping gold) before the steps the server would deny ==")
+    for shown, what in ((462, "the state shows it: unloaded before any step"),
+                        (445, "the state lags: the server's line with the first denial, then unloaded")):
+        link = HeavyLink((0, 0), facing=2, weight=462, shown=shown)
+        mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=False)
+        calls = []
+
+        def unload(st, link=link, calls=calls):
+            calls.append(st["world"]["self"]["weight"])
+            link.weight = link.shown = 449
+            return True
+        mv.unload = unload
+        try:
+            mv.walk_to(lambda: (4, 0), 0, "t", max_moves=12)
+            err = None
+        except Exception as e:                       # noqa: BLE001 - the failure is what the check reports
+            err = e
+        check(f"{what}; arrived, one unload, no blocked count",
+              tuple(link.here) == (4, 0) and len(calls) == 1 and mv.blocked_count == 0
+              and len(link.denies) == (0 if shown > 450 else 1),
+              f"at {link.here}, unloads {calls}, denies {link.denies}, blocked {mv.blocked_count}, error {err}")
+
+
 
 FIELD = 0x40002000
 
@@ -760,6 +806,7 @@ def main():
     test_door()
     test_locked_door()
     test_held_at_door()
+    test_overweight_unload()
     test_fields()
     test_shove_through()
     test_go_around_when_cheap()

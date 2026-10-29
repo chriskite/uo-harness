@@ -131,6 +131,9 @@ HELD_END_TEXT = "You are no longer hindered."
 HELD_SILENCED_TEXT = "You have been silenced and cannot speak."   # speech while held (live 2026-10-17 15:27:06.20,
 #                                                                  2026-10-21 09:49:20.89: the pet command lost)
 HELD_MAX_S = 13.0
+# Over the weight limit the server refuses every step: "You are carrying too much weight and are unable to move
+# (462/450)." with each walk_deny (live 2026-10-28 20:08-20:11, 58 times; "Weight limit exceeded (454/450)." at the loot)
+OVERWEIGHT_TEXT = "You are carrying too much weight and are unable to move"
 # Hinder, Entangle, Paralyze buff icons: every step refused while they last (62 captures; docs/NOTES.md "Hinder, Hamstring
 # and the rope"). Live 2026-10-24 00:40:29.17 (hunt-20261024-000844-30b5): "Your feet stick to a strange substance!" and
 # icon 20 with the step's confirm, the next step denied 0.2 s later beside a door; read as the door's denial, the door
@@ -577,6 +580,8 @@ class Mover:
         self.denied_t = {}           # the ones of them on map-walkable steps -> monotonic time (expire: DENY_RETRY_S)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
         self.refresh = None          # host's stamina potion: () -> True when it drank (walk_to, a denied shove)
+        self.unload = None           # host's (state) -> True when it shed weight so we can move (walk_to, overweight)
+        self.weight_mark = 0         # link.events before it are spent for overloaded (shed)
         self.no_idle = None          # host's (state) -> True: no walk pause or sidestep now (walk_to)
         self.steps = 0
         self.blocked_count = 0
@@ -636,6 +641,23 @@ class Mover:
             time.sleep(0.1)
         log(f"{label}: free to move again after {time.monotonic() - t0:.1f} s")
         return None
+
+    def overloaded(self, st) -> bool:
+        """Over the weight limit, so a step would be denied: the state's weight above `stats.weight_max`, or the
+        server's OVERWEIGHT_TEXT since the last step went out and since the last unload (`weight_mark`)."""
+        me = st["world"]["self"]
+        wmax = (me.get("stats") or {}).get("weight_max")
+        if wmax and (me.get("weight") or 0) > wmax:
+            return True
+        return any(ev.get("ev") == "speech_heard" and ev.get("serial") in SYSTEM_SERIALS
+                   and (ev.get("text") or "").strip().startswith(OVERWEIGHT_TEXT)
+                   for ev in self.link.events[max(self.step_mark, self.weight_mark):])
+
+    def shed(self, st) -> bool:
+        """The host's unload once overloaded; the server lines before it are spent (overloaded reads past them)."""
+        ok = self.unload(st)
+        self.weight_mark = len(self.link.events)
+        return ok
 
     def danger_cost(self, tile) -> float:
         """A tile's cost factor from the danger zones: inside a zone half of DANGER_COST_X flat
@@ -1242,6 +1264,11 @@ class Mover:
                         return why
                     replan = True
                     break
+                if self.unload is not None and self.overloaded(st) and self.shed(st):
+                    # over the weight limit every step is denied: weight shed (the host's unload), plan again. Nothing
+                    # shed: the step goes out and its denial counts as before (the walk's blocked limit ends it)
+                    replan = True
+                    break
                 if urgent:
                     run = stamina_ok(st)
                 self.pace(run, st)
@@ -1256,6 +1283,11 @@ class Mover:
                     # the hold came with this step's denial: not a blocked tile or door (no deny memory, no count)
                     if why := self.wait_held(label, stop):
                         return why
+                    replan = True
+                    break
+                if outcome == "blocked" and self.unload is not None and self.overloaded(self.link.state()) \
+                        and self.shed(self.link.state()):
+                    # the server said why with this step's denial: the weight, not the tile (no deny memory, no count)
                     replan = True
                     break
                 if outcome == "blocked" and self.doors and self.door_at(nxt):

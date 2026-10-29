@@ -2759,6 +2759,25 @@ instructions like 'only level 1'."
 - **Tidal Tomb's levels 2 and 3 need the user's go** after the skill states the evidence (never live by the runner,
   no oxygen rule, simulator deaths 4 and 5 of 24), rather than being refused: the user plays them by hand and asks.
 
+## Overweight: drop gold; an ally's fight and kill left alone (user 2026-10-28)
+
+User, after Logan stood at 462/450 on a Tidal Tomb leave: "1) Have it drop gold when its overweight 2) It should
+detect when a player already killing a mob is an ally (member of DTF or an allied guild, a 'green' player) and not
+attack that mob. Goal is to avoid 'kill stealing' allies or looting their kills. Even if we don't damage a mob an ally
+kills, we can loot the corpse, but we shouldn't as that is rude." Decisions (docs/HUNT_LOOP.md "Someone else's fight",
+"Kills", "Loot rights"):
+- *Gold, dropped in the walk*: the Mover detects the overload (state weight over `weight_max`, or the server's line)
+  and calls the host's `unload` (the hunt runner's `drop_gold`) before stepping, so every walk (the leave, the escape,
+  a loot walk) gets free the same way. Down to `weight_max - 1`, the fewest coins: dropping to the loot margin would
+  throw away ~1,000 gp more, and the loot guard (fixed the same day) stops further loot anyway. Rejected: dropping
+  items (a stack of gold is the bulk: 40k gold is ~400 of Logan's 450 stones), and stopping the run (Logan stuck
+  in the dungeon is the failure the user saw).
+- *Ally by notoriety 2 or our guild tag* (`threats.ally`), not `threats.friendly`'s faction-mate rule: the user named
+  guild and alliance. Who fights a monster is read as `Team.elsewhere` reads anyone's fight (in war mode within 2), so
+  the two rules agree; a monster that attacks us or our pets is still fought (the pets defend anyway), but its corpse
+  isn't looted if an ally was seen on it. Rejected: reading loot rights from the corpse's notoriety (an ally's kill can
+  show grey to us: the user says we can loot it).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

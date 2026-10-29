@@ -1384,6 +1384,43 @@ def test_on_another_player():
               f"after {took} s from {start} (now {w.player.pos[:2]}), kill commands at it {w.metrics['kill_on_others']}")
 
 
+def test_ally_left_alone():
+    print("== a monster an ally (green) is fighting in sight: no 'All Kill' at it, the pets never hit it, its corpse "
+          "not opened ==")
+    # user 2026-10-28: "detect when a player already killing a mob is an ally (member of DTF or an allied guild, a
+    # 'green' player) and not attack that mob ... we can loot the corpse, but we shouldn't". The scene of
+    # test_on_another_player with Lord Phaze green to us (notoriety 2): before the change, 'All Kill' within 6 s
+    w = world_with([{"key": "tormented soul", "at": [5236, 677, 0]}], seed=7, start=(5243, 674), others=True)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.hits = m.hits_max = 3000
+    phaze = w.add_other(5236, 676, w.stand_z(5236, 676, w.player.z), name="Lord Phaze", stay=1e6, dps=100.0, noto=2)
+    m.target, m.threat, phaze.target = phaze.serial, {phaze.serial: 1e9}, m.serial
+    w._warm(m, True)
+    loop, clock, store, patched = hurt_loop(w, 100)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            after = 0
+            for _ in range(120):
+                clock.advance(0.5)
+                for p in w.pets():
+                    if p.target is None:
+                        w._warm(p, True)    # live: guarding, in war mode at Logan's side between fights
+                loop.tick()
+                after += m.serial not in w.mobs or not m.alive
+                if after > 20:
+                    break
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    ours = sum(v for s, v in m.damage_by.items() if s in {p.serial for p in w.pets()} | {w.player.serial})
+    corpse = next((it for it in w.items.values() if it.get("kind") == "corpse" and it["owner"] == m.serial), None)
+    check("Lord Phaze killed it alone: no 'All Kill' at it, no damage of ours, its (grey) corpse never opened",
+          not m.alive and w.metrics["kill_on_allies"] == 0 and ours == 0 and corpse is not None and corpse["ally"]
+          and w.metrics["ally_corpse_opens"] == 0,
+          f"alive {m.alive} kill commands {w.metrics['kill_on_allies']} ours {ours} corpse "
+          f"{corpse and corpse['noto']} opens {w.metrics['ally_corpse_opens']}")
+
+
 def daemon_on_elsa(start):
     """Live 2026-10-23 23:29 (hunt-20261023-220741-f118): a reanimated daemon at (5240, 700) fighting LiquidElsa, Logan
     at `start`, the pets beside him held out of it (live they never engaged it)."""
@@ -5467,7 +5504,8 @@ def main():
               test_instrument, test_recall_charges,
               test_standoff_sight,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_loot_off_area_hitter, test_on_another_player, test_kill_unseen_once, test_theirs_passed_over,
+              test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
+              test_theirs_passed_over,
               test_theirs_after_kill_sent,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
               test_others_corpse_not_looted,

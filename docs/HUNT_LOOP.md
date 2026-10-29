@@ -490,6 +490,16 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    pets run there are partly theirs; once 12 s pass with no pet beside it, the share counts again (live: 25 of 34 such
    "All Kill"s were dropped 1-5 s later at 52-79 %, and 11 of the 21 corpses seen were ours all the same).
    test_sim `test_theirs_after_kill_sent`.
+   **An ally's fight is left alone** (since 2026-10-28; user: "detect when a player already killing a mob is an ally
+   (member of DTF or an allied guild, a 'green' player) and not attack that mob. Goal is to avoid 'kill stealing'
+   allies or looting their kills"): a monster in war mode within `ELSEWHERE_R` 2 of an ally (`threats.ally`: notoriety
+   2, green to us, or our guild's tag; or a green pet not ours) is never a target (`HuntLoop.ally_fight`, in
+   `pick_target`) unless it attacks us or a pet of ours, so no "All Kill", no bard skill, no approach: "leaving <it>
+   0x… to <ally> (an ally is fighting it)". The serial is remembered (`ally_fought`) and its corpse is never looted,
+   whoever killed it and whatever the server allows: "corpse of <it>: <ally> (an ally) was fighting it; not looted",
+   the kill credit taken back. A blue player's fight is still taken as above. Limits: an ally fighting from range
+   (an archer, a mage) more than 2 tiles off isn't seen until the monster comes to them [INFERENCE: a melee monster
+   does]. test_loop_hunt `ally_courtesy`, test_sim `test_ally_left_alone`.
 2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
    tiles, the phoenix's reach). **Provocation first when two monsters are in the fight** (since 2026-10-26,
    `tamer.PROVOKE_FIRST` "pairs", `Team.provoke_first`: the target onto the one nearest it). The user on Tidal Tomb's
@@ -711,6 +721,14 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    `self.stats.weight_max` (`loop_hunt.weight_max`): until 2026-10-28 the guard read a top-level `weight_max` that
    doesn't exist and never fired; live 2026-10-28 20:08-20:09 Logan looted four corpses on the leave's walk from
    447/450 to 462/450, and the server refused every step ("You are carrying too much weight and are unable to move").
+   **Over the limit anyway, gold is dropped** (since 2026-10-28; user: "Have it drop gold when its overweight"): the
+   Mover's walk checks before each step (and on a denied one) whether we are over (`Mover.overloaded`: the state's
+   weight above `weight_max`, or the server's "You are carrying too much weight and are unable to move" since the last
+   step) and calls the runner's `drop_gold` (`Mover.unload`): from the largest pile in the pack, enough coins to come to
+   `weight_max - 1` at `combat.GOLD_WEIGHT_PER`, lifted and dropped on our own tile ("overweight (462/450): dropping
+   1300 gold at our feet so we can move", then "dropped N gold: weight W/450"; `gold_dropped` in the totals and a
+   `gold_dropped` job event), then the walk plans again; still over, it drops more. No gold: the steps go out and
+   their denials count as before. test_mover `test_overweight_unload`, test_loop_hunt `overweight_drop`.
 9. **Never a pet's release or transfer** (user 2026-10-12: the pets are expensive): the commands
    are a fixed list (`tamer.COMMANDS`: All Guard Me, All Follow Me, All Kill, All Stop, All Stay,
    All Come), Razor-shaped (`actions.razor_say`), and anything matching `release`/`transfer` is
@@ -1453,6 +1471,9 @@ vanished item as taken ("looted 1 item(s) from a mongbat: +0 gold, ~21 xp", 1255
 counted the corpse's gold as xp. Now (`loop_hunt.loot`):
 - A **blue corpse** (notoriety 1) is skipped before any walk or open: no packet, logged "corpse of X
   is someone else's kill (blue): not looted".
+- An **ally's kill** (the monster was seen in an ally's fight, `ally_fought`; "Someone else's fight" above) is skipped
+  the same way even when its corpse is grey and the server would let us open it (user 2026-10-28: "we can loot the
+  corpse, but we shouldn't as that is rude"), refused as "ally".
 - **No loot walk into an area hitter's reach or a shy monster's shot** (`--pets`, `Team.loot_tile`, since
   2026-10-21). With an area hitter (`tamer.AREA_R`, a charger) or an awake corpse purger or blightmare (in war mode,
   `Team.shy_awake`; its shot: sight within 12 or 13, `Team.shot_at`) in view, the corpse is looted from a tile clear
