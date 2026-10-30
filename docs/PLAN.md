@@ -3043,6 +3043,16 @@ Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). De
   (2026-10-29)", `harness/sim/wake_scan.py`): a shy monster flips to war 1.6-3.2 s after first sight (floor 1.6 s,
   602 wakes) and takes the nearest of us in its sight then, by a tile or more (a pet 47 of 49), not the first seen;
   so `first_on_us`'s "first sight takes whoever it sees first" is wrong, and a step-back rule may count on 1.5 s.
+- *Built (2026-10-29):* the simulator's wake as measured (8cfcb41), then the user's step-in as a runner rule (a698a73,
+  `tamer.Team.step_in`/`step_back`/`step_in_watch`): one idle shy monster without a wide area hit, the pets on guard,
+  the step into its sight only with the step back planned, its steps after the onset within 1.5 s less 0.75 s. Kept
+  where a step-back tile exists; elsewhere the back-off stays (without it level 2's runs with a death 19 -> 31), the
+  patrol stays for the area hitters and a pack, `first_on_us` keeps the Chebyshev rule. Level 2 runs with a death 21 ->
+  19, pet deaths 326 -> 264; Maus 3 damage on Logan -10 % (docs/SIM.md "The shy monsters' wake, and the step-in").
+- *Open:* two idle shy monsters together (not built: each wake takes the nearest, but the plan has to hold for both and
+  two shooters land on the pets at once; the pull budget and the patrol keep a pack); `test_walk_in_fought` fails on the
+  new model (a fought leg goes on past a mariner at 1 tile after 3 back-offs, the near tie takes Logan); the margin
+  against live (0.35 s gave fewer deaths, 16, but more oxygen damage and 8 % less banked: watch live step-ins first).
 
 ## Risks
 

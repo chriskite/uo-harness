@@ -7227,6 +7227,19 @@ sight takes whoever they see first"). Scanner kept: `python harness/sim/wake_sca
     (101 of 159 switches, median 3.9 s). `RETARGET_P` covers only pet to Logan.
   - The shadow minion's and the calamity's wake range is 10 [INFERENCE].
 
+- **Built 2026-10-29** (docs/SIM.md "The shy monsters' wake, and the step-in"; docs/HUNT_LOOP.md "Aggro").
+  - The simulator's model as sketched above (8cfcb41). Its tables against these (`wake_scan.py --sim`): delay p50
+    2.2 s Mausoleum, 2.3 Tidal Tomb, none under 1.6; a pet 1+ nearer at the flip taken 484 of 492 (Tidal Tomb); near
+    ties 65-71 % to Logan when he is the slightly nearer. Off: Logan is the first target less often than live
+    (Mausoleum 38 % against 52 %), and the switch comes later (median 6.1 s against 3.9).
+  - HEAD's runner on the new model, level 2: runs with a death 18 -> 21, pet deaths 255 -> 326.
+  - The step-in as the runner rule (a698a73), planned as above with a 0.75 s margin; the runner's own planning is
+    17-30 ms, so the steps back go out pre-planned. Level 2 (144 runs): runs with a death 21 -> 19, pet deaths 326 ->
+    264, damage on Logan an hour 1,191 -> 1,100, banked +1 %; Maus 3 (96): damage on Logan 1,408 -> 1,266, banked
+    +1 %; level 1 unchanged (no shy monster). Of 416 step-ins on level 2, 191 ended with a pet hit first, 121 with a
+    hit on Logan (area hits on the pet beside him included), 85 with no act in 10 s. Without the back-off as its
+    fallback: 31 runs with a death.
+  - The `first_on_us` rule elsewhere (walk stops, stand scores) still counts a pet a Chebyshev tile nearer as enough.
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,

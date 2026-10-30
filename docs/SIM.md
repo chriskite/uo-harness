@@ -2212,6 +2212,58 @@ docs/HUNT_LOOP.md "Pets", a leg that must arrive).
   pets' 26,719 -> 18,788, banked an hour 116,864 -> 108,869 (29 of 48 runs with a death on both sides); 45 times on
   past a shy monster, all on the fought walks.
 
+### The shy monsters' wake, and the step-in (2026-10-29)
+
+The measurement (docs/NOTES.md "Shooters' and casters' first target"), then the user's tactic as a runner rule.
+
+- **The world** (8cfcb41): `defaults.wake_s` 1.6-2.6 s uniform with `wake_tail` 0.15 at 2.6-4.4 (Tidal Tomb 1.9-2.55);
+  an idle monster with one of us in range thinks every tick, so the onset and the flip are to the tick. A shy monster
+  (`aggro.shy`) then takes the nearest of us in its sight within 14, Euclidean (`World._nearest_pick`): under a tile
+  apart Logan 2 in 3 when he is the slightly nearer (`TIE_LOGAN_P`), 1 in 2 when a pet is (`TIE_PET_P`); no Tank draw.
+  On one of us it turns to another a tile or more nearer in its sight (`_retarget_near`: Logan to a pet 0.4 a think,
+  pet to pet 0.08, pet to Logan 0.01) instead of the threat switch and `RETARGET_P`; the others keep those. The shadow
+  minion and the calamity wake at 10 (the runner reads it too). `run.py --json` carries `wakes`; `wake_scan.py --sim`
+  prints the live tables for a batch. Test `test_shy_wake`.
+- **Fit** (the new baselines below; live in brackets): sight to flip p5/p10/p25/p50/p75/p90 Mausoleum 1.7/1.8/1.9/2.2/
+  2.5/3.1 s (held 1.66/1.73/1.90/2.12/2.47/3.19), Tidal Tomb 2.0/2.0/2.1/2.3/2.5/3.0 (1.97/1.99/2.12/2.34/2.59/3.35),
+  none under 1.6 (12 of 502). Taken at the flip, Logan / a pet: a pet 1+ nearer 8 / 484 and 3 / 150 (2 / 47); a pet
+  under a tile nearer 150 / 121 and 121 / 96 (17 / 18); Logan under a tile nearer 204 / 109 and 139 / 57 (71 / 35); Logan
+  1+ nearer, by the first act, 88 / 17 and 55 / 14 (39 / 11). Retargets of those first on Logan to a pet 64 % and 63 %
+  (58 %); the switch a median 6.1 s after the first act (3.9: the shooters' 4-5.7 s cadence bounds it). Off: Logan was
+  the first target of 25 % (Tidal Tomb) and 38 % (Mausoleum) of the wakes, live 14 % (n 36) and 52 %.
+- **Baselines, HEAD's runner, old model -> new model** (level 2 144 runs, seeds 1-144, phoenix_incubus, the live flags;
+  level 1 48; Maus 3 96, seed 17, careers 14, `--others --eerie --prior`): level 2 runs with a death 18 -> 21, pet
+  deaths 255 -> 326, damage on Logan an hour 966 -> 1,191 (oxygen 290 -> 392, astral zoa 103 -> 133, mariner 89 -> 107),
+  kills an hour 153 -> 153, banked 128,943 -> 120,065; level 1 1 -> 1 death, 438 -> 433, banked 114,610 -> 109,493; Maus 3
+  3 -> 1 deaths, 1 -> 0 pet deaths, damage on Logan 1,278 -> 1,408 an hour (his share of our side's damage 0.130 ->
+  0.136: kept), kills 121 -> 124, banked 131,301 -> 131,989.
+- **The step-in** (a698a73, docs/HUNT_LOOP.md "Aggro"). The runner's own planning: the step-in's decision (view,
+  search, plan) 17 ms median, 30 ms p90, 133 ms at most on the real clock (27 plans, 6 runs); a walk_to's first step
+  1-15 ms. The live 0.35-0.74 s from intent to step is the link and the human waits, so the walk back goes out as steps
+  planned before the onset, and `STEP_IN_MARGIN_S` 0.75 stays as the user set it.
+- **Before/after** (the new model; before = `--set tamer.STEP_IN=False`, the same numbers as HEAD's baseline):
+
+  | | runs with a death | pet deaths | damage on Logan / h | top sources / h | back-offs (s walking) | patrols out / refused | step-ins (on a pet / on Logan / no act) | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|
+  | level 2 before | 21 | 326 | 1,191 | oxygen 392, astral zoa 133, mariner 107 | 5,872 (6,477) | 87 / 1,109 | - | 153.2 | 120,065 |
+  | level 2 after | **19** | **264** | **1,100** | oxygen 356, mariner 107, astral zoa 98 | 5,396 (6,010) | 90 / 1,055 | 416 (191 / 121 / 85) | 154.0 | 121,306 |
+  | Maus 3 before | 1 | 0 | 1,408 | corpsebride 281, apparition 131, disease 100 | 2,106 (2,373) | 1,011 / 18 | - | 124.3 | 131,989 |
+  | Maus 3 after | 1 | 0 | **1,266** | corpsebride 222, apparition 126, disease 108 | 1,485 (1,649) | 885 / 14 | 239 (160 / 11 / 43) | 123.1 | 133,551 |
+  | level 1 before / after | 1 / 1 | 0 / 0 | 433 / 433 | crabs | 0 | 0 | 0 (no shy monster there) | 348 | 109,493 |
+
+  "On Logan" counts any hit on him during the hold (an area hit on the pet beside him too).
+- **Ablation, level 2** (144 runs each): margin 0.35 s: runs with a death 16, pet deaths 289, damage 1,183 (oxygen 457),
+  banked 111,190, 580 step-ins; margin 0: 18, 277, 1,270 (oxygen 515), 116,294, 799; near-tie gap 0.5 instead of 1.0:
+  17, 280, 1,130, 124,577, step-ins on Logan 216 of 600; no back-off as the fallback: 31, 321, 1,452, banked 140,941.
+  Kept: margin 0.75, gap 1.0, the back-off as the fallback; the step-in only where a step-back tile is
+  (`aggro.FIRST_GAP` None: the walks' stops and stand scores keep the Chebyshev first-sight rule). A 144-run batch's
+  spread is ~5 runs with a death.
+- **Tests:** `test_step_in` (12 tiles from level 2's soulcatcher, its patrol refused: up into its sight and back, it
+  takes AlaFlambe, Logan 100/100; with `STEP_IN` False it stays idle), `test_step_in_fallback` (at its range's edge with
+  the pets behind: "no step-back tile", the back-off), `test_oxygen_leg_past_shooter` (the live 18:13 layout: a
+  step-in, the soulcatcher on a pet, up at 508 s). `test_walk_in_fought` fails on the new model at margin 0.75 (it
+  passes at 0.35): after 3 back-offs the leg goes on past the mariner at 1 tile and the near tie takes Logan.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

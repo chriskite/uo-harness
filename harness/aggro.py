@@ -76,9 +76,8 @@ def aggro_range(kind: str) -> int:
 
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us
 # first_on_us's "a pet nearer": None, by Chebyshev (since 2026-10-15); a number, that many tiles Euclidean (the measured
-# choice of the nearest at the wake, 2026-10-29). The step-in (tamer.STEP_IN_GAP) uses its own clear tile either way;
-# 1.0 here would put the walks' stops, the stand scores and the back-off on the measured rule too (docs/SIM.md
-# "The step-in": not kept)
+# choice of the nearest at the wake, 2026-10-29). The step-in (tamer.Team.step_back) uses STEP_IN_GAP 1.0 either way;
+# the walks' stops, the stand scores and the back-off keep the Chebyshev rule (docs/SIM.md "The step-in")
 FIRST_GAP = None
 NEVER_MARGIN = 3
 WAR = 0x40

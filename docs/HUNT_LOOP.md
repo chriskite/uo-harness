@@ -788,8 +788,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 **Aggro** (`aggro.py`; user 2026-10-13: "positioning and managing aggro is the number one most
 important thing in dungeon PvM in Outlands"). Line of sight is `los.Sight` (ServUO's rules, checked
 live), monster z from the map surface, aggro range per type as the captures measured it (`aggro.aggro_range`,
-mausoleum.json `aggro_observed`: 10, the shadow minion and the calamity 13; 210 of 211 wakes at 10 or less, 102
-idle monsters in our sight at 11-13 for over 5 s; the user first "12 or 13", then "smaller than 14"). **Whoever it sees
+mausoleum.json `aggro_observed`: 10, the shadow minion and the calamity too since 2026-10-29; 210 of 211 wakes at 10
+or less, 102 idle monsters in our sight at 11-13 for over 5 s; the user first "12 or 13", then "smaller than 14"). **Whoever it sees
 first** (user 2026-10-15: "Any mob that 'sees' Logan before it sees a pet is going to aggro on him
 directly and that's pretty much a death sentence with this build"): a tile is scored by the idle
 monsters that would see us there before a pet (`View.first_on_us`: in range and sight, no pet nearer
@@ -807,9 +807,26 @@ aggro on the pets ... I avoid being sighted by hostiles"; his fight of the reani
 of sight against two deaths there where they saw Logan first, docs/NOTES.md "How the user plays the casters and
 purgers"; user 2026-10-17: "We're frequently getting diseased by the corpse
 purgers"; the blightmare since 2026-10-21, after two live deaths in its spells and Spellblight disease from 10-12 tiles
-at its spawn (5243, 687), docs/NOTES.md "Dead in a blightmare's reach again"): they shoot from where they stand, their
-first sight takes whoever they see first and their barrage or spells reach us wherever the pets stand. None is
-held for (none comes on to the pets in time). An advance (patrol, approach) stops on a step into an idle one's sight before the
+at its spawn (5243, 687), docs/NOTES.md "Dead in a blightmare's reach again"): they shoot from where they stand, and
+about 2 s after one of us comes into their range and sight (never under 1.5 s live) they take the nearest of us in
+their sight then, not the first seen (measured 2026-10-29, docs/NOTES.md "Shooters' and casters' first target"); their
+barrage or spells reach us wherever the pets stand. None is held for (none comes on to the pets in time).
+**The step-in** (since 2026-10-29; user: "'All Guard', walk up, then walk away from the mob slightly so the pets end
+up between Logan and the mob"; `tamer.Team.step_in`, `step_back`, `step_in_watch`): one idle shy monster, nothing
+fighting, the pets on guard and with us ('All Guard Me' first if due), and not one whose hit on a pet reaches 3 or more
+round it (the zoas, the purger, the master reanimator: their patrol stays, `STEP_IN_AREA_MAX`). Before the step into
+its sight the runner plans the walk up (up to 4 steps) and the step back; the steps and turns after the onset must fit
+in 1.5 s less a 0.75 s margin at 0.2 s each (`WAKE_FLOOR_S`, `STEP_IN_MARGIN_S`), and the tile back has a pet a tile
+inside its range and sight (the pets followed step by step) with Logan out of its sight or a clear tile (Euclidean,
+`STEP_IN_GAP`) farther than that pet; not into an area zone, fire, or another idle monster's sight. The steps go out
+without a route planned between ("step-in on the soulcatcher 0x… at (x, y): up 2 steps to (x, y), back to (x, y) in 3
+steps, out of its sight, Bussin in it" / "…, AlaFlambe nearer by 1.4"); the runner then holds there until its first
+act lands ("step-in: the soulcatcher 0x… took AlaFlambe 6.0 s after the step-in"; or on us, gone, 10 s with no act),
+out of an area hit's zone first, and fights as before. Two step-ins at one monster with no kill, then not again. When the
+walk has already brought us into its first sight, the same plan from there (`step_back`). No such tile ("no step-in at
+the … : no step-back tile within 3 steps"): the back-off below. Simulator (docs/SIM.md "The shy monsters' wake, and
+the step-in"): level 2 runs with a death 21 -> 19, pet deaths 326 -> 264, Maus 3 damage on Logan -10 %.
+An advance (patrol, approach) stops on a step into an idle one's sight before the
 pets ("a corpse purger would see us", "a blightmare would see us"; the crawl then patrols elsewhere), and the runner
 steps back (up to 3, out of its sight first, then, with `--patrol-pull`, to a tile from which a patrol spot is in
 reach, else farther from it, the pets within vet range; `Team.back_off`: "back to … out of its sight, in reach to send
