@@ -7240,6 +7240,7 @@ sight takes whoever they see first"). Scanner kept: `python harness/sim/wake_sca
     hit on Logan (area hits on the pet beside him included), 85 with no act in 10 s. Without the back-off as its
     fallback: 31 runs with a death.
   - The `first_on_us` rule elsewhere (walk stops, stand scores) still counts a pet a Chebyshev tile nearer as enough.
+
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
 The memory store keeps every gump the client opened (`events`, ev `gump_open`, data {gump_id, layout, lines, serial,
