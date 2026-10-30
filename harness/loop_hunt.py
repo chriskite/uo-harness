@@ -4211,9 +4211,10 @@ class HuntLoop:
 
     def combat_step(self, st, attackers, winding: bool) -> bool:
         """The tick's fighting, in its order: the weapon back in hand, out of an area hit, a cure, a heal, the pets' care,
-        unstuck, an eerie corpse, the loot, the pets on 'All Patrol', a target and its fight, then (nothing to fight) the
-        back-off from a shy monster's first sight, 'All Patrol' at one, the hold for one that sees us. True when it did
-        something (one decision). Shared by the tick and a fought leg of the walk in (walk_in_fought)."""
+        unstuck, an eerie corpse, the loot, the pets on 'All Patrol', the step-in's hold, a target and its fight, then
+        (nothing to fight) the step-in or back-off from a shy monster's first sight, 'All Patrol' at one, the hold for one
+        that sees us. True when it did something (one decision). Shared by the tick and a fought leg of the walk in
+        (walk_in_fought)."""
         me = st["world"]["self"]
         if self.rearm(st):
             return True
@@ -4236,6 +4237,8 @@ class HuntLoop:
             return True
         if self.team is not None and self.team.patrol_watch(st):
             return True                   # the pets on "All Patrol" at a purger: we stand, then 'All Guard Me'
+        if self.team is not None and self.team.step_in_watch(st):
+            return True                   # stepped back from an idle shy monster: we hold till its first act lands
         target = self.pick_target(st, pull=not winding)
         if target is not None:
             if target != self.engaged and self.engaged is not None:

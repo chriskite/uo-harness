@@ -260,6 +260,51 @@ def _target_area() -> dict:
 
 
 TARGET_AREA = _target_area()   # {kind: (reach, tiles to keep from each pet within that reach of it)}
+
+
+def trail(p, t, follow: int = 1) -> tuple:
+    """Where a pet at `p` on guard or follow stops when we walk to `t`: it keeps within `follow` tiles of us (the
+    simulator's pets, follow 1: their one-tile moves 0.21 s apart, ours 0.2 s), stepping straight at us. (x, y)."""
+    x, y = p[0], p[1]
+    while cheb((x, y), t) > follow:
+        x += (t[0] > x) - (t[0] < x)
+        y += (t[1] > y) - (t[1] < y)
+    return x, y
+
+
+def follow(pets: list, t, follow_r: int = 1) -> list:
+    """The pets (x, y) after one step of ours onto `t`: each more than `follow_r` off steps once straight at us (pets
+    on guard or follow step 0.21 s apart, we run 0.2 s a step: a step each)."""
+    out = []
+    for x, y in pets:
+        if cheb((x, y), t) > follow_r:
+            x += (t[0] > x) - (t[0] < x)
+            y += (t[1] > y) - (t[1] < y)
+        out.append((x, y))
+    return out
+
+
+def route(parents: dict, tile) -> list:
+    """The tiles from a tiles_within search's origin (left out) to `tile`, by its `parents`."""
+    out = []
+    while tile in parents:
+        out.append(tile)
+        tile = parents[tile]
+    return out[::-1]
+
+
+def turns(origin, path, facing: int | None = -1) -> int:
+    """Turns along `path` from `origin`: a step in a new direction first turns us (RunUO Mobile.Move). `facing`: our
+    direction at `origin` (-1 unknown: the first step counts one; None: it counts none)."""
+    n, last, prev = 0, facing, origin
+    for t in path:
+        d = nav.direction(tuple(prev[:2]), tuple(t[:2]))
+        if last is not None and d != last:
+            n += 1
+        last, prev = d, t
+    return n
+
+
 STANDOFF_MOVES = 6
 STANDOFF_REPEAT_S = 2.0
 # An apparition's blink (docs/SIM.md audit, n=56): "*phases*" over it, gone (0x1D), then back 1.1-1.6 s later on its
@@ -316,6 +361,29 @@ BACK_OFF_REPEAT = 3           # ...and in a fought leg (HuntLoop.walk_in_fought:
 #                              with no kill between, the next goes on past it instead, the pets on guard (live 2026-10-29
 #                              18:13:23-18:14:28, hunt-20261029-180419-d505: the oxygen leg's route into a soulcatcher's
 #                              sight, back off, the route, ... 18 times, its 'All Patrol' refused)
+# The step-in (user 2026-10-29: "'All Guard', walk up, then walk away from the mob slightly so the pets end up between
+# Logan and the mob. Mobs take something like 1 or 2 seconds from seeing us to aggroing on whatever is closer to them,
+# Logan or the pets"; measured the same day, docs/NOTES.md "Shooters' and casters' first target": the war flag 1.6-3.2
+# s after the onset, then the nearest of us in its sight, a pet a tile or more nearer 47 of 49). One idle shy monster,
+# the pets on guard: the step into its sight only with a step-back tile in reach before it can wake, out of its sight
+# with a pet in it or a pet in its range and sight STEP_IN_GAP nearer it than Logan; then we hold there until its first
+# act lands (Team.step_back, step_in, step_in_watch). No such tile: the back-off as before (STEP_IN_FALLBACK).
+STEP_IN = True
+WAKE_FLOOR_S = 1.5            # its wake no sooner than this after the onset (live 12 of 502 under 1.6 s, p5 1.67)
+STEP_IN_MARGIN_S = 0.75       # the runner's planning before a walk's first step (live 0.35-0.74 s, capture
+#                              20261029_100942 18:13:26-34) and its confirm: the walk back has WAKE_FLOOR_S less this
+STEP_IN_STEP_S = 0.2          # a running step on foot (humanize.STEP_CADENCE_RUN)
+STEP_IN_GAP = 1.0             # a pet this much nearer it (Euclidean): live a pet 1+ nearer took it 47 of 49, under a tile
+#                              Logan 2 in 3 when he was the slightly nearer
+STEP_IN_PET_MARGIN = 1        # ...that pet this much inside its aggro range (the simulator's pets trail a tile or two)
+STEP_IN_SIGHT = 14            # its choice is among those of us in its sight within this (Euclidean)
+STEP_IN_AREA_MAX = 2          # not at a monster whose hit on a pet reaches farther round it (TARGET_AREA's keep, AREA_R):
+#                              the zoas, the purger, the master reanimator keep the patrol (user: "to keep the pets'
+#                              area hits off" him)
+STEP_IN_WALK = 4              # the walk up into its sight: this many steps at most
+STEP_IN_WAIT_S = 10.0         # the hold for its first act (the wake's p90 3.2 s, a 1.5-2.7 s cast, a miss)
+STEP_IN_TRIES = 2             # step-ins at one monster with no kill between, then the back-off
+STEP_IN_FALLBACK = True       # no step-back tile: the back-off from its first sight (False: none)
 HOLD_S = 5.0                  # hold this long for an idle monster that sees us (live 16:12 run 2026-10-17: 11 of 13 within
                               # 10 tiles woke in 0.5-3.5 s; captures: a 10-tile crossing to war mode in 1.4-2.6 s, median
                               # 2.2, n=188, docs/SIM.md; 10 s until 2026-10-24: one that never woke cost the full 10 s)
@@ -628,6 +696,9 @@ class Team:
         self.backed = {}                  # serial -> (back_offs from it with no kill between, the run's kills then)
         self.faced = {}                   # serial -> the run's kills when the leg went on past it (back_off; shy_first
                                           # skips it until the next kill or the leg's end)
+        self.stepin = None                # the step-in held (step_back -> step_in_watch): serial, kind, tile, t, pet
+        self.stepped = {}                 # serial -> (step-ins at it with no kill between, the run's kills then)
+        self.step_none = {}               # serial -> why no step-back tile, logged once a change (step_note)
         self.patrol_why = {}              # serial -> (why no patrol at it, monotonic): patrol_pull's log, once a change
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.see_walk_t = {}              # serial -> the last walk_to_see at it
@@ -1332,13 +1403,21 @@ class Team:
         route again, 18 times in 63 s, its 'All Patrol' refused ("cannot be seen"), 470 -> 560 s under water. Not on the
         hunt level, where the crawl's patrol repeats them too (18:09:06-43, 13 at a drowned mariner on the way to a
         frenzyfin): the simulator's level 2 had more deaths and pet deaths with it there (docs/SIM.md "Tidal Tomb: the
-        oxygen leg's back-off loop"). True when we stepped."""
+        oxygen leg's back-off loop"). Since 2026-10-29 the step-in comes first (step_back: STEP_IN); this is its fallback
+        where no step-back tile is (STEP_IN_FALLBACK). True when we stepped."""
         h, now = self.h, time.monotonic()
+        if STEP_IN and self.step_back(st):
+            return True
         if now - self.back_off_t < BACK_OFF_S:
             return False
         v = self.view(st)
         first = self.shy_first(v, v.pos)
         if v.walk is None or not first:
+            return False
+        if STEP_IN and len(first) == 1 and not v.sees(first[0], v.pos, first[0]["r"]) \
+                and self.step_in(st, first[0]["serial"]):
+            return True                   # at its range's edge (the walk's stop): up into it and back behind the pets
+        if STEP_IN and not STEP_IN_FALLBACK:
             return False
         m = min(first, key=lambda m: cheb(m["pos"], v.pos))
         kills = self.kills()
@@ -1381,6 +1460,7 @@ class Team:
         log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
             f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else "")
             + (", in reach to send the pets at it" if spots is not None and not best_k[0] and not best_k[1] else ""))
+        t0 = time.monotonic()
         try:
             h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * PULL_STEPS, max_route=2 * PULL_STEPS,
                             mobile_wait=0)
@@ -1388,6 +1468,252 @@ class Team:
             if not str(e).startswith(label):
                 raise
             log(f"back off: {e}")
+        self.count("back_off_ds", round((time.monotonic() - t0) * 10))    # tenths of a second walking back
+        return True
+
+    # ------------------------------------------------------------ the step-in (STEP_IN)
+    def step_kind(self, kind: str) -> bool:
+        """A shy monster the step-in may wake onto the pets: its hit on a pet reaches no farther round it than
+        STEP_IN_AREA_MAX (TARGET_AREA's keep, AREA_R); the others keep the patrol."""
+        return max((TARGET_AREA.get(kind) or (0, 0))[1], AREA_R.get(kind, 0)) <= STEP_IN_AREA_MAX
+
+    def step_ready(self, st, v, m, say_guard: bool = False) -> str | None:
+        """Why no step-in at idle shy monster `m` now, else None: its kind (step_kind), something fighting or on us,
+        a pet dead, out of view or past --vet-range, the pets not on guard ('All Patrol' or 'All Kill' out, or
+        guard_needed: with `say_guard`, before the walk up, 'All Guard Me' then), STEP_IN_TRIES at it since our last
+        kill."""
+        if not self.step_kind(m["kind"]):
+            return "its area hit reaches round the pets: the patrol's"
+        if v.engaged() or self.h.attackers(st):
+            return "something is fighting"
+        if self.patrol is not None or self.kill_order is not None:
+            return "the pets are not on guard"
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        if len(pets) < len(self.roster) or any(p["dist"] > self.a.vet_range for p in pets):
+            return "a pet is not with us"
+        kills = self.kills()
+        n, k = self.stepped.get(m["serial"], (0, kills))
+        if k == kills and n >= STEP_IN_TRIES:
+            return f"{n} step-ins at it with no kill"
+        if self.guard_needed and not (say_guard and self.guard()):
+            return "the pets are not on guard"
+        return None
+
+    def step_plan(self, st, v, m, origin, pets, steps: int, facing: int | None = -1):
+        """The step-back tile for idle shy monster `m` from `origin` ((x, y, z)): (tile, path, pet name, gap; None out of
+        its sight), or None. `path`: the tiles from `origin` to it (pathfind.Walk.can_walk, tiles_within), its steps and
+        its turns within `steps` (a step in a new direction only turns us: RunUO Mobile.Move; `facing` our direction at
+        `origin`, -1 unknown: the first step counts a turn, None: no turn). The pets (`pets`: [(name, (x, y))] where they
+        stand as we leave `origin`) on guard follow us a step for each of ours while more than a tile off (follow), then
+        close to within a tile (trail). A tile qualifies with a pet in its aggro range and sight there (its wake goes
+        on: the simulator holds it while one of us stays in its range and sight, so at every step on the way too) and
+        Logan out of its sight within STEP_IN_SIGHT, or STEP_IN_GAP farther from it than that pet (Euclidean). Not into
+        an area hit's zone (charge_zone), fire, a --never-aggro monster's sight, or another idle monster's range and
+        sight. Out of its sight first, then the fewest steps and turns, then the widest gap."""
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        mx, my = m["pos"][:2]
+        parents = {}
+        best, best_k = None, None
+        for t, k in self.tiles_within(v, steps, origin, parents).items():
+            if t[:2] in zone or t[:2] in fire or v.never_near(t) \
+                    or any(o["serial"] != m["serial"] for o in v.wakes(t, margin=0)):
+                continue
+            path = route(parents, t)
+            cost = k + turns(origin, path, facing)
+            if cost > steps:
+                continue
+            held, at = True, [p for _, p in pets]
+            for u in path:
+                at = follow(at, u)
+                if not v.sees(m, u, m["r"]) and not any(v.sees(m, q, m["r"] - STEP_IN_PET_MARGIN) for q in at):
+                    held = False
+                    break
+            if not held:
+                continue
+            dl = aggro.eucl((mx, my), t)
+            seen = dl <= STEP_IN_SIGHT and v.sees(m, t, STEP_IN_SIGHT)
+            for (name, _), p in zip(pets, at):
+                q = trail(p, t)
+                if not v.sees(m, q, m["r"] - STEP_IN_PET_MARGIN):
+                    continue
+                gap = dl - aggro.eucl((mx, my), q)
+                if seen and gap < STEP_IN_GAP:
+                    continue
+                key = (seen, cost, -gap)
+                if best_k is None or key < best_k:
+                    best, best_k = (t, path, name, gap if seen else None), key
+        return best
+
+    def step_budget(self, since: float) -> int:
+        """Steps (and turns) we may take after the onset at `since` (monotonic) before the monster can wake:
+        WAKE_FLOOR_S less STEP_IN_MARGIN_S and the time since, at STEP_IN_STEP_S each."""
+        return max(0, int((WAKE_FLOOR_S - STEP_IN_MARGIN_S - (time.monotonic() - since)) / STEP_IN_STEP_S + 1e-9))
+
+    def step_note(self, m, why: str):
+        """Log why no step-in at `m` (step_back, step_in), once a change of reason; a missing step-back tile counted
+        (step_in_none)."""
+        if self.step_none.get(m["serial"]) != why:
+            self.step_none[m["serial"]] = why
+            log(f"no step-in at the {m['kind']} 0x{m['serial']:08X}: {why}")
+            if why.startswith("no "):
+                self.count("step_in_none")
+
+    def step_back(self, st) -> bool:
+        """We stand in an idle shy monster's range and sight with no pet a clear STEP_IN_GAP nearer it in its range and
+        sight (the onset: our last step brought us in): its wake comes no sooner than WAKE_FLOOR_S after, onto the
+        nearest of us in its sight. One such monster (two: none; aggro.View.overpull and the patrol take a pack),
+        step_ready: the step-back tile (step_plan) within the steps left before it can wake (step_budget, from our
+        last step), stepped to, then held (step_in_watch). True when we stepped (or stood: a tile with no step)."""
+        if self.stepin is not None:
+            return False
+        v = self.view(st)
+        if v.walk is None:
+            return False
+        kills = self.kills()
+        seen = [m for m in v.first_on_us(v.pos, margin=0, gap=STEP_IN_GAP)
+                if m["shy"] and self.faced.get(m["serial"]) != kills]
+        if len(seen) != 1:
+            return False
+        m = seen[0]
+        if (why := self.step_ready(st, v, m)) is not None:
+            self.step_note(m, why)
+            return False
+        steps = self.step_budget(getattr(self.h.mover, "sent_at", None) or time.monotonic())
+        pets = [(p["name"], (p["x"], p["y"])) for p in self.pets(st) if not p["dead"]]
+        plan = self.step_plan(st, v, m, v.pos, pets, steps)
+        if plan is None:
+            self.step_note(m, f"no step-back tile within {steps} steps")
+            return False
+        self.step_go(m, plan, cheb(m["pos"], v.pos))
+        return True
+
+    def step_go(self, m, plan, seen_at: int, up=()):
+        """The step-in at `m`: the steps of `up` (the walk up, tiles), then of the plan's path back (step_plan), then the
+        hold there (step_in_watch). Each step goes out as one walk, no route planned in between (step_tiles). Both
+        planned before the onset (step_in) or at it (step_back)."""
+        h, now = self.h, time.monotonic()
+        tile, path, pet, gap = plan
+        kills = self.kills()
+        n, kk = self.stepped.get(m["serial"], (0, kills))
+        self.stepped[m["serial"]] = ((n if kk == kills else 0) + 1, kills)
+        self.step_none.pop(m["serial"], None)
+        self.count("step_ins")
+        log(f"step-in on the {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]}: "
+            + (f"up {len(up)} steps to {up[-1][:2]}, " if up else f"seen at {seen_at}, ")
+            + f"back to {tile[:2]} in {len(path)} steps, "
+            + (f"out of its sight, {pet} in it" if gap is None else f"{pet} nearer by {gap:.1f}"))
+        h.doing("hold", f"Stepping in and back to {tile[0]},{tile[1]}: {pet} the nearest in the {m['kind']}'s sight",
+                tile[:2], m["serial"])
+        if up and not self.step_tiles(up, m["serial"]):
+            return
+        self.stepin = {"serial": m["serial"], "kind": m["kind"], "tile": tile[:2], "t": now, "pet": pet}
+        self.step_tiles(path, None)
+
+    def step_tiles(self, tiles, awake: int | None) -> bool:
+        """Step along `tiles` (each beside the last) at the running cadence, a turn where the direction changes; stop
+        when a step doesn't move us or monster `awake` is in war mode. True when all went."""
+        mv = self.h.mover
+        for t in tiles:
+            st = self.h.state()
+            if awake is not None:
+                mob = st["world"]["mobiles"].get(f"0x{awake:08X}") or {}
+                if (mob.get("flags") or 0) & aggro.WAR:
+                    log("step-in: it woke on the way up")
+                    return False
+            pos = self.h.pos(st)
+            d = nav.direction(tuple(pos[:2]), tuple(t[:2]))
+            mv.pace(True, st)
+            out = mv.step(d, True, st)
+            if out == "turned":
+                mv.pace(True)
+                out = mv.step(d, True)
+            if out != "moved":
+                log(f"step-in: the step to {t[:2]} {out}")
+                return False
+        return True
+
+    def step_in(self, st, serial: int) -> bool:
+        """The walk up to idle shy monster `serial` (step_ready), out of its range or sight now (fight's target, or
+        back_off at its range's edge): to the nearest tile S within STEP_IN_WALK steps in its range and sight with a
+        step-back tile from it (step_plan, the pets taken as moved with us). Both walks are planned here, before the
+        onset; the steps from the onset on (the first tile of the walk up in its range and sight) with their turns
+        within WAKE_FLOOR_S less STEP_IN_MARGIN_S (step_budget). Then stepped (step_go). True when we stepped."""
+        if not STEP_IN or self.stepin is not None:
+            return False
+        v = self.view(st)
+        m = next((o for o in v.mobs if o["serial"] == serial), None)
+        if v.walk is None or m is None or m["war"] or v.sees(m, v.pos, m["r"]):
+            return False
+        if (why := self.step_ready(st, v, m, say_guard=True)) is not None:
+            self.step_note(m, why)
+            return False
+        pets = [(p["name"], (p["x"], p["y"])) for p in self.pets(st) if not p["dead"]]
+        total = self.step_budget(time.monotonic())
+        parents = {}
+        plan = None
+        for t, k in sorted(self.tiles_within(v, STEP_IN_WALK, None, parents).items(), key=lambda e: e[1]):
+            if k == 0 or not v.sees(m, t, m["r"]) or v.never_near(t) \
+                    or any(o["serial"] != m["serial"] for o in v.wakes(t, margin=0)):
+                continue
+            up = route(parents, t)
+            on = next(i for i, u in enumerate(up) if v.sees(m, u, m["r"]))      # the onset's step
+            after = len(up) - 1 - on + turns(up[on], up[on + 1:],
+                                              nav.direction(tuple((up[on - 1] if on else v.pos)[:2]), tuple(up[on][:2])))
+            if after > total:
+                continue
+            at = [p for _, p in pets]
+            for u in up:
+                at = follow(at, u)
+            moved = [(name, p) for (name, _), p in zip(pets, at)]
+            last = nav.direction(tuple((up[-2] if len(up) > 1 else v.pos)[:2]), tuple(t[:2]))
+            if (plan := self.step_plan(st, v, m, t, moved, total - after, facing=last)) is not None:
+                break
+        if plan is None:
+            self.step_note(m, f"no tile within {STEP_IN_WALK} steps into its sight with a step-back tile")
+            return False
+        self.step_go(m, plan, cheb(m["pos"], t), up=up)
+        return True
+
+    def step_in_watch(self, st) -> bool:
+        """After a step-in: hold on the step-back tile until its first act lands (a hit on a pet or on us since; a miss
+        lands on nobody, so its war flag alone doesn't end it), something else comes on us, it is gone, or
+        STEP_IN_WAIT_S. Out of an area hit's zone first (stand_off comes before this in the tick). True while it
+        holds the tick."""
+        s = self.stepin
+        if s is None:
+            return False
+        h, now = self.h, time.monotonic()
+        mob = st["world"]["mobiles"].get(f"0x{s['serial']:08X}")
+        name = f"the {s['kind']} 0x{s['serial']:08X}"
+        dt = now - s["t"]
+        me = h.me(st)
+        if mob is None or mob.get("x") is None or s["serial"] in h.dead:
+            log(f"step-in: {name} gone after {dt:.1f} s")
+            self.stepin = None
+            return False
+        if h.hurt_t.get(me, -1e9) > s["t"]:
+            log(f"step-in: {name} on us after {dt:.1f} s")
+            self.count("step_in_logan")
+            self.stepin = None
+            return False
+        hurt = [p["name"] for p in self.pets(st) if h.hurt_t.get(p["serial"], -1e9) > s["t"]]
+        if hurt and (mob.get("flags") or 0) & aggro.WAR:
+            log(f"step-in: {name} took {hurt[0]} {dt:.1f} s after the step-in")
+            self.count("step_in_pet")
+            self.stepin = None
+            return False
+        if any(serial_of(a["serial"]) != s["serial"] for a in h.attackers(st)):
+            log(f"step-in: something else on us; the hold for {name} ends")
+            self.stepin = None
+            return False
+        if dt > STEP_IN_WAIT_S:
+            log(f"step-in: {name} {'in war mode' if (mob.get('flags') or 0) & aggro.WAR else 'still idle'} after "
+                f"{dt:.0f} s with no act; the hold ends")
+            self.count("step_in_timeouts")
+            self.stepin = None
+            return False
+        h.doing("hold", f"Holding at {s['tile'][0]},{s['tile'][1]}: {name} to take {s['pet']}", s["tile"], s["serial"])
+        time.sleep(0.2)
         return True
 
     def patrol_pull(self, st, serial: int | None = None) -> bool:
@@ -1608,13 +1934,15 @@ class Team:
         return True
 
     @staticmethod
-    def tiles_within(v: aggro.View, steps: int) -> dict:
-        """{(x, y, z): walking steps} from where we stand, up to `steps` (pathfind.Walk.can_walk), never onto a known
-        teleporter tile or one beside it (teleporters come in fields: live 2026-10-18 21:05:41 the step off the tank 3
-        tiles from the known one at (5522, 637) went onto (5522, 636), unknown till then, and out to Maus 3)."""
-        tele = [t for t in v.h.mover.teleporter_tiles(v.st["world"]["self"].get("map")) if cheb(t, v.pos) <= steps + 1]
+    def tiles_within(v: aggro.View, steps: int, origin=None, parents: dict | None = None) -> dict:
+        """{(x, y, z): walking steps} from where we stand (or `origin`, (x, y, z)), up to `steps`
+        (pathfind.Walk.can_walk), never onto a known teleporter tile or one beside it (teleporters come in fields: live
+        2026-10-18 21:05:41 the step off the tank 3 tiles from the known one at (5522, 637) went onto (5522, 636), unknown
+        till then, and out to Maus 3)."""
+        start = tuple(origin) if origin is not None else v.pos
+        tele = [t for t in v.h.mover.teleporter_tiles(v.st["world"]["self"].get("map")) if cheb(t, start) <= steps + 1]
         near = {(x + dx, y + dy) for x, y in tele for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
-        out, frontier = {v.pos: 0}, [v.pos]
+        out, frontier = {start: 0}, [start]
         for k in range(1, steps + 1):
             nxt = []
             for x, y, z in frontier:
@@ -1623,6 +1951,8 @@ class Team:
                     if n is not None and n not in out and n[:2] not in near:
                         out[n] = k
                         nxt.append(n)
+                        if parents is not None:
+                            parents[n] = (x, y, z)
             frontier = nxt
         return out
 
@@ -2674,6 +3004,8 @@ class Team:
                     and not self.hold_reason(st):
                 self.approach(serial, mob)    # never toward an idle purger: it shoots from 12, it doesn't come on
                 return
+            if not on_us and shy_idle and self.step_in(st, serial):
+                return                    # walked up into its sight and back behind the pets (step_in_watch holds)
             if not on_us and shy_idle and self.patrol_pull(st, serial):
                 return                    # the pets sent to wake it ("All Patrol"); patrol_watch calls them back
             if not on_us and self.unseen(st, serial):

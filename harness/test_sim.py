@@ -6535,15 +6535,77 @@ def test_oxygen_leg_past_shooter():
         simclock.uninstall(patched)
     outcome = json.loads(ev[-1][0])["outcome"] if ev else None
     counts = loop.team.counts
-    check("the leg: its patrol refused, BACK_OFF_REPEAT back-offs, then on past the soulcatcher; up the stairs before "
-          "the deprivation, refilled, no oxygen damage, Logan alive",
+    check("the leg: its patrol refused, then (since 2026-10-29) a step-in that puts the soulcatcher on a pet, or "
+          "BACK_OFF_REPEAT back-offs and on past it (tamer.STEP_IN False); up the stairs before the deprivation, "
+          "refilled, no oxygen damage, Logan alive",
           err is None and site is not None and site["tile"] == (6943, 2004) and counts.get("patrol_refused", 0) >= 1
-          and counts.get("back_offs", 0) <= tamer.BACK_OFF_REPEAT and counts.get("faced", 0) == 1
+          and counts.get("back_offs", 0) <= tamer.BACK_OFF_REPEAT
+          and (counts.get("step_in_pet", 0) == 1 if tamer.STEP_IN else counts.get("faced", 0) == 1)
           and outcome == "refilled" and seen["up"] is not None and seen["up"] < loop.oxy.limit_s
           and not any(k == "oxygen" for _, _, k, _ in hurts) and pl.alive and not pl.ghost,
           f"err {err!r} site {site and site['tile']} outcome {outcome} back-offs {counts.get('back_offs')} faced "
-          f"{counts.get('faced')} refused {counts.get('patrol_refused')} up at {seen['up']} max under {seen['under']:.0f} "
+          f"{counts.get('faced')} step-ins {counts.get('step_ins')} on a pet {counts.get('step_in_pet')} refused "
+          f"{counts.get('patrol_refused')} up at {seen['up']} max under {seen['under']:.0f} "
           f"| " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+
+
+def _step_in_layout(start, reactive: bool):
+    """Level 2's idle soulcatcher at SOUL_L2, Logan at `start` with the pets beside him on guard: the step-in at it
+    (Team.step_in, fight's walk up; `reactive`: Logan already in its first sight, the tick's back_off), then 30 s of
+    the tick's fighting (combat_step). -> (world, its first target, the team's counts, the log)."""
+    w = tidal_world(start, [{"key": "soulcatcher", "at": list(SOUL_L2)}], z=-126, team="phoenix_incubus")
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    loop.team.guard_needed = False                      # hurt_loop said 'All Guard Me'
+    first = {}
+    run_until = clock.on_advance
+
+    def watch(now):
+        run_until(now)
+        if m.target is not None and "who" not in first:
+            first["who"] = m.target
+    clock.on_advance = watch
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            st = loop.state()
+            if reactive or not loop.team.step_in(st, m.serial):
+                loop.team.back_off(st)
+            for _ in range(150):
+                st = loop.state()
+                if not loop.combat_step(st, loop.attackers(st), False):
+                    clock.advance(0.2)
+    finally:
+        clock.on_advance = run_until
+        store.close()
+        simclock.uninstall(patched)
+    return w, first.get("who"), loop.team.counts, buf.getvalue()
+
+
+def test_step_in():
+    print("== the step-in (user 2026-10-29: 'All Guard', walk up, then walk away slightly so the pets end up between): "
+          "Logan steps into an idle soulcatcher's sight and back, it takes a pet ==")
+    w, who, counts, out = _step_in_layout((6945, 2035), reactive=False)
+    pets = {p.serial: p.name for p in w.pets()}
+    check("12 tiles off, out of reach of 'All Patrol' (refused, live 18:13:25): up into its sight and back behind the "
+          "pets; its first target a pet, Logan untouched (before, tamer.STEP_IN False: it stays idle)",
+          who in pets and counts.get("step_ins") == 1 and counts.get("step_in_pet") == 1 and w.player.hits == 100
+          and "step-in on the soulcatcher" in out,
+          f"first target {pets.get(who, who)} counts {dict((k, v) for k, v in counts.items() if 'step' in k or 'back' in k)}"
+          f" Logan {w.player.hits} at {w.player.pos} | "
+          + " | ".join(x for x in out.splitlines() if "step-in" in x)[-400:])
+
+
+def test_step_in_fallback():
+    print("== the step-in's fallback: in an idle soulcatcher's first sight at its range's edge, the pets a tile behind "
+          "out of its range, no step-back tile: the back-off as before ==")
+    w, who, counts, out = _step_in_layout((6944, 2033), reactive=True)
+    check("no step-back tile ('no step-in ... no step-back tile'), then back behind the pets out of its sight; no "
+          "step-in, Logan untouched", "no step-in at the soulcatcher" in out and "no step-back tile" in out
+          and counts.get("back_offs", 0) >= 1 and not counts.get("step_ins") and w.player.hits == 100
+          and who != w.player.serial,
+          f"counts {dict((k, v) for k, v in counts.items() if 'step' in k or 'back' in k)} Logan {w.player.hits} | "
+          + " | ".join(x for x in out.splitlines() if "step" in x or "back" in x)[-400:])
 
 
 def test_oxygen_dolphin():
@@ -6752,7 +6814,8 @@ def main():
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
-              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_oxygen_dolphin,
+              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_step_in,
+              test_step_in_fallback, test_oxygen_dolphin,
               test_tidal_hunt,
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,

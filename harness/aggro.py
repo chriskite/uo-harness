@@ -75,6 +75,11 @@ def aggro_range(kind: str) -> int:
 
 
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us
+# first_on_us's "a pet nearer": None, by Chebyshev (since 2026-10-15); a number, that many tiles Euclidean (the measured
+# choice of the nearest at the wake, 2026-10-29). The step-in (tamer.STEP_IN_GAP) uses its own clear tile either way;
+# 1.0 here would put the walks' stops, the stand scores and the back-off on the measured rule too (docs/SIM.md
+# "The step-in": not kept)
+FIRST_GAP = None
 NEVER_MARGIN = 3
 WAR = 0x40
 # user 2026-10-15 after the eleventh live run (the elder vampire countess froze both pets and killed Logan): "I
@@ -88,6 +93,11 @@ NEVER_AGGRO = ("elder vampire", "elder vampire countess")
 BACKLASH_TYPES = ("giant astral zoa",)
 CASTER_AI = frozenset(("mage", "meleemage"))
 _KB = None
+
+
+def eucl(a, b) -> float:
+    """The Euclidean distance on the map (RunUO GetDistanceToSqrt: a monster's nearest)."""
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
 
 
 def type_key(name: str | None) -> str:
@@ -128,11 +138,13 @@ def ranged(kind: str) -> bool:
     return (creatures().get(kind) or {}).get("ai") == "ranged"
 
 
-# Monsters that shoot or cast from where they stand, whose first sight of us we keep the pets ahead of
-# (tamer.Team.back_off): their aggro goes to whoever they see first and their attack reaches us wherever the pets
-# stand. The corpse purger (user 2026-10-17: "We're frequently getting diseased by the corpse purgers"; its barrage
-# diseases: docs/NOTES.md "Corpse purger diseases"); the blightmare since 2026-10-21 (a mage that stood at its spot and
-# cast at Logan from 10-12 with its Spellblight disease in both live deaths to it, 10-19 19:55 and 10-21 18:21;
+# Monsters that shoot or cast from where they stand, whose wake we put on the pets (tamer.Team.step_back, back_off,
+# patrol_pull): about 2 s after one of us comes into their range and sight (never under 1.5 s) they take the nearest of
+# us in their sight then, not the first seen (measured 2026-10-29, docs/NOTES.md "Shooters' and casters' first target"),
+# and their attack reaches us wherever the pets stand. The corpse purger (user 2026-10-17: "We're frequently getting
+# diseased by the corpse purgers"; its barrage diseases: docs/NOTES.md "Corpse purger diseases"); the blightmare since
+# 2026-10-21 (a mage that stood at its spot and cast at Logan from 10-12 with its Spellblight disease in both live
+# deaths to it, 10-19 19:55 and 10-21 18:21;
 # docs/NOTES.md "Dead in a blightmare's reach again"); since 2026-10-26 the casters that stand and cast (user 2026-10-26
 # "I keep the pets between me and mobs so mobs aggro on the pets ... I avoid being sighted by hostiles", his fight in
 # the reanimator's room with "All Patrol" from out of sight and no damage, against two deaths there where they saw Logan
@@ -250,15 +262,26 @@ class View:
         """Idle monsters that would wake to us on `tile` (their aggro range and sight, plus `margin`)."""
         return [m for m in self.mobs if not m["war"] and not m["never"] and self.sees(m, tile, m["r"] + margin, strict)]
 
-    def first_on_us(self, tile, margin: int = 1) -> list[dict]:
-        """Idle monsters that would see us on `tile` before a pet: in their aggro range and sight, and no
-        pet nearer them (user 2026-10-15: "Any mob that 'sees' Logan before it sees a pet is going to aggro
-        on him directly and that's pretty much a death sentence with this build"; stand out of the sight of
-        monsters that haven't aggroed on a pet, or with the tank between). [INFERENCE: nearer counts as seen
-        first; the pets follow us a tile or two behind on the move.]"""
-        return [m for m in self.wakes(tile, margin)
+    def first_on_us(self, tile, margin: int = 1, gap: float | None = None) -> list[dict]:
+        """Idle monsters that would take us on `tile` rather than a pet: in their aggro range and sight, and no pet
+        nearer them in it (user 2026-10-15: "Any mob that 'sees' Logan before it sees a pet is going to aggro on him
+        directly and that's pretty much a death sentence with this build"; stand out of the sight of monsters that
+        haven't aggroed on a pet, or with the tank between). Nearer: by Chebyshev (FIRST_GAP None, the rule since
+        2026-10-15), or `gap` (default FIRST_GAP) tiles or more Euclidean: measured 2026-10-29, a shy monster takes the
+        nearest of us in its sight at the end of its wake delay, a near tie under a tile Logan 2 in 3 when he is the
+        slightly nearer (docs/NOTES.md "Shooters' and casters' first target")."""
+        gap = FIRST_GAP if gap is None else gap
+        out = []
+        for m in self.wakes(tile, margin):
+            if gap is None:
                 if not any(cheb(m["pos"], p) < cheb(m["pos"], tile) and self.sees(m, p, m["r"] + margin)
-                           for p in self.pets)]
+                           for p in self.pets):
+                    out.append(m)
+                continue
+            d = eucl(m["pos"], tile)
+            if not any(d - eucl(m["pos"], p) >= gap and self.sees(m, p, m["r"] + margin) for p in self.pets):
+                out.append(m)
+        return out
 
     def never_near(self, tile, margin: int = NEVER_MARGIN) -> list[dict]:
         """--never-aggro monsters, idle, that would see us on `tile`."""
