@@ -3056,6 +3056,9 @@ Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). De
   mariners' and soulcatchers' wakes on Logan within 2.5 tiles 152 -> 118, Logan's deprivation -10 %, pet deaths 796 ->
   746, banked -3 %, runs with a death 56 -> 71; with no memory carried between runs (`--fresh`) 13 -> 13, the runs it
   changes 3 -> 3 deaths. Level 3 (48 a side, two blocks): runs with a death 30 -> 29 and 36 -> 30, the crossing slower.
+- *Decided (user 2026-10-30):* the pass off by default (`tamer.PASS = False`), the step-in kept. The career blocks' rise
+  (56 -> 71 runs with a death, every block) outweighs the fewer wakes on Logan until its cause is traced; a fought leg
+  goes on past after 3 back-offs as before. `test_walk_in_fought` turns the pass on to keep the mechanism checked.
 - *Open:* two idle shy monsters together (not built: each wake takes the nearest, but the plan has to hold for both and
   two shooters land on the pets at once; the pull budget and the patrol keep a pack); the career blocks' rise in runs
   with a death with the pass (not traced: it came in runs with no pass of their own, through the store a career

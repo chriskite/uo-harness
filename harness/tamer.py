@@ -391,7 +391,10 @@ STEP_IN_FALLBACK = True       # no step-back tile: the back-off from its first s
 # from it than a pet in its range and sight. The steps before the onset are walked first and the pets let close up
 # there, then planned again. No such walk: on past it as before (faced). Before it the leg went straight past a drowned
 # mariner beside level 2's way to level 3, the pets 2 tiles behind, and it woke on Logan 1 tile off (test_walk_in_fought)
-PASS = True
+# Off by default (user 2026-10-30): level 2 careers, 3 blocks of 144 runs, runs with a death 56 -> 71 with it (19 -> 22,
+# 19 -> 26, 18 -> 23), equal with --fresh (13 -> 13); the cause in later runs is untraced (docs/PLAN.md). On past as
+# before; test_walk_in_fought turns it on to keep the mechanism checked.
+PASS = False
 PASS_WALK = 12                # (8 left none from test_walk_in_fought's back-off tiles; 12 plans in ~0.02 s)
 PASS_ROUNDS = 3               # the walks to a pass's onset at one monster, then the whole plan goes as planned
 PASS_SETTLE_S = 2.0           # the pets' closing up before the pass is planned again, at most

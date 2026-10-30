@@ -837,8 +837,9 @@ backed off from is kept off for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight 
 near it, routes bend round, not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into a
 purger four times, then its barrage). **A leg that must arrive** (`walk_in_fought`: the walk in with `--fight-via`,
 the walk to the moongate after `--leave-via`, the oxygen legs) backs off from one idle shy monster 3 times
-(`tamer.BACK_OFF_REPEAT`) with no kill between, then **passes by it** (since 2026-10-29 evening, `Team.pass_by`,
-`pass_plan`, `tamer.PASS`): one walk of up to 12 steps and turns (`PASS_WALK`) planned from where we stand with the
+(`tamer.BACK_OFF_REPEAT`) with no kill between, then goes on past it (below). **The pass** (built 2026-10-29 evening,
+**off by default since 2026-10-30**, `tamer.PASS = False`: the user's choice after the career batches' death rise
+below; `test_walk_in_fought` turns it on; `Team.pass_by`, `pass_plan`) would instead plan one walk of up to 12 steps and turns (`PASS_WALK`) from where we stand with the
 pets followed step by step, as the step-in's: its clock runs while one of us is in its range and sight (its onset; it
 stops when none is), Logan's steps in its sight with no pet a tile nearer end within the step-in's budget after each
 onset, and the walk ends out of its sight, or a tile farther from it than a pet, with a pet in its range and sight.

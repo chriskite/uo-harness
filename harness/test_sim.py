@@ -6331,6 +6331,8 @@ def test_walk_in_fought():
     pets = {p.serial for p in w.pets()}
     targets = set()
     stray, simworld.SHOT_AT_PLAYER_P = simworld.SHOT_AT_PLAYER_P, 0.0
+    import tamer
+    passing, tamer.PASS = tamer.PASS, True    # off by default since 2026-10-30; this test is the pass's
     run_until = clock.on_advance
 
     def watch(now):
@@ -6353,6 +6355,7 @@ def test_walk_in_fought():
     finally:
         clock.on_advance = run_until
         simworld.SHOT_AT_PLAYER_P = stray
+        tamer.PASS = passing
         store.close()
         simclock.uninstall(patched)
     check("through to level 3 alive, the mariner dead, its aggro only ever on the pets",
