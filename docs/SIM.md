@@ -2261,8 +2261,47 @@ The measurement (docs/NOTES.md "Shooters' and casters' first target"), then the 
 - **Tests:** `test_step_in` (12 tiles from level 2's soulcatcher, its patrol refused: up into its sight and back, it
   takes AlaFlambe, Logan 100/100; with `STEP_IN` False it stays idle), `test_step_in_fallback` (at its range's edge with
   the pets behind: "no step-back tile", the back-off), `test_oxygen_leg_past_shooter` (the live 18:13 layout: a
-  step-in, the soulcatcher on a pet, up at 508 s). `test_walk_in_fought` fails on the new model at margin 0.75 (it
-  passes at 0.35): after 3 back-offs the leg goes on past the mariner at 1 tile and the near tie takes Logan.
+  step-in, the soulcatcher on a pet, up at 508 s). `test_walk_in_fought` failed on the new model at margin 0.75 (it
+  passed at 0.35): after 3 back-offs the leg went on past the mariner at 1 tile and the near tie took Logan; the pass
+  below.
+- **The pass** (a fought leg's way by an idle shy monster after 3 back-offs, `tamer.Team.pass_by`, `pass_plan`,
+  `PASS`; docs/HUNT_LOOP.md "Pets"). The cause, traced on `test_walk_in_fought`'s layout: the mariner at (6852, 2072)
+  stands in a corridor 4-6 wide, the way north to level 3 goes 1-3 tiles from it with no way round its sight; going
+  on past it the pets trailed 2 tiles behind Logan, its clock started at (6853, 2082), and 2.0 s later it woke with
+  Logan at (6853, 2072) 1.0 off and both pets at (6853, 2073) 1.41, a near tie (`TIE_LOGAN_P`); at its range's edge
+  no step-back tile was in reach because the trailing pets were outside its range. The pass plans one walk of up to
+  12 steps with the pets followed (the onset may be a pet's, its clock stops when nobody is in its range and sight,
+  Logan's exposure after each onset within the step-in's budget), walks the steps before the onset, lets the pets
+  close up, plans again, then the rest. That layout, seeds 1-12: before 5 of 12 with its aggro only on the pets, after
+  12 of 12. 8 steps found no walk from its back-off tiles; 12 plan in ~0.02 s. Of 60 passes on level 2 (seeds 1-144)
+  31 ended on a pet's hit, 11 on a hit on Logan (the mariner's hit reaches 1 round the pet beside him), 18 with no act
+  in 10 s; 80 times no walk was found, on past it as before. A pass took 3-14 s from its first step to the hold's end.
+  Before = `--set tamer.PASS=False` (= the step-in's "after", main at 6cae4b5); level 2 as above, 144 runs a side:
+
+  | level 2 | runs with a death | pet deaths | damage on Logan / h | top sources / h | Logan's deprivation (runs deprived) | legs ending past 732 s | on past / passes | a mariner's or soulcatcher's wake on Logan within 2.5 tiles | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | seeds 1-144 before | 19 | 264 | 1,100 | oxygen 356, mariner 107, astral zoa 98 | 26,402 (56) | 6 of 283 | 143 / - | 53 | 154.0 | 121,306 |
+  | seeds 1-144 after | 22 | 275 | 1,082 | oxygen 320, mariner 117, astral zoa 106 | 23,455 (50) | 10 of 287 | 80 / 60 | 42 | 154.4 | 125,176 |
+  | 145-288 before | 19 | 270 | 1,194 | oxygen 447, astral zoa 130, combustive zoa 96 | 33,004 (65) | 10 of 268 | 131 / - | 46 | 156.6 | 121,410 |
+  | 145-288 after | 26 | 237 | 1,099 | oxygen 390, astral zoa 112, mariner 95 | 28,751 (53) | 6 of 285 | 93 / 43 | 36 | 157.0 | 108,690 |
+  | 289-432 before | 18 | 262 | 1,082 | oxygen 365, mariner 108, astral zoa 103 | 27,060 (60) | 16 of 282 | 150 / - | 53 | 155.2 | 120,763 |
+  | 289-432 after | 23 | 234 | 1,081 | oxygen 348, astral zoa 110, mariner 102 | 25,927 (59) | 11 of 284 | 95 / 56 | 40 | 155.6 | 117,502 |
+  | 1-144 `--fresh` before | 13 | 155 | 596 | mariner 121, astral zoa 79, voidfin 45 | 2,934 (13) | 0 of 291 | 117 / - | 68 | 158.1 | 139,948 |
+  | 1-144 `--fresh` after | 13 | 142 | 565 | mariner 115, astral zoa 78, voidfin 42 | 2,541 (13) | 1 of 295 | 78 / 33 | 53 | 157.7 | 141,702 |
+
+  - Runs with a death rose in all three career blocks (56 -> 71 of 432; a block's spread is ~5) while pet deaths fell
+    (796 -> 746), damage on Logan fell 3 % and his deprivation 10 %. With `--fresh` (no memory carried between runs)
+    every run that differs had a leg go on past a shy monster before: 63 runs, 3 deaths on both sides. So the pass
+    itself kills no more; the career blocks' rise came with runs that differ through the store a career keeps (the
+    crawl's learning) [INFERENCE: the kills at the legs' shy monsters move the crawl; not traced], most of them with no
+    pass in the run itself (no-pass runs 40 -> 53 deaths, runs with a pass 16 -> 18).
+  - Level 3 (48 runs a side, its fought walk across level 2 takes the pass): seeds 1-48 runs with a death 30 -> 29,
+    pet deaths 171 -> 181, damage on Logan an hour 367 -> 416 (giant combustive zoa 91 -> 143), his deprivation 2,534 ->
+    2,847, legs ending past 732 s 15 of 44 -> 22 of 46, on past / passes 38 / - -> 16 / 19, kills an hour 162.8 ->
+    159.4, banked 103,566 -> 104,678; seeds 49-96 runs with a death 36 -> 30, pet deaths 154 -> 181, damage 395 -> 427,
+    deprivation 2,025 -> 2,715, legs past 732 s 12 of 27 -> 17 of 39, banked 83,237 -> 106,481. The late legs are the
+    first dolphin leg after the crossing (it has no refill leg): its start under water median 748 -> 771 s and 757 ->
+    805 s; more runs reach level 3 (27 -> 29, 19 -> 26).
 
 ## The Ossuary (2026-10-28)
 

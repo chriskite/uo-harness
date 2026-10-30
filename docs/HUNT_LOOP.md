@@ -837,11 +837,28 @@ backed off from is kept off for 60 s (`Team.kept_off`, `KEEP_OFF_S`): its sight 
 near it, routes bend round, not sought; live 2026-10-18 12:05:09-25 the patrol and an approach walked back into a
 purger four times, then its barrage). **A leg that must arrive** (`walk_in_fought`: the walk in with `--fight-via`,
 the walk to the moongate after `--leave-via`, the oxygen legs) backs off from one idle shy monster 3 times
-(`tamer.BACK_OFF_REPEAT`) with no kill between, then goes on past it with the pets on guard ("…: backed off from the
-soulcatcher 0x… 3 times with no kill; going on past it with the pets on guard"; `Team.faced`, until a kill or the
-leg's end): live 2026-10-29 18:13:23-18:14:28 the oxygen leg to level 2's stairs and the back-off undid each other 18
-times, the soulcatcher between them and its 'All Patrol' refused (docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off
-loop"). Not on the hunt level, where the crawl repeats them too: there the simulator had more deaths with it.
+(`tamer.BACK_OFF_REPEAT`) with no kill between, then **passes by it** (since 2026-10-29 evening, `Team.pass_by`,
+`pass_plan`, `tamer.PASS`): one walk of up to 12 steps and turns (`PASS_WALK`) planned from where we stand with the
+pets followed step by step, as the step-in's: its clock runs while one of us is in its range and sight (its onset; it
+stops when none is), Logan's steps in its sight with no pet a tile nearer end within the step-in's budget after each
+onset, and the walk ends out of its sight, or a tile farther from it than a pet, with a pet in its range and sight.
+The steps before the onset go first, the pets close up there (2 s at most, `PASS_SETTLE_S`) and it is planned again
+(3 times at most, `PASS_ROUNDS`); then the rest, and the step-in's hold till its first act. With its clock already on
+us and no such walk, one more back-off and the pass from there. The step-in's conditions hold (`step_ready`: its
+kind, the pets with us and on guard, 2 tries). Log: "pass by the drowned mariner 0x…: 4 steps to (x, y) before its
+range and sight, the pets to close up there", "pass by the drowned mariner 0x… at (x, y): 3 steps to (x, y), its
+onset at step 1, out of its sight, Bussin in it" (or "…, GraveRobber nearer by 1.1"), "no pass by the … with its
+clock on us: back off, the pass from there", then the hold's "step-in: the … took Bussin 3.1 s after the step-in".
+No such walk: on past it with the pets on guard as before ("…: backed off from the soulcatcher 0x… 3 times with no
+kill and no pass by it (no walk by it within 12 steps); going on past it with the pets on guard"; `Team.faced`, until
+a kill or the leg's end). Going on past, the pets trail 1-2 tiles: level 2's drowned mariner beside the way to level 3
+woke with Logan 1 tile off it and both pets 1.4, a near tie that goes 2:1 to him (`test_walk_in_fought`). Live
+2026-10-29 18:13:23-18:14:28 the oxygen leg to level 2's stairs and the back-off undid each other 18 times, the
+soulcatcher between them and its 'All Patrol' refused (docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop").
+Not on the hunt level, where the crawl repeats them too: there the simulator had more deaths with it. Simulator
+(docs/SIM.md "The shy monsters' wake, and the step-in"; three 144-run blocks of level 2): a mariner's or
+soulcatcher's wake on Logan within 2.5 tiles 152 -> 118, damage on Logan -3 %, his deprivation -10 %, pet deaths 796
+-> 746, but runs with a death 56 -> 71 (with no memory carried between runs 13 -> 13, the runs that differ 3 -> 3).
 **Awake**, its reach is a crawl danger zone while it stays in war mode (12 for
 the blightmare, `tamer.CASTER_R`; 13 for the purger, `RANGED_R`): no waypoint within 2 of it, routes bend round, a
 patrol toward a waypoint there picks another ("crawl: keeping out of the reach of the awake blightmare at …", "… is
@@ -1280,9 +1297,10 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
 - **The leg** (`oxygen_leg`) is a fought leg, never a leave's walk: `walk_in_fought` to the refill, the pets on 'All
   Guard Me', each round the tick's fighting (`combat_step`), the crawl's rejoin for a lagging pet. Unlike the walk in,
   the leave rules stay on (`oxygen_bail`: a leave rule, failed walks, the run's time up stop it short; the tick
-  then leaves). An idle shy monster in the way is backed off from 3 times at most with no kill between, then gone on
-  past with the pets on guard (the **leg that must arrive** rule under "Pets"; live 2026-10-29 18:13-18:14 the leg to
-  the stairs went back and forth at a soulcatcher 19 south of them 18 times, 470 -> 560 s under water).
+  then leaves). An idle shy monster in the way is backed off from 3 times at most with no kill between, then passed
+  by (a walk planned so it wakes on a pet), else gone on past with the pets on guard (the **leg that must arrive**
+  rule under "Pets"; live 2026-10-29 18:13-18:14 the leg to the stairs went back and forth at a soulcatcher 19 south
+  of them 18 times, 470 -> 560 s under water).
   - A hop (`oxygen_hop`): onto the teleporter with the pets beside it (`onto_teleporter`), `OXY_DRY_S` 2 s on dry
     ground, a step off the landing tile (itself the teleporter down) and back onto it.
   - A dolphin (`oxygen_dolphin`): the tick's fighting until its refill line, `OXY_DOLPHIN_WAIT_S` 12 s; none, to
@@ -1300,7 +1318,11 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
   runs with a death 12 -> 19 (10 during a leg), the deprivation no lower; hence its `skip`. The back-off limit in the
   legs (2026-10-29, docs/SIM.md "Tidal Tomb: the oxygen leg's back-off loop"; level 2, 144 runs a side, the patrol
   answered as live): legs ending past 732 s 55 -> 8, Logan's deprivation damage 30,873 -> 21,112, runs deprived 87 ->
-  46, runs with a death 21 -> 18 (none during a leg), banked an hour +10 %.
+  46, runs with a death 21 -> 18 (none during a leg), banked an hour +10 %. The pass by a shy monster instead of going
+  on past (2026-10-29 evening, docs/SIM.md "The shy monsters' wake, and the step-in"): level 2 legs ending past 732 s
+  6 -> 10, 10 -> 6, 16 -> 11 in three 144-run blocks, Logan's deprivation -10 %; on level 3 the crossing is slower
+  (its first dolphin leg starts a median 23 and 48 s later under water) and Logan's deprivation there rose 12 % and
+  34 % (48 runs a side, two blocks).
 
 ## Stationary Penalty (user request 2026-10-03; `harness/stationary.py`)
 

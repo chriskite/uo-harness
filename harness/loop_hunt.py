@@ -3588,11 +3588,11 @@ class HuntLoop:
         leave_by_gate; a refill: oxygen_leg) until fought_stop. Abort when not there after WALK_FOUGHT_S (the run's
         overall timeout guard doesn't count a fought leg's time: fought_end, fought_s). `kind`: the viz intent's (else
         "enter" or "leave" by the label); `bail(st)`: a reason to stop short (False back), checked each round. True
-        when there. A shy monster backed off from tamer.BACK_OFF_REPEAT times in the leg with no kill between is gone
-        on past, the pets on guard (Team.back_off: the leg must arrive)."""
+        when there. A shy monster backed off from tamer.BACK_OFF_REPEAT times in the leg with no kill between gets the
+        pass by it (Team.pass_by), else is gone on past, the pets on guard (Team.back_off: the leg must arrive)."""
         log(f"{label}: fought through")
         if self.team is not None:
-            self.team.leg, self.team.backed, self.team.faced = label, {}, {}
+            self.team.leg, self.team.backed, self.team.faced, self.team.passing = label, {}, {}, None
             self.team.guard_t = -1e9
             self.team.guard()
         end = self.fought_end = time.monotonic() + WALK_FOUGHT_S
@@ -3630,7 +3630,7 @@ class HuntLoop:
             self.fought_end = None
             self.disengage("ended")
             if self.team is not None:
-                self.team.leg, self.team.backed, self.team.faced = None, {}, {}
+                self.team.leg, self.team.backed, self.team.faced, self.team.passing = None, {}, {}, None
                 self.team.follow()
 
     # ------------------------------------------------------------ oxygen (Tidal Tomb's levels 2+)

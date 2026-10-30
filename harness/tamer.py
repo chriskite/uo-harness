@@ -358,9 +358,9 @@ COVER_S = 2.0                 # ...at most this often
 BACK_OFF_S = 2.0              # back_off at most this often
 KEEP_OFF_S = 60.0             # ...and the purger it backed off from isn't sought this long (loop_hunt.SKIP_S)
 BACK_OFF_REPEAT = 3           # ...and in a fought leg (HuntLoop.walk_in_fought: it must arrive) from one this many times
-#                              with no kill between, the next goes on past it instead, the pets on guard (live 2026-10-29
-#                              18:13:23-18:14:28, hunt-20261029-180419-d505: the oxygen leg's route into a soulcatcher's
-#                              sight, back off, the route, ... 18 times, its 'All Patrol' refused)
+#                              with no kill between, the pass by it (Team.pass_by), else on past it, the pets on guard
+#                              (live 2026-10-29 18:13:23-18:14:28, hunt-20261029-180419-d505: the oxygen leg's route into
+#                              a soulcatcher's sight, back off, the route, ... 18 times, its 'All Patrol' refused)
 # The step-in (user 2026-10-29: "'All Guard', walk up, then walk away from the mob slightly so the pets end up between
 # Logan and the mob. Mobs take something like 1 or 2 seconds from seeing us to aggroing on whatever is closer to them,
 # Logan or the pets"; measured the same day, docs/NOTES.md "Shooters' and casters' first target": the war flag 1.6-3.2
@@ -384,6 +384,17 @@ STEP_IN_WALK = 4              # the walk up into its sight: this many steps at m
 STEP_IN_WAIT_S = 10.0         # the hold for its first act (the wake's p90 3.2 s, a 1.5-2.7 s cast, a miss)
 STEP_IN_TRIES = 2             # step-ins at one monster with no kill between, then the back-off
 STEP_IN_FALLBACK = True       # no step-back tile: the back-off from its first sight (False: none)
+# The pass (a fought leg's way by an idle shy monster backed off from BACK_OFF_REPEAT times: Team.pass_by, pass_plan): one
+# walk of up to PASS_WALK steps and turns planned with the pets followed step by step, its onset (one of us into its
+# range and sight) with Logan's steps in its sight and no pet STEP_IN_GAP nearer within the step-in's budget after it
+# (an onset again after its clock stops: nobody in its range and sight), to a tile out of its sight or STEP_IN_GAP farther
+# from it than a pet in its range and sight. The steps before the onset are walked first and the pets let close up
+# there, then planned again. No such walk: on past it as before (faced). Before it the leg went straight past a drowned
+# mariner beside level 2's way to level 3, the pets 2 tiles behind, and it woke on Logan 1 tile off (test_walk_in_fought)
+PASS = True
+PASS_WALK = 12                # (8 left none from test_walk_in_fought's back-off tiles; 12 plans in ~0.02 s)
+PASS_ROUNDS = 3               # the walks to a pass's onset at one monster, then the whole plan goes as planned
+PASS_SETTLE_S = 2.0           # the pets' closing up before the pass is planned again, at most
 HOLD_S = 5.0                  # hold this long for an idle monster that sees us (live 16:12 run 2026-10-17: 11 of 13 within
                               # 10 tiles woke in 0.5-3.5 s; captures: a 10-tile crossing to war mode in 1.4-2.6 s, median
                               # 2.2, n=188, docs/SIM.md; 10 s until 2026-10-24: one that never woke cost the full 10 s)
@@ -696,6 +707,7 @@ class Team:
         self.backed = {}                  # serial -> (back_offs from it with no kill between, the run's kills then)
         self.faced = {}                   # serial -> the run's kills when the leg went on past it (back_off; shy_first
                                           # skips it until the next kill or the leg's end)
+        self.passing = None               # the pass under way (back_off -> pass_by): serial, kills, rounds, t
         self.stepin = None                # the step-in held (step_back -> step_in_watch): serial, kind, tile, t, pet
         self.stepped = {}                 # serial -> (step-ins at it with no kill between, the run's kills then)
         self.step_none = {}               # serial -> why no step-back tile, logged once a change (step_note)
@@ -1398,16 +1410,18 @@ class Team:
         once backed off from, the patrol doesn't seek it for KEEP_OFF_S (crawl.Crawl.seek); live 2026-10-18
         12:05:09-25 back off, then the patrol or an approach on into its sight, "letting it come", back off, four
         times, then its barrage. In a fought leg (`leg`: it must arrive) the BACK_OFF_REPEAT + 1st from one with no kill
-        since the first goes on past it instead, the pets on guard (faced, until a kill or the leg's end): live
-        2026-10-29 18:13:23-18:14:28 the oxygen leg's route to the stairs up ran into a soulcatcher's sight, back off, the
-        route again, 18 times in 63 s, its 'All Patrol' refused ("cannot be seen"), 470 -> 560 s under water. Not on the
-        hunt level, where the crawl's patrol repeats them too (18:09:06-43, 13 at a drowned mariner on the way to a
-        frenzyfin): the simulator's level 2 had more deaths and pet deaths with it there (docs/SIM.md "Tidal Tomb: the
-        oxygen leg's back-off loop"). Since 2026-10-29 the step-in comes first (step_back: STEP_IN); this is its fallback
-        where no step-back tile is (STEP_IN_FALLBACK). True when we stepped."""
+        since the first is the pass by it (pass_by), else on past it, the pets on guard (faced, until a kill or the leg's
+        end): live 2026-10-29 18:13:23-18:14:28 the oxygen leg's route to the stairs up ran into a soulcatcher's sight,
+        back off, the route again, 18 times in 63 s, its 'All Patrol' refused ("cannot be seen"), 470 -> 560 s under
+        water. Not on the hunt level, where the crawl's patrol repeats them too (18:09:06-43, 13 at a drowned mariner on
+        the way to a frenzyfin): the simulator's level 2 had more deaths and pet deaths with it there (docs/SIM.md "Tidal
+        Tomb: the oxygen leg's back-off loop"). Since 2026-10-29 the step-in comes first (step_back: STEP_IN); this is its
+        fallback where no step-back tile is (STEP_IN_FALLBACK). True when we stepped."""
         h, now = self.h, time.monotonic()
         if STEP_IN and self.step_back(st):
             return True
+        if self.passing is not None and self.pass_by(st):
+            return True                   # the pass by it under way: the pets closing up, or the walk to its onset
         if now - self.back_off_t < BACK_OFF_S:
             return False
         v = self.view(st)
@@ -1424,11 +1438,15 @@ class Team:
         n, k = self.backed.get(m["serial"], (0, kills))
         n = n if k == kills else 0
         if self.leg is not None and n >= BACK_OFF_REPEAT:
-            self.faced[m["serial"]] = kills
-            self.count("faced")
-            log(f"{self.leg}: backed off from the {m['kind']} 0x{m['serial']:08X} {n} times with no kill; going on "
-                f"past it with the pets on guard")
-            return False
+            if not PASS:
+                return self.pass_fail(m, "tamer.PASS off")
+            if self.passing is None or self.passing["serial"] != m["serial"]:
+                self.passing = {"serial": m["serial"], "kills": kills, "rounds": 0, "t": now}
+                if self.pass_by(st):
+                    return True
+            if self.passing is None:
+                return False              # faced (pass_by): on past it
+            # its clock on us and no pass from here: back off once more, the pass planned from there
         self.back_off_t = now
         self.kept_off.update((m["serial"], now + KEEP_OFF_S) for m in first)
         here = cheb(m["pos"], v.pos)
@@ -1544,6 +1562,147 @@ class Team:
                     best, best_k = (t, path, name, gap if seen else None), key
         return best
 
+    def pass_plan(self, st, v, m, pets, live: bool):
+        """The pass's walk by idle shy monster `m` (pass_by) from where we stand, the pets (`pets`: [(name, (x, y))])
+        followed step by step (follow) and closing up at its end (trail): (tile, path, pet name, gap or None out of its
+        sight, onset), or None. Up to PASS_WALK steps and turns (turns, tiles_within; not into an area hit's zone, fire,
+        a --never-aggro monster's sight or another idle monster's range and sight). Its clock runs while one of us is in
+        its range and sight (`live`: now, from our last step), stops when none is (the simulator's World._think); from
+        each onset Logan's steps in its sight within STEP_IN_SIGHT with no pet in it STEP_IN_GAP nearer (exposed) end
+        within the step-in's budget (step_budget). The end: a pet in its range and sight within STEP_IN_PET_MARGIN, Logan
+        not exposed. `onset`: the path's index of the onset its end's clock runs from (0: now or the first step).
+        Out of its sight first, then the fewest steps and turns, then the widest gap."""
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        mp, r = m["pos"], m["r"]
+        ok = {t for t in self.tiles_within(v, PASS_WALK)
+              if not (t[:2] in zone or t[:2] in fire or v.never_near(t)
+                      or any(o["serial"] != m["serial"] for o in v.wakes(t, margin=0)))}
+        seen_c = {}
+
+        def sees(t, rr):
+            key = (t[0], t[1], rr)
+            if key not in seen_c:
+                seen_c[key] = v.sees(m, t, rr)
+            return seen_c[key]
+
+        def on(t, at):
+            return sees(t, r) or any(sees(q, r) for q in at)
+
+        def exposed(t, at):
+            d = aggro.eucl(mp, t)
+            return d <= STEP_IN_SIGHT and sees(t, STEP_IN_SIGHT) \
+                and not any(d - aggro.eucl(mp, q) >= STEP_IN_GAP and sees(q, STEP_IN_SIGHT) for q in at)
+
+        budget = self.step_budget(time.monotonic())
+        at0 = tuple(p for _, p in pets)
+        # a state: tile, the pets, the cost by which Logan's exposure ends (None: its clock stopped), our facing, the
+        # cost so far (steps and turns), the onset's index, the path
+        dl0 = self.step_budget(getattr(self.h.mover, "sent_at", None) or time.monotonic()) if live else None
+        frontier = [(v.pos, at0, dl0, -1, 0, 0, [])]
+        done = {}
+        best, best_k = None, None
+        for _ in range(PASS_WALK):
+            nxt = []
+            for t, at, dl, face, c, on_i, path in frontier:
+                for d in range(8):
+                    n = v.walk.can_walk(t[0], t[1], t[2], d)
+                    if n is None or n not in ok:
+                        continue
+                    nc = c + 1 + (d != face)
+                    if nc > PASS_WALK:
+                        continue
+                    nat = tuple(follow(list(at), n))
+                    ndl, non = dl, on_i
+                    if not on(n, nat):
+                        ndl = None
+                    elif dl is None:
+                        ndl, non = nc + budget, len(path)
+                    exp = exposed(n, nat)
+                    if exp and ndl is not None and nc > ndl:
+                        continue
+                    key = (n, nat, None if ndl is None else ndl - nc, d)
+                    if done.get(key, PASS_WALK + 1) <= nc:
+                        continue
+                    done[key] = nc
+                    np = path + [n]
+                    nxt.append((n, nat, ndl, d, nc, non, np))
+                    if exp and ndl is not None:
+                        continue
+                    fin = [trail(o, n) for o in nat]          # the pets closed up while we hold there
+                    if exposed(n, fin):
+                        continue
+                    dl_n = aggro.eucl(mp, n)
+                    seen = dl_n <= STEP_IN_SIGHT and sees(n, STEP_IN_SIGHT)
+                    for (name, _), q in zip(pets, fin):
+                        if not sees(q, r - STEP_IN_PET_MARGIN):
+                            continue
+                        gap = dl_n - aggro.eucl(mp, q)
+                        if seen and gap < STEP_IN_GAP:
+                            continue
+                        k = (seen, nc, -gap)
+                        if best_k is None or k < best_k:
+                            # its clock off on the way's end: it starts as the pets close up, Logan out of it: all of
+                            # the walk goes at once
+                            best, best_k = (n, np, name, gap if seen else None, non if ndl is not None else 0), k
+            frontier = nxt
+        return best
+
+    def pass_by(self, st) -> bool:
+        """A fought leg's pass by the idle shy monster in `passing` (back_off: BACK_OFF_REPEAT back-offs from it with no
+        kill), instead of the walk on past it with the pets trailing (live they trail 1-2 tiles: test_walk_in_fought's
+        mariner woke with Logan 1 tile off it, both pets 1.4). step_ready, then the pets let close up within a tile of
+        us while its clock is off (PASS_SETTLE_S at most), then the walk (pass_plan): its steps before the onset walked
+        first and planned again from there (PASS_ROUNDS), else the whole of it and the hold there (step_go,
+        step_in_watch). No walk: with its clock on us, False with the pass kept (back_off backs off once more), else on
+        past it (faced). True when it stepped or held."""
+        p, h, now = self.passing, self.h, time.monotonic()
+        v = self.view(st)
+        m = next((o for o in v.mobs if o["serial"] == p["serial"]), None)
+        if m is None or m["war"] or self.leg is None or v.walk is None or self.kills() != p["kills"] \
+                or self.stepin is not None:
+            self.passing = None
+            return False
+        if (why := self.step_ready(st, v, m, say_guard=True)) is not None:
+            return self.pass_fail(m, why)
+        pets = [(q["name"], (q["x"], q["y"])) for q in self.pets(st) if not q["dead"]]
+        live = v.sees(m, v.pos, m["r"]) or any(v.sees(m, q, m["r"]) for _, q in pets)
+        if not live and any(cheb(q, v.pos) > 1 for _, q in pets) and now - p["t"] < PASS_SETTLE_S:
+            h.doing("hold", f"Letting the pets close up before the pass by the {m['kind']}", v.pos[:2], m["serial"])
+            time.sleep(0.2)
+            return True
+        plan = self.pass_plan(st, v, m, pets, live)
+        if plan is None:
+            if live and p["rounds"] < PASS_ROUNDS:
+                p["rounds"] += 1
+                log(f"no pass by the {m['kind']} 0x{m['serial']:08X} with its clock on us: back off, the pass from "
+                    f"there")
+                return False
+            return self.pass_fail(m, f"no walk by it within {PASS_WALK} steps")
+        tile, path, pet, gap, on = plan
+        if on > 0 and p["rounds"] < PASS_ROUNDS:
+            p["rounds"] += 1
+            log(f"pass by the {m['kind']} 0x{m['serial']:08X}: {on} steps to {path[on - 1][:2]} before its range and "
+                f"sight, the pets to close up there")
+            h.doing("hold", f"Walking up to the {m['kind']}'s range, the pets to close up", path[on - 1][:2], m["serial"])
+            self.step_tiles(path[:on], m["serial"])
+            p["t"] = time.monotonic()
+            return True
+        self.passing = None
+        self.step_go(m, (tile, path, pet, gap), cheb(m["pos"], v.pos),
+                     lead=f"{len(path)} steps to {tile[:2]}, its onset at step {on + 1}")
+        return True
+
+    def pass_fail(self, m, why: str) -> bool:
+        """No pass by `m` (pass_by): on past it, the pets on guard (faced; shy_first and step_back skip it until the next
+        kill or the leg's end). False."""
+        self.passing = None
+        self.faced[m["serial"]] = self.kills()
+        self.count("faced")
+        n = self.backed.get(m["serial"], (0, 0))[0]
+        log(f"{self.leg}: backed off from the {m['kind']} 0x{m['serial']:08X} {n} times with no kill and no pass by it "
+            f"({why}); going on past it with the pets on guard")
+        return False
+
     def step_budget(self, since: float) -> int:
         """Steps (and turns) we may take after the onset at `since` (monotonic) before the monster can wake:
         WAKE_FLOOR_S less STEP_IN_MARGIN_S and the time since, at STEP_IN_STEP_S each."""
@@ -1587,21 +1746,21 @@ class Team:
         self.step_go(m, plan, cheb(m["pos"], v.pos))
         return True
 
-    def step_go(self, m, plan, seen_at: int, up=()):
+    def step_go(self, m, plan, seen_at: int, up=(), lead: str | None = None):
         """The step-in at `m`: the steps of `up` (the walk up, tiles), then of the plan's path back (step_plan), then the
         hold there (step_in_watch). Each step goes out as one walk, no route planned in between (step_tiles). Both
-        planned before the onset (step_in) or at it (step_back)."""
+        planned before the onset (step_in) or at it (step_back). `lead`: the pass's walk (pass_by), its log's words."""
         h, now = self.h, time.monotonic()
         tile, path, pet, gap = plan
         kills = self.kills()
         n, kk = self.stepped.get(m["serial"], (0, kills))
         self.stepped[m["serial"]] = ((n if kk == kills else 0) + 1, kills)
         self.step_none.pop(m["serial"], None)
-        self.count("step_ins")
-        log(f"step-in on the {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]}: "
-            + (f"up {len(up)} steps to {up[-1][:2]}, " if up else f"seen at {seen_at}, ")
-            + f"back to {tile[:2]} in {len(path)} steps, "
-            + (f"out of its sight, {pet} in it" if gap is None else f"{pet} nearer by {gap:.1f}"))
+        self.count("passes" if lead else "step_ins")
+        log(f"{'pass by' if lead else 'step-in on'} the {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]}: "
+            + (lead if lead else (f"up {len(up)} steps to {up[-1][:2]}, " if up else f"seen at {seen_at}, ")
+               + f"back to {tile[:2]} in {len(path)} steps")
+            + (f", out of its sight, {pet} in it" if gap is None else f", {pet} nearer by {gap:.1f}"))
         h.doing("hold", f"Stepping in and back to {tile[0]},{tile[1]}: {pet} the nearest in the {m['kind']}'s sight",
                 tile[:2], m["serial"])
         if up and not self.step_tiles(up, m["serial"]):

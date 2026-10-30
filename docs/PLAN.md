@@ -3049,10 +3049,18 @@ Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). De
   where a step-back tile exists; elsewhere the back-off stays (without it level 2's runs with a death 19 -> 31), the
   patrol stays for the area hitters and a pack, `first_on_us` keeps the Chebyshev rule. Level 2 runs with a death 21 ->
   19, pet deaths 326 -> 264; Maus 3 damage on Logan -10 % (docs/SIM.md "The shy monsters' wake, and the step-in").
+- *Built (2026-10-29 evening):* the pass in a fought leg (`tamer.Team.pass_by`, `pass_plan`, `PASS`): after 3
+  back-offs from one idle shy monster, a walk of up to 12 steps planned with the pets followed so it wakes on a pet
+  (walked to just before the onset, the pets let close up, planned again), else on past it as before.
+  `test_walk_in_fought` passes (that layout's seeds 1-12: 5 -> 12 of 12). Level 2, three 144-run blocks: the
+  mariners' and soulcatchers' wakes on Logan within 2.5 tiles 152 -> 118, Logan's deprivation -10 %, pet deaths 796 ->
+  746, banked -3 %, runs with a death 56 -> 71; with no memory carried between runs (`--fresh`) 13 -> 13, the runs it
+  changes 3 -> 3 deaths. Level 3 (48 a side, two blocks): runs with a death 30 -> 29 and 36 -> 30, the crossing slower.
 - *Open:* two idle shy monsters together (not built: each wake takes the nearest, but the plan has to hold for both and
-  two shooters land on the pets at once; the pull budget and the patrol keep a pack); `test_walk_in_fought` fails on the
-  new model (a fought leg goes on past a mariner at 1 tile after 3 back-offs, the near tie takes Logan); the margin
-  against live (0.35 s gave fewer deaths, 16, but more oxygen damage and 8 % less banked: watch live step-ins first).
+  two shooters land on the pets at once; the pull budget and the patrol keep a pack); the career blocks' rise in runs
+  with a death with the pass (not traced: it came in runs with no pass of their own, through the store a career
+  keeps); the margin against live (0.35 s gave fewer deaths, 16, but more oxygen damage and 8 % less banked: watch
+  live step-ins first).
 
 ## Risks
 

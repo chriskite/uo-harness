@@ -7240,6 +7240,16 @@ sight takes whoever they see first"). Scanner kept: `python harness/sim/wake_sca
     hit on Logan (area hits on the pet beside him included), 85 with no act in 10 s. Without the back-off as its
     fallback: 31 runs with a death.
   - The `first_on_us` rule elsewhere (walk stops, stand scores) still counts a pet a Chebyshev tile nearer as enough.
+  - **The pass** (built 2026-10-29 evening, `tamer.Team.pass_by`; docs/SIM.md "The shy monsters' wake, and the
+    step-in"). `test_walk_in_fought` failed on the new model, traced: after 3 back-offs the fought leg went on past the
+    drowned mariner at (6852, 2072) (`Team.faced`: no stop, no step-back for it), the pets 2 tiles behind Logan up a
+    corridor with no way round its sight; its clock started with Logan at 10 tiles and it woke 2.0 s later with him
+    1.0 off it and both pets 1.41, a near tie. Now the leg plans one walk of up to 12 steps with the pets followed
+    (the onset may be a pet's; Logan's steps in its sight with no pet a tile nearer within the step-in's budget after
+    each onset), walks to just before the onset, lets the pets close up and plans again; with none, on past it as
+    before. On level 2 (three 144-run blocks) the mariners' and soulcatchers' wakes on Logan within 2.5 tiles 152 ->
+    118 and his deprivation -10 %, but runs with a death 56 -> 71; with no memory carried between runs 13 -> 13 and
+    the differing runs 3 -> 3 deaths.
 
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 

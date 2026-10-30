@@ -6317,6 +6317,9 @@ def test_walk_in_fought():
     from sim import world as simworld
     # user 2026-10-26: "in TT we'll always have to fight in 2 in order to get to 3"; simulator the same day: 15 of 16
     # level 3 runs died, most on the walk across level 2 among its drowned mariners and soulcatchers
+    # On the shy monsters' measured wake (2026-10-29) it failed: 3 back-offs, then on past the mariner with the pets 2
+    # tiles behind, and it woke with Logan 1.0 off it, the pets 1.4 (a near tie, 2:1 Logan). Since then the pass
+    # (tamer.Team.pass_by): the walk planned so it wakes on a pet; seeds 1-12 of this layout 12 of 12, before 5 of 12
     w = tidal_world((6834, 2079), [{"key": "drowned mariner", "at": [6852, 2072, -86]}], z=-10)
     m = next(o for o in w.mobs.values() if o.kind == "monster")
     link, clock = link_for(w)
