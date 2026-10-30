@@ -2887,12 +2887,18 @@ class World:
         if pend is None or f.get("cursor_id") != pend["cid"]:
             return
         if pend["kind"] == "patrol":
-            # live: a tile out of our sight is "Target cannot be seen." and nothing happens (3 of 8)
+            # live: a tile out of our sight is "Target cannot be seen." and nothing happens (3 of 8); the point is the
+            # ground answer's (_ground_point: graphic 0 is the land at its own height). Live Tidal Tomb level 2
+            # 2026-10-28/29 (captures 20261028_182147, 20261029_100942), 20 ground clicks at graphic 0: 14 patrols "cannot
+            # be seen", every one at a floor over the land (0x1DB/0x244 at -128 under the stone and floor statics) and the
+            # land out of our eye's sight; of the 6 answered, 5 with the land in sight. The floor's top was in sight for
+            # all 20
             x, y = f.get("x"), f.get("y")
             if f.get("target_type") != 1 or x is None or x == 0x7FFFFFFF:
                 return
             pl = self.player
-            if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), (x, y, self.stand_z(x, y, pl.z))) is not None:
+            point = self._ground_point(f)
+            if point is None or self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), point) is not None:
                 self.send(P.cliloc(500237))
                 return
             for m in self.pets():

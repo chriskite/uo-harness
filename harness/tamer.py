@@ -312,6 +312,10 @@ COVER_STEPS = 8               # cover: out of an awake purger's or blightmare's 
 COVER_S = 2.0                 # ...at most this often
 BACK_OFF_S = 2.0              # back_off at most this often
 KEEP_OFF_S = 60.0             # ...and the purger it backed off from isn't sought this long (loop_hunt.SKIP_S)
+BACK_OFF_REPEAT = 3           # ...and in a fought leg (HuntLoop.walk_in_fought: it must arrive) from one this many times
+#                              with no kill between, the next goes on past it instead, the pets on guard (live 2026-10-29
+#                              18:13:23-18:14:28, hunt-20261029-180419-d505: the oxygen leg's route into a soulcatcher's
+#                              sight, back off, the route, ... 18 times, its 'All Patrol' refused)
 HOLD_S = 5.0                  # hold this long for an idle monster that sees us (live 16:12 run 2026-10-17: 11 of 13 within
                               # 10 tiles woke in 0.5-3.5 s; captures: a 10-tile crossing to war mode in 1.4-2.6 s, median
                               # 2.2, n=188, docs/SIM.md; 10 s until 2026-10-24: one that never woke cost the full 10 s)
@@ -620,6 +624,10 @@ class Team:
         self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
         self.patrol_failed = {}           # serial -> monotonic: no patrol at it until then (refused, timed out)
+        self.leg = None                   # a fought leg's label while one runs (HuntLoop.walk_in_fought), else None
+        self.backed = {}                  # serial -> (back_offs from it with no kill between, the run's kills then)
+        self.faced = {}                   # serial -> the run's kills when the leg went on past it (back_off; shy_first
+                                          # skips it until the next kill or the leg's end)
         self.patrol_why = {}              # serial -> (why no patrol at it, monotonic): patrol_pull's log, once a change
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.see_walk_t = {}              # serial -> the last walk_to_see at it
@@ -1298,8 +1306,14 @@ class Team:
         return f"{min(seen)[1]}: letting it come"
 
     def shy_first(self, v, tile) -> list[dict]:
-        """Idle corpse purgers and blightmares (aggro.shy) that would see us on `tile` before a pet (first_on_us)."""
-        return [m for m in v.first_on_us(tile, margin=1) if m["shy"]]
+        """Idle corpse purgers and blightmares (aggro.shy) that would see us on `tile` before a pet (first_on_us), but
+        not one a fought leg goes on past (faced: back_off) since our last kill."""
+        kills = self.kills()
+        return [m for m in v.first_on_us(tile, margin=1) if m["shy"] and self.faced.get(m["serial"]) != kills]
+
+    def kills(self) -> int:
+        """The run's kills so far (HuntLoop.totals)."""
+        return (getattr(self.h, "totals", None) or {}).get("kills", 0)
 
     def back_off(self, st) -> bool:
         """An idle corpse purger or blightmare (aggro.shy) would see us before a pet (aggro.View.first_on_us): its first
@@ -1312,7 +1326,13 @@ class Team:
         (hold_reason: it doesn't come on), an advance stops on a step into its sight before the pets (pull_check), and
         once backed off from, the patrol doesn't seek it for KEEP_OFF_S (crawl.Crawl.seek); live 2026-10-18
         12:05:09-25 back off, then the patrol or an approach on into its sight, "letting it come", back off, four
-        times, then its barrage. True when we stepped."""
+        times, then its barrage. In a fought leg (`leg`: it must arrive) the BACK_OFF_REPEAT + 1st from one with no kill
+        since the first goes on past it instead, the pets on guard (faced, until a kill or the leg's end): live
+        2026-10-29 18:13:23-18:14:28 the oxygen leg's route to the stairs up ran into a soulcatcher's sight, back off, the
+        route again, 18 times in 63 s, its 'All Patrol' refused ("cannot be seen"), 470 -> 560 s under water. Not on the
+        hunt level, where the crawl's patrol repeats them too (18:09:06-43, 13 at a drowned mariner on the way to a
+        frenzyfin): the simulator's level 2 had more deaths and pet deaths with it there (docs/SIM.md "Tidal Tomb: the
+        oxygen leg's back-off loop"). True when we stepped."""
         h, now = self.h, time.monotonic()
         if now - self.back_off_t < BACK_OFF_S:
             return False
@@ -1320,9 +1340,18 @@ class Team:
         first = self.shy_first(v, v.pos)
         if v.walk is None or not first:
             return False
+        m = min(first, key=lambda m: cheb(m["pos"], v.pos))
+        kills = self.kills()
+        n, k = self.backed.get(m["serial"], (0, kills))
+        n = n if k == kills else 0
+        if self.leg is not None and n >= BACK_OFF_REPEAT:
+            self.faced[m["serial"]] = kills
+            self.count("faced")
+            log(f"{self.leg}: backed off from the {m['kind']} 0x{m['serial']:08X} {n} times with no kill; going on "
+                f"past it with the pets on guard")
+            return False
         self.back_off_t = now
         self.kept_off.update((m["serial"], now + KEEP_OFF_S) for m in first)
-        m = min(first, key=lambda m: cheb(m["pos"], v.pos))
         here = cheb(m["pos"], v.pos)
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
@@ -1348,6 +1377,7 @@ class Team:
         label = "back behind the pets"
         h.doing("hold", f"Stepping back to {best[0]},{best[1]}: the pets first in the {m['kind']}'s sight", best[:2])
         self.count("back_offs")
+        self.backed[m["serial"]] = (n + 1, kills)
         log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
             f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else "")
             + (", in reach to send the pets at it" if spots is not None and not best_k[0] and not best_k[1] else ""))

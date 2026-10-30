@@ -3014,6 +3014,29 @@ shooters' hits"), both hit their target and everyone within 1 of it, every 4.0 s
   (a fin's swing, spin and bleeds, a zoa's scorch with its lightning): no hits line that leaves in time would let a
   fight go on; the rule would be a different fight, not a later leave.
 
+## A leg that must arrive goes on past a shy monster after 3 back-offs (live loop on Tidal Tomb level 2, 2026-10-29)
+
+Live 18:13:23-18:14:28 the oxygen leg to level 2's stairs walked into an idle soulcatcher's first sight, the back-off
+stepped out, the leg walked back in: 18 times in 63 s, 470 -> 560 s under water, until the user took over. Its 'All
+Patrol' was refused: a graphic 0 click names the land, here under the stone stairs and out of sight (14 of 16 Tidal
+Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). Decisions:
+
+- *The simulator answers 'All Patrol' as the server does* (the ground point, as the songs'), then judge the runner:
+  on it HEAD's level 2 had the loop 1.6x as often and runs with a death 15 -> 21 of 144.
+- *In a fought leg, the 4th back-off from one idle shy monster with no kill since the first goes on past it, the pets
+  on guard* (`tamer.BACK_OFF_REPEAT` 3, `Team.faced`): the leg says "fought through", and with every patrol refused
+  the back-off had nothing to wait for. Level 2, 144 runs: legs ending past 732 s 55 -> 8, runs deprived 87 -> 46,
+  runs with a death 21 -> 18, banked an hour +10 %, pet deaths 229 -> 255 (a batch's spread). Level 3's fought walk,
+  48 runs: runs with a death 29 -> 29.
+- *Not on the hunt level* (the same rule there: runs with a death 21 -> 25, pet deaths 229 -> 279, banked an hour -1 %),
+  though the crawl repeats back-offs too (live 18:09:06-43 13 from a drowned mariner, 2026-10-28 22:09-22:12 32 from a
+  soulcatcher at the same stairs).
+- *Not built:* the patrol's spot by the point the server checks (our eye to the tile's land, as the simulator now
+  answers). With the breaker, level 2's 144 runs: patrols out 107 -> 286, refused 1,172 -> 0, runs with a death 18 ->
+  17, pet deaths 255 -> 244, but Logan's damage an hour +12 %, his deprivation 21,112 -> 24,283 and banked an hour
+  -9 %; level 3 (48) 29 -> 30 runs with a death. It changes every Tidal Tomb patrol, and the simulator only holds it
+  to its own rule (the captures: 19 of 20 clicks): its own decision, with more runs.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

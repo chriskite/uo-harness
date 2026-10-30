@@ -2168,6 +2168,50 @@ the model off on all four, so the model came first and "before" was re-run on it
 - **Not modelled:** a fin's choice of Logan live (6 numbers on him with a fin beside him in all nine captures, against
   11 of 24 simulated deaths): if live fins pick him less, the loose-target rule matters less there.
 
+### Tidal Tomb: the oxygen leg's back-off loop (2026-10-29)
+
+Live 18:13:23-18:14:28 the oxygen leg to level 2's stairs and the back-off from an idle soulcatcher's first sight undid
+each other 18 times, its 'All Patrol' refused (docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"; the rule in
+docs/HUNT_LOOP.md "Pets", a leg that must arrive).
+
+- **The world:** 'All Patrol' is answered by the ground point (`World._ground_point`, the songs' rule: graphic 0 is
+  the land at its own height, a named static its top). Before, the stand point: the 14 live refusals on level 2 (every
+  one on a floor over the land at -128) would all have gone out. HEAD's runner on level 2, seeds 1-144: 884 patrols
+  out and 242 refused before, 109 and 1,251 now.
+- **Test:** `test_oxygen_leg_past_shooter`: the simulator's answer for two live clicks ((6942, 2026) from (6951, 2037)
+  refused, 18:13:25; (6947, 2019) from (6956, 2030) taken, 2026-10-28 22:16:52), then the live layout: Logan at (6951,
+  2037) at 470 s under water, the pets beside him, the soulcatcher at (6942, 2023), the stairs' leg. Each walk's start
+  takes 0.4 s of game time, as live (0.35-0.74 s from the intent to the first step): the runner's planning costs no
+  simulated time, and without it the rounds came under `BACK_OFF_S` and crept through. Before: 120 back-offs, 5 patrols
+  refused, past 762 s under water and never at the stairs. After: 3 back-offs, then on past it; the pets killed it, up
+  the stairs at 508 s, refilled.
+- **Runs** (level 2, `--scenario tidal_tomb --area 6815 1907 6969 2100 --team phoenix_incubus --json -- --enter-via
+  6718 1984 --leave-gate 6913 2071 --vet-range 5 --crawl-learn-s 180`, seeds 1-144; "before" is the new runner with
+  `--set tamer.BACK_OFF_REPEAT=1000000000`, HEAD's behaviour; "everywhere" the breaker on the hunt level too):
+
+  | 144 runs | runs with a death | pet deaths | damage on Logan / h | Logan's deprivation | the pets' | runs deprived | legs refilled / failed / short | median leg | back-offs in legs (most in one) | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | HEAD, old patrol answer | 15 | 235 | 1,202 | 29,222 | 224,359 | 67 | 237 / 4 / 31 | 178 s | 6,743 (317) | 146 | 117,651 |
+  | before | 21 | 229 | 1,071 | 30,873 | 246,260 | 87 | 219 / 3 / 31 | 174 s | 10,984 (467) | 144 | 116,897 |
+  | after | **18** | 255 | **966** | **21,112** | **153,940** | **46** | **279 / 0 / 19** | **147 s** | **1,360 (13)** | 153 | **128,943** |
+  | everywhere | 25 | 279 | 1,241 | 31,440 | 241,158 | 65 | 244 / 3 / 21 | 156 s | 1,210 (13) | 159 | 115,953 |
+
+  - The loop was in HEAD's runs too (317 back-offs in one leg); the refused patrols made it 1.6x as common. Legs
+    ending past 732 s under water: 55 of 253 before (median 454 s long), 8 of 298 after (204 s). Of the 46 runs still
+    deprived after, 8 had no leg at all (7,373 of Logan's 21,112) [INFERENCE: the crawl past the legs' reach].
+  - 239 times a leg went on past a shy monster; no run died in a leg on any side. Pet deaths 229 -> 255 is within a
+    batch's spread (above: 40 -> 71 in one 48-run block).
+  - On the hunt level the crawl repeats back-offs too (79 runs of 10+ from one monster with no kill before, the most
+    121), but going on past there cost deaths and pet deaths: not built.
+  - Tried with it, the patrol's spot by the point the answer checks (`patrol_spot` to the tile's land): patrols out
+    107 -> 286, refused 1,172 -> 0, runs with a death 17, pet deaths 244, damage on Logan an hour 1,086, his
+    deprivation 24,283, banked an hour 117,204; level 3 (48) 30 runs with a death. Not built (docs/PLAN.md).
+- **Level 3** (`--area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --fight-via 6884 1929
+  --leave-gate 6897 1992 --leave-via 7161 2221 --vet-range 5 --crawl-learn-s 180`, seeds 1-48: the fought walk across
+  level 2 takes the rule): runs with a death 29 -> 29, pet deaths 184 -> 199, Logan's deprivation 3,734 -> 2,325, the
+  pets' 26,719 -> 18,788, banked an hour 116,864 -> 108,869 (29 of 48 runs with a death on both sides); 45 times on
+  past a shy monster, all on the fought walks.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

@@ -6428,6 +6428,51 @@ mobiles within 20 of him at each. "Ours" is Logan and his named pets (other play
   side, the pets, the runner's last intents), and the runner rules in docs/HUNT_LOOP.md (the shooters' target areas,
   no zone for the lightning, a monster beside us the pets aren't fighting).
 
+## Tidal Tomb: the oxygen leg's back-off loop (live 2026-10-29 18:13:00-18:14:29, hunt-20261029-180419-d505)
+
+Level 2 shift, Logan with Bussin 0x000EA04F and AlaFlambe 0x0026EF56, `--vet-range 5 --crawl-learn-s 180`; the user
+took over at 18:14:29 ("Logan's stuck in a loop"). Capture 20261029_100942, decoded with `replay.timed_packets` ->
+`WorldRuntime` (scratch scripts, not kept).
+
+- **18:13:00** "oxygen: to the teleporter up at 6943,2004: 470 s under water; 96 route steps", "fought through" (the
+  oxygen rule's leg, docs/HUNT_LOOP.md "Oxygen"), 95 steps from (6918, 2039).
+- **18:13:23-18:14:28** at (6948, 2034) the leg's walk stopped ("holding here: a soulcatcher would see us": `Team.
+  pull_check`), and the next round's `Team.back_off` stepped 3 back to (6951, 2037), out of the sight of the idle
+  soulcatcher 0x000B2A2F at (6942, 2023, -110), 11 off; the round after, the leg's route (32-33 steps) went the same 3
+  steps back into its sight. 18 back-offs in 63 s (17 to (6951, 2037)), about 2.3 s a round: the back-off's intent to
+  its first step 0.35-0.42 s, the leg's 0.70-0.74 s, three steps each way. The pets stood beside Logan the whole time
+  (1 tile behind: (6948, 2035) at 18:13:23, (6950, 2037) at 25, (6949, 2036) at 18:14:24), so from (6948, 2034) he was
+  nearer it than they were and "first" again. It stayed idle (no war flag) to the end; Logan 100/100; ~560 s under
+  water at the stop. The stairs are 19 north of it: the leg has no way round its sight.
+- **'All Patrol' at it refused twice** (18:13:25.48, 18:14:27.52): the target (6942, 2026, z -117, graphic 0), answered
+  500237 "Target cannot be seen." in 0.06-0.08 s; `patrol_failed` then held it off for 60 s, and the back-off went on
+  without a spot ("a patrol at it refused or timed out lately").
+- **Why refused: graphic 0 names the land, and the land is under the stairs.** (6942, 2026)'s land is 0x244 at -128
+  under the stone blocks 0x71E (-124) and 0x71F (-119, top -117). The runner's `patrol_spot` checks our eye to the
+  top; the server takes a graphic 0 answer as the land at its own height [INFERENCE: RunUO's LandTarget, z from the
+  map], as the songs on level 1 showed (`Team.song_spot`, 2026-10-26). By `los.Sight` the land is out of our eye's
+  sight (blocked at (6942, 2027, -127)), the top in it. Over the level 2 captures (20261028_182147, 20261029_100942)
+  20 ground clicks at graphic 0: 14 patrols "cannot be seen" (2026-10-28 22:10-22:21 four, 2026-10-29 12:30-12:36
+  three, 18:08-18:14 seven), every one on a floor over the land 0x1DB/0x244 (-128, once -100) with that land out of
+  sight; of the 6 answered, 5 had it in sight (the sixth, the 2026-10-28 22:01:52 patrol to (6944, 2025), grazes the
+  neighbour's land at -127). The tops were in sight for all 20. Of 16 Tidal Tomb patrols, 2 went out. Within 3 of
+  this soulcatcher on its stairs only five tiles (6942-6944, 2023-2024) have a flat floor static a click could name
+  (0x522, 0x2198, 0x51B).
+- **The crawl does the same** (not built, below): 18:09:06-43 13 back-offs from a drowned mariner 0x000B2103 while
+  the crawl patrolled toward a frenzyfin past it, its patrol refused too; 2026-10-28 22:09:44-22:12:14 32 from a
+  soulcatcher 0x000EBB06 at the same stairs, every way from the arrival's nook north of it running through its sight.
+- **The simulator missed it**: its 'All Patrol' answer checked our eye to the stand point, so all 14 would have gone
+  out; and its rounds came under `BACK_OFF_S` (2 s): the runner's planning takes real time live, none on the
+  simulator's clock, so a round now and then found the back-off not due and the leg crept through.
+- **Built 2026-10-29:** the simulator's 'All Patrol' answer by the ground point (`World._ground_point`, as the
+  songs'); the runner's breaker: in a fought leg (`walk_in_fought`: the walk in with `--fight-via`, the walk to the
+  moongate after `--leave-via`, the oxygen legs) the 4th back-off from one idle shy monster with no kill since the
+  first goes on past it instead, the pets on guard ("…: backed off from the soulcatcher 0x… 3 times with no kill;
+  going on past it with the pets on guard"; `tamer.BACK_OFF_REPEAT`, `Team.faced`). docs/HUNT_LOOP.md (the rule),
+  docs/SIM.md "Tidal Tomb: the oxygen leg's back-off loop" (the test and the runs), docs/PLAN.md (the decision).
+  Not built: the patrol's spot by the point the server checks (tried: no refused patrol, more of them out, the runs
+  mixed; docs/PLAN.md), and a breaker on the hunt level (the simulator: more deaths with it there).
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

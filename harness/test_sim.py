@@ -6410,6 +6410,89 @@ def test_oxygen_stairs():
           f"{w.player.pos} pets {[p.pos for p in w.pets()]} | " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
 
 
+SOUL_L2 = (6942, 2023, -110)  # live 2026-10-29 18:13:23 (hunt-20261029-180419-d505): the idle soulcatcher 0x000B2A2F...
+BACKED_L2 = (6951, 2037)      # ...and the tile Logan backed off to from its sight 17 of 18 times, the pets beside him
+
+
+def test_oxygen_leg_past_shooter():
+    print("== oxygen on level 2, the live 18:13 layout: the stairs' leg from where Logan backed off, an idle soulcatcher "
+          "on its route, 'All Patrol' at a floor over the land refused: three back-offs, then on past it with the pets "
+          "on guard, up the stairs well before 732 s ==")
+    # live 2026-10-29 18:13:00-18:14:28: "oxygen: to the teleporter up at 6943,2004: 470 s under water", "fought through",
+    # then "holding here: a soulcatcher would see us" / "... would see us before the pets at 11 tiles ...; back to (6951,
+    # 2037) out of its sight" / the route again, 18 times in 63 s; "'All Patrol' to (6942, 2026): cannot be seen" twice
+    # (graphic 0: the land 0x244 at -128 under the stone stairs, out of our eye's sight; the stairs' top in it)
+    import json
+    import agent_link
+    import loop_hunt
+    w = tidal_world(BACKED_L2, [{"key": "soulcatcher", "at": list(SOUL_L2)}], z=-126, team="phoenix_incubus")
+    pets = w.pets()
+    pl = w.player
+    answers = {}
+    for spot, origin in (((6942, 2026, -117), BACKED_L2), ((6947, 2019, -126), (6956, 2030))):   # live: refused, taken
+        w.player.x, w.player.y = origin
+        w._cursor({"kind": "patrol"}, cursor_type=0, target_type=1)
+        w._target(actions.target_xyz(w.cid, *spot, 0, 0))
+        answers[spot[:2]] = pets[0].mode == "patrol"
+        for p in pets:
+            p.mode, p.patrol = "follow", None
+    w.player.x, w.player.y = BACKED_L2
+    check("the simulator's ground answer as the server's: 'All Patrol' at graphic 0 on (6942, 2026) from (6951, 2037) "
+          "refused (live 18:13:25), at (6947, 2019) from (6956, 2030) taken (live 2026-10-28 22:16:52)",
+          answers == {(6942, 2026): False, (6947, 2019): True}, str(answers))
+    for p in pets:
+        w._place(p, (BACKED_L2[0] - 1, BACKED_L2[1], -126), d=0)
+    w.under_s = 470.0
+    hurts = _log_hurts(w)
+    seen = {"under": 0.0, "up": None}
+    walk_to = agent_link.Mover.walk_to
+
+    def planned(self, *a, **k):
+        # the live walk's start: 0.35-0.74 s from the intent to its first step (capture 20261029_100942 18:13:26-34,
+        # the planning on the real clock); without it the simulator's rounds come under BACK_OFF_S and creep through
+        loop_hunt.time.sleep(0.4)
+        return walk_to(self, *a, **k)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            loop, link, clock, store, patched = _oxygen_loop(w, ("--vet-range", "5", "--crawl-learn-s", "180"))
+            agent_link.Mover.walk_to = planned
+            run_until = clock.on_advance
+
+            def watch(now):
+                run_until(now)
+                seen["under"] = max(seen["under"], w.under_s)
+                if w.player.x < 6800 and seen["up"] is None:
+                    seen["up"] = seen["under"]
+                if w.under_s > loop.oxy.limit_s + 30:
+                    raise loop_hunt.Abort("test: deprived")
+            clock.on_advance = watch
+            clock.sleep(7.0)
+            st = loop.state()
+            site = loop.oxygen_site(st)     # live the leg began at 470 s, 96 route steps off; from here 33: not due yet
+            err = None
+            try:
+                if site is not None:
+                    loop.oxygen_leg(st, site)
+            except loop_hunt.Abort as e:
+                err = str(e)
+            ev = store.con.execute("SELECT data FROM job_events WHERE kind='oxygen'").fetchall()
+            store.close()
+    finally:
+        agent_link.Mover.walk_to = walk_to
+        simclock.uninstall(patched)
+    outcome = json.loads(ev[-1][0])["outcome"] if ev else None
+    counts = loop.team.counts
+    check("the leg: its patrol refused, BACK_OFF_REPEAT back-offs, then on past the soulcatcher; up the stairs before "
+          "the deprivation, refilled, no oxygen damage, Logan alive",
+          err is None and site is not None and site["tile"] == (6943, 2004) and counts.get("patrol_refused", 0) >= 1
+          and counts.get("back_offs", 0) <= tamer.BACK_OFF_REPEAT and counts.get("faced", 0) == 1
+          and outcome == "refilled" and seen["up"] is not None and seen["up"] < loop.oxy.limit_s
+          and not any(k == "oxygen" for _, _, k, _ in hurts) and pl.alive and not pl.ghost,
+          f"err {err!r} site {site and site['tile']} outcome {outcome} back-offs {counts.get('back_offs')} faced "
+          f"{counts.get('faced')} refused {counts.get('patrol_refused')} up at {seen['up']} max under {seen['under']:.0f} "
+          f"| " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+
+
 def test_oxygen_dolphin():
     print("== oxygen on level 3: the fought leg to within reach of the Recovery Dolphin, its refill, no deprivation ==")
     import json
@@ -6616,7 +6699,8 @@ def main():
               test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
-              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_dolphin, test_tidal_hunt,
+              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_oxygen_dolphin,
+              test_tidal_hunt,
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
