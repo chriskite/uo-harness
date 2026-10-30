@@ -7071,9 +7071,161 @@ sight". Throwaway replays of session_20261026_183552 and a scan of the Mausoleum
   - For a single shooter or caster, his other way doesn't need a patrol. Pets on "All Guard Me", walk up, then
     step back a little so the pets end up between Logan and the monster. In his words, a monster takes "something
     like 1 or 2 seconds" from seeing us to aggroing on "whatever is closer to them, Logan or the pets".
-  - Not yet measured. The runner's shy rule assumes the opposite: a shooter's first sight takes whoever it sees
-    first, at once. [INFERENCE: on a RunUO-style server a monster picks its target on its AI's think, the closest
-    valid one in its sight (FightMode.Closest), pets included.]
+  - Measured 2026-10-29 (next section): it holds. The war flag comes 1.6-3.2 s after the first sight (median 2.1),
+    and the first target is the nearest of us in its sight then, not the first seen.
+
+## Shooters' and casters' first target: the delay and the nearest (2026-10-29)
+
+The user's claim (previous section, last bullet) against the runner's shy rule (`aggro.View.first_on_us`, "first
+sight takes whoever they see first"). Scanner kept: `python harness/sim/wake_scan.py --out <rows>` then `--summary
+<rows>` (module docstring). It covers the 84 captures since 2026-10-15: 33 with a wake used, 8 of them Tidal Tomb
+(20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552, 20261027_220057, 20261028_165135,
+20261028_182147, 20261029_100942). 20261015_165115 doesn't replay.
+
+- **Method.** `replay.timed_packets` goes through `WorldRuntime` while Logan stands in the Mausoleum or Tidal Tomb box.
+  Every mobile's position is kept on each change (Logan's on the 0x22 confirm). Each monster's war flag comes from
+  0x20/0x78 flags 0x40: Outlands' 0x77 has no flags. Also kept: the 0x6E animations, the 0xC0/0x70 effects, the
+  soulcatcher's 0x9FE sound, the '-N' numbers, and our C2S walks, 'All …' speech and target answers, each with its
+  sender (`client` = the user by hand, `agent` = the runner).
+  - A **wake** is a shy monster's (`aggro.shy`) war flag going on after it was seen idle: either from its first
+    sighting or after 10 s idle. In a fight the flag flaps on and off between casts.
+  - **Sight** is `los.Sight`, the server's Map.LineOfSight: Window|NoShoot statics block, both eyes at z + 14 on the
+    map surface (`los.surface_z`), ground items left out. It is checked at every change point of its, Logan's and the
+    pets' positions.
+  - **The onset** is the first change point with one of us within 10 and in its sight. At that point a step goes into
+    range (370 onsets) or into line of sight (224). "Held" means the sight stayed unbroken from the onset to the flag
+    (502).
+  - The half round trip cancels: the onset step's confirm and the war flag both arrive half an RTT after the
+    server's event [INFERENCE].
+  - **Acts** count as a target only when they name one: a moving effect from it at a mobile serial (`shot`, the
+    mariner's 0x79C5); a volley at ground points (the calamity's, the purger's), taking the mobile nearest the
+    volley's centre and unique; or an explosion, flamestrike or lightning on one of us, or a '-N' on one of us
+    (`fixed`/`number`), within 3 s of its 0x6E, with no other monster animating within 14 and none beside the victim.
+    A first act that lands on several of us at once (chain lightning, the banshee, the zoas' lightning, the
+    mariner's within 1) names no target. Spell sounds on our tiles were left out: 68 of 106 "victims" were AlaFlambe
+    and the imps hearing their own casts.
+  - **Nearest** is Euclidean (RunUO's GetDistanceToSqrt), among those of us in its sight within 14. "Nearer" means by
+    1 tile or more.
+- **Wakes: 1,870 flips after idle, 602 used** (540 Mausoleum, 62 Tidal Tomb; 478 with the runner driving, 111 by
+  hand; the pets' mode was 'All Guard Me' 397, 'All Follow Me' 136, 'All Patrol' 57, 'All Kill' 9). Left out:
+
+  | reason | wakes |
+  |---|---|
+  | a bystander (another player or a pet) in its sight first or nearer | 414 |
+  | unnamed (no name packet: the type is unknown) | 212 |
+  | one of us in its sight already when it was first seen | 174 |
+  | already awake when first seen | 174 |
+  | none of us in its range and sight by our map before the flip | 171 |
+  | no pet within 18 | 64 |
+  | packets missing (an S2C gap over 2 s) | 46 |
+  | hit, shot or targeted by us before | 11 |
+  | Logan beyond 18 | 2 |
+
+- **The delay (a).** From the onset to the war flag, in seconds:
+
+  | set | n | p5 | p10 | p25 | p50 | p75 | p90 |
+  |---|---|---|---|---|---|---|---|
+  | all | 602 | 1.67 | 1.74 | 1.93 | 2.19 | 2.64 | 4.18 |
+  | sight held to the flip | 502 | 1.66 | 1.73 | 1.90 | 2.12 | 2.47 | 3.19 |
+  | Tidal Tomb, held | 48 | 1.97 | 1.99 | 2.12 | 2.34 | 2.59 | 3.35 |
+  | from Logan's own onset | 492 | 1.64 | 1.72 | 1.92 | 2.16 | 2.59 | 4.11 |
+  | onset to its first 0x6E | 600 | 1.81 | 1.93 | 2.16 | 2.45 | 3.01 | 4.37 |
+  | onset to its first act landing | 434 | 2.25 | 2.41 | 3.37 | 5.07 | 8.68 | 19.2 |
+
+  - **A floor at 1.6 s.** Of the 502 held, 12 fell under 1.6 s and 4 under 1.0. The held delays spread about evenly
+    over 1.6-2.7 s, with a tail to ~4.
+  - **The low ones are sight edges.** 6 of the 11 under 1.5 are banshees, 5 of them on a step into range at 10
+    [INFERENCE: its range a little over 10]. The rest step into line of sight, where our map may be wrong.
+  - **Its swing or cast begins with the flag:** the first 0x6E comes at a median +0.04 s, 90 % within 1 s.
+  - **Alike for the runner and by hand** (held p5/p50/p90: 1.66/2.12/3.22 and 1.68/2.13/2.80), for steps into range
+    and into line of sight (p50 2.14 and 2.26), and for the 121 onsets that cross a Wall-only static (p50 2.23).
+
+  Per type, held sight to the flag (p10/p50/p90): shadowguard (130 wakes) 1.89/2.36/3.55, calamity (103)
+  1.67/1.97/2.26, corpse purger (66) 1.66/1.88/3.13, banshee (65) 1.48/2.31/3.99, shadow minion (58) 1.69/1.94/2.88,
+  master reanimator (56) 1.86/2.23/2.58, blightmare (41) 1.78/2.22/3.46, insane reanimator (21) 1.81/2.22/2.59,
+  drowned mariner (20) 2.02/2.21/2.98, soulcatcher (14) 1.98/2.41/3.67, combustive zoa (9) 1.98/2.37/2.99, astral zoa
+  (9) 1.98/2.24/3.09, the other zoas (10) 2.07/2.40/2.85.
+- **The shadow minion's and the calamity's range is 10, not 13.** `aggro.aggro_range` gives them 13. In their 161
+  wakes, one of us was within 10 before every flip, and the delay was tightest counted from 10 (IQR 1.75-2.13) against
+  2.30-3.93 from 13 [INFERENCE: 13 is where they cast from, not where they wake].
+- **The first target (b).** 434 of the 602 had an act. Its first act named one target in 364 (volley 87, fixed 101,
+  number 150, shot 25, the soulcatcher's sound 1), 271 of them within 3.5 s of the flip. How Logan stood against the
+  nearest pet in its sight at the flip:
+
+  | at the flip | Logan taken | a pet taken |
+  |---|---|---|
+  | a pet nearer by 2 or more | 2 | 38 |
+  | a pet nearer by 1-2 | 0 | 9 |
+  | a pet nearer by under 1 | 17 | 18 |
+  | equal | 4 | 4 |
+  | Logan nearer by under 1 | 71 | 35 |
+  | Logan nearer by 1-2 | 35 | 10 |
+  | Logan nearer by 2 or more | 4 | 1 |
+
+  - **With a clear nearest, the nearest is taken 72 times in 91** (by chance 34; 50 of 62 when the first act came
+    within 3.5 s).
+  - **A pet a tile or more nearer and in its sight takes it: 47 of 49.** Logan was taken while a pet was 1+ nearer in
+    2 of 49. A pet was taken while Logan was 1+ nearer in 11 of 50: GraveRobber, the tank, came within a tile of it
+    in the 0.5 s after the flip and took the spell.
+  - **Under a tile the choice is a coin, tipped to Logan:** 71/35 when he is the slightly nearer, 17/18 when a pet
+    is.
+  - **The flip is the moment that predicts it best.** Nearest at the onset: 109 of 152; 1 s before the flip 79 %; at
+    it and +0.5 s 79 %; +1 s 69 %; +2 s 57 %; at the landing 67 %, since by then the pets have closed in.
+  - **"First seen takes it" doesn't hold.** When Logan alone was seen first but a pet was the nearest at the flip, a
+    pet was taken 7 of 7 (the nearest 5, the other pet 2).
+  - The first victims were Logan 175 and the pets 189 (GraveRobber 146). That is the runner walking in ahead of
+    pets that trail a tile behind: 185 of the 364 were under-a-tile ties at the flip. Tidal Tomb alone: 36 named
+    first targets, pets 31, Logan 5. Of its 9 with a clear nearest, 7 took the nearest.
+- **Retargets (c).** Of the 322 with two or more named acts in the next 30 s:
+  - 163 kept their first target.
+  - 159 switched, 3.9 s after the first act at the median (p10 1.8, p90 10.2). 112 of the switches went to the new
+    nearest (Logan to a pet 101, pet to pet 9, pet to Logan 2), 16 away from the nearest and 31 with no clear
+    nearest.
+  - So the pet closing in takes it off Logan within ~4 s. The simulator's `RETARGET_P` only turns a monster from a pet
+    to Logan.
+- **The user's tactic (d): Logan alone seen first, then a pet the nearest in its sight at the flip** (a pet 1+
+  nearer, or Logan back out of its sight). 11 cases, a pet taken in all 11. 10 had the runner driving: in 7 Logan had
+  stepped back out of its sight by the flip, in 3 a pet had come nearer. 1 was by hand.
+  - Held and prompt: 10-19 11:22:26 calamity (Logan seen at 7, at the flip Logan 9.5 and AlaFlambe 8.0; 1.66 s; the
+    volley on AlaFlambe +0.53 s).
+  - By hand: 10-26 22:36:50 drowned mariner (Logan seen at 10, stepped back to 11.4 with GraveRobber at 9.2; 2.00 s;
+    the shot on GraveRobber +0.26 s).
+  - Logan seen first and still the nearest at the flip: Logan taken 80, a pet 10.
+- **The user's own 'All Patrol' pulls (e).** 53 'All Patrol' by hand in seven captures. 21 wakes followed within
+  30 s of one, 15 of them usable.
+  - Every named first target was a pet. At the flip Logan stood 10.0-16.1 from it and the nearest pet 2.0-10.3; once
+    Logan was the nearest (19:48:53, a corpse purger at 10.05) and the first act still fell on GraveRobber. The
+    2026-10-26 19:45:27 patrol woke the master reanimator (19:45:32, 2.24 s after its first sight of us) and the
+    shadowguard (19:45:35, 2.14 s, its first act on GraveRobber).
+  - The two first acts on Logan (19:53:25 the master reanimator's chain lightning, 22:43:03 a soulcatcher) came
+    14-16 s later and hit several of us at once.
+  - An 'All Follow Me' came within 30 s of the patrol 7 times of 53 (4.5-29.9 s). The scan saw no isolate-and-lead-back
+    pull to count.
+- **Conclusion: the claim holds for every shy type with enough wakes** (the Mausoleum's eight; on Tidal Tomb the
+  mariners, the soulcatchers and the zoas, n 9-20 each and alike).
+  - The delay is ~2 s (1.6-3.2), with a floor of 1.6 s in the Mausoleum and 2.0 s on Tidal Tomb. Confidence high:
+    602 wakes, one floor across types, drivers and edges.
+  - The target is the nearest of us in its sight at the flip when one is a tile or more nearer. Confidence moderate:
+    by its named acts; 49 + 50 cases with a clear nearest, and Tidal Tomb's 9 are few.
+  - A runner rule can count on **1.5 s** (11 of 502 held came earlier) from the step that first puts Logan in an idle
+    shy monster's range and sight.
+- **The rule it implies** (sketch, not built):
+  - Replace the shy rule's "never be first in its sight" (`first_on_us`, `Team.back_off` from its first sight) with a
+    planned step-in and step-back. Pets on 'All Guard Me'.
+  - Take the step that puts Logan first in its sight only with a step-back tile planned before it. From that tile,
+    within 1.5 s less the runner's round (0.35-0.74 s live), Logan is either out of its sight with a pet in it, or a
+    tile or more (Euclidean) farther than a pet in its sight. Then hold until its first act lands on a pet.
+  - A near tie (under a tile) isn't good enough: Logan is taken 2 times in 3.
+  - If Logan is taken anyway, the tank closing to within a tile takes it off in ~4 s (median; p90 10).
+- **The simulator model it implies** (sketch, not built; docs/SIM.md "Tank draw" and `world.RETARGET_P`):
+  - `defaults.wake_s` 1.5-3 → about 1.6 + U(0, 1.1) s, with a tenth beyond 3.2 s (Tidal Tomb about 2.0-2.7 s,
+    a tenth beyond 3.3).
+  - The target is chosen at the end of the delay: the nearest of us in its sight by Euclidean distance, not the
+    first seen. A tie under a tile goes to Logan 2:1 when he is the slightly nearer and 1:1 when a pet is; the
+    simulator gives a tie to the pet.
+  - A retarget to the new nearest of us in its sight goes either way, mostly a closing pet taking it off Logan
+    (101 of 159 switches, median 3.9 s). `RETARGET_P` covers only pet to Logan.
+  - The shadow minion's and the calamity's wake range is 10 [INFERENCE].
 
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 

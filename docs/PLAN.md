@@ -3037,6 +3037,13 @@ Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). De
   -9 %; level 3 (48) 29 -> 30 runs with a death. It changes every Tidal Tomb patrol, and the simulator only holds it
   to its own rule (the captures: 19 of 20 clicks): its own decision, with more runs.
 
+## Shooters' and casters' first target: measured, the user's guard-and-step-back holds (2026-10-29)
+
+- *Measured, nothing built yet* (docs/NOTES.md "Shooters' and casters' first target: the delay and the nearest
+  (2026-10-29)", `harness/sim/wake_scan.py`): a shy monster flips to war 1.6-3.2 s after first sight (floor 1.6 s,
+  602 wakes) and takes the nearest of us in its sight then, by a tile or more (a pet 47 of 49), not the first seen;
+  so `first_on_us`'s "first sight takes whoever it sees first" is wrong, and a step-back rule may count on 1.5 s.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
