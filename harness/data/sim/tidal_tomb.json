@@ -41,7 +41,9 @@
  },
  "defaults": {
   "pets_first": [],
-  "pets_first_note": "the Mausoleum's nightstalker rule doesn't apply here: no type of this dungeon is known to go for the pets first"
+  "pets_first_note": "the Mausoleum's nightstalker rule doesn't apply here: no type of this dungeon is known to go for the pets first",
+  "wake_s": [1.9, 2.55],
+  "wake_note": "the Mausoleum's wake_tail with a later floor: Tidal Tomb's 48 live wakes with sight held to the war flag (docs/NOTES.md \"Shooters' and casters' first target\") p5 1.97, p10 1.99, p25 2.12, p50 2.34, p75 2.59, p90 3.35; this gives 1.99, 2.03, 2.14, 2.33, 2.52, 3.20"
  },
  "bard": {
   "guide": {

@@ -42,10 +42,11 @@ from agent_link import cheb, serial_of
 # The aggro range, per creature type, as the captures measured it (each harness/data/sim scenario's `aggro_observed`,
 # docs/SIM.md "Monster mechanics audit"): 210 of 211 war-mode flips came with the nearest of us 1-10 tiles off, and
 # 102 idle monsters had one of us in our line of sight at 11-13 tiles for over 5 s without waking (none within
-# 10); the shadow minion and the calamity wake at 13. The user first put it at "12 or 13", then (2026-10-15,
-# a shadowguard at 14 and a reanimated knight idle at 7-13 tiles): "aggro range smaller than 14 tiles".
+# 10). The shadow minion and the calamity had 13 until 2026-10-29: in their 161 wakes one of us was within 10 before
+# every flip (docs/NOTES.md "Shooters' and casters' first target"). The user first put it at "12 or 13", then
+# (2026-10-15, a shadowguard at 14 and a reanimated knight idle at 7-13 tiles): "aggro range smaller than 14 tiles".
 AGGRO_R = 10                  # a type the captures don't list
-AGGRO_MAX = 13                # the farthest measured (shadow minion, calamity): --never-aggro sight is kept beyond it
+AGGRO_MAX = 13                # --never-aggro sight is kept beyond this (the farthest range once measured; kept as a margin)
 SCENARIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim")
 _RANGES = None
 

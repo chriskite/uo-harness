@@ -2,6 +2,7 @@
 whom they take (docs/NOTES.md "Shooters' and casters' first target: the delay and the nearest (2026-10-29)").
 
     python harness/sim/wake_scan.py [--logs DIR] [--since YYYYMMDD] [--tags T1,T2] [--out FILE] [--summary FILE]
+    python harness/sim/wake_scan.py --sim SIM.jsonl      # the same tables for a simulated batch (run.py --json)
 
 Each capture is replayed through `WorldRuntime` in its row order (`replay.timed_packets`). While Logan Wolf stands in
 the Mausoleum or Tidal Tomb (BOXES) it keeps every mobile's position (on each change), every monster's war flag (0x20 /
@@ -14,7 +15,8 @@ IDLE_MIN_S idle (the war flag flaps on and off between casts in a fight: those a
 change of its, Logan's or a pet's position from the idle start to WINDOW_S after the flip: the Chebyshev and Euclidean
 distance of each of ours and its line of sight to them (los.Sight, the server's Map.LineOfSight: Window|NoShoot block;
 also with Wall-flagged statics, `walls`; both eyes at z + 14 on the map surface, ground items left out). "Seen" is within
-its aggro range (aggro.aggro_range: 10, 13 for the shadow minion and the calamity) and in sight; `seen14` the same at 14.
+its aggro range (aggro.aggro_range: 10; 13 for the shadow minion and the calamity until 2026-10-29, when the scan put
+them at 10) and in sight; `seen14` the same at 14.
 
 Its **acts** after the flip (from WAR_PRE_S before it), in packet order: a moving effect from it (0xC0/0x70 type 0,
 source = it) at a mobile (`shot`, target serial); a volley of them at ground points (`volley`: one act, its victim the
@@ -28,7 +30,8 @@ Ours: Logan (LOGAN) and his pets: notoriety 2 tame/bonded mobiles within 3 of hi
 A row per wake and one per 'All ...' command (JSONL with --out). `--summary FILE` prints the NOTES tables from a rows
 file: the reasons a wake is left out (`why`), the delay from the first of us within R_SIGHT and in sight to the flip,
 the first single target against the nearest at the flip (`nearest_rel`, Euclidean, MARGIN), retargets, the user's
-tactic cases and his 'All Patrol' pulls.
+tactic cases and his 'All Patrol' pulls. `--sim FILE` prints the delay, nearest and retarget tables for the simulator's
+wakes (`wakes` in run.py --json summaries: World._wake_record), to check its model against these.
 """
 import argparse
 import bisect
@@ -843,6 +846,60 @@ def _ts(t):
     return datetime.datetime.fromtimestamp(t).strftime("%m-%d %H:%M:%S")
 
 
+def sim_summary(recs):
+    """The delay, nearest and retarget tables (summary's, the live ones) for the simulator's shy-monster wakes: `wakes`
+    in run.py --json summaries (World._wake_record: the onset and the flip to the tick, each of us within 14 at the
+    flip with its Euclidean distance and sight, its acts' victims and its switches for 30 s)."""
+    print(f"## simulated wakes: {len(recs)}")
+    print("\n## delay from the onset (one of us within its range and in its sight) to the flip, s: p5 p10 p25 p50 p75 p90")
+    by_place = collections.defaultdict(list)
+    for r in recs:
+        if r["on"] is not None:
+            by_place[r["place"]].append(r["flip"] - r["on"])
+    for place, d in [("all", [x for v in by_place.values() for x in v])] + sorted(by_place.items()):
+        print(f"  {place:12s} n {len(d):5d}  {pct(d)}; under 1.5 s {sum(x < 1.5 for x in d)}, under 1.6 s "
+              f"{sum(x < 1.6 for x in d)}")
+    bands = ("pet nearer by >=2", "pet nearer by 1-2", "pet nearer by <1", "equal", "Logan nearer by <1",
+             "Logan nearer by 1-2", "Logan nearer by >=2")
+    for when in ("target at the flip", "first act"):
+        t = collections.Counter()
+        for r in recs:
+            v = r["target"] if when == "target at the flip" else (r["acts"][0][1] if r["acts"] else None)
+            ins = {k: x[0] for k, x in r["at"].items() if x[1]}
+            if v not in ins or "logan" not in ins or len(ins) < 2:
+                continue
+            diff = ins["logan"] - min(x for k, x in ins.items() if k != "logan")
+            b = bands[0 if diff >= 2 else 1 if diff >= 1 else 2 if diff > 0 else 3 if diff == 0 else
+                      4 if diff > -1 else 5 if diff > -2 else 6]
+            t[(b, v == "logan")] += 1
+        print(f"\n## {when} against the nearest at the flip (Euclidean, in its sight within 14): Logan taken / a pet taken")
+        for b in bands:
+            print(f"  {b:22s} {t[(b, True)]:4d} / {t[(b, False)]}")
+    print("\n## retargets (acts over the next 30 s)")
+    t, after = collections.Counter(), []
+    for r in recs:
+        acts = r["acts"]
+        if len(acts) < 2:
+            t["fewer than two acts"] += 1
+            continue
+        v0 = acts[0][1]
+        nxt = next((a for a in acts[1:] if a[1] != v0), None)
+        if nxt is None:
+            t["kept its first target"] += 1
+            continue
+        t[f"switched {'Logan' if v0 == 'logan' else 'pet'}->{'Logan' if nxt[1] == 'logan' else 'pet'}"] += 1
+        after.append(nxt[0] - acts[0][0])
+    for k, n in sorted(t.items()):
+        print(f"  {n:5d}  {k}")
+    print(f"  switched: after the first act p10 p50 p90 {pct(after, (.1, .5, .9))} s")
+    sw = collections.Counter(f"{'Logan' if a == 'logan' else 'pet'}->{'Logan' if b == 'logan' else 'pet'}"
+                             for r in recs for _t, a, b in r["sw"])
+    print(f"  turns to the new nearest (World._retarget_near): {dict(sw)}")
+    first = collections.Counter("Logan" if r["target"] == "logan" else "a pet" if r["target"] in r["at"] else "other"
+                                for r in recs)
+    print(f"  first targets: {dict(first)}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--logs", default=os.path.join(REPO, "logs"))
@@ -850,8 +907,14 @@ def main(argv=None):
     ap.add_argument("--tags", default=None, help="comma-separated capture tags instead of --since")
     ap.add_argument("--out", default=None, help="write the rows here (JSONL)")
     ap.add_argument("--summary", default=None, metavar="FILE", help="print the tables from a rows file; no scan")
+    ap.add_argument("--sim", default=None, metavar="FILE",
+                    help="print the simulated tables from run.py --json summaries (their `wakes`); no scan")
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     a = ap.parse_args(argv)
+    if a.sim:
+        with open(a.sim, encoding="utf-8") as f:
+            sim_summary([w for line in f if line.startswith("{") for w in json.loads(line).get("wakes") or ()])
+        return 0
     if a.summary:
         with open(a.summary, encoding="utf-8") as f:
             summary([json.loads(line) for line in f])

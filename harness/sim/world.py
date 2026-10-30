@@ -58,6 +58,7 @@ import re
 from dataclasses import dataclass, field, replace
 
 import combat
+import aggro
 import escape
 import los
 import nav
@@ -96,6 +97,24 @@ SHOT_AT_PLAYER_P = 0.2    # a monster shooting at a pet sends a shot at the play
 #                           banshee's 0.17, the minion's 0.12 (41 visits), simulated 0.00-0.05. 288 runs each: 0 gave
 #                           his damage 0.63x and potions 0.64x, 0.1 0.83x and 0.83x, 0.2 0.99x and 1.02x, deaths 0.9-1.1
 #                           an hour throughout (live 0.6, its interval to 1.3) [INFERENCE: the mechanism]
+# Shooters and casters (aggro.shy) from idle (docs/NOTES.md "Shooters' and casters' first target: the delay and the
+# nearest (2026-10-29)", 602 live wakes): at the end of the wake delay (`defaults.wake_s`, `wake_tail`) the nearest of
+# us in its sight within SHY_SIGHT, Euclidean; under NEAR_TIE apart Logan with TIE_LOGAN_P when he is the slightly
+# nearer (live 71 / 35), TIE_PET_P when a pet is or they are equal (17 / 18, 4 / 4); no Tank draw (a pet a tile or more
+# nearer took it 47 of 49). Once on one of us it turns to the nearest of us in its sight when that one is a tile or more
+# nearer (or its target is out of its sight), a think's chance by who it leaves and takes: from Logan to a pet
+# RETARGET_FROM_LOGAN_P, from a pet to another RETARGET_FROM_PET_P, from a pet to Logan RETARGET_TO_LOGAN_P. Live 159
+# of 322 switched, 112 to the new nearest: Logan to a pet closing in 101 (of 175 first on Logan), a median 3.9 s after
+# the first act; pet to pet 9, pet to Logan 2 (of 189 first on a pet). The other monsters keep the threat, the Tank draw
+# and RETARGET_P below.
+SHY_SIGHT = 14.0
+NEAR_TIE = 1.0
+TIE_LOGAN_P = 2 / 3
+TIE_PET_P = 0.5
+RETARGET_FROM_LOGAN_P = 0.4
+RETARGET_FROM_PET_P = 0.08
+RETARGET_TO_LOGAN_P = 0.01
+WAKE_REC_S = 30.0         # a shy monster's wake record keeps its acts and switches this long (wake_scan's 30 s)
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
 # Stamina (live, Logan's 25 on Maus 3, sim/shove_scan.py over the captures 2026-10-13..21, docs/SIM.md "Shoving and
 # stamina"): a step into any live mobile's tile goes through at full stamina only, with "You shove something out of the
@@ -239,6 +258,8 @@ class Mob:
     marks: list = field(default_factory=list)          # Glowmark stacks: [[expiry, extra threat share]]
     susceptible: list = field(default_factory=list)    # a combustive zoa's scorch stacks: [[expiry, extra damage share, from]]
     seen_since: float | None = None   # idle with one of us in its range and sight: it takes a target at this time
+    seen_onset: float | None = None   # ...since when (the wake's onset: one of us came into its range and sight)
+    wake_rec: dict | None = None      # a shy monster's wake record (metrics `wakes`; sim/wake_scan.py --sim)
     diseases: list = field(default_factory=list)   # [[next tick time, ticks left, damage, every_s]]: they stack
     cd: dict = field(default_factory=dict)   # ability -> next time it is ready
     mode: str = "follow"          # pets: follow, guard, kill, stay, patrol
@@ -1558,6 +1579,10 @@ class World:
         if t >= m.next_think:
             m.next_think = t + THINK_S
             self._think(m)
+            if m.target is None and (m.seen_since is not None or any(
+                    cheb(o.pos, m.pos) <= m.spec["aggro_range"] for o in self.team())):
+                # idle with one of us in its range: the onset and the wake to the tick (wake_scan's change points)
+                m.next_think = t + TICK_S
         tgt = self.mobs.get(m.target) if m.target is not None else None
         if tgt is None or not tgt.alive or tgt.ghost:
             m.target = None
@@ -1638,6 +1663,10 @@ class World:
         live = {o.serial: o for o in cands}
         threat = {s: v for s, v in m.threat.items() if s in live}
         pl = self.player
+        shy = aggro.shy(m.key) and m.kind == "monster"
+        if shy and cur is not None:
+            self._retarget_near(m, cur, held)
+            return
         if RETARGET_P and cur is not None and cur.kind == "pet" and pl.serial in live and not pl.ghost \
                 and cheb(pl.pos, m.pos) < cheb(cur.pos, m.pos) and self.can_see(m, pl) and self.rng.random() < RETARGET_P:
             m.threat[pl.serial] = max(m.threat.get(pl.serial, 0), threat.get(cur.serial, 0) * SWITCH_X + 1)
@@ -1652,16 +1681,23 @@ class World:
             return
         near = [o for o in cands if cheb(o.pos, m.pos) <= m.spec["aggro_range"] and self.can_see(m, o)]
         if not near:
-            m.seen_since = None
+            m.seen_since = m.seen_onset = None
             return
         wake = self.sc["defaults"].get("wake_s")
         if wake and not (held and m.warmode):   # a countess in a fight turns from a held pet at once [INFERENCE]
-            # live: war mode 1.8-2.7 s after one of us came into its sight (scenario defaults note)
+            # live: war mode 1.6-3.2 s after one of us came into its sight (scenario defaults wake_note)
             if m.seen_since is None:
-                m.seen_since = t + self.rng.uniform(*wake)
+                m.seen_since, m.seen_onset = t + self._wake_delay(), t
             if t < m.seen_since:
                 return
         m.seen_since = None
+        if shy:
+            o = self._nearest_pick(m, held)
+            if o is not None:
+                self._wake_record(m, o)
+                m.target, m.seen_target_t = o.serial, t
+                m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
+                return
         # whichever of us it sees first, the nearest seen, a pet on a tie (user 2026-10-15: "Any mob that
         # 'sees' Logan before it sees a pet is going to aggro on him directly"); before, any guarding pet
         # within guard_draw_r 6 of the player drew it, seen or not
@@ -1679,6 +1715,89 @@ class World:
                 o = min(tanks, key=lambda p: cheb(p.pos, m.pos))
         m.target, m.seen_target_t = o.serial, t
         m.threat[o.serial] = m.threat.get(o.serial, 0) + 1
+
+    def _wake_delay(self) -> float:
+        """An idle monster's wake delay: `defaults.wake_s` [lo, hi] uniform, else with `wake_tail.p` from
+        `wake_tail.s` (docs/NOTES.md "Shooters' and casters' first target": sight held to the war flag p5 1.66, p50
+        2.12, p90 3.19, a tail to ~4.4; Tidal Tomb's p5 1.97, p50 2.34)."""
+        df = self.sc["defaults"]
+        tail = df.get("wake_tail")
+        if tail and self.rng.random() < tail["p"]:
+            return self.rng.uniform(*tail["s"])
+        return self.rng.uniform(*df["wake_s"])
+
+    def _eyes(self, m: Mob, held=()) -> list:
+        """[(Euclidean distance, mobile)]: those of us (and other players, reds) in `m`'s sight within SHY_SIGHT,
+        nearest first, a pet before Logan on a tie."""
+        reds = [o for o in self.reds.mobs() if not o.hidden_until]
+        out = []
+        for o in self.team() + self.others() + reds:
+            if o.ghost or o.serial in held or cheb(o.pos, m.pos) > SHY_SIGHT:
+                continue
+            d = math.hypot(o.x - m.x, o.y - m.y)
+            if d <= SHY_SIGHT and self.can_see(m, o):
+                out.append((d, o))
+        out.sort(key=lambda e: (e[0], e[1].kind == "player"))
+        return out
+
+    def _nearest_pick(self, m: Mob, held=()) -> Mob | None:
+        """A shy monster's first target at the end of its wake delay (SHY_SIGHT, NEAR_TIE, TIE_LOGAN_P, TIE_PET_P)."""
+        eyes = self._eyes(m, held)
+        if not eyes:
+            return None
+        d0, o = eyes[0]
+        pl = self.player
+        if o.kind == "player":
+            pet = next((e for e in eyes[1:] if e[1].kind == "pet"), None)
+            if pet is not None and pet[0] - d0 < NEAR_TIE and self.rng.random() >= TIE_LOGAN_P:
+                return pet[1]
+        elif o.kind == "pet":
+            me = next((e for e in eyes[1:] if e[1] is pl), None)
+            if me is not None and me[0] - d0 < NEAR_TIE and self.rng.random() < TIE_PET_P:
+                return pl
+        return o
+
+    def _retarget_near(self, m: Mob, cur: Mob, held=()):
+        """A shy monster on `cur` turns to the nearest of us in its sight when that one is NEAR_TIE or more nearer than
+        `cur` (or `cur` is out of its sight), a think's chance RETARGET_FROM_LOGAN_P, RETARGET_FROM_PET_P or
+        RETARGET_TO_LOGAN_P."""
+        eyes = self._eyes(m, held)
+        if not eyes or eyes[0][1] is cur:
+            return
+        d, o = eyes[0]
+        dc = next((e[0] for e in eyes if e[1] is cur), None)
+        pl = self.player
+        p = RETARGET_TO_LOGAN_P if o is pl else RETARGET_FROM_LOGAN_P if cur is pl else RETARGET_FROM_PET_P
+        if (dc is not None and dc - d < NEAR_TIE) or self.rng.random() >= p:
+            return
+        if m.wake_rec is not None and self.t - m.wake_rec["flip"] <= WAKE_REC_S:
+            m.wake_rec["sw"].append([round(self.t, 2), self._who(cur), self._who(o)])
+        self.count("retargets_near", f"{self._who(cur, pets='pet')}->{self._who(o, pets='pet')}")
+        m.target, m.seen_target_t = o.serial, self.t
+
+    def _who(self, o: Mob, pets: str | None = None) -> str:
+        return "logan" if o is self.player else (pets or o.name) if o.kind == "pet" else o.kind
+
+    def _wake_record(self, m: Mob, o: Mob):
+        """The wake of shy monster `m` onto `o`, as sim/wake_scan.py --sim reads it (metrics `wakes`): its onset and
+        flip, each of us within SHY_SIGHT then (Euclidean distance, in its sight), its acts' victims and its switches
+        for WAKE_REC_S."""
+        at = {}
+        for x in self.team():
+            d = math.hypot(x.x - m.x, x.y - m.y)
+            if d <= SHY_SIGHT:
+                at[self._who(x)] = [round(d, 2), self.can_see(m, x)]
+        m.wake_rec = {"kind": m.key, "place": self.sc.get("name"), "on": round(m.seen_onset, 2)
+                      if m.seen_onset is not None else None, "flip": round(self.t, 2), "at": at, "target": self._who(o),
+                      "acts": [], "sw": []}
+        self.metrics.setdefault("wakes", []).append(m.wake_rec)
+        m.seen_onset = None
+
+    def _wake_act(self, m: Mob, victim: Mob, t: float):
+        """An act of a recorded shy monster (_wake_record) landing on `victim` at `t`."""
+        r = m.wake_rec
+        if r is not None and t - r["flip"] <= WAKE_REC_S and len(r["acts"]) < 24:
+            r["acts"].append([round(t, 2), self._who(victim)])
 
     def _attack(self, m: Mob, tgt: Mob, spec: dict):
         """Swing or cast at `tgt` when in reach and sight, else close in."""
@@ -1703,6 +1822,8 @@ class World:
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
                 hit = self.rng.random() < spec.get("hit_chance", 0.8) - (tgt.spec.get("defense", 0.0) if tgt.kind == "pet" else 0.0)
                 self._ev("swing", by=m.serial, v=tgt.serial, hit=hit)
+                if m.wake_rec is not None:
+                    self._wake_act(m, tgt, t)
                 if hit:
                     self.hurt(tgt, self._melee_on(tgt, spec), m, ref=spec.get("melee_ref"))
                     self._specials(m, tgt, spec)
@@ -1765,6 +1886,8 @@ class World:
             victim = pl
         fl = ranged.get("flight_s")
         land = t + (self.roll(fl) if fl and fl[1] > 0 else 0.0)
+        if m.wake_rec is not None:
+            self._wake_act(m, victim, land)
         e = ranged.get("effect")
         if e and (m.serial in self.viewing or victim.serial in self.viewing or victim is pl or m is pl):
             # [INFERENCE] the live server's broadcast range; the runner reacts only to effects on us

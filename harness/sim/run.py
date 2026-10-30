@@ -261,6 +261,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "bubbles": m.get("bubbles", {}), "spray": m.get("spray", {}),
             "large_swing": m.get("large_swing", {}), "dig": m.get("dig", {}),
             "met": m.get("met", {}),
+            # shy monsters' wakes (World._wake_record; sim/wake_scan.py --sim) and their turns to the new nearest
+            "wakes": m.get("wakes", []), "retargets_near": m.get("retargets_near", {}),
             "violations": m["violations"], "junctures": juncs,
             "runner_totals": dict(loop.totals) if loop is not None else None,
             "episodes": len(episodes),

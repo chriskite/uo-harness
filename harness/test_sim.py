@@ -6,6 +6,7 @@ Skips when the install's map files are absent (another computer).
 
 Run: python harness/test_sim.py
 """
+import collections
 import contextlib
 import io
 import os
@@ -222,6 +223,58 @@ def test_aggro_rules():
         pulled[hurt_first] = m.target == w.player.serial
     check("Discordance before the pets hurt it turns it on us; after, it stays on the pet",
           pulled == {False: True, True: False}, str(pulled))
+
+
+def test_shy_wake():
+    print("== a shy monster's wake (docs/NOTES.md \"Shooters' and casters' first target\"): no sooner than 1.6 s after one "
+          "of us comes into its range and sight; then the nearest of us in its sight, not the first seen; near ties "
+          "2:1 to Logan when he is the slightly nearer ==")
+    sg = (5266, 654, 0)                                        # a shadowguard (aggro.shy); Logan at (5266, 648): 6 off
+
+    def wake(seed, pets_at, move=None):
+        w = world_with([{"key": "shadowguard", "at": list(sg)}], seed=seed)
+        m = next(m for m in w.mobs.values() if m.kind == "monster")
+        m.spec = {**m.spec, "aggro_range": 7}
+        for p, at in zip(w.pets(), pets_at):
+            p.x, p.y = at
+            p.mode = "stay"
+        link, clock = link_for(w)
+        for _ in range(80):
+            clock.advance(0.1)
+            if move and m.seen_onset is not None and w.t - m.seen_onset >= move[0]:
+                for p in w.pets():
+                    p.x, p.y = move[1]
+                move = None
+            if m.target is not None:
+                break
+        return w, m
+    far = ((5266, 637), (5267, 637))                           # 17 off: out of its sight's 14
+    delays, took = [], collections.Counter()
+    for seed in range(1, 41):
+        w, m = wake(seed, far)
+        r = m.wake_rec
+        delays.append(round(r["flip"] - r["on"], 2) if r else None)
+        took["logan" if m.target == w.player.serial else "other"] += 1
+    d = sorted(x for x in delays if x is not None)
+    check("Logan alone in its sight: taken every time, the wake 1.6 s or more after the onset (median ~2.2)",
+          len(d) == 40 and took["logan"] == 40 and d[0] >= 1.6 and 1.9 <= d[20] <= 2.6,
+          f"min {d[:1]} median {d[20:21]} max {d[-1:]} took {dict(took)}")
+    first = collections.Counter()
+    for seed in range(1, 21):                                  # seen first, then a pet 3 off by the flip
+        w, m = wake(seed, far, move=(0.8, (5266, 651)))
+        first["logan" if m.target == w.player.serial else "pet"] += 1
+    check("Logan seen first, a pet the nearest at the flip (3 against 6): the pet every time", first["pet"] == 20,
+          str(dict(first)))
+    tie = {}
+    for name, pets_at in (("Logan nearer", ((5261, 650), (5271, 650))),     # the pets 6.40 against Logan's 6.0
+                          ("a pet nearer", ((5262, 650), (5271, 650)))):    # a pet 5.66
+        c = collections.Counter()
+        for seed in range(1, 91):
+            w, m = wake(seed, pets_at)
+            c["logan" if m.target == w.player.serial else "pet"] += 1
+        tie[name] = c["logan"]
+    check("near ties of 90: Logan 6.0 against the pets 6.40, Logan about 2 in 3 (TIE_LOGAN_P); against a pet 5.66, "
+          "about 1 in 2 (TIE_PET_P)", 48 <= tie["Logan nearer"] <= 72 and 33 <= tie["a pet nearer"] <= 57, str(tie))
 
 
 def test_specials():
@@ -6649,7 +6702,7 @@ def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
         return 0
-    for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_bard_and_vet, test_specials,
+    for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_shy_wake, test_bard_and_vet, test_specials,
               test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
               test_vet_tile_off_tank, test_calm_heal,
