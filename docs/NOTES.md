@@ -7061,6 +7061,19 @@ sight". Throwaway replays of session_20261026_183552 and a scan of the Mausoleum
   -5 %, 0 deaths; the area zones gold +1 %, dmg -1 %; the purger/blightmare spawn spots dmg -5 %, gold 0; the other shy
   casters' spawn spots too: gold -8 %, deaths 2 -> 5 (left out). The simulator doesn't reproduce today's live deaths
   (base: 2-7 deaths in ~45 h; live 3 in ~4 h): the live runs are the test.
+- **Why the user patrols, and the other way to take the aggro** (user 2026-10-29). He sends the pets on "All
+  Patrol" for two reasons.
+  - To keep the pets away from him when a monster like the corpse purger throws an area hit on them.
+  - To isolate one monster and pull it away from a dangerous pack: patrol the pets out, let the monster he wants
+    aggro on them, then "All Follow Me", so the pets come back to him with only that monster following (how he avoids
+    fighting a whole pack in a crowded room, e.g. the Darkscale area on Maus 4; an example, not a request for the
+    runner now).
+  - For a single shooter or caster, his other way doesn't need a patrol. Pets on "All Guard Me", walk up, then
+    step back a little so the pets end up between Logan and the monster. In his words, a monster takes "something
+    like 1 or 2 seconds" from seeing us to aggroing on "whatever is closer to them, Logan or the pets".
+  - Not yet measured. The runner's shy rule assumes the opposite: a shooter's first sight takes whoever it sees
+    first, at once. [INFERENCE: on a RunUO-style server a monster picks its target on its AI's think, the closest
+    valid one in its sight (FightMode.Closest), pets included.]
 
 ## The Healer's Codex, the Taming Bestiary and the Guide: Logan's gumps (read 2026-10-25, sim/tamer_scan.py)
 
