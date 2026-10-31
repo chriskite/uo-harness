@@ -7730,6 +7730,14 @@ could leave by the easiest gate to get to."
   276 times, (6685, 2064) 232, the arrival's 1; the leave walk's median 139.5 -> 80 steps and 108 -> 57 s; banked an
   hour 111,229 -> 116,711; runs with a death 2 and 2.
 
+## Tidal Tomb level 2 shift 2026-10-31: the vielle refused at home
+
+- **14:41:43** hunt-20261031-144134-b728 (level 2 command) "ABORTED: no instrument in the pack: not going in": Logan's
+  only instrument was a "durable exceedingly melodious Vielle" 0x4404D491, graphic 0x4E30, in bag 0x4C4BE255; neither
+  `tamer.INSTRUMENT_GRAPHICS` nor `INSTRUMENT_NAME` knew it (the shawm's case of 2026-10-26 again).
+- **Fix**: 0x4E30 and "vielle" added to both. test_sim `test_instrument` with a vielle (fails before: the bard skills
+  off and the recall in refused). Checked against Logan's live status: the item's graphic and name match.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
