@@ -165,6 +165,11 @@ ROPE_COOLDOWN_S = 5.0
 ROPE_COMBAT_COOLDOWN_S = 120.0
 PVP_FLAG_S = 60.0         # the PvP flag's PvM restrictions last 60 s (patch 2021-10-02, knowledge #7333)
 ROPE_LAND_S = 0.8         # the rope's target answered -> on the landing tile (live 2026-10-21 10:35:06.54 -> 07.33)
+# A red's Wall of Stone (In Sanct Ylem): live 2026-10-30 23:43:30.69 Silent Assassin's words, 31.19 three 0x4D1B "wall of
+# stone" items (tiledata Wall|Impassable|NoShoot) across Maus 3's east wing corridor at (5254, 652-654), still up at
+# Logan's death 5 s later (docs/NOTES.md "Walled in the east wing"); its life [INFERENCE: RunUO's WallOfStoneSpell, 10 s]
+WALL_OF_STONE_GRAPHIC = 0x4D1B
+WALL_OF_STONE_S = 10.0
 OTHERS = ("other", "otherpet")   # Mob kinds of other players and their pets (never ours: not in `team()`)
 FLAG_PLAYER = 0x20               # live: every other player's 0x20/0x77 carries it (threats.FLAG_PLAYER_HINT)
 ATTACKED_TEXT = " is attacking you!"   # the server's line over us when a player makes us its target (loop_hunt.ATTACKED_BY)
@@ -726,6 +731,25 @@ class World:
         that long after the last (a live red's own path), before it comes at us."""
         return self.reds.add(x, y, z, name=name, kit=kit, spec=spec, route=route, attacker=True)
 
+    def add_wall(self, tiles, life_s: float = WALL_OF_STONE_S, graphic: int = WALL_OF_STONE_GRAPHIC):
+        """A Wall of Stone on `tiles` for `life_s` (a red's In Sanct Ylem; the live-death replay sim/fight2343.py):
+        ground items shown in view as live, on the world's walk ground (_wall_ground), so they refuse our steps, the
+        pets', a rope's landing and sight (NoShoot). The reds' own walk graph (sim/reds.py Graph) is the map's alone:
+        they would pass through it [INFERENCE: none needed to in the replay]."""
+        for x, y in tiles:
+            self.items[self._item_serial()] = {"kind": "wall", "graphic": graphic, "x": x, "y": y,
+                                               "z": self.stand_z(x, y, self.player.z), "until": self.t + life_s}
+        self._wall_ground()
+        self._view()
+
+    def _wall_ground(self):
+        """The walls standing (add_wall) as the walk's ground items (pathfind.Walk.set_ground: steps and sight)."""
+        ground = {}
+        for it in self.items.values():
+            if it.get("kind") == "wall":
+                ground.setdefault((it["x"], it["y"]), []).append((it["graphic"], it["z"]))
+        self.walk.set_ground(ground)
+
     def flagged(self) -> bool:
         """We are flagged in PvP: a player's harmful act or damage on us within PVP_FLAG_S."""
         return self.t - max(self.pvp_t, self.attacked_by_player_t) <= PVP_FLAG_S
@@ -856,14 +880,14 @@ class World:
                     # to 19 tiles, 17:37:13.63 Botan); the client model would keep it at its last tile to 24
                     self.send(P.delete(s))
         for s, it in self.items.items():
-            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx", "bubble"):
+            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx", "bubble", "wall"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
                     if it["kind"] == "eerie" and not it.get("seen"):
                         it["seen"] = True
                         self.count("eerie_seen")
-                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx", "bubble"):
+                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx", "bubble", "wall"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"], hue=it.get("hue", 0)))
                     else:
                         self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
@@ -1278,13 +1302,15 @@ class World:
         for s, it in list(self.items.items()):
             if it.get("kind") == "corpse" and t - it["t"] > CORPSE_DECAY_S:
                 self._remove_corpse(s)
-            elif it.get("kind") in ("fire", "bubble") and t >= it["until"]:
+            elif it.get("kind") in ("fire", "bubble", "wall") and t >= it["until"]:
                 del self.items[s]
                 if s in self.viewing_items:
                     self.viewing_items.discard(s)
                     self.send(P.delete(s))
                 if it["kind"] == "bubble":
                     self._bubble_pop(it)
+                elif it["kind"] == "wall":
+                    self._wall_ground()
         if self.bubble_throws:
             for b in [b for b in self.bubble_throws if b[0] <= t]:
                 self.bubble_throws.remove(b)

@@ -1247,6 +1247,19 @@ moongate, and never near a red one).
     as far as the zones bend the route: "… and every way from here does (a dead end): past them at once". No rope
     on such a leg: a rope lands only farther from them, back into the dead end. Once past them the way no longer
     passes them, and the flight goes on as above. Simulator `sim/fight2001.py`: 24 of 24 dead before, 0 after.
+    **No route: out of their sight meanwhile** (since 2026-10-30; live 23:43:31-36 a red's Wall of Stone sealed the
+    east wing's only corridor west and the flight stood 4.7 s "looking again (n of 6)" 1-3 tiles from three casters,
+    NOTES "Walled in the east wing"). When the way to the gate has no route, the flight never waits where they see
+    it. A spell field that alone cuts the way (`field_cut`; a Wall of Stone is one) is named and waited out without
+    counting against the 6 looks: "… no route from (x, y): a wall of stone at (x, y) cuts the way; looking again till
+    it goes". Meanwhile the leg goes to `cover_tile`'s tile, looking again from there: of the tiles the walk reaches
+    within 24, from ranged reds the one fewest of them see, then the fewest steps; from melee ones the farthest ("…;
+    out of their sight meanwhile, toward (x, y) (seen by 3 -> 0)"). None better: "…; nowhere better in reach". The
+    danger zones are costs, not blocks, so relaxing them finds no route a hard block cuts. A leave walled from its
+    start plans the gate's tile through the fields. This is no change to the dead-end rule: with no route there is no
+    way past them. Simulator `sim/fight2343.py` (the walls as live): standing 1+ s in a red's sight after a "no route"
+    26.9 s in 11 of 24 runs before, 1.2 s in 1 after; deaths 21 of 24 (3 more left alive by the 6 looks' abort) and 24
+    of 24 after.
     **The rope while hamstrung, and its combat cooldown** (since 2026-10-22; NOTES "Hinder, Hamstring and the
     rope"). Hamstrung (buff icon 53: 3 s at a walk's pace, from a player's hit), the rope goes even with a player on
     us (user: rope when slowed even if attacked; live the rope jumped during one). A rope used within 20 s of a

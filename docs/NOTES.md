@@ -4821,6 +4821,49 @@ session_20261022_163222.
 - **Ranged reds** (user: rope from casters and bows even while they hit us): built, docs/HUNT_LOOP.md "From ranged
   reds". `sim/fight2203.py` replays this death: 3 of 24 dead before and after.
 
+## Walled in the east wing (live 2026-10-30 23:43:37, hunt-20261030-230618-058b)
+
+Visit 3 of the run (visit 2 left at 23:22 for a red at 18 tiles and got home). Task log lines 1571-1595, capture
+session_20261030_175703 (`sim/red_scan.py 20261030_175703`, then a replay for the ground items and the 1 Hz mobiles).
+- **The reds.** Vowxin Retp (in view 23:43:26.36 at (5255, 653), east to (5258, 653) by 26.99, (5261, 653) by 29.30),
+  S p a c e B a r and Silent Assassin (into view 29.17 at (5254, 653) and (5251, 653), east to (5257, 653) and
+  (5256, 653) by 30.04; Silent Assassin to (5257, 654) at 32.45, (5259, 652) at 34.55). Each held a spellbook (0x0EFA,
+  layer 1) and a shield, flags 0x20 (no war bit seen). Words: Vowxin "Vas Ort Flam" (Explosion) 27.09, "Corp Por"
+  29.44, 31.62, 33.79; S p a c e B a r "In Sanct Ylem" (Wall of Stone) 29.70, "Vas Ort Flam" 31.80, "Corp Por" 34.36;
+  Silent Assassin "In Sanct Ylem" 30.69, "In Por Ylem" 34.65, "Vas Flam" 35.53. All three ranged by the runner's rule
+  (spell words within 10 s).
+- **Logan** at (5273, 652), pets on him at (5273, 653) (war, then off on "All Follow Me" at 27.0). Hindered 27.72-28.77
+  (buff 19). The flight said "a dead end: past them at once"; the rope at 28.57 landed at (5264, 655) 6 tiles from
+  Vowxin, "in sight of 1 (ranged)": the ranged-red rule as designed (docs/HUNT_LOOP.md "From ranged reds": along the
+  way, the tile fewest see; only Vowxin was in view then). Then west (5263, 655) 29.90 ... (5258, 654) 31.48, the pets
+  following to (5259, 654).
+- **Damage** (hits 100 -> 0): 31.49 -1 (Vowxin's swing, anim 11), 31.80 -21 (his Energy Bolt) and -30 (an Explosion's
+  0x36BD on Logan) to 48; potion +26 to 74 at 32.54; 33.71 -1 (S p a c e B a r's swing); 33.93 -33 (Vowxin's Energy
+  Bolt) to 40; 35.75 -1, 35.80 -6 (Silent Assassin's Magic Arrow, bolt 0x36E4 from (5260, 652)), 36.11 -28 (an Energy
+  Bolt or the Fireball), 36.22 -7 (an Explosion) to 0. Spells, the swings 1 each.
+- **The shadowguard** at (5248, 652) in war mode (the crawl's "awake" zone), walking east to (5253, 653) by 35.2: west
+  of the wall.
+- **Why "no route".** At 31.19 three "wall of stone" items (0x4D1B, tiledata Wall|Impassable|NoShoot) stood at
+  (5254, 652), (5254, 653), (5254, 654): Silent Assassin's Wall of Stone of 30.69. The corridor there (x 5254-5259,
+  y 651-655) leaves west only by (5253, 652-653); the wall sealed it. The Mover takes 0x4D1B as a field
+  (`FIELD_GRAPHICS`: a hard block) and as an impassable ground item. With it, everything reachable from (5258, 654) is
+  the east wing's 287 tiles (5254-5283, 645-661): no route existed at all. The danger zones (the reds' `red:` zones,
+  the shadowguard's crawl zone) are costs on the route, never blocks; without the wall the plan from (5258, 654) took
+  ~1,000 expansions with or without them. The rope at 35 found "no landing in reach in sight": from ranged reds it
+  lands only along the route, and there was none. The "away from them first, toward (5235, 655)" at 23:43:36 came
+  after the death had cleared the view (the items gone at 36.23) [INFERENCE: (5235, 655) is behind the wall].
+- **The reaction.** The 6 looks (`FLEE_NEAR_FAILS`, made for refused steps that expire) stood Logan 4.7 s on one tile
+  1-3 tiles from three casters. A human would duck out of their sight: the alcove south at (5259-5262, 657-661) is 5
+  steps off and none of the three saw into it, and wait there for the wall to go (10 s [INFERENCE: RunUO's]).
+- **Fix:** no route in a flight never stands us in their sight. `flee_out` names a field that cuts the way
+  (`field_cut`: "… no route from (5258, 654): a wall of stone at (5254, 653) cuts the way; looking again till it goes")
+  and doesn't count it against the 6; meanwhile the leg goes to `cover_tile`'s tile ("…; out of their sight
+  meanwhile, toward (5261, 658) (seen by 3 -> 0)"), the tile in reach fewest of them see, then the fewest steps; from
+  melee reds the farthest. The leave's start plans `near` through fields when it's walled already. `sim/fight2343.py`
+  replays this (the wall as live, `World.add_wall`): 21 of 24 dead before (and 3 runs ended alive by the flight's
+  "no route" abort), 24 of 24 after; standing 1+ s in a red's sight after a "no route" 26.9 s in 11 runs (longest
+  3.9 s) before, 1.2 s in 1 run after. Three casters in a sealed dead end kill in the simulator either way.
+
 ## 'All Kill' at an unseen reanimated daemon, the patrol/stand-off ping-pong (live 2026-10-23 23:29-23:30, hunt-20261023-220741-f118)
 
 User, in this shift: "The runner keeps trying to 'All Kill' a reanimated demon that is not in line of sight, and

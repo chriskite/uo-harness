@@ -3226,6 +3226,48 @@ def test_red_out_of_view():
           and all("(ranged)" in ln for ln in lines if "rope to" in ln), str(lines[:3]))
 
 
+def test_red_walled():
+    print("== a red's Wall of Stone across the only way to the gate: out of their sight meanwhile, not standing ==")
+    # live 2026-10-30 23:43:31.19-36.23 (hunt-20261030-230618-058b, Maus 3's east wing): Silent Assassin's Wall of Stone
+    # at (5254, 652-654) cut the corridor west; "no route from (5258, 654); looking again (1 of 6)" ... "(6 of 6)" in
+    # 4.7 s standing 1-3 tiles from three casters, dead (sim/fight2343.py). Here they stand (only the flight is under test)
+    import los
+    from agent_link import Abort
+    w = red_world(start=(5258, 654))
+    loop, clock, store, patched = red_loop(w)
+    w.add_wall([(5254, 652), (5254, 653), (5254, 654)], life_s=6.0)
+    reds = [w.add_red(*xy, name=n, spec={"hands": [[0, 0, 1]]}) for n, xy in
+            (("S p a c e B a r", (5257, 653)), ("Silent Assassin", (5256, 653)), ("Vowxin Retp", (5261, 653)))]
+    for r in reds:
+        r.next_step = 1e9
+    world_tick, hidden = clock.on_advance, []
+
+    def watch(now):
+        world_tick(now)
+        pl = w.player
+        if not hidden and not pl.ghost and not any(
+                w.sight.point_blocked((r.x, r.y, r.z + los.EYE), (pl.x, pl.y, pl.z + los.EYE)) is None for r in reds):
+            hidden.append((w.t, pl.pos))
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            try:
+                loop.leave_by_gate("urgent")
+            except Abort:
+                pass
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = out.getvalue().splitlines()
+    cut = [ln for ln in lines if "no route from" in ln]
+    check("no route: the wall named as what cuts the way, no count of looks against the flight",
+          bool(cut) and "a wall of stone at (5254, " in cut[0] and not any(" of 6)" in ln for ln in cut), str(cut[:2]))
+    check("...out of their sight meanwhile (5 steps, a potion on the way), there within 3.5 s, not standing in their "
+          "spells", bool(hidden) and hidden[0][0] <= 3.5 and any("out of their sight meanwhile" in ln for ln in cut),
+          f"hidden {hidden[:1]} deaths {w.metrics['deaths']}")
+
+
 def test_rope_ranged():
     print("== a caster red on us at the east wing's mouth: the rope anyway, along the way to the gate ==")
     # live 2026-10-22 22:03: Flat Lander (nothing in his hands, Energy Bolts every ~2.2 s) on Logan at the wing's mouth;
@@ -6881,7 +6923,7 @@ def main():
               test_stairs, test_boss_room_door, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
               test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,
-              test_red_out_of_view,
+              test_red_out_of_view, test_red_walled,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,

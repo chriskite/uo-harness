@@ -2214,6 +2214,66 @@ class HuntLoop:
         path, _ = self.mover.plan(at, nav.within(near, 0), mobiles=False)
         return path is None or self.passes_hostile(path, spots, tuple(tile[:2])) is not None
 
+    def sight_count(self, st, spots: dict, sight, z: int):
+        """seen(t) -> how many of the hostile players at `spots` see the tile t (x, y, z): within SPELL_WORDS_RANGE,
+        eye to eye (their z from the world model, else `z`; `sight`: los.sight_for's, its ground items the last
+        walk_map's, so a Wall of Stone blocks it)."""
+        mobs = st["world"]["mobiles"]
+        eyes = [(xy[0], xy[1], ((mobs.get(key_of(s)) or {}).get("z") or z) + los.EYE) for s, xy in spots.items()]
+
+        def seen(t) -> int:
+            return sum(1 for e in eyes if cheb(e, t) <= threats.SPELL_WORDS_RANGE
+                       and sight.point_blocked(e, (t[0], t[1], t[2] + los.EYE)) is None)
+        return seen
+
+    def cover_tile(self, st, spots: dict, failed=()):
+        """No route to the gate in a flight (a red's Wall of Stone across the only corridor: live 2026-10-30
+        23:43:31-36 Logan stood 4.7 s in three casters' spells "looking again" and died): the tile to wait in
+        meanwhile. Of the tiles the walk rules reach within FLEE_SEARCH_R in at most FLEE_DETOUR times their distance
+        (no mobile on it, no known teleporter, not `failed`): from ranged ones (ranged_fight) the one fewest of them
+        see (sight_count), then the fewest steps (the least of the way in their sight), then the farthest from the
+        nearest of them; from melee ones, whose reach is their distance, the farthest from the nearest of them (up to
+        FLEE_FAR_R), the fewest steps. -> ((x, y), seen here, seen there), or None when none beats here: fewer seeing
+        it, or as many and FLEE_GAIN farther."""
+        walk = self.mover.walk_map(st)
+        sight = los.sight_for(self.mover.walkers, st["world"]["self"].get("map")) if walk is not None else None
+        if sight is None or not spots:
+            return None
+        x, y, z = self.pos(st)[:3]
+        here = (x, y, los.surface_z(walk, x, y, z))
+        ranged = self.ranged_fight(st)
+        seen = self.sight_count(st, spots, sight, here[2]) if ranged else (lambda t: 0)
+
+        def far(t) -> int:
+            return min(FLEE_FAR_R, *(cheb(t, xy) for xy in spots.values()))
+        skip = self.mover.occupied(st) | self.mover.teleporter_tiles(st["world"]["self"].get("map")) \
+            | {tuple(t[:2]) for t in failed}
+        best = None
+        for t, n in localmap.steps(walk, here, radius=FLEE_SEARCH_R).items():
+            if n > FLEE_DETOUR * cheb(here, t) or t in skip:
+                continue
+            t3 = (t[0], t[1], los.surface_z(walk, t[0], t[1], here[2]))
+            key = (seen(t3), n, -far(t)) if ranged else (0, -far(t), n)
+            if best is None or key < best[0]:
+                best = (key, t)
+        if best is None:
+            return None
+        n0, n1 = seen(here), best[0][0]
+        if n1 < n0 or (n1 == n0 and far(best[1]) >= far(here) + FLEE_GAIN):
+            return best[1], n0, n1
+        return None
+
+    def field_cut(self, st, near):
+        """The spell field (Mover.fields: a Wall of Stone too, tiledata "wall of stone" 0x4D1B) the way to `near`
+        runs into with the fields taken away: what alone makes its no route (it goes: a Wall of Stone in 10 s
+        [INFERENCE: RunUO's]), else None."""
+        fields = self.mover.fields(st)
+        if not fields:
+            return None
+        path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False, through_fields=True)
+        on = self.mover.fields_on(path, fields) if path else []
+        return on[0][1] if on else None
+
     def rope_jump(self, goal, spots: dict | None = None) -> bool:
         """One Adventurer's Rope jump toward `goal` (Logan's escapes: '[Rope', then the ground target;
         jumps of 7-10 tiles, an 11-tile target refused): the farthest tile of the route there within ROPE_R
@@ -2263,12 +2323,7 @@ class HuntLoop:
                 on_route.append(cur)
         hidden = ""
         if ranged:
-            mobs = st["world"]["mobiles"]
-            eyes = [(xy[0], xy[1], ((mobs.get(key_of(s)) or {}).get("z") or pos[2]) + los.EYE) for s, xy in spots.items()]
-
-            def seen_by(t) -> int:
-                return sum(1 for e in eyes if cheb(e, t) <= threats.SPELL_WORDS_RANGE
-                           and sight.point_blocked(e, (t[0], t[1], t[2] + los.EYE)) is None)
+            seen_by = self.sight_count(st, spots, sight, pos[2])
             # along the way only, the least seen first: ranking every tile in reach "out of their sight first" landed
             # Logan back in the dead end and behind them (sim/fight2001.py: 7 of 24 dead that way, 0 without ranged ropes)
             best = min(enumerate(on_route), default=(0, None), key=lambda it: (seen_by(it[1]), -it[0]))[1]
@@ -2392,6 +2447,11 @@ class HuntLoop:
                 self.team.follow(severity, wait=flee)
                 self.walk_hits, self.walk_hurt_t = None, -1e9
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
+                if not path:
+                    # a field across the way now (a red's Wall of Stone, live 2026-10-30 23:43:31): beside the gate as
+                    # the way runs once it goes; the flight takes cover meanwhile (flee_out)
+                    path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False,
+                                              through_fields=True)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
                 lag = {"wait": severity in PLANNED}
 
@@ -2528,7 +2588,11 @@ class HuntLoop:
         one and the walk went on past them; 17:37:13-22 the red of the leave was out of view at the flight's start
         and two came back along the gate's way while the walk ran on toward them with no look. `choose` (the walk in's
         gold moongates, gold_gate_way): at each leg while one is known, another gate whose way passes none of them
-        when this one's does (live 2026-10-22 Botan ran from (5610, 677) to beside the gold gate at (5588, 717))."""
+        when this one's does (live 2026-10-22 Botan ran from (5610, 677) to beside the gold gate at (5588, 717)).
+        No route to the gate (a red's Wall of Stone across the only way, field_cut; refused steps) never stands us in
+        their sight: the leg goes to cover_tile's tile meanwhile and looks again from there (live 2026-10-30
+        23:43:31-36 six looks on one tile in three casters' spells, dead); a field that cuts it doesn't count against
+        FLEE_NEAR_FAILS (it goes)."""
         t_end = time.monotonic() + FLEE_MAX_S
         leg = {"start": 0, "known": set(), "past": False}
         said, failed = [None], set()
@@ -2548,7 +2612,7 @@ class HuntLoop:
             if line != said[0]:
                 said[0] = line
                 log(line)
-        near_fails = 0
+        near_fails, cover = 0, None
         try:
             for _ in range(FLEE_LEGS_MAX):
                 st = self.link.state()
@@ -2564,6 +2628,7 @@ class HuntLoop:
                         gate, near = alt[0], alt[1]
                 goal, label = near, "to the moongate"
                 leg["past"] = False
+                shelter, cover = cover, None
                 if spots:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     s = self.passes_hostile(path, spots, here)
@@ -2591,6 +2656,8 @@ class HuntLoop:
                             say(f"to the moongate: no way round {who} at {xy} ({cheb(here, xy)} tiles off) "
                                 f"{'left' if fleeing else f'after {FLEE_MAX_S:.0f} s'}: past them, round them as "
                                 f"far as the way allows")
+                    elif shelter is not None and path is None:
+                        goal, label = shelter
                 if (not leg["past"] or self.ranged_fight(st)) and self.rope_worth(st) and self.rope_jump(goal, spots):
                     continue
                 leg["start"], leg["known"] = self.mover.steps, set(spots)
@@ -2599,12 +2666,35 @@ class HuntLoop:
                                              max_moves=max(250, 3 * self.out_steps), stop=stop)
                 except WalkFailed as e:
                     if goal == near:
-                        # live 2026-10-22 22:03:06: "no route from (5223, 657)" on a stair with Flat Lander on it ended
-                        # the run there, Logan alive at 50/100 and no potion or vet more; the refused steps expire
-                        near_fails += 1
-                        if near_fails > FLEE_NEAR_FAILS:
-                            raise
-                        log(f"{e}; looking again ({near_fails} of {FLEE_NEAR_FAILS})")
+                        st = self.link.state()
+                        field = self.field_cut(st, near)
+                        if field is None:
+                            # live 2026-10-22 22:03:06: "no route from (5223, 657)" on a stair with Flat Lander on it
+                            # ended the run there, Logan alive at 50/100 and no potion or vet more; the refused steps
+                            # expire
+                            near_fails += 1
+                            if near_fails > FLEE_NEAR_FAILS:
+                                raise
+                            why = f"{e}; looking again ({near_fails} of {FLEE_NEAR_FAILS})"
+                        else:
+                            # live 2026-10-30 23:43:31.19 Silent Assassin's Wall of Stone across the east wing's only
+                            # corridor west: no route; it goes, so no count against the flight
+                            why = (f"{e}: a {combat.item_name(field) or 'field'} at ({field['x']}, {field['y']}) cuts "
+                                   f"the way; looking again till it goes")
+                        # never standing in their spells meanwhile (live 23:43:32-36 6 looks in 4.7 s, dead): the tile
+                        # in reach fewest of them see, else farther from them (cover_tile)
+                        found = self.cover_tile(st, self.hostile_spots(st), failed)
+                        if found is not None:
+                            tile, n0, n1 = found
+                            what = "out of their sight" if n1 == 0 else \
+                                "out of the sight of more of them" if n1 < n0 else "away from them"
+                            cover = (tile, what)
+                            log(f"{why}; {what} meanwhile, toward {tile} (seen by {n0} -> {n1})")
+                            continue
+                        if field is None:
+                            log(f"{why}; nowhere better in reach")
+                        else:
+                            say(f"{why}; nowhere better in reach")
                         time.sleep(FLEE_HOLD_S)
                         continue
                     log(f"away from them: {e}")

@@ -3095,6 +3095,20 @@ death 2026-10-30 18:29"). Decisions:
   shy monster ending with it alive (18:29:25.9, "All Follow Me" pulled the pets off a biolumen shellpod at 42 %); a
   stand-off tried while held (`walk_in_fight` waits in `Mover.wait_held`).
 
+## No route in a red flight: out of their sight meanwhile (Logan dead on Maus 3, 2026-10-30 23:43)
+
+Live a red's Wall of Stone sealed the east wing's only corridor west; the flight found no route and stood 4.7 s
+"looking again (n of 6)" beside three casters (docs/NOTES.md "Walled in the east wing").
+
+- *Cause:* a hard block (the wall, a field to the Mover), not the soft zones: those are route costs and never seal a
+  route. No route existed; relaxing zones would have found none.
+- *Built:* `flee_out` takes cover meanwhile (`cover_tile`: from ranged reds the tile fewest of them see, then the fewest
+  steps; from melee ones the farthest) and waits out a field that cuts the way without counting it (`field_cut`); the
+  leave's start plans through fields when walled already. The user's dead-end rule is unchanged. `sim/fight2343.py`:
+  the stall 26.9 s in 11 of 24 runs -> 1.2 s in 1; deaths 21 (+3 left alive by the abort) -> 24 of 24.
+- *Open:* the rope aimed past a wall that rose between its plan and its target (the replay's "rope to (5252, 653) …
+  no jump", 21 of 24 runs before and after); fighting back (the pets on a red) when sealed in with them.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
