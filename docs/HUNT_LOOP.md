@@ -434,7 +434,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
 | `--pet-heal-at` | `0.95` | Veterinary supplies when a pet within `--vet-range` is below this share of hits (or poisoned), in a fight (`aggro.View.engaged`). With no fight on only below `tamer.CALM_HEAL_AT` 0.80, and only that (or a ghost, or us below `--heal-at`) holds the crawl's patrol, a channel included (`Team.busy_healing`; since 2026-10-24, user: "waiting to heal before moving on when a pet is just missing a few HP"; the next fight's vets top it up; test_sim `test_calm_heal`). Resting outside still waits for this share. |
 | `--pet-leave-at` | `0.20` | Leave when a pet is below this. |
 | `--vet-range` | `2` | Tiles the supplies reach. The Healer's Codex perk "Without Borders" adds 1/2/3 tiles (knowledge #11343); the user is levelling it (2026-10-12), so raise this with its tier. |
-| `--retreat-at` | `0.55` | Below this share of hits with a mob next to us: run 7 tiles from every attacker and let the pets hold it. |
+| `--retreat-at` | `0.55` | Below this share of hits with a mob next to us: run 7 tiles from every attacker and let the pets hold it; the tile the fewest idle monsters see, then within `--vet-range` - 1 of a pet (since 2026-10-31), then the nearest. |
 | `--discord` / `--peace` / `--provoke` | on | Each bard skill (`--no-…` turns one off). |
 | `--songs` | on | Keep the three barding songs up (`--no-songs` turns them off). |
 | `--heal-at`, `--leave-at`, `--leave-multi-at`, `--pull-range`, `--target-name`, `--crawl-dwell`, `--crawl-depleted-s`, `--crawl-max-dmg` | `0.80`, `0.50`, `0.55`, `8`, any monster, `1.5`, `5`, `20` | The pets style's own defaults (STYLE_DEFAULTS; the mage defaults are unchanged). The leave at 50 % and zones only below 20 hits lost a minute came with moving on at once from a cleared area (docs/SIM.md "Faster from one fight to the next"). |
@@ -635,7 +635,10 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    hit lands on everyone within r of itself in the simulator's scenarios (burst, ooze, wail and bleed_area specials,
    not one centred on its target), at r + 1. That adds the razorfin, voidfin, frenzyfin, greater razorfin and greater
    frenzyfin 3 (their spins), the colossal scourgeon 3, the tidal sea serpent 4, the drowned buccaneer 2, the
-   corpsebride 3 and the bound soul 2. Hits reaching beyond `AREA_MAX_R` 5 (the phantasm's lament 12) are left to the
+   corpsebride 3 and the bound soul 2; **its far ring** (since 2026-10-31, `AREA_FAR`: a special's `far_r` hit at
+   `far_chance` 0.5+, far_r + 1 round the monster's own tile, its pets' tiles keeping `AREA_R`): the corpsebride 5 (its
+   wail hit 47 of 61 of us at 3-4 tiles; live 2026-10-31 11:23 twice on Logan from 4; sim/fight1031.py 1123 wail hits on
+   him 58 -> 0). Hits reaching beyond `AREA_MAX_R` 5 (the phantasm's lament 12) are left to the
    caster rules. Simulator 2026-10-28 (24 runs, 96 on Maus 3): level 2 damage on Logan 2,017 -> 1,644 an hour, deaths 7
    -> 5; level 3 3,379 -> 1,971; Maus 3 deaths 7 -> 5, banked +5 %. **Since 2026-10-28 22:53** (Logan dead on Tidal Tomb
    level 1 beside both) also a hit on everyone within r of its target beside it or of where it comes up on its target:
@@ -1031,7 +1034,12 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   tile within 7 of a stealther's spot (12 of a purger's or blightmare's), in its sight, with no pet nearer the spot
   than the tile scores as that monster idle there (`aggro.View.backspawn_exposed`, in `stand_score` and the pull spot):
   the spacing, reposition and retreat tiles keep the pets between Logan and the spawns. Repositioning
-  keeps spacing's 3 tiles off the tank.
+  keeps spacing's 3 tiles off the tank. **Seeded on arrival** (since 2026-10-31, `Team.seed_near`): the store's and the
+  file's spots are collected at the setup and each goes in when Logan comes within 200 tiles of it. Before, only those
+  within 200 of the setup did, and a run sets up at home and recalls in: from the first `--enter-recall` runs (2026-10-21)
+  the fight level's spots never went in (no "backspawn:" line live after 2026-10-20 23:04, none in the simulator's runs
+  from home); live 2026-10-31 11:57:17 Logan was bitten -46 and -39 beside the vampiric consort's spot (5243, 633), 3
+  ahead of the pets (docs/NOTES.md "Maus 3 near-deaths"). test_sim `test_backspawn_on_arrival`.
 - **Line of sight in a fight** ("situational": between two rooms, stay out of sight of the room the
   pets aren't fighting in; "if it's easy to stand out of LoS of a caster like the banshee while still
   being able to heal our pets ... it's better"): every 3 s, a tile within 2 steps that keeps the pets

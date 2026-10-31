@@ -224,6 +224,26 @@ def _area_r() -> dict:
 
 
 AREA_R = _area_r()
+# The far ring of such a hit (a special's `far_r` hit at `far_chance` AREA_FAR_MIN or more): round the monster's own
+# tile, far_r + 1 (area_zone; its pets' tiles keep AREA_R, so the spacing still finds a tile in vet range). The
+# corpsebride's wail: 47 of 61 of us at 3-4 tiles hit (mausoleum.json), 5. Live 2026-10-31 11:23:30.74 and :39.05 its wail
+# hit Logan from 4 tiles both times (-21, -21), standing 3+ off it as AREA_R had it (docs/NOTES.md "Maus 3 near-deaths").
+AREA_FAR_MIN = 0.5
+
+
+def _area_far() -> dict:
+    out = {}
+    for sc in aggro.scenarios():
+        for kind, sps in (sc.get("specials") or {}).items():
+            for sp in sps if isinstance(sps, list) else ():
+                far = sp.get("far_r")
+                if kind in AREA_R and far is not None and far + 1 <= AREA_MAX_R \
+                        and (sp.get("far_chance") or 0.0) >= AREA_FAR_MIN:
+                    out[kind] = max(out.get(kind, 0), far + 1, AREA_R[kind])
+    return out
+
+
+AREA_FAR = _area_far()
 # A hit on its target, one of us up to `reach` off, and on everyone within `radius` of that one (a scenario `burst` with
 # `center` "target" and a radius): the astral zoas' spell and the combustive zoas' scorch. Its reach is round the pet it
 # targets, not round itself, and its sight of us doesn't matter (docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-29
@@ -434,6 +454,7 @@ BUBBLE_HUE = 0x0B40
 BUBBLE_R = 1                  # a pop hits within this many tiles of the bubble
 BUBBLE_STEPS = 3              # a tile out of every bubble's reach within this many steps
 BACKSPAWN_MERGE = 3           # stealther spawn spots closer than this are one (Team.backspawn)
+BACKSPAWN_SEED_R = 200        # a collected spawn spot this near us goes into Team.backspawn (seed_near)
 SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
 TAMER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "tamer")
 
@@ -723,6 +744,7 @@ class Team:
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
+        self.backspawn_pending = []      # [(spot, kind, facet or None)] collected, not yet within BACKSPAWN_SEED_R
         self.sighted = set()             # mobiles already looked at for a first sighting
         self.held_pets = {}              # countess copy serial -> [pet serial, monotonic of its '*transfixed*', seen]
         self.rejoin_at = {}              # pet serial -> ((x, y), monotonic) at our last walk back (rejoin)
@@ -768,30 +790,45 @@ class Team:
         within the pull range of it) and the Mausoleum's observed first sightings (harness/data/sim/mausoleum.json
         spawns: every first-seen position in the captures); a corpse purger's or blightmare's spots (aggro.respawn_r,
         since 2026-10-26) from those first sightings only (they don't come to us: our tile at the kill isn't theirs).
-        One spot per BACKSPAWN_MERGE tiles."""
-        facet = (st["world"].get("self") or {}).get("map") or 0
-        pos = self.h.pos(st)
+        One spot per BACKSPAWN_MERGE tiles. Collected here (setup), each added when we come within BACKSPAWN_SEED_R of
+        it (seed_near, every update): a run sets up at home and recalls in, and until 2026-10-31 only the spots within
+        BACKSPAWN_SEED_R of the setup were added, so from the first --enter-recall runs (2026-10-21) the fight level's,
+        380+ tiles off, never were (no "backspawn:" line live since 2026-10-20 23:04, none in the simulator's runs from
+        home; live 2026-10-31 11:57:17 Logan was bitten beside the vampiric consort's spot (5243, 633), 3 ahead of the
+        pets)."""
         found = []
         mem = getattr(self.h, "memory", None)
         if mem is not None and hasattr(mem, "job_events"):
             for e in mem.job_events("hunt", since=0.0):
-                if e["kind"] != "kill" or e.get("x") is None or (e.get("facet") or 0) != facet:
+                if e["kind"] != "kill" or e.get("x") is None:
                     continue
                 data = e["data"] if isinstance(e["data"], dict) else json.loads(e["data"] or "{}")
                 kind = type_key(data.get("name"))
                 if aggro.stealthy(kind):
-                    found.append(((e["x"], e["y"]), kind))
+                    found.append(((e["x"], e["y"]), kind, e.get("facet") or 0))
         try:
             with open(SPAWNS_PATH, encoding="utf-8") as f:
                 for s in json.load(f).get("spawns") or []:
                     if aggro.respawn_r(s["key"]) is not None:
-                        found.append((tuple(s["at"][:2]), s["key"]))
+                        found.append((tuple(s["at"][:2]), s["key"], None))     # the Mausoleum's: no facet given
         except OSError:
             pass
-        for spot, kind in found:
-            if cheb(spot, pos) <= 200:
+        self.backspawn_pending = found
+        self.seed_near(st)
+
+    def seed_near(self, st):
+        """The collected spawn spots (seed_backspawn) within BACKSPAWN_SEED_R of us on our facet into backspawn."""
+        if not self.backspawn_pending or (pos := self.h.pos(st)) is None:
+            return
+        facet = (st["world"].get("self") or {}).get("map") or 0
+        n0, left = len(self.backspawn), []
+        for spot, kind, f in self.backspawn_pending:
+            if (f is None or f == facet) and cheb(spot, pos) <= BACKSPAWN_SEED_R:
                 self.add_backspawn(spot, kind)
-        if self.backspawn:
+            else:
+                left.append((spot, kind, f))
+        self.backspawn_pending = left
+        if len(self.backspawn) > n0:
             log(f"backspawn: {len(self.backspawn)} stealther and shy spawn spot(s) known here; standing out of their sight")
 
     def add_backspawn(self, spot, kind):
@@ -885,6 +922,7 @@ class Team:
             del mv.danger[k]
         for t in fire:
             mv.danger.setdefault(f"fire:{t[0]},{t[1]}", (t, 0))   # routes step round it (Mover.danger_cost)
+        self.seed_near(st)
         labels = st["world"].get("labels") or {}
         for key, mob in st["world"]["mobiles"].items():
             s = serial_of(key)
@@ -2311,6 +2349,8 @@ class Team:
             c = (mob["x"], mob["y"])
             for t in [c] + [(p["x"], p["y"]) for p in pets if cheb((p["x"], p["y"]), c) <= PET_NEAR]:
                 zone[t] = max(zone.get(t, 0), r)
+            if kind in AREA_FAR and kind not in self.chargers:
+                zone[c] = max(zone[c], AREA_FAR[kind])     # its far ring round itself (the wail's 4 tiles)
         for tile, r in self.blink_tiles(st).items():
             zone[tile] = max(zone.get(tile, 0), r)
         return zone
@@ -2813,9 +2853,11 @@ class Team:
         h.doing("retreat", f"Backing off from {near[0]['name'] or near[0]['serial']} "
                            f"({me.get('hits')}/{me.get('hits_max')} hits)")
         to = self.retreat_tile(st, tiles)
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        by = f", {min(cheb(to, p) for p in pets)} from the pets" if to is not None and pets else ""
         log(f"retreating {RETREAT_R} tiles from {', '.join(str(a['name']) for a in near)} at "
             f"{me.get('hits')}/{me.get('hits_max')} hits; the pets hold it"
-            + (f"; to {to[:2]}, out of sight of idle monsters where it can" if to else ""))
+            + (f"; to {to[:2]}, out of sight of idle monsters where it can{by}" if to else ""))
         self.count("retreats")
         try:
             if to is not None:
@@ -2833,19 +2875,23 @@ class Team:
     def retreat_tile(self, st, attackers: list):
         """Where to back off to: a tile RETREAT_R from every attacker within 2 x RETREAT_R steps that the
         fewest idle monsters would see (aggro.View.stand_score, a --never-aggro one above all), out of area
-        hits and fire, the nearest of those; None without the map. Live 20261015_090607: backing off 7
-        tiles west from an apparition put Logan 10 tiles from a second one, in its sight, and it came
-        straight for him (-49) (user 2026-10-15: while the pets fight, a monster that sees us aggroes on us
-        directly)."""
+        hits and fire, then one within --vet-range - 1 of a live pet (RETREAT_PET_R, the pets' cover), the nearest of
+        those; None without the map. Live 20261015_090607: backing off 7 tiles west from an apparition put Logan 10
+        tiles from a second one, in its sight, and it came straight for him (-49) (user 2026-10-15: while the pets
+        fight, a monster that sees us aggroes on us directly). The pets' cover since 2026-10-31 (live 11:49:34: 7 tiles
+        north-west from a shade wolf, 10 from the pets, where a hidden second wolf and the forgotten soul that had him
+        as its target took him 46 -> 3 in 2.7 s; sim/fight1031.py 1149: the same tile 7 of 24 seeds, 2 deaths)."""
         v = self.view(st)
         if v.walk is None:
             return None
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        cover = self.a.vet_range - 1
         best, best_c = None, None
         for t, k in self.tiles_within(v, 2 * RETREAT_R).items():
             if min(cheb(t, a) for a in attackers) < RETREAT_R or t[:2] in zone or t[:2] in fire:
                 continue
-            c = (round(v.stand_score(t)), k)
+            c = (round(v.stand_score(t)), 0 if any(cheb(t, p) <= cover for p in pets) else 1, k)
             if best_c is None or c < best_c:
                 best, best_c = t, c
         return best

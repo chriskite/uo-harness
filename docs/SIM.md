@@ -81,6 +81,8 @@ python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--trace DIR]
 python harness/sim/fight2001.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
 python harness/sim/fight2203.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
 python harness/sim/fight2343.py 1-24 [--log] [--trace DIR] [--harness DIR]          # the 2026-10-30 23:43 three caster reds and a Wall of Stone sealing the east wing (World.add_wall)
+python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach, the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
+python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
 python harness/sim/fight0038.py 1-200 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-25 00:38 death vetting a pet in two casters' reach
 # with red players (docs below, "Red players"): gold banked an hour with them, their numbers against the live ones

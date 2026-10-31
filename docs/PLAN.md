@@ -3129,6 +3129,23 @@ killed three times (docs/NOTES.md "Tidal Tomb: Marinerbane's room"; docs/SIM.md 
 - *Open:* the cannon crew's target and damage, the feelers and the lash. Marinerbane's own swing. The Undermind's
   boss room. The stale `tidal_tomb_observed.json` (generated before 20261027_220057 was complete).
 
+## Maus 3 2026-10-31: dead at 11:57, near-deaths at 11:23 and 11:49 (docs/NOTES.md "Maus 3 near-deaths")
+
+- *Causes:* 11:57 a hidden vampiric consort beside its known spawn spot (114 of 135 on Logan) after the approach of a
+  forgotten soul walked him 3 ahead of the pets; 11:49 two hidden shade wolves and the soul, the retreat 10 off the pets;
+  11:23 a corpsebride's wail twice from 4 tiles, a countess's Flamestrike from 10, bleed ticks. In all three the leave
+  fired only below `HEAL_IN_PLACE_FLOOR` 0.15 (vet supplies in the pack are always a heal coming), read in 0.4 s.
+- *Decided:* the backspawn spots seeded on arrival (`Team.seed_near`; dead since the setup moved home, 2026-10-21); the
+  retreat by the pets (`retreat_tile`'s second key); the wail's far ring (`AREA_FAR`). Each by its replay
+  (sim/fight1031.py) and a test (test_sim `test_backspawn_on_arrival`, `test_retreat_by_the_pets`,
+  `test_wail_far_reach`, failing before).
+- *Rejected:* the forgotten soul as shy (sim/soul_scan.py: it walks in like the countess, a pet its first target 149 of
+  179); a higher leave floor (the leaves walked toward the danger; the heals saved him).
+- *Open:* the approach to `APPROACH_R` past a stealther's spawn spot (its stop doesn't read the backspawn); a stealther
+  seen hiding and an 0xAA naming an unseen serial as warnings; the simulator's idle stealthers waiting hidden; the soul's
+  multi-target bolt and spell mix; pet deaths on the live team 5 -> 11 in the batch with the three fixes (12 without the
+  far ring: from the backspawn seeding or the retreat; most with Logan 7-9 off the pet, out of the vet's reach).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

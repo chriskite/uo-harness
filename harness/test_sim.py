@@ -901,13 +901,13 @@ def test_backspawn():
           {"nightstalker", "shade wolf"} <= kinds and open_ > behind, f"{kinds} open {open_} behind {behind}")
 
 
-def hurt_loop(w, hits, extra=()):
-    """A HuntLoop at the hunt with a visit started, Logan at `hits`, the pets beside him on guard."""
+def hurt_loop(w, hits, extra=(), pets_at=None):
+    """A HuntLoop at the hunt with a visit started, Logan at `hits`, the pets beside him on guard (or on `pets_at`)."""
     import tempfile
     import loop_hunt
     import memory
     from sim import run as simrun
-    for p, xy in zip(w.pets(), ((w.player.x - 1, w.player.y), (w.player.x, w.player.y + 1))):
+    for p, xy in zip(w.pets(), pets_at or ((w.player.x - 1, w.player.y), (w.player.x, w.player.y + 1))):
         p.x, p.y = xy
     w.player.hits = hits
     link, clock = link_for(w)
@@ -6556,6 +6556,90 @@ def test_shy_by_ai():
     check("as the rule says for both dungeons' types", got == want, str({k: v for k, v in got.items() if v != want[k]}))
 
 
+def test_backspawn_on_arrival():
+    print("== the stealthers' and shy monsters' spawn spots: seeded as we come near them, not only at the setup (a run "
+          "sets up at home and recalls in) ==")
+    # live from the --enter-recall runs (2026-10-21) no "backspawn:" line: the setup at home was 380+ tiles from the fight
+    # level's spots; 2026-10-31 11:57:17 Logan was bitten beside the vampiric consort's spot (5243, 633), 3 ahead of the
+    # pets (docs/NOTES.md "Maus 3 near-deaths")
+    w = world_with([], seed=7, start=(5626, 688))             # Maus Near 2's arrival on the first level
+    loop, clock, store, patched = hurt_loop(w, 100)
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            before = dict(loop.team.backspawn)
+            w._teleport(w.player, (5243, 640, 0))
+            clock.advance(0.5)
+            loop.team.update(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("none of the fight level's spots at the setup on the first level; the consort's (5243, 633) once there, logged",
+          not any(s[0] < 5300 for s in before) and loop.team.backspawn.get((5243, 633)) == "vampiric consort"
+          and "backspawn:" in out.getvalue(),
+          f"at the setup {len(before)} ({sum(s[0] < 5300 for s in before)} on level 3), there "
+          f"{loop.team.backspawn.get((5243, 633))!r}, {out.getvalue().strip()[:120]!r}")
+
+
+def test_retreat_by_the_pets():
+    print("== a retreat from a monster beside us at low hits: 7 off it, the fewest idle eyes, then within --vet-range - 1 "
+          "of a pet before the fewest steps ==")
+    # live 2026-10-31 11:49:34 (hunt-20261031-111828-a80c): "retreating 7 tiles from a shade wolf at 46/100 hits; the pets
+    # hold it; to (5237, 625)", 10 from the pets at (5243, 635); a hidden second wolf on that way and the forgotten soul
+    # that had him as its target took him to 3/100 there (sim/fight1031.py 1149: that tile in 7 of 24 seeds, 2 deaths)
+    w = world_with([{"key": "shade wolf", "at": [5244, 631, 0]}, {"key": "forgotten soul", "at": [5245, 628, 0]}],
+                   seed=2, start=(5243, 631), team="phoenix_incubus")
+    wolf, soul = (next(m for m in w.mobs.values() if m.key == k) for k in ("shade wolf", "forgotten soul"))
+    for m in (wolf, soul):
+        m.target, m.threat = w.player.serial, {w.player.serial: 50}
+        w._warm(m, True)
+    loop, clock, store, patched = hurt_loop(w, 46)
+    for p in w.pets():                                        # the setup takes them within 3; live they stood 4 off
+        w._place(p, (5243, 635, w.stand_z(5243, 635, w.player.z)), d=0)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            to = loop.team.retreat_tile(loop.state(), [(5244, 631)])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    d = sim_cheb(to, (5243, 635)) if to is not None else None
+    check("7+ off the wolf and 4 or fewer from the pets (before: the live (5237, 625), 10 from them)",
+          to is not None and sim_cheb(to, (5244, 631)) >= 7 and d <= 4, f"to {to and to[:2]}, {d} from the pets")
+
+
+def test_wail_far_reach():
+    print("== a corpsebride fighting: its wail's far ring (4 tiles, 75 %) kept 5 off round it, its pets' tiles 3 off ==")
+    # live 2026-10-31 11:23:30.74 and :39.05 (hunt-20261031-111828-a80c): its wail hit Logan from 4 tiles both times, -21
+    # and -21, where the spacing and the reposition had put him 3+ off it (AREA_R 3); 11:23:33.40 the layout here
+    check("AREA_FAR: the corpsebride 5, AREA_R kept 3", getattr(tamer, "AREA_FAR", {}) == {"corpsebride": 5}
+          and tamer.AREA_R["corpsebride"] == 3, str(getattr(tamer, "AREA_FAR", None)))
+    w = world_with([{"key": "corpsebride", "at": [5176, 685, 0]}], seed=3, start=(5176, 687), team="phoenix_incubus")
+    bride = next(m for m in w.mobs.values() if m.key == "corpsebride")
+    bride.hits = bride.hits_max = 10 ** 6
+    bride.target, bride.threat = w.player.serial, {w.player.serial: 50}
+    w._warm(bride, True)
+    bride.cd["wail"] = w.t + 5.2                              # live: wails at 30.35 and 38.65
+    loop, clock, store, patched = hurt_loop(w, 89, extra=("--no-peace", "--no-songs"),
+                                            pets_at=((5176, 688), (5176, 688)))
+    wailed, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if victim is w.player and kind == "wail":
+            wailed.append(sim_cheb(by.pos, victim.pos))
+        return orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            t_end = w.t + 25.0
+            while w.t < t_end and not w.player.ghost:
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("no wail on Logan in 25 s of its fight with 3 wails (before: 3 of 3, from 3 tiles)", not wailed,
+          f"wail hits from {wailed}, Logan at {w.player.pos[:2]}, the bride at {bride.pos[:2]}")
+
+
 def test_walk_in_fought():
     print("== --fight-via: the level 2 leg to level 3 fought through; a drowned mariner by the way woken on the pets, "
           "killed, then on through the teleporter ==")
@@ -7069,7 +7153,7 @@ def main():
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_tidal_marinerbane, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
-              test_area_hitters, test_shy_by_ai,
+              test_area_hitters, test_shy_by_ai, test_backspawn_on_arrival, test_retreat_by_the_pets, test_wail_far_reach,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_step_in,
               test_step_in_fallback, test_oxygen_dolphin,
               test_tidal_hunt,

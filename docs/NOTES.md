@@ -7590,6 +7590,85 @@ so a value is read through its element's line index, never by its position in `l
     applying Weaken, Cripple, Pierce, or Hex effects the amount of the effect is increased by (20% / 60% / 100%) of
     normal. ... (5% / 15% / 25%) if follower cannot inflict any of these effects."
 
+## Maus 3 near-deaths 2026-10-31 11:23 and 11:49, dead at 11:57 (hunt-20261031-111828-a80c, capture session_20261031_105918)
+
+Decoded with `replay.timed_packets` through `WorldRuntime` ('-N'/'+N' overhead numbers, 0xA1/0x11 hits, 0x6E, 0xC0,
+0x2F, 0xAA, speech) and the capture's `agent_intent`/`step` rows. Team Bussin (incubus) and AlaFlambe (phoenix),
+`--heal-in-place --vet-range 5`. Times are 11:mm:ss.cc.
+
+**The leave line in all three**: `--heal-in-place` with vet supplies in the pack makes `heal_coming` true always (a
+channel running or one that can start), so `leave_reason` fires only below `HEAL_IN_PLACE_FLOOR` 0.15. It read the hits
+in time: 8/100 at 23:39.05 -> "LEAVING" 39.43 (0.38 s), 3/100 at 49:36.85 -> 37.26 (0.41 s); 11:57 never went below
+15 % before the one bite that killed him from 38. Not a lag; the floor. No change: the leaves walked toward the danger
+(11:23 north past the countess and the bride, 11:49 back past the soul) and the heals, not the walk, saved him.
+
+**11:57 (the death), 87 -> 0 in 4.6 s.** 15.86 "off the tank" at (5246, 637), the pets at (5245, 638); a forgotten soul
+0x2179C2 idle at (5245, 629). 15.78 the server's 0xAA made an unseen 0x217AEE Logan's combatant. 15.94 "toward a target"
+(approach to `APPROACH_R` 6: the soul is a meleemage, not `aggro.shy`) to (5245, 635), 16.99: 3 ahead of the pets, 2
+from the vampiric consort's spawn spot (5243, 633) in mausoleum.json. 17.30 a hidden vampiric consort showed at (5245,
+634) and bit -46 ("The creature bleeds you!", 100 -> 54), hid again 17.72. 17.83 potion +33 (87). 17.40-22.26 the soul
+(war 17.31) animated casts every ~1.5 s; 20.14 its 0x36D4 to Logan and both pets, -21/-13/-14 at 20.63. 20.34 -29 (the
+bleed's tick 3.03 s after the bite, icon 21 [INFERENCE]). 20.29 Discordance failed; 20.92 vet began (us at 58). 21.43
+"All Kill" at the soul (on Paleface). 22.42 the consort showed again beside him: -39, 38 -> 0. No potion was ready (next
+~27.8). The consort did 114 of 135; the soul 21. Cause: an ambush by a hidden stealther at its known spawn spot, Logan
+walked ahead of the pets beside it. The runner had no spot there: `Team.seed_backspawn` added only spots within 200 of
+the setup, and since the `--enter-recall` runs (2026-10-21) the setup is at home, 380+ off; no "backspawn:" line live
+since 2026-10-20 23:04, none in the simulator's runs from home. **Fixed** (`Team.seed_near`).
+
+**The forgotten soul** (sim/soul_scan.py over 43 Mausoleum captures, 317 fights; local scan 2026-10-31): it walks in like
+the vampire countess, not the shadowguard (a step toward us within 10 s in 127 of 212 fights woken with none of ours
+within 4; still on its flip tile at 10 s 61/190, shadowguard 124/223, countess 7/70; 862 steps toward us, 104 away). Its
+first target a pet 149 times, Logan 30. Its spells reach Logan from 5+ tiles in 32 of 59 (up to 14): Flamestrike 26-28
+(median 27), the 0x36D4 bolt that hits 2-14 of us at once (60 of 87) 18-28, Chain Lightning ~24, Mind Blast ~26 from
+5-12, Explosion 19-25; on the pets 11-21; melee (action 16) on the pets up to 38, 4 hits on Logan in 397. A cast
+animation every ~1.5 s, a spell that hurts us every 6.7 s (median). The wiki entries #10829 and #15327 say nothing of
+its spells. Not shy by the rule (it doesn't cast from where it stands); no change. The simulator's model (one 0x36D4
+bolt on one target every 6 s, range 12, x 1.6 on Logan: 20-28) has its damage and pace but neither its multi-target bolt
+nor its spell mix. sim/fight1031.py 1157: the approach to 6, 3 ahead of the pets, 24 of 24 seeds before and after; the
+soul took a pet 23 of 24 there; no death (the simulator has no idle hidden stealthers).
+
+**11:49, 100 -> 3 in 6.3 s.** 27.26 the soul 0x216636 woke at (5248, 624) and the 0xAA made it Logan's combatant (Logan
+the nearest by a tile). 28.43 a shade wolf 0x2168B9 showed idle at (5244, 631) for 0.03 s and hid; another 0x2168F0 at
+(5245, 623) hid 28.91. 30.08 Flamestrike on Logan from 8 (-22 at 30.57). 30.29 "reposition ... (1 -> 0 in reach)" a step
+to (5243, 631), beside the hidden wolf's tile. 31.13 potion at 78 (+22; heal_at 0.80). 31.83 the wolf bit -35 (65).
+32.53 vet began. 32.91 "a shade wolf on us and the pets on the soul: it is the target now" (right: the pets took it,
+33.16, and it left him for them by 34.79). 33.83 -19 (46; no animation: the wolf's 2 s swing [INFERENCE]). 34.19
+"retreating 7 tiles ... to (5237, 625)": north-west, 10 from the pets at (5243, 635), on the way of the second hidden
+wolf, which showed at (5242, 628) at 35.19 with "*frenzies*" and -21 (25). 36.35 the soul's 0x374A on him from 7 (-23 at
+36.85: 3/100). 36.79 "switching target to 0x00216636": the first wolf on the pets, the second one 2 off (its next bite
+38.54, -18) and the pets already on it (Bussin's bolt 35.94): the switch sent no command and made no difference. 37.93
+vet +34; 40.64 the soul's Chain Lightning from beside him -22 (8); 41.46 potion refused ("You must wait 1 second", 10.3
+s after the last), 42.93 +48. A potion was spent at 78 2.7 s before the bites; none was ready sooner after that. The
+wolves did ~93, the soul 67. **Fixed: the retreat by the pets** (`Team.retreat_tile`: after the idle eyes, a tile within
+--vet-range - 1 of a pet before the fewest steps; sim/fight1031.py 1149: 6+ from every pet 14 of 24 -> 0, deaths 2 -> 1,
+lowest hits median 25 -> 25; the soul's damage after the retreat 334 -> 432, it follows its target either way).
+
+**11:23, 100 -> 2 in 12 s.** 26.41 "toward a target" (a vampire countess at 8) walked into a vampire bat waking: 27.79
+-16 and a bleed (-7 ticks at 30.91, 33.82, 36.85, 39.94, 42.88). 29.66 "off the tank" to (5175, 684) toward the idle
+corpsebride (5175, 679) and countess (5178, 681); the bride woke 29.69 and wailed 30.35: -21 at 30.74 from 4 tiles. 31.43
+potion +32 (88). 32.48 the stand-off walked past the bride: -15 melee 33.73. 33.43 "off the tank" to (5178, 691); the
+bride came to the pets at (5176, 687), 4 off him. The countess woke 33.40 at (5178, 681) and 35.0 cast: Flamestrike on
+him from 10 (-32 at 36.72: 29). 35.05-40.20 vet channel. 38.85 "reposition ... (1 -> 0 in reach)" to (5179, 690), 3 off
+the bride. 38.65 its wail: -21 on him from 4 (39.05) and -19/-16 on the pets: 8. 39.94 a bleed tick: 2/100. 40.20 the
+vet's finish, 2 -> 37; 41.79 potion +39 (the clock from 31.43); 41.84 the countess's 0x36D4 at all three, -28. The wail hit him twice from
+4 tiles: the runner kept him `AREA_R` 3 off (radius 2 + 1) while the scenario's own wail data has 47 of 61 of us hit at
+3-4 tiles (far_r 4, 75 %). **Fixed: `tamer.AREA_FAR`** (a special's far ring with far_chance 0.5+, far_r + 1, round the
+monster's own tile; its pets' tiles keep `AREA_R`): the corpsebride 5. sim/fight1031.py 1123: wail hits on Logan 58 in
+24 seeds (1,108 hits, all from 3-4) -> 0; seconds within 4 of the fighting bride 603 -> 32.
+
+**Batch** (98 runs a side, seed 17, `--others --eerie --prior <a copy of the main store> -- --vet-range 5
+--crawl-learn-s 180`; the three fixes): the default team deaths 1 -> 2, damage on Logan 1,373 -> 1,249 an hour, the
+corpsebride's share 10,888 -> 3,647, banked 147k -> 145k an hour, pet deaths 0 -> 0; the live team (`--team
+phoenix_incubus`) deaths 5 -> 4, damage 1,279 -> 1,161, the corpsebride 11,811 -> 4,305, banked 136k -> 136k, pet deaths
+5 -> 11. Without the far ring (`--set tamer.AREA_FAR={}`, the live team): deaths 3, the corpsebride 10,986, pet deaths
+12: the pet deaths' rise comes with the backspawn seeding or the retreat, not the far ring (most with Logan 7-9 off the
+pet, out of the vet's reach). Over the 196 runs Logan's deaths 6 -> 6.
+
+**Not changed**: the approach of a non-shy target to 6 ahead of the pets past a stealther's spot (the backspawn counts
+in the tile scores, not in the approach's stop); the vanished stealther's tile (11:49 the reposition stepped beside a wolf
+seen hiding 2 s before) and an 0xAA naming an unseen serial (11:57, 1.5 s before the bite) as warnings; the simulator's
+idle stealthers (live they wait hidden; the simulator shows them); the soul's multi-target bolt and spell mix.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
