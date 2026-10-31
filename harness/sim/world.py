@@ -23,7 +23,8 @@ Every number comes from the scenario (harness/data/sim/<name>.json), each with i
   audit"): bleeds (the bound soul's on everyone within a tile), the Charge (called, then the jump),
   the vampire countess' transfixed copies of our pets, the apparition's blink with its area hit, the
   banshee's dematerialize, the shade wolf's and nightstalker's Vanish, the corpsebride's wail, the
-  vampires' feed, the daemon's bone burst, disease, poison, life drain; respawn after `respawn_s`.
+  vampires' feed, the daemon's bone burst, disease, poison, life drain; respawn after `respawn_s`, a
+  respawned vampiric consort hidden at its spawn till it bites the nearest of us within 3 (`lurk`, _lurk).
 - **Pets**: follow / guard / kill / stay by our pet commands ("All Guard Me": attack what attacks us
   or the pets; "All Kill": the target, then back to following; guarding stops at a recall);
   Logan's team (sim/pets.py: each pet's Guide stats at its level, its abilities, the Taming Bestiary's perks; run.py
@@ -253,6 +254,7 @@ class Mob:
     hidden_until: float = 0.0     # stealthed (Vanish) until then: unseen, unhittable; 0: visible
     blink_to: int | None = None   # an apparition's blink: back on this mobile's tile when hidden_until ends
     relocate: tuple | None = None  # a banshee's dematerialize: (min, max) tiles from here when hidden_until ends
+    lurk: dict | None = None      # a respawned stealther hidden at its spawn (special `lurk`; World._lurk) until it bites
     charge_at: tuple | None = None  # a Charge called ('*charges*'): (landing time, target serial, the special)
     feed: list | None = None      # a vampire's feed: [next time, ticks left (None: still attempting), target, special]
     pulse: list | None = None     # an ooze aura under way: [next burst time, bursts left, special]
@@ -468,7 +470,7 @@ class World:
         if self.others_on:
             self._others_setup()
 
-    def _spawn(self, i):
+    def _spawn(self, i, respawn: bool = False):
         sp = self.spawns[i]
         spec = self.sc["creatures"][sp["key"]]
         x, y = sp["at"][:2]
@@ -487,6 +489,10 @@ class World:
         m = Mob(self._serial(), "monster", sp["key"], spec["name"], spec["body"], x, y, z, hits=hp, hits_max=hp,
                 noto=spec.get("notoriety", 3), spec=spec, home=(x, y, z), spawn=i)
         m.next_think = self.t + self.rng.uniform(0, THINK_S)
+        lurk = next((s for s in spec.get("specials", []) if s["kind"] == "lurk"), None)
+        if lurk is not None and respawn:
+            m.lurk, m.hidden_until = lurk, float("inf")       # hidden from its spawn (World._lurk)
+            self.count("lurkers", sp["key"])
         self.mobs[m.serial] = m
         sp["mob"] = m.serial
         self._ev("spawn", m=m.serial, key=sp["key"])
@@ -1307,7 +1313,7 @@ class World:
             self._rope_land(to)
         for due, i in [x for x in self.spawn_due if x[0] <= t]:
             self.spawn_due.remove((due, i))
-            self._spawn(i)
+            self._spawn(i, respawn=True)
         for s, it in list(self.items.items()):
             if it.get("kind") == "corpse" and t - it["t"] > CORPSE_DECAY_S:
                 self._remove_corpse(s)
@@ -1577,6 +1583,9 @@ class World:
             self._vanish(m)
             return
         if m.hidden_until:
+            if m.lurk is not None and self._lurk(m):
+                m.hidden_until, m.lurk = t, None         # beside its victim: out now, the bite at once
+                self.count("lurk_bites", m.key)
             if t < m.hidden_until:
                 return
             m.hidden_until, m.next_swing = 0.0, t       # out of stealth: back on its target, a swing at once
@@ -1655,6 +1664,41 @@ class World:
             self._abilities(m, tgt, m.spec)
         if m.serial in self.mobs and tgt.alive and not tgt.ghost:
             self._attack(m, tgt, m.spec)
+
+    def lurk_now(self, m: Mob):
+        """`m` hidden at its tile as a respawned lurker of its type (special `lurk`; a replay's or a test's layout)."""
+        m.lurk = next(s for s in m.spec.get("specials", []) if s["kind"] == "lurk")
+        m.hidden_until, m.home, m.target, m.threat = float("inf"), m.pos, None, {}
+        self._warm(m, False)
+        if m.serial in self.viewing:
+            self.send(P.delete(m.serial))
+            self.viewing.discard(m.serial)
+
+    def _lurk(self, m: Mob) -> bool:
+        """A respawned stealther hidden at its spawn (special `lurk`: the vampiric consort, live 2026-10-31 11:57:17):
+        unseen and unhittable, it takes the nearest of us or another player's within `r` in its sight (a pet on a tie),
+        walks to it hidden at its own pace and comes out beside it (True: the caller shows it, its swing at once with
+        the type's on-hit specials, the consort's bleed). A victim past `r` + `leash` of its spawn is let go: it waits
+        where it stands."""
+        sp, t = m.lurk, self.t
+        tgt = self.mobs.get(m.target) if m.target is not None else None
+        if tgt is not None and (not tgt.alive or tgt.ghost or tgt.hidden_until
+                                or cheb(tgt.pos, m.home) > sp["r"] + sp.get("leash", 6)):
+            m.target, tgt = None, None
+        if tgt is None:
+            near = [o for o in self.team() + self.others() if o.alive and not o.ghost and not o.hidden_until
+                    and cheb(o.pos, m.pos) <= sp["r"] and self.can_see(m, o)]
+            if not near:
+                return False
+            tgt = min(near, key=lambda o: (cheb(o.pos, m.pos), o.kind in ("player", "other", "red")))
+            m.target, m.seen_target_t = tgt.serial, t
+            m.threat[tgt.serial] = m.threat.get(tgt.serial, 0) + 1
+        if cheb(m.pos, tgt.pos) <= 1:
+            return True
+        if t >= m.next_step:
+            m.next_step = self._due(m.next_step, m.spec["step_s"])
+            self._step_toward(m, tgt.pos, 1)
+        return False
 
     def _vanish(self, m: Mob):
         """A summoned monster's time is up (a transfixed copy): gone without a corpse."""

@@ -45,6 +45,7 @@ Run: python harness/crawl.py floor [--spot X Y]   (the NPD floor graph from the 
 import argparse
 import bisect
 import collections
+import contextlib
 import json
 import os
 import re
@@ -74,6 +75,7 @@ DANGER_S = 300.0        # an avoided creature's last sighting shapes routes this
 CROWD_S = 300.0         # players / pets seen at a waypoint lower its score this long
 CROWD_FACTOR = 0.3
 RESPAWN_S = 600.0       # a depleted area rests this long [INFERENCE: spawn timers unknown]
+CLOSED_WP = True        # no waypoint by a live vampiric consort's spawn spot (closed_wp; the batch's test variant: False)
 AWAKE_SHY_REST_S = 60.0  # a waypoint whose way runs into an awake purger's or blightmare's shot rests this long (one
 #                         on another player's pets is killed or gone within a minute or two [INFERENCE])
 SPOT_SAME_R = 80        # earlier crawl visits from a start this close count as the same floor (load_prior; live the
@@ -854,7 +856,16 @@ class Crawl:
     def dangerous(self, i) -> bool:
         w = self.wps[i]
         return any(cheb(w, tile) <= r + 2 or self.cell_of.get(tile) == i
-                   for tile, _, _, r in self.danger.values())
+                   for tile, _, _, r in self.danger.values()) or self.closed_wp(w)
+
+    def closed_wp(self, w) -> bool:
+        """A waypoint the closed area takes (aggro.STEALTH_CLOSED_R): within it plus 1 (the patrol stops a tile off its
+        waypoint, the pets behind) of a live vampiric consort's spawn spot (tamer.Team.spot_live). A patrol walk's route
+        bends round it as the Mover's danger zone (Team.around_stealth)."""
+        team = getattr(self.h, "team", None)
+        live = getattr(team, "spot_live", None) if CLOSED_WP else None
+        return live is not None and any(k in aggro.STEALTH_CLOSED and cheb(w, s) <= aggro.STEALTH_CLOSED_R + 1
+                                        and live(s) for s, k in getattr(team, "backspawn", {}).items())
 
     def choose(self, pos, blocked=frozenset()):
         """The next waypoint index (or None): open zones, not depleted, not near an
@@ -1018,8 +1029,10 @@ class Crawl:
         h.patrolling = True
         start, hold = tuple(pos[:2]), False
         try:
-            why = h.mover.walk_to(lambda: w, 1, f"patrol to {w}", stop=h.patrol_stop,
-                                  max_moves=max(250, 2 * max(self.floor.dist_exit.values())))
+            around = getattr(team, "around_stealth", None)
+            with around() if around is not None else contextlib.nullcontext():   # its route round a consort's spot
+                why = h.mover.walk_to(lambda: w, 1, f"patrol to {w}", stop=h.patrol_stop,
+                                      max_moves=max(250, 2 * max(self.floor.dist_exit.values())))
             # refused again before a step, the same waypoint for the same reason: one the tick's other rules don't take
             # up ("would wake 0.4 more onto 3.0 (budget 3)", a fight on): a hold here, not the walk again at once (live
             # 2026-10-29 12:35:39-42 and 12:36:42-43, 329 and 100 "stopped" lines, the tick spinning on the same walk)

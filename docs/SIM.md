@@ -81,8 +81,9 @@ python harness/sim/fight1853.py 1,2,...,12 [level1|level2] [--log] [--trace DIR]
 python harness/sim/fight2001.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 20:01 reds in the east wing's dead end
 python harness/sim/fight2203.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
 python harness/sim/fight2343.py 1-24 [--log] [--trace DIR] [--harness DIR]          # the 2026-10-30 23:43 three caster reds and a Wall of Stone sealing the east wing (World.add_wall)
-python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach, the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
+python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach (the consort lurking at her spot), the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
+python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
 python harness/sim/fight0038.py 1-200 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-25 00:38 death vetting a pet in two casters' reach
 # with red players (docs below, "Red players"): gold banked an hour with them, their numbers against the live ones
@@ -154,6 +155,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `sim/parity.py` | Live against simulated, per hour on the level, with the live 95 % interval ("Parity with the live runs"). |
 | `sim/armor.py`, `sim/armor_scan.py` | The player's armor ("Player armor"): the Outlands rule and a suit's AR; the scan of Logan's captures that tests the rule and fitted `player_melee_k`. |
 | `sim/shove_scan.py` | Shoves and stamina in the live captures (the walking rules of "Shoving and stamina"). |
+| `sim/stealth_scan.py` | The stealthers' emergences from hiding and their bites in the live captures, against their known spawn spots (the closed area's reach), and the numbers on a victim after a bite (the consort's bleed). |
 | `sim/cast_scan.py` | Cast and flight times of the monsters' and pets' ranged attacks in the live captures (0x6E -> 0xC0 -> '-N'), per type ("Cast and flight times"). |
 | `sim/trace.py` | A run's trace (`run.py --trace`, `fight*.py --trace DIR`): every mobile's record each tick and the combat events, read by the viz Sim page ("Traces"). |
 | `sim/viewmap.py` | The Sim page's map underlay (floor/wall PNG chunks) and line of sight, for viz_server's `/api/sim/map` and `/api/sim/los`. |
@@ -3190,3 +3192,35 @@ The Ossuary (since 2026-10-28; three visits):
     warrior's spell parry (how much of a phoenix's spell does it stop?), the firebrand's ignite and the embalmer's
     mixture.
 15. **Level 3 walked whole**, as Tidal Tomb's level 1 was: 107 spawns from two visits.
+
+## The consort's closed area (2026-10-31)
+
+The runner's closed area round a live vampiric consort's spawn spot (docs/HUNT_LOOP.md) against the simulator's
+consort with her bleed (27-32 every 3 s, 15 s, every bite) and her lurk (a respawned one hidden at her spawn until one
+of us comes within 3 in her sight; sim/stealth_scan.py and docs/NOTES.md "Maus 3 near-deaths" for the data). Both sides
+on this simulator; before = cefbafb's runner.
+
+**Replay** `sim/fight1031.py 1157 1-24` (the 11:57 layout, her hidden at (5243, 633)): Logan within 2 of her spot 24 ->
+13 (later walks to guarded tiles), the approach stopped short 0 -> 24, bitten 19 -> 0, her damage and bleed on him
+2,564 -> 0, the soul's 168 -> 76, deaths 0 -> 0.
+
+**Batches** (98 runs, `--others --eerie --prior <a copy of the main store taken 2026-10-31 12:53> -- --vet-range 5
+--crawl-learn-s 180`; damage on Logan summed over the 98 runs by source; "bleed" is every bleed, hers and the bats'):
+
+| | deaths | pet deaths | damage on Logan /h | banked /h | consort | shade wolf | nightstalker | bleed | her bites out of hiding |
+|---|---|---|---|---|---|---|---|---|---|
+| default team, seed 17, before | 2 | 1 | 1,184 | 131,451 | 631 | 1,591 | 2,501 | 5,029 | 133 |
+| ... after | 5 | 0 | 1,190 | 130,816 | 595 | 1,962 | 2,769 | 4,515 | 130 |
+| default team, seed 115, before | 3 | 1 | 1,209 | 131,238 | | | | | |
+| ... after | 3 | 1 | 1,179 | 131,037 | 679 | 2,392 | 2,928 | 4,389 | 127 |
+| live team (`--team phoenix_incubus`), seed 17, before | 3 | 12 | 1,102 | 124,330 | 428 | 2,036 | 2,442 | 3,969 | 129 |
+| ... after | 3 | 14 | 1,162 | 123,402 | 494 | 2,400 | 2,468 | 4,116 | 132 |
+
+Her bites out of hiding count every victim (mostly the pets and other players: a lurker takes the nearest). The live
+team's pet deaths (cefbafb's 5 -> 11 on the old simulator) are 12 -> 14 here. **The shade wolf's spot** taken out of
+the soft backspawn score altogether (`--set aggro.BACKSPAWN_OFF=("shade wolf",)`, seed 17, against the same build
+with it in, the build with the extra state read): the default team deaths 7 -> 7, pet deaths 0 -> 1, banked 130,154 ->
+132,021, the wolves' damage on Logan 2,299 -> 2,030; the live team deaths 4 -> 4, pet deaths 4 -> 6, banked 125,547 ->
+123,812, the wolves' 1,875 -> 2,342. No difference beyond the noise either way: kept as it was (soft); the user decides.
+Noise: the first after-build (an extra guarded state read in each approach) had 7 deaths on the default team, seed 17,
+and 7 too with the whole rule switched off (`--set aggro.STEALTH_CLOSED=()`): the timing alone picks which runs die.

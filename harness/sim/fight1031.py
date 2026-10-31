@@ -5,11 +5,13 @@ and 11:49, dead at 11:57"). The live team (phoenix_incubus: Bussin and AlaFlambe
     python harness/sim/fight1031.py <case> <seeds: 1,2,3 or 1-24> [--log] [--harness DIR]
 
 1157  The death. Logan at (5246, 637) where "off the tank" put him (11:57:15.86), the pets at (5245, 638) on guard, a
-      forgotten soul idle at (5245, 629), 8 off (live 11:57:15.98). Live the runner targeted it at 8 tiles and "toward a
-      target" walked him 2 steps on to (5245, 635), 6 off it, 3 ahead of the pets; it woke 0.3 s after he stopped and
-      cast at him (and a hidden vampiric consort beside him bit -46 and -39: the simulator has no idle hidden
-      stealthers). Per seed: where Logan stood when the soul woke (its distance, the nearest pet's, Logan nearer it than
-      every pet), its first target, the approaches and step-ins, Logan's damage by source, the lowest hits, death.
+      forgotten soul idle at (5245, 629), 8 off (live 11:57:15.98), and (added 2026-10-31) a vampiric consort hidden
+      at her spawn spot (5243, 633), freshly respawned (World.lurk_now; live killed 11:51:09, back by 11:56:55).
+      Live the runner targeted the soul at 8 tiles and "toward a target" walked him 2 steps on to (5245, 635), 6 off it,
+      3 ahead of the pets, 2 from the consort's spot; she came out beside him and bit -46 with a bleed (-29 3 s on),
+      then -39: dead. Per seed: where Logan stood when the soul woke (its distance, the nearest pet's, Logan nearer it
+      than every pet), its first target, the approaches and step-ins, the approach's stops short of the consort's spot,
+      the nearest Logan came to her spot, her bites on him, Logan's damage by source, the lowest hits, death.
 1149  The retreat. Logan at (5243, 631) at 46/100, a shade wolf beside him at (5244, 631) on him, the pets at
       (5243, 635) on guard, the forgotten soul awake at (5245, 628) casting at him; the potion drunk 3 s before, a vet
       channel on him with 4 s to run (live 11:49:34). Live the retreat went 7 tiles north-west to (5237, 625), 10 from
@@ -64,7 +66,7 @@ TEAM = "phoenix_incubus"                     # live: Bussin (incubus) and AlaFla
 EXTRA = ["--heal-in-place", "--vet-range", "5", "--crawl-learn-s", "180", "--human", "off"]
 LAYOUT = {
     "1157": {"start": (5246, 637), "pets": ((5245, 638), (5245, 638)),
-             "spawns": [("forgotten soul", (5245, 629)), ("shade wolf", (5242, 642))],
+             "spawns": [("forgotten soul", (5245, 629)), ("shade wolf", (5242, 642)), ("vampiric consort", (5243, 633))],
              "secs": 40.0, "hits": 100},
     "1149": {"start": (5243, 631), "pets": ((5243, 635), (5243, 635)),
              "spawns": [("forgotten soul", (5245, 628)), ("shade wolf", (5244, 631))], "secs": 12.0, "hits": 46},
@@ -72,6 +74,7 @@ LAYOUT = {
              "secs": 25.0, "hits": 89, "args": ["--no-peace"]},   # live no song calmed it; a calm one doesn't wail
 }
 RETREAT_TO = re.compile(r"retreating .*; to \((\d+), (\d+)\)")
+CONSORT_SPOT = (5243, 633)                   # the vampiric consort's spawn spot (harness/data/sim/mausoleum.json)
 SPELL_R = tamer.CASTER_R                     # the soul's spells: 7-8 tiles live (11:49:30, :36), the runner's reach 12
 
 
@@ -104,6 +107,7 @@ def one(case, seed):
         wolf.hits = wolf.hits_max * 0.16
         wolf.target, wolf.threat, other.target = other.serial, {other.serial: 1e9}, wolf.serial
         w._warm(wolf, True)
+        w.lurk_now(mob["vampiric consort"])  # hidden at her spot, as her successor live
     pl = w.player
     db = os.path.join(tempfile.mkdtemp(prefix="fight_"), "harness.db")
     args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, EXTRA + lay.get("args", []), 10, at_hunt=True)
@@ -127,7 +131,7 @@ def one(case, seed):
             wails[0] += 1
         return orig_overhead(m, text, *a, **kw)
     w._overhead = overhead
-    wake, low, near_s, retreat = {}, [pl.hits], [0.0], {}
+    wake, low, near_s, retreat, spot_d = {}, [pl.hits], [0.0], {}, [99]
     out = io.StringIO()
     world_tick = clock.on_advance
     last = [None]
@@ -137,6 +141,8 @@ def one(case, seed):
         low[0] = min(low[0], pl.hits)
         dt = w.t - last[0] if last[0] is not None else 0.0
         last[0] = w.t
+        if case == "1157":
+            spot_d[0] = min(spot_d[0], cheb(pl.pos, CONSORT_SPOT))
         soul = mob.get("forgotten soul")
         if soul is not None and not wake and soul.alive and soul.target is not None:
             tgt = w.mobs.get(soul.target)
@@ -201,7 +207,10 @@ def one(case, seed):
     if case == "1157":
         res.update({"wake": wake, "approaches": sum("toward a target: arrived" in ln for ln in logl),
                     "step_ins": sum("step-in" in ln for ln in logl),
-                    "soul_on_logan": sum(n for _, s, _k, n, _d in hits if s == "forgotten soul")})
+                    "soul_on_logan": sum(n for _, s, _k, n, _d in hits if s == "forgotten soul"),
+                    "stops": sum("from the vampiric consort's spawn spot" in ln and "stopping at" in ln for ln in logl),
+                    "spot_d": spot_d[0], "bites": sum(1 for _, s, _k, _n, _d in hits if s == "vampiric consort"),
+                    "consort_on_logan": sum(n for _, s, k, n, _d in hits if s == "vampiric consort" or k == "bleed")})
     elif case == "1149":
         res.update({"retreat_to": retreat.get("to"), "from_pet_d": retreat.get("from_pet_d"),
                     "pet_d": retreat.get("pet_d"), "soul_d": retreat.get("soul_d"),
@@ -234,7 +243,10 @@ if __name__ == "__main__":
                   f"Logan nearer it than every pet {sum(x['ahead'] for x in woke)}, approaches "
                   f"{sum(r['approaches'] for r in rows)}, step-ins {sum(r['step_ins'] for r in rows)}, the soul's damage on "
                   f"Logan {sum(r['soul_on_logan'] for r in rows)}, lowest hits median "
-                  f"{sorted(r['low'] for r in rows)[n // 2]}")
+                  f"{sorted(r['low'] for r in rows)[n // 2]}; the consort's spot: the approach stopped short in "
+                  f"{sum(r['stops'] > 0 for r in rows)}, Logan within 2 of it in {sum(r['spot_d'] <= 2 for r in rows)} "
+                  f"(nearest {min(r['spot_d'] for r in rows)}), bitten in {sum(r['bites'] > 0 for r in rows)}, her "
+                  f"damage and bleed on Logan {sum(r['consort_on_logan'] for r in rows)}")
         elif CASE == "1149":
             went = [r for r in rows if r["retreat_to"]]
             print(f"all {n}: deaths {dead}, retreats {len(went)}: to a tile in the soul's sight within {SPELL_R} "

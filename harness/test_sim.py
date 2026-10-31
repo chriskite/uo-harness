@@ -6640,6 +6640,129 @@ def test_wail_far_reach():
           f"wail hits from {wailed}, Logan at {w.player.pos[:2]}, the bride at {bride.pos[:2]}")
 
 
+def consort_layout(seed=1):
+    """The live 11:57:15.86 layout (sim/fight1031.py 1157): Logan at (5246, 637), the pets at (5245, 638), a forgotten soul
+    idle at (5245, 629), a shade wolf fighting Scruffy Growler at (5242, 642-643) (so the hold doesn't stop the approach),
+    a vampiric consort hidden at her spawn spot (5243, 633) as a fresh respawn."""
+    w = world_with([{"key": "forgotten soul", "at": [5245, 629, 0]}, {"key": "shade wolf", "at": [5242, 642, 0]},
+                    {"key": "vampiric consort", "at": [5243, 633, 0]}], seed=seed, start=(5246, 637), others=True,
+                   team="phoenix_incubus")
+    mob = {m.key: m for m in w.mobs.values()}
+    wolf = mob["shade wolf"]
+    other = w.add_other(5242, 643, w.stand_z(5242, 643, w.player.z), name="Scruffy Growler", stay=1e6, dps=1.0)
+    wolf.hits = wolf.hits_max * 0.16
+    wolf.target, wolf.threat, other.target = other.serial, {other.serial: 1e9}, wolf.serial
+    w._warm(wolf, True)
+    w.lurk_now(mob["vampiric consort"])
+    return w, mob
+
+
+def test_consort_lurk():
+    print("== a respawned vampiric consort lurks hidden at her spawn: unseen at 4 tiles, out beside the one who comes "
+          "within 3 with her bite and bleed ==")
+    # live 2026-10-31 11:57:15.43-17.31: unseen while Logan stood 4 off her spot for 1.3 s; 3 at 16.75, 2 at 16.99, her
+    # bite -46 at 17.31 from (5245, 634) with "The creature bleeds you!", -29 3.03 s later (sim/stealth_scan.py: ticks
+    # 27-32 every 3 s)
+    w = world_with([{"key": "vampiric consort", "at": [5243, 633, 0]}], seed=4, start=(5246, 637))
+    con = next(m for m in w.mobs.values() if m.key == "vampiric consort")
+    w.lurk_now(con)
+    for p in w.pets():                                         # out of her reach: Logan the one she sees
+        w._place(p, (5250, 645, w.stand_z(5250, 645, w.player.z)), d=0)
+    link, clock = link_for(w)
+    hits = []
+    orig = w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        before = victim.hits
+        r = orig(victim, amount, by, kind, *a, **kw)
+        if victim is w.player and victim.hits < before:
+            hits.append((round(w.t, 2), kind, by.key if by is not None else None))
+        return r
+    w.hurt = hurt
+    t0 = w.t
+    w.run_until(t0 + 5.0)
+    seen_far = con.serial in w.viewing or bool(hits)
+    w._teleport(w.player, (5245, 636, w.player.z))             # 3 off her spot
+    w.run_until(w.t + 6.0)
+    melee = [h for h in hits if h[2] == "vampiric consort"]
+    bleed = [h for h in hits if h[1] == "bleed"]
+    check("hidden and quiet 5 s at 4 tiles; out beside him within 2 s at 3 with a bite, a bleed tick 3 s after",
+          not seen_far and melee and melee[0][0] - (t0 + 5.0) <= 2.0 and sim_cheb(con.pos, w.player.pos) <= 1
+          and bleed and abs(bleed[0][0] - melee[0][0] - 3.0) <= 0.2 and con.lurk is None,
+          f"seen at 4 {seen_far}, hits {hits[:4]}, her tile {con.pos[:2]}")
+
+
+def test_approach_short_of_consort():
+    print("== the approach stops short of a tile within 5 of a live vampiric consort's spawn spot with no pet beside it "
+          "(the 11:57 death's layout) ==")
+    # live 2026-10-31 11:57:15.94-16.99 "toward a target" (a forgotten soul at 8) walked Logan to (5245, 635), 2 from the
+    # consort's spot (5243, 633), 3 ahead of the pets; the hidden consort came out and bit -46 with a bleed, then -39:
+    # dead. Before: the approach to 6 of the soul, the spot passed within 1-2, bitten (sim/fight1031.py 1157 19 of 24)
+    w, mob = consort_layout(seed=1)
+    loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5245, 638), (5245, 638)))
+    bites, near, out = [], [99], io.StringIO()
+    orig, world_tick = w.hurt, clock.on_advance
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if victim is w.player and by is not None and by.key == "vampiric consort":
+            bites.append(round(w.t, 2))
+        return orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+
+    def watch(now):
+        world_tick(now)
+        near[0] = min(near[0], sim_cheb(w.player.pos, (5243, 633)))
+    clock.on_advance = watch
+    try:
+        with contextlib.redirect_stdout(out):
+            t_end = w.t + 10.0
+            while w.t < t_end and not w.player.ghost:
+                loop.tick()
+    finally:
+        clock.on_advance = world_tick
+        store.close()
+        simclock.uninstall(patched)
+    stop = [ln for ln in out.getvalue().splitlines() if "toward a target: stopping at" in ln]
+    check("'toward a target: stopping at ...' the consort's spot; never within 3 of it, no bite in 10 s (before: within "
+          "2, bitten 1.5 s in)", stop and "is 3 from the vampiric consort's spawn spot (5243, 633) with no pet beside us"
+          in stop[0] and near[0] >= 4 and not bites, f"stops {stop[:1]}, nearest {near[0]}, bites {bites}")
+
+
+def test_consort_spot_open_after_death():
+    print("== a vampiric consort seen dying by her spot: the spot open for STEALTH_RESPAWN_MIN_S (no stop, no zone), "
+          "closed again after ==")
+    w, mob = consort_layout(seed=2)
+    loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5245, 638), (5245, 638)))
+    team, out = loop.team, io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            team.update(loop.state())
+            with team.around_stealth():                                  # the patrol's zone, out again after
+                zoned = "stealth:5243,633" in loop.mover.danger
+            zoned = zoned and "stealth:5243,633" not in loop.mover.danger
+            v = team.view(loop.state())
+            closed = v.stealth_closed((5245, 635))
+            guarded = v.stealth_closed((5245, 637))                  # a pet beside it
+            team.stealth_at[0x7FFF0001] = ("vampiric consort", (5254, 630))   # live 11:51:09, 11 from her spot
+            loop.link.events.append({"ev": "mobile_death", "serial": 0x7FFF0001})
+            loop.link.event_t.append(loop.link.event_t[-1] if loop.link.event_t else 0.0)
+            team.update(loop.state())
+            with team.around_stealth() as any_zone:
+                open_ = team.view(loop.state()).stealth_closed((5245, 635)) is None and not any_zone
+            left = team.spot_dead.get((5243, 633), 0.0) - tamer.time.monotonic()
+            team.spot_dead[(5243, 633)] -= left + 0.1                    # its respawn time over (the world not run)
+            team.update(loop.state())
+            with team.around_stealth() as any_zone:
+                again = team.view(loop.state()).stealth_closed((5245, 635)) is not None and any_zone
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("closed 2 off unguarded, open beside a pet, a soft zone; open after a death 11 off, logged; closed again later",
+          zoned and closed is not None and closed[2] == 2 and guarded is None and open_ and again
+          and "backspawn: the vampiric consort died at (5254, 630)" in out.getvalue(),
+          f"zone {zoned}, closed {closed}, guarded {guarded}, open {open_} ({left:.0f} s), again {again}")
+
+
 def test_walk_in_fought():
     print("== --fight-via: the level 2 leg to level 3 fought through; a drowned mariner by the way woken on the pets, "
           "killed, then on through the teleporter ==")
@@ -7154,6 +7277,7 @@ def main():
               test_tidal_bubbles, test_tidal_marinerbane, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai, test_backspawn_on_arrival, test_retreat_by_the_pets, test_wail_far_reach,
+              test_consort_lurk, test_approach_short_of_consort, test_consort_spot_open_after_death,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_step_in,
               test_step_in_fallback, test_oxygen_dolphin,
               test_tidal_hunt,

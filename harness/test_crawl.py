@@ -20,6 +20,7 @@ import types
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import aggro  # noqa: E402
 import crawl  # noqa: E402
 import nav  # noqa: E402
 from memory import Memory  # noqa: E402
@@ -211,6 +212,28 @@ def test_choose():
     check("players or pets seen there: a crowded area loses to a less stale empty one", i1 not in picks, picks)
 
 
+def test_consort_spot():
+    print("== a waypoint within aggro.STEALTH_CLOSED_R + 1 of a live vampiric consort's spawn spot isn't patrolled to ==")
+    # user 2026-10-31 after the Maus 3 death at 11:57: "I'm not going to stand unguarded near where the vampiric consort
+    # spawns"; the patrol stops a tile off its waypoint with the pets behind
+    c = make_crawl(crawl.Model())
+    c.unlocked = c.top
+    here = c.wps[0]
+    spot = c.wps[-1]
+    live = {spot: True}
+    c.h.team = types.SimpleNamespace(backspawn={spot: "vampiric consort", (900, 900): "shade wolf"},
+                                     spot_live=lambda s: live[tuple(s)] if tuple(s) in live else True)
+    near = {i for i, w in enumerate(c.wps) if max(abs(w[0] - spot[0]), abs(w[1] - spot[1]))
+            <= aggro.STEALTH_CLOSED_R + 1}
+    picks = {c.choose(here) for _ in range(30)}
+    closed = all(c.dangerous(i) for i in near)
+    live[spot] = False
+    opened = not any(c.closed_wp(c.wps[i]) for i in near)
+    check("none of its waypoints chosen while live; open again once it isn't (a death seen there)",
+          near and not near & picks and closed and opened,
+          (sorted(near), sorted(i for i in picks if i is not None), closed, opened))
+
+
 def test_loop():
     print("== --crawl-loop: every zone, round the floor ==")
     c = make_crawl(crawl.Model(), crawl_loop=True)
@@ -276,6 +299,7 @@ if __name__ == "__main__":
     test_model()
     test_zones()
     test_choose()
+    test_consort_spot()
     test_loop()
     test_prior()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))

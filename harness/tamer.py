@@ -455,6 +455,14 @@ BUBBLE_R = 1                  # a pop hits within this many tiles of the bubble
 BUBBLE_STEPS = 3              # a tile out of every bubble's reach within this many steps
 BACKSPAWN_MERGE = 3           # stealther spawn spots closer than this are one (Team.backspawn)
 BACKSPAWN_SEED_R = 200        # a collected spawn spot this near us goes into Team.backspawn (seed_near)
+# The closed area round a live vampiric consort's spawn spot (aggro.STEALTH_CLOSED_R; user 2026-10-31). A death of one
+# seen within STEALTH_DEAD_R of a known spot of its type leaves the spots there open for STEALTH_RESPAWN_MIN_S. Live the
+# one respawn seen: the consort killed 2026-10-31 11:51:09 at (5254, 630), 11 from (5243, 633), her successor's serial
+# allocated by 11:56:55 (below a shadowguard's first seen then) and biting Logan there at 11:57:17, so 346 s or less
+# [INFERENCE: half that; her first sightings spread over x 5241-5266, one corridor: one spawner]
+STEALTH_DEAD_R = 12
+STEALTH_RESPAWN_MIN_S = 180.0
+STEALTH_STOP = "a stealther's spawn spot"   # closed_step's reason: the walks' callers tell it by this
 SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
 TAMER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "tamer")
 
@@ -745,6 +753,10 @@ class Team:
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
         self.backspawn_pending = []      # [(spot, kind, facet or None)] collected, not yet within BACKSPAWN_SEED_R
+        self.spot_dead = {}              # (x, y) of a STEALTH_CLOSED spawn spot -> monotonic end of its respawn (spot_live)
+        self.stealth_at = {}             # serial -> (type, (x, y)) of a STEALTH_CLOSED monster last seen (its death's spot)
+        self.closed_said = None          # closed_step's last stop line (logged once)
+        self.closed_hold = None          # approach's hold short of a closed tile (hold_key) while nothing moves
         self.sighted = set()             # mobiles already looked at for a first sighting
         self.held_pets = {}              # countess copy serial -> [pet serial, monotonic of its '*transfixed*', seen]
         self.rejoin_at = {}              # pet serial -> ((x, y), monotonic) at our last walk back (rejoin)
@@ -897,6 +909,8 @@ class Team:
             elif kind == "mobile_death" and s is not None:
                 self.effects.pop(s, None)
                 self.attack_t.pop(s, None)
+                if (seen := self.stealth_at.pop(s, None)) is not None:
+                    self.stealth_dead(seen[0], seen[1], now)
         self.ev_upto = len(evs)
         self.spray_watch(st)
         self.free_pets(st, now)
@@ -926,12 +940,81 @@ class Team:
         labels = st["world"].get("labels") or {}
         for key, mob in st["world"]["mobiles"].items():
             s = serial_of(key)
-            if s in self.sighted or s in self.roster or mob.get("x") is None or mob.get("pet"):
+            if s in self.roster or mob.get("x") is None or mob.get("pet"):
+                continue
+            kind = type_key(labels.get(key) or mob.get("name"))
+            if kind in aggro.STEALTH_CLOSED:
+                self.stealth_at[s] = (kind, (mob["x"], mob["y"]))
+            if s in self.sighted:
                 continue
             self.sighted.add(s)
-            kind = type_key(labels.get(key) or mob.get("name"))
             if kind and aggro.respawn_r(kind) is not None and not (mob.get("flags") or 0) & aggro.WAR:
                 self.add_backspawn((mob["x"], mob["y"]), kind)        # idle where we first saw it: its spawn
+
+    def spot_live(self, spot) -> bool:
+        """A STEALTH_CLOSED spawn spot whose monster may stand there now: no death of its type seen near it
+        (stealth_dead) within STEALTH_RESPAWN_MIN_S."""
+        return time.monotonic() >= self.spot_dead.get(tuple(spot[:2]), 0.0)
+
+    def stealth_dead(self, kind, at, now):
+        """A STEALTH_CLOSED monster died at `at`: each known spot of its type within STEALTH_DEAD_R of it is open (not
+        live) for STEALTH_RESPAWN_MIN_S."""
+        spots = [s for s, k in self.backspawn.items() if k == kind and cheb(s, at) <= STEALTH_DEAD_R]
+        for s in spots:
+            self.spot_dead[s] = now + STEALTH_RESPAWN_MIN_S
+        if spots:
+            log(f"backspawn: the {kind} died at {at}; its spawn spot(s) {', '.join(str(s) for s in spots)} open for "
+                f"{STEALTH_RESPAWN_MIN_S:.0f} s")
+
+    @contextlib.contextmanager
+    def around_stealth(self):
+        """For a patrol walk (crawl.Crawl.idle): the live STEALTH_CLOSED spawn spots as the Mover's danger zones
+        (`stealth:x,y`, aggro.STEALTH_CLOSED_R), so its route bends round them where it can (Mover.danger_cost); taken
+        out again after. Not for the fight's walks: as standing zones a vet walk to a pet 7 off went 101 steps round
+        the consort's spot (sim/fight1031.py 1157), out of the pets' reach."""
+        mv, keys = self.h.mover, []
+        for s, k in self.backspawn.items():
+            if k in aggro.STEALTH_CLOSED and self.spot_live(s):
+                key = f"stealth:{s[0]},{s[1]}"
+                mv.danger[key] = (s, aggro.STEALTH_CLOSED_R)
+                keys.append(key)
+        try:
+            yield bool(keys)
+        finally:
+            for key in keys:
+                mv.danger.pop(key, None)
+
+    def closed_step(self, st, label: str) -> str | None:
+        """A walk's stop (Mover.walk_to `stop`): its next route tile (Mover.route) closed (aggro.View.stealth_closed: within
+        STEALTH_CLOSED_R of a live vampiric consort's spawn spot with no pet beside it or nearer the spot) and no
+        farther from that spot than here (walking out of it or along its edge goes on). -> STEALTH_STOP's reason, the
+        stop logged once: "toward a target: stopping at (x, y): (x, y) is 2 from the vampiric consort's spawn spot
+        (5243, 633) with no pet beside us" (live 2026-10-31 11:57:16.99: the approach walked Logan to (5245, 635), 3
+        ahead of the pets; bitten there 0.3 s later)."""
+        route = getattr(self.h.mover, "route", None)
+        if not route or not getattr(self, "backspawn", None):
+            return None
+        v = self.view(st)
+        if not v.closed:
+            return None
+        here = tuple(v.pos[:2])
+        try:
+            nxt = route[route.index(here) + 1]
+        except (ValueError, IndexError):
+            return None
+        c = v.stealth_closed(nxt)
+        if c is None:
+            return None
+        spot, kind, d = c
+        now = v.stealth_closed(here)
+        if now is not None and now[0] == spot and d >= now[2]:
+            return None
+        line = f"{label}: stopping at {here}: {tuple(nxt)} is {d} from the {kind}'s spawn spot {spot} with no pet beside us"
+        if line != self.closed_said:
+            log(line)
+            self.closed_said = line
+            self.count("stealth_stops")
+        return f"{STEALTH_STOP}: {tuple(nxt)} is {d} from the {kind}'s spawn spot {spot}"
 
     @staticmethod
     def fire_tiles(st) -> set:
@@ -2713,7 +2796,10 @@ class Team:
         100 -> 6 in 8 s (its shot ~20 and a stacking disease); user 2026-10-21: "stay out of their aggro range". A
         clearwater grouper's bubbles within LOOT_RANGE of the corpse: the same, a tile out of their reach (fire_tiles),
         else a wait out of it (live 2026-10-28 21:13:48-51 Logan looted from beside two, -40). An awake sprayer's cone
-        (spray_tiles) over the corpse's tiles with no clear tile reached: a wait too, not the walk in."""
+        (spray_tiles) over the corpse's tiles with no clear tile reached: a wait too, not the walk in. A corpse with a
+        tile within LOOT_RANGE the closed area takes (aggro.View.stealth_closed: a live vampiric consort's spawn spot, no
+        pet beside it): a tile it doesn't take, ranked by stand_score, else a wait till the pets stand by (user
+        2026-10-31: "I'm not going to stand unguarded near where the vampiric consort spawns")."""
         zone = self.area_zone(st)
         v = self.view(st)
         shy = self.shy_awake(v)
@@ -2725,14 +2811,16 @@ class Team:
         close = [m for m in v.mobs if m["war"] and not m["shy"] and cheb(m["pos"], spot) < lr + SPACING_R]
         bub = self.bubble_tiles(st)
         hot = any((spot[0] + dx, spot[1] + dy) in bub for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1))
-        if not zone and not shy and not idle_shy and not close and not hot:
+        sealed = bool(v.closed) and any(v.stealth_closed((spot[0] + dx, spot[1] + dy))
+                                        for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1))
+        if not zone and not shy and not idle_shy and not close and not hot and not sealed:
             return None, None
         pos = tuple(self.h.pos(st)[:2])
 
         def beside(t) -> list[dict]:
             return [m for m in close if cheb(m["pos"], t) < SPACING_R]
         if cheb(pos, spot) <= lr and not self.zone_depth(zone, pos) and not self.shot_at(v, shy, pos) \
-                and not beside(pos) and pos not in bub:
+                and not beside(pos) and pos not in bub and not v.stealth_closed(pos):
             return None, None
         if zone and all(self.zone_depth(zone, (spot[0] + dx, spot[1] + dy))
                         for dx in range(-lr, lr + 1) for dy in range(-lr, lr + 1)):
@@ -2752,6 +2840,9 @@ class Team:
             # in an ocean bedrock's cone (the ones out of it were wall), "to the corpse" walked in as before, -34
             return None, (f"the corpse at {spot} lies in the {', '.join(near)}'s spray cone, every tile within {lr} of it "
                           f"we reach too")
+        if sealed and (c := v.stealth_closed(t[:2] if t is not None else spot)) is not None:
+            return None, (f"the corpse at {spot} lies within {aggro.STEALTH_CLOSED_R} of the {c[1]}'s spawn spot {c[0]} "
+                          f"with no pet beside us, every tile within {lr} of it we reach too")
         end = t[:2] if t is not None else spot
         if idle_shy and (first := self.shy_first(v, (end[0], end[1], v.z_at(end)))):
             # an idle shy monster (a caster since 2026-10-26) would see us there before a pet: its first target. Simulator,
@@ -3253,9 +3344,20 @@ class Team:
         live); one that comes on is fought. On its floor because the beeline to within APPROACH_R of a monster below a
         ledge ends on the ledge, where on_our_floor no longer counts it, and the patrol's next step made it a target
         again: live 2026-10-21 22:27:28-22:28:42, 40 rounds between (5180, 684) and (5181, 685) over two shade wolves
-        28 z below (sim/fight2227.py; user: "stuck bumping into a wall trying to approach a shade wolf")."""
+        28 z below (sim/fight2227.py; user: "stuck bumping into a wall trying to approach a shade wolf").
+        Stopped short of a tile closed by a vampiric consort's live spawn spot (closed_step: no pet beside it or nearer
+        the spot), the target kept: we hold there while neither we nor the pets move (no walk planned again each tick),
+        the pets closing up or the target coming on, else the fight's PIN_S drops it (live 2026-10-31 11:57:16.99: the
+        approach to a forgotten soul walked Logan 2 from the consort's spot, 3 ahead of the pets; her bite and bleed
+        -46, -29, -39, dead)."""
         h, label = self.h, "toward a target"
         name = mob.get("name") or f"0x{serial:08X}"
+        if self.closed_hold is not None and (st0 := h.link.last) is not None \
+                and self.closed_hold == self.hold_key(st0, serial):   # the fight's own read: no extra guarded one
+            h.doing("wait", f"Holding short of {STEALTH_STOP} for the pets ({name})", (mob["x"], mob["y"]), serial)
+            time.sleep(0.4)
+            return
+        self.closed_hold = None
         h.doing("approach", f"Approaching {name}", (mob["x"], mob["y"]), serial)
         blocked = []
 
@@ -3265,6 +3367,9 @@ class Team:
 
         def stop(st):
             if self.engaged(st, serial) or serial in {serial_of(a["serial"]) for a in h.attackers(st)}:
+                return True
+            if self.closed_step(st, label):
+                self.closed_hold = self.hold_key(st, serial)
                 return True
             why = self.pull_check(st)
             if why and why.endswith("would see us"):
@@ -3281,6 +3386,11 @@ class Team:
             log(f"passing over {name} 0x{serial:08X}: {blocked[-1]} on the way to it; skipping it for {SKIP_S:.0f} s")
             h.skip[serial] = time.monotonic() + SKIP_S
             h.disengage("dropped")
+
+    def hold_key(self, st, serial: int) -> tuple:
+        """approach's hold short of a closed tile: the target and its tile, our tile and the live pets' tiles."""
+        m = st["world"]["mobiles"].get(f"0x{serial:08X}") or {}
+        return serial, (m.get("x"), m.get("y")), tuple(self.h.pos(st)[:2]), tuple(sorted(self.view(st).pets))
 
     def walk_to_see(self, st, serial: int, mob: dict, who: str) -> bool:
         """A monster fighting another player (`who`) within BARD_RANGE but out of our sight, no step of bard_step
@@ -3443,7 +3553,8 @@ class Team:
                 return v.stand_score(t)
             return 100.0 * len(v.never_near(t)) + 10.0 * (
                 sum(o["weight"] for o in v.first_on_us(t, margin=1))
-                + sum(aggro.weight(kind) for _, kind in v.backspawn_exposed(t)))
+                + sum(aggro.weight(kind) for _, kind in v.backspawn_exposed(t))) \
+                + (aggro.STEALTH_CLOSED_COST if v.stealth_closed(t) else 0.0)
 
         steps = PEEK_STEPS if peek else REPOSITION_STEPS
         here = score(v.pos)

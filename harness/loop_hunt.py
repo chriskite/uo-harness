@@ -1546,8 +1546,9 @@ class HuntLoop:
             if why:
                 # kept queued (others race us to loot): tried again after LOOT_DEFER_S, at once safe (loot_next)
                 if c.get("deferred") != why:
-                    log(f"not looting {corpse.get('name') or c['name']} yet: {why}; waiting for the area hitter "
-                        f"to die or go")
+                    log(f"not looting {corpse.get('name') or c['name']} yet: {why}; "
+                        + ("waiting for the pets to stand by" if "'s spawn spot" in why
+                           else "waiting for the area hitter to die or go"))
                 c["deferred"], c["defer_until"] = why, time.monotonic() + LOOT_DEFER_S
                 return
         c.pop("deferred", None)

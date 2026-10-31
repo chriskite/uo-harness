@@ -261,6 +261,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "bubbles": m.get("bubbles", {}), "spray": m.get("spray", {}),
             "large_swing": m.get("large_swing", {}), "dig": m.get("dig", {}),
             "pinches": m.get("pinches", {}),          # giant pincer crabs' pinches (World._pinch) by victim
+            # respawned vampiric consorts hidden at their spawn (World._lurk) and their bites out of hiding, by type
+            "lurk": {"lurkers": m.get("lurkers", {}), "bites": m.get("lurk_bites", {})},
             # a boss's rotation (Marinerbane): its moves by kind, its summons by type, its barrels (thrown, hits and
             # damage on us and on the pets), the players it grew by
             "boss_moves": m.get("boss_moves", {}), "boss_summons": m.get("boss_summons", {}),

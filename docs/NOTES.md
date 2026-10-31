@@ -7664,10 +7664,53 @@ phoenix_incubus`) deaths 5 -> 4, damage 1,279 -> 1,161, the corpsebride 11,811 -
 12: the pet deaths' rise comes with the backspawn seeding or the retreat, not the far ring (most with Logan 7-9 off the
 pet, out of the vet's reach). Over the 196 runs Logan's deaths 6 -> 6.
 
-**Not changed**: the approach of a non-shy target to 6 ahead of the pets past a stealther's spot (the backspawn counts
-in the tile scores, not in the approach's stop); the vanished stealther's tile (11:49 the reposition stepped beside a wolf
-seen hiding 2 s before) and an 0xAA naming an unseen serial (11:57, 1.5 s before the bite) as warnings; the simulator's
-idle stealthers (live they wait hidden; the simulator shows them); the soul's multi-target bolt and spell mix.
+**Not changed** (then): the approach of a non-shy target to 6 ahead of the pets past a stealther's spot (done the same
+day, below); the vanished stealther's tile (11:49 the reposition stepped beside a wolf seen hiding 2 s before) and an
+0xAA naming an unseen serial (11:57, 1.5 s before the bite) as warnings; the simulator's idle stealthers (done for the
+consort's respawn, below); the soul's multi-target bolt and spell mix.
+
+**The approach and the consort's spot (later 2026-10-31).** The user, verbatim: "Fix the approach. I can tell you that
+as a human player I'm not going to stand unguarded near where the vampiric consort spawns since her stealth backstab +
+bleed is deadly. But I think in the death in game she had gotten pulled out of her usual spot by other players so tough
+to know if we could really have avoided it." And: "We'll see what the numbers say but getting hit by a weaker stealther
+like the shade wolf isn't a huge deal compared to 'forgotten soul and consort are on Logan at the same time' which
+spells death probably".
+
+- **Where she was** (capture 20261031_105918, the store): the 11:57 consort 0x217AEE was a fresh respawn, home at the
+  west end of her range. The one before her, 0x2167ED, stood idle at (5261, 628), 18 off the spot (5243, 633), at
+  11:49:28; woke 11:50:22 and fought the pets and other players (SadZed, Bombadilly, Paleface; numbers of 1,400+ on
+  her); died 11:51:09 at (5254, 630), Logan 3 off, our kill in the store (looted 1,531). Her successor's serial lies
+  below a shadowguard first seen 11:56:54.92, so she existed by then (346 s or less after the death). Unseen while Logan
+  came from the south 4 off the spot for 1.3 s (15.43-16.75), 3 at 16.75, 2 at 16.99; she came out at (5245, 634), 2 off
+  the spot, and bit at 17.31. Other players near the spot before: Scruffy Growler stood at (5242, 635), 2 off, from
+  11:48:24, and at 11:57 fought a shade wolf at (5242, 643); SadZed, Bombadilly, Paleface and an unnamed one passed
+  within 0-1 of it 11:49-11:51. So no sign she had been pulled off it: her predecessor had been away, to the east; she
+  was new. Over 43 captures (sim/stealth_scan.py) 55 of her 58 first sightings were idle and in view, at x 5241-5266,
+  y 616-644, a median 17 off (5243, 633), 2 within 5: her usual place is the east corridor near (5260, 628), and only
+  this hidden one came out by (5243, 633).
+- **Reach** (stealth_scan, 43 captures): of the bites by a stealther coming out of hiding within 3 of its known spot the
+  victim stood 1-4 from it: the consort 8 bites, 2-4; the nightstalker 12, 1-4; the shade wolf 60, 1-5 (5 once). The
+  consort's first bites from hiding: 2 (11:57 on Logan, 2 off; one on a pet 7 off). On Logan from any stealther: the
+  consort 1 (-46), the nightstalker 3 (-39, -29, -36; 2-4 off its spot), the shade wolf 17 (mostly far from a known
+  spot: the wolves by (5245, 630) have none).
+- **Her bleed**: of her 113 bites on us 99 had a number on the victim 2.5-3.5 s later (5 at 1.5 s, her swing's place),
+  median 27 (max 32), and every 3 s after to 15 s about as often; on Logan "The creature bleeds you!" with the -46, -29
+  at +3.03 s. The simulator now gives her `bleed` (27-32 every 3 s, 15 s, every bite) and `lurk`: a respawned consort
+  hidden at her spawn till one of us comes within 3 in her sight, then out beside him with a bite (World._lurk).
+- **The rule** (docs/HUNT_LOOP.md "The closed area"): within 5 of a live consort spawn spot, no tile for Logan without a
+  pet within 1 or nearer the spot; the approach stops short ("toward a target: stopping at (5245, 637): (5245, 636) is 3
+  from the vampiric consort's spawn spot (5243, 633) with no pet beside us"), the tile pickers cost it 100, the loot
+  waits, the patrol neither stops there nor routes through where it can help it; a consort death seen within 12 opens
+  the spot 180 s. The consort only; the shade wolf and nightstalker keep the soft backspawn score.
+- **Replay** sim/fight1031.py 1157 (her hidden at her spot), seeds 1-24, before -> after: Logan within 2 of her spot
+  24 -> 13 (after: later, on the loot and vet walks to guarded tiles; no bite), the approach stopped short 0 -> 24,
+  bitten 19 -> 0, her damage and bleed on him 2,564 -> 0, the soul's on him 168 -> 76, deaths 0 -> 0.
+- **Batches** (docs/SIM.md "The consort's closed area"): deaths and pet deaths within the noise. On the default team,
+  seed 17, the first build gave 7 deaths against 2 before, and the same 7 with the rule switched off altogether
+  (`--set aggro.STEALTH_CLOSED=()`), with its tile cost off and (6) without its waypoint rule: an extra state read per
+  approach had moved the timing, and the same runs died; without that read, 5. It helps where she is home; it can't
+  promise more.
+
 
 ## Network observations
 

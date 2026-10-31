@@ -3141,10 +3141,27 @@ killed three times (docs/NOTES.md "Tidal Tomb: Marinerbane's room"; docs/SIM.md 
   `test_wail_far_reach`, failing before).
 - *Rejected:* the forgotten soul as shy (sim/soul_scan.py: it walks in like the countess, a pet its first target 149 of
   179); a higher leave floor (the leaves walked toward the danger; the heals saved him).
-- *Open:* the approach to `APPROACH_R` past a stealther's spawn spot (its stop doesn't read the backspawn); a stealther
-  seen hiding and an 0xAA naming an unseen serial as warnings; the simulator's idle stealthers waiting hidden; the soul's
-  multi-target bolt and spell mix; pet deaths on the live team 5 -> 11 in the batch with the three fixes (12 without the
-  far ring: from the backspawn seeding or the retreat; most with Logan 7-9 off the pet, out of the vet's reach).
+- *Open (then):* the approach past a stealther's spawn spot (decided below); a stealther seen hiding and an 0xAA naming
+  an unseen serial as warnings; the simulator's idle stealthers waiting hidden (the consort's respawn done below); the
+  soul's multi-target bolt and spell mix; pet deaths on the live team 5 -> 11 in the batch with the three fixes (12
+  without the far ring: from the backspawn seeding or the retreat; most with Logan 7-9 off the pet, out of the vet's
+  reach).
+
+## The closed area round a vampiric consort's spawn spot (user 2026-10-31: "Fix the approach")
+
+- *Decided:* never unguarded near a live consort spawn spot (the user: "I'm not going to stand unguarded near where the
+  vampiric consort spawns"): a tile within `aggro.STEALTH_CLOSED_R` 5 of one, with no pet within 1 or nearer the spot,
+  is closed; the approach stops short (`Team.closed_step`), the tile pickers cost it 100 (`View.stand_score`), the loot
+  waits, the patrol skips its waypoints and routes round it (`Crawl.closed_wp`, `Team.around_stealth`); a consort death
+  seen within 12 opens it for 180 s (`Team.spot_live`). 5 from sim/stealth_scan.py (bites from hiding by a spot: the
+  victim 1-4 off). The consort only, by danger (the user: the shade wolf "isn't a huge deal"); the wolf and the
+  nightstalker keep the soft backspawn score. Simulator: the consort's bleed and her lurk after a respawn.
+- *Evidence:* fight1031 1157 bitten 19 -> 0 of 24; batches within the noise (docs/SIM.md "The consort's closed area").
+  At 11:57 she was a fresh respawn 2 off her known spot, not pulled off it; so the rule would have held Logan at 4.
+- *Not decided:* the shade wolf's spots out of the soft score (`aggro.BACKSPAWN_OFF`): no difference in the batch;
+  the user's call. *Open:* her usual place (the east corridor near (5260, 628), 55 of 58 sightings) is a spot only once
+  seen this run or killed there; walks to a guarded tile inside the area can cross unguarded ones; `STEALTH_RESPAWN_MIN_S`
+  180 s is half of the one respawn seen [INFERENCE]; the 0xAA warning.
 
 ## Risks
 

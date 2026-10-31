@@ -296,6 +296,12 @@
     "seconds": 15.0
    }
   ],
+  "vampiric consort": [
+   {"kind": "bleed", "chance": 1.0, "tick": [27, 32], "every_s": 3.0, "seconds": 15.0,
+    "note": "sim/stealth_scan.py over 43 captures (2026-10-31): of her 113 bites on us 99 had a number on the victim 2.5-3.5 s later (82 at 2.85-3.15; 5 at 1.35-1.65, her swing's place), median 27 (q90 31, max 32), and on every 3 s after to 15 s as often (73-82); on Logan 11:57:17.31 'The creature bleeds you!' with the -46, -29 3.03 s later. Its length past 15 s [INFERENCE: the bat's]"},
+   {"kind": "lurk", "r": 3, "leash": 6,
+    "note": "a respawned one stays hidden at its spawn (unseen, unhittable), takes the nearest of us within r in its sight, walks to it hidden and bites at once (World._lurk). Live 2026-10-31: the consort before her killed 11:51:09 at (5254, 630) (our kill in the store, other players in the fight), her successor's serial allocated by 11:56:55; unseen while Logan came from the south within 4 of her spot (5243, 633) for 1.3 s; he reached 3 at 11:57:16.75, 2 at 16.99; she came out at (5245, 634) beside him and bit at 17.31 (-46, the bleed's -29, her -39 at 22.44 as she came out again: dead). r 3 [INFERENCE: no bite in the 1.3 s at 4]. 55 of her 58 first sightings over the captures were idle and in view (x 5241-5266, y 616-644), so only a respawn lurks; leash: past r + leash of its spawn its victim is let go"}
+  ],
   "vampire bat": [
    {
     "kind": "bleed",

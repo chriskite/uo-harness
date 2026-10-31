@@ -460,7 +460,8 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    user (2026-10-12): a mob aggroes on what comes into its aggro range and line of sight; pets on
    guard engage it before it engages the character, while an aggressive act of ours (Discordance,
    "All Kill") makes the mob aggro on the character. So a target the pets haven't engaged is only
-   approached to 6 tiles (`APPROACH_R`, [INFERENCE] aggro range) and waited for; one that neither
+   approached to 6 tiles (`APPROACH_R`, [INFERENCE] aggro range) and waited for, stopping short of the closed area round
+   a live vampiric consort's spawn spot with no pet beside us (since 2026-10-31, "Aggro" below); one that neither
    fights the pets nor us for 15 s is dropped for 60 s. An idle target within 6 tiles that can't see
    us there (a Wall-flagged static blocks too, as for the hold) is passed over at once for those 60 s
    (`Team.unseen`; live 20261017_181210: three targets 6 tiles off behind walls were waited for 15 s
@@ -1040,6 +1041,36 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   the fight level's spots never went in (no "backspawn:" line live after 2026-10-20 23:04, none in the simulator's runs
   from home); live 2026-10-31 11:57:17 Logan was bitten -46 and -39 beside the vampiric consort's spot (5243, 633), 3
   ahead of the pets (docs/NOTES.md "Maus 3 near-deaths"). test_sim `test_backspawn_on_arrival`.
+- **The closed area round a vampiric consort's spawn spot** (since 2026-10-31; user after the 11:57 death: "I'm not
+  going to stand unguarded near where the vampiric consort spawns since her stealth backstab + bleed is deadly";
+  "getting hit by a weaker stealther like the shade wolf isn't a huge deal compared to 'forgotten soul and consort are
+  on Logan at the same time' which spells death probably"). A tile within `aggro.STEALTH_CLOSED_R` 5 of a live spawn spot
+  of an `aggro.STEALTH_CLOSED` type (the vampiric consort only) is closed to Logan unless a pet stands within
+  `STEALTH_GUARD_R` 1 of it or nearer the spot than it (`aggro.View.stealth_closed`; by tiles, not sight: a hidden one
+  walks round to its victim). 5: of the bites by a stealther coming out of hiding within 3 of its known spot over 43
+  captures the victim stood 1-4 from the spot (the consort's 8: 2-4; sim/stealth_scan.py), plus a tile. Applied:
+  - the approach ("toward a target") stops before a step onto a closed tile that is no farther from the spot than
+    here (`Team.closed_step`, the walk's stop) and holds there, the target kept, while neither we, the pets nor the
+    target move (`hold_key`); the fight's 15 s drop (`PIN_S`) ends it. Logged once: "toward a target: stopping at
+    (5245, 637): (5245, 636) is 3 from the vampiric consort's spawn spot (5243, 633) with no pet beside us";
+  - every tile picker that ranks by `stand_score` (the reposition, off the tank, the stand-off, the loot and vet tiles,
+    the retreat, the cover, the bard's step and peek, the step-in's plan) costs a closed tile `STEALTH_CLOSED_COST` 100,
+    as a --never-aggro monster's sight: taken only when no open tile is left;
+  - the loot: a corpse with a closed tile within reach takes an open one (`Team.loot_tile`), else waits ("not looting
+    ... yet: the corpse at ... lies within 5 of the vampiric consort's spawn spot ... with no pet beside us ...; waiting
+    for the pets to stand by");
+  - the patrol: no waypoint within 6 of a live spot (`crawl.Crawl.closed_wp` in `dangerous`), and during a patrol walk
+    each live spot is a Mover danger zone (`stealth:x,y`, `Team.around_stealth`), so its route bends round it where it
+    can. Not the fight's walks: as standing zones a vet walk to a pet 7 off went 101 steps round her spot in the replay,
+    away from the pets. So a walk to a guarded tile inside the area (a loot, a vet tile) can cross unguarded ones.
+  **Live**: a death of a consort seen within `tamer.STEALTH_DEAD_R` 12 of a known spot of hers opens the spots there for
+  `STEALTH_RESPAWN_MIN_S` 180 s ("backspawn: the vampiric consort died at (x, y); its spawn spot(s) ... open for 180 s";
+  `Team.spot_live`): live her one respawn seen came 346 s or less after the death (11:51:09 -> by 11:56:55), so half that
+  [INFERENCE]. The shade wolf and the nightstalker keep the soft rule above only (`aggro.BACKSPAWN_OFF` takes a type out
+  of it altogether: the batch's test variant). It helps where she is home; one pulled off her spot, or a spot not known,
+  is not covered. Replay and batch: docs/SIM.md, docs/NOTES.md "Maus 3 near-deaths". test_sim
+  `test_approach_short_of_consort` (fails before), `test_consort_lurk`, `test_consort_spot_open_after_death`; test_crawl
+  `test_consort_spot`.
 - **Line of sight in a fight** ("situational": between two rooms, stay out of sight of the room the
   pets aren't fighting in; "if it's easy to stand out of LoS of a caster like the banshee while still
   being able to heal our pets ... it's better"): every 3 s, a tile within 2 steps that keeps the pets

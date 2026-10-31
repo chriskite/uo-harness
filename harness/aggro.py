@@ -199,10 +199,28 @@ BACKSPAWN_R = 7
 BACKSPAWN_SHY_R = 12          # tamer.CASTER_R: a purger's or a blightmare's respawn shoots or casts from there
 SHOOTERS = ("corpse purger", "blightmare")   # the shy ones before 2026-10-26: their shot rules (tamer.Team.to_pet), spots
 RESPAWN_SHY = SHOOTERS
+BACKSPAWN_OFF = ()            # stealthers whose spawn spots aren't kept out of at all (the shade wolf's: a test variant)
+
+# The closed area (user 2026-10-31 after the Maus 3 death at 11:57:22, a hidden vampiric consort's -46 and bleed 2 tiles
+# from her spawn spot (5243, 633), 3 ahead of the pets: "I'm not going to stand unguarded near where the vampiric
+# consort spawns since her stealth backstab + bleed is deadly"; "getting hit by a weaker stealther like the shade wolf
+# isn't a huge deal compared to 'forgotten soul and consort are on Logan at the same time' which spells death
+# probably"): a tile within STEALTH_CLOSED_R of a live spawn spot of a STEALTH_CLOSED type is closed to Logan unless a
+# pet stands within STEALTH_GUARD_R of it or nearer the spot than it (View.stealth_closed). The reach measured by
+# sim/stealth_scan.py over 43 Mausoleum captures (docs/NOTES.md "Maus 3 near-deaths 2026-10-31"): of the bites by a
+# stealther coming out of hiding within 3 of its known spot the victims stood 1-4 from it (the consort's 8: 2-4; the
+# nightstalker's 12: 1-4; the shade wolf's 60: 1-5, 5 once), the 11:57 bite 2; so 4 and a tile's margin. The shade
+# wolf and the nightstalker keep the soft backspawn rule (stand_score) only.
+STEALTH_CLOSED = ("vampiric consort",)
+STEALTH_CLOSED_R = 5
+STEALTH_GUARD_R = 1
+STEALTH_CLOSED_COST = 100.0   # View.stand_score: a closed tile as a --never-aggro monster's sight
 
 
 def respawn_r(kind: str) -> int | None:
     """How far a monster respawning at its spot reaches us (the backspawn rule), or None: not one we keep out of."""
+    if kind in BACKSPAWN_OFF:
+        return None
     return BACKSPAWN_SHY_R if kind in RESPAWN_SHY else BACKSPAWN_R if stealthy(kind) else None
 
 
@@ -226,6 +244,9 @@ class View:
         self.mobs = []
         self.pets = [(p["x"], p["y"]) for p in h.team.pets(st) if not p["dead"]] if h.team is not None else []
         self.spawns = list(getattr(h.team, "backspawn", {}).items()) if h.team is not None else []
+        live = getattr(h.team, "spot_live", None) if h.team is not None else None
+        self.closed = [(tuple(spot[:2]), kind) for spot, kind in self.spawns
+                       if kind in STEALTH_CLOSED and (live is None or live(spot))]
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
             if s == me or s in pets or s in h.dead or mob.get("x") is None:
@@ -304,26 +325,52 @@ class View:
 
     def stand_score(self, tile) -> float:
         """Lower is better: idle monsters that would see us there before a pet (first_on_us, by weight), a
-        --never-aggro one above all, then casters and ranged monsters in war mode with sight of us."""
+        --never-aggro one above all, then casters and ranged monsters in war mode with sight of us. A tile the closed
+        area takes (stealth_closed) costs STEALTH_CLOSED_COST, as a --never-aggro one's sight: every tile picker that
+        ranks by this (the reposition, off the tank, the stand-off, the loot and vet tiles, the retreat, the cover, the
+        bard's step) takes it only when no open tile is left."""
         idle = sum(m["weight"] for m in self.first_on_us(tile, margin=1))
         never = len(self.never_near(tile))
         casters = sum(1 for m in self.mobs if m["war"] and (m["caster"] or m["ranged"])
                       and self.sees(m, tile, los.MAX_DISTANCE))
         back = sum(weight(kind) for _, kind in self.backspawn_exposed(tile))
-        return 100.0 * never + 10.0 * (idle + back) + 1.0 * casters
+        closed = STEALTH_CLOSED_COST if self.stealth_closed(tile) else 0.0
+        return 100.0 * never + 10.0 * (idle + back) + 1.0 * casters + closed
 
     def backspawn_exposed(self, tile) -> list:
         """[(spot, kind)]: stealthers' and shy monsters' spawn spots (Team.backspawn) within their reach (respawn_r) of
         `tile` that see it, with no pet nearer the spot than the tile."""
         out = []
         for spot, kind in self.spawns:
-            d, r = cheb(spot, tile), respawn_r(kind) or BACKSPAWN_R
+            r = respawn_r(kind)
+            if r is None:
+                continue
+            d = cheb(spot, tile)
             if d > r or any(cheb(spot, p) < d for p in self.pets):
                 continue
             m = {"pos": (spot[0], spot[1], self.z_at(spot[:2]))}
             if self.sees(m, tile, r):
                 out.append((spot, kind))
         return out
+
+    def stealth_closed(self, tile, pets=None):
+        """The closed area's verdict on `tile` (STEALTH_CLOSED_R): (spot, kind, distance) of the nearest live
+        STEALTH_CLOSED spawn spot (Team.backspawn, Team.spot_live) within STEALTH_CLOSED_R of it with no pet (`pets`,
+        default the live pets' tiles now) within STEALTH_GUARD_R of it or nearer the spot than it, else None. By
+        tiles, not sight: a hidden one walks round to its victim (live 11:57:17 the consort came out a tile from Logan,
+        2 from her spot)."""
+        if not self.closed:
+            return None
+        pets = self.pets if pets is None else pets
+        best = None
+        for spot, kind in self.closed:
+            d = cheb(spot, tile)
+            if d > STEALTH_CLOSED_R or (best is not None and d >= best[2]):
+                continue
+            if any(cheb(p, tile) <= STEALTH_GUARD_R or cheb(p, spot) < d for p in pets):
+                continue
+            best = (spot, kind, d)
+        return best
 
     def overpull(self, budget: float) -> str | None:
         """Why advancing from here pulls too much (module docstring), else None. Nothing fighting: idle
