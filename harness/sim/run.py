@@ -52,8 +52,11 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
                 ("--no-drop-off", []),   # no home in the scenario
                 ("--no-armor-aspect", [])]   # no Aspect Mastery menu: the suit's aspect is the scenario's armor.suit
     rn = sc.get("runner") or {}
-    if rn.get("leave_gate"):
-        defaults += [("--leave-gate", [str(v) for v in rn["leave_gate"]]), ("--gate-dest", [rn["gate_dest"]])]
+    if rn.get("leave_gates"):
+        if "--leave-gate" not in have:
+            for x, y in rn["leave_gates"]:
+                out += ["--leave-gate", str(x), str(y)]
+        defaults.append(("--gate-dest", [rn["gate_dest"]]))
     if not at_hunt:
         defaults += [("--enter-recall", [tome]), ("--enter-rune", [hunt_row])]
     for flag, vals in defaults:
@@ -277,7 +280,9 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "visits": visits, "fights": [{k: r.get(k) for k in ("name", "fight_s", "hits_lost", "outcome")}
                                          for r in records if r["kind"] == "fight"],
             "death_events": [{k: r.get(k) for k in ("x", "y", "cause")} for r in records if r["kind"] == "death"],
+            # the leave gate's walk (loop_hunt leave_by_gate): the gate walked to, its steps and seconds, through or not
             "leave_events": [{k: r.get(k) for k in ("x", "y", "why", "hits")} | {"died": "died" in str(r.get("gate"))}
+                             | {k: (r.get("gate") or {}).get(k) for k in ("gate", "walk_steps", "walk_s", "ok")}
                              for r in records if r["kind"] == "leave"]}
     if tracer is not None:
         tracer.close({k: r[k] for k in ("outcome", "kills", "deaths", "player_damage_taken")}

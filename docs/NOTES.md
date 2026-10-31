@@ -7712,6 +7712,24 @@ spells death probably".
   promise more.
 
 
+## Tidal Tomb level 1: out by the easiest of its three golden gates (user 2026-10-31)
+
+User: "One thing I noticed is that the runner leaves by the yellow gate near the entrance, but if its time to leave it
+could leave by the easiest gate to get to."
+
+- **The gates** (harness/data/sim/tidal_tomb.json `gates_note`, from the captures): golden 0x4003D7B5 at the arrival
+  (6652, 2095), with a crimson 0x4001AA04 on the same tile; 0x4003D7B7 at (6642, 2062); 0x4003D7B6 at (6685, 2064).
+  0x4003D7B6's menu was opened live 2026-10-24 19:41:11: the same nine 'Moongate Destinations' rows as the crimson
+  gates', Totem among them. 0x4003D7B7's and 0x4003D7B5's were never opened [INFERENCE: the same rows]. Level 1 is
+  x 6608-6738, y 1932-2109; the crawl runs ~150 steps deep from the arrival.
+- **The runner** (docs/HUNT_LOOP.md "In and out of a dungeon"): `--leave-gate` repeats; the leave takes the easiest
+  from where Logan stands, the fewest route steps with the walk's danger added, in a red's flight one whose way passes
+  none of them. A menu without Totem is closed and the next easiest taken. The level 1 command gives all three
+  (docs/OVERSEER.md §5). Not yet run live.
+- **Simulator** (docs/SIM.md "Tidal Tomb: level 1's three golden gates", 288 runs a side): it walked to (6642, 2062)
+  276 times, (6685, 2064) 232, the arrival's 1; the leave walk's median 139.5 -> 80 steps and 108 -> 57 s; banked an
+  hour 111,229 -> 116,711; runs with a death 2 and 2.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

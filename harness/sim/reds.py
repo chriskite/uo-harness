@@ -490,14 +490,19 @@ class Reds:
 
     def _between(self, m) -> bool | None:
         """Whether the red stands nearer the leave gate by the walk than we do (on our way out: live, at a group's first
-        sight, 7 of 12 such groups killed Logan, 0 of 5 others; docs/NOTES.md "Red players met live")."""
-        gate = (self.w.sc.get("runner") or {}).get("leave_gate")
-        if not gate or self.level(m.pos) != self.cfg.get("hunt_level"):
+        sight, 7 of 12 such groups killed Logan, 0 of 5 others; docs/NOTES.md "Red players met live"); of several leave
+        gates, the one nearest us by the walk."""
+        gates = (self.w.sc.get("runner") or {}).get("leave_gates")
+        if not gates or self.level(m.pos) != self.cfg.get("hunt_level"):
             return None
         g = self.graph
-        gn = g.near_node((gate[0], gate[1], 0))
-        f = g.field(gn) if gn is not None else {}
-        a, b = f.get(g.node(m.pos)), f.get(g.node(self.w.player.pos))
+        a = b = None
+        for gate in gates:
+            gn = g.near_node((gate[0], gate[1], 0))
+            f = g.field(gn) if gn is not None else {}
+            ga, gb = f.get(g.node(m.pos)), f.get(g.node(self.w.player.pos))
+            if ga is not None and gb is not None and (b is None or gb < b):
+                a, b = ga, gb
         return None if a is None or b is None else a < b
 
     def _level_nodes(self, lvl) -> list:

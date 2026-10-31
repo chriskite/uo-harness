@@ -647,13 +647,19 @@ Paste this (or point the session at this section) to start an overseer.
 >    **Tidal Tomb level 1 instead** (user 2026-10-26, when the user asks for it; the rest of this section holds): with
 >    the user's "Tidal Tomb Inside" rune in the tome 0x444AB1F3 (the library tome "Bad Places II" at the guild house
 >    isn't one the runner can use), `ctl run hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180
->    --leave-recall 0x444AB1F3 --leave-gate 6652 2095 --gate-dest Totem --enter-recall 0x444AB1F3 --enter-rune
->    "Tidal Tomb Inside"`. In: the recall to the arrival (6653, 2097), no teleporters; the crawl's floor is level 1
->    (its teleporters down to level 2 at (6608-6610, 2060) and (6718, 1984), and the exit at (6656-6657, 2109), are
->    known walls to the walk rules). Out: the gate on the arrival tile (the user's choice; it holds a golden 0x4003D7B5
->    and a hue-2820 one 0x4001AA04, either opens the destinations menu [INFERENCE for the second]), Totem, the tome
->    home. Logan anywhere but level 1 (another teleporter column than these, the exit) is an issue for the parent,
->    unless the shift's level (below) is another.
+>    --leave-recall 0x444AB1F3 --leave-gate 6652 2095 --leave-gate 6642 2062 --leave-gate 6685 2064 --gate-dest Totem
+>    --enter-recall 0x444AB1F3 --enter-rune "Tidal Tomb Inside"`. In: the recall to the arrival (6653, 2097), no
+>    teleporters; the crawl's floor is level 1 (its teleporters down to level 2 at (6608-6610, 2060) and (6718, 1984),
+>    and the exit at (6656-6657, 2109), are known walls to the walk rules). Out (since 2026-10-31, user: "if its time
+>    to leave it could leave by the easiest gate to get to"): the easiest of level 1's three golden moongates from
+>    where Logan stands, "LEAVING by the moongate at (x, y): <why>; the easiest of 3 (34 steps; (6652, 2095) 96, …)"
+>    (docs/HUNT_LOOP.md "In and out of a dungeon"): 0x4003D7B5 on the arrival tile (with a hue-2820 one 0x4001AA04 on
+>    it too, either opens the destinations menu [INFERENCE for the second]), 0x4003D7B7 at (6642, 2062), 0x4003D7B6 at
+>    (6685, 2064) (its menu opened live 2026-10-24 19:41:11 with Totem). 0x4003D7B7's menu was never opened [INFERENCE:
+>    Totem on it as on the others]; a menu without Totem is closed and the runner walks to the next easiest ("the
+>    moongate at (x, y): no 'Totem' on its menu; to the next easiest of 2"): report that line to the parent. Then
+>    Totem, the tome home. Logan anywhere but level 1 (another teleporter column than these, the exit) is an issue for
+>    the parent, unless the shift's level (below) is another.
 >    **Another hunt level by the user's word** (since 2026-10-27; the parent passes the user's instruction, e.g. "only
 >    level 1", with the level's command; the rest of this section holds). Each command is the common part `ctl run hunt
 >    --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 --leave-recall 0x444AB1F3 --enter-recall
@@ -666,7 +672,9 @@ Paste this (or point the session at this section) to start an overseer.
 >    - **Maus 2**: no command. It has no gate and no known teleporter back up, so a hunt there has no way out but on
 >      through Maus 3; the runner can't leave one. Tell the parent: runner work first.
 >    - **Maus 3**: the step 3 command (the default).
->    - **Tidal Tomb level 1**: the command above (the default for Tidal Tomb).
+>    - **Tidal Tomb level 1**: `--enter-rune "Tidal Tomb Inside" --leave-gate 6652 2095 --leave-gate 6642 2062
+>      --leave-gate 6685 2064`, the command above (the default for Tidal Tomb): out by the easiest of its three golden
+>      gates.
 >    - **Tidal Tomb level 2**: `--enter-rune "Tidal Tomb Inside" --enter-via 6718 1984 --leave-gate 6913 2071`. The
 >      walk across level 1 to its teleporter, the crawl from level 2's arrival (6943, 2004), out by the crimson gate
 >      0x4003D7B8 at (6913, 2071) (Logan took it to Totem live 2026-10-24).

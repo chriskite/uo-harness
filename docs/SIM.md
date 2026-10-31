@@ -50,7 +50,9 @@ python harness/sim/calibrate.py [--scenario tidal_tomb] --logs <logs dir> [--sca
 python harness/sim/armor_scan.py [--since 20261012] [--out rows.json]   # monster melee on Logan against his AR, by era
 python harness/sim/kb_scan.py --location "Tidal Tomb" --out harness/data/sim/tidal_tomb_kb.json \
     --observed harness/data/sim/tidal_tomb_observed.json --mechanic 4641 ...   # a dungeon's wiki stats from the store
-python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal Tomb's level 1 ("Tidal Tomb" below)
+python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal Tomb's level 1, out by the easiest of its
+                                                                       # three golden gates ("Tidal Tomb" below;
+                                                                       # `-- --leave-gate 6652 2095` the arrival's alone)
 python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071
                                                                        # ... its level 2, under water
 python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
@@ -2466,6 +2468,37 @@ boss killed three times by the guild. The facts are in docs/NOTES.md "Tidal Tomb
     Barrels: 53 thrown, 42 hits on Logan.
   - Solo, its waves outlast Logan long before its 140,000 hits go. That matches the wiki's "Mini Boss" scaling for
     groups.
+
+### Tidal Tomb: level 1's three golden gates (2026-10-31)
+
+User 2026-10-31: "One thing I noticed is that the runner leaves by the yellow gate near the entrance, but if its time
+to leave it could leave by the easiest gate to get to." `--leave-gate` repeats; the leave takes the easiest of them
+from where Logan stands (docs/HUNT_LOOP.md "In and out of a dungeon", `loop_hunt.HuntLoop.pick_gate`). The scenario's
+`runner.leave_gates` are level 1's three golden gates, as the live command (docs/OVERSEER.md §5): (6652, 2095) at the
+arrival, (6642, 2062), (6685, 2064). `World.gates` gives each the menu the captures show (0x4003D7B7's
+[INFERENCE]); `sim/reds.py`'s "between us and the gate" takes the gate nearest us by the walk.
+
+- **Runs** (`--scenario tidal_tomb --runs 144 --team phoenix_incubus --others --prior <main checkout>/harness/data/harness.db
+  --json -- --vet-range 5 --crawl-learn-s 180`, the live flags, 30 game minutes a run, two blocks: seeds 1-144 and
+  `--seed 145`; "one gate" adds `--leave-gate 6652 2095`, the runner's leave before). The leave walk is the `leave`
+  event's `walk_steps` and `walk_s` (the Mover's steps and the seconds from the walk's start to through the gate,
+  fights and pet waits on the way included):
+
+  | 288 runs | leaves | walk steps median (p90) | walk s median (p90) | not through the gate | runs with a death | on a leave | banked / h |
+  |---|---|---|---|---|---|---|---|
+  | one gate | 406 | 139.5 (196) | 108.4 (171.0) | 25 | 2 | 0 | 111,229 |
+  | three gates | 509 | 80 (149) | 57.1 (130.2) | 7 | 2 | 1 | 116,711 |
+
+  By block: banked an hour 111,549 -> 117,336 and 110,911 -> 116,088. The walks it chose: (6642, 2062) 276, (6685,
+  2064) 232, the arrival's (6652, 2095) 1. Shorter walks home make the return rule's trip cheaper, so it went home
+  more often (406 -> 509 leaves); the time-up walks that missed the run's 180 s grace (`overall timeout`, the loot not
+  banked) went 27 -> 6. The deaths are level 1's usual few (pets: none in either). Traced: the death on a leave
+  (seed 93) came within 5 s of a time-up leave, in a bottomfeeder's fight at (6648, 2030), where every gate's way started
+  alike (each "+90 danger"); the one-gate side's 2 died in the crawl. One run left the pets behind (seed 14: they
+  held a fight at (6645, 2032) and the walk went on after its 20 s wait, as before); 0 on the one-gate side.
+- **Tests:** `test_loop_hunt.py gates` (the choice: one gate as before, the nearest by route, a danger zone and a red
+  on one way, the dead end against every gate, a gate whose menu lacked Totem left out); `test_sim.py`
+  `test_tidal_gate_no_dest` (level 1, the nearest gate's menu without Totem: the next easiest, through it to Totem).
 
 ## The Ossuary (2026-10-28)
 

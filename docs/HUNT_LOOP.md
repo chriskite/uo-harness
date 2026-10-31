@@ -1146,7 +1146,7 @@ moongate, and never near a red one).
       at flight pace, then the leave gate". The rest of the teleporters go at flight pace with no stop for
       attackers and no wait for the pets. On Maus 3 the visit's first act is the red's leave by the crimson gate
       ("LEAVING by the moongate: <why>, on the walk in").
-- **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`).
+- **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`; repeat `--leave-gate` for several: the easiest, below).
   - The runner says "All Follow Me" and walks to the gate (user 2026-10-17, after a time-up walk out on
     "All Guard Me" left the pets fighting behind: "all follow me to run out, not all guard"), and says it
     again beside the gate. A planned leave (time up, `--kills`, the return rule) walks like the walk-in: attacked,
@@ -1154,6 +1154,29 @@ moongate, and never near a red one).
     come in 25 s the walk goes on and waits beside the gate); an idle melee monster by the way ahead, the pets first
     (below). Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
     item isn't in view), and picks the destination by its label.
+  - **Several gates: `--leave-gate X Y` repeated** (since 2026-10-31; user: "the runner leaves by the yellow gate near
+    the entrance, but if its time to leave it could leave by the easiest gate to get to"). One given is as before. All
+    on one level with `--gate-dest` on each menu; the crawl refuses gates on and off its floor ("crawl: the leave gates
+    [...] are on this floor and [...] not: give --leave-gate moongates of one level"); a level up, `--leave-via` holds
+    for them all. The leave takes the easiest from where Logan stands (`HuntLoop.pick_gate`, `gate_ways`): in a red's
+    flight first one whose way passes none of them (`passes_hostile`), then one not only through a spell field, then
+    the least cost, the route steps plus the walk's danger (`way_danger`: what the Mover's soft zones add to its tiles,
+    `Mover.danger_cost`, the planner's own weights; 20 steps, `GATE_AWAKE_COST`, for each awake monster and 10,
+    `GATE_IDLE_COST`, for each idle one whose aggro range takes in a tile of it in its sight). A planned leave names it
+    in its first line: "LEAVING by the moongate at (6685, 2064): time is up; the easiest of 3 (34 steps; (6652, 2095)
+    96, (6642, 2062) 71)" (after a gate's steps "+N danger", "past them", "through a field"; "no route"). A hurt leave
+    or a red's chooses after its first acts (three routes take ~0.2 s on Tidal Tomb level 1): "to the moongate at
+    (x, y): the easiest of 3 (…)". Chosen again on the way: when the walk fails ("to the moongate at (x, y): <why>; to
+    the one at (x, y) instead, …"), and when a hostile player we didn't know of comes onto the way of a planned or hurt
+    walk ("a hostile player on the way: <name> at (x, y)": to a gate whose way passes none, else on). The red's flight
+    looks at every leg as the walk in's gold gates do (`flee_out`'s `choose`, `gate_choice`), and it is a dead end only
+    when the way to every gate passes them (`dead_end`'s `others`). A menu without `--gate-dest` is closed again
+    (`moongate.NoDestination`) and the leave walks to the next easiest ("the moongate at (x, y): no 'Totem' on its
+    menu; to the next easiest of 2"), never to that gate again in the run. The leave margin and the crawl's route
+    steps out (the return rule's T) are to the nearest. The `leave` event's `gate` holds the gate walked to and the
+    walk's `walk_steps` and `walk_s`. Tidal Tomb level 1 gives its three golden gates (docs/OVERSEER.md §5); the
+    simulator's level 1 (docs/SIM.md "Tidal Tomb: level 1's three golden gates"): the leave walk 139.5 -> 80 steps
+    (median), 108 -> 57 s, banked an hour 111,229 -> 116,711, runs with a death 2 -> 2 of 288.
   - **The pets first by an idle melee monster** (since 2026-10-30, the user's "narrow rule" after the level 2 death at
     18:29: the walk to the gate took Logan, the pets 1-3 behind on follow, 2 tiles past an idle giant pincer crab; it
     struck from 2, pinched him in place 6 s, and a drowned mariner and a voidfin killed him in the hold; docs/NOTES.md
@@ -1321,7 +1344,7 @@ moongate, and never near a red one).
   - Then "Travel to Destination" on the re-sent menu, or on the first one when the menu opens with
     that destination already selected (it remembers the last one, live), and `--leave-recall` home
     from the town.
-  - The leave margin's route steps are measured to the gate.
+  - The leave margin's route steps are measured to the gate (the nearest of several).
 - **For the Mausoleum:**
   `--enter-via 5554 700 --enter-via 5507 701 --enter-via 5507 696 --enter-via 5522 637
   --leave-gate 5203 703 --gate-dest Totem` (docs/NOTES.md "Getting in and out of the Mausoleum").
@@ -1691,9 +1714,10 @@ The way out by level (the planner never routes over a teleporter, so each level 
 - **First level** (a gold moongate within `GOLD_GATE_STEPS` 120 route steps, `gold_gate_way`): the walk-in leave's
   flight to it (`flee_out`: a red's danger zones and ropes if one shows up), "All Follow Me" again beside it, the
   recall home.
-- **Hunt level** (a route to `--leave-gate`): the leave by the crimson gate as on time up (`leave_by_gate` planned:
-  the pets on "All Follow Me" waited for, attackers fought; a red's flight if one is in view), to `--gate-dest`, the
-  recall home from there.
+- **Hunt level** (a route to `--leave-gate`; of several, the easiest, `pick_gate`: "escape: the leave gate at x,y is in
+  reach, the easiest of 3 (…)"): the leave by the crimson gate as on time up (`leave_by_gate` planned: the pets on "All
+  Follow Me" waited for, attackers fought; a red's flight if one is in view), to `--gate-dest`, the recall home from
+  there.
 - **Middle level** (Maus 2: no route to a gold moongate, none to the leave gate): the `--enter-via` teleporters still
   ahead, the nearest by route first, at flight pace (`walk_in_rush`), then the leave gate as above.
 - **Hunt level below the gate's** (Tidal Tomb's level 3: no route to the leave gate, one onto a `--leave-via`

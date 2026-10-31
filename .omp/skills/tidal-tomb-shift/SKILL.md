@@ -140,7 +140,8 @@ User reports are ground truth; don't re-verify them in game.
 3. **Reproduce offline, then fix** in the main checkout: the module's own `harness/test_*.py`, root
    `test_loop_hunt.py` for the hunt runner, and for fight, crawl, leave or pet behaviour the Tidal Tomb simulator
    (docs/SIM.md "Running" and "Tidal Tomb"): `python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare`
-   for level 1; level 2 `--area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071`; level 3
+   for level 1 (its three golden gates as the live command; `-- --leave-gate 6652 2095` the arrival's alone); level 2
+   `--area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071`; level 3
    `--area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 --fight-via 6884 1929 --leave-gate
    6897 1992 --leave-via 7161 2221`; `python harness/test_sim.py` (its `test_tidal_*`, `test_go_home_tidal_level3`).
    Batches as live plays use `--others --prior <the main store>`. Before/after numbers from the simulator are the

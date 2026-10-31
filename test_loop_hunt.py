@@ -1488,6 +1488,106 @@ def rights():
     check("every corpse handled once (never retried)", loop.looted == set(RIGHTS) and not loop.corpses, str(loop.looted))
 
 
+# several --leave-gate (in process): three corridors from Logan's tile, each to a gate at its end
+GATES_AT = (200, 200)
+GATE_E, GATE_S, GATE_W = (230, 200), (200, 245), (150, 200)        # 30, 45 and 50 route steps
+GATES_FLOOR = rect(150, 230, 200, 200) | rect(200, 200, 200, 245)
+
+
+def gates_loop(gates):
+    """A HuntLoop (RightsLink, --no-map) at GATES_AT on GATES_FLOOR (its walk memory), with these --leave-gate."""
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(RightsLink, name, getattr(Link, name))
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    t, rows = time.time() - 3600, []
+    for x, y in GATES_FLOOR:
+        for d, (dx, dy) in enumerate(DD):
+            rows.append((0, x, y, 0, d, 1 if (x + dx, y + dy) in GATES_FLOOR else 0, t))
+    memory._upsert_walk(store.con.cursor(), rows)
+    store.con.commit()
+    link = RightsLink()
+    link.feed(login_pkt(*GATES_AT), equip(BACKPACK, 0x0E75, 0x15))
+    argv = ["--human", "off", "--no-map", "--memory", db, "--leave-recall", "0x40000001", "--gate-dest", "Totem"]
+    for g in gates:
+        argv += ["--leave-gate", str(g[0]), str(g[1])]
+    loop = loop_hunt.HuntLoop(link, store, loop_hunt.arg_parser().parse_args(argv))
+    return loop, store
+
+
+def leave_gates():
+    print("\n== several --leave-gate (in process): the easiest, a red on one's way, the dead end judged against all ==")
+    import contextlib
+    import io
+
+    def leaving(loop):
+        """leave_by_recall's LEAVING line and what it handed leave_by_gate (stopped there: called off), with the
+        Mover's plans counted up to it."""
+        seen, plans, real = {}, [0], loop.mover.plan
+
+        def plan(*a, **k):
+            plans[0] += 1
+            return real(*a, **k)
+
+        def gate(severity, picked=False):
+            seen.update(severity=severity, picked=picked, gate=loop.leave_gate, plans=plans[0])
+            return {"ok": False, "called_off": "test", "from": list(GATES_AT), "dest": "Totem"}
+        loop.mover.plan, loop.leave_by_gate = plan, gate
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            res = loop.leave_by_recall(loop.state(), "time up", "info")
+        loop.mover.plan = real
+        return res, next((ln for ln in buf.getvalue().splitlines() if "LEAVING" in ln), ""), seen
+
+    loop, store = gates_loop([GATE_E])
+    try:
+        res, line, seen = leaving(loop)
+        check("one --leave-gate: as before (no choice, no plan before the walk, the LEAVING line unchanged)",
+              res == "called off" and line.endswith("LEAVING by the moongate: time up") and seen.get("gate") == GATE_E
+              and seen.get("picked") is False and seen.get("plans") == 0, f"{line!r} {seen}")
+    finally:
+        store.close()
+
+    loop, store = gates_loop([GATE_S, GATE_W, GATE_E])
+    try:
+        st = loop.state()
+        way, pick = loop.pick_gate(st)
+        check("three: the nearest by route (30 steps east, not 45 south or 50 west)",
+              way is not None and way["gate"] == GATE_E and way["steps"] == 30 and way["near"] == (229, 200)
+              and pick == f"the easiest of 3 (30 steps; {GATE_S} 45, {GATE_W} 50)", f"{way and way['gate']} {pick!r}")
+        res, line, seen = leaving(loop)
+        check("three: the LEAVING line names the choice; leave_by_gate walks to it, picked",
+              line.endswith(f"LEAVING by the moongate at {GATE_E}: time up; the easiest of 3 (30 steps; {GATE_S} 45, "
+                            f"{GATE_W} 50)") and seen.get("gate") == GATE_E and seen.get("picked") is True,
+              f"{line!r} {seen}")
+        loop.mover.danger["test"] = ((215, 200), 3)            # a soft zone across the east corridor
+        way, pick = loop.pick_gate(st)
+        check("the walk's danger counts: a danger zone on the east way -> south (45 steps) instead",
+              way is not None and way["gate"] == GATE_S and "danger" in pick, pick)
+        del loop.mover.danger["test"]
+        red = {0x1234: (225, 200)}                               # a red on the east way
+        way, pick = loop.pick_gate(st, red)
+        check("a red on the east way: the south gate, whose way passes none",
+              way is not None and way["gate"] == GATE_S and way["passes"] is None and f"{GATE_E} 30 past them" in pick,
+              pick)
+        near_e = (229, 200)
+        tile = (170, 200)                                        # a flee tile west, the red east of us
+        spots = {0x1234: (210, 200)}
+        check("dead end judged against every gate: the west gate's way from the flee tile passes none -> not one",
+              not loop.dead_end(st, tile, near_e, spots, [GATE_S, GATE_W]))
+        check("...the east gate alone (one --leave-gate, as before): a dead end", loop.dead_end(st, tile, near_e, spots))
+        spots = {0x1234: (210, 200), 0x1235: (200, 240), 0x1236: (155, 200)}
+        check("...a red on every gate's way: a dead end", loop.dead_end(st, tile, near_e, spots, [GATE_S, GATE_W]))
+        loop.gate_no_dest.add(GATE_E)                           # its menu had no Totem
+        way, pick = loop.pick_gate(st)
+        check("a gate whose menu lacked --gate-dest: left out, the next easiest (south)",
+              way is not None and way["gate"] == GATE_S and pick == f"the easiest of 2 (45 steps; {GATE_W} 50)", pick)
+    finally:
+        store.close()
+
+
 def weight_guard():
     print("\n== a pack at its weight limit less LOOT_WEIGHT_MARGIN: no lift, then no more corpses opened ==")
     # live 2026-10-28 20:08-20:11 (hunt-20261028-184111-a3b8): the leave at 447/450, then four more corpses looted on
@@ -2134,6 +2234,8 @@ if __name__ == "__main__":
             pets_run()
             elsewhere_run()
             roster_run()
+        if not only or "gates" in only:
+            leave_gates()
     except BaseException:                             # serial: the runs after it never started
         reap(kids, tmp)
         raise

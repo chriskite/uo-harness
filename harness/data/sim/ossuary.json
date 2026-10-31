@@ -288,7 +288,7 @@
  "gates_note": "the moongates seen (captures): golden (hue 2822) 0x40001A02 (5926, 1326, 0) and 0x40001A04 (5870, 1310, 5) on level 1; crimson (hue 2820) 0x4004A43E (5672, 1277, 0) on level 2 and 0x493E7470 (5577, 1095, 0) on level 3. Their menu (0xE0E675B8, 17:26:26) listed the same 'Moongate Destinations' rows as Tidal Tomb's, and Totem put Logan at (3884, 2901, -40) all three times (17:26:28 from level 3's gate, 17:37:37 from level 2's, 21:03:36 from level 3's)",
  "runner": {
   "enter_via": [[1205, 2816], [5786, 1327], [5683, 1363]],
-  "leave_gate": [5577, 1095],
+  "leave_gates": [[5577, 1095]],
   "gate_dest": "Totem",
   "heal_in_place": true,
   "note": "run.py's defaults: recall to the 'Ossuary' row outside, in by the entrance, through level 1 to its west end and level 2 to its south end (Logan's way, 3 of 3 visits), the hunt on level 3, out by its crimson gate (5577, 1095) to Totem as Logan left twice, then the recall home. Level 2 instead: --area 5581 1225 5689 1363 -- --enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277 (its crimson gate, his second leave); level 4: --area 4825 1744 5000 2073 -- --enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --enter-via 5590 985 (no gate seen there: the leave walks back up the strip)"

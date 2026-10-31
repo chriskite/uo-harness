@@ -48,6 +48,11 @@ class GateError(Exception):
     pass
 
 
+class NoDestination(GateError):
+    """The menu has no row for the destination asked (closed again: button 0). The hunt runner's leave then takes its
+    next --leave-gate (loop_hunt.HuntLoop.leave_by_gate)."""
+
+
 def selected(g: dict, button: int) -> bool:
     """Whether radio button `button` of gump `g` is drawn selected."""
     m = re.search(rf"\{{\s*button\s+-?\d+\s+-?\d+\s+(\d+)\s+\d+\s+1\s+0\s+{button}\s*\}}", g.get("layout") or "")
@@ -77,8 +82,8 @@ def travel(link, human, dest: str, since: int = 0, log=print, urgent: bool = Fal
     """Pick `dest` on the destinations menu opened since event `since` (waits MENU_WAIT_S for it),
     then Travel on the re-sent menu (on this one when `dest` is already selected); done when we
     jumped JUMP_TILES or more. `urgent` (a leave to survive): the buttons at a macro's pace (the user's escape
-    macro, humanize "gate_macro"). -> {ok, from, to, elapsed_s[, error]}; GateError when there's no menu
-    or no such destination."""
+    macro, humanize "gate_macro"). -> {ok, from, to, elapsed_s[, error]}; GateError when there's no menu,
+    NoDestination (the menu closed again) when it has no such destination."""
     t0 = time.monotonic()
     start = tuple(link.state()["movement"]["pos"][:2])
     if link.wait(lambda s: _menus(link, since), MENU_WAIT_S) is None:
@@ -86,7 +91,9 @@ def travel(link, human, dest: str, since: int = 0, log=print, urgent: bool = Fal
     g = _menus(link, since)[-1]
     pick = labelled_button(g, dest)
     if pick is None:
-        raise GateError(f"no destination {dest!r} on the menu ({[t for t in g.get('lines') or [] if t][:14]})")
+        link.act(actions.gump_reply(serial_of(g["serial"]), DESTINATIONS_GUMP, 0, g.get("layout") or "",
+                                    g.get("lines") or []))
+        raise NoDestination(f"no destination {dest!r} on the menu ({[t for t in g.get('lines') or [] if t][:14]})")
     if not selected(g, pick):
         mark = len(link.events)
         _press(link, human, g, pick, urgent)

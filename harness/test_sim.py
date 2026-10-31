@@ -1822,7 +1822,7 @@ def test_leave_called_off():
                     loop.tick()
                 except Abort:
                     pass                                   # gone: no --enter-recall in the test
-            out[healed] = (loop.visit is not None, cheb(w.player.pos, tuple(loop.args.leave_gate)),
+            out[healed] = (loop.visit is not None, cheb(w.player.pos, loop.leave_gate),
                            sorted({p.mode for p in w.pets()}))
         finally:
             store.close()
@@ -4066,6 +4066,43 @@ def test_go_home_tidal_level3():
           + " | ".join(ln for ln in out.splitlines() if "go-home" in ln or "escape" in ln or "ABORTED" in ln)[-500:])
     check("...both pets came home with him", all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets()),
           str([(p.name, p.pos) for p in w.pets()]))
+
+
+def test_tidal_gate_no_dest():
+    print("== Tidal Tomb level 1, three --leave-gate: the easiest one's menu without Totem -> the next easiest, through "
+          "it ==")
+    # user 2026-10-31: "if its time to leave it could leave by the easiest gate to get to"; the golden gate 0x4003D7B7's
+    # menu was never opened live [INFERENCE: Totem on it], so the leave must cope with a menu that lacks it
+    from agent_link import Abort
+    sc = load("tidal_tomb")
+    sc["spawns"] = []
+    start = (6680, 2064, -18)
+    sc["player"]["start"] = list(start)
+    for g in sc["gates"]:
+        if tuple(g["at"][:2]) == (6685, 2064):
+            g["destinations"] = [r for r in g["destinations"] if r["name"] != "Totem"]
+    w = World(sc, seed=1)
+    for p, d in zip(w.pets(), ((-1, 1), (1, 1))):
+        w._teleport(p, (start[0] + d[0], start[1] + d[1], start[2]))
+    loop, clock, store, patched = red_loop(w)
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            try:
+                res = loop.leave_by_gate("info")
+            except Abort as e:
+                res = {"ok": False, "error": str(e)}
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    log_ = out.getvalue()
+    first = next((ln for ln in log_.splitlines() if "to the moongate at" in ln and "the easiest of 3" in ln), "")
+    check("first the nearest gate, (6685, 2064)", "to the moongate at (6685, 2064): the easiest of 3" in first, first)
+    check("...its menu without Totem: the next easiest of the other two",
+          "the moongate at (6685, 2064): no 'Totem' on its menu; to the next easiest of 2" in log_,
+          " | ".join(ln for ln in log_.splitlines() if "moongate" in ln)[-600:])
+    check("...through that one to Totem", res.get("ok") and res.get("gate") in ([6652, 2095], [6642, 2062])
+          and sim_cheb(w.player.pos, (6652, 2095)) > 100, f"{res} at {w.player.pos}")
 
 
 def test_no_escape_on_death_or_stop():
@@ -7259,6 +7296,7 @@ def main():
               test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,
               test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
+              test_tidal_gate_no_dest,
               test_no_escape_on_death_or_stop, test_soul_jar, test_soul_jar_guards, test_soul_jar_defer,
               test_transfixed_walk, test_walk_failed_carries_on, test_career_junctures, test_armor,
               test_tamer_scan_rows, test_pet_aggro_setting, test_party_validation, test_pet_builds, test_anchors_pinned,

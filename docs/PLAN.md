@@ -3163,6 +3163,28 @@ killed three times (docs/NOTES.md "Tidal Tomb: Marinerbane's room"; docs/SIM.md 
   seen this run or killed there; walks to a guarded tile inside the area can cross unguarded ones; `STEALTH_RESPAWN_MIN_S`
   180 s is half of the one respawn seen [INFERENCE]; the 0xAA warning.
 
+## The easiest of several leave gates (user 2026-10-31)
+
+User: "One thing I noticed is that the runner leaves by the yellow gate near the entrance, but if its time to leave it
+could leave by the easiest gate to get to."
+
+- *Decided:* `--leave-gate` repeats (one given: as before, no choice, no extra plan). The leave picks from where Logan
+  stands (`HuntLoop.pick_gate`): a red's flight first a gate whose way passes none of them, then one not only through
+  a spell field, then the least route steps plus the walk's danger (the Mover's soft zones as the planner weighs them;
+  20 steps an awake monster, 10 an idle one, whose aggro range and sight take in the way). Chosen again when the walk
+  fails or a new hostile player comes onto its way; the red's dead end only when every gate's way passes them; a menu
+  without `--gate-dest` closed and the next one taken. Gates must share one level and `--gate-dest` (the crawl refuses
+  mixed floors; `--leave-via` reaches them all a level up). Tidal Tomb level 1's command gives its three golden gates.
+- *Ordering:* a planned leave picks before its LEAVING line (the user's example names the gate there); a hurt leave or
+  a red's picks after its first acts (cursor, disengage): three routes cost ~0.2 s.
+- *Evidence:* the simulator, 288 runs a side (docs/SIM.md "Tidal Tomb: level 1's three golden gates"): leave walk
+  median 139.5 -> 80 steps, banked an hour 111,229 -> 116,711, runs with a death 2 -> 2.
+- *Rejected:* the nearest by Chebyshev distance (level 1's walls make the route the measure); a fixed preference
+  order (where the crawl ends changes which gate is nearest: the arrival's gate was the easiest 1 time in 509).
+- *Open:* 0x4003D7B7's menu never opened live [INFERENCE: Totem on it]; the first live run's "the moongate at …: no
+  'Totem' on its menu" line would show otherwise. GATE_IDLE_COST and GATE_AWAKE_COST are not tuned (the batch's
+  danger was alike on every gate's way in the traced leaves).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

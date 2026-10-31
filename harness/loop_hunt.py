@@ -212,6 +212,9 @@ DRINK_TRIES = 2               # a heal potion's double-click again after 500119 
 #                              vet supplies' click, refused; counted as drunk, no potion again at 56-23 hits, dead at 55.1)
 GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
 GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
+GATE_IDLE_COST = 10          # several --leave-gate: an idle monster whose aggro range and sight take in a tile of a gate's
+#                              way adds this many steps to it (way_danger; the leave picks the easiest gate, pick_gate)...
+GATE_AWAKE_COST = 20         # ...an awake one this many (it comes on: the pets' fight on the way, or ours)
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
 FLOOR_Z_TOL = 10              # ...ending within this of its surface z (live: a vampire on a ledge 20 above, 11 steps round)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450), and
@@ -286,6 +289,7 @@ LEAD_CLOSE_S = 2.0            # no step-back tile with a pet more than a tile of
 #                               each 0.21 s on follow), then planned again
 LEAD_HOLD_S = 6.0             # the wake's 1.9-2.55 s in the simulator (live p90 3.2 s for the shy ones), a margin
 IDLE_AHEAD = "idle ahead"     # idle_ahead's stop reason
+RED_ON_WAY = "a hostile player on the way"   # several --leave-gate: a planned walk's stop (red_on_way), the gate again
 COMMAND_R_GO = 8              # wait_pets/fetch_pet: a pet out of a command's reach is walked to this close first
 TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fewer from the teleporter walked to: on and
 #                               through it, no stand (live 2026-10-20 22:57:15: attacked again 13 steps from 5522,637, the
@@ -443,6 +447,9 @@ class HuntLoop:
         self.attack_scan = 0                     # "... is attacking you!" scan cursor into link.events
         self.pk_left_t = None                    # monotonic time of the last leave from a hostile player
         self.out_steps = 0                       # route steps from the fight spot back to the spot (per visit)
+        self.leave_gates = [tuple(g) for g in args.leave_gate or []]   # --leave-gate's moongates (repeatable)
+        self.leave_gate = self.leave_gates[0] if self.leave_gates else None   # the one the leave walks to (pick_gate)
+        self.gate_no_dest = set()                # leave gates whose menu had no --gate-dest row: the next one instead
         self.leave_at = args.leave_at            # --leave-at plus the route margin (leave_margin)
         self.spell = combat.spell_id(args.spell)
         if self.spell is None:
@@ -2203,17 +2210,21 @@ class HuntLoop:
                     if n <= FLEE_DETOUR * cheb((x, y), t) and t not in skip), default=None)
         return best[2] if best is not None and best[0] >= far((x, y)) + FLEE_GAIN else None
 
-    def dead_end(self, st, tile, near, spots: dict) -> bool:
+    def dead_end(self, st, tile, near, spots: dict, others=()) -> bool:
         """Whether running to `tile` (flee_tile's) leaves the way to `near` (beside the gate) still passing `spots`
         (passes_hostile from there, the routes bent round them as the flight's are): every way out passes them, so
         running away only corners us (user 2026-10-22, after the 20:01:02 death in Maus 3's east wing: "Away first
         only outside dead ends"; Druidx came down the wing's only corridor and the flight ran ahead of him to its
-        south-west end, 156 steps from the gate, then back toward him)."""
+        south-west end, 156 steps from the gate, then back toward him). `others`: the other leave gates (several
+        --leave-gate): a dead end only when the way to beside each of them passes them too."""
         mv = st["movement"]
         at = {**st, "movement": {**mv, "pos": [tile[0], tile[1], tile[2] if len(tile) > 2 else mv["pos"][2],
                                                *mv["pos"][3:]]}}
-        path, _ = self.mover.plan(at, nav.within(near, 0), mobiles=False)
-        return path is None or self.passes_hostile(path, spots, tuple(tile[:2])) is not None
+        for goal in (nav.within(near, 0), *(nav.within(g, 1) for g in others)):
+            path, _ = self.mover.plan(at, goal, mobiles=False)
+            if path is not None and self.passes_hostile(path, spots, tuple(tile[:2])) is None:
+                return False
+        return True
 
     def sight_count(self, st, spots: dict, sight, z: int):
         """seen(t) -> how many of the hostile players at `spots` see the tile t (x, y, z): within SPELL_WORDS_RANGE,
@@ -2396,7 +2407,110 @@ class HuntLoop:
                else ""))
         return landed
 
-    def leave_by_gate(self, severity: str) -> dict:
+    def gate_ways(self, st, spots: dict | None = None, skip=()) -> list[dict]:
+        """Each --leave-gate's way from where we stand (none `skip`ped, none whose menu lacked --gate-dest), in the order
+        given: {gate, path (None: no route), near (the tile beside it the walk goes to; None standing on it), steps,
+        danger (way_danger, in steps), cost (steps + danger), field (a route only through a spell field), passes (a
+        hostile player of `spots` it passes, passes_hostile, else None)}."""
+        here = tuple(self.pos(st)[:2])
+        view, out = None, []
+        for g in self.leave_gates:
+            if g in skip or g in self.gate_no_dest:
+                continue
+            path, _ = self.mover.plan(st, nav.within(g, 0), mobiles=False)
+            field = not path
+            if field:
+                path, _ = self.mover.plan(st, nav.within(g, 0), mobiles=False, through_fields=True)
+            if not path:
+                out.append({"gate": g, "path": None})
+                continue
+            if view is None:
+                view = self.team.view(st) if self.team is not None else aggro.View(self, st)
+            danger = self.way_danger(path, view)
+            out.append({"gate": g, "path": path, "near": tuple(path[-2]) if len(path) >= 2 else None,
+                        "steps": len(path) - 1, "danger": danger, "cost": len(path) - 1 + danger, "field": field,
+                        "passes": self.passes_hostile(path, spots, here) if spots else None})
+        return out
+
+    def way_danger(self, path, view) -> float:
+        """The walk's danger on the route `path` in steps (gate_ways): what the Mover's soft zones add to its tiles
+        (Mover.danger_cost, the planner's own weights: a red's zone, an awake shooter's reach and an avoided monster's
+        from the crawl, a spray's tiles, --crawl-avoid boxes), and for each monster in view (aggro.View, not
+        --never-aggro, none the crawl's zones price already) whose aggro range takes in a tile of it in its sight,
+        GATE_AWAKE_COST when awake, GATE_IDLE_COST when idle."""
+        mv, tiles = self.mover, path[1:]
+        cost = sum(mv.danger_cost(t) - 1.0 for t in tiles) if mv.danger or mv.danger_tiles or mv.avoid else 0.0
+        for m in view.mobs:
+            if m["never"] or f"crawl:{m['serial']:08X}" in mv.danger:
+                continue
+            r = m["r"]
+            if any(cheb(m["pos"], t) <= r and view.sees(m, t, r) for t in tiles):
+                cost += GATE_AWAKE_COST if m["war"] else GATE_IDLE_COST
+        return round(cost, 1)
+
+    def pick_gate(self, st, spots: dict | None = None, skip=()) -> tuple[dict | None, str]:
+        """The easiest of several --leave-gate from where we stand (gate_ways; user 2026-10-31: "if its time to leave it
+        could leave by the easiest gate to get to"): first one whose way passes none of `spots` (the hostile players a
+        flight runs from), then one not only through a spell field, then the least cost (route steps plus the walk's
+        danger). -> (its way, or None when none has a route; the choice for the log, 'the easiest of 3 (34 steps;
+        (6652, 2095) 96, (6642, 2062) 71)')."""
+        ways = self.gate_ways(st, spots, skip)
+        go = [w for w in ways if w["path"]]
+
+        def said(w, unit=""):
+            if not w["path"]:
+                return "no route"
+            return (f"{w['steps']}{unit}" + (f" +{w['danger']:g} danger" if w["danger"] else "")
+                    + (" past them" if w["passes"] is not None else "") + (" through a field" if w["field"] else ""))
+        if not go:
+            return None, f"no route to any of {len(ways)} ({', '.join(str(w['gate']) for w in ways)})"
+        best = min(go, key=lambda w: (w["passes"] is not None, w["field"], w["cost"]))
+        others = ", ".join(f"{w['gate']} {said(w)}" for w in ways if w is not best)
+        return best, f"the easiest of {len(ways)} ({said(best, ' steps')}" + (f"; {others})" if others else ")")
+
+    def gate_choice(self, st):
+        """flee_out's `choose` with several --leave-gate: (gate, the tile beside it, its way clear of the hostile
+        players) of pick_gate's choice from them, else None."""
+        w, _ = self.pick_gate(st, self.hostile_spots(st))
+        return None if w is None or w["near"] is None else (w["gate"], w["near"], w["passes"] is None)
+
+    def red_on_way(self, st, known: set) -> str | None:
+        """A planned or hurt walk's stop to the leave gate with several --leave-gate: a hostile player we didn't know of
+        (`known`, kept here) that the walk's route ahead passes (passes_hostile) -> 'a hostile player on the way: ...',
+        and the leave chooses its gate again (leave_by_one_gate)."""
+        spots = self.hostile_spots(st)
+        new = spots.keys() - known
+        if not new:
+            return None
+        known |= new
+        route, here = self.mover.route or [], tuple(self.pos(st)[:2])
+        try:
+            ahead = route[route.index(here):]
+        except ValueError:
+            ahead = [here, *route]
+        s = self.passes_hostile(ahead, {k: spots[k] for k in new}, here)
+        if s is None:
+            return None
+        who = self.hostile_seen[s][2] if s in self.hostile_seen else f"0x{s:X}"
+        return f"{RED_ON_WAY}: {who} at {spots[s]}"
+
+    def leave_by_gate(self, severity: str, picked: bool = False) -> dict:
+        """leave_by_one_gate; when the gate's menu has no --gate-dest row (moongate.NoDestination: the golden gate
+        0x4003D7B7's menu never opened live), the next easiest of several --leave-gate, until none is left. The result
+        also has the gate walked to (`gate`) and the walk's steps and seconds (`walk_steps`, `walk_s`)."""
+        s0, t0 = self.mover.steps, time.monotonic()
+        while True:
+            out = self.leave_by_one_gate(severity, picked)
+            left = [g for g in self.leave_gates if g not in self.gate_no_dest]
+            if out.get("no_dest"):
+                log(f"the moongate at {tuple(out['gate'])}: no {self.args.gate_dest!r} on its menu; "
+                    + (f"to the next easiest of {len(left)}" if left else "no other leave gate"))
+            if not out.get("no_dest") or not left:
+                return {**out, "gate": list(self.leave_gate), "walk_steps": self.mover.steps - s0,
+                        "walk_s": round(time.monotonic() - t0, 1)}
+            picked = False
+
+    def leave_by_one_gate(self, severity: str, picked: bool = False) -> dict:
         """--leave-gate: walk to the moongate with the pets on 'All Follow Me' (user 2026-10-17, after the
         time-up walk out of 15:43:52 left them fighting behind on guard: "all follow me to run out, not all
         guard"), then beside it 'All Follow Me' again (tamer.follow: a hurt leave doesn't wait) so they come
@@ -2408,10 +2522,13 @@ class HuntLoop:
         From a hostile player (severity urgent), as Logan fled reds three times (20261013_173449,
         20261014_170144, _173858): flee_out, away from them first when the way passes them, Adventurer's Rope
         jumps whenever one is worth it (rope_jump).
-        -> {ok, from, to, dest, elapsed_s[, error]}."""
-        gate = tuple(self.args.leave_gate)
+        Several --leave-gate: the easiest (pick_gate; `picked`: leave_by_recall chose it already), chosen again when
+        its way is blocked, or a hostile player we didn't know of comes onto it (a planned walk's stop; the flight's
+        flee_out with gate_choice), the dead end judged against them all.
+        -> {ok, from, to, dest, elapsed_s[, error][, no_dest, gate: its menu lacked --gate-dest]}."""
         urgent = severity not in PLANNED
         flee = severity == "urgent"
+        several = len(self.leave_gates) > 1
         self.left_level = False
         if self.args.leave_via:
             try:
@@ -2420,20 +2537,31 @@ class HuntLoop:
                 self.left_level = False
                 return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
                         "dest": self.args.gate_dest}
+        if several and (not picked or self.left_level or self.leave_gate in self.gate_no_dest):
+            way, pick = self.pick_gate(self.link.state(), self.hostile_spots(self.link.state()) if flee else None)
+            if way is not None:
+                self.leave_gate = way["gate"]
+            elif self.leave_gate in self.gate_no_dest:
+                return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "dest": self.args.gate_dest,
+                        "error": f"no other leave gate in reach: {pick}"}
+            log(f"to the moongate at {self.leave_gate}: {pick}")
+        gate = self.leave_gate
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out, self.pk_flight, self.walk_out_fought = True, flee, severity in PLANNED
         self.coming_seen, self.led, self.lead_label = {}, {}, "to the moongate"
         t_walk = time.monotonic()
         jump = {"last": tuple(self.pos(self.link.state())[:2]), "through": False}
         dash = False                    # attacked near the gate on a planned walk out: through it at once
+        reds = set()                    # several gates: the hostile players a planned walk's stop knows of
 
         def through(s) -> bool:
-            """From within 2 of the gate to more than GATE_THROUGH_R from it between two reads: through it (a
+            """From within 2 of a leave gate to more than GATE_THROUGH_R from it between two reads: through it (a
             step moves one tile). Not the distance alone: a leave from deep in the level starts farther than
             that (live 18:28:24, the hits leave at (5261, 652), 58 tiles off, read as through at once and
             recalled in the dungeon until the escape budget ran out)."""
             here = tuple(self.pos(s)[:2])
-            jump["through"] |= cheb(jump["last"], gate) <= 2 and cheb(here, gate) > GATE_THROUGH_R
+            jump["through"] |= any(cheb(jump["last"], g) <= 2 and cheb(here, g) > GATE_THROUGH_R
+                                   for g in self.leave_gates)
             jump["last"] = here
             return jump["through"]
         try:
@@ -2460,7 +2588,9 @@ class HuntLoop:
                     if through(s):
                         return "through the gate"
                     if severity not in PLANNED:
-                        return self.leave_called_off(s, severity)
+                        return self.leave_called_off(s, severity) or (self.red_on_way(s, reds) if several else None)
+                    if several and (why := self.red_on_way(s, reds)):
+                        return why
                     if self.walk_hurt(s) or self.attackers(s):
                         return "under attack"
                     if who := self.coming(s):
@@ -2470,15 +2600,38 @@ class HuntLoop:
                     return self.idle_ahead(s)
                 if flee:
                     if near is not None:
-                        self.flee_out(gate, near, through)
+                        gate, near = self.flee_out(gate, near, through, choose=self.gate_choice if several else None,
+                                                   gates=self.leave_gates if several else ())
+                        self.leave_gate = gate
                 else:
                     for _ in range(GATE_LEGS_MAX):
                         if near is None or cheb(self.pos(self.link.state()), gate) <= 1:
                             break
-                        why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
-                                                 max_moves=max(250, 3 * self.out_steps), stop=stop)
+                        try:
+                            why = self.mover.walk_to(lambda: near, 0, "to the moongate", urgent=urgent,
+                                                     max_moves=max(250, 3 * self.out_steps), stop=stop)
+                        except WalkFailed as e:
+                            # its way blocked: the next easiest gate (several --leave-gate), else as before
+                            way, pick = self.pick_gate(self.link.state(), skip={gate}) if several else (None, "")
+                            if way is None or way["near"] is None:
+                                raise
+                            log(f"to the moongate at {gate}: {e}; to the one at {way['gate']} instead, {pick}")
+                            gate, near = way["gate"], way["near"]
+                            self.leave_gate = gate
+                            continue
                         if why == "through the gate" or through(self.link.state()):
                             break
+                        if why and why.startswith(RED_ON_WAY):
+                            st = self.link.state()
+                            way, pick = self.pick_gate(st, self.hostile_spots(st))
+                            if way is not None and way["near"] is not None and way["gate"] != gate \
+                                    and way["passes"] is None:
+                                log(f"to the moongate at {gate}: {why}; to the one at {way['gate']} instead, {pick}")
+                                gate, near = way["gate"], way["near"]
+                                self.leave_gate = gate
+                            else:
+                                log(f"to the moongate at {gate}: {why}; no gate's way clear of them ({pick}): on")
+                            continue
                         if why and severity in PLANNED:
                             coming = why[len("coming: "):] if why.startswith("coming: ") else None
                             if (why == "under attack" or coming) \
@@ -2542,6 +2695,11 @@ class HuntLoop:
             # flight took 4.2 s from the gate's tile to Totem: a second "All Follow Me", the reader's pauses; the user:
             # "My macro gets me out basically instantly")
             return moongate.travel(self.link, self.human, self.args.gate_dest, since=mark, log=log, urgent=True)
+        except moongate.NoDestination as e:
+            # several --leave-gate: the next one (leave_by_gate); the menu is closed again
+            self.gate_no_dest.add(gate)
+            return {"ok": False, "from": list(self.pos(self.link.state())[:2]), "error": str(e),
+                    "dest": self.args.gate_dest, "no_dest": True, "gate": list(gate)}
         except (Abort, moongate.GateError) as e:
             if (out := self.through_gate(gate, t_walk, through)) is not None:
                 return out
@@ -2557,28 +2715,30 @@ class HuntLoop:
         to the gate from here (the planner never routes over a teleporter), onto the --leave-via teleporter still ahead
         that they reach first (escape_teleporter), and the rest in order: planned, as the walk in goes (walk_in_legs:
         the pets on 'All Follow Me', a fight or a lagging pet stops it); a hurt leave or a hostile player, at flight
-        pace (walk_in_rush). Abort when neither the gate nor a --leave-via teleporter is in reach."""
-        gate = tuple(self.args.leave_gate)
+        pace (walk_in_rush). Abort when neither the gate nor a --leave-via teleporter is in reach. Several --leave-gate
+        (one level, crawl.setup): any of them in reach is the gate's level."""
+        gates = [g for g in self.leave_gates if g not in self.gate_no_dest] or [self.leave_gate]
+        what = f"the moongate at {gates[0][0]},{gates[0][1]}" if len(gates) == 1 else \
+            f"the moongates at {', '.join(f'{g[0]},{g[1]}' for g in gates)}"
         st = self.link.state()
-        if self.mover.plan(st, nav.within(gate, 0), mobiles=False)[0]:
+        if any(self.mover.plan(st, nav.within(g, 0), mobiles=False)[0] for g in gates):
             return
         tiles = [tuple(t) for t in self.args.leave_via]
         k = self.escape_teleporter(st, tiles)
         if k is None:
-            raise Abort(f"to the moongate at {gate[0]},{gate[1]}: no route to it nor onto a --leave-via teleporter "
-                        f"from {tuple(self.pos(st)[:2])}")
-        log(f"to the moongate at {gate[0]},{gate[1]}: a level up, through the teleporters from {tiles[k][0]},{tiles[k][1]}")
+            raise Abort(f"to {what}: no route to it nor onto a --leave-via teleporter from {tuple(self.pos(st)[:2])}")
+        log(f"to {what}: a level up, through the teleporters from {tiles[k][0]},{tiles[k][1]}")
         if severity in PLANNED:
             self.walk_in_legs(tiles[k:], kind="leave")
         else:
             self.walk_in_rush(tiles[k:], "Leaving")
             self.fleeing = True                      # walk_in_rush turns the threat checks back on at its end
         self.left_level = True                       # off the hunt level: a healed leave goes on to the gate
-        if not self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)[0]:
-            raise Abort(f"to the moongate at {gate[0]},{gate[1]}: no route to it from "
-                        f"{tuple(self.pos(self.link.state())[:2])} after the --leave-via teleporters")
+        st = self.link.state()
+        if not any(self.mover.plan(st, nav.within(g, 0), mobiles=False)[0] for g in gates):
+            raise Abort(f"to {what}: no route to it from {tuple(self.pos(st)[:2])} after the --leave-via teleporters")
 
-    def flee_out(self, gate, near, through, choose=None):
+    def flee_out(self, gate, near, through, choose=None, gates=()):
         """The flight from hostile players to beside the leave gate (`near`; leave_by_gate, severity urgent): their
         danger zones on the Mover (hostile_zones: the routes bend round them), a look at the way every
         FLEE_LEG_STEPS while any is known (hostile_spots), and at once when one we didn't know of comes into view.
@@ -2588,15 +2748,18 @@ class HuntLoop:
         the only way from Maus 3's east wing ran up the corridor two reds came down: the rope landed Logan beside
         one and the walk went on past them; 17:37:13-22 the red of the leave was out of view at the flight's start
         and two came back along the gate's way while the walk ran on toward them with no look. `choose` (the walk in's
-        gold moongates, gold_gate_way): at each leg while one is known, another gate whose way passes none of them
-        when this one's does (live 2026-10-22 Botan ran from (5610, 677) to beside the gold gate at (5588, 717)).
+        gold moongates, gold_gate_way; several --leave-gate, gate_choice): at each leg while one is known, another gate
+        whose way passes none of them when this one's does (live 2026-10-22 Botan ran from (5610, 677) to beside the
+        gold gate at (5588, 717)).
         No route to the gate (a red's Wall of Stone across the only way, field_cut; refused steps) never stands us in
         their sight: the leg goes to cover_tile's tile meanwhile and looks again from there (live 2026-10-30
         23:43:31-36 six looks on one tile in three casters' spells, dead); a field that cuts it doesn't count against
-        FLEE_NEAR_FAILS (it goes)."""
+        FLEE_NEAR_FAILS (it goes). Refused steps with `choose`: another gate when it picks one. `gates` (several
+        --leave-gate): a dead end only when the way to every one of them passes them (dead_end's `others`).
+        -> (gate, beside it) of the gate the flight ended at."""
         t_end = time.monotonic() + FLEE_MAX_S
         leg = {"start": 0, "known": set(), "past": False}
-        said, failed = [None], set()
+        said, failed, blocked = [None], set(), set()     # blocked: gates whose walk failed (refused steps)
 
         def stop(s):
             if through(s):
@@ -2619,7 +2782,7 @@ class HuntLoop:
                 st = self.link.state()
                 here = tuple(self.pos(st)[:2])
                 if cheb(here, gate) <= 1 or through(st):
-                    return
+                    return gate, near
                 spots = self.hostile_spots(st)
                 self.hostile_zones(spots)
                 if spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate and alt[2]:
@@ -2637,7 +2800,8 @@ class HuntLoop:
                         xy, fleeing = spots[s], time.monotonic() < t_end
                         who = self.hostile_seen[s][2] if s in self.hostile_seen else f"0x{s:X}"
                         tile = self.flee_tile(st, spots, failed) if fleeing else None
-                        if tile is not None and self.dead_end(st, tile, near, spots):
+                        if tile is not None and self.dead_end(st, tile, near, spots, [
+                                g for g in gates if g != gate and g not in self.gate_no_dest]):
                             # no rope from melee ones: it lands only farther off, back into the dead end (fight2001);
                             # from ranged ones it may land along the way, past them (rope_jump, ranged_fight)
                             leg["past"] = True
@@ -2669,6 +2833,12 @@ class HuntLoop:
                     if goal == near:
                         st = self.link.state()
                         field = self.field_cut(st, near)
+                        if field is None and choose is not None and (alt := choose(st)) is not None \
+                                and alt[0] != gate and alt[0] not in blocked:
+                            blocked.add(gate)
+                            say(f"to the moongate: {e}; to the one at {alt[0]} instead")
+                            gate, near = alt[0], alt[1]
+                            continue
                         if field is None:
                             # live 2026-10-22 22:03:06: "no route from (5223, 657)" on a stair with Flat Lander on it
                             # ended the run there, Logan alive at 50/100 and no potion or vet more; the refused steps
@@ -2702,7 +2872,8 @@ class HuntLoop:
                     failed.add(goal)
                     continue
                 if why == "through the gate" or (not why and goal == near):
-                    return
+                    return gate, near
+            return gate, near
         finally:
             self.hostile_zones({})
 
@@ -2732,21 +2903,31 @@ class HuntLoop:
         data = {"why": why, "hits": [st["world"]["self"].get("hits"), st["world"]["self"].get("hits_max")],
                 "attackers": self.attackers(st), "visit": self.visit_n, "kills": self.totals["kills"],
                 "route_steps": self.out_steps}
-        log(f"LEAVING by {'the moongate' if self.args.leave_gate else 'recall'}: {why}")
+        picked = False
+        if len(self.leave_gates) > 1 and severity in PLANNED:
+            # the easiest gate from here (user 2026-10-31: "if its time to leave it could leave by the easiest gate to
+            # get to"), in the LEAVING line; a leave to survive first drops the cursor and disengages, leave_by_gate
+            # chooses after (three routes planned take ~0.2 s on Tidal Tomb level 1), as it does a level up
+            # (--leave-via: none in reach yet)
+            way, pick = self.pick_gate(st)
+            if way is not None:
+                self.leave_gate, picked = way["gate"], True
+                data["gate_choice"] = pick
+        log(f"LEAVING by the moongate at {self.leave_gate}: {why}; {data['gate_choice']}" if picked else
+            f"LEAVING by {'the moongate' if self.leave_gates else 'recall'}: {why}")
         self.fleeing = True
         try:
             cancelled = self.drop_cursor()
             self.disengage("fled" if severity not in PLANNED else "ended")
-            self.doing("leave", f"Leaving: {why}", tuple(self.args.leave_gate) if self.args.leave_gate
-                       else self.recall_spot)
+            self.doing("leave", f"Leaving: {why}", self.leave_gate if self.leave_gates else self.recall_spot)
             if severity in PLANNED and self.war_mode(st, False):
                 self.human.wait("hotkey")
-            if self.team is not None and not self.args.leave_gate:
+            if self.team is not None and not self.leave_gates:
                 self.team.follow(severity)
             data["react_s"] = round(time.monotonic() - t_fire, 2)
             gate = None
-            if self.args.leave_gate:
-                gate = data["gate"] = self.leave_by_gate(severity)
+            if self.leave_gates:
+                gate = data["gate"] = self.leave_by_gate(severity, picked)
                 if gate.get("called_off"):
                     log(f"leave called off at {tuple(gate['from'])}: {gate['called_off']}; back to the pets")
                     self.memory.job_event("hunt", "leave_called_off", {**data, "called_off": gate["called_off"]},
@@ -3310,7 +3491,7 @@ class HuntLoop:
         try:
             st = self.state()
             here, facet = tuple(self.pos(st)[:2]), st["world"]["self"].get("map")
-            gate = tuple(self.args.leave_gate) if self.args.leave_gate else None
+            gate = self.leave_gate
             if not escape_mod.recall_forbidden(here, facet):
                 way = f"the recall from {here}"
                 log(f"escape: a recall is allowed at {here}: home")
@@ -3321,7 +3502,14 @@ class HuntLoop:
                 way = f"the gold moongate at {g[0][0]},{g[0][1]}"
                 log(f"escape: {way} is within {GOLD_GATE_STEPS} steps: there, and the recall home")
                 return way, self.escape_by_gold_gate(g[0], g[1])
-            if gate is not None and self.mover.plan(st, nav.within(gate, 0), mobiles=False)[0]:
+            if gate is not None and len(self.leave_gates) > 1:
+                w, pick = self.pick_gate(st, self.hostile_spots(st))     # the easiest of them in reach
+                if w is not None:
+                    self.leave_gate = gate = w["gate"]
+                    way = f"the leave gate at {gate[0]},{gate[1]}"
+                    log(f"escape: {way} is in reach, {pick}: through it to {self.args.gate_dest}, and the recall home")
+                    return way, self.escape_by_leave_gate(picked=True)
+            elif gate is not None and self.mover.plan(st, nav.within(gate, 0), mobiles=False)[0]:
                 way = f"the leave gate at {gate[0]},{gate[1]}"
                 log(f"escape: {way} is in reach: through it to {self.args.gate_dest}, and the recall home")
                 return way, self.escape_by_leave_gate()
@@ -3372,12 +3560,12 @@ class HuntLoop:
             self.team.follow()
         return self.recall(self.args.leave_recall, None, True, "home")
 
-    def escape_by_leave_gate(self) -> dict:
+    def escape_by_leave_gate(self, picked: bool = False) -> dict:
         """The escape from the hunt level: the leave by --leave-gate (leave_by_gate: planned, the pets on 'All Follow
-        Me' waited for and the attackers fought as on the time-up walk out; a red's flight when one is in view), then
-        the recall home from --gate-dest."""
+        Me' waited for and the attackers fought as on the time-up walk out; a red's flight when one is in view; several
+        gates: the easiest, `picked` by escape_once already), then the recall home from --gate-dest."""
         severity = "urgent" if self.player_threat(self.state()) else "info"
-        gate = self.leave_by_gate(severity)
+        gate = self.leave_by_gate(severity, picked)
         if not gate["ok"]:
             return {"ok": False, "failure": f"moongate: {gate.get('error') or gate.get('called_off') or 'not through'}"}
         if self.team is not None:
@@ -4345,17 +4533,20 @@ class HuntLoop:
     def leave_margin(self, st):
         """--leave-at raised by --leave-per-step per step of the planned route from the
         fight spot back to --spot (recall mode: to --recall-spot, where a refused recall
-        walks; --leave-gate: to that moongate; Chebyshev distance when no route is planned),
-        at most to --heal-at - LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the
+        walks; --leave-gate: to that moongate, the nearest by route of several; Chebyshev distance when no route is
+        planned), at most to --heal-at - LEAVE_HEAL_GAP and never below --leave-at. 0 steps when the
         fight spot is that tile. Crawling: the floor's route steps from where we stand, every tick."""
         steps = 0
-        out = tuple(self.args.leave_gate) if self.args.leave_gate else \
-            self.recall_spot if self.args.leave_recall is not None else self.spot
+        outs = self.leave_gates or [self.recall_spot if self.args.leave_recall is not None else self.spot]
+        out = outs[0]
         if self.crawl is not None:
             steps = self.crawl.route_steps(self.pos(st)) or 0
-        elif self.fight_spot != out:
-            path, _ = self.mover.plan(st, nav.within(out, 0), mobiles=False)
-            steps = len(path) - 1 if path else cheb(self.pos(st), out)
+        elif self.fight_spot not in outs:
+            ways = []
+            for o in outs:
+                path, _ = self.mover.plan(st, nav.within(o, 0), mobiles=False)
+                ways.append((len(path) - 1 if path else cheb(self.pos(st), o), o))
+            steps, out = min(ways)
         a = self.args
         raw = a.leave_at + (0.0 if a.heal_in_place else a.leave_per_step) * steps
         cap = max(a.leave_at, a.heal_at - LEAVE_HEAL_GAP)
@@ -4697,10 +4888,13 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-oxygen", action="store_true",
                     help="no oxygen rule under water (Tidal Tomb's levels 2+, oxygen.py): no refill legs, --heal-at as "
                          "given while deprived (the simulator's 'off' arm)")
-    ap.add_argument("--leave-gate", type=int, nargs=2, default=None, metavar=("X", "Y"),
+    ap.add_argument("--leave-gate", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
                     help="leave by this moongate on the hunting level (dungeons allow no recall except near a "
                          "gold gate, never near a red one: user 2026-10-13), to --gate-dest, then --leave-recall "
-                         "home from there; on a level above the hunt's, reached by --leave-via")
+                         "home from there; on a level above the hunt's, reached by --leave-via. Repeat for several "
+                         "on one level, each with --gate-dest on its menu: the leave takes the easiest from where we "
+                         "stand (the fewest route steps, the walk's danger added; a red's flight, one whose way "
+                         "passes none)")
     ap.add_argument("--leave-via", type=int, nargs=2, action="append", default=None, metavar=("X", "Y"),
                     help="the teleporters (in order, repeat) from the hunting level up to --leave-gate's level, "
                          "stepped onto before the walk to the gate when the gate isn't reachable from where we "
@@ -4872,6 +5066,8 @@ def main():
         ap.error("--pet names a pet of the team: it needs --pets")
     if args.leave_gate and (args.leave_recall is None or not args.gate_dest):
         ap.error("--leave-gate travels to --gate-dest, then recalls home with --leave-recall: give both")
+    if args.leave_gate and len({tuple(g) for g in args.leave_gate}) < len(args.leave_gate):
+        ap.error("--leave-gate: a moongate given twice")
     if args.enter_via and args.enter_recall is None:
         ap.error("--enter-via walks the teleporters after --enter-recall's arrival")
     if args.fight_via and not {tuple(t) for t in args.fight_via} <= {tuple(t) for t in args.enter_via or []}:

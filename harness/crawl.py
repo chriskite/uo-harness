@@ -523,12 +523,22 @@ class Crawl:
             self.unlocked = top
             log(f"crawl: looping the floor, every zone open: {len(self.order)} waypoints, from "
                 f"{self.wps[self.order[0]]}")
-        gate = self.a.leave_gate
-        out = self.floor.nearest(tuple(gate)) if gate else None
-        self.dist_out = self.floor.bfs(out) if out is not None else self.floor.dist_exit
-        if gate:
-            log(f"crawl: the way out is the moongate at {tuple(gate)}" + ("" if out is not None else
-                                                                          " (off this floor: steps to the exit)"))
+        gates = [tuple(g) for g in self.a.leave_gate or []]
+        outs = [t for t in (self.floor.nearest(g) for g in gates) if t is not None]
+        if outs and len(outs) < len(gates):
+            on = [g for g in gates if self.floor.nearest(g) is not None]
+            raise ValueError(f"the leave gates {on} are on this floor and {[g for g in gates if g not in on]} not: "
+                             f"give --leave-gate moongates of one level")
+        self.dist_out = self.floor.dist_exit
+        if outs:
+            self.dist_out = {}
+            for out in outs:                          # several: the route steps to the nearest
+                for t, n in self.floor.bfs(out).items():
+                    if n < self.dist_out.get(t, n + 1):
+                        self.dist_out[t] = n
+        if gates:
+            log(f"crawl: the way out is the moongate{'s' if len(gates) > 1 else ''} at "
+                f"{', '.join(str(g) for g in gates)}" + ("" if outs else " (off this floor: steps to the exit)"))
         self.recent_kills(st)
         self.update_zones()
 
@@ -564,7 +574,7 @@ class Crawl:
         return self.zone[i] if i is not None else None
 
     def route_steps(self, pos) -> int | None:
-        """Route steps from `pos` to the way out: --leave-gate's moongate, else the exit spot."""
+        """Route steps from `pos` to the way out: --leave-gate's moongate (the nearest of several), else the exit spot."""
         if self.floor is None:
             return None
         t = self.floor.nearest(pos)
