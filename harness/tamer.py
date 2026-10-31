@@ -1503,7 +1503,8 @@ class Team:
             if m["shy"]:
                 continue                  # it shoots from where it stands, it doesn't come on (back_off)
             if cheb(m["pos"], v.pos) <= HOLD_R and self.hold_until.setdefault(m["serial"], now + HOLD_S) > now:
-                seen.append((cheb(m["pos"], v.pos), f"{m['kind']} in sight at {cheb(m['pos'], v.pos)} tiles"))
+                what = m["kind"] or f"an unnamed monster 0x{m['serial']:08X}"   # no name packet yet (live 2026-10-31 13:38)
+                seen.append((cheb(m["pos"], v.pos), f"{what} in sight at {cheb(m['pos'], v.pos)} tiles"))
         for s, mob, kind, _ in self.sprayers(st):
             d = cheb((mob["x"], mob["y"]), v.pos)
             if d <= HOLD_R and self.elsewhere(st, mob) is None and self.hold_until.setdefault(s, now + HOLD_S) > now:
