@@ -7738,6 +7738,66 @@ could leave by the easiest gate to get to."
 - **Fix**: 0x4E30 and "vielle" added to both. test_sim `test_instrument` with a vielle (fails before: the bard skills
   off and the recall in refused). Checked against Logan's live status: the item's graphic and name match.
 
+## Tidal Tomb level 2: dead between two zoas (live 2026-10-31 18:05:19, hunt-20261031-171847-d9b0)
+
+Run `hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 ... --enter-via 6718 1984 --leave-gate 6913
+2071` (Logan 0x00104A60, Bussin 0x000EA04F, AlaFlambe 0x0026EF56), visit 4. Task log lines 3290-3353; capture
+session_20261031_170158 decoded with `replay.timed_packets` -> `WorldRuntime` (0xA1/0x11 hits, the '-N' overheads,
+0x6E, 0xC0, 0x54, 0xFF buffs, 1 Hz mobiles); the scratch scans are not in the repo.
+
+- **18:04:36.8-18:05:03.4: held 11 off a pet being beaten down.** Logan stood at the cover tile (6899, 2019) on 100
+  hits; both pets at (6910, 2022) fought an awake astral zoa 0x00255E44 at (6909, 2024), 2 from them. An awake
+  combustive zoa 0x0025652A at (6917, 2023) hit none of ours (no scorch, no effect of it 18:04:34-18:05:19; [INFERENCE]
+  in war on someone out of our view). Every 5 s "to a hurt pet: AlaFlambe (N%) is only in reach from the astral zoa,
+  combustive zoa's shot; staying out of it" while she went 90 -> 19 % unvetted (the zoa's astral spell -48/-51 with
+  Backlash, three stacks by 18:05:03, and a steady 17-35 every 1.5-2 s with no effect seen [INFERENCE: the zoa's, the
+  only monster in war within 10 of her after 18:04:42]); the zoa went 100 -> 46 %.
+- **18:05:03.4 a biolumen shellpod 0x002558EC went to war on Logan at 10 tiles** (it had drifted idle from (6885, 2001)
+  since 18:04:50), the pets 13 from it. 18:05:04 the runner targeted it and walked 2 toward it. **18:05:06.0 / .2
+  its barrage from 4 tiles: -17, -21** ("Searing light burns your skin! (penalty to healing)", the source-less 0xC0
+  0x36F4 hue 1084 from its tile), 100 -> 62; the potion at 06.7 +38.
+- **18:05:07 "to a hurt pet: (6906, 2018), 4 from AlaFlambe, 0 into an area hit's reach"** (AlaFlambe at 13 %, under
+  --pet-leave-at 0.20, so --heal-in-place walks with something on us). **18:05:09.6 the astral zoa's volley**: 0x36D4
+  bolts (hue 1593) from it at AlaFlambe, Bussin and Logan at (6904, 2016), 6 from the pets and 8 from it: **-36** at
+  10.1 (100 -> 64), the pets -31/-23. 10.4 AlaFlambe dead. 10.7 the shellpod beside him (2 off): -18 (46).
+- **18:05:09 "cover: the astral zoa, combustive zoa shoots us here; to (6899, 2019)"**: back west to the tile 2 from
+  the shellpod chasing him (a shove refused for stamina, a stamina drink); **18:05:13.6 its barrage -22, -17** (46 ->
+  7). **18:05:14 "LEAVING by the moongate: hits 7/100"** (under the 0.5 line since 10.7, decided after the cover leg);
+  the gate 114 steps off; **18:05:16.4 the volley again** at Bussin and Logan (5 apart, Logan 12 from the zoa): -9,
+  dead at (6894, 2019). The runner's "heal potion: 8 -> 0" at 18:05:19 was the click after.
+- **Logan's damage, 18:05:03-17: the shellpod 95** (barrages 38 and 39, a hit 18), **the astral zoa 45** (two volleys),
+  the combustive zoa 0. Not the zoas' astral spell, lightning or scorch: none landed on him.
+- **The zoas' volley** (scanned over 10 Tidal Tomb captures 2026-10-24..31, 93 volleys of every zoa type): a 0x36D4
+  bolt from the zoa (hue 1593 astral, 1590 combustive, 1917 toxic) to its target and to everyone of us within 6 of it,
+  a number on each 0.5 s later, no buff. Of us within 6 of another victim 159 of 175 were struck, at 7+ 0 of 31; Logan
+  51 of 59 within 6 of a struck pet, 0 of 13 at 7-10, never alone. Numbers: plain zoas pets 17-30 (median 23), Logan
+  24-36 (median 31); giants pets 33-71, Logan 27-39. Rate in a zoa's fights: astral 32 in 1,068 s (one per 33 s),
+  combustive 15 in 567 s (38 s), toxic 5 in 233 s (47 s), giant astral 20 in 454 s, giant combustive 15 in 247 s; on
+  its 3.37 s cast clock (gaps 3.3, 6.7, 10 s ...), the first 2.7-48 s into a fight. The simulator had no such spell
+  (its zoas: a single 0x36D4 shot every 6 s, a fifth of them at Logan).
+- **The zoas' single spell** (a fire column, 0xC0 type 3 0x3709 in the zoa's hue, with only zoas in war within 14): on
+  a pet 62 times, on Logan 2 (plain zoas; giants 78 and 1). Of Logan's 83 numbers with only zoas in war within 14, 70
+  were their spells centred on a pet (volley 34, astral, lightning, scorch 12 each), 4 came with a fire column on him,
+  3 (32-39) with nothing seen, 6 small (5-10).
+- **The biolumen shellpod's barrage on Logan**: all 24 "Searing light burns your skin!" in 11 captures 2026-10-24..31
+  came with two numbers 0.0-0.3 s apart, 14-25 each (median 20), the shellpod 2-9 tiles off. The simulator gave its
+  barrage no number ("in its observed swings"), so it never hurt Logan from range.
+- **Cause.** The runner's shot rules (`Team.to_pet`'s hold, `cover`) counted an awake zoa fighting the pets as
+  shooting Logan wherever it saw him within 12 (aggro.shy: the zoas are casters since 2026-10-26). Their spells land on
+  a pet and those near it, so the hold kept him 11 off with no gain while AlaFlambe went 90 -> 19 % unvetted; alone
+  there a wandering shellpod woke on him with the pets 13 off; the walk in at 13 % came too late for her and put him
+  in the volley, and cover walked him back beside the shellpod. Hypotheses checked: (a) the walk into the zoas' reach
+  below --pet-leave-at cost 36 of 140 and found AlaFlambe dying; (b) the 27 s hold is the cause (fight1805 below);
+  (c) the leave fired 3.3 s after 46 hits (at the cover's end, not mid-walk) with no potion ready before 16.9:
+  [INFERENCE] a leave at 10.7 might have outrun the shellpod; not changed.
+- **Fix** (docs/HUNT_LOOP.md "Pets", docs/PLAN.md, docs/SIM.md "Tidal Tomb: dead between two zoas"): the simulator's
+  zoas got the volley, their single spell's share at Logan (0.03) and the shellpod's barrage its two numbers on him;
+  the runner's `tamer.AT_PETS` (a scenario `at_player_p` under `AT_US_MIN_P` 0.04) leaves a zoa (and the soulcatcher)
+  out of the shot rules while a pet of ours in war mode stands nearer it than Logan: the vet walk goes in ("... which
+  goes at the pets (below 4% of its shots at us live): going in"), no cover back out. `sim/fight1805.py` 1805, seeds
+  1-24: deaths 9 -> 0 (HEAD's runner on the old simulator: 0, it didn't reproduce the death); level 2, 96 runs with
+  the live team: runs with a death 19 -> 14, pet deaths 194 -> 111.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

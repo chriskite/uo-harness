@@ -927,6 +927,20 @@ monster's shot isn't walked to ("to a hurt pet: GraveRobber (70%) is only in rea
 staying out of it"); it is vetted once the shooter is dead or the pet comes out. Below `--pet-leave-at`, or a
 ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and cover walked him out each time
 (docs/NOTES.md "Dead on the walk in to a red", the follow-up).
+**A shy monster that casts at the pets isn't a shot at us while it fights them** (`tamer.AT_PETS`, `Team.shy_on_us`,
+since 2026-10-31; Logan dead on Tidal Tomb level 2, docs/NOTES.md "Tidal Tomb level 2: dead between two zoas"): a kind
+whose measured share of shots at Logan (a scenario `ranged_observed` `at_player_p`) is under `AT_US_MIN_P` 0.04, in war
+mode with a live pet of ours in war mode nearer it than Logan, is left out of the shot rules above: the cover, the walk
+to a hurt pet, the spacing's and the vet tile's shot (and `shy_threats`, so the patrol's and the advance's). Today the
+plain zoas (0.03: their spells land on the pet they target and those within 3-6 of it; their single spell went at
+Logan 2 times of 64 live) and the soulcatcher (0.03); not the drowned mariner (0.05) or the giant zoas (no measured
+share). The area zones (`TARGET_AREA`) still keep Logan 4+ off the pets. The walk logs "to a hurt pet: AlaFlambe (47%)
+in reach from the astral zoa's shot, which goes at the pets (below 4% of its shots at us live): going in" where it
+used to hold. Live 18:04:36-18:05:03 the hold ("is only in reach from the astral zoa, combustive zoa's shot; staying
+out of it") kept Logan 11 off while AlaFlambe went 90 -> 19 % unvetted; a wandering biolumen shellpod woke on him
+there, the walk in at 13 % met the zoa's volley (-36) and cover walked him back beside the shellpod (-39): dead.
+`sim/fight1805.py` (seeds 1-24): deaths 9 -> 0; level 2 (96 runs, the live team): runs with a death 19 -> 14, pet
+deaths 194 -> 111 (docs/SIM.md "Tidal Tomb: dead between two zoas"); test_sim `test_zoa_on_pets_vet`.
 **A monster beside us that the pets aren't fighting is the target** (`HuntLoop.pick_target`, `loop_hunt.LOOSE_R` 1, since
 2026-10-29): a monster within 1 attacking us that no pet has hurt lately, while the current target isn't on us, takes
 the target over, logged "a razorfin 0x... on us and the pets on 0x...: it is the target now". `Team.fight` then says

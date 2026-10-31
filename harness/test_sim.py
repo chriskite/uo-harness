@@ -5531,6 +5531,7 @@ def _zoa_case(logan, loop_hits=None, extra=()):
     z = next(m for m in w.mobs.values() if m.kind == "monster")
     z.hits = z.hits_max = 10 ** 6
     z.spec = {**z.spec, "step_s": 999.0}                    # it stays where the live one stood
+    z.cd["volley"] = 1e9                                    # its volley held off: test_zoa_volley's
     run = hurt_loop(w, loop_hits, extra) if loop_hits is not None else None
     for p in w.pets():
         w._place(p, (PETS_L2[0], PETS_L2[1], ZOA_L2[2]), d=0)
@@ -5742,6 +5743,81 @@ def test_scorch_susceptible():
           "x1; 18 s after the last none, x1",
           on_us >= 4 and k == on_us and abs(ratio - (1 + 0.08 * k)) <= 0.01 and abs(after - 1.0) <= 0.01,
           f"scorches on us {on_us}, stacks {k}, ratio {ratio:.3f}, after {after:.3f}")
+
+
+def test_zoa_volley():
+    print("== Tidal Tomb: a zoa's volley on its target and on everyone of us within 6 of it, none at 7; the shellpod's "
+          "barrage two numbers on Logan at range ==")
+    # live (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas"): 93 volleys, of us within 6 of another victim 159 of
+    # 175 struck, at 7+ 0 of 31; 2026-10-31 18:05:10.1 -36 on Logan 6 from the pets, 8 from the astral zoa. The biolumen
+    # shellpod's barrage: 24 of 24 on Logan two numbers (14-25), 2-9 tiles off; 18:05:06 -17/-21 from 4. Before: neither
+    # modelled (the barrage's numbers no number at all)
+    struck = {}
+    for d in (6, 7):
+        w, z, rolled, _ = _zoa_case((PETS_L2[0] - 2, PETS_L2[1] + d))
+        sp = next(s for s in z.spec["specials"] if s.get("id") == "volley")
+        w._burst(z, sp, w.mobs[z.target])
+        struck[d] = {v.name for _, v, _ in rolled}
+    logan = [round(n) for _, v, n in rolled if v is w.player]
+    pets = {p.name for p in w.pets()}
+    check("Logan 6 from the pets it targets struck with both; 7 off, the pets only",
+          struck[6] == pets | {w.player.name} and struck[7] == pets and not logan, str(struck))
+    w = tidal_world((6897, 2018), [{"key": "biolumen shellpod", "at": [6893, 2014, -90]}], z=-90,
+                    team="phoenix_incubus")
+    pod = next(m for m in w.mobs.values() if m.kind == "monster")
+    nums, orig = [], w.hurt
+
+    def hurt(victim, amount, by, kind="melee", *a, **kw):
+        if victim is w.player and kind == "burst":
+            nums.append(round(amount))
+        return orig(victim, amount, by, kind, *a, **kw)
+    w.hurt = hurt
+    w._burst(pod, next(s for s in pod.spec["specials"] if s.get("id") == "barrage"), w.player)
+    check("...the shellpod's barrage on Logan 4 off: two numbers of 14-25 and a festering stack",
+          len(nums) == 2 and all(14 <= n <= 25 for n in nums) and len(w.player.festering) == 1,
+          f"{nums} festering {w.player.festering}")
+
+
+def test_zoa_on_pets_vet():
+    print("== the live 18:04:36 layout: an astral zoa fighting the pets, AlaFlambe hurt 11 off Logan: the walk into vet "
+          "range (its spells go at the pets), no cover back out ==")
+    # live 2026-10-31 18:04:36-18:05:01 (hunt-20261031-171847-d9b0): "to a hurt pet: AlaFlambe (90 %) is only in reach
+    # from the astral zoa, combustive zoa's shot; staying out of it" every 5 s while she went 90 -> 25 %; the walk at 13 %,
+    # cover back to 11 off beside a biolumen shellpod on him; dead. Before: no walk ("staying out of it")
+    from agent_link import cheb
+    zoa_at = (6909, 2024, -90)
+    w = tidal_world((6899, 2019), [{"key": "astral zoa", "at": list(zoa_at)}], z=-90, team="phoenix_incubus")
+    z = next(m for m in w.mobs.values() if m.kind == "monster")
+    z.hits = z.hits_max = 10 ** 6
+    z.spec = {**z.spec, "step_s": 999.0}
+    loop, clock, store, patched = hurt_loop(w, 100)
+    ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+    for p in w.pets():
+        p.x, p.y = 6910, 2022
+        p.mode, p.kill, p.target, p.next_step = "kill", z.serial, z.serial, 1e9
+        w._warm(p, True)
+    ala.hits = int(ala.hits_max * 0.5)
+    z.target, z.threat = ala.serial, {ala.serial: 1e9}
+    w._warm(z, True)
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(2.5)
+            walked = loop.team.to_pet(loop.state())
+            at = tuple(w.player.pos[:2])
+            loop.team.cover_t = -1e9
+            covered = loop.team.cover(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    log = out.getvalue()
+    check("walked to within 5 of AlaFlambe, 4+ off the pets (the zone), 'which goes at the pets ... going in'; no cover "
+          "after (before: 'staying out of it', 11 off)",
+          walked and cheb(at, (ala.x, ala.y)) <= 5 and cheb(at, (ala.x, ala.y)) >= 4 and not covered
+          and "which goes at the pets" in log and "staying out of it" not in log,
+          f"walked {walked} to {at} ({cheb(at, (ala.x, ala.y))} from her) cover {covered} "
+          f"{[ln for ln in log.splitlines() if 'hurt pet' in ln or 'cover' in ln][:3]}")
+
 
 
 def _shooter_case(key, logan, loop_hits=None, extra=()):
@@ -7310,7 +7386,8 @@ def main():
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
               test_tidal_leave_crab, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
-              test_zoa_lightning, test_scorch_susceptible, test_shooter_hits, test_shooter_stand_off, test_loose_on_us,
+              test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet, test_shooter_hits,
+              test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_tidal_marinerbane, test_bubbles_step_off, test_tidal_level3_bursts,

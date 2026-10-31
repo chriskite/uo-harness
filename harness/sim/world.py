@@ -2565,7 +2565,9 @@ class World:
         """One area hit on each of us within `radius`, or on `targets` of us there picked at random (`song_pets`
         false: the pets' share isn't cut by the Song of Discordance, as the apparition's live). `center` "target": on
         its target (one of us within `reach`) and each of us within `radius` of that one, not round itself (the astral
-        zoas' spell). `damage_pet` null: no number (a debuff or bleed only, or its numbers already in the type's swings).
+        zoas' spell). `damage_pet` / `damage_player` null: no number on a pet / on Logan (a debuff or bleed only, or its
+        numbers already in the type's swings: the biolumen shellpod's barrage on a pet beside it); `numbers` of them on
+        each victim (the shellpod's barrage: two on Logan).
         A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`). A `debuff`, a stack of `per_stack` for
         `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut (`heal`),
         "glowmark" extra threat drawn (`hurt`), "susceptible" more damage taken from the `from` types (`hurt`; each
@@ -2584,14 +2586,17 @@ class World:
             hit = [o for o in hit if self.rng.random() < sp["chance"]]     # each one in reach hit with this chance
         db = sp.get("debuff") or {}
         for o in hit:
-            if sp.get("damage_pet") is not None:
+            dmg = sp.get("damage_player" if o.kind == "player" else "damage_pet")
+            for _ in range(sp.get("numbers", 1) if dmg is not None else 0):
                 before = o.hits
-                self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "burst",
+                self.hurt(o, self.roll(dmg), m, "burst",
                           song_pets=sp.get("song_pets", True), dtype=sp.get("damage_type"), ref=sp.get("ref"))
                 if sp.get("count"):              # run.py's totals for it (the nest crab's dig): hits and damage
                     who = "us" if o.kind == "player" else "pets"
                     self.count(sp["count"], f"hits_{who}")
                     self.count(sp["count"], f"damage_{who}", round(before - max(o.hits, 0)))
+                if not o.alive or o.ghost:
+                    break
             if not o.alive or o.ghost:
                 continue
             if sp.get("pressure"):

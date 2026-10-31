@@ -3185,6 +3185,28 @@ could leave by the easiest gate to get to."
   'Totem' on its menu" line would show otherwise. GATE_IDLE_COST and GATE_AWAKE_COST are not tuned (the batch's
   danger was alike on every gate's way in the traced leaves).
 
+## A zoa fighting the pets isn't a shot at us (Logan dead on Tidal Tomb level 2, live 2026-10-31 18:05:19)
+
+The runner held Logan 11 off his pets "out of the astral zoa's shot" for 27 s while AlaFlambe went 90 -> 19 %
+unvetted; a wandering biolumen shellpod woke on him there, the walk in at 13 % met the zoa's volley and cover walked him
+back beside the shellpod (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas").
+
+- *Decided (simulator first):* the zoas' volley (a bolt on their target and everyone within 6 of it, one per 33-47 s
+  of a fight), their single spell's share at Logan 0.03 (not the global 0.2) and the biolumen shellpod's barrage its
+  two numbers on Logan, all measured over 10 captures. The giants' volleys are left to their measured single numbers.
+- *Decided (runner):* the shot rules (cover, the walk to a hurt pet, the spacing's and the vet tile's shot) leave out a
+  shy monster of a kind measured to shoot Logan under 4 % of the time (`tamer.AT_PETS`, from the scenarios'
+  `at_player_p`) while a pet of ours in war mode stands nearer it than he does. The zones (`TARGET_AREA`) still keep
+  him 4+ off the pets. By data, not by name: the soulcatcher (0.03) comes under it too, the mariner (0.05) not.
+- *Not done (not tried in the simulator):* a higher threshold for the walk in alone (the simulator's before runs show
+  cover walking him back out after each vet walk, fight1805 seed 3: the hold and the cover go together); a leave check
+  mid-walk (the leave at 46 hits came 3.3 s late, at the cover's end); a zone of 7 round the pets for the volley (one
+  per 33 s; the lightning's zone, every 22 s, cost more deaths than it saved on 2026-10-29).
+- *Evidence* (docs/SIM.md "Tidal Tomb: dead between two zoas", HEAD's runner against the new one, both on the new
+  simulator): `sim/fight1805.py` seeds 1-24 deaths 9 -> 0 (18:05:03 layout) and 2 -> 1 (18:04:36); level 2, 96 runs
+  with the live team: runs with a death 19 -> 14, pet deaths 194 -> 111, damage on Logan an hour 1,279 -> 1,136,
+  banked an hour 126,504 -> 128,674; 48 runs with the scenario's team: 5 -> 5, pet deaths 7 -> 1; level 1 unchanged.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

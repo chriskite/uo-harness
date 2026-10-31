@@ -282,6 +282,27 @@ def _target_area() -> dict:
 
 
 TARGET_AREA = _target_area()   # {kind: (reach, tiles to keep from each pet within that reach of it)}
+# A shy monster fighting the pets whose shots go at us this rarely or less (a scenario `ranged_observed` `at_player_p`,
+# measured) doesn't shoot us: the shot rules (shy_on_us: the cover, to_pet's hold, the spacing's and the vet tile's
+# shot) leave it out while a live pet of ours in war mode stands nearer it than we do. Live 2026-10-31 18:04:36-18:05:03
+# (hunt-20261031-171847-d9b0, docs/NOTES.md "Tidal Tomb level 2: dead between two zoas") "AlaFlambe (90 %) is only in
+# reach from the astral zoa's shot; staying out of it" held Logan 11 off the pets while she went 90 -> 19 % unvetted;
+# the zoas' spells land on a pet and those near it (their volley within 6, astral 3, lightning 4, scorch 3; Logan never
+# struck alone in 10 captures), their single spell on him 2 times of 64. The plain zoas and the soulcatcher (0.03) fall
+# under it, the drowned mariner (0.05) not.
+AT_US_MIN_P = 0.04
+
+
+def _at_pets() -> frozenset:
+    out = set()
+    for sc in aggro.scenarios():
+        for kind, ro in (sc.get("ranged_observed") or {}).items():
+            if ro.get("at_player_p") is not None and ro["at_player_p"] < AT_US_MIN_P:
+                out.add(kind)
+    return frozenset(out)
+
+
+AT_PETS = _at_pets()
 
 
 def trail(p, t, follow: int = 1) -> tuple:
@@ -1395,7 +1416,7 @@ class Team:
         zone, fire = self.area_zone(st), self.fire_tiles(st)
         clear = ClearOf(zone)
         best, best_c = None, None
-        shy = self.shy_awake(v)
+        shy = self.shy_on_us(st, v)
         for t, k in self.tiles_within(v, SPACING_STEPS).items():
             if k == 0 or t[:2] in fire or not clear(t) or any(cheb(t, n) < SPACING_R for n in near) \
                     or any(cheb(t, p) > self.a.vet_range - 1 for p in pets) \
@@ -2862,12 +2883,23 @@ class Team:
         """Corpse purgers and blightmares (aggro.shy) in war mode in view: they shoot from where they stand."""
         return [m for m in v.mobs if m["war"] and m["shy"]]
 
+    def shy_on_us(self, st, v) -> list[dict]:
+        """shy_awake less one of an AT_PETS kind with a live pet of ours in war mode nearer it than we are: it casts at
+        the pets and those beside them (the area zones keep us off those), not at us. The cover, to_pet's hold, the
+        spacing's and the vet tile's shot go by these."""
+        shy = self.shy_awake(v)
+        if not shy or not AT_PETS:
+            return shy
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["war"]]
+        return [m for m in shy if m["kind"] not in AT_PETS
+                or not any(cheb(q, m["pos"]) < cheb(v.pos, m["pos"]) for q in pets)]
+
     def shy_threats(self, st, v) -> list[dict]:
-        """shy_awake less one fighting someone else (another player or his pets, `elsewhere`) and not us or a pet of
+        """shy_on_us less one fighting someone else (another player or his pets, `elsewhere`) and not us or a pet of
         ours (attackers, pet_attackers): its shot isn't ours to keep out of (user 2026-10-24: "We can just walk past when
         one is fighting someone else"). The cover, an advance's stop (pull_check) and the patrol's waypoints
         (crawl.Crawl.shot_tiles) go by these."""
-        shy = self.shy_awake(v)
+        shy = self.shy_on_us(st, v)
         if not shy:
             return shy
         mobiles = st["world"]["mobiles"]
@@ -2908,7 +2940,7 @@ class Team:
         if v.walk is None:
             return None
         zone, fire = self.area_zone(st), self.fire_tiles(st)
-        shy = self.shy_awake(v)
+        shy = self.shy_on_us(st, v)
         war = [m["pos"][:2] for m in v.mobs if m["war"]]
         keep = war + [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
         cands = []
@@ -3094,7 +3126,13 @@ class Team:
             wb = self.a.vet_range >= SPACING_R + 1
             to = self.vet_tile(st, [(p["x"], p["y"])], min(combat.VIEW_RANGE, p["dist"] + SPACING_R)) if wb else None
             v = self.view(st)
-            shy = self.shy_awake(v)
+            shy = self.shy_on_us(st, v)
+            if wb and not p["dead"] and p["frac"] >= self.a.pet_leave_at and to is not None \
+                    and (pets_side := [m for m in self.shy_awake(v) if m not in shy]) \
+                    and self.shot_at(v, pets_side, to):
+                kinds = ", ".join(sorted({m["kind"] for m in pets_side}))
+                log(f"{label}: {p['name']} ({p['frac']:.0%}) in reach from the {kinds}'s shot, which goes at the pets "
+                    f"(below {AT_US_MIN_P:.0%} of its shots at us live): going in")
             if wb and shy and not p["dead"] and p["frac"] >= self.a.pet_leave_at \
                     and (to is None or self.shot_at(v, shy, to)):
                 # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber fought a patrolled corpse purger;

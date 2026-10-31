@@ -84,6 +84,7 @@ python harness/sim/fight2001.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]
 python harness/sim/fight2203.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-22 22:03 caster red at the east wing's mouth
 python harness/sim/fight2343.py 1-24 [--log] [--trace DIR] [--harness DIR]          # the 2026-10-30 23:43 three caster reds and a Wall of Stone sealing the east wing (World.add_wall)
 python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach (the consort lurking at her spot), the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
+python harness/sim/fight1805.py [1805|1804] 1-24 [--log] [--harness DIR]   # Tidal Tomb level 2 2026-10-31 18:05: dead between two zoas, a shellpod on him (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -2499,6 +2500,55 @@ arrival, (6642, 2062), (6685, 2064). `World.gates` gives each the menu the captu
 - **Tests:** `test_loop_hunt.py gates` (the choice: one gate as before, the nearest by route, a danger zone and a red
   on one way, the dead end against every gate, a gate whose menu lacked Totem left out); `test_sim.py`
   `test_tidal_gate_no_dest` (level 1, the nearest gate's menu without Totem: the next easiest, through it to Totem).
+
+### Tidal Tomb: dead between two zoas (2026-10-31)
+
+Live 18:05:19 Logan died on level 2 (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas"; the runner's rule in
+docs/HUNT_LOOP.md "A shy monster that casts at the pets isn't a shot at us"). The zoas' specs checked against the
+capture and nine more: three things were wrong, so the simulator came first.
+
+- **The world:** each plain zoa's `volley` burst (centre "target", reach 12, radius 6: its target and everyone of us
+  within 6 of it; every 33.4 s the astral, 37.8 the combustive, 46.7 the toxic, the first 2.7 s to one interval in;
+  pets 17-30, Logan 24-36); the plain zoas' `ranged_observed` `at_player_p` 0.03 (their single spell at Logan 2 times
+  of 64, against the global 0.2); the biolumen shellpod's barrage `damage_player` 14-25 with `numbers` 2 (`World._burst`:
+  `damage_pet` / `damage_player` null each mean no number on that side, `numbers` of them on each victim). The giants'
+  volleys are not added (their `ranged_observed` single numbers on the tank hold them [INFERENCE]).
+- **`sim/fight1805.py`**: the live layout at 18:05:03.4 (case 1805) and at 18:04:36.8 (case 1804), the live runner
+  arguments and team, the combustive zoa left out (it hit none of ours), the astral zoa's hits x2 (`ZOA_HITS_X`: live
+  46 -> 25 % in 13 s, the simulator's pets 46 -> 0 in ~10 s) and the pets held on it as live. Before is HEAD a9c34c8's
+  runner on this simulator (`--harness`, the simulator copied in); "HEAD sim" is HEAD's runner on HEAD's simulator:
+
+  | seeds 1-24 | deaths | lowest hits (median) | damage on Logan | the zoa's volley | the shellpod | covers | leaves | pet deaths |
+  |---|---|---|---|---|---|---|---|---|
+  | 1805, HEAD sim | 0 | 37 | 3,450 | - | 2,113 | 164 | 3 | 20 |
+  | 1805, before | 9 | 9 | 4,534 | 259 | 3,616 | 89 | 15 | 11 |
+  | 1805, after | **0** | **55** | **3,011** | 230 | 1,755 | 22 | 0 | 16 |
+  | 1804, HEAD sim | 1 | 56 | 2,716 | - | 394 | 56 | 1 | 37 |
+  | 1804, before | 2 | 60 | 2,729 | 516 | 107 | 44 | 0 | 27 |
+  | 1804, after | **1** | **76** | **1,527** | 346 | 136 | 27 | 0 | **11** |
+
+  The old simulator didn't reproduce the death (its shellpod hurt Logan only beside him, its zoas had no volley). On
+  this one the before runs die as live: the walk to the hurt pet, cover back beside the shellpod, back to the pets,
+  cover again, LEAVING under 15 hits (seed 3). After, the walk goes in ("... which goes at the pets (below 4% of its
+  shots at us live): going in"), he vets from 4-5 off the pets and the pets turn on the shellpod. Pet deaths in 1805
+  (AlaFlambe at 19 % at the start) 11 -> 16 [INFERENCE: the shellpod's fight beside the pets, not traced].
+- **Level 2 batches** (`--scenario tidal_tomb --area 6815 1907 6969 2100 ... -- --enter-via 6718 1984 --leave-gate 6913
+  2071`, seeds from 1; before and after both on this simulator):
+
+  | runs | team | runs with a death | deaths | runs with a pet death | pet deaths | damage on Logan / h | kills / h | banked / h | gold lost |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 48 before | the scenario's (GraveRobber, AlaFlambe) | 5 | 5 | 5 | 7 | 718 | 149.7 | 130,585 | 254,648 |
+  | 48 after | the scenario's | 5 | 5 | **1** | **1** | 772 | 154.9 | **140,452** | 122,996 |
+  | 96 before | phoenix_incubus, `--vet-range 5 --crawl-learn-s 180` | 19 | 19 | 67 | 194 | 1,279 | 156.7 | 126,504 | 982,474 |
+  | 96 after | phoenix_incubus, the same | **14** | **14** | **49** | **111** | **1,136** | 156.5 | 128,674 | 780,355 |
+
+- **Level 1** (`--scenario tidal_tomb --runs 24`, no zoa or soulcatcher there): before and after identical (runs with
+  a death 0, banked an hour 118,465, damage on Logan an hour 393).
+- **Tests:** `test_zoa_volley` (Logan 6 from the pets it targets struck with both, 7 off spared; the shellpod's barrage
+  two numbers of 14-25 on Logan 4 off), `test_zoa_on_pets_vet` (the live 18:04:36 tiles: the walk to 4 from AlaFlambe
+  and no cover after; before "staying out of it", 11 off). `_zoa_case` holds the volley off for the scorch's tests.
+- **Not modelled:** the giants' volleys apart from their single numbers; the steady 17-35 on AlaFlambe every 1.5-2 s
+  with no effect seen (NOTES); a wandering monster's drift (the shellpod came from (6885, 2001) on its own).
 
 ## The Ossuary (2026-10-28)
 
