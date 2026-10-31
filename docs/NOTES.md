@@ -5948,7 +5948,7 @@ scratch analysis is not in the repo.
   - A colossal scourgeon's hit on every pet within 2 tiles, every 7.5-7.9 s: 67 a stack.
   - A tidal sea serpent's burst: 67 a stack.
   - A giant pincer crab's pinch: 35 a stack on the pets, 10 on Logan ('Claws pinch you in place, piercing your armor
-    and applying pressure buildup!', with an entangle).
+    and applying pressure buildup!', with an entangle: 6 s, "Tidal Tomb: level 2 death 2026-10-30 18:29").
   - A scourgeon (L2): 32 a stack.
   - On L3 Pressure was 1,474 of the pets' 12,731 damage. A pet that dies loses its stacks.
 - **Other specials:**
@@ -6472,6 +6472,79 @@ took over at 18:14:29 ("Logan's stuck in a loop"). Capture 20261029_100942, deco
   docs/SIM.md "Tidal Tomb: the oxygen leg's back-off loop" (the test and the runs), docs/PLAN.md (the decision).
   Not built: the patrol's spot by the point the server checks (tried: no refused patrol, more of them out, the runs
   mixed; docs/PLAN.md), and a breaker on the hunt level (the simulator: more deaths with it there).
+
+## Tidal Tomb: level 2 death 2026-10-30 18:29
+
+Run hunt-20261030-180017-3421 (Logan with Bussin 0x000EA04F and AlaFlambe 0x0026EF56, level 2, `--vet-range 5
+--crawl-learn-s 180 --heal-in-place`, `--leave-gate 6913 2071`, no `--fight-via`). Logan died at (6910, 2058) at
+18:29:34.90 (t 1793402974.90) on the planned leave ("taking the loot home: 36150 gp carried ... >= V* 29764"); the pets
+lived. Capture 20261030_175703, decoded with `replay.timed_packets` -> `WorldRuntime` plus the raw 0x2F / 0x54 / 0x6E /
+0xC0 and the buffs (scratch scripts, not kept). No 0x0B: the numbers are the overhead "-N". Positions and war flags
+are the world model's (Outlands' 0x77 and 0x78 aren't the stock layouts; its 0x20s carry the monsters' flags).
+
+| time | what happened |
+|---|---|
+| 18:28:43.4-46.0 | "toward a target: route 138 steps": Logan ran 10 moves north to (6864, 2039) after the astral zoa 0x00185B47 the pets fought at (6855, 2064); they stayed on it, 12-15 off. 46: "left the client's world", "LEAVING by the moongate". |
+| 18:28:46.8-54.6 | "All Follow Me" ("not waiting here": `Team.follow(wait=False)`, a planned leave's), then the walk's lag stop: "waiting for the pets (Bussin at 15)", Bussin came; "to AlaFlambe" (still fighting the zoa), "All Follow Me" again at 8 off. From 18:28:57 both pets 1-2 behind him. |
+| 18:28:55 | "to the moongate: route 105 steps from (6863, 2049)". 18:29:03-22 into view, all idle: a biolumen shellpod 0x00185A11 (6896, 2039), a soulcatcher 0x00185447 (6911, 2043; 49 %), the giant pincer crab 0x00185B44 (6913, 2060) at 14.0, moving to (6911, 2060) by 16.9, a voidfin 0x00185F2F (6904, 2061), a drowned mariner 0x00185F18 (6902, 2068) at 22.4. |
+| 18:29:15.7-25.9 | The shellpod to war 8 off: "coming on the way out; the pets guard" (`walk_in_fight`). Its barrage on the pets (Bussin -22, AlaFlambe -22, -21); the vet supplies twice, "keeping off the tank" to (6901, 2050). At 25.89 the stand ended (nothing on Logan, no hit on him for 4 s, it no longer coming): "All Follow Me" with the shellpod at 42 % in war mode beside the pets. |
+| 18:29:25.9-29.0 | "to the moongate: route 23 steps from (6901, 2050)": (6904, 2050), (6907, 2053), (6908, 2056), (6910, 2058) at 28.96, the pets 1-3 behind on follow. 28.69 the soulcatcher to war 10 off ("keeping out of the reach of the awake soulcatcher"). |
+| 18:29:29.14 | The crab, idle at (6911, 2060) **2 tiles** off, swings at Logan (0x2F, its action 4): **-16** (100 -> 84). |
+| 18:29:29.15 | **Its pinch**: effect 0x5683 on Logan, sounds 0x51C and 0xA11, the system line "Claws pinch you in place, piercing your armor and applying pressure buildup!" (a unicode message, no cliloc), **-20** (-> 64). Buffs on him: icon 20 'Unable to Move' (cliloc 1110024) **6.0 s**, icon 11 'Armor Rating Reduction' 25 s, icon 286 'Pressure' (10 a stack at 30 s, never reached). Its war flag at 29.156; the step at 29.13 denied (0x21, 29.18). |
+| 18:29:29.65 | The voidfin wakes (sound 0xB1E on it, war at (6905, 2060) by 30.05) and comes on. |
+| 18:29:29.87-29.92 | The heal potion: **+36** (-> 100). The runner: "to the moongate: held in place; waiting it out", "attacked on the way out; the pets guard". |
+| 18:29:30.30 | "All Guard Me"; "stand-off to (6912, 2056): 2 step(s)" (the mariner's area hit round the pets), "out of charge reach: held in place; waiting it out": the stand's walk waits the hold out (`Mover.wait_held`), nothing else of the stand's order runs after this. |
+| 18:29:30.91-30.92 | The crab steps beside him (6910, 2059). **The mariner's first shot** (10 off; its action 14, sound 0x85B, its war flag): **Logan -33** (-> 67), Bussin -21, AlaFlambe -21 (its hit on its target and each of us within 1); 0x79C5 mariner -> Logan at 31.14. |
+| 18:29:31.25-31.52 | The voidfin at (6908, 2058): AlaFlambe -30; the shellpod at (6908, 2055): AlaFlambe -25. |
+| 18:29:31.64-31.95 | **The voidfin's spin** (sound 0x090A on its tile, then 0x7D8 on each victim): **Logan -43** (-> 24), AlaFlambe -45, both 2 off it (Bussin on her tile no number). |
+| 18:29:32.47-33.77 | The crab on AlaFlambe: -32 and its pinch -22 (0x5683). The shellpod's barrage: AlaFlambe -24, -24, Festering Wound. The soulcatcher (4 off) casts (action 11, 33.44). |
+| 18:29:34.90 | **The mariner's second shot** (action 19, sound 0x85B, 3.99 s after the first): **Logan -25** -> 0, dead (0x2C), 5.75 s into the 6 s hold. |
+| 18:29:35 | "out of charge reach: free to move again after 4.7 s" (logged after the death: the death cleared the buff). |
+
+- **What held him:** the giant pincer crab's pinch, Entangle (buff 20) for 6.0 s from 18:29:29.15, with its own -20
+  after its swing's -16. He died in it.
+- **What took him from 100 to 0 in 4 s** (from the potion's 100 at 29.92): the drowned mariner's shot -33 (30.92), the
+  voidfin's spin -43 (31.95), the mariner's next shot -25 (34.90): 101, three monsters woken by his walk, him unable to
+  step. The next potion was due 10 s after 29.87 (`healing.POTION_COOLDOWN_S`); a vet channel takes ~5 s.
+- **"Pets 15-18 behind ... not waiting here":** at the leave's start only. The runner's approach had walked Logan 10
+  moves away from the pets' fight; the planned leave's 'All Follow Me' doesn't wait ("not waiting here"), the walk's
+  own lag stop does (`pets_lagging`, `wait_pets`), and it fetched both. On the walk that killed him the pets were on
+  follow 1-3 tiles behind him, at the pinch 1 off (both at (6910, 2057)): not lagging, but behind, so Logan was the
+  first of us in reach of each monster the walk woke.
+- **Cause: the planned walk out across level 2 is a plain walk.** Its stops are an attack, a monster in war mode coming
+  on (`HuntLoop.coming`) and a lagging pet; nothing about the idle monsters by its way. Its 23-step route from (6901,
+  2050) passed 2 tiles from the idle crab, 6 from an idle voidfin and 10 from an idle mariner, Logan in front; the stand
+  for the shellpod had ended with it alive and pulled the pets off it. Everywhere else on level 2 the runner moves as the
+  hunt fights (the crawl's pull budget and holds, the step-in or back-off from a shy monster's first sight, the pets
+  sent first): the oxygen legs and `--fight-via`'s walk are fought legs (`walk_in_fought`); the walk out was not.
+- **Why a stand-off while held:** `walk_in_fight`'s order puts the stand-off first and doesn't look at the hold; its
+  walk sat in `Mover.wait_held` (only the walk's guard runs there, and `drink_on_the_run` stays out of a stand) until
+  the buff's end. Nothing else could have helped then [INFERENCE: an area peace on the crab and the voidfin, two on him
+  within 3 from 31.25, might have stopped the spin; not the mariner's shots from 10 off]; not changed.
+- **The crab's hold was known, not modelled or used.** This file's Pressure entry (2026-10-27) names the pinch "with an
+  entangle"; the scenario's note said "an entangle to 22:50:47.56, not modelled". The simulator had the Pressure stack
+  only, and calibrate's swing (21-78 every 2.05 s, reach 1). The runner sees any hold (`Mover.held`: HOLD_ICONS 19, 20,
+  135) but knows nothing of the crab's.
+- **The pinch measured** (8 captures 2026-10-24..30, effect 0x5683 on the victim; harness/data/sim/tidal_tomb.json
+  `specials` and `melee_observed`): 52 from giant pincer crabs, the victim 2 tiles off 29 times and beside it 23; buff
+  20 6.0 s (41; 9.3-9.4 s 10 times, a second pinch 3.3-3.4 s into one); the pinch's own number on the pets 15-24
+  (median 21, n=45), on Logan 16, 17, 20, at the same instant as the swing's. Logan's steps stay refused through damage
+  (2026-10-27 22:50:38.1 and 41.5 two pinches, -29 at 44.8: every step denied, the next taken at 47.56). Its plain
+  numbers on the pets 19-46 (median 33, n=70), one crab's 3.36 s apart; 76 of its 168 numbers landed 2 off.
+  calibrate's 2.05 s and 78 counted a pinch's pair as a swing. Not modelled: the small pincer crab's (level 1; 103, 6
+  s, 2-9 a pinch, Logan twice) and the colossal's (level 3; 12, 6 s, 29-43, 2 off 5 times).
+- **Built 2026-10-30 (simulator only):** the crab's swing from 2 (`melee_observed.reach`, `melee_reach`), its numbers
+  and period, the pinch with its hold (`World._pinch`: buff 20 with its end after a TimeSync, steps refused, the pets
+  rooted); test_sim `test_tidal_pinch`. On it the live layout (18:29:25.9, the four monsters idle where they stood,
+  seeds 1-24) reproduces the cause: the walked leave wakes the crab with Logan 1-3 off, pinched in 7 of 24.
+- **Tried, not kept (no runner change):** (1) a planned leave from under water as a fought leg (`walk_in_fought`, as
+  after `--leave-via`): on the layout the crab woke on the pets 6 off in 24 of 24 (Logan pinched once, 129 on him
+  against 1,241), but level 2's 144 runs went 21 -> 48 with a death (planned-leave deaths 1 -> 31, oxygen on Logan an
+  hour 383 -> 602, banked an hour 125k -> 113k): the fought leave on the hunt level runs long under water and fights its
+  way. (2) the walk out routed 3 tiles wide of every idle monster in view (Mover.avoid): the layout 3 off in 23 of 24,
+  pinched once, 541 on Logan; 144 runs 21 -> 33 with a death (planned-leave deaths 1 -> 8, banked 125k -> 102k). A
+  144-run batch's spread is ~5. **Open:** the walk out past an idle crab on level 2 (docs/SIM.md "Tidal Tomb: the
+  giant pincer crab's pinch", docs/PLAN.md).
 
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 

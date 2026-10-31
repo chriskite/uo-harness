@@ -3065,6 +3065,24 @@ Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). De
   keeps); the margin against live (0.35 s gave fewer deaths, 16, but more oxygen damage and 8 % less banked: watch
   live step-ins first).
 
+## The giant pincer crab's hold modelled; no new walk-out rule (Logan dead on Tidal Tomb level 2, 2026-10-30 18:29)
+
+Live 18:29 the planned walk out across level 2 passed 2 tiles from an idle giant pincer crab ahead of the pets; its
+pinch (Entangle, 6 s) held Logan while a drowned mariner and a voidfin woke on him (docs/NOTES.md "Tidal Tomb: level 2
+death 2026-10-30 18:29"). Decisions:
+
+- *Model first* (built): the crab's swing from 2 tiles, its measured numbers and 3.36 s period, the pinch's number and
+  hold, the hold readable by the runner as live (buff 20 with its end). On it the live layout reproduces the cause.
+- *No runner rule yet.* Two that stop the layout's cause lost level 2's 144-run batch: the planned leave from under
+  water as a fought leg (runs with a death 21 -> 48, planned-leave deaths 1 -> 31, oxygen on Logan +57 %), and the
+  walk out 3 tiles wide of every idle monster in view (21 -> 33, 1 -> 8, banked -19 %) (docs/SIM.md "Tidal Tomb: the
+  giant pincer crab's pinch"). On HEAD's runner the batch has 1 planned-leave death in 144 runs: the simulator has
+  almost nothing for a walk-out rule to win and much to lose.
+- *Open:* a rule for the one case (an idle melee monster within its reach of the walk's route, Logan first): e.g. the
+  stop before it with the pets sent first, judged on the layout and the batch; the stand for a shy monster ending with
+  it alive (18:29:25.9, "All Follow Me" pulled the pets off a biolumen shellpod at 42 %); a stand-off tried while held
+  (`walk_in_fight` waits in `Mover.wait_held`).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

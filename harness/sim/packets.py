@@ -162,12 +162,18 @@ def penalty_remove(self_serial):
     return var(0xFF, u32(9) + u32(self_serial) + u16(277))
 
 
-def buff(self_serial, icon, gump, title, text, seconds=0.0):
-    """Outlands 0xFF sub 8, any buff on us (penalty_buff's layout; no timer end: the sim sends no TimeSync, so the
-    runner reads the buff's presence and our stamina, as it does live before the first sync)."""
+def buff(self_serial, icon, gump, title, text, seconds=0.0, end_ms=0):
+    """Outlands 0xFF sub 8, any buff on us (penalty_buff's layout). No timer end unless `end_ms` (the server's ms clock
+    a `time_sync` gave): without one the runner reads the buff's presence and our stamina, as it does live before the
+    first sync; with one, the end (state.buff_ends_t, Mover.held's HOLD_ICONS)."""
     return var(0xFF, u32(8) + u32(self_serial) + u16(icon) + u16(gump) + u16(1) + u16(0) + u16(0) + u16(1)
-               + struct.pack(">f", seconds) + bytes(8) + bytes(8) + title.encode() + b"\x00" + text.encode() + b"\x00"
-               + u16(0) + u16(1) + bytes(4))
+               + struct.pack(">f", seconds) + struct.pack(">Q", end_ms) + bytes(8) + title.encode() + b"\x00"
+               + text.encode() + b"\x00" + u16(0) + u16(1) + bytes(4))
+
+
+def time_sync(ms):
+    """Outlands 0xFF sub 3 TimeSync: the server's millisecond clock now (buff timer ends are on it)."""
+    return var(0xFF, u32(3) + struct.pack(">Q", ms))
 
 
 def buff_remove(self_serial, icon):

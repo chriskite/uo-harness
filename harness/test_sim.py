@@ -5283,6 +5283,58 @@ def test_tidal_leave_coming():
           and first[0] < first[1] < first[2] and not any("walking out past" in ln for ln in lines), str(lines[:5]))
 
 
+TT2_CRAB = (6911, 2060, -100)    # Tidal Tomb level 2, live 2026-10-30 18:29: the giant pincer crab that pinched Logan
+
+
+def test_tidal_pinch():
+    print("== Tidal Tomb level 2: a giant pincer crab's pinch from 2 tiles: its number after the swing's, 'Claws pinch "
+          "you in place...', Entangle 6 s (buff 20 with its end: the runner's Mover.held), no step meanwhile: the walk "
+          "waits it out ==")
+    # live 2026-10-30 18:29:29.14-15 (capture 20261030_175703): from (6911, 2060) on Logan at (6910, 2058), -16 then -20
+    # with the text, buff 20 'Unable to Move' 6.0 s; the walk's step at 29.18 denied (docs/NOTES.md "Tidal Tomb: level 2
+    # death 2026-10-30 18:29")
+    import loop_hunt
+    from agent_link import Abort
+    w = tidal_world((6910, 2058), [{"key": "giant pincer crab", "at": list(TT2_CRAB)}], z=-100)
+    crab = next(m for m in w.mobs.values() if m.kind == "monster")
+    crab.hits = crab.hits_max = 10 ** 6
+    sure = [{**sp, "chance": 1.0} for sp in crab.spec["specials"]]
+    crab.spec = {**crab.spec, "hit_chance": 1.0, "specials": sure, "step_s": 999.0, "melee_player": [5, 5]}
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for p in w.pets():
+        w._place(p, (6900, 2050, -100), d=0)
+        p.mode, p.next_step = "stay", 1e9
+    hurts = _log_hurts(w)
+    crab.target, crab.threat = w.player.serial, {w.player.serial: 1.0}
+    w._warm(crab, True)
+    err, took, held, ends, blocked = None, None, None, None, None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(0.3)
+            st = loop.state()
+            held = loop.mover.held(st)
+            buff = (st["world"]["buffs"].get(f"0x{w.player.serial:08X}") or {}).get("20") or {}
+            ends = (buff.get("ends_t") or 0) - loop_hunt.time.time()
+            crab.spec = {**crab.spec, "specials": [{**sp, "chance": 0.0} for sp in sure]}   # one pinch only
+            t0, b0, d0 = loop_hunt.time.monotonic(), loop.mover.blocked_count, w.metrics["denied_steps"]
+            try:
+                loop.mover.walk_to(lambda: (6906, 2058), 0, "retreat", urgent=True, max_moves=21, max_route=21)
+            except Abort as e:
+                err = str(e)
+            took = loop_hunt.time.monotonic() - t0
+            blocked = (loop.mover.blocked_count - b0, w.metrics["denied_steps"] - d0)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    on_me = [(k, round(n)) for _, v, k, n in hurts if v is w.player]
+    check("the crab's swing from 2 tiles, then the pinch's own number; Logan held (Mover.held) with the buff's end "
+          "~6 s off; the walk waited the hold out (>= 5.5 s), no step sent or blocked, then arrived",
+          [k for k, _ in on_me[:2]] == ["melee", "pinch"] and held and 5.4 <= ends <= 6.0 and err is None
+          and took >= 5.5 and blocked == (0, 0) and sim_cheb(w.player.pos, (6906, 2058)) == 0,
+          f"hurts {on_me[:3]} held {held} ends in {ends:.2f} s err {err!r} took {took:.1f} s blocked {blocked} at "
+          f"{w.player.pos}")
+
+
 def test_tidal_large_swing():
     print("== Tidal Tomb: a lowtide scavenger's large swing every ~7.8 s, its hit 0.5 s later on each of us within 1 of "
           "its target, its pincer crabs ==")
@@ -6812,7 +6864,8 @@ def main():
               test_team_run,
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
-              test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_large_swing,
+              test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
+              test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_shooter_hits, test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,

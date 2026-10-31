@@ -2303,6 +2303,42 @@ The measurement (docs/NOTES.md "Shooters' and casters' first target"), then the 
     first dolphin leg after the crossing (it has no refill leg): its start under water median 748 -> 771 s and 757 ->
     805 s; more runs reach level 3 (27 -> 29, 19 -> 26).
 
+### Tidal Tomb: the giant pincer crab's pinch (2026-10-30)
+
+Live 18:29 Logan died on level 2's planned walk out (docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30 18:29"): the
+walk passed 2 tiles from an idle giant pincer crab ahead of the pets, its swing and pinch held him 6 s, a drowned
+mariner and a voidfin woke on him. The crab's hold wasn't modelled and its swing was calibrate's misreading.
+
+- **The model** (harness/data/sim/tidal_tomb.json; 8 captures 2026-10-24..30): `melee_observed."giant pincer crab"`
+  `melee` 19-46 (median 33) every 3.36 s (calibrate had 21-78 every 2.05 s: a pinch's two numbers read as a swing's sum
+  and its own as a swing) and `reach` 2 (sim/scenario.py `melee_reach`; `World._attack` swings from there when it sees
+  the target and still closes in): 76 of its 168 numbers landed 2 off. Its `pressure` special (chance 0.5 a hit) got a
+  `pinch` block: the pinch's own number (pets 15-24, median 21; Logan 16-20) and Entangle `hold_s` 6.0 (`World._pinch`,
+  `Mob.rooted_until`): on Logan the system line, buff 20 'Unable to Move' with its end after a TimeSync (`packets.
+  time_sync`, `packets.buff(end_ms=)`: the runner's `Mover.held` reads the end, as live) and every step refused; a pet
+  makes no step (`_step_toward`). Not modelled: its Armor Rating Reduction, the small and colossal pincer crabs' pinches.
+- **Test:** `test_tidal_pinch` (from 2 tiles: the swing's number then the pinch's, Mover.held with the end ~6 s off,
+  the walk waits it out, no step sent).
+- **The live layout** (Logan at (6901, 2050), the pets at (6902, 2047), the crab (6911, 2060), a voidfin (6904, 2061),
+  a drowned mariner (6902, 2068), a soulcatcher (6913, 2045), all idle; `leave_by_gate("info")` to (6913, 2071), seeds
+  1-24): HEAD's walked leave woke the crab with Logan 1-3 off (1-2 in 19), pinched him 7 times, 1,241 on him (0-168 a
+  run), no death; a fought leave 6 off in 24 of 24, once, 129; the walk 3 wide of idle monsters 3 off in 23, once, 541.
+- **Runs** (level 2, `--scenario tidal_tomb --area 6815 1907 6969 2100 --runs 144 --compare --team phoenix_incubus
+  --json -- --enter-via 6718 1984 --leave-gate 6913 2071 --vet-range 5 --crawl-learn-s 180`, seeds 1-144, the new
+  model on every side; "HEAD" is 373b68e's runner; the other two the rules tried, not kept):
+
+  | 144 runs | runs with a death | on a leave (planned) | pet deaths | damage on Logan / h | top sources / h | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|
+  | HEAD | 21 | 3 (1) | 234 | 1,121 | oxygen 383, mariner 113, astral zoa 103 | 156.1 | 125,432 |
+  | fought leave from under water | 48 | 36 (31) | 363 | 1,404 | oxygen 602, mariner 108, astral zoa 99 | 156.9 | 113,196 |
+  | walk out 3 wide of idle monsters | 33 | 16 (8) | 258 | 1,146 | oxygen 335, astral zoa 113, mariner 112 | 154.6 | 101,969 |
+
+  A batch's spread is ~5 runs with a death. Both rules stop the layout's cause and lose the batch: the fought leave
+  fights its way across the level at the hunt's end with the deprivation running (oxygen +57 %), the wide walk's
+  killers on the way out are the level's whole cast (frenzyfin, zoas, scourgeon, grouper, razorfin, the crab once)
+  [INFERENCE: longer walks among more monsters; not traced]. Neither is in the runner. HEAD's level 2 on the old model
+  was 18-22 runs with a death in the earlier sections' batches; the new model's HEAD batch (21) sits within that.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

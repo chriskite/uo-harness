@@ -1122,7 +1122,11 @@ moongate, and never near a red one).
     **The planned leave fights the same way** (since 2026-10-26): up through `--leave-via` onto a level the walk in
     fights through (any `--fight-via` given), the walk to the leave gate is a fought leg to the tile before it
     (`leave_by_gate`); a hurt leave or a hostile player's still runs. The run's hard overall timeout (`--timeout` +
-    180 s) doesn't count the time spent in fought legs (`fought_s`).
+    180 s) doesn't count the time spent in fought legs (`fought_s`). **Not on the hunt level** (tried 2026-10-30 after
+    the level 2 death at 18:29, docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30 18:29"): a fought leg from under
+    water, and a walk out routed 3 tiles wide of every idle monster in view, both raised level 2's runs with a death in
+    the simulator (21 -> 48 and 21 -> 33 of 144; docs/SIM.md "Tidal Tomb: the giant pincer crab's pinch"). The walk out
+    there is still the plain walk with its stops; an idle monster by its way is open.
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point

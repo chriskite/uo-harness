@@ -148,7 +148,8 @@ UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal 
 # magic resist, true through neither (the area hits), tick (Tolerance, Immunize), none (oxygen)
 DTYPE = {"melee": "physical", "feed": "physical", "charge": "physical", "transfix": "physical", "spell": "spell",
          "drain": "spell", "wail": "true", "ooze": "true", "burst": "true", "spray": "true", "bubble": "true",
-         "poison": "tick", "bleed": "tick", "disease": "tick", "pressure": "none", "oxygen": "none", "other": "none"}
+         "pinch": "true", "poison": "tick", "bleed": "tick", "disease": "tick", "pressure": "none", "oxygen": "none",
+         "other": "none"}
 PET_OFFSETS = ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1))   # the pets' tiles beside the player at the start, in team order
 TEXT_OXYGEN_REFILLED = "Your oxygen is refilled."   # live, a Recovery Dolphin's refill (20261024_225113 11:30:57)
 GATE_GUMP = 0xE0E675B8    # "Moongate Destinations" (docs/NOTES.md "Moongate gumps")
@@ -172,6 +173,9 @@ HAMSTRING_ICON, HAMSTRING_GUMP = 53, 4523      # "Can Only Walk and Cannot Regai
 HAMSTRING_STEP_S = 0.38   # hamstrung, a step at a walk's pace only: live confirms ~0.41 s apart
 PARALYZE_ICON = 135      # "You cannot move!" (live 2026-10-21 10:35:06.66, Ticket Tongje); its buff's text unrecorded
 FROZEN_CLILOC = 500111    # "You are frozen and cannot move." on a step while paralyzed (live 2026-10-21 10:35:08)
+# A giant pincer crab's pinch (`pinch` in its pressure special; docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30
+# 18:29"): Entangle, buff 20 'Unable to Move' (cliloc 1110024) for 6 s, every step refused; items and skills go on
+ENTANGLE_ICON, ENTANGLE_GUMP = 20, 4544   # live f1 4544, its cliloc 1110024 (the sim's buff carries the text instead)
 DISTURB_CLILOC = 500641   # our cast disturbed by damage (docs/research/SPELL_INTERRUPTS.md: every player hit breaks it)
 TEXT_NOT_YOURS = "You may not loot this corpse."   # live answer to opening another's kill (docs/HUNT_LOOP.md)
 HELD_NO_USE_TEXT = "You cannot use items while in this state."   # live 2026-10-20 19:23:27.13, transfixed
@@ -289,6 +293,7 @@ class Mob:
     hex_by: int | None = None     # ... the pet whose hex it is (Punishment at its end)
     hinder_until: float = 0.0     # a monster hindered (no step, swing or cast) until then
     hindered: dict = field(default_factory=dict)  # a pet: target serial -> its last hinder on it (Opportunity)
+    rooted_until: float = 0.0     # one of us entangled (a giant pincer crab's pinch, `pinch`): no step until then
 
     @property
     def pos(self):
@@ -1183,7 +1188,7 @@ class World:
     # ------------------------------------------------------------ movement
     def _step_toward(self, m: Mob, goal, radius: int) -> bool:
         """One step of `m` toward within `radius` of goal (x, y): greedy, else an A* route (cached)."""
-        if cheb(m.pos, goal) <= radius:
+        if cheb(m.pos, goal) <= radius or m.rooted_until > self.t:
             m.path = []
             return False
         if m.path:
@@ -1289,6 +1294,9 @@ class World:
         if self.player.held_until and t >= self.player.held_until:
             self.player.held_until = 0.0
             self._sys(HELD_END_TEXT)
+        if self.player.rooted_until and t >= self.player.rooted_until:
+            self.player.rooted_until = 0.0
+            self.send(P.buff_remove(self.player.serial, ENTANGLE_ICON))
         if self.hamstrung_until and t >= self.hamstrung_until:
             self.hamstrung_until = 0.0
             pl = self.player
@@ -1816,7 +1824,9 @@ class World:
                     return
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
-        if d <= 1 and abs(m.z - tgt.z) <= 15:
+        if d <= spec.get("melee_reach", 1) and abs(m.z - tgt.z) <= 15 and (d <= 1 or self.can_see(m, tgt)):
+            # a reach of 2 (melee_observed `reach`: the giant pincer crab's pinches landed 2 tiles off 29 of 52 times)
+            # swings from there and still closes in (live 2026-10-30 18:29:29.14 from 2, beside him 1.8 s later)
             self._face(m, tgt)
             if t >= m.next_swing and spec.get("melee"):
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
@@ -1827,7 +1837,8 @@ class World:
                 if hit:
                     self.hurt(tgt, self._melee_on(tgt, spec), m, ref=spec.get("melee_ref"))
                     self._specials(m, tgt, spec)
-            return
+            if d <= 1:
+                return
         if t >= m.next_step:
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
@@ -1972,6 +1983,8 @@ class World:
                 self._overhead(tgt, tamer.TEXT_POISONED)
             elif kind == "pressure":
                 self._pressure(tgt, sp)
+                if sp.get("pinch"):
+                    self._pinch(m, tgt, sp["pinch"])
             elif kind == "drain":
                 self.hurt(tgt, sp.get("damage", 8), m, "drain")
                 self.heal(m, sp.get("damage", 8))
@@ -1993,6 +2006,24 @@ class World:
             o.pressure = {"due": self.t + sp.get("seconds", 30.0), "hits": []}
         o.pressure["hits"].append(n)
         self.count("pressure_stacks", o.name)
+
+    def _pinch(self, m: Mob, o: Mob, sp: dict):
+        """A giant pincer crab's pinch with its Pressure stack (the special's `pinch` block; docs/NOTES.md "Tidal Tomb:
+        level 2 death 2026-10-30 18:29"): a number of its own (`damage_pet` / `damage_player`) and Entangle on `o` for
+        `hold_s` from this pinch on (a second one 3.4 s in: 9.4 s in all), no step meanwhile. On Logan `text`, the buff
+        with its end (a TimeSync first: the runner's Mover.held reads the end, as live) and every step refused."""
+        if not o.alive or o.ghost or o.kind not in ("player", "pet"):
+            return
+        self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "pinch")
+        if not o.alive or o.ghost:
+            return
+        o.rooted_until = self.t + sp["hold_s"]
+        self.count("pinches", o.name)
+        if o.kind == "player":
+            self._sys(sp["text"])
+            ms = int(self.t * 1000)
+            self.send(P.time_sync(ms), P.buff(o.serial, ENTANGLE_ICON, ENTANGLE_GUMP, "Unable to Move", "Unable to Move",
+                                              1.0, end_ms=ms + int(sp["hold_s"] * 1000)))
 
     def _bleed_stack(self, o: Mob, sp: dict):
         """A stacked bleed on `o`: `tick_pet` / `tick_player` (else `tick`) every `every_s` for `seconds`, beside any
@@ -2832,7 +2863,9 @@ class World:
     def _walk(self, p):
         pl = self.player
         seq, d = p[2], p[1] & 7
-        if pl.ghost or pl.held_until > self.t or self.rope_landing is not None:   # a rope's jump on its way: hindered
+        if pl.ghost or pl.held_until > self.t or pl.rooted_until > self.t or self.rope_landing is not None:
+            # transfixed, entangled (live 2026-10-30 18:29:29.18: the step after the pinch denied), or a rope's jump on
+            # its way
             self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
             return
         if self.paralyzed_until > self.t:

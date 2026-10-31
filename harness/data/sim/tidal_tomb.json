@@ -1523,7 +1523,9 @@
     "damage_pet": [35, 35],
     "damage_player": [10, 10],
     "seconds": 30.0,
-    "note": "level 2 (capture 20261027_220057): its pinches (two numbers each, e.g. 27 + 15) put a Pressure stack on its victim, resolved 30 s after the first as 35 a stack on GraveRobber (22:20:09.44 2 x 35; 22:53:32.40 3 x 35) and 10 on Logan (22:51:08.22 2 x 10, with 'Claws pinch you in place, piercing your armor and applying pressure buildup!' and an entangle to 22:50:47.56, not modelled); 4 stacks in 18 s at 22:53:02-:20 [INFERENCE: chance 0.5 a hit]"
+    "pinch": {"damage_pet": [15, 24, 21], "damage_player": [16, 20, 17], "hold_s": 6.0,
+              "text": "Claws pinch you in place, piercing your armor and applying pressure buildup!"},
+    "note": "level 2 (capture 20261027_220057): its pinches (two numbers each, e.g. 27 + 15) put a Pressure stack on its victim, resolved 30 s after the first as 35 a stack on GraveRobber (22:20:09.44 2 x 35; 22:53:32.40 3 x 35) and 10 on Logan (22:51:08.22 2 x 10, with 'Claws pinch you in place, piercing your armor and applying pressure buildup!'); 4 stacks in 18 s at 22:53:02-:20 [INFERENCE: chance 0.5 a hit]. `pinch` (docs/NOTES.md 'Tidal Tomb: level 2 death 2026-10-30 18:29'; 52 pinches in 8 captures 2026-10-24..30, effect 0x5683 on the victim): the pinch's own number on the swing's, pets 15-24 (median 21, n=45), Logan 16, 17, 20 (live 2026-10-30 18:29:29.15: -16, then the pinch's -20 with the text); Entangle, buff 20 'Unable to Move' (cliloc 1110024) for 6.0 s (41 of 52; 9.3-9.4 s 10 times, a second pinch 3.3-3.4 s into one), every step refused through the damage meanwhile (2026-10-27 22:50:38.1 and 41.5 on Logan, 128 steps denied, the next one taken at 47.56, 6.1 s after the second); an Armor Rating Reduction (icon 11, 25 s on Logan) not modelled. Gaps between one crab's pinches 3.3-3.4 s 11 of 25, then multiples of its 3.36 s swing"
    }
   ],
   "scourgeon": [
@@ -1687,6 +1689,12 @@
   "pincer crab": {
    "melee": [3, 7, 4],
    "note": "its numbers on the pets with no monster but pincer crabs within reach, not 0.3-0.7 s after a scavenger's large swing: 2-7 (median 4, n=17, one 18; captures 20261026_183552 and 20261024_102346). With 2026-10-26 22:36-22:48 in the observations calibrate's damage_to_pets for it read 3-20 (median 5): the scavengers' large swings and the nest crabs beside them"
+  },
+  "giant pincer crab": {
+   "melee": [19, 46, 33],
+   "swing_s": 3.36,
+   "reach": 2,
+   "note": "docs/NOTES.md 'Tidal Tomb: level 2 death 2026-10-30 18:29' (8 captures 2026-10-24..30; numbers on one of ours with no other monster within 3 of it): its plain numbers on the pets 19-46 p10-p90 (median 33, 1-66, n=70; AlaFlambe, GraveRobber, GirthyEarthy, a tidal mantis); one crab's numbers on one victim 3.36 s apart (median of 32 gaps at 3.0-3.7 s; then 6.7 s, two swings). calibrate's 21-78 every 2.05 s took a pinch's two numbers at once (e.g. 20 + 37) as a swing's sum and its own number as a swing. Its swings land 2 tiles off: 76 of 168 numbers with the victim 2 from it, 29 of its 52 pinches; live 2026-10-30 18:29:29.14 from (6911, 2060) on Logan at (6910, 2058), its war flag after the hit, beside him 1.8 s later. On Logan 16-29 (7 numbers in 4 swings, 3 of them with a pinch; melee_player stays the wiki's less his armor)"
   },
   "colossal scourgeon": {
    "melee": [34, 76, 50],

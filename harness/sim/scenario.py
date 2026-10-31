@@ -23,7 +23,7 @@ Per creature type, in this order of evidence:
   `defaults.aggro_range`);
 - armor and magic resist: the wiki's (what the pets' hits meet, sim/pets.py); `ref` in a `melee_observed` entry
   (`melee_ref`), a `ranged_observed` one or a special: the pet its numbers were measured on (else
-  `defaults.pet_ref`).
+  `defaults.pet_ref`); `reach` in a `melee_observed` entry: its swings land that many tiles off (`melee_reach`, else 1).
 
 `player_armor(sc)` resolves the player's AR, aspect and tier from `player.armor`; `load` puts the character's Mastery
 Chain in (sim/chain.apply) and builds Logan's pets last (sim/pets.select: the scenario's `tamer` block). The barding
@@ -66,7 +66,8 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     mo = sc.get("melee_observed", {}).get(key)
     if mo is not None:
         melee, swing = mo.get("melee", melee), mo.get("swing_s", swing)
-        src["melee"] = "melee_observed"
+        if "melee" in mo:
+            src["melee"] = "melee_observed"
     ai = kb.get("ai") or "melee"
     ranged = None
     if ai in ("mage", "meleemage") and kb.get("spell_damage"):
@@ -91,7 +92,7 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
             "notoriety": noto, "hits": kb.get("hits") or 1000, "difficulty": kb.get("difficulty"),
             "melee": melee if ai != "mage" else None, "swing_s": swing, "hit_chance": df["hit_chance"],
             "armor": kb.get("armor") or 0, "magic_resist": kb.get("magic_resist") or 0,
-            "melee_ref": (mo or {}).get("ref"),
+            "melee_ref": (mo or {}).get("ref"), "melee_reach": (mo or {}).get("reach", 1),
             "melee_player": [kb["melee_damage"][0] * df["player_melee_k"], kb["melee_damage"][1] * df["player_melee_k"]]
             if ai != "mage" and kb.get("melee_damage") else None,
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
