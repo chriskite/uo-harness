@@ -6604,6 +6604,77 @@ are the world model's (Outlands' 0x77 and 0x78 aren't the stock layouts; its 0x2
   range. **Open:** the crab when the pets trail outside its range at the stop (no tile: today's walk; 12 of its 17
   stops in block 2), the small and colossal pincer crabs' pinches.
 
+## Tidal Tomb: Marinerbane's room (2026-10-30 21:03-21:31 with the guild, capture 20261030_175703)
+
+The user played Logan Wolf (Bussin 0x000EA04F, AlaFlambe 0x0026EF56) with his guild and allies (24 other players in
+the room, most green). Decoded with `replay.timed_packets` -> `WorldRuntime`; the scratch pass is not in the repo. The
+same capture's 18:00-18:58 is the runner's level 2 run and its death ("Tidal Tomb: level 2 death 2026-10-30 18:29").
+
+- **The route:** 21:03:01 recall in to (6653, 2097); 21:03:41 down level 1's west strip (6610, 2060); 21:05:51 N from
+  (6821, 1910) to level 3's west entrance (7092, 2193); along level 3's west side to (7059, 2008) by 21:09:24. Four
+  visits to the room: 21:09:25-21:11:46, 21:13:12-21:20:00, 21:21:15-21:26:08, 21:27:15-21:30:57 (1,066 s). Out at
+  21:31:25 from (7106, 2055), beside level 3's crimson gate (7107, 2055), to (3848, 2867, -19).
+- **The way in:** level 3's west wall. A step W from (7059, y) onto (7058, y) lands on (7425, y - 51, 0) for y 2007,
+  2008 and 2009. A step E from (7424, y) onto (7425, y) lands on (7058, y + 51, -50) for y 1958, 1959 and 1960. Each
+  landing is the other way's teleporter row, as at the level strips.
+- **The room:** a map flood fill from the arrival gives x 7352-7425, y 1938-1979, 1,682 tiles, z -2..3. It joins no
+  other ground; the boss approach's chamber (x 7329-7400, y 2060-2108) is another room.
+  - 'recovery dolphin' 0x00004970 stands at (7418, 1957, 0). 'Your oxygen is refilled.' came 2.2 s after each arrival
+    and 59 times in all: the room is under water.
+  - No monster lives there but the boss and its summons: none before its first spawn, none while it was dead.
+  - 73 unnamed notoriety-3 mobiles of body 22 showed at (7370-7373, 1940-1944) 5-10 s apart, boss or none. Each was
+    removed 0.04-0.09 s after it came [INFERENCE: a server-side helper, not a creature].
+- **Marinerbane** ('[Mini Boss]', notoriety 6, body 673). The wiki gives 100,000 hits, melee 40-50, armor 50 and gold
+  50,000 (#10815, #11497).
+  - Its spawn is (7373, 1957, 3). It came back 300.2, 300.4 and 300.1 s after each death; the first spawn showed 8 s
+    after Logan's first arrival.
+  - Three kills took 99.0, 143.0 and 116.9 s. It fought within x 7373-7390, y 1953-1975.
+  - '*Increases in Size*' came 7, 11 and 10 times, 27 of the 28 in each fight's first 28 s. That is the boss scaling,
+    40,000 hits a damaging player for a mini boss (patch notes 2025-01-25, #5121; up to 30 players, #6336).
+- **Its moves:** 24 emotes on one timer. The first came 5.4, 5.8 and 11.5 s in, then 10.3-22.7 s apart (median 15.1,
+  n=21). By kind:
+  - '*stirs deep dwellers*' 13. 1.25-1.31 s later, 4-8 Tidal Tomb monsters appear 1-12 tiles from it (12 of 13 waves;
+    one had 9). The 81: lowtide scavenger 17, aquamarine smallshell 11, ruby smallshell 9, singing noughtilus 8, giant
+    pincer crab 6, drowned mariner 5, oozing noughtilus 5, soulcatcher 4, biolumen shellpod 4, drowned buccaneer 4,
+    colossal pincer crab 3, lighthouse shellpod 3, tidal krait 1, drowned swashbuckler 1. All of them are known types.
+  - '*raises a mighty cannon crew*' 4, none before 87 s in. Drowned gunners (bodies 400/401, '*rises*', not on the
+    wiki) appeared 0.7 s after it, then one every ~1.1 s, 1-4 of them. They never moved. Every ~8 s each played
+    animation 32 then 10, with sounds 0x5AE and 0x5AC. No number from them landed on us; their target is unknown.
+  - Glowing barrels 3: '*throws glowing barrels*' (3 barrels) and '*throws a barrage of glowing barrels*' (5).
+    - The barrels went 0.80-1.29 s apart (moving effects 0xF528/0xF52C) at tiles 5-12 off where one of us or a
+      guild player stood.
+    - Each burst 0.36-0.61 s after its throw (sound 0x8B8 on its tile, 0x905 round it).
+    - Bussin and AlaFlambe took 75-91 at 0, 3 and 4 tiles (n=6). Logan took 19 and 22 at 2 tiles. Nobody at 5-10
+      tiles was hit (n=11).
+  - '*sends out a horde of feelers*' 2 and '*lashes out*' 2 (once '*furiously lashes out*'): emote only, as seen from
+    5+ tiles off. The bursts of 25 moving effects 0x6890-0x6895 every ~8 s round a tile are a player's: they came on
+    level 2 before the room too.
+  - Its swing never landed on Logan or a pet.
+- **Its summons die with it:** 43 of the 51 seen alive in the room died in its death tick. Nothing came for the other
+  8 [INFERENCE: out of our view].
+- **On Logan and the pets in the room:** 2,141 in 1,066 s (Logan 480, Bussin 822, AlaFlambe 839).
+  - The barrels above.
+  - A summoned drowned mariner's shots on all three every 4.0 s (21:24:42-21:25:28): Logan 30-39, down to 27 of 111.
+  - A soulcatcher's spell on all three (21:17:11.88: 75, 75, 30).
+  - An oozing noughtilus's ooze on Logan.
+  - Logan's max hits switched between 100 and 111 four times [INFERENCE: a guild member's buff].
+- **Level 3's west wall:** three spawns are new by the idle rule: colossal pincer crabs at (7093, 2147) and
+  (7073, 2016), a giant kelpdweller at (7078, 2002).
+- **Not in calibrate.py's observations:** the capture stays out of `calibration.tags`, for three reasons.
+  - calibrate takes every notoriety-2 bonded pet in view for ours. The guild's Trashe, Trashi, DragonSmurf, 'e' and a
+    phoenix would count.
+  - Its other-player context counts only blue players, and the guild was green.
+  - Its 'swing' sums one attacker's numbers within 0.25 s over all its victims. With this capture the drowned
+    mariner's p90 swing goes 43 -> 139: one shot on Logan, Bussin and AlaFlambe summed.
+- **Found on the way:** the committed `tidal_tomb_observed.json` was generated while 20261027_220057 was still being
+  written (its `in_region` ends 23:39:44; the capture now runs to 01:36:38). Regenerating from today's files, the same
+  four tags, changes six types' melee or swing in the simulator. Examples: dungeon-nest crab 7-41 -> 7-68, mermadon
+  swing 2.52 -> 3.35 s, singing noughtilus 1.70 -> 2.25 s, flying manta 3.36 -> 2.67 s. It was not regenerated here.
+- **Built 2026-10-31 (simulator):** the room, its teleporters and dolphin, the three spawns, Marinerbane with its
+  size, rotation, waves and barrels (docs/SIM.md "Tidal Tomb: Marinerbane's room"). The teleporters also went into
+  `harness/data/teleporters.json`, so no Mover walks onto them by accident. Before, it held neither level 3's west
+  entrance nor its boss approach.
+
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 
 The user played them: 17:13:43-17:26:28 (levels 1-3) and 17:32:01-17:37:37 (levels 1-2) with GraveRobber and

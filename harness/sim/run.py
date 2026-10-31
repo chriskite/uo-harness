@@ -261,6 +261,10 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "bubbles": m.get("bubbles", {}), "spray": m.get("spray", {}),
             "large_swing": m.get("large_swing", {}), "dig": m.get("dig", {}),
             "pinches": m.get("pinches", {}),          # giant pincer crabs' pinches (World._pinch) by victim
+            # a boss's rotation (Marinerbane): its moves by kind, its summons by type, its barrels (thrown, hits and
+            # damage on us and on the pets), the players it grew by
+            "boss_moves": m.get("boss_moves", {}), "boss_summons": m.get("boss_summons", {}),
+            "barrels": m.get("barrels", {}), "boss_size": m.get("boss_size", {}),
             "met": m.get("met", {}),
             # shy monsters' wakes (World._wake_record; sim/wake_scan.py --sim) and their turns to the new nearest
             "wakes": m.get("wakes", []), "retargets_near": m.get("retargets_near", {}),
@@ -490,7 +494,8 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             **({"others": others_summary(ok)} if any(r.get("others") for r in ok) else {}),
             **{key: {k: sum((r.get(key) or {}).get(k, 0) for r in ok)
                      for k in sorted({k for r in ok for k in (r.get(key) or {})})}
-               for key in ("bubbles", "spray", "large_swing", "dig") if any(r.get(key) for r in ok)},
+               for key in ("bubbles", "spray", "large_swing", "dig", "boss_moves", "boss_summons", "barrels")
+               if any(r.get(key) for r in ok)},
             **({"oxygen": oxygen_summary(ok)} if any(r.get("oxygen") for r in ok) else {}),
             **({"pet_deaths": pet_death_summary(ok)} if any(r["pet_deaths"] for r in ok) else {}),
             **({"reds": reds_summary(ok)} if any(r.get("reds") for r in ok) else {})}

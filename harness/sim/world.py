@@ -141,7 +141,7 @@ GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
 ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease", "pressure"}   # scenario specials rolled on a monster's hit
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
-         "large_swing", "spray", "rope", "bubbles"}   # ...used on a cooldown while it fights
+         "large_swing", "spray", "rope", "bubbles", "rotation"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
 UNPREVENTABLE = {"oxygen"}  # damage no song, discord or penalty changes (Tidal Tomb's oxygen deprivation)
 # a monster's damage kind -> how a pet takes it (sim/pets.taken_factor): physical through its armor, spell through its
@@ -299,6 +299,7 @@ class Mob:
     hinder_until: float = 0.0     # a monster hindered (no step, swing or cast) until then
     hindered: dict = field(default_factory=dict)  # a pet: target serial -> its last hinder on it (Opportunity)
     rooted_until: float = 0.0     # one of us entangled (a giant pincer crab's pinch, `pinch`): no step until then
+    sized: set = field(default_factory=set)   # a boss: the players whose damage grew it (its `size` special)
 
     @property
     def pos(self):
@@ -398,6 +399,7 @@ class World:
         self.intent_log = collections.deque() # (time, kind, text): the runner's intents (SimLink.intent), the last 15 s
         self.flights = []                     # ranged attacks released, on their way: (land time, attacker Mob, victim serial)
         self.delayed = []                     # bursts due later: (time, attacker serial, special, target serial)
+        self.boss_due = []                    # a boss's rotation in hand (_boss_due): (time, what, boss serial, special, tile)
         self.trace = None                     # the sim/trace.Tracer recording this run, or None
         self.reds = Reds(self, seed, TICK_S)  # red players (sim/reds.py; arrivals only with the scenario's `reds` on)
         self._build()
@@ -990,6 +992,8 @@ class World:
             amount *= 1 - self._patient_dr(victim) - lk["damage_resistance"] - typed.get(DTYPE.get(kind), 0.0)
         if victim.kind == "monster" and by is not None and by.kind in ("player", "pet"):
             amount *= 1 + self.song("provoke")
+        if victim.kind == "monster" and by is not None and by.kind != "monster" and victim.spec.get("size_per_player"):
+            self._size_up(victim, by)
         n = max(1, int(round(amount)))
         victim.hits -= n
         self._ev("hurt", v=victim.serial, by=by.serial if by is not None else None, n=n, kind=kind, h=int(victim.hits))
@@ -1204,6 +1208,11 @@ class World:
                 # on its target, gone `lifetime_s` later with no loot (not a kill: `expires`)
                 for _ in range(sp["count"]):
                     self._emerge(m, sp)
+        # a boss's summons die with it (Marinerbane's deep dwellers: 43 of the 51 seen alive in its room died in the
+        # boss's death tick over three kills, nothing came for the other 8; docs/NOTES.md "Tidal Tomb: Marinerbane's room")
+        for o in [o for o in self.mobs.values() if o.alive and o.kind == "monster" and o.spec.get("with_summoner")
+                  and o.spec.get("summoner") == m.serial]:
+            self.die(o, None)
         if m.spawn is not None:
             lo_s, hi_s = self._respawn_s(m.spawn)
             self.spawn_due.append((self.t + self.rng.uniform(lo_s, hi_s), m.spawn))
@@ -1350,6 +1359,12 @@ class World:
                     m = self.mobs.get(ms)
                     if m is not None and m.alive and not m.hidden_until and m.calm_until <= t:
                         self._burst(m, sp, self.mobs.get(ts))
+        if self.boss_due:
+            due = [b for b in self.boss_due if b[0] <= t + 1e-6]
+            if due:
+                self.boss_due = [b for b in self.boss_due if b[0] > t + 1e-6]
+                for b in due:
+                    self._boss_due(*b[1:])
         if self.flights:
             landed = [f for f in self.flights if f[0] <= t]
             if landed:
@@ -2309,6 +2324,90 @@ class World:
                     tile = self._bubble_tile(m, sp)
                     if tile is not None:
                         self.bubble_throws.append((t + i * sp["throw_s"] + sp.get("flight_s", 0.0), m.serial, tile, sp))
+            elif kind == "rotation":
+                # a boss's one timer (Marinerbane, Tidal Tomb scenario note): a move every `every_s` from `first_s` into
+                # its fight, drawn by weight `w` among the `moves` whose `after_s` (since its first) has come: its emote,
+                # then a wave of summons (`summon`), a barrage (`barrels`) or nothing more seen (the emote alone)
+                if "rotation_t0" not in m.cd:
+                    m.cd["rotation_t0"] = t
+                    m.cd[key] = t + self.rng.uniform(*sp["first_s"])
+                    continue
+                m.cd[key] = t + self.rng.uniform(*sp["every_s"])
+                since = t - m.cd["rotation_t0"]
+                moves = [mv for mv in sp["moves"] if since >= mv.get("after_s", 0.0)]
+                mv = self.rng.choices(moves, weights=[mv["w"] for mv in moves])[0]
+                self._ev("ability", by=m.serial, kind=mv["id"], v=tgt.serial)
+                self._overhead(m, mv["text"])
+                self.count("boss_moves", mv["id"])
+                if mv.get("summon"):
+                    self.boss_due.append((t + self.rng.uniform(*mv["summon"]["delay_s"]), "wave", m.serial,
+                                          mv["summon"], None))
+                if mv.get("barrels"):
+                    b, at = mv["barrels"], t
+                    for _ in range(self.rng.randint(*b["count"])):
+                        self.boss_due.append((at, "throw", m.serial, b, None))
+                        at += self.rng.uniform(*b["throw_s"])
+
+    def _boss_due(self, what: str, ms: int, sp: dict, tile):
+        """A boss's rotation move comes due (_abilities "rotation"): a wave of summons, a barrel thrown, a barrel's blast.
+        A dead boss's waves and throws in hand don't come [INFERENCE]; a barrel in the air lands all the same."""
+        m = self.mobs.get(ms)
+        if what == "boom":
+            self._barrel_boom(m if m is not None and m.alive else None, sp, tile)
+        elif m is not None and m.alive:
+            if what == "wave":
+                self._summon_wave(m, sp)
+            else:
+                self._barrel_throw(m, sp)
+
+    def _summon_wave(self, m: Mob, sp: dict):
+        """A boss's wave (`summon`): `count` monsters drawn by weight from `pool` on free tiles 1 to `radius` from it in
+        its sight (live Marinerbane's deep dwellers 1-12 tiles off), each on its target at once and dying with it."""
+        keys = list(sp["pool"])
+        weights = [sp["pool"][k] for k in keys]
+        for _ in range(self.rng.randint(*sp["count"])):
+            tile = self._relocate_tile(m, (1, sp["radius"]))
+            if tile == m.pos:
+                continue
+            key = self.rng.choices(keys, weights=weights)[0]
+            self._add_summon(m, {"key": key, "text": sp.get("text", "")}, tile, with_summoner=True)
+            self.count("boss_summons", key)
+
+    def _barrel_throw(self, m: Mob, sp: dict):
+        """One of a barrage's barrels: at one of us within `range` in its sight, picked at random; it bursts on that
+        tile `flight_s` later (_barrel_boom)."""
+        team = [o for o in self.team() if cheb(o.pos, m.pos) <= sp["range"] and self.can_see(m, o)]
+        if not team:
+            return
+        tile = self.rng.choice(team).pos
+        self.boss_due.append((self.t + self.rng.uniform(*sp["flight_s"]), "boom", m.serial, sp, tile))
+        self.count("barrels", "thrown")
+
+    def _barrel_boom(self, m: Mob | None, sp: dict, tile):
+        """A barrel bursts: `damage_player` / `damage_pet` on each of us within `radius` of its tile (live 0, 3 and 4
+        tiles hit, none of 11 at 5-10)."""
+        for o in self.team():
+            if cheb(o.pos, tile) > sp["radius"]:
+                continue
+            before = o.hits
+            self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "barrel",
+                      ref=sp.get("ref"))
+            who = "us" if o.kind == "player" else "pets"
+            self.count("barrels", f"hits_{who}")
+            self.count("barrels", f"damage_{who}", round(before - max(o.hits, 0)))
+
+    def _size_up(self, m: Mob, by: Mob):
+        """A boss's '*Increases in Size*' (`size_per_player`): the first damage from each player (a pet's is its
+        owner's) adds that many hits (patch notes 2025-01-25, knowledge #5121: a mini boss 40,000 a damaging player;
+        live Marinerbane said it 7, 11 and 10 times in its three fights, most in its first 15 s)."""
+        who = self.player.serial if by.kind in ("player", "pet") else (by.owner if by.kind == "otherpet" else by.serial)
+        if who in m.sized:
+            return
+        m.sized.add(who)
+        m.hits += m.spec["size_per_player"]
+        m.hits_max += m.spec["size_per_player"]
+        self._overhead(m, "*Increases in Size*")
+        self.count("boss_size", m.name)
 
     def _pulse_step(self, m: Mob):
         """One burst of an ooze aura under way: a hit on each of us within `radius` (the song cuts it as any
@@ -2392,15 +2491,21 @@ class World:
 
     def _emerge(self, m: Mob, sp: dict):
         """A broodling (a nest crab's dig, a scavenger's large swing, an apophite spirit's death): a `key` monster on a
-        free tile beside it, on its target at once; no spawn of its own (no respawn), a kill as any monster's unless
-        `lifetime_s` (then it vanishes after that, no kill); `text` its emote (default '*emerges*', "" none)."""
-        spec = {**self.sc["creatures"][sp["key"]], "summoner": m.serial}
+        free tile beside it (_add_summon)."""
         free = [(m.x + dx, m.y + dy) for dx, dy in nav.DIR_DELTA if not self._occupied(m.x + dx, m.y + dy)]
         tiles = [(x, y, self.stand_z(x, y, m.z)) for x, y in free]
         tiles = [p for p in tiles if abs(p[2] - m.z) <= 10 and any(self.walk.can_walk(*p, d) for d in range(8))]
         if not tiles:
             return
-        x, y, z = self.rng.choice(tiles)
+        self._add_summon(m, sp, self.rng.choice(tiles))
+        self.count("broodlings", sp["key"])
+
+    def _add_summon(self, m: Mob, sp: dict, tile: tuple, with_summoner: bool = False):
+        """`m`'s summon on `tile`: a `key` monster on its target at once; no spawn of its own (no respawn), a kill as any
+        monster's unless `lifetime_s` (then it vanishes after that, no kill); `text` its emote (default '*emerges*', ""
+        none); `with_summoner`: it dies when `m` dies (die)."""
+        spec = {**self.sc["creatures"][sp["key"]], "summoner": m.serial, "with_summoner": with_summoner}
+        x, y, z = tile
         hp = int(spec["hits"][0] if isinstance(spec["hits"], list) else spec["hits"])
         c = Mob(self._serial(), "monster", sp["key"], spec["name"], spec["body"], x, y, z, hits=hp, hits_max=hp,
                 noto=spec.get("notoriety", 3), spec=spec, home=(x, y, z))
@@ -2411,7 +2516,6 @@ class World:
         self._view()
         if sp.get("text", "*emerges*"):
             self._overhead(c, sp.get("text", "*emerges*"))
-        self.count("broodlings", sp["key"])
 
     def _burst(self, m: Mob, sp: dict, tgt: Mob | None = None):
         """One area hit on each of us within `radius`, or on `targets` of us there picked at random (`song_pets`

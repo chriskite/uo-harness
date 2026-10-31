@@ -98,7 +98,9 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
             "aggro_range": (sc.get("aggro_observed", {}).get(key) or {}).get("range", df["aggro_range"]),
             "ranged": ranged, "gold": gold_seen if gold_seen is not None else [round(gold * 0.9), round(gold * 1.15)],
-            "specials": sc.get("specials", {}).get(key, []), "source": src}
+            "specials": sc.get("specials", {}).get(key, []), "source": src,
+            "size_per_player": next((s["per_player"] for s in sc.get("specials", {}).get(key, []) if s["kind"] == "size"),
+                                    None)}
 
 
 def _read(name: str, data_dir: str) -> dict:
@@ -128,9 +130,10 @@ def load(name: str = "mausoleum", data_dir: str = DATA) -> dict:
     if os.path.exists(obs_path):
         with open(obs_path, encoding="utf-8") as f:
             obs = json.load(f)
-    # the spawns' types and the ones a special brings in (a nest crab's broodling)
-    keys = sorted({s["key"] for s in sc["spawns"]} | {sp["key"] for sps in (sc.get("specials") or {}).values()
-                                                       if isinstance(sps, list) for sp in sps if sp.get("key")})
+    # the spawns' types and the ones a special brings in (a nest crab's broodling, a boss's waves)
+    sps = [sp for sps in (sc.get("specials") or {}).values() if isinstance(sps, list) for sp in sps]
+    keys = sorted({s["key"] for s in sc["spawns"]} | {sp["key"] for sp in sps if sp.get("key")}
+                  | {k for sp in sps for mv in sp.get("moves", []) for k in (mv.get("summon") or {}).get("pool", {})})
     missing = [k for k in keys if k not in kb["creatures"]]
     if missing:
         raise ValueError(f"scenario {name}: no wiki stats for {missing}")

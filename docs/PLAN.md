@@ -3109,6 +3109,26 @@ Live a red's Wall of Stone sealed the east wing's only corridor west; the flight
 - *Open:* the rope aimed past a wall that rose between its plan and its target (the replay's "rope to (5252, 653) …
   no jump", 21 of 24 runs before and after); fighting back (the pets on a red) when sealed in with them.
 
+## Marinerbane's room in the simulator (user 2026-10-31: "flesh out the simulator for TT with anything new")
+
+The user went deeper into Tidal Tomb level 3 with his guild on 2026-10-30. That was Marinerbane's room, its mini boss
+killed three times (docs/NOTES.md "Tidal Tomb: Marinerbane's room"; docs/SIM.md "Tidal Tomb: Marinerbane's room").
+
+- *Built (simulator):*
+  - The room, behind level 3's west wall: the teleporters both ways, the dolphin, under water, in the dungeon box.
+  - Marinerbane as a spawn that comes back 300 s after its death.
+  - Its moves on one timer (`rotation`): waves of deep dwellers that die with it, the glowing barrels' bursts, and the
+    cannon crew, feelers and lash as emotes only (nothing of them seen on us).
+  - '*Increases in Size*' (+40,000 hits a damaging player), and three new spawns on level 3's west wall.
+- *The teleporters into `teleporters.json`* (the room's, level 3's west entrance, the boss approach): every Mover now
+  routes around them. Before, a walk across level 3's west wall or north end could have stepped into a boss room.
+- *Not calibrated from this capture:* calibrate.py would count the guild's bonded pets as ours and sum one shot's
+  numbers on three of us into one swing. Its facts came from a scratch pass, each number with its note.
+- *Not changed:* the runner, the level 3 command, and Marinerbane's name ("a marinerbane" in the wiki kb; live
+  "Marinerbane"). The runner never goes there: the room is a teleporter away, and no command uses it.
+- *Open:* the cannon crew's target and damage, the feelers and the lash. Marinerbane's own swing. The Undermind's
+  boss room. The stale `tidal_tomb_observed.json` (generated before 20261027_220057 was complete).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

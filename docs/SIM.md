@@ -55,6 +55,9 @@ python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --
                                                                        # ... its level 2, under water
 python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
     --fight-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221   # ... its level 3, level 2 fought through
+python harness/sim/run.py --scenario tidal_tomb --area 7350 1936 7427 1981 -- --enter-via 6609 2060 \
+    --enter-via 6821 1909 --fight-via 6821 1909 --enter-via 7058 2008 --leave-gate 7107 2055 --leave-via 7425 1958
+                                                                       # ... Marinerbane's room, by level 3's west entrance
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument "eminently melodious"
                                                                        # ... with another instrument quality (+15 barding)
 python harness/sim/run.py --scenario ossuary --runs 24 --compare      # the Ossuary's level 3 ("The Ossuary" below)
@@ -2403,6 +2406,62 @@ with Logan in front, stop short and let the pets go first (`loop_hunt.HuntLoop.i
   (both walks 1), pet deaths 0 -> 0 (1), damage on Logan 1,266 -> 1,255 (1,281) an hour, kills 123.1 -> 125.2 (125.9),
   banked 133,551 -> 135,573 (134,264); 104 leads, 16 no tile (182, 53).
 - `run.py --json` carries `pinches` (the crab's, by victim).
+
+### Tidal Tomb: Marinerbane's room (2026-10-31)
+
+User 2026-10-31: "Yesterday I went deeper into Tidal Tomb 3 with my guild, take a look at the session and flesh out
+the simulator for TT with anything new." The new ground was Marinerbane's room behind level 3's west wall, its mini
+boss killed three times by the guild. The facts are in docs/NOTES.md "Tidal Tomb: Marinerbane's room".
+
+**The scenario** (`harness/data/sim/tidal_tomb.json`, each number with its note):
+
+- The room, x 7352-7425, y 1938-1979, joins no other ground.
+  - Its teleporters: W onto (7058, 2007-2009) lands at (7425, y - 51); E onto (7425, 1958-1960) lands back.
+  - Its dolphin stands at (7418, 1957). The room is under water (`oxygen.underwater`).
+  - The dungeon and calibration boxes widen to x 7430.
+- `teleporters.json` gains the room's six teleporters, level 3's west entrance (6821, 1909) and the boss approach's
+  pair. Every Mover now routes around them.
+- New spawns: three on level 3's west wall by the idle rule (two colossal pincer crabs, a giant kelpdweller), and
+  Marinerbane at (7373, 1957, 3) with `respawn_s` [300, 300]. That makes 208 spawns.
+- `specials.marinerbane`:
+  - **`size`** (`World._size_up`): the first damage from each player adds `per_player` 40,000 hits; a pet's damage is
+    its owner's. Logan alone makes it 140,000 hits, on the wiki's 100,000.
+  - **`rotation`**, a new TIMED kind: one timer for every move of a boss, its first `first_s` [5.4, 11.5] into the
+    fight, then every `every_s` [12.0, 18.5] (live 10.3-22.7, median 15.1). Each time a move is drawn by its weight
+    `w` among those whose `after_s` has passed since the first.
+    - "deep dwellers" (13): a `summon` wave of 4-8 monsters, drawn by weight from the 14 types seen. They come 1.25-1.31
+      s after the emote on free tiles 1-12 from it in its sight (`_summon_wave`), on its target at once.
+    - "barrels" (3): 3-5 throws 0.8-1.3 s apart, each at a random one of us within 12 in its sight
+      (`_barrel_throw`). Each bursts 0.36-0.61 s later on everyone of us within 4 of its tile (`_barrel_boom`): pets
+      75-91, Logan 19-22.
+    - "cannon crew" (4, from 85 s), "feelers" (2) and "lash" (2): the emote only. Nothing of them was seen on Logan or
+      the pets.
+  - A summon `with_summoner` dies in its summoner's death tick (`World.die`; live 43 of the 51 up). `_emerge`'s
+    monster-making moved into `_add_summon`, which both use.
+- `scenario.load` takes the waves' pool types in. `run.py --json` carries `boss_moves`, `boss_summons`, `barrels`
+  and `boss_size`; the batch summary sums the first three.
+- **Not from calibrate.py:** the capture stays out of `calibration.tags`. Its rules would take the guild's bonded pets
+  for ours, and sum one shot's numbers on three of us into one swing (the drowned mariner's p90 43 -> 139).
+- **Not modelled:** Marinerbane's own swing (the wiki's 40-50 stands); the cannon crew (drowned gunners, not on the
+  wiki, no number on us); the feelers and the lash. Its name is the kb's "a marinerbane" (live "Marinerbane").
+- Test: `test_tidal_marinerbane`. It checks the size, the rotation's timing (no crew before 85 s), the waves' timing,
+  size, range and pool, the summons dying with it, its return 300 s later, and the barrels' bursts on each of us
+  within 4 and nobody farther.
+
+**Runs:**
+
+- **Level 3** (the docs' command above, seeds 4-27, before = HEAD ddbf54f): runs with a death 10 -> 8 of 24 (on levels
+  1 / 2 / 3: 2 / 3 / 5 -> 2 / 5 / 1). Pet deaths 22 -> 22, damage on Logan an hour on the level 947 -> 672, kills an hour
+  152.9 -> 156.5, banked an hour 138k -> 159k. No run met Marinerbane or stepped into its room. The new spawns change
+  every run's draws, so this is within a 24-run batch's spread.
+- **Logan alone in the room** (the room command above, seeds 4-19):
+  - 10 of 16 reached the room. 9 of those died there and one left at 14/100. The other 6 died or stopped on the way
+    (level 1 1, level 2 2 plus one fought leg that never arrived, level 3 2).
+  - In the room (2,289 s over the 10): no Marinerbane kill. Its waves brought 346 monsters, which killed Logan:
+    drowned buccaneer 919, lowtide scavenger 771, Marinerbane 657, giant pincer crab 604, soulcatcher 485 on him.
+    Barrels: 53 thrown, 42 hits on Logan.
+  - Solo, its waves outlast Logan long before its 140,000 hits go. That matches the wiki's "Mini Boss" scaling for
+    groups.
 
 ## The Ossuary (2026-10-28)
 

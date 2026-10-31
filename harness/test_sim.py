@@ -6144,6 +6144,109 @@ def test_tidal_bubbles():
           f"{len(hits)} hits ({sorted({v.name for _, v, _, _ in hits})}), near {near}, again {again[:3]}")
 
 
+MARINER_ROOM = (7418, 1958)   # Tidal Tomb: Marinerbane's room, beside its dolphin (7418, 1957); the boss spawns at (7373, 1957)
+
+
+def test_tidal_marinerbane():
+    print("== Tidal Tomb: Marinerbane, the mini boss: +40,000 hits a damaging player; one move every 12-18.5 s from "
+          "5.4-11.5 s in (no cannon crew before 85 s); deep dwellers 1.25-1.31 s after the emote, 4-8 within 12, dying "
+          "with it; barrels bursting on each of us within 4; back 300 s after its death ==")
+    # live (docs/NOTES.md "Tidal Tomb: Marinerbane's room", capture 20261030_175703): 24 moves 10.3-22.7 s apart, waves of
+    # 4-8 at 1-12 tiles 1.25-1.31 s after '*stirs deep dwellers*', 43 of 51 summons alive in the room died in its death
+    # tick, barrels 75-91 on the pets at 0-4 tiles and none at 5+, respawn 300.1-300.4 s after each death
+    w = tidal_world(MARINER_ROOM, [{"key": "marinerbane", "at": [7373, 1957, 3]}], z=0)
+    w.spawns[0]["respawn_s"] = [300, 300]
+    boss = next(o for o in w.mobs.values() if o.key == "marinerbane")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    w._place(gb, (7376, 1957, 2), d=6)
+    for o in [w.player, *w.pets()]:
+        o.hits = o.hits_max = 10 ** 6
+    for p in w.pets():
+        p.mode = "stay"
+    base = boss.hits_max
+    w.hurt(boss, 10, w.player)
+    w.hurt(boss, 10, gb)
+    other = Mob(0x7FFF0001, "other", "other", "Someone", 400, 7380, 1957, 0)
+    w.hurt(boss, 10, other)
+    check("100,000 hits; Logan and his pet one player (+40,000), another player +40,000 more",
+          base == 100000 and boss.hits_max == 180000 and list(w.metrics["boss_size"].values()) == [2],
+          f"{base} -> {boss.hits_max}")
+    boss.hits = boss.hits_max = 10 ** 7
+    boss.target, boss.threat = gb.serial, {gb.serial: 1e9}
+    w._warm(boss, True)
+    moves, add0 = [], w._add_summon
+    summons = []
+    t0 = w.t
+
+    def overhead(m, text, ov0=w._overhead):
+        if m is boss and text.startswith("*") and text != "*Increases in Size*":
+            moves.append((round(w.t - t0, 2), text))
+        ov0(m, text)
+
+    def add(m, sp, tile, with_summoner=False):
+        if m is boss:
+            summons.append((w.t, sp["key"], max(abs(tile[0] - boss.x), abs(tile[1] - boss.y)), with_summoner))
+        add0(m, sp, tile, with_summoner)
+    w._overhead, w._add_summon = overhead, add
+    w.run_until(w.t + 300.0)
+    gaps = [round(b[0] - a[0], 2) for a, b in zip(moves, moves[1:])]
+    crews = [t for t, x in moves if x == "*raises a mighty cannon crew*"]
+    check("the first move 5.4-11.5 s in, then one every 12-18.5 s; no cannon crew before 85 s",
+          moves and 5.3 <= moves[0][0] <= 11.6 and all(11.9 <= g <= 18.6 for g in gaps) and all(t >= 85 for t in crews),
+          f"{len(moves)} moves, first {moves[:1]}, gaps {min(gaps, default=None)}-{max(gaps, default=None)}, crews {crews}")
+    pool = set(next(mv for sp in boss.spec["specials"] if sp["kind"] == "rotation" for mv in sp["moves"]
+                    if mv.get("summon"))["summon"]["pool"])
+    waves = [t for t, x in moves if x == "*stirs deep dwellers*"]
+    sizes = [[s for s in summons if 1.24 <= s[0] - (t0 + t) <= 1.31 + 0.11] for t in waves]   # due on the next 0.1 s tick
+    check("each wave 1.25-1.31 s after '*stirs deep dwellers*': 4-8 of the pool, 1-12 tiles from it, with it",
+          waves and all(4 <= len(v) <= 8 for v in sizes) and sum(map(len, sizes)) == len(summons)
+          and all(s[1] in pool and 1 <= s[2] <= 12 and s[3] for s in summons),
+          f"{len(waves)} waves, sizes {[len(v) for v in sizes]}, keys {sorted({s[1] for s in summons})[:4]}..")
+    up = [o for o in w.mobs.values() if o.kind == "monster" and o.spec.get("summoner") == boss.serial]
+    boss.hits = 1
+    w.hurt(boss, 10, w.player)
+    left = [o for o in w.mobs.values() if o.kind == "monster" and o.spec.get("summoner") == boss.serial]
+    t_dead = w.t
+    w.run_until(w.t + 299.0)
+    early = any(o.key == "marinerbane" for o in w.mobs.values())
+    w.run_until(w.t + 1.5)
+    back = [o for o in w.mobs.values() if o.key == "marinerbane"]
+    check("its summons up when it dies die with it; it is back 300 s later",
+          up and not left and not early and back and back[0].pos == (7373, 1957, 3),
+          f"{len(up)} up, {len(left)} left; back {[o.pos for o in back]} after {round(w.t - t_dead, 1)} s")
+    # the barrels, alone: one throw at a time onto one of us, its burst on each of us within 4 of that tile
+    w2 = tidal_world(MARINER_ROOM, [{"key": "marinerbane", "at": [7373, 1957, 3]}], z=0, seed=3)
+    b2 = next(o for o in w2.mobs.values() if o.key == "marinerbane")
+    for o in [w2.player, *w2.pets()]:
+        o.hits = o.hits_max = 10 ** 6
+    for p in w2.pets():
+        p.mode = "stay"
+    b2.calm_until = 1e9                  # pacified: no rotation of its own, only the throws below
+    for o, (x, y) in ((w2.player, (7381, 1957)), (next(p for p in w2.pets() if p.name == "GraveRobber"), (7383, 1957)),
+                      (next(p for p in w2.pets() if p.name != "GraveRobber"), (7387, 1959))):
+        w2._place(o, (x, y, w2.stand_z(x, y, 0)), d=6)
+    sp = next(mv for s in b2.spec["specials"] if s["kind"] == "rotation" for mv in s["moves"] if mv.get("barrels"))["barrels"]
+    hurts = _log_hurts(w2)
+    booms, boom0 = [], w2._barrel_boom
+
+    def boom(m, s, tile):
+        booms.append((w2.t, tile, {o.serial: max(abs(o.x - tile[0]), abs(o.y - tile[1])) for o in w2.team()}))
+        boom0(m, s, tile)
+    w2._barrel_boom = boom
+    throws = []
+    for _ in range(12):
+        throws.append(w2.t)
+        w2._barrel_throw(b2, sp)
+        w2.run_until(w2.t + 1.0)
+    flights = [round(t - th, 2) for (t, _, _), th in zip(booms, throws)]
+    hit = [(v.serial, n) for _, v, k, n in hurts if k == "barrel"]
+    expect = [s for _, _, d in booms for s, dd in d.items() if dd <= 4]
+    check("12 barrels, each bursting 0.36-0.61 s after its throw on one of our tiles, a number on each of us within 4 "
+          "and on nobody farther", len(booms) == 12 and all(0.35 <= f <= 0.65 for f in flights)
+          and sorted(s for s, _ in hit) == sorted(expect) and all(0 in d.values() for _, _, d in booms),
+          f"flights {min(flights, default=None)}-{max(flights, default=None)}, {len(hit)} hits, {len(expect)} expected")
+
+
 def test_bubbles_step_off():
     print("== a clearwater grouper's bubble lands beside us mid-fight, mid-channel: out of its reach before it pops "
           "(stand_off), the pets kept in vet reach; a corpse in its reach looted from a tile out of it ==")
@@ -6964,7 +7067,7 @@ def main():
               test_zoa_lightning, test_scorch_susceptible, test_shooter_hits, test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
-              test_tidal_bubbles, test_bubbles_step_off, test_tidal_level3_bursts,
+              test_tidal_bubbles, test_tidal_marinerbane, test_bubbles_step_off, test_tidal_level3_bursts,
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_step_in,
