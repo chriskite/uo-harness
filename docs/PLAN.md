@@ -3085,6 +3085,10 @@ death 2026-10-30 18:29"). Decisions:
   51 -> 60 of 288, within the two blocks' spread (docs/SIM.md "Tidal Tomb: the pets first by an idle melee monster").
   Scoped to the walk out: on the walk in too (`LEAD_IN`) 95 % of the leads were there, which has no stand for what
   wakes; same batch deaths (50 of 288), but test_ossuary_hunt diverged and timed out on its leave.
+- *Decided (user 2026-10-30):* `loop_hunt.LEAD` stays on, though every level 1 and 2 batch leaned the wrong way (level 2
+  51 -> 60, its planned-leave deaths 4 -> 11 with 6 of the 8 extra in block 2 without a stop; level 1 1 -> 3 of 96;
+  Maus 3 1 -> 0). Live level 2 runs, the next ones planned there, are its test: watch the "for the pets to lead" lines
+  and whether the crab wakes on a pet; turn it off if a lead goes wrong or level 2 stays off for long.
 - *Open:* the crab with the pets outside its range at the stop (no step-back tile: today's walk); whether a melee
   monster live takes the nearest at its wake as the simulator has it (the crab struck from 2 with its war flag after
   the hit: a later, nearer wake would let the 6 s hold run out "still idle" and the walk go on past it); the stand for a
