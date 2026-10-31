@@ -5335,6 +5335,58 @@ def test_tidal_pinch():
           f"{w.player.pos}")
 
 
+TT2_LEAVE = (6901, 2050, -100)   # Tidal Tomb level 2, live 2026-10-30 18:29:25.9: Logan's tile as the walk to the gate began
+TT2_PETS = (6902, 2047, -100)    # ...both pets' tile then (on guard after a biolumen shellpod)
+TT2_SPAWNS = ({"key": "giant pincer crab", "at": list(TT2_CRAB)}, {"key": "voidfin", "at": [6904, 2061, -100]},
+              {"key": "drowned mariner", "at": [6902, 2068, -100]}, {"key": "soulcatcher", "at": [6913, 2045, -100]})
+TT2_GATE = ("--leave-gate", "6913", "2071")   # level 2's crimson gate (the live run's --leave-gate)
+
+
+def test_tidal_leave_crab():
+    print("== Tidal Tomb level 2 (live 2026-10-30 18:29 death): the planned walk to the gate stops short of the idle giant "
+          "pincer crab by its route and steps back so a pet is the nearest of us; it wakes on the pet, Logan never "
+          "pinched, seeds 1-24 ==")
+    # live 18:29:25.9-34.9: "to the moongate: route 23 steps from (6901, 2050)", the pets 1-3 behind on follow; at
+    # (6910, 2058) the crab 2 off struck and pinched (6 s held), the drowned mariner (-33, -25) and a voidfin (-43) woke
+    # on him, dead 5.8 s into the hold. Before (loop_hunt.LEAD False, today's walk): the crab woke on Logan 22 of 24 times
+    # 1-3 tiles off, Logan pinched 7 times, 1,241 on him; after: on AlaFlambe 24 of 24 with Logan 8 off, no pinch, 591
+    import loop_hunt
+    wakes, pinched, fails, led, dmg = [], [], [], 0, 0
+    for seed in range(1, 25):
+        w = tidal_world(TT2_LEAVE[:2], TT2_SPAWNS, seed=seed, z=TT2_LEAVE[2], team="phoenix_incubus")
+        crab = next(m for m in w.mobs.values() if m.key == "giant pincer crab")
+        loop, clock, store, patched = hurt_loop(w, 100, TT2_GATE)
+        for p in w.pets():
+            w._place(p, TT2_PETS, d=0)
+        hurts = _log_hurts(w)
+        seen, tick0 = [], clock.on_advance
+
+        def tick(now, crab=crab, w=w, seen=seen, tick0=tick0):
+            tick0(now)
+            if crab.target is not None and not seen:
+                seen.append((crab.target == w.player.serial, sim_cheb(w.player.pos, crab.pos)))
+        clock.on_advance = tick
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                res = loop.leave_by_gate("info")
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        wakes.append(seen[0] if seen else None)
+        pinched += [seed for _, v, k, _ in hurts if v is w.player and k == "pinch"]
+        dmg += sum(n for _, v, _, n in hurts if v is w.player)
+        led += "for the pets to lead" in buf.getvalue()
+        if not (res.get("ok") and w.player.alive and not w.player.ghost):
+            fails.append((seed, res.get("error"), round(w.player.hits)))
+    on_pet = sum(1 for s in wakes if s is not None and not s[0])
+    check(f"'... with us in front; stopping at ... for the pets to lead' in every seed; the crab woke on a pet in each "
+          f"(LEAD {loop_hunt.LEAD}); Logan never pinched, alive and through the gate (before: on Logan 22 of 24, "
+          f"pinched 7 times, 1,241 on him)",
+          led == 24 and on_pet == 24 and not pinched and not fails,
+          f"led {led} on a pet {on_pet} wakes {wakes} pinched in seeds {pinched} on Logan {round(dmg)} fails {fails}")
+
+
 def test_tidal_large_swing():
     print("== Tidal Tomb: a lowtide scavenger's large swing every ~7.8 s, its hit 0.5 s later on each of us within 1 of "
           "its target, its pincer crabs ==")
@@ -6865,7 +6917,7 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
-              test_tidal_large_swing,
+              test_tidal_leave_crab, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_shooter_hits, test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,

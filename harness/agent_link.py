@@ -597,6 +597,7 @@ class Mover:
         self._after = None           # (full state, monotonic time) fetched at the end of the last step
         self.danger = {}             # key -> ((x, y), radius): tiles to route around (danger_cost)
         self.sticky = set()          # tiles of the route a danger replan left: cost STICKY_X (walk_to)
+        self.route = None            # walk_to's planned route, (x, y) tiles from its start (the walks' stops look ahead)
         self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
         self.avoid = {}              # key -> {(x, y)}: tiles to route around, DANGER_COST_X flat (tamer.Team.spray_watch)
         self.replan_requested = False   # set by a guard (new danger): replan after this step
@@ -1132,12 +1133,14 @@ class Mover:
         until dead)."""
         self.sticky = set()
         self.walled = set()
+        outer = self.route
         try:
             return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route,
                                  MOBILE_WAIT_S if mobile_wait is None else mobile_wait)
         finally:
             self.sticky = set()
             self.walled = set()
+            self.route = outer
 
     def _clear_fields(self, st, goal, max_route, cur, label: str, dispelled: set) -> bool:
         """No route (within max_route): if one runs through spell fields, dispel the first field on
@@ -1220,6 +1223,7 @@ class Mover:
                     self.human.wait("between")
                 continue
             mobile_wait_until = None
+            self.route = [tuple(t[:2]) for t in path]
             if max_route is not None and walk is not None and len(path) - 1 > max_route:
                 raise WalkFailed(f"{label}: only a {len(path) - 1}-step detour from {cur} (more than {max_route})")
             if best_route is None or len(path) < best_route:

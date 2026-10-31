@@ -6543,8 +6543,23 @@ are the world model's (Outlands' 0x77 and 0x78 aren't the stock layouts; its 0x2
   hour 383 -> 602, banked an hour 125k -> 113k): the fought leave on the hunt level runs long under water and fights its
   way. (2) the walk out routed 3 tiles wide of every idle monster in view (Mover.avoid): the layout 3 off in 23 of 24,
   pinched once, 541 on Logan; 144 runs 21 -> 33 with a death (planned-leave deaths 1 -> 8, banked 125k -> 102k). A
-  144-run batch's spread is ~5. **Open:** the walk out past an idle crab on level 2 (docs/SIM.md "Tidal Tomb: the
-  giant pincer crab's pinch", docs/PLAN.md).
+  144-run batch's spread is ~5.
+- **Built 2026-10-30 evening (runner): the pets first by an idle melee monster** (the user's "narrow rule";
+  `HuntLoop.idle_ahead`, `lead_pets`; docs/HUNT_LOOP.md "In and out of a dungeon"). The planned walk to the leave gate
+  stops when one of its next 6 route tiles is within an idle melee monster's reach (the crab's 2, else 1) plus 1 in its
+  sight, with no pet as near it there and its wake under way (one of us in its range and sight), steps back up to 4
+  steps so a pet is the nearest of us (the step-in's `Team.step_plan`; the pets let close up 2 s first when they
+  trail), holds up to 6 s for its wake, then walks on with the walk's stops. On this layout (test_sim
+  `test_tidal_leave_crab`, seeds 1-24): "stopping at (6905, 2051) for the pets to lead: back to (6906, 2051) in 1
+  steps, out of its sight, Bussin in it", the crab awake on AlaFlambe 24 of 24 with Logan 8 off, no pinch (before: on
+  Logan 22 of 24, 1-3 off, pinched 7 times, 1,241 on him against 591). Level 2, 288 runs: runs with a death 51 -> 60
+  (+5, +4 in the two blocks: within the spread; a variant that acts only 17 times a block moved them +2 and +5), pet
+  deaths 471 -> 470; level 1 1 -> 3 of 96, Maus 3 1 -> 0 (docs/SIM.md "Tidal Tomb: the pets first by an idle melee
+  monster"). Not on the walk in (`LEAD_IN` False: no stand there for what wakes). Whom a melee monster takes at its
+  wake is the simulator's rule (the nearest it sees) [INFERENCE: measured for the shy ones only]; live, the crab
+  struck from 2 with its war flag after the hit, so its wake may come later and nearer than the simulator's 10-tile
+  range. **Open:** the crab when the pets trail outside its range at the stop (no tile: today's walk; 12 of its 17
+  stops in block 2), the small and colossal pincer crabs' pinches.
 
 ## The Ossuary: three visits by hand (2026-10-28, captures 20261028_165135 and 20261028_182147)
 

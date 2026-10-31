@@ -877,6 +877,12 @@ Discordance in the demo). A walk to a hurt pet stops on a step into an idle shy 
 Ranged monsters in war mode count as casters for the reposition (out of their sight within 13, even mid-channel); from
 a shy one a step out of its reach counts too (13 tiles from a blightmare), though it still sees us there.
 
+**A melee monster by a planned walk's way** (the planned walk to the leave gate; since 2026-10-30): the
+same step back from its onset, so a pet is the nearest of us when it wakes (`HuntLoop.idle_ahead`, `lead_pets` with
+`Team.step_plan`; "In and out of a dungeon": "The pets first by an idle melee monster"). Whom a melee monster takes
+at its wake is the simulator's rule (the nearest it sees, Chebyshev, a pet on a tie) [INFERENCE: measured only for
+the shy ones].
+
 **An awake one on someone else is walked past** (since 2026-10-24; user: "Logan keeps getting stuck in a loop 'Out of
 the <mob>'s shot' when a purger or blightmare is fighting someone else", then "We can just walk past when one is
 fighting someone else"; live 19:01:21-19:02:07 nine rounds at a purger on Gix's pets in the corridor, 19:02:36-55 five
@@ -1072,6 +1078,12 @@ moongate, and never near a red one).
     Simulator 2026-10-26 (tidal_tomb seed 3, the leave at time up): "to the moongate: waiting for the pets" with
     both 9 tiles off, an oozing noughtilus took Logan from 100 to dead in 18 s with no potion. test_sim
     `test_wait_pets_attacked`.
+  - **An idle melee monster by the way ahead** with Logan in front: the same trap as the walk out's (below), but the
+    pets-first rule is off here (`LEAD_IN` False): the walk in has no stop for a monster coming in war mode, so after
+    the wake it walks on with the pets on follow and the monster on them. On Tidal Tomb 95 % of the leads were the walk
+    in's, with no change in level 2's deaths, but with it on test_ossuary_hunt (one seed) went another way and timed out
+    on its leave (a 2-min stand at a sand muck on the walk out) (docs/SIM.md "Tidal Tomb: the pets first by an idle
+    melee monster").
   - **Attacked near the teleporter** (`walk_in_dash`, since 2026-10-20; live 22:57:15-31 Logan stood fighting 13
     steps from 5522,637 until the user walked him through to Maus 3): attacked within `TELE_DASH_R` 15 route steps
     of the teleporter walked to, no stand: "<label>: attacked N steps from it; through it now", "All Follow Me"
@@ -1100,8 +1112,36 @@ moongate, and never near a red one).
     "All Guard Me" left the pets fighting behind: "all follow me to run out, not all guard"), and says it
     again beside the gate. A planned leave (time up, `--kills`, the return rule) walks like the walk-in: attacked,
     the pets guard until it's over; a pet more than 8 tiles off or out of view, a wait for it (once it doesn't
-    come in 25 s the walk goes on and waits beside the gate). Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
+    come in 25 s the walk goes on and waits beside the gate); an idle melee monster by the way ahead, the pets first
+    (below). Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
     item isn't in view), and picks the destination by its label.
+  - **The pets first by an idle melee monster** (since 2026-10-30, the user's "narrow rule" after the level 2 death at
+    18:29: the walk to the gate took Logan, the pets 1-3 behind on follow, 2 tiles past an idle giant pincer crab; it
+    struck from 2, pinched him in place 6 s, and a drowned mariner and a voidfin killed him in the hold; docs/NOTES.md
+    "Tidal Tomb: level 2 death 2026-10-30 18:29"). The planned walk to the leave gate stops (`HuntLoop.idle_ahead`, in
+    its stop; the walk in's `walk_in_stop` with `LEAD_IN` only) when one of its next 6 route tiles (`LEAD_LOOK`, the Mover's
+    planned `route`) is within an idle melee monster's reach (`aggro.melee`: not shy, not a mage or ranged AI;
+    `aggro.melee_reach`, the scenario's `melee_observed` `reach`: the giant pincer crab 2, else 1) plus 1
+    (`LEAD_MARGIN`) in its sight, no pet as near it there (the pets followed step by step), and one of us already in
+    its aggro range and sight (its wake under way: it takes the nearest of us it sees about 2 s later). Then
+    `lead_pets`: the step-in's step-back tile (`tamer.Team.step_plan`, up to 4 steps and turns, `LEAD_STEPS`; a pet
+    the nearest of us in its range and sight there, Logan out of its reach plus margin, not into the sight of an idle
+    monster that doesn't see us already), stepped to, then a hold up to 6 s (`LEAD_HOLD_S`) for its wake, a hit or an
+    attack. No such tile with a pet more than a tile off: up to 2 s (`LEAD_CLOSE_S`) for them to close up, planned
+    again. The walk then goes on and its stops take what woke (a monster coming in war mode, an attack: the pets
+    guard). No tile still (the pets trailing outside its range, dead, other monsters' sight): on past it as before.
+    Once per monster a walk; never while deprived of oxygen. Log: "to the moongate: the idle giant pincer crab 0x… at
+    (6911, 2060) reaches step 6 of the route (reach 2) with us in front; stopping at (6905, 2051) for the pets to lead:
+    back to (6906, 2051) in 1 steps, out of its sight, Bussin in it" (or "…, AlaFlambe nearer by 1.3"), "…; stopping
+    at (x, y) for the pets to close up", then "to the moongate: the giant pincer crab awake after 1.4 s, Bussin the
+    nearest of us to it" (or "still idle after 6 s; walking on", "attacked or hit after N s holding for the …"); no
+    tile: "…; no tile within 4 steps where a pet is the nearest of us to it (pets …); walking on". Simulator (docs/SIM.md
+    "Tidal Tomb: the pets first by an idle melee monster"): on the live layout the crab woke on a pet 24 of 24 (on
+    Logan 22 of 24 before), no pinch on him (7 before); level 2's runs with a death 51 -> 60 of 288 (two blocks, +5 and
+    +4: within a block's spread of ~5; the batches diverge on any change), level 1 1 -> 3 of 96, Maus 3 1 -> 0. Not in
+    the crawl's patrol or the fought legs (`walk_in_fought`, the oxygen legs): they stop for "a target in reach"
+    (`pick_target`, the pull range: 8 with the pets) and fight it as the hunt does [from the code; not measured on the
+    crab].
   - **The gate a level up: `--leave-via X Y`** (repeat, in order; since 2026-10-25). Tidal Tomb's level 3 has no
     gate known; the user leaves it "by going back to the crimson gate on lvl 2" (live 11:35:19 a step S onto
     (7161, 2221), 11:36:55 the gate at (6897, 1992)). While the walk rules find no route to the gate (the planner never
@@ -1126,7 +1166,7 @@ moongate, and never near a red one).
     the level 2 death at 18:29, docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30 18:29"): a fought leg from under
     water, and a walk out routed 3 tiles wide of every idle monster in view, both raised level 2's runs with a death in
     the simulator (21 -> 48 and 21 -> 33 of 144; docs/SIM.md "Tidal Tomb: the giant pincer crab's pinch"). The walk out
-    there is still the plain walk with its stops; an idle monster by its way is open.
+    there is the plain walk with its stops and the pets first by an idle melee monster (above).
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point

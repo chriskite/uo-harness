@@ -260,6 +260,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             # the same (sprays); lowtide scavengers' large swings and dungeon-nest crabs' digs the same (digs)
             "bubbles": m.get("bubbles", {}), "spray": m.get("spray", {}),
             "large_swing": m.get("large_swing", {}), "dig": m.get("dig", {}),
+            "pinches": m.get("pinches", {}),          # giant pincer crabs' pinches (World._pinch) by victim
             "met": m.get("met", {}),
             # shy monsters' wakes (World._wake_record; sim/wake_scan.py --sim) and their turns to the new nearest
             "wakes": m.get("wakes", []), "retargets_near": m.get("retargets_near", {}),

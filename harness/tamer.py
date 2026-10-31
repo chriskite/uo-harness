@@ -1520,7 +1520,7 @@ class Team:
             return "the pets are not on guard"
         return None
 
-    def step_plan(self, st, v, m, origin, pets, steps: int, facing: int | None = -1):
+    def step_plan(self, st, v, m, origin, pets, steps: int, facing: int | None = -1, allow=frozenset()):
         """The step-back tile for idle shy monster `m` from `origin` ((x, y, z)): (tile, path, pet name, gap; None out of
         its sight), or None. `path`: the tiles from `origin` to it (pathfind.Walk.can_walk, tiles_within), its steps and
         its turns within `steps` (a step in a new direction only turns us: RunUO Mobile.Move; `facing` our direction at
@@ -1530,14 +1530,15 @@ class Team:
         on: the simulator holds it while one of us stays in its range and sight, so at every step on the way too) and
         Logan out of its sight within STEP_IN_SIGHT, or STEP_IN_GAP farther from it than that pet (Euclidean). Not into
         an area hit's zone (charge_zone), fire, a --never-aggro monster's sight, or another idle monster's range and
-        sight. Out of its sight first, then the fewest steps and turns, then the widest gap."""
+        sight (but those whose serials are in `allow`: the walks' lead, HuntLoop.lead_pets, from a tile they see already).
+        Out of its sight first, then the fewest steps and turns, then the widest gap."""
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
         mx, my = m["pos"][:2]
         parents = {}
         best, best_k = None, None
         for t, k in self.tiles_within(v, steps, origin, parents).items():
             if t[:2] in zone or t[:2] in fire or v.never_near(t) \
-                    or any(o["serial"] != m["serial"] for o in v.wakes(t, margin=0)):
+                    or any(o["serial"] != m["serial"] and o["serial"] not in allow for o in v.wakes(t, margin=0)):
                 continue
             path = route(parents, t)
             cost = k + turns(origin, path, facing)

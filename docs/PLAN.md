@@ -3065,7 +3065,7 @@ Tomb patrols so; docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop"). De
   keeps); the margin against live (0.35 s gave fewer deaths, 16, but more oxygen damage and 8 % less banked: watch
   live step-ins first).
 
-## The giant pincer crab's hold modelled; no new walk-out rule (Logan dead on Tidal Tomb level 2, 2026-10-30 18:29)
+## The giant pincer crab's hold modelled; the pets first on the walk out (Logan dead on Tidal Tomb level 2, 2026-10-30 18:29)
 
 Live 18:29 the planned walk out across level 2 passed 2 tiles from an idle giant pincer crab ahead of the pets; its
 pinch (Entangle, 6 s) held Logan while a drowned mariner and a voidfin woke on him (docs/NOTES.md "Tidal Tomb: level 2
@@ -3073,15 +3073,23 @@ death 2026-10-30 18:29"). Decisions:
 
 - *Model first* (built): the crab's swing from 2 tiles, its measured numbers and 3.36 s period, the pinch's number and
   hold, the hold readable by the runner as live (buff 20 with its end). On it the live layout reproduces the cause.
-- *No runner rule yet.* Two that stop the layout's cause lost level 2's 144-run batch: the planned leave from under
+- *Two wider rules first, not kept.* Both stop the layout's cause and lost level 2's 144-run batch: the leave from under
   water as a fought leg (runs with a death 21 -> 48, planned-leave deaths 1 -> 31, oxygen on Logan +57 %), and the
   walk out 3 tiles wide of every idle monster in view (21 -> 33, 1 -> 8, banked -19 %) (docs/SIM.md "Tidal Tomb: the
   giant pincer crab's pinch"). On HEAD's runner the batch has 1 planned-leave death in 144 runs: the simulator has
   almost nothing for a walk-out rule to win and much to lose.
-- *Open:* a rule for the one case (an idle melee monster within its reach of the walk's route, Logan first): e.g. the
-  stop before it with the pets sent first, judged on the layout and the batch; the stand for a shy monster ending with
-  it alive (18:29:25.9, "All Follow Me" pulled the pets off a biolumen shellpod at 42 %); a stand-off tried while held
-  (`walk_in_fight` waits in `Mover.wait_held`).
+- *Built (user-approved "narrow rule", 2026-10-30 evening):* the pets first by an idle melee monster on the planned
+  walk to the leave gate (`HuntLoop.idle_ahead`, `lead_pets`: stop when the next 6 route tiles come within its reach
+  plus 1 with Logan in front and its wake under way, the step-in's step back so a pet is the nearest, a hold up to 6 s
+  for its wake). The layout: the crab on a pet 24 of 24, no pinch on Logan (7 before). Level 2's runs with a death
+  51 -> 60 of 288, within the two blocks' spread (docs/SIM.md "Tidal Tomb: the pets first by an idle melee monster").
+  Scoped to the walk out: on the walk in too (`LEAD_IN`) 95 % of the leads were there, which has no stand for what
+  wakes; same batch deaths (50 of 288), but test_ossuary_hunt diverged and timed out on its leave.
+- *Open:* the crab with the pets outside its range at the stop (no step-back tile: today's walk); whether a melee
+  monster live takes the nearest at its wake as the simulator has it (the crab struck from 2 with its war flag after
+  the hit: a later, nearer wake would let the 6 s hold run out "still idle" and the walk go on past it); the stand for a
+  shy monster ending with it alive (18:29:25.9, "All Follow Me" pulled the pets off a biolumen shellpod at 42 %); a
+  stand-off tried while held (`walk_in_fight` waits in `Mover.wait_held`).
 
 ## Risks
 

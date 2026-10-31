@@ -268,6 +268,24 @@ COMING_R = 10                 # a planned walk out stops (and its stand goes on)
 #                               at us (HuntLoop.coming): tamer.HOLD_R, the hunt's "letting it come" (live 2026-10-28
 #                               22:53:04.5: the lowtide scavenger went to war mode 10 tiles off; the walk met it 3 steps on)
 COMING_S = 5.0                # ...while it came nearer within this long (tamer.HOLD_S: one that stops coming is passed over)
+# The pets first by an idle melee monster (HuntLoop.idle_ahead, lead_pets; live 2026-10-30 18:29:25.9-34.9: the planned
+# walk to level 2's gate took Logan, the pets on follow 1-3 behind, 2 tiles past an idle giant pincer crab; it struck
+# from 2, pinched him in place 6 s, and a drowned mariner and a voidfin killed him in the hold. docs/NOTES.md "Tidal
+# Tomb: level 2 death 2026-10-30 18:29"): a planned walk whose next LEAD_LOOK route tiles come within such a monster's
+# reach (aggro.melee_reach) plus LEAD_MARGIN, in its sight, with us in front there and its wake going on, stops and steps
+# back (tamer.Team.step_plan, up to LEAD_STEPS steps and turns) so a pet is the nearest of us in its sight, then holds up
+# to LEAD_HOLD_S for its wake
+LEAD = True
+LEAD_LOOK = 6
+LEAD_MARGIN = 1
+LEAD_MIN_REACH = 1            # monsters whose reach is this or more (aggro.melee_reach)
+LEAD_IN = False               # on the walk in's legs too (walk_in_stop): off, the walk in has no stand for what wakes
+#                               (docs/SIM.md "Tidal Tomb: the pets first by an idle melee monster")
+LEAD_STEPS = 4                # tamer.STEP_IN_WALK
+LEAD_CLOSE_S = 2.0            # no step-back tile with a pet more than a tile off: this long for them to close up (a tile
+#                               each 0.21 s on follow), then planned again
+LEAD_HOLD_S = 6.0             # the wake's 1.9-2.55 s in the simulator (live p90 3.2 s for the shy ones), a margin
+IDLE_AHEAD = "idle ahead"     # idle_ahead's stop reason
 COMMAND_R_GO = 8              # wait_pets/fetch_pet: a pet out of a command's reach is walked to this close first
 TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fewer from the teleporter walked to: on and
 #                               through it, no stand (live 2026-10-20 22:57:15: attacked again 13 steps from 5522,637, the
@@ -399,6 +417,9 @@ class HuntLoop:
         self.walk_out_fought = False             # a planned walk to --leave-gate: it stops for what comes (walk_in_fight)
         self.walk_fighting = False               # in walk_in_fight: its own order, no drink_on_the_run
         self.coming_seen = {}                    # serial -> (monotonic time it was last nearer, its least distance)
+        self.led = {}                            # serial -> "led" / "passed": idle_ahead's monsters done on this walk
+        self.ahead = None                        # idle_ahead's find for lead_pets
+        self.lead_label = "the walk"             # the planned walk idle_ahead looks along (its log's words)
         self.walking_in = False                  # on the walk in (walk_in): the hostile-player checks are on (look)
         self.left_level = False                  # this leave went up through --leave-via teleporters (leave_up)
         self.walk_in_red = None                  # why a hostile player on the walk in sent us on to the leave gate
@@ -2326,7 +2347,8 @@ class HuntLoop:
         through, a double-click on the gate from that tile (live 20261013_204518; the step onto it when its
         item isn't in view) and the travel to --gate-dest (moongate.travel). A planned leave (PLANNED) walks
         as the walk-in does (walk_in_stop): attacked, the pets guard until it's over (walk_in_fight); a pet
-        lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside the gate).
+        lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside the gate); an idle
+        melee monster by the way ahead with us in front, the pets first (idle_ahead, lead_pets).
         From a hostile player (severity urgent), as Logan fled reds three times (20261013_173449,
         20261014_170144, _173858): flee_out, away from them first when the way passes them, Adventurer's Rope
         jumps whenever one is worth it (rope_jump).
@@ -2344,7 +2366,7 @@ class HuntLoop:
                         "dest": self.args.gate_dest}
         self.doing("leave", f"Walking to the moongate at {gate[0]},{gate[1]}", gate)
         self.walking_out, self.pk_flight, self.walk_out_fought = True, flee, severity in PLANNED
-        self.coming_seen = {}
+        self.coming_seen, self.led, self.lead_label = {}, {}, "to the moongate"
         t_walk = time.monotonic()
         jump = {"last": tuple(self.pos(self.link.state())[:2]), "through": False}
         dash = False                    # attacked near the gate on a planned walk out: through it at once
@@ -2382,7 +2404,9 @@ class HuntLoop:
                         return "under attack"
                     if who := self.coming(s):
                         return f"coming: {who}"
-                    return self.pets_lagging(s) if lag["wait"] else None
+                    if lag["wait"] and (why := self.pets_lagging(s)):
+                        return why
+                    return self.idle_ahead(s)
                 if flee:
                     if near is not None:
                         self.flee_out(gate, near, through)
@@ -2407,6 +2431,8 @@ class HuntLoop:
                                 break
                             if why == "under attack" or coming:
                                 self.walk_in_fight("to the moongate", "out", coming=coming)
+                            elif why.startswith(IDLE_AHEAD):
+                                self.lead_pets("to the moongate")
                             elif not self.wait_pets("to the moongate", None, required=False):
                                 lag["wait"] = False
                             continue
@@ -3317,6 +3343,7 @@ class HuntLoop:
                 if near is None:
                     raise Abort(f"{label}: no route onto it")
                 dash = False
+                self.led, self.lead_label = {}, label
                 if kind == "enter" and tuple(tile[:2]) in {tuple(t) for t in self.args.fight_via or []}:
                     self.walk_in_fought(label, near)
                 while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
@@ -3328,6 +3355,8 @@ class HuntLoop:
                             dash = True
                             break
                         self.walk_in_fight(label)
+                    elif why.startswith(IDLE_AHEAD):
+                        self.lead_pets(label)
                     else:
                         self.wait_pets(label, None)
                 if not dash and self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
@@ -3359,10 +3388,11 @@ class HuntLoop:
 
     def walk_in_stop(self, st) -> str | None:
         """walk_in's stop: something attacking us or our hits falling (a calamity casts from 13 tiles,
-        beyond CASTER_REACH: simulator seeds 15 and 16 died to one walking on), else a lagging pet."""
+        beyond CASTER_REACH: simulator seeds 15 and 16 died to one walking on), else a lagging pet, else an idle melee
+        monster by the way ahead with us in front (idle_ahead)."""
         if self.team is not None and (self.walk_hurt(st) or self.attackers(st)):
             return "under attack"
-        return self.pets_lagging(st)
+        return self.pets_lagging(st) or (self.idle_ahead(st) if LEAD_IN else None)
 
     def walk_in_dash(self, label, near):
         """Attacked within TELE_DASH_R route steps of the teleporter (walk_in): 'All Follow Me' without waiting for the
@@ -3441,6 +3471,140 @@ class HuntLoop:
             if p["dist"] > WALK_IN_LAG_R:
                 return f"{name} at {p['dist']}"
         return None
+
+    def idle_ahead(self, st) -> str | None:
+        """A planned walk's stop (leave_by_gate's, walk_in_stop): an idle melee monster (aggro.melee) whose reach
+        (aggro.melee_reach: the giant pincer crab's 2, else 1) plus LEAD_MARGIN covers one of the walk's next LEAD_LOOK
+        route tiles (Mover.route) in its sight, with us in front there (the pets followed step by step, tamer.follow: none
+        as near it), while one of us is in its aggro range and sight now (its wake goes on: the step-in's model, the
+        simulator's) -> "idle ahead: ...", the nearest such tile's monster kept in `ahead` for lead_pets. The next tile
+        in its reach plus margin with no wake going on yet: passed (logged), today's walk. A monster led for or passed
+        isn't looked at again on this walk (`led`). Not while deprived of oxygen (oxygen_floor)."""
+        if not LEAD or self.team is None or self.oxygen_floor() is not None:
+            return None
+        route = getattr(self.mover, "route", None)
+        if not route:
+            return None
+        v = self.team.view(st)
+        here = tuple(v.pos[:2])
+        try:
+            ahead = route[route.index(here) + 1:][:LEAD_LOOK]
+        except ValueError:
+            return None              # off the planned route: the walk plans again
+        best = None
+        for m in v.mobs:
+            if m["war"] or m["never"] or m["serial"] in self.led or not aggro.melee(m["kind"]):
+                continue
+            reach = aggro.melee_reach(m["kind"])
+            if reach < LEAD_MIN_REACH:
+                continue
+            reach += LEAD_MARGIN
+            if cheb(m["pos"], here) > reach + len(ahead):
+                continue
+            pets, k = list(v.pets), None
+            for i, t in enumerate(ahead):
+                pets = tamer.follow(pets, t)
+                if cheb(m["pos"], t) <= reach and v.sees(m, t, reach):
+                    k = i
+                    break
+            if k is None or (best is not None and k >= best[0]):
+                continue
+            d = cheb(m["pos"], ahead[k])
+            if any(cheb(m["pos"], p) <= d and v.sees(m, p, m["r"]) for p in pets):
+                continue                 # a pet as near it there: it takes the pet
+            if not (v.sees(m, v.pos, m["r"]) or any(v.sees(m, p, m["r"]) for p in v.pets)):
+                if k == 0:
+                    self.led[m["serial"]] = "passed"
+                    log(f"{self.lead_label}: the idle {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]} reaches our "
+                        f"next step {ahead[0]} (reach {reach - LEAD_MARGIN}) and none of us is in its range and sight "
+                        f"yet; walking on")
+                continue
+            best = (k, m, reach - LEAD_MARGIN)
+        if best is None:
+            return None
+        k, m, reach = best
+        self.ahead = {"m": m, "k": k, "reach": reach}
+        return f"{IDLE_AHEAD}: the {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]}, step {k + 1}"
+
+    def lead_pets(self, label):
+        """idle_ahead's stop: let the pets go first. The step-back tile (tamer.Team.step_plan, up to LEAD_STEPS steps and
+        turns: a pet the nearest of us in its range and sight there, by STEP_IN_GAP, Logan out of its reach plus
+        LEAD_MARGIN; not into another idle monster's range and sight that doesn't see us here). None with a pet more than
+        a tile off: held up to LEAD_CLOSE_S for them to close up on follow, then planned again. Stepped to
+        (Team.step_tiles), then held up to LEAD_HOLD_S for its wake (war mode), its leaving the view, an attack on us or a
+        hit; the walk then goes on and its stops take what's awake (coming, attackers: walk_in_fight). Still no tile (the
+        pets lagging or dead, other idle monsters' sight): today's walk past it."""
+        a, self.ahead = self.ahead, None
+        if a is None:
+            return
+        serial, reach = a["m"]["serial"], a["reach"]
+        key = f"0x{serial:08X}"
+        self.led[serial] = "led"
+        st = self.link.state()
+        hits0 = st["world"]["self"].get("hits")
+
+        def done(s):
+            mob = s["world"]["mobiles"].get(key)
+            hits = s["world"]["self"].get("hits")
+            return mob is None or bool((mob.get("flags") or 0) & aggro.WAR) or bool(self.attackers(s)) \
+                or (hits is not None and hits0 is not None and hits < hits0)
+
+        def plan_from(s):
+            v = self.team.view(s)
+            m = next((o for o in v.mobs if o["serial"] == serial), None)
+            pets = [(p["name"], (p["x"], p["y"])) for p in self.team.pets(s) if not p["dead"]]
+            if m is None or m["war"] or not pets or v.walk is None:
+                return v, m, pets, None
+            seen = {o["serial"] for o in v.wakes(v.pos, margin=0)}          # those that see us here already
+            plan = self.team.step_plan(s, v, m, v.pos, pets, LEAD_STEPS, allow=seen)
+            return v, m, pets, plan if plan is None or cheb(plan[0], m["pos"]) > reach + LEAD_MARGIN else None
+        v, m, pets, plan = plan_from(st)
+        if m is None or m["war"]:
+            return
+        head = (f"{label}: the idle {m['kind']} 0x{serial:08X} at {m['pos'][:2]} reaches step {a['k'] + 1} of the "
+                f"route (reach {reach}) with us in front")
+        if plan is None and any(p["dist"] > 1 for p in self.team.pets(st) if not p["dead"]):
+            log(f"{head}; stopping at {tuple(v.pos[:2])} for the pets to close up")
+            self.doing("hold", f"Letting the pets close up by the {m['kind']}", tuple(v.pos[:2]), serial)
+            t0 = time.monotonic()
+            s = self.link.wait(lambda s: done(s) or all(p["dist"] <= 1 for p in self.team.pets(s) if not p["dead"]),
+                               LEAD_CLOSE_S)
+            st = self.link.state()
+            if s is not None and done(s):
+                self.lead_end(label, m["kind"], st, key, time.monotonic() - t0, None)
+                return
+            v, m, pets, plan = plan_from(st)
+            if m is None or m["war"]:
+                return
+        if plan is None:
+            self.count("lead_none")
+            log(f"{head}; no tile within {LEAD_STEPS} steps where a pet is the nearest of us to it "
+                f"({'no pet alive in view' if not pets else 'pets ' + ', '.join(f'{n} {p}' for n, p in pets)}); "
+                f"walking on")
+            return
+        tile, path, pet, gap = plan
+        self.count("leads")
+        log(f"{head}; stopping at {tuple(v.pos[:2])} for the pets to lead: back to {tile[:2]} in {len(path)} steps, "
+            + (f"out of its sight, {pet} in it" if gap is None else f"{pet} nearer by {gap:.1f}"))
+        self.doing("hold", f"Letting the pets go first by the {m['kind']}", tile[:2], serial)
+        if path:
+            self.team.step_tiles(path, None)
+        t0 = time.monotonic()
+        st = self.link.wait(done, LEAD_HOLD_S)
+        self.lead_end(label, m["kind"], st, key, time.monotonic() - t0, pet)
+
+    @staticmethod
+    def lead_end(label, kind, st, key, dt, pet):
+        """lead_pets' hold over (`st` None: it ran out): logged."""
+        mob = None if st is None else st["world"]["mobiles"].get(key)
+        if st is None:
+            log(f"{label}: the {kind} still idle after {LEAD_HOLD_S:.0f} s; walking on")
+        elif mob is None:
+            log(f"{label}: the {kind} gone from view after {dt:.1f} s; walking on")
+        elif (mob.get("flags") or 0) & aggro.WAR:
+            log(f"{label}: the {kind} awake after {dt:.1f} s" + (f", {pet} the nearest of us to it" if pet else ""))
+        else:
+            log(f"{label}: attacked or hit after {dt:.1f} s holding for the {kind}")
 
     def wait_pets(self, label, at, required: bool = True) -> bool:
         """Up to WALK_IN_QUIET_S for every pet within FOLLOW_R of us (of the teleporter `at` when given):

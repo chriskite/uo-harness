@@ -2339,6 +2339,70 @@ mariner and a voidfin woke on him. The crab's hold wasn't modelled and its swing
   [INFERENCE: longer walks among more monsters; not traced]. Neither is in the runner. HEAD's level 2 on the old model
   was 18-22 runs with a death in the earlier sections' batches; the new model's HEAD batch (21) sits within that.
 
+### Tidal Tomb: the pets first by an idle melee monster (2026-10-30)
+
+The user's "narrow rule" for the 18:29 death (above): an idle melee monster within its reach of the walk's next steps
+with Logan in front, stop short and let the pets go first (`loop_hunt.HuntLoop.idle_ahead`, `lead_pets`; docs/HUNT_LOOP.md
+"In and out of a dungeon").
+
+- **Why a step back, not a hold:** in the simulator a melee monster takes the nearest of us it sees (Chebyshev, a pet on
+  a tie) 1.9-2.55 s after one of us comes into its range (10 for the crab) and sight. On the live layout that onset was
+  Logan's at (6904, 2050), 10 off, the pets 1-2 behind; held in place they close up behind him, still farther from it,
+  so it woke on him all the same. Stepping back past them (`tamer.Team.step_plan`, the step-in's planner: the pets
+  followed step by step, a pet in its range and sight at the end, Logan out of its sight or 1.0 farther, Euclidean)
+  leaves a pet the nearest when it wakes. Its range and sight already holding us is the trigger's second half: with
+  no onset there is no wake to put on a pet (the next tile already in its reach: on as before, "... none of us is in
+  its range and sight yet; walking on").
+- **The live layout** (`test_tidal_leave_crab`, seeds 1-24; before = `loop_hunt.LEAD` False): the crab woke on Logan
+  22 of 24 times, 1-3 off, pinched him 7 times, 1,241 on him; after, "stopping at (6905, 2051) for the pets to lead:
+  back to (6906, 2051) in 1 steps, out of its sight, Bussin in it", it woke on AlaFlambe 24 of 24 with Logan 8 off,
+  no pinch, 591 on him (the fights after its wake: spells, bursts, swings), alive and through the gate in each.
+- **Level 2** (the docs' command above, 144 runs a side; before = `--set loop_hunt.LEAD=False`, identical to 72dfa91's
+  numbers; a second block, seeds 145-288, for the spread). "The walk out" is the rule as built (`LEAD_IN` False); "both
+  walks" adds the walk in's legs (`--set loop_hunt.LEAD_IN=True`):
+
+  | level 2 | runs with a death | on a leave (planned) | pet deaths | damage on Logan / h | top sources / h | pinches on Logan | leads / no tile | kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 1-144 before | 21 | 3 (1) | 234 | 1,121 | oxygen 383, mariner 113, astral zoa 103 | 70 | - | 156.1 | 125,432 |
+  | 1-144 the walk out | 26 | 7 (3) | 243 | 1,128 | oxygen 373, mariner 112, astral zoa 106 | 75 | 48 / 29 | 155.9 | 123,576 |
+  | 1-144 both walks | 26 | 16 (7) | 250 | 1,108 | oxygen 322, astral zoa 147, mariner 114 | 85 | 1,160 / 375 | 154.0 | 119,555 |
+  | 145-288 before | 30 | 11 (3) | 237 | 1,141 | oxygen 369, mariner 110, astral zoa 108 | 66 | - | 155.3 | 109,215 |
+  | 145-288 the walk out | 34 | 17 (8) | 227 | 1,148 | oxygen 375, voidfin 103, astral zoa 101 | 71 | 32 / 17 | 155.9 | 103,033 |
+  | 145-288 both walks | 24 | 10 (4) | 234 | 1,114 | oxygen 388, mariner 104, astral zoa 103 | 54 | 1,110 / 374 | 158.9 | 117,145 |
+
+  Over 288 runs, before / the walk out / both walks: runs with a death 51 / 60 / 50, on a leave 14 / 24 / 26 (planned
+  4 / 11 / 11), pet deaths 471 / 470 / 484, damage on Logan an hour 1,131 / 1,138 / 1,111, pinches on him 136 / 146 /
+  139 (nearly all in the crawl), banked an hour 117.3k / 113.3k / 118.4k (the blocks' mean). **These batches diverge
+  on any change** (each run's draws follow from the first act that differs): the crab only (`LEAD_MIN_REACH` 2, both
+  walks) acted 17 and 18 times a block and still went 21 -> 23 and 30 -> 35 runs with a death; a block's spread is
+  ~5 (a binomial's ~4.6 at 144 runs, ~6.5 between two blocks), so every row is within it. Traced: of the walk out's
+  deaths on a planned leave in block 2, 6 of 8 had no lead on that leave (233 and 284 die the same way before); in
+  223 the stop stepped back 2 tiles from a voidfin, an awake drowned mariner hit at once and the stand that followed
+  died 43 s later among it and a combustive zoa; 164's leave was 18 min before its death. Both walks: one of the 50
+  runs with a death had a lead within 60 s of it (seed 281, a bottomfeeder woken on Bussin on the walk in, the death
+  34 s later in level 2's crawl); 6 of block 1's 7 planned-leave deaths had none on their leave.
+  - **Why the walk out only:** the walk in has no stop for a monster coming in war mode, so after a lead it walks on
+    with the pets and the woken monster on them; 95 % of the leads were there (level 1's smallshells, noughtiluses and
+    bottomfeeders on the way to level 2's teleporter). With it on, test_ossuary_hunt (one seed, 10 minutes) went
+    another way and timed out on its leave: a 2-min stand at a sand muck on the walk out (its walk in reached level 3
+    36 s sooner). Narrower, the walk-in's behaviour unchanged, every test passing; the batch can't tell the two apart.
+  - **The leads** (the walk out, block 2): their holds ended on its wake 28 times, a hit or an attack 3, idle for 6 s
+    16. The crab on the walk out: 5 leads, 12 no tile (block 2; both walks block 1: 14 leads, all awake within the
+    hold, 18 no tile). No tile when the pets trail outside its range at the stop (its range 10: the stop comes as
+    Logan enters it): none of them can be the nearest within 4 steps; today's walk then.
+- **Ablations** (both walks, seeds 1-144): the first version, no close-up wait: 20 runs with a death, 10 (4) on a
+  leave, 206 pet deaths, 1,047 an hour on Logan, 60 pinches, 660 leads / 848 no tile, 125,378 banked; the crab only
+  (`LEAD_MIN_REACH` 2): 23, 5 (0), 234, 1,113, 68, 7 / 10, 121,356, and on 145-288 35, 17 (6), 247, 1,194, 80, 6 / 12,
+  107,344. Kept: every melee monster, the close-up wait (the crab's leads 6 -> 14 of its stops in block 1).
+- **Level 1** (`--scenario tidal_tomb --team phoenix_incubus --runs 96 --json -- --vet-range 5 --crawl-learn-s 180`;
+  its leads are all on the walk out, so both scopes are the same runs): runs with a death 1 -> 3, pet deaths 2 -> 3,
+  damage on Logan 456 -> 430 an hour, kills 346.4 -> 343.4, banked 111,602 -> 111,743; 350 leads, 80 no tile. Seed
+  34's death is the same on both sides; seeds 13 and 21 had no lead within 60 s of theirs. **Maus 3** (`--runs 96
+  --seed 17 --careers 14 --others --eerie --prior` a copy of the main store taken 2026-10-30): runs with a death 1 -> 0
+  (both walks 1), pet deaths 0 -> 0 (1), damage on Logan 1,266 -> 1,255 (1,281) an hour, kills 123.1 -> 125.2 (125.9),
+  banked 133,551 -> 135,573 (134,264); 104 leads, 16 no tile (182, 53).
+- `run.py --json` carries `pinches` (the crab's, by victim).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

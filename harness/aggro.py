@@ -49,6 +49,7 @@ AGGRO_R = 10                  # a type the captures don't list
 AGGRO_MAX = 13                # --never-aggro sight is kept beyond this (the farthest range once measured; kept as a margin)
 SCENARIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim")
 _RANGES = None
+_REACH = None
 
 
 def scenarios() -> list[dict]:
@@ -72,6 +73,16 @@ def aggro_range(kind: str) -> int:
         _RANGES = {k: int(v["range"]) for sc in scenarios() for k, v in (sc.get("aggro_observed") or {}).items()
                    if isinstance(v, dict) and v.get("range")}
     return _RANGES.get(kind, AGGRO_R)
+
+
+def melee_reach(kind: str) -> int:
+    """Tiles from which a monster of `kind` lands its swings (`melee_observed.<type>.reach`: the giant pincer crab's 2,
+    docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30 18:29"), else 1."""
+    global _REACH
+    if _REACH is None:
+        _REACH = {k: int(v["reach"]) for sc in scenarios() for k, v in (sc.get("melee_observed") or {}).items()
+                  if isinstance(v, dict) and v.get("reach")}
+    return _REACH.get(kind, 1)
 
 
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us
@@ -135,6 +146,11 @@ def ranged(kind: str) -> bool:
     """The wiki's ranged AI (corpse purger, calamity, eldritch experiment, muddled vampire hunter): its melee is a
     ranged attack (the purger's Corpse Barrage up to 12 tiles; a calamity cast from 13)."""
     return (creatures().get(kind) or {}).get("ai") == "ranged"
+
+
+def melee(kind: str) -> bool:
+    """A monster that comes to swing at us: not shy, not a mage or ranged AI (an unknown kind counts as one)."""
+    return not shy(kind) and (creatures().get(kind) or {}).get("ai") not in SHY_AI
 
 
 # Monsters that shoot or cast from where they stand, whose wake we put on the pets (tamer.Team.step_back, back_off,
