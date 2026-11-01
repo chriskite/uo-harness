@@ -170,6 +170,9 @@
   "leave_gates": [[5203, 703]],
   "gate_dest": "Totem",
   "heal_in_place": true,
+  "levels": [
+   {"name": "3", "default": true, "note": "Maus 3, the fight level: the scenario's way in and out"}
+  ],
   "note": "run.py's defaults for this scenario: the way Logan went in and out (capture); with a long walk out, leave less and heal in place (--no-heal-in-place turns it off). The nightstalker room is no longer avoided (user 2026-10-13, after his crawl 20261013_204518 went through it; before that a crawl_avoid box [5170, 690, 5188, 718] kept it out: `--crawl-avoid 5170 690 5188 718` puts it back)"
  },
  "bard": {

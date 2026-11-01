@@ -326,7 +326,12 @@
   "leave_gates": [[5577, 1095]],
   "gate_dest": "Totem",
   "heal_in_place": true,
-  "note": "run.py's defaults: recall to the 'Ossuary' row outside, in by the entrance, through level 1 to its west end and level 2 to its south end (Logan's way, 3 of 3 visits), the hunt on level 3, out by its crimson gate (5577, 1095) to Totem as Logan left twice, then the recall home. Level 2 instead: --area 5581 1225 5689 1363 -- --enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277 (its crimson gate, his second leave); level 4: --area 4825 1744 5000 2073 -- --enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --enter-via 5590 985 (no gate seen there: the leave walks back up the strip)"
+  "levels": [
+   {"name": "2", "area": [5581, 1225, 5689, 1363], "start": [5689, 1248, 0], "enter_via": [[1205, 2816], [5786, 1327]], "leave_gates": [[5672, 1277]], "note": "out by its crimson gate (5672, 1277), his second leave"},
+   {"name": "3", "default": true, "note": "the scenario's: the hunt on level 3, out by its crimson gate"},
+   {"name": "4", "area": [4825, 1744, 5000, 2073], "start": [4853, 2073, -3], "enter_via": [[1205, 2816], [5786, 1327], [5683, 1363], [5590, 985]], "note": "by level 3's north strip; no gate seen there: the leave walks back up the strip to level 3's crimson gate. Not runnable yet: all 16 runs died, most on level 3 on the way to the strip (docs/SIM.md)"}
+  ],
+  "note": "run.py's defaults: recall to the 'Ossuary' row outside, in by the entrance, through level 1 to its west end and level 2 to its south end (Logan's way, 3 of 3 visits), the hunt on level 3, out by its crimson gate (5577, 1095) to Totem as Logan left twice, then the recall home. Levels 2 and 4: `levels` (run.py --level)"
  },
  "spawns": [
   {

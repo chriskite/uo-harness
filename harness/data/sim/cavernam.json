@@ -275,7 +275,12 @@
   "leave_gates": [[6059, 1020], [5957, 1097]],
   "gate_dest": "Totem",
   "heal_in_place": true,
-  "note": "run.py's defaults: recall to the 'Cavernam' row on level 1, west to its teleporter and through level 2 to its strip (Logan's way, 3 of 3 visits), the hunt on level 3, out by the easier of its crimson gates (6059, 1020) and (5957, 1097) to Totem as Logan left twice, then the recall home. Level 1 instead: --area 5895 498 6108 675 -- --leave-gate 6049 598 (its golden gate beside the arrival); level 2: --area 5886 743 6055 837 -- --enter-via 5895 605 --leave-gate 6011 780 --leave-gate 6039 831"
+  "levels": [
+   {"name": "1", "area": [5895, 498, 6108, 675], "start": [6049, 602, 0], "enter_via": [], "leave_gates": [[6049, 598]], "note": "the recall's level: no teleporter; out by its golden gate beside the arrival"},
+   {"name": "2", "area": [5886, 743, 6055, 837], "start": [6042, 787, 56], "enter_via": [[5895, 605]], "leave_gates": [[6011, 780], [6039, 831]], "note": "by level 1's west end; out by the easier of its crimson gates"},
+   {"name": "3", "default": true, "note": "the scenario's: through level 2 to its strip, the hunt on level 3, out by the easier of its crimson gates"}
+  ],
+  "note": "run.py's defaults: recall to the 'Cavernam' row on level 1, west to its teleporter and through level 2 to its strip (Logan's way, 3 of 3 visits), the hunt on level 3, out by the easier of its crimson gates (6059, 1020) and (5957, 1097) to Totem as Logan left twice, then the recall home. Levels 1 and 2: `levels` (run.py --level)"
  },
  "spawns": [
   {

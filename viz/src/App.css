@@ -2849,6 +2849,17 @@ tr.spot-out td {
 .sim-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; cursor: pointer; }
 .sim-check.disabled { opacity: 0.5; cursor: not-allowed; }
 .sim-note { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+/* option rows (run.py's, the runner's, --set): flag, value, help under it */
+.sim-args { display: flex; flex-direction: column; gap: 4px; }
+.sim-args > .sim-sub { margin: 4px 0 0; }
+.sim-arg { border-left: 2px solid var(--border); padding-left: 6px; }
+.sim-arg-flag { font-size: 12px; color: var(--gold); }
+.sim-arg-value { flex: 1; min-width: 12ch; font-family: var(--mono); }
+.sim-arg-help {
+  margin: 1px 0 0; font-size: 11px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.sim-arg-help:hover { -webkit-line-clamp: unset; }
+.sim-add > input[type="text"] { flex: 1; min-width: 20ch; font-family: var(--mono); }
 .sim-job { border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; }
 .sim-job > summary { cursor: pointer; font-size: 12.5px; }
 .sim-job > summary > * { margin-right: 8px; }

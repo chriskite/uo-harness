@@ -1,6 +1,6 @@
 """Run the hunt runner against the simulator (docs/SIM.md "Running").
 
-    python harness/sim/run.py [--scenario mausoleum] [--seed 1] [--minutes 30] [--runs 1] [--jobs 4]
+    python harness/sim/run.py [--scenario mausoleum] [--level NAME] [--seed 1] [--minutes 30] [--runs 1] [--jobs 4]
                               [--team TEAM] [--bestiary LOADOUT]
                               [--log FILE] [--json] [--trace [DIR]] -- <loop_hunt arguments>
 
@@ -10,8 +10,10 @@ a fresh temporary SQLite file. The character starts at home with its pets (the s
 row) and recalls in, as a live trip does; `--at-hunt` starts on the hunting level instead (then the run
 ends at the first leave). Defaults added to the runner's arguments unless given: `--pets
 --leave-recall <the scenario's tome> --enter-recall <it> --enter-rune <the hunting row> --crawl
---timeout <minutes x 60> --no-drop-off`, and the scenario runner block's `--enter-via` teleporters unless any is given
-(`--no-enter-via`: none, a hunt on the level the recall lands on). Several runs (`--runs N`, seeds seed..seed+N-1) go to
+--timeout <minutes x 60> --no-drop-off`, and the scenario runner block's `--enter-via` teleporters (with its `--fight-via`
+ones) unless any is given (`--no-enter-via`: none, a hunt on the level the recall lands on), its `--leave-gate`s (with
+its `--leave-via`) unless any is given. `--level NAME`: another of the dungeon's levels (the runner block's `levels`,
+scenario.select_level): its area, arrival and ways in and out instead of the scenario's. Several runs (`--runs N`, seeds seed..seed+N-1) go to
 a pool of `--jobs` processes; the table (or `--json` lines) lists one summary per run. `--trace` records each run's
 trace (sim/trace.py) to DIR (default logs/sim_traces) for the viz Sim page. `--team` / `--bestiary`: Logan's pets and
 Taming Bestiary loadout instead of the scenario's (sim/pets.py; docs/SIM.md "Pets, teams and perks"); the runner gets
@@ -57,6 +59,9 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
         if "--leave-gate" not in have:
             for x, y in rn["leave_gates"]:
                 out += ["--leave-gate", str(x), str(y)]
+            if "--leave-via" not in have:
+                for x, y in rn.get("leave_via") or []:
+                    out += ["--leave-via", str(x), str(y)]
         defaults.append(("--gate-dest", [rn["gate_dest"]]))
     if not at_hunt:
         defaults += [("--enter-recall", [tome]), ("--enter-rune", [hunt_row])]
@@ -66,6 +71,9 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     if not at_hunt and "--enter-via" not in have and "--no-enter-via" not in have:
         for x, y in rn.get("enter_via") or []:
             out += ["--enter-via", str(x), str(y)]
+        if "--fight-via" not in have:
+            for x, y in rn.get("fight_via") or []:
+                out += ["--fight-via", str(x), str(y)]
     if rn.get("heal_in_place") and "--heal-in-place" not in have and "--no-heal-in-place" not in have:
         out.append("--heal-in-place")
     if "--crawl-avoid" not in have and "--no-crawl-avoid" not in have:
@@ -103,7 +111,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
              eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
              trace: str | None = None, area: tuple | None = None, armor: dict | None = None,
              instrument: str | None = None, team: str | None = None, bestiary: str | None = None,
-             levels: tuple = (), links: str | None = None) -> dict:
+             levels: tuple = (), links: str | None = None, dungeon_level: str | None = None) -> dict:
     """One simulated hunt; the summary dict. The runner starts at home and recalls in, or (at_hunt)
     on the hunting level. `sets`: "module.NAME=value" overrides of runner constants for this run
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
@@ -120,7 +128,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     Logan's pets (a preset or pet names) and bestiary loadout (a name, "none" or a .json file) instead of the
     scenario's (--team / --bestiary, sim/pets.select); `levels`: "NAME=LEVEL" for pets at another level than their
     Guide's (--pet-level: a past window's). `links`: a Mastery Chain spec instead of Logan's chain (--links,
-    sim/chain.py)."""
+    sim/chain.py). `dungeon_level`: hunt this level of the dungeon (--level, scenario.select_level) instead of the
+    scenario's; `area` still overrides its box."""
     import ast
     import importlib
     import loop_hunt
@@ -132,7 +141,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     from sim import clock as simclock
     from sim.link import SimLink
     from sim import chain, pets
-    from sim.scenario import bard_eff, load, play
+    from sim.scenario import bard_eff, load, play, select_level
     from sim.world import World
 
     for s in sets:
@@ -143,6 +152,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             raise ValueError(f"--set {s}: {mod} has no {attr}")
         setattr(m, attr, ast.literal_eval(value))
     sc = load(scenario)
+    select_level(sc, dungeon_level)
     if not at_hunt:
         sc["player"]["start"] = sc["recall"]["rows"][0]["at"]
     for flag, on in (("others", others), ("eerie", eerie), ("reds", reds)):
@@ -168,7 +178,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     link = SimLink(world, clock)
     tracer, stdout = None, sys.stdout
     if trace:
-        tracer = simtrace.Tracer(world, trace, label=scenario, seed=seed,
+        tracer = simtrace.Tracer(world, trace, label=scenario + (f" level {dungeon_level}" if dungeon_level else ""),
+                                 seed=seed,
                                  runner_args=runner_args(sc, rargs, minutes, at_hunt), epoch=epoch)
         sys.stdout = tracer.tee(sys.stdout)
     if db is None:
@@ -215,7 +226,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     store.close()
     m = world.metrics
     pl = world.player
-    r = {"seed": seed, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
+    r = {"seed": seed, "level": dungeon_level, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
             "wall_s": round(wall, 2), "speed_x": round(clock.elapsed / wall, 1) if wall else None,
             "kills": m["kills"], "kills_by": m["kills_by"], "gold_looted": m["gold_looted"],
             # banked: what reached home (World._land); lost: what a death left on the corpse
@@ -302,7 +313,7 @@ def _pool_run(job):
     out_all = []
     epoch = EPOCH
     for k, (seed, extra, scenario, minutes, log, at_hunt, sets, others, eerie, prior, reds, trace, area,
-            armor, instrument, team, bestiary, levels, links) in enumerate(runs):
+            armor, instrument, team, bestiary, levels, links, dungeon_level) in enumerate(runs):
         if career is not None and k == 0 and prior:
             from sim.scenario import load
             seed_prior(db, prior, load(scenario)["player"]["serial"])
@@ -313,7 +324,8 @@ def _pool_run(job):
             r = run_once(seed, extra, scenario, minutes, at_hunt, sets, db=db if career is not None else None,
                          others=others, eerie=eerie, epoch=epoch if career is not None else EPOCH,
                          prior=prior if career is None else None, reds=reds, trace=trace, area=area, armor=armor,
-                         instrument=instrument, team=team, bestiary=bestiary, levels=levels, links=links)
+                         instrument=instrument, team=team, bestiary=bestiary, levels=levels, links=links,
+                         dungeon_level=dungeon_level)
         finally:
             sys.stdout = old
             out.close()
@@ -322,14 +334,13 @@ def _pool_run(job):
     return out_all
 
 
-def main(argv=None):
-    argv = sys.argv[1:] if argv is None else argv
-    extra = []
-    if "--" in argv:
-        i = argv.index("--")
-        argv, extra = argv[:i], argv[i + 1:]
+def arg_parser() -> argparse.ArgumentParser:
+    """run.py's options (the viz Sim page offers them: sim/simjobs.py)."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--scenario", default="mausoleum")
+    ap.add_argument("--level", default=None, metavar="NAME",
+                    help="hunt this level of the dungeon instead of the scenario's (the runner block's `levels`: its "
+                         "area, arrival and ways in and out; e.g. Tidal Tomb's 2)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--jobs", type=int, default=max(1, cpu_budget.workers() - 1),
@@ -389,7 +400,23 @@ def main(argv=None):
     ap.add_argument("--pet-level", action="append", default=[], metavar="NAME=LEVEL",
                     help="a pet at this level instead of its Guide's (repeatable): a past window's, for a comparison "
                          "with the live runs then (docs/SIM.md 'Recalibrating')")
+    return ap
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    extra = []
+    if "--" in argv:
+        i = argv.index("--")
+        argv, extra = argv[:i], argv[i + 1:]
+    ap = arg_parser()
     a = ap.parse_args(argv)
+    if a.level:
+        from sim.scenario import load, select_level
+        try:
+            select_level(load(a.scenario), a.level)     # refused here, not in every pool worker
+        except ValueError as e:
+            ap.error(f"--level: {e}")
     if a.instrument:
         from sim.scenario import load, play
         try:
@@ -425,7 +452,7 @@ def main(argv=None):
              tuple(a.set), a.others, a.eerie, a.prior, a.reds,
              simtrace.path_for(a.trace, st, a.scenario, s) if a.trace else None, tuple(a.area) if a.area else None,
              {"ar": a.armor, "aspect_tier": a.aspect_tier}, a.instrument, a.team, a.bestiary, tuple(a.pet_level),
-             a.links)
+             a.links, a.level)
             for s in seeds]
     n = len(jobs) if a.fresh else max(1, min(a.careers or DEFAULT_CAREERS, len(jobs)))
     careers = [(None if a.fresh else c, jobs[c::n]) for c in range(n)]

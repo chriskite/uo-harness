@@ -28,7 +28,8 @@ Per creature type, in this order of evidence:
 `player_armor(sc)` resolves the player's AR, aspect and tier from `player.armor`; `load` puts the character's Mastery
 Chain in (sim/chain.apply) and builds Logan's pets last (sim/pets.select: the scenario's `tamer` block). The barding
 numbers come from the effective barding skill (`bard_eff`: skill + instrument quality + the chain's Effective Barding;
-docs/SIM.md "Barding from the effective skill"): `bard_chance`, `bard_secs`, `song_share`.
+docs/SIM.md "Barding from the effective skill"): `bard_chance`, `bard_secs`, `song_share`. `select_level` hunts another of the
+dungeon's levels (the runner block's `levels`, run.py --level).
 """
 from __future__ import annotations
 
@@ -158,6 +159,35 @@ def play(sc: dict, name: str) -> None:
     if name not in have:
         raise ValueError(f"no instrument quality {name!r} (one of: {', '.join(have)})")
     sc["bard"]["instrument"] = name
+
+
+LEVEL_RUNNER_KEYS = ("enter_via", "fight_via", "leave_gates", "leave_via")
+
+
+def levels(sc: dict) -> list[dict]:
+    """The dungeon's levels a run can hunt (the runner block's `levels`): each {name, note, default?, area?, start?,
+    enter_via?, fight_via?, leave_gates?, leave_via?}."""
+    return (sc.get("runner") or {}).get("levels") or []
+
+
+def select_level(sc: dict, name: str | None) -> None:
+    """Hunt the level `name` (run.py --level): its `area` (the per-hour numbers' box), its arrival `start` (where
+    --at-hunt starts) and the ways in and out it names (`enter_via`, `fight_via`, `leave_gates`, `leave_via`: run.py's
+    runner defaults) instead of the scenario's; a key it lacks stays the scenario's. None: as it is. ValueError for a
+    level the scenario hasn't."""
+    if not name:
+        return
+    lv = next((v for v in levels(sc) if v["name"] == name), None)
+    if lv is None:
+        have = ", ".join(v["name"] for v in levels(sc)) or "none"
+        raise ValueError(f"scenario {sc['name']} has no level {name!r} (levels: {have})")
+    if "area" in lv:
+        sc["area"] = list(lv["area"])
+    if "start" in lv:
+        sc["player"]["start"] = list(lv["start"])
+    for k in LEVEL_RUNNER_KEYS:
+        if k in lv:
+            sc["runner"][k] = [list(p) for p in lv[k]]
 
 
 def bard_difficulty(b: dict, data_dir: str = DATA) -> dict:

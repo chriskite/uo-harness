@@ -1905,6 +1905,50 @@ def test_leave_pet_out_of_view():
 
 
 
+def test_levels():
+    print("== run.py --level: each scenario's levels arrive where their last teleporter lands; a level's ways in and out "
+          "become the runner's defaults, given ones win ==")
+    from sim import run as simrun
+    from sim.scenario import levels, select_level
+    for name in ("mausoleum", "tidal_tomb", "ossuary", "cavernam"):
+        sc = load(name)
+        lvs = levels(sc)
+        tps = {tuple(t["from"]): t["to"] for t in sc["teleporters"]}
+        bad = []
+        for lv in lvs:
+            if lv.get("default"):
+                continue
+            via = lv.get("enter_via", sc["runner"].get("enter_via") or [])
+            missing = [p for p in via if tuple(p) not in tps]
+            arrival = tps.get(tuple(via[-1])) if via else sc["recall"]["rows"][1]["at"]
+            if missing or "area" not in lv or lv.get("start") != arrival:
+                bad.append((lv["name"], missing, lv.get("start"), arrival))
+        check(f"{name}: one level is the scenario's own, every other has an area and starts on its arrival",
+              sum(1 for lv in lvs if lv.get("default")) == 1 and not bad, str(bad))
+    sc = load("tidal_tomb")
+    select_level(sc, "3")
+    pairs = lambda args, flag: [args[i + 1:i + 3] for i, a in enumerate(args) if a == flag]  # noqa: E731
+    walk = simrun.runner_args(sc, [], 10)
+    at = simrun.runner_args(sc, [], 10, at_hunt=True)
+    own = simrun.runner_args(sc, ["--enter-via", "6718", "1984", "--leave-gate", "6913", "2071"], 10)
+    check("level 3: in by both strips, level 2 fought through, out up the strip to level 2's gate",
+          pairs(walk, "--enter-via") == [["6609", "2060"], ["6884", "1929"]]
+          and pairs(walk, "--fight-via") == [["6884", "1929"]] and pairs(walk, "--leave-gate") == [["6897", "1992"]]
+          and pairs(walk, "--leave-via") == [["7161", "2221"]] and sc["area"] == [7047, 1906, 7257, 2223], str(walk))
+    check("--at-hunt: no way in, the start on level 3's arrival",
+          "--enter-via" not in at and "--fight-via" not in at and sc["player"]["start"] == [7162, 2221, -50], str(at))
+    check("given ways in and out replace the level's (no --fight-via or --leave-via of its own left)",
+          pairs(own, "--enter-via") == [["6718", "1984"]] and "--fight-via" not in own and "--leave-via" not in own
+          and pairs(own, "--leave-gate") == [["6913", "2071"]], str(own))
+    try:
+        select_level(load("mausoleum"), "2")
+        refused = None
+    except ValueError as e:
+        refused = str(e)
+    check("a level the scenario hasn't is refused, naming the ones it has", refused is not None and "3" in refused,
+          str(refused))
+
+
 def test_instrument():
     print("== the instrument last played is gone: the prompt answered with one from the pack (a lap harp, a psaltery, a "
           "shawm, a vielle); none: skills off, and no recall in ==")
@@ -7658,7 +7702,7 @@ def main():
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
               test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
-              test_instrument, test_recall_charges,
+              test_instrument, test_levels, test_recall_charges,
               test_standoff_sight, test_standoff_ties, test_pet_death_readout,
               test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,

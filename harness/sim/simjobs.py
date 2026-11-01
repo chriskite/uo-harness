@@ -2,37 +2,55 @@
 scripted fight (sim/fight*.py) as a child process, one at a time, with the options the page picked, writing their traces
 to the Sim page's trace dir.
 
+The page's choices come from the code itself, so it never needs updating by hand: the scenarios and their dungeon levels
+(the runner block's `levels`, run.py --level), run.py's options and the hunt runner's (their argparse parsers:
+`run_schema`, `runner_schema`), the runner modules' constants for `--set` (`constants`: the UPPER_CASE literals at the
+top of loop_hunt.py and the harness modules it imports, with their comments) and each fight script's usage line. The
+arguments the page sends are checked by those same parsers.
+
 Offline only: the child is the simulator and the runner against it (docs/SIM.md); nothing reaches the game. A batch
 (run.py --runs > 1) keeps itself off the game's CPUs (cpu_budget.limit); a single run or a fight script is one process.
 Jobs live in memory (the newest MAX_JOBS); their traces stay in the trace dir.
 """
 from __future__ import annotations
 
+import argparse
+import ast
 import collections
 import glob
 import json
 import os
 import re
-import shlex
 import signal
 import subprocess
 import sys
 import threading
 import time
+import tokenize
 
 from sim import pets
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(os.path.dirname(HERE))
-DATA = os.path.join(os.path.dirname(HERE), "data", "sim")
+HARNESS = os.path.dirname(HERE)
+REPO = os.path.dirname(HARNESS)
+DATA = os.path.join(HARNESS, "data", "sim")
 MAX_JOBS = 20
 OUT_LINES = 200
 MAX_SEEDS = 500
 MAX_ARGS = 60
-DEFAULTS = {"scenario": "mausoleum", "seed": 1, "runs": 1, "minutes": 30, "at_hunt": False, "others": False,
-            "eerie": False, "reds": False, "prior": False, "fresh": False, "careers": 0, "trace": True, "sets": [],
-            "runner_args": "", "team": "", "bestiary": ""}
+DEFAULTS = {"scenario": "mausoleum", "level": "", "seed": 1, "runs": 1, "minutes": 30, "at_hunt": False,
+            "others": False, "eerie": False, "reds": False, "prior": False, "fresh": False, "careers": 0, "trace": True,
+            "sets": [], "run_args": [], "runner_args": [], "team": "", "bestiary": ""}
 LIMITS = {"seed": [0, 1_000_000], "runs": [1, 288], "minutes": [0.5, 240], "careers": [0, 64]}
+# run.py's options the page sets with its own fields (or that are plumbing: the log, --json's output the page doesn't
+# read, --jobs past the CPU budget), so not among its other options
+RUN_OWN = {"--scenario", "--level", "--seed", "--runs", "--minutes", "--at-hunt", "--others", "--eerie", "--reds",
+           "--prior", "--fresh", "--careers", "--trace", "--set", "--team", "--bestiary", "--log", "--json", "--jobs",
+           "-h", "--help"}
+# the runner's options run.py sets itself (--timeout from the minutes), or that mean nothing against the simulator
+RUNNER_OWN = {"--memory", "--seed", "--timeout", "--control-port", "--state-port", "--char", "-h", "--help"}
+RUNNER_MODULE = "loop_hunt"
+_CONST = re.compile(r"^[A-Z][A-Z0-9_]*$")
 _SET = re.compile(r"^[A-Za-z_][\w.]*\.[A-Za-z_]\w*=.+$")
 _SEEDS = re.compile(r"^\s*\d+(\s*-\s*\d+)?(\s*,\s*\d+(\s*-\s*\d+)?)*\s*$")
 _USAGE = re.compile(r"^\s*python harness/sim/(fight\w+)\.py (.*)$", re.M)
@@ -44,9 +62,206 @@ class BadRequest(ValueError):
     """An option the page sent that can't be run; the message names it."""
 
 
+def _scenario_files() -> dict[str, dict]:
+    """Each scenario's JSON by name (a data/sim file with spawns: not its wiki stats, observations or other tables)."""
+    out = {}
+    for p in sorted(glob.glob(os.path.join(DATA, "*.json"))):
+        if re.search(r"_(kb|observed)\.json$", p):
+            continue
+        with open(p, encoding="utf-8") as f:
+            sc = json.load(f)
+        if "spawns" in sc:
+            out[os.path.basename(p)[:-5]] = sc
+    return out
+
+
 def scenarios() -> list[str]:
-    return sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(DATA, "*.json"))
-                  if not re.search(r"_(kb|observed)\.json$", p))
+    return list(_scenario_files())
+
+
+def levels() -> dict[str, list[dict]]:
+    """Per scenario, the dungeon levels run.py --level can hunt (sim/scenario.levels): name, note, area and whether it
+    is the scenario's own."""
+    return {name: [{"name": lv["name"], "default": bool(lv.get("default")), "note": lv.get("note", ""),
+                    "area": lv.get("area") or sc.get("area")}
+                   for lv in (sc.get("runner") or {}).get("levels") or []]
+            for name, sc in _scenario_files().items()}
+
+
+def _jsonable(v):
+    if v is None or isinstance(v, (bool, int, float, str)):
+        return v
+    if isinstance(v, (list, tuple, range)):
+        return [_jsonable(x) for x in v]
+    return str(v)
+
+
+def parser_schema(ap: argparse.ArgumentParser, own: set[str]) -> list[dict]:
+    """An argparse parser's options for the page, but those in `own`: per option its flag, help, whether it repeats,
+    and its kind: "flag" (no value), "bool" (--x / its `off` --no-x, `default` the parser's) or "value" (`nargs` a
+    count or "?"/"*"/"+", `metavar` per value, `choices` or null, `default`)."""
+    fmt = ap._get_formatter()
+    out = []
+    for a in ap._actions:
+        if not a.option_strings or own & set(a.option_strings):
+            continue
+        flag = next((s for s in a.option_strings if s.startswith("--")), a.option_strings[0])
+        try:
+            help_text = fmt._expand_help(a) if a.help else ""
+        except (KeyError, TypeError, ValueError):
+            help_text = a.help or ""
+        e = {"flag": flag, "help": help_text, "repeat": isinstance(a, argparse._AppendAction)}
+        if isinstance(a, argparse.BooleanOptionalAction):
+            e |= {"kind": "bool", "off": next(s for s in a.option_strings if s.startswith("--no-")),
+                  "default": a.default}
+        elif a.nargs == 0:
+            e |= {"kind": "flag"}
+        else:
+            n = 1 if a.nargs is None else a.nargs
+            mv = a.metavar if isinstance(a.metavar, tuple) else \
+                (a.metavar or a.dest.upper(),) * (n if isinstance(n, int) else 1)
+            e |= {"kind": "value", "nargs": n, "metavar": list(mv),
+                  "choices": None if a.choices is None else [str(c) for c in a.choices], "default": _jsonable(a.default)}
+        out.append(e)
+    return out
+
+
+def _run_parser() -> argparse.ArgumentParser:
+    from sim import run
+    return run.arg_parser()
+
+
+def _runner_parser() -> argparse.ArgumentParser:
+    import loop_hunt
+    return loop_hunt.arg_parser()
+
+
+def run_schema() -> list[dict]:
+    """run.py's options the page has no field of its own for (--area, --armor, --instrument, --links, ...)."""
+    return parser_schema(_run_parser(), RUN_OWN)
+
+
+def runner_schema() -> list[dict]:
+    """The hunt runner's options (loop_hunt.arg_parser), the arguments after run.py's `--`."""
+    return parser_schema(_runner_parser(), RUNNER_OWN)
+
+
+def _check_args(ap: argparse.ArgumentParser, args, own: set[str], what: str) -> list[str]:
+    """`args` (a list of strings) as `ap` parses them, none of `own`; BadRequest naming what's wrong."""
+    if not isinstance(args, list) or any(not isinstance(a, str) for a in args) or len(args) > MAX_ARGS:
+        raise BadRequest(f"{what}: a list of at most {MAX_ARGS} arguments")
+    for a in args:
+        if a == "--":
+            raise BadRequest(f"{what}: no '--'")
+        flag = a.split("=", 1)[0]
+        if a.startswith("--") and flag not in ap._option_string_actions:
+            raise BadRequest(f"{what}: unknown option {flag}")      # no abbreviations: `own` must hold
+        if a.startswith("-") and flag in own:
+            raise BadRequest(f"{what}: {flag} isn't one the page passes here")
+
+    def error(msg):
+        raise BadRequest(f"{what}: {msg}")
+    ap.error = error
+    ap.parse_args(args)
+    return list(args)
+
+
+def _comments(src: str) -> dict[int, str]:
+    """Line number -> the comment on it."""
+    out = {}
+    try:
+        for tok in tokenize.generate_tokens(iter(src.splitlines(keepends=True)).__next__):
+            if tok.type == tokenize.COMMENT:
+                out[tok.start[0]] = tok.string.lstrip("#").strip()
+    except (tokenize.TokenError, SyntaxError):
+        pass
+    return out
+
+
+def _module_constants(mod: str, path: str) -> list[dict]:
+    """A module's top-level UPPER_CASE names bound to a literal: {name: module.NAME, value: as `--set` takes it (the
+    source when on one line), doc: its comment (the one on its lines and the indented comment lines after, else the
+    comment block right above)}."""
+    with open(path, encoding="utf-8") as f:
+        src = f.read()
+    tree = ast.parse(src)
+    lines = src.splitlines()
+    comments = _comments(src)
+    out = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            name = node.targets[0].id
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:
+            name = node.target.id
+        else:
+            continue
+        if not _CONST.match(name):
+            continue
+        try:
+            v = ast.literal_eval(node.value)
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+            continue
+        seg = ast.get_source_segment(src, node.value) or ""
+        value = seg if "\n" not in seg else repr(v)
+        doc = [comments[i] for i in range(node.lineno, node.end_lineno + 1) if i in comments]
+        i = node.end_lineno + 1
+        while doc and i <= len(lines) and lines[i - 1][:1].isspace() and lines[i - 1].strip().startswith("#"):
+            doc.append(comments.get(i, lines[i - 1].strip().lstrip("#").strip()))
+            i += 1
+        if not doc:
+            i = node.lineno - 1
+            while i >= 1 and lines[i - 1].startswith("#"):
+                doc.insert(0, comments.get(i, ""))
+                i -= 1
+        out.append({"name": f"{mod}.{name}", "value": value, "doc": " ".join(d for d in doc if d)})
+    return out
+
+
+_constants_cache: tuple[tuple, list[dict]] | None = None
+
+
+def runner_modules() -> list[tuple[str, str]]:
+    """(module, path): loop_hunt and the harness modules it imports, the ones a run's `--set` reaches."""
+    path = os.path.join(HARNESS, f"{RUNNER_MODULE}.py")
+    with open(path, encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    names = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            names |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names.add(node.module.split(".")[0])
+    mods = [(RUNNER_MODULE, path)]
+    for n in sorted(names):
+        p = os.path.join(HARNESS, f"{n}.py")
+        if os.path.exists(p):
+            mods.append((n, p))
+    return mods
+
+
+def constants() -> list[dict]:
+    """The runner modules' constants (`_module_constants`), read again when a module file changes."""
+    global _constants_cache
+    mods = runner_modules()
+    key = tuple((m, os.path.getmtime(p)) for m, p in mods)
+    if _constants_cache is None or _constants_cache[0] != key:
+        _constants_cache = (key, [c for m, p in mods for c in _module_constants(m, p)])
+    return _constants_cache[1]
+
+
+def _check_sets(sets) -> list[str]:
+    if not isinstance(sets, list) or not all(isinstance(s, str) and _SET.match(s.strip()) for s in sets):
+        raise BadRequest("sets: lines of module.NAME=value")
+    out = []
+    for s in sets:
+        s = s.strip()
+        try:
+            ast.literal_eval(s.split("=", 1)[1])
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+            raise BadRequest(f"sets: {s}: the value isn't a Python literal (a number, True/False, None, a quoted "
+                             f"string, a tuple ...)") from None
+        out.append(s)
+    return out
 
 
 def fights() -> list[dict]:
@@ -115,8 +330,10 @@ class SimJobs:
     # ------------------------------------------------------------ the page's choices
     def options(self) -> dict:
         prior = bool(self.prior_db) and os.path.exists(self.prior_db)
-        return {"scenarios": scenarios(), "prior": {"available": prior, "path": self.prior_db or ""},
-                "run": {"defaults": DEFAULTS, "limits": LIMITS}, "fights": fights(), "tamer": pets.options()}
+        lv = levels()
+        return {"scenarios": list(lv), "levels": lv, "prior": {"available": prior, "path": self.prior_db or ""},
+                "run": {"defaults": DEFAULTS, "limits": LIMITS}, "run_args": run_schema(),
+                "runner_args": runner_schema(), "constants": constants(), "fights": fights(), "tamer": pets.options()}
 
     def argv(self, req: dict) -> tuple[str, str, list[str]]:
         """(kind, label, argv after the interpreter) for a POST body; BadRequest when it can't run."""
@@ -128,13 +345,18 @@ class SimJobs:
             unknown = set(o) - set(DEFAULTS)
             if unknown:
                 raise BadRequest(f"unknown option {sorted(unknown)[0]!r}")
+            lv = levels()
             sc = o.get("scenario", DEFAULTS["scenario"])
-            if sc not in scenarios():
-                raise BadRequest(f"scenario: one of {scenarios()}")
+            if sc not in lv:
+                raise BadRequest(f"scenario: one of {list(lv)}")
+            level = o.get("level", "")
+            names = [v["name"] for v in lv[sc]]
+            if not isinstance(level, str) or (level and level not in names):
+                raise BadRequest(f"level: one of {names} or '' (the scenario's)")
             seed, runs = _num(o, "seed", int), _num(o, "runs", int)
             minutes, careers = _num(o, "minutes", float), _num(o, "careers", int)
             args = [os.path.join("harness", "sim", "run.py"), "--scenario", sc, "--seed", str(seed), "--runs", str(runs),
-                    "--minutes", f"{minutes:g}"]
+                    "--minutes", f"{minutes:g}"] + (["--level", level] if level else [])
             for k, flag in (("at_hunt", "--at-hunt"), ("others", "--others"), ("eerie", "--eerie"), ("reds", "--reds"),
                             ("fresh", "--fresh")):
                 if _flag(o, k):
@@ -161,23 +383,16 @@ class SimJobs:
                 if not (self.prior_db and os.path.exists(self.prior_db)):
                     raise BadRequest("prior: no live store here")
                 args += ["--prior", self.prior_db]
-            sets = o.get("sets", [])
-            if not isinstance(sets, list) or not all(isinstance(s, str) and _SET.match(s.strip()) for s in sets):
-                raise BadRequest("sets: lines of module.NAME=value")
-            for s in sets:
-                args += ["--set", s.strip()]
+            for s in _check_sets(o.get("sets", [])):
+                args += ["--set", s]
             if _flag(o, "trace"):
                 args += ["--trace", self.trace_dir]
-            ra = o.get("runner_args", "")
-            try:
-                extra = shlex.split(ra) if isinstance(ra, str) else None
-            except ValueError as e:
-                raise BadRequest(f"runner_args: {e}") from None
-            if extra is None or len(extra) > MAX_ARGS:
-                raise BadRequest(f"runner_args: text, at most {MAX_ARGS} words")
+            args += _check_args(_run_parser(), o.get("run_args", []), RUN_OWN, "run_args")
+            extra = _check_args(_runner_parser(), o.get("runner_args", []), RUNNER_OWN, "runner_args")
             if extra:
                 args += ["--", *extra]
-            label = f"run.py {sc} seed {seed}" + (f"-{seed + runs - 1}" if runs > 1 else "") + f", {minutes:g} min"
+            label = f"run.py {sc}" + (f" level {level}" if level else "") + f" seed {seed}" \
+                + (f"-{seed + runs - 1}" if runs > 1 else "") + f", {minutes:g} min"
             return "run", label, args
         if kind == "fight":
             spec = next((f for f in fights() if f["name"] == req.get("fight")), None)

@@ -1226,6 +1226,24 @@ alone, as §2.11.
   headless Chrome (Playwright, 1600×1000) against a private `viz_server.py --live --state-port 1`: both selects listed,
   a run of `nightmare_fire` with Nightmare/Fire started with `--team nightmare_fire --bestiary Nightmare/Fire` and its
   trace held the three pets.
+- **Options from the code, levels** (added 2026-10-31, user request: "control the options of the simulator more easily,
+  rather than needing to remember module variables and runner args myself ... let me select things like 'run level 2
+  only'"): a **level** select after the scenario's (`run.py --level`, the scenario runner block's `levels`, its note and
+  box under the row); **run.py options** (the ones without a field: `--area`, `--armor`, `--aspect-tier`,
+  `--instrument`, `--links`, `--pet-level`, `--compare`, `--death-downtime-min`) and **runner options (after --)**
+  (every `loop_hunt` option but those run.py sets: `--memory`, `--seed`, `--timeout`, the ports, `--char`) as rows: pick
+  one from the filtering list (its default filled in; an on/off option starts on the form that changes it) or paste a
+  command's tail (`-- --enter-via 6718 1984 --no-oxygen`), each row its value box (a select for choices and on/off) and
+  the option's help; **runner constants (--set)**: pick `module.NAME` from the UPPER_CASE literals of `loop_hunt.py` and
+  the harness modules it imports (its current value filled in, its comment under it) or type `module.NAME=value`.
+  Decision: the lists come from the parsers and the source (`simjobs.parser_schema` on `run.arg_parser()` /
+  `loop_hunt.arg_parser()`, `simjobs.constants` by `ast`, re-read when a module changes), not a hand-kept table, so a new
+  option or constant shows up without touching the page; the server checks the sent words with those same parsers
+  (exact flags only, no abbreviations), each `--set` value with `ast.literal_eval`. Verified 2026-10-31 in headless
+  Chromium against a private `viz_server.py --live --state-port 1 --port 8097`: Tidal Tomb level 2 with `--armor 118`,
+  pasted `-- --vet-range 5 --crawl-learn-s 180 --no-songs` and `tamer.VET_RANGE=3` started `run.py ... --level 2 --set
+  tamer.VET_RANGE=3 --armor 118 -- --vet-range 5 --crawl-learn-s 180 --no-songs`; its trace (label `tidal_tomb level
+  2`) entered by (6718, 1984) and left by level 2's crimson gate.
 
 ## 3. Parity principle
 

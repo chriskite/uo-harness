@@ -963,12 +963,32 @@ def test_sim_routes(logdir):
               "mausoleum" in opts["scenarios"] and opts["run"]["defaults"]["runs"] == 1
               and {"type": "flag", "arg": "--awake"} in f1820.get("options", [])
               and {"type": "choice", "args": ["level1", "level2"]} in f1853.get("options", []), str(opts)[:300])
-        bad = [post(base + "/api/sim/jobs", b)[0] for b in (
+        runner = {a["flag"]: a for a in opts["runner_args"]}
+        via, songs = runner.get("--enter-via", {}), runner.get("--songs", {})
+        check("GET /api/sim/options: the scenarios' levels, run.py's other options and the runner's from their parsers "
+              "(not those run.py sets), the runner modules' constants",
+              "mastery_links" not in opts["scenarios"]
+              and [lv["name"] for lv in opts["levels"]["tidal_tomb"]] == ["1", "2", "3", "marinerbane"]
+              and "--area" in {a["flag"] for a in opts["run_args"]} and "--seed" not in {a["flag"] for a in opts["run_args"]}
+              and via.get("nargs") == 2 and via.get("repeat") is True and via.get("metavar") == ["X", "Y"]
+              and songs.get("kind") == "bool" and songs.get("off") == "--no-songs"
+              and "--memory" not in runner and "--timeout" not in runner
+              and {"name": "tamer.VET_RANGE", "value": "2"}.items()
+              <= next((c for c in opts["constants"] if c["name"] == "tamer.VET_RANGE"), {}).items(),
+              f"{opts['levels'].get('tidal_tomb')} {via} {songs}")
+        bad = [post(base + "/api/sim/jobs", b) for b in (
             {"kind": "run", "options": {"runs": 0}}, {"kind": "run", "options": {"nope": 1}},
             {"kind": "run", "options": {"sets": ["rm -rf"]}}, {"kind": "fight", "fight": "fight2227", "seeds": "1;2"},
             {"kind": "fight", "fight": "fight2227", "args": ["--harness"]}, {"kind": "fight", "fight": "x"},
-            {"kind": "shell"})]
-        check("POST /api/sim/jobs: an out-of-range, unknown or unlisted option 400", bad == [400] * 7, str(bad))
+            {"kind": "shell"}, {"kind": "run", "options": {"scenario": "tidal_tomb", "level": "9"}},
+            {"kind": "run", "options": {"runner_args": ["--memory", "x.db"]}},
+            {"kind": "run", "options": {"runner_args": ["--enter-via", "1"]}},
+            {"kind": "run", "options": {"runner_args": ["--enter-v", "1", "2"]}},
+            {"kind": "run", "options": {"run_args": ["--jobs", "30"]}},
+            {"kind": "run", "options": {"sets": ["tamer.VET_RANGE=five"]}})]
+        check("POST /api/sim/jobs: an out-of-range, unknown or unlisted option 400 (a level the scenario hasn't, a runner "
+              "option run.py sets, a value miscounted, an abbreviation, --jobs, a --set value not a literal)",
+              [c for c, _ in bad] == [400] * 13, str([(c, r.get("error")) for c, r in bad]))
         code, started = post(base + "/api/sim/jobs", {"kind": "fight", "fight": "fight2227", "seeds": "1", "trace": True})
         busy = post(base + "/api/sim/jobs", {"kind": "fight", "fight": "fight2227", "seeds": "2"})[0]
         job = started.get("job") or {}

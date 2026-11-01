@@ -104,12 +104,15 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       brown, else transparent (sim/viewmap.py); 404 outside the map, 503 no map files
   GET  /api/sim/los?from=x,y,z&to=x,y,z;x,y,z...  {"see": [bool]}: line of sight from one point to each of
                       at most SIM_LOS_MAX others (los.Sight.can_see); 400 a bad query
-  GET  /api/sim/options  what a simulator run can be started with (sim/simjobs.py): scenarios, run.py's
-                      option defaults and limits, the scripted fights (sim/fight*.py) with their options, whether
-                      the live store is there for --prior (--memory-db), and Logan's team presets and bestiary loadouts
+  GET  /api/sim/options  what a simulator run can be started with (sim/simjobs.py): scenarios and their dungeon
+                      levels (run.py --level), run.py's option defaults and limits, run.py's other options and the
+                      hunt runner's (from their argparse parsers), the runner modules' constants for --set, the
+                      scripted fights (sim/fight*.py) with their options, whether the live store is there for --prior
+                      (--memory-db), and Logan's team presets and bestiary loadouts
   GET  /api/sim/jobs  {jobs: [{id, kind, label, argv, status, started, ended, exit, traces, out}]}: the runs
                       started here, newest first; `out` the last 200 output lines, `traces` the files written
-  POST /api/sim/jobs  {"kind": "run", "options": {...}} or {"kind": "fight", "fight", "seeds", "args", "trace"}
+  POST /api/sim/jobs  {"kind": "run", "options": {..., "level", "sets", "run_args": [argv], "runner_args": [argv]}}
+                      or {"kind": "fight", "fight", "seeds", "args", "trace"}
                       -> {"ok": true, job}: run.py / a fight script as a child process, one at a time; 400 a bad
                       option (named), 409 one already running
   POST /api/sim/jobs/cancel  {"id": N} -> {"ok": true}: stops it and its workers; 404 unknown, 409 not running

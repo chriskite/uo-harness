@@ -192,6 +192,8 @@ export interface TraceListing {
 /** run.py's options as /api/sim/jobs takes them (`careers` 0 = run.py's default). */
 export interface SimRunOptions {
   scenario: string;
+  /** --level: one of the scenario's `levels`; "" = the scenario's own hunting level. */
+  level: string;
   seed: number;
   runs: number;
   minutes: number;
@@ -205,8 +207,10 @@ export interface SimRunOptions {
   trace: boolean;
   /** run.py --set lines, `module.NAME=value`. */
   sets: string[];
-  /** Free text after `--` (split shell-style by the server). */
-  runner_args: string;
+  /** run.py's other options (`SimOptions.run_args`) as argv words. */
+  run_args: string[];
+  /** The hunt runner's options, after `--` (`SimOptions.runner_args`), as argv words. */
+  runner_args: string[];
   /** --team: a preset name or comma-separated pet names; "" = the scenario's team. */
   team: string;
   /** --bestiary: a loadout name or "none"; "" = the team's loadout. */
@@ -221,6 +225,36 @@ export interface SimRunLimits {
   careers: [number, number];
 }
 
+/** An argparse option (sim/simjobs.parser_schema): no value, an on/off pair, or `nargs` values. */
+export type SimArgSpec =
+  | { flag: string; help: string; repeat: boolean; kind: "flag" }
+  | { flag: string; help: string; repeat: boolean; kind: "bool"; off: string; default: boolean | null }
+  | {
+      flag: string;
+      help: string;
+      repeat: boolean;
+      kind: "value";
+      nargs: number | "?" | "*" | "+";
+      metavar: string[];
+      choices: string[] | null;
+      default: unknown;
+    };
+
+/** A dungeon level run.py --level can hunt; `default` the scenario's own. */
+export interface SimLevel {
+  name: string;
+  default: boolean;
+  note: string;
+  area: number[] | null;
+}
+
+/** A runner module constant `--set` can change: `module.NAME`, its value in the source, its comment. */
+export interface SimConstant {
+  name: string;
+  value: string;
+  doc: string;
+}
+
 export type SimFightOption = { type: "flag"; arg: string } | { type: "choice"; args: string[] };
 
 export interface SimFight {
@@ -233,9 +267,17 @@ export interface SimFight {
 
 export interface SimOptions {
   scenarios: string[];
+  /** Per scenario, its levels (empty: only its own). */
+  levels: Record<string, SimLevel[]>;
   /** The live store's hunt history for --prior. */
   prior: { available: boolean; path: string };
   run: { defaults: SimRunOptions; limits: SimRunLimits };
+  /** run.py's options without a field of their own (run.py's parser). */
+  run_args: SimArgSpec[];
+  /** The hunt runner's options (loop_hunt's parser), but those run.py sets. */
+  runner_args: SimArgSpec[];
+  /** The runner modules' constants for --set. */
+  constants: SimConstant[];
   fights: SimFight[];
   /** Logan's team presets and Taming Bestiary loadouts (the last is "none"). */
   tamer: { teams: { name: string; pets: string[]; bestiary: string }[]; bestiary: string[] };

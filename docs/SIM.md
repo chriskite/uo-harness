@@ -54,23 +54,17 @@ python harness/sim/kb_scan.py --location "Tidal Tomb" --out harness/data/sim/tid
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare     # Tidal Tomb's level 1, out by the easiest of its
                                                                        # three golden gates ("Tidal Tomb" below;
                                                                        # `-- --leave-gate 6652 2095` the arrival's alone)
-python harness/sim/run.py --scenario tidal_tomb --area 6815 1907 6969 2100 -- --enter-via 6718 1984 --leave-gate 6913 2071
-                                                                       # ... its level 2, under water
-python harness/sim/run.py --scenario tidal_tomb --area 7047 1906 7257 2223 -- --enter-via 6609 2060 --enter-via 6884 1929 \
-    --fight-via 6884 1929 --leave-gate 6897 1992 --leave-via 7161 2221   # ... its level 3, level 2 fought through
-python harness/sim/run.py --scenario tidal_tomb --area 7350 1936 7427 1981 -- --enter-via 6609 2060 \
-    --enter-via 6821 1909 --fight-via 6821 1909 --enter-via 7058 2008 --leave-gate 7107 2055 --leave-via 7425 1958
-                                                                       # ... Marinerbane's room, by level 3's west entrance
+python harness/sim/run.py --scenario tidal_tomb --level 2               # ... its level 2, under water (the scenario's
+                                                                       # runner `levels`: area, arrival, ways in and out)
+python harness/sim/run.py --scenario tidal_tomb --level 3               # ... its level 3, level 2 fought through
+python harness/sim/run.py --scenario tidal_tomb --level marinerbane     # ... Marinerbane's room, by level 3's west entrance
 python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument "eminently melodious"
                                                                        # ... with another instrument quality (+15 barding)
 python harness/sim/run.py --scenario ossuary --runs 24 --compare      # the Ossuary's level 3 ("The Ossuary" below)
-python harness/sim/run.py --scenario ossuary --area 5581 1225 5689 1363 -- --enter-via 1205 2816 --enter-via 5786 1327 \
-    --leave-gate 5672 1277                                             # ... its level 2
+python harness/sim/run.py --scenario ossuary --level 2                  # ... its level 2 (--level 4: level 4)
 python harness/sim/run.py --scenario cavernam --runs 24 --team phoenix_incubus   # Cavernam's level 3 ("Cavernam" below)
-python harness/sim/run.py --scenario cavernam --area 5886 743 6055 837 -- --enter-via 5895 605 --leave-gate 6011 780 \
-    --leave-gate 6039 831                                              # ... its level 2
-python harness/sim/run.py --scenario cavernam --area 5895 498 6108 675 -- --no-enter-via --leave-gate 6049 598
-                                                                       # ... its level 1 (the recall's level: no teleporter)
+python harness/sim/run.py --scenario cavernam --level 2                 # ... its level 2
+python harness/sim/run.py --scenario cavernam --level 1                 # ... its level 1 (the recall's level: no teleporter)
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
 python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
@@ -108,6 +102,14 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
   landing) with both pets, recalls to the gold gate on the first level, walks in, hunts, leaves by the
   crimson moongate to Totem and recalls home from there, by the runner's own rules. `--at-hunt` starts
   on the fight level instead.
+- **Levels** (`--level NAME`, 2026-10-31): the scenario runner block's `levels` lists the dungeon's other huntable
+  levels, each its `area` (the per-hour box), `start` (its arrival: the last `enter_via` teleporter's landing, where
+  `--at-hunt` starts) and the `enter_via` / `fight_via` / `leave_gates` / `leave_via` it hunts by, over the runner
+  block's (`scenario.select_level`); one entry, `default`, is the scenario's own. Ways in or out given after `--` still
+  win (a given `--enter-via` drops the level's `--fight-via` too, a given `--leave-gate` its `--leave-via`), `--area`
+  still overrides the box. The runs' summaries carry `level`, their traces' label `<scenario> level <name>`. The viz
+  Sim page offers the levels, run.py's and the runner's options and the runner constants for `--set` from the code
+  (docs/VISUALIZER.md §2.20).
 - **Memory persists across runs** (user 2026-10-13). The runs are split into `--careers` (default
   CPU threads - 1, `DEFAULT_CAREERS`) careers. Each career runs one after another on one memory store, as the
   live runner keeps its store between runs: crawl priors, fights, avoided types, learnt teleporters. `--fresh`
