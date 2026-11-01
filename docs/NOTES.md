@@ -2468,6 +2468,15 @@ ground items from a replay of `logs/session_20261011_124101` (`replay.timed_pack
 - Fixed the same evening: the chest first, then rounds against the shelf that park every carried hatchet
   so Resupply hands out the whole loadout again, take the chest's best back, and stop when a round gains
   nothing (LUMBER_LOOP §13 "Trip" 1a'). The user raised Dan's loadout to 2 verite hatchets (3750 uses).
+- **A gate pause mid-drag leaves the item on the agent's cursor.** The pause (22:02:21) fell between the
+  last chest take's lift of 0x4E169E11 (C2S 0x07 at 22:02:20.5, S2C 0x1D) and its drop, which the gate
+  refused. The server kept it held: the next run's first lift (0x4E1683C2, 22:08:32) came back S2C
+  `27 04` (RunUO LRReason 4 AreHolding, "You are already holding an item"), and that lift's drop into the
+  pack released 0x4E169E11 instead ("did not come into the backpack"; the next chest take worked). The
+  status showed no hatchet carried meanwhile (the world model drops a lifted item). Fixed in the proxy
+  (`InjectionHub.inject`, `SessionTap.note_agent_drag`): a closed gate (pause, break, budget; not kill)
+  still passes the 0x08 drop or 0x13 equip of the item the agent holds. test_agent_gate.py `drag_tests`.
+  Needs a proxy restart. A plain `ctl stop` between lift and drop can still leave an item held.
 
 ## Seer-24 shift: a hatchetless trip, an empty guild shelf (live 2026-10-11 17:20–23:30)
 

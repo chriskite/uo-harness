@@ -26,7 +26,8 @@ with `several sessions (A, B); pass char`.
 
 Agent gate (harness/agent_gate.py): pause, kill switch, mandatory jittered
 breaks (~2 h of agent activity) and the 8 h/day agent budget. It is checked
-first for every injected frame. It is controlled and inspected on the state
+first for every injected frame, except the drop/equip that finishes an item
+the agent lifted (not when killed). It is controlled and inspected on the state
 port (`{"op": "gate", "action": ...}`), and every state response carries the
 gate status. Persisted to `<logdir>/agent_budget.json` (--budget-file).
 
@@ -457,12 +458,18 @@ class InjectionHub:
         """Process payload like client traffic and relay it upstream on the
         session `char` selects (see pick).
 
-        Returns None on success, or a rejection reason string.
+        Returns None on success, or a rejection reason string. A closed gate
+        (pause, break, budget; not kill) still lets through the drop (0x08) or
+        equip (0x13) of the item the agent is holding: a pause between lift and
+        drop left a hatchet on the agent's cursor for 6 minutes and the next
+        run's lift was refused "already holding an item" (live 2026-10-31,
+        session 20261031_215812, S2C 0x27 code 4).
         """
         blocked = self.gate.block_reason()
-        if blocked is not None:
-            return blocked
         session, err = self.pick(char)
+        if blocked is not None and not (session is not None and not self.gate.killed
+                                        and session[0].completes_agent_drag(payload)):
+            return blocked
         if err is not None:
             return err
         tap, writer, client = session
@@ -476,6 +483,7 @@ class InjectionHub:
             if block is not None:
                 return block
         writer.write(tap.inject_c2s(payload, "agent", now))
+        tap.note_agent_drag(payload)
         await writer.drain()
         if payload[0] == 0xB1 and len(payload) >= 11 and client is not None:
             # the agent answered a gump the client still shows: close the client's copy
@@ -559,6 +567,7 @@ class SessionTap:
         self.key = None                  # C2S XOR key (prelude byte 12)
         self.c2s_buf = bytearray()       # client preamble accumulator
         self.c2s_preamble_done = False
+        self.agent_held = None           # serial the agent lifted (0x07) and hasn't dropped/equipped yet
         self.c2s_wire = bytearray()      # encrypted bytes of an incomplete C2S packet
         self.s2c_head = bytearray()      # S2C prelude accumulator
         self.s2c = None                  # S2CStream once the prelude is parsed
@@ -864,6 +873,21 @@ class SessionTap:
         out = self._c2s_packet(bytearray(payload), src, self.mono() if now is None else now)
         self.raw_c2s.flush()
         return out
+
+    def note_agent_drag(self, payload: bytes):
+        """Track the agent's drag: a lift (0x07) holds its serial until that
+        serial's drop (0x08) or equip (0x13) goes out."""
+        if len(payload) < 5:
+            return
+        if payload[0] == 0x07:
+            self.agent_held = _u32(payload, 1)
+        elif payload[0] in (0x08, 0x13) and _u32(payload, 1) == self.agent_held:
+            self.agent_held = None
+
+    def completes_agent_drag(self, payload: bytes) -> bool:
+        """`payload` drops or equips the item the agent is holding."""
+        return (self.agent_held is not None and len(payload) >= 5 and payload[0] in (0x08, 0x13)
+                and _u32(payload, 1) == self.agent_held)
 
     def tap_c2s(self, data: bytes) -> bytes:
         """Frame + normalize client traffic; returns the bytes to forward upstream.

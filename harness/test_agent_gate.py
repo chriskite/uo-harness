@@ -248,10 +248,64 @@ def proxy_tests(tmp):
         p.wait(5)
 
 
+def drag_tests(tmp):
+    """A closed gate lets the agent finish its drag (live 2026-10-31: a pause between lift and drop left a
+    hatchet on the agent's cursor and the next run's lift came back 'already holding an item')."""
+    print("drag through a closed gate")
+    import asyncio
+    import proxy
+
+    class Tap:
+        key, c2s_preamble_done, agent_held = 1, True, None
+        note_agent_drag = proxy.SessionTap.note_agent_drag
+        completes_agent_drag = proxy.SessionTap.completes_agent_drag
+
+        def __init__(self):
+            self.sent = []
+
+        def tick(self, now):
+            pass
+
+        def inject_c2s(self, payload, src, now):
+            self.sent.append(payload[0])
+            return b""
+
+    class Writer:
+        def write(self, b):
+            pass
+
+        async def drain(self):
+            pass
+
+    gate, _ = fresh(tmp, "drag.json", time.time())
+    hub, tap = proxy.InjectionHub(gate), Tap()
+    hub.attach(tap, Writer())
+    send = lambda pkt: asyncio.run(hub.inject(pkt))     # noqa: E731
+    HELD, OTHER, PACK = 0x4E169E11, 0x4E1683C2, 0x46F90508
+    check("open: lift goes out", send(actions.lift(HELD, 1)) is None and tap.agent_held == HELD)
+    gate.apply("pause")
+    check("paused: a lift of something else refused", send(actions.lift(OTHER, 1)) == "agent paused")
+    check("paused: another item's drop refused", send(actions.drop(OTHER, 0xFFFF, 0xFFFF, 0, 0, PACK)) == "agent paused")
+    check("paused: the held item's drop goes out", send(actions.drop(HELD, 0xFFFF, 0xFFFF, 0, 0, PACK)) is None
+          and tap.agent_held is None and tap.sent == [0x07, 0x08], f"{tap.sent} held {tap.agent_held}")
+    check("paused: a second drop of it refused", send(actions.drop(HELD, 0xFFFF, 0xFFFF, 0, 0, PACK)) == "agent paused")
+    gate.apply("resume")
+    send(actions.lift(HELD, 1))
+    gate.apply("pause")
+    check("paused: the held item's equip goes out", send(actions.equip_request(HELD, 2, 0x0014683F)) is None
+          and tap.agent_held is None)
+    gate.apply("resume")
+    send(actions.lift(HELD, 1))
+    gate.apply("kill")
+    check("killed: even the held item's drop refused",
+          (send(actions.drop(HELD, 0xFFFF, 0xFFFF, 0, 0, PACK)) or "").startswith("agent killed"))
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         unit_tests(tmp)
         proxy_tests(tmp)
+        drag_tests(tmp)
     print("\nALL PASS" if not FAILURES else f"\nFAILED: {FAILURES}")
     return 1 if FAILURES else 0
 
