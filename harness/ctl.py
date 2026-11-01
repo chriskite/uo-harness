@@ -52,6 +52,7 @@ import os
 import re
 import secrets
 import socket
+import sqlite3
 import subprocess
 import sys
 import time
@@ -175,6 +176,21 @@ class CtlError(Exception):
 # ------------------------------------------------------------------- store
 def heartbeat(mem: Memory):
     tw.meta_set(mem, charsel.meta_key(HEARTBEAT_KEY, mem.char_serial), f"{time.time():.2f}")
+
+
+def wait_heartbeat(mem: Memory) -> bool:
+    """`wait`'s beat each poll: a store locked past the busy timeout (30 s) skips this beat instead of ending the
+    wait (live 2026-11-01 13:05 and 13:27: two Seer waits died on "database is locked" in heartbeat, the second
+    after 554 s); the next poll beats again. False when skipped (one line on stderr)."""
+    try:
+        heartbeat(mem)
+        return True
+    except sqlite3.OperationalError as e:
+        if "locked" not in str(e):
+            raise
+        mem.con.rollback()
+        print(f"wait: heartbeat skipped ({e}); retrying next poll", file=sys.stderr, flush=True)
+        return False
 
 
 def newest_heartbeat(mem: Memory) -> float | None:
@@ -875,7 +891,7 @@ def cmd_wait(a, mem):
     end = None if a.timeout <= 0 else time.monotonic() + a.timeout
     next_gate = 0.0
     while True:
-        heartbeat(mem)
+        wait_heartbeat(mem)
         if time.monotonic() >= next_gate:
             check_break_due(mem, a.state_port)
             check_dead(mem, a.state_port, a.char)

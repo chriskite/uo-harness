@@ -8115,6 +8115,19 @@ with `replay.timed_packets` -> `WorldRuntime` (positions every 2 s, the '-N'/'+N
   layout with the mariner's real hits over seeds 1-12: GraveRobber alone killed it in a median 99 s (74-108) before;
   after, one 'All Kill' each and a median 17.5 s (13-21). Batches: docs/SIM.md "Tidal Tomb: one pet fighting alone".
 
+## `ctl wait` died on a locked store (2026-11-01 ~13:05 and 13:27, the Seer's waits)
+
+- Twice the Seer's `ctl wait` ended with a traceback: `cmd_wait` -> `heartbeat` -> `task_wrap.meta_set` `INSERT OR
+  REPLACE INTO meta` -> `sqlite3.OperationalError: database is locked`, exit 1 (the second after 554 s of waiting). So
+  another connection held the store's write lock past the 30 s busy timeout (`memory.connect`). Both came within
+  ~6 min of a `death` juncture (12:59, 13:21; Logan played by the user, no task). Which process held the lock is
+  unknown: no service log shows a lock error then [INFERENCE: a long write transaction in another process; the hourly
+  backup ended 13:02:40].
+- Fix: `ctl.wait_heartbeat` skips that poll's beat on a "locked" OperationalError (rollback, one stderr line) and the
+  wait goes on; the next poll beats again. test_ctl `test_wait_heartbeat_locked` (a real BEGIN IMMEDIATE from a second
+  connection). Not changed: the cursor writes when `wait` returns, and the runners' own store writes, still fail on a
+  lock that long.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

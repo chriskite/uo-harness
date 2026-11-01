@@ -1858,6 +1858,28 @@ def _room_gumps() -> dict:
         return json.load(f)
 
 
+def test_wait_heartbeat_locked():
+    print("== wait: a store locked past the busy timeout skips the beat, the wait goes on ==")
+    # live 2026-11-01 13:05, 13:27: `ctl wait` died on "database is locked" in heartbeat (task_wrap.meta_set)
+    db = os.path.join(tempfile.mkdtemp(prefix="ctl_lock_"), "harness.db")
+    mem = memory.Memory(db, char_serial=0x104A60)
+    mem.con.execute("PRAGMA busy_timeout=100")
+    other = sqlite3.connect(db, timeout=1)
+    other.execute("BEGIN IMMEDIATE")                  # another process mid-write
+    other.execute("INSERT OR REPLACE INTO meta VALUES('x', '1')")
+    try:
+        locked = ctl.wait_heartbeat(mem)
+    except sqlite3.OperationalError as e:
+        locked = e
+    other.commit()
+    other.close()
+    beat = ctl.wait_heartbeat(mem)
+    key = ctl.charsel.meta_key(ctl.HEARTBEAT_KEY, mem.char_serial)
+    check("locked: skipped (False), no exception", locked is False, locked)
+    check("lock gone: the next beat writes it", beat is True and ctl.tw.meta_get(mem, key) is not None)
+    mem.close()
+
+
 def test_room_buttons():
     print("== room: the rental room menus' buttons by their labels (live gumps, DTF guild house) ==")
     g = _room_gumps()
@@ -2250,6 +2272,7 @@ def main():
     test_drop(proxy)
     test_track(proxy)
     test_room_buttons()
+    test_wait_heartbeat_locked()
     with fast_clock((room, shelf, humanize)):     # their fake IO answers synchronously, like FakeProxy
         test_room_flow()
         test_shelf_flow()
