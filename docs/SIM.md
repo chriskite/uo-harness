@@ -85,6 +85,7 @@ python harness/sim/fight2203.py 1,2,...,24 [--log] [--trace DIR] [--harness DIR]
 python harness/sim/fight2343.py 1-24 [--log] [--trace DIR] [--harness DIR]          # the 2026-10-30 23:43 three caster reds and a Wall of Stone sealing the east wing (World.add_wall)
 python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach (the consort lurking at her spot), the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
 python harness/sim/fight1805.py [1805|1804] 1-24 [--log] [--harness DIR]   # Tidal Tomb level 2 2026-10-31 18:05: dead between two zoas, a shellpod on him (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas")
+python harness/sim/fight1136.py [1136|1507] 1-24 [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Tidal Tomb level 2's walk out through the gate pocket, 2026-11-01 11:36 / 10-31 15:07 (docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -2626,6 +2627,69 @@ one new count:
 - **Tests:** `test_leave_pet_out_of_view` (a time-up leave in the Mausoleum with AlaFlambe out of view where she was last
   seen: back there first, out with both; 87182b5 "the pets aren't within 3 tiles after 20 s; going on", PETS LEFT
   BEHIND), `test_rejoin_detour` (a 60-step way to pets 11 off: no step, "All Follow Me"; 87182b5 walked 25 west).
+
+### Tidal Tomb: the gate pocket's crossfire (2026-11-01)
+
+User 2026-11-01: is the area round (6897, 2060) on level 2 dangerous in the simulator, monsters ganging up on Logan,
+and if so a tactic against it (the live evidence: docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire"; the
+rule: docs/HUNT_LOOP.md "Out"). The pocket is the crimson gate (6913, 2071)'s.
+
+- **The level 2 batch** (`--scenario tidal_tomb --level 2 --runs 96 --seed 1 --others --prior <store> --trace -- --vet-range
+  5 --crawl-learn-s 180`, the default team; the traces read by a throwaway scan): within 10 of (6897, 2060) Logan spent
+  98 of 2,538 min (3.9 %) and took 29.9 a minute there against 25.3 elsewhere on level 2 (oxygen left out: 24.0 against
+  15.5, 1.5x). 44 of 121 leaves crossed it. Windows of 10 s with 3+ monsters hitting him: 1 in the pocket (13 on
+  level 2), none on a leave; no death there (16 elsewhere). **Milder than live** (1.2-4.3x there, both live 3-monster
+  windows by it on the walk out): the batch's pocket held 2-3 live monsters at a leave's entry, its leaves came at time
+  up from the north, and the voidfin's hide-and-come-out (NOTES) isn't modelled.
+- **The replay** (`sim/fight1136.py`, the two live layouts at the walk out's start, each monster at full hits, no
+  respawns, the planned leave `leave_by_gate("return")`; seeds 1-24; "2+/3+" the runs with that many monsters hitting
+  Logan within 10 s):
+
+  | case | runner | deaths | lowest under 50 | damage on Logan | 2+ / 3+ | pet deaths | walk s (median) |
+  |---|---|---|---|---|---|---|---|
+  | 1136 | HEAD (the plain walk) | 1 | 8 | 2,429 (the zoa 1,686) | 9 / 1 | 2 | 72 |
+  | 1136 | **last 30 steps fought** | **0** | **0** | **1,712** | **2 / 0** | 0 | 130 |
+  | 1136 | last 60 steps fought | 0 | 1 | 1,616 | 4 / 1 | 0 | 120 |
+  | 1136 | both gates | 0 | 7 | 2,955 | 11 / 1 | 2 | 79 |
+  | 1507 | HEAD | 0 | 6 | 2,575 (the zoa 1,656) | 12 / 1 | 10 | 71 |
+  | 1507 | **last 30 steps fought** | 0 | **0** | **836** | **1 / 0** | 2 | 86 |
+  | 1507 | last 60 steps fought | 0 | 0 | 840 | 0 / 0 | 0 | 87 |
+
+  The plain walk woke the zoa, the mariner and the voidfin on Logan as live. Fought, the leg backs off from each shooter's
+  first sight ("would see us before the pets ... back to (6879, 2068) out of its sight"), holds on the pull budget and
+  lets the voidfin come, so they come to the pets one or two at a time. 1507 with both gates went north at no cost (its
+  layout has no monster by that gate: not a test of it).
+- **Level 2 batches** (as above without traces, three blocks of 96; "two gates" adds `--leave-gate 6913 2071
+  --leave-gate 6897 1992`, "both" that and the fought approach, `--set loop_hunt.GATE_FOUGHT_STEPS=30` before it was
+  the default):
+
+  | seeds | runner | runs with a death | damage on Logan / h | banked / h |
+  |---|---|---|---|---|
+  | 1-96 | HEAD | 16 | 1,526 | 126,534 |
+  | 1-96 | fought approach, one gate | 16 | 1,534 | 131,745 |
+  | 1-96 | two gates | 7 | 1,594 | 172,584 |
+  | 1-96 | **both** | 10 | 1,442 | 167,319 |
+  | 97-192 | HEAD | 12 | 1,458 | 148,158 |
+  | 97-192 | two gates | 16 | 1,366 | 159,538 |
+  | 97-192 | **both** | 11 | 1,579 | 163,482 |
+  | 193-288 | HEAD | 11 | 1,550 | 129,132 |
+  | 193-288 | two gates | 13 | 1,494 | 158,028 |
+  | 193-288 | **both** | 21 | 1,483 | 154,486 |
+
+  Over 288 runs, HEAD / two gates / both: runs with a death 39 / 36 / 42 (a block's spread ~5: noise), banked an hour
+  134.6k / 163.4k / 161.8k (the second gate's +21 % in every block). Planned leaves: 347 / 351 / 342, died on them 7 / 5 /
+  2, not through 58 / 19 / 19. With two gates 34-45 of each block's leaves went north (walks 86-115 s against the south
+  gate's 30-37; both 107-149 and 47-51). The level's deaths are mostly in the crawl, not on the leave walk, so the fought
+  approach doesn't move them; it is kept for the live crossfires and the replay.
+- **Level 1** (`--scenario tidal_tomb --runs 96 --others --prior <store> -- --vet-range 5 --crawl-learn-s 180`, fought
+  approach off / on): runs with a death 0 / 0, damage on Logan an hour 375 / 392, banked 118,718 / 119,430. **Maus 3**
+  (`--runs 96 --seed 17 --others --eerie --prior <store> -- --vet-range 5 --crawl-learn-s 180`): 6 / 3, 1,297 / 1,211,
+  140,088 / 144,288.
+- **Tests:** `test_tidal_leave_pocket` (case 1507's layout, seeds 1-6: "to the moongate: fought through" in each, Logan's
+  lowest hits 50+, through the gate; the plain walk: lowest 15, 29 and 45 in 3 of them). `test_tidal_leave_crab` now
+  runs with the approach off: its 23-step walk lies all within the 30, and with it on the crab woke on a pet 24 of 24
+  (Logan 6 off, no pinch, 109 on him against the lead's 591), so it tests the lead rule alone, as on a longer walk.
+- **Not modelled:** the voidfin's hiding and coming out beside its target mid-fight (NOTES).
 
 ## The Ossuary (2026-10-28)
 

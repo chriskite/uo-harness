@@ -8023,6 +8023,42 @@ pets behind".
   crab coming or an attack within 8 of the gate).
   The new world count `pets_left` (run.py `runs_with_pets_left`) records a moongate or a recall that left a live pet.
 
+## Tidal Tomb level 2: the gate pocket's crossfire (user 2026-11-01)
+
+User 2026-11-01: "Around 6897,2060 in Tidal Tomb 2 seems to be a particularly dangerous area for the hunt runner. Many
+mobs with line of sight (voidfin which is stealth, combustive zoa with the ranged AOE fire attack, pincer crab) and we
+seem to get caught in the middle of all of them"; then, live: the run went "full bore past the combustive zoa to (near)
+the tile I mentioned earlier and get in a 3 way fight" (hunt-20261101-104822-bfc9, 11:36:28-11:37:25).
+
+- **The pocket is level 2's leave gate's.** The crimson gate 0x4003D7B8 (6913, 2071) sits among the spawns of a
+  combustive zoa (6887, 2068), a drowned mariner (6900, 2068), a voidfin (6901, 2060), a giant pincer crab (6920, 2066),
+  a lighthouse shellpod (6921, 2067), a scourgeon, a soulcatcher (6910, 2046) and two shellpods (scenario spawns). Every
+  leave of the live command (`--leave-gate 6913 2071` alone) walked there.
+- **Live, five level 2 runs** (captures 20261030_175703, 20261031_132152, 20261031_170158 twice, 20261101_103015; the
+  scan replays them through `WorldRuntime` and pins each number on Logan to the monster's effect, swing or attack
+  animation within 1.5 s [INFERENCE: 60 of 419 numbers unattributed, two checked ones wrong]): within 10 of (6897, 2060)
+  Logan stood 1.4-3.3 min a run and lost 21-136 hits a minute there against 25-63 elsewhere on level 2 (1.2-4.3x). Four
+  of the eight costliest 8x8 cells ring the pocket and the gate. Windows of 10 s with 3+ monsters hitting him: 4 in all,
+  2 by the pocket and both on the planned walk to the gate: 10-30 18:29:29 (the death, "Tidal Tomb: level 2 death
+  2026-10-30 18:29") and 10-31 15:07:08 (the zoa -29, the mariner -30, the voidfin -22, -32, -32: down to 17).
+- **The walk's shape, twice the same** (10-31 15:06:53 and 11-01 11:36:28): "to the moongate: route 73 / 49 steps", east
+  along y 2064 to (6894, 2060), Logan ahead of the pets, 4-6 from the idle zoa (to war at d 4-6), 6 from the mariner and
+  3-6 from the voidfin. The mariner's first shot went to Logan at its war onset both times (-30), the voidfin's war came
+  0.2-0.4 s after. Nothing in the plain walk out stops for that: `coming` passes shy shooters over (they don't come on),
+  `idle_ahead` leads only for melee monsters (11:36:37: "no tile within 4 steps where a pet is the nearest of us to it";
+  walking on), and the Mover's soft zone round an awake zoa only bends a route that has another way.
+- **The voidfin's stealth, as seen** (53 voidfins, 249 entries into view on level 2): never an ambush on first contact
+  (40 of 53 first seen at the 18-tile view edge, 14 in war; 84 of 94 idle sightings 1-3 from a spawn spot). Mid-fight
+  it leaves the view and comes back beside one of us 102 times (84 at 2 tiles), 91 with a hit on a pet or Logan within
+  1 s (usually 0.02 s: its spin on all within 2), ~8 s apart, a median 9 tiles from its spot. Mostly on the pets
+  (AlaFlambe 45, GraveRobber 24, Bussin 22); on Logan once (11-01 11:28:49.9, -32). [INFERENCE: hiding and coming out
+  beside its target; the scan read the 0x1D/prune and redraw, not why]. The simulator's voidfin stays in view (its spin
+  only): not modelled.
+- **Built:** level 2's command gets the north crimson gate 0x4003D7B9 (6897, 1992) as a second `--leave-gate` (its menu
+  lists Totem: 2026-10-24 21:04:35, 2026-10-25 11:36:55), and every planned walk out fights its last 30 route steps
+  (`loop_hunt.GATE_FOUGHT_STEPS`, docs/HUNT_LOOP.md "Out"). Simulator numbers in docs/SIM.md "Tidal Tomb: the gate
+  pocket's crossfire".
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -3317,6 +3317,29 @@ like the existing Maus and Tidal Tomb skills." Built from his three visits (docs
   deaths in 48 can't tell a change apart. Left open for the first live runs.
 - *Not modelled*: the lemura's reflection (no kind; one 282 on AlaFlambe), the chill's size, the one-sighting specials.
 
+## Tidal Tomb level 2's gate pocket: both crimson gates, the gate's approach fought (user 2026-11-01)
+
+User: the area round (6897, 2060) on level 2 is "particularly dangerous ... we seem to get caught in the middle of all
+of them"; confirm in the simulator, then tactics so the runner isn't caught in the crossfire there. Evidence: docs/NOTES.md
+"Tidal Tomb level 2: the gate pocket's crossfire", docs/SIM.md "Tidal Tomb: the gate pocket's crossfire".
+
+- *Finding:* the pocket is level 2's leave gate's (6913, 2071), and the live crossfires by it were the planned walk out
+  (two the same path past an idle zoa, mariner and voidfin, Logan ahead of the pets). The level 2 batch shows the
+  pocket 1.5x the level's damage a minute but rarely a gang-up; a replay of the live layouts (`sim/fight1136.py`) shows
+  it as live. The batch understates it [INFERENCE: sparser monsters at a leave's entry, the voidfin's hiding unmodelled].
+- *Decided:* (1) level 2's command gives both crimson gates (`--leave-gate 6913 2071 --leave-gate 6897 1992`): the
+  easiest-gate rule (2026-10-31) then sends leaves from the north half to the north gate; +21 % banked an hour in each
+  of three blocks, runs with a death 39 -> 36 of 288 (noise), pocket crossings 44 -> 17 leaves in block 1. (2) Every
+  planned walk out fights its last 30 route steps (`GATE_FOUGHT_STEPS`, `walk_in_fought` with an oxygen and 120 s
+  bail): on the replays Logan under 50 hits 14 -> 0 of 48 and 2+ monsters on him 21 -> 3, deaths on planned leaves
+  5 -> 2 of 288 batch runs, Maus 3 6 -> 3 of 96, level 1 unchanged; level 2's runs with a death 36 -> 42 with both (a
+  block's spread ~5: noise, the crawl's deaths). Kept for the live evidence and the replay, not for the batch.
+- *Rejected:* 60 fought steps (no better than 30 on the replays); the whole walk out fought and a wide route
+  (2026-10-30: both raised the deaths). Not tried: the north gate alone.
+- *Not built:* the voidfin's hide-and-come-out in the simulator (live: 102 times mid-fight, nearly always on a pet).
+- *Live*: the next level 2 run after the Seer gets the new command. Watch for "LEAVING by the moongate at (x, y): ...; the
+  easiest of 2 (...)" and "to the moongate: fought through".
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

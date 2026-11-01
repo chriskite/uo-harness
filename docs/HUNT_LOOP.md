@@ -1247,6 +1247,23 @@ moongate, and never near a red one).
     the crawl's patrol or the fought legs (`walk_in_fought`, the oxygen legs): they stop for "a target in reach"
     (`pick_target`, the pull range: 8 with the pets) and fight it as the hunt does [from the code; not measured on the
     crab].
+  - **The gate's approach fought** (since 2026-11-01; user on Tidal Tomb level 2: the walk out "run full bore past the
+    combustive zoa to (near) the tile I mentioned earlier and get in a 3 way fight"; docs/NOTES.md "Tidal Tomb level 2:
+    the gate pocket's crossfire"). Live 10-30 18:29, 10-31 15:07 and 11-01 11:36 the plain walk to the crimson gate
+    (6913, 2071) went east along y 2064 with Logan ahead of the pets, past an idle combustive zoa, drowned mariner and
+    voidfin, and all three woke on him; nothing above stops for shy shooters standing by the way, and the pets-first rule
+    is for melee monsters only. A planned walk out now fights its last `GATE_FOUGHT_STEPS` 30 route steps
+    (`HuntLoop.route_left` on the Mover's route, the walk's stop `FOUGHT_APPROACH`): `walk_in_fought` to the tile beside
+    the gate, the hunt's own way through (the back-off from a shooter's first sight, the pull budget, the hold for what
+    sees us, the pets healed and with us before each advance), up to `GATE_FOUGHT_S` 120 s and never while deprived of
+    oxygen ("to the moongate: deprived of oxygen; stopping short" / "120 s of fighting"), then the plain walk as before.
+    Log: "to the moongate: fought through", then the fight's lines and "to the moongate: route N steps". Not a hurt leave
+    or a flight, and not the whole walk (2026-10-30: fought from under water across level 2, the deaths doubled, above).
+    Simulator (docs/SIM.md "Tidal Tomb: the gate pocket's crossfire"): on the two live layouts Logan under 50 hits in 8
+    and 6 of 24 runs -> 0 and 0, 2+ monsters on him within 10 s 9 and 12 -> 2 and 1; level 2's runs with a death within
+    the noise, deaths on planned leaves 5 -> 2 of 288 runs; Maus 3 6 -> 3 of 96, level 1 0 -> 0. Level 2's live command
+    also gives both crimson gates (docs/OVERSEER.md §5), so most leaves from the level's north half skip the pocket
+    (banked an hour +21 %).
   - **The gate a level up: `--leave-via X Y`** (repeat, in order; since 2026-10-25). Tidal Tomb's level 3 has no
     gate known; the user leaves it "by going back to the crimson gate on lvl 2" (live 11:35:19 a step S onto
     (7161, 2221), 11:36:55 the gate at (6897, 1992)). While the walk rules find no route to the gate (the planner never
@@ -1271,7 +1288,7 @@ moongate, and never near a red one).
     the level 2 death at 18:29, docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30 18:29"): a fought leg from under
     water, and a walk out routed 3 tiles wide of every idle monster in view, both raised level 2's runs with a death in
     the simulator (21 -> 48 and 21 -> 33 of 144; docs/SIM.md "Tidal Tomb: the giant pincer crab's pinch"). The walk out
-    there is the plain walk with its stops and the pets first by an idle melee monster (above).
+    there is the plain walk with its stops, the pets first by an idle melee monster and its last 30 steps fought (above).
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point

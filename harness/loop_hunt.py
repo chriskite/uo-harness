@@ -215,6 +215,15 @@ GATE_DASH_R = 8              # attacked on a planned walk out this close to the 
 GATE_IDLE_COST = 10          # several --leave-gate: an idle monster whose aggro range and sight take in a tile of a gate's
 #                              way adds this many steps to it (way_danger; the leave picks the easiest gate, pick_gate)...
 GATE_AWAKE_COST = 20         # ...an awake one this many (it comes on: the pets' fight on the way, or ours)
+# The gate's approach fought (user 2026-11-01, Tidal Tomb level 2: the walk out "run full bore past the combustive zoa"
+# into "a 3 way fight"; live 10-30 18:29, 10-31 15:07 and 11-01 11:36 the plain walk to the crimson gate (6913, 2071) went
+# east along y 2064, Logan ahead of the pets, 4-6 from a zoa, 6 from a drowned mariner, 3-6 from a voidfin, and all three
+# woke on him; docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire"): a planned walk out fights its last
+# GATE_FOUGHT_STEPS route steps (walk_in_fought: the shooters' first sight backed off from, the pull budget, the pets
+# sent first), up to GATE_FOUGHT_S, never while deprived of oxygen; then walked as before
+GATE_FOUGHT_STEPS = 30
+GATE_FOUGHT_S = 120.0
+FOUGHT_APPROACH = "the gate's approach"   # leave_by_one_gate's stop: GATE_FOUGHT_STEPS reached
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
 FLOOR_Z_TOL = 10              # ...ending within this of its surface z (live: a vampire on a ledge 20 above, 11 steps round)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450), and
@@ -2528,7 +2537,8 @@ class HuntLoop:
         item isn't in view) and the travel to --gate-dest (moongate.travel). A planned leave (PLANNED) walks
         as the walk-in does (walk_in_stop): attacked, the pets guard until it's over (walk_in_fight); a pet
         lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside the gate); an idle
-        melee monster by the way ahead with us in front, the pets first (idle_ahead, lead_pets).
+        melee monster by the way ahead with us in front, the pets first (idle_ahead, lead_pets); the last
+        GATE_FOUGHT_STEPS route steps fought (walk_in_fought, FOUGHT_APPROACH), not walked past what stands there.
         From a hostile player (severity urgent), as Logan fled reds three times (20261013_173449,
         20261014_170144, _173858): flee_out, away from them first when the way passes them, Adventurer's Rope
         jumps whenever one is worth it (rope_jump).
@@ -2593,6 +2603,7 @@ class HuntLoop:
                                               through_fields=True)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
                 lag = {"wait": severity in PLANNED}
+                approach = {"due": severity in PLANNED and GATE_FOUGHT_STEPS > 0}
 
                 def stop(s):
                     if through(s):
@@ -2607,6 +2618,9 @@ class HuntLoop:
                         return f"coming: {who}"
                     if lag["wait"] and (why := self.pets_lagging(s)):
                         return why
+                    if approach["due"] and (left := self.route_left(s)) is not None and left <= GATE_FOUGHT_STEPS \
+                            and self.oxygen_floor() is None:
+                        return FOUGHT_APPROACH
                     return self.idle_ahead(s)
                 if flee:
                     if near is not None:
@@ -2657,6 +2671,14 @@ class HuntLoop:
                                 self.walk_in_fight("to the moongate", "out", coming=coming)
                             elif why.startswith(IDLE_AHEAD):
                                 self.lead_pets("to the moongate")
+                            elif why == FOUGHT_APPROACH:
+                                approach["due"] = False
+                                t_end = time.monotonic() + GATE_FOUGHT_S
+                                self.walk_in_fought(
+                                    "to the moongate", near, kind="leave",
+                                    bail=lambda s: ("deprived of oxygen" if self.oxygen_floor() is not None else
+                                                    f"{GATE_FOUGHT_S:.0f} s of fighting" if time.monotonic() > t_end
+                                                    else None))
                             elif not self.wait_pets("to the moongate", None, required=False):
                                 if self.gathering_leave:
                                     # back to the pets (gather_pets) rather than on without them (user 2026-10-31)
@@ -3862,6 +3884,16 @@ class HuntLoop:
                                            "pets": self.team.summary()["pets"]})
         g["gave_up"] = True
         return None
+
+    def route_left(self, st) -> int | None:
+        """The walk's route steps still ahead of us (Mover.route), None off the planned route or without one."""
+        route = getattr(self.mover, "route", None)
+        if not route:
+            return None
+        try:
+            return len(route) - 1 - route.index(tuple(self.pos(st)[:2]))
+        except ValueError:
+            return None
 
     def idle_ahead(self, st) -> str | None:
         """A planned walk's stop (leave_by_gate's, walk_in_stop): an idle melee monster (aggro.melee) whose reach
