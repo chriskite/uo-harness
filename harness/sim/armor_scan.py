@@ -40,7 +40,7 @@ import calibrate  # noqa: E402
 import tamer  # noqa: E402
 from sim import scenario  # noqa: E402
 
-SCENARIOS = ("mausoleum", "tidal_tomb", "ossuary")
+SCENARIOS = ("mausoleum", "tidal_tomb", "ossuary", "cavernam")
 SONG = re.compile(r"Song of Discordance \((\d+(?:\.\d+)?)% reduced damage")
 BLEED_START = ("causing you to bleed", "They begin to draw blood from you!")
 BLEED_END = "You are no longer bleeding."

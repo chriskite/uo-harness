@@ -10,7 +10,8 @@ a fresh temporary SQLite file. The character starts at home with its pets (the s
 row) and recalls in, as a live trip does; `--at-hunt` starts on the hunting level instead (then the run
 ends at the first leave). Defaults added to the runner's arguments unless given: `--pets
 --leave-recall <the scenario's tome> --enter-recall <it> --enter-rune <the hunting row> --crawl
---timeout <minutes x 60> --no-drop-off`. Several runs (`--runs N`, seeds seed..seed+N-1) go to
+--timeout <minutes x 60> --no-drop-off`, and the scenario runner block's `--enter-via` teleporters unless any is given
+(`--no-enter-via`: none, a hunt on the level the recall lands on). Several runs (`--runs N`, seeds seed..seed+N-1) go to
 a pool of `--jobs` processes; the table (or `--json` lines) lists one summary per run. `--trace` records each run's
 trace (sim/trace.py) to DIR (default logs/sim_traces) for the viz Sim page. `--team` / `--bestiary`: Logan's pets and
 Taming Bestiary loadout instead of the scenario's (sim/pets.py; docs/SIM.md "Pets, teams and perks"); the runner gets
@@ -62,7 +63,7 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     for flag, vals in defaults:
         if flag not in have:
             out += [flag, *vals]
-    if not at_hunt and "--enter-via" not in have:
+    if not at_hunt and "--enter-via" not in have and "--no-enter-via" not in have:
         for x, y in rn.get("enter_via") or []:
             out += ["--enter-via", str(x), str(y)]
     if rn.get("heal_in_place") and "--heal-in-place" not in have and "--no-heal-in-place" not in have:
@@ -70,7 +71,7 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
     if "--crawl-avoid" not in have and "--no-crawl-avoid" not in have:
         for box in rn.get("crawl_avoid") or []:
             out += ["--crawl-avoid", *map(str, box)]
-    out = [a for a in out if a not in ("--no-heal-in-place", "--no-crawl-avoid")]
+    out = [a for a in out if a not in ("--no-heal-in-place", "--no-crawl-avoid", "--no-enter-via")]
     if "--crawl" not in have and "--fight-spot" not in have and "--no-crawl" not in have:
         out.append("--crawl")
     return [a for a in out if a != "--no-crawl"]

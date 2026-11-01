@@ -705,13 +705,29 @@ Paste this (or point the session at this section) to start an overseer.
 >    The Ossuary has never been run live by the runner. In the simulator (docs/SIM.md "The fourth visit"), with
 >    AlaFlambe and Bussin, runs with a death were 0 of 16 on level 1, 0 of 16 on level 2 and 19 of 48 on level 3.
 >    Start an Ossuary level 3 run only when the parent passes the user's go for it.
+>    - **Cavernam** (since 2026-10-31; the parent's `cavernam-shift` skill): `--enter-rune Cavernam` with the level's
+>      teleporters and gates below. The tome's "Cavernam" row lands inside on level 1 at (6049, 602), 4 tiles south of
+>      its golden gate; level 1's west end (5895, 605) goes down to level 2, level 2's strip (5978-5980, 765) to level 3.
+>      - **Cavernam level 1**: `--enter-rune Cavernam --leave-gate 6049 598`, no `--enter-via`. Out by the golden gate
+>        0x400020EC beside the arrival; its menu was never opened live [INFERENCE: Totem on it as on every gate seen].
+>      - **Cavernam level 2** (the default): `--enter-rune Cavernam --enter-via 5895 605 --leave-gate 6011 780
+>        --leave-gate 6039 831`. Out by the easier of level 2's crimson gates 0x400F8E8C and 0x400F674A (menus never
+>        opened live [INFERENCE: Totem]).
+>      - **Cavernam level 3**: `--enter-rune Cavernam --enter-via 5895 605 --enter-via 5979 765 --leave-gate 6059 1020
+>        --leave-gate 5957 1097`. Out by the easier of level 3's crimson gates 0x400FC1EA and 0x400FA895, both of which
+>        Logan took to Totem live 2026-10-31.
+>    Cavernam has never been run live by the runner. In the simulator (docs/SIM.md "Cavernam"), with AlaFlambe and
+>    Bussin, runs with a death were 0 of 32 on level 1, 0 of 32 on level 2 and 2 of 48 on level 3, both to a silicite's
+>    Silica Shards, which killed Logan by hand there on 2026-10-31. Start a Cavernam level 3 run only when the parent
+>    passes the user's go for it.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
 >    Maus 1 x 5551-5660, Maus 2 x 5490-5550, Maus 3 x 5150-5300, all y 600-760; Tidal Tomb level 1 x 6608-6738,
 >    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221; the Ossuary's level 1 x 5785-5935, y 1270-1381, level 2
->    x 5581-5689, y 1225-1363, level 3 x 5527-5739, y 945-1156, level 4 x 4825-5000, y 1744-2073): the go-home run
->    with the command of the level he is on (level 4: tell the parent, no command), then the shift's command from home.
+>    x 5581-5689, y 1225-1363, level 3 x 5527-5739, y 945-1156, level 4 x 4825-5000, y 1744-2073; Cavernam's level 1
+>    x 5895-6108, y 498-675, level 2 x 5886-6055, y 743-837, level 3 x 5915-6075, y 898-1152): the go-home run with the
+>    command of the level he is on (Ossuary level 4: tell the parent, no command), then the shift's command from home.
 >    The runner never changes level on its own during a hunt: the crawl's
 >    "zones" are depth bands of the one floor, and only a leave, an escape or `--leave-via` crosses a teleporter.
 >    What it does, so the log reads right:

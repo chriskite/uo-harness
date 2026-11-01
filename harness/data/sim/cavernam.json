@@ -1,0 +1,883 @@
+{
+ "name": "cavernam",
+ "description": "Cavernam as Logan Wolf went through it, played by the user on 2026-10-31 in capture 20261031_170158: three visits, 21:15:20-21:23:30, 21:30:04-21:41:40 (dead on level 3 at 21:41:19, out as a ghost) and 21:43:01-21:47:04, each by the tome row 'Cavernam' to level 1's arrival (6049, 602, 0) beside its golden moongate, west across level 1 to its teleporter (5895, 605), level 2 to its strip (5978-5980, 765), level 3 and out by one of its crimson gates to Totem; pets AlaFlambe and Bussin. Levels by a map flood fill (pathfind.Walk from each arrival; all of Logan's steps there walk on the map): level 1 x 5895-6108, y 498-675 (14,759 tiles; 495 s there), level 2 x 5886-6055, y 743-837 (8,760; 331 s), level 3 x 5915-6075, y 898-1152 (14,764; 469 s, the hunting level). Level 4 was never reached. The creatures were upscaled (`upscale`: Cavernam the week's Challenger Dungeon [INFERENCE]).",
+ "facet": 0,
+ "evidence": {
+  "kb": "cavernam_kb.json",
+  "observed": "cavernam_observed.json"
+ },
+ "calibration": {
+  "facet": 0,
+  "boxes": [[5890, 495, 6113, 680], [5881, 740, 6060, 842], [5910, 893, 6080, 1157]],
+  "tags": ["20261031_170158"],
+  "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5; level 3's west edge overlaps the Ossuary's padded box at x 5910-5940, y 945-1157, where the Ossuary has no floor). Capture: the user's three visits on 2026-10-31 (description)"
+ },
+ "inherit": {
+  "from": "mausoleum",
+  "keys": ["player", "tamer", "loadout", "bard", "vet", "potions", "defaults"],
+  "note": "Logan Wolf's own blocks and the engine defaults: the Mausoleum's, as the Ossuary's and Tidal Tomb's (the same character, kit and tome; run.py --team phoenix_incubus for AlaFlambe and Bussin, as here); a dict here updates the base's (player.start, defaults, bard.capture_d)"
+ },
+ "player": {
+  "start": [6008, 1152, 20],
+  "start_note": "level 3's arrival from level 2 (capture 21:21:09, 21:39:03, 21:44:13): --at-hunt starts here"
+ },
+ "defaults": {
+  "pets_first": [],
+  "pets_first_note": "no type here is known to go for the pets first"
+ },
+ "upscale": {
+  "hits_x": 1.5,
+  "gold_x": 1.6,
+  "note": "every type killed in view took 1.5 x its wiki hits (damage_taken_total_killed medians / cavernam_kb hits: 15 types with a kill, 1.50-1.71, 9001 for 6000), and its corpses held 1.4-3.6 x its wiki gold value (median 1.68; Tidal Tomb's and the Ossuary's 1.0-1.1 by the same rule, so 1.6 against the spec's own 0.9-1.15 draw). The patch notes' Challenger Dungeon (knowledge #12657, #16459: a week's core dungeon upscaled like a Paragon, its gold recalculated) [INFERENCE: Cavernam was it for the week from 2026-10-30]; another week's Cavernam would be 1.0 and 1.0. melee_x 1.7 on the wiki's melee where the capture has none (kb_melee_to_pet 0.5 here; Logan's player_melee_k too [INFERENCE]): the swings measured on the pets were 0.76-0.95 of the wiki's mean damage (lemura 0.92 n=6, rimestone 0.76 n=3, the silicite's real swings 0.76 n=9, a charoite's one 0.95), the Ossuary's 0.59 and Tidal Tomb's 0.41 by the same rule. Spell damage unscaled (unmeasured)",
+  "melee_x": 1.7
+ },
+ "bard": {
+  "capture_d": {
+   "discord": {
+    "acarid": -100.0,
+    "charoite": 52.5,
+    "frost daemon": 53.5,
+    "lemura": 53.5,
+    "stalagfright": -100.0
+   }
+  },
+  "note": "capture_d: the maximum-likelihood d (bard_scan.fit_d) of the user's Discordances here, types with 3+ answers, at the E each song printed (18.0 %: E 120 to 21:31; 17.2 %: E 115 from 21:43; the first visit printed none, taken as 120), +25 on a success lasting the barded time (none did); -100: every answer a success. Peacemaking (14 answers) and Provocation (5) too few to fit: the median and provoke_d"
+ },
+ "recall": {
+  "tome": 1145745907,
+  "rows": [
+   {
+    "name": "Home",
+    "at": [4134, 1429, 6]
+   },
+   {
+    "name": "Cavernam",
+    "at": [6049, 602, 0]
+   }
+  ],
+  "pet_range": 3,
+  "note": "Logan's 'A Rune Tome' (0x444AB1F3) has a 'Cavernam' row (gump 21:15:15): it lands inside on level 1 at (6049, 602, 0) (21:15:20, 21:30:04, 21:43:01; the rune libraries' 'Cavernam Main' (6047, 599)), 4 tiles south of the golden moongate 0x400020EC"
+ },
+ "dungeon": {
+  "name": "Cavernam",
+  "facet": 0,
+  "boxes": [[5890, 495, 6113, 680], [5881, 740, 6060, 842], [5910, 893, 6080, 1157]],
+  "gold_gates": [[6049, 598]],
+  "recall_r": 2,
+  "note": "the user's dungeon rule (2026-10-13): recall only near a gold moongate. Gold gate: the hue-2822 0x400020EC (6049, 598, 0) beside level 1's arrival; levels 2 and 3 have only crimson ones (hue 2820). No recall was tried inside [INFERENCE: the rule holds here as at the Mausoleum]. Boxes: the calibration region"
+ },
+ "area": [5915, 898, 6075, 1152],
+ "area_note": "level 3's box (map flood fill), the hunting level: Logan went down to it on every visit and left from it each time (469 s, 51,979 gp lifted there of 96,949 inside). Level 1: --area 5895 498 6108 675; level 2: --area 5886 743 6055 837 (runner block note)",
+ "teleporters": [
+  {
+   "from": [5895, 605],
+   "to": [6042, 787, 56]
+  },
+  {
+   "from": [5978, 765],
+   "to": [6006, 1152, 20]
+  },
+  {
+   "from": [5979, 765],
+   "to": [6007, 1152, 20]
+  },
+  {
+   "from": [5980, 765],
+   "to": [6008, 1152, 20]
+  }
+ ],
+ "teleporters_note": "capture 20261031_170158, each the tile the last step before the jump went for: level 1's west end W from (5896, 605) to level 2 (6042, 787, 56) at 21:20:17, 21:34:58, 21:43:40; level 2's strip north from (5977-5981, 766) to level 3 (6006-6008, 1152, 20): (5980, 765) NW at 21:21:09, (5978, 765) NE at 21:39:03, (5979, 765) NW at 21:44:13 (the strip keeps the column, x + 28). Two more jumps were Logan's own traverse ('Where do you wish to traverse to?'): level 1 (5924, 670) -> (5918, 662) at 21:34:40, level 3 (6034, 1017) -> (6042, 1009) at 21:23:20. No way back up was walked",
+ "gates": [
+  {
+   "name": "golden moongate",
+   "serial": 1073750252,
+   "at": [6049, 598, 0],
+   "hue": 2822,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3846, 2876, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1074751306,
+   "at": [6039, 831, 20],
+   "hue": 2820,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3846, 2876, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1074761356,
+   "at": [6011, 780, 0],
+   "hue": 2820,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3846, 2876, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1074774506,
+   "at": [6059, 1020, 1],
+   "hue": 2820,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3846, 2876, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1074768021,
+   "at": [5957, 1097, 0],
+   "hue": 2820,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3859, 2890, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  }
+ ],
+ "gates_note": "the moongates seen (captures): golden (hue 2822) 0x400020EC (6049, 598, 0) on level 1; crimson (hue 2820) 0x400F674A (6039, 831, 20) and 0x400F8E8C (6011, 780, 0) on level 2, 0x400FC1EA (6059, 1020, 1) and 0x400FA895 (5957, 1097, 0) on level 3. Logan left by level 3's two: their menu (0xE0E675B8, 21:23:29, 21:47:02) listed the same 'Moongate Destinations' rows as the Ossuary's, and Totem put him at (3846, 2876, -40) and (3859, 2890, -40). The other three gates' menus were never opened (their Totem: the first landing [INFERENCE]). A hue-2825 gate 0x4000210D (5945, 1062, 0) showed only after his death; he took it to Totem as a ghost, its menu with three more rows (Shelter Island, The Arena, Prevalia Meadows) [INFERENCE: the ghosts' gate, as the Mausoleum's hue-2825 ones]: not a gate for the living, so not here",
+ "runner": {
+  "enter_via": [[5895, 605], [5979, 765]],
+  "leave_gates": [[6059, 1020], [5957, 1097]],
+  "gate_dest": "Totem",
+  "heal_in_place": true,
+  "note": "run.py's defaults: recall to the 'Cavernam' row on level 1, west to its teleporter and through level 2 to its strip (Logan's way, 3 of 3 visits), the hunt on level 3, out by the easier of its crimson gates (6059, 1020) and (5957, 1097) to Totem as Logan left twice, then the recall home. Level 1 instead: --area 5895 498 6108 675 -- --leave-gate 6049 598 (its golden gate beside the arrival); level 2: --area 5886 743 6055 837 -- --enter-via 5895 605 --leave-gate 6011 780 --leave-gate 6039 831"
+ },
+ "spawns": [
+  {
+   "key": "frozen dead",
+   "at": [6047, 592, 0],
+   "note": "level 1: first seen 21:15:20 (6047, 592) at 10 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "snow elemental",
+   "at": [6058, 625, 20],
+   "note": "level 1: first seen 21:15:23 (6058, 625) at 18 tiles"
+  },
+  {
+   "key": "rime guar",
+   "at": [6037, 627, -2],
+   "note": "level 1: first seen 21:15:23 (6037, 627) at 18 tiles"
+  },
+  {
+   "key": "frozen dead",
+   "at": [6012, 602, -40],
+   "note": "level 1: first seen 21:15:26 (6012, 602) at 18 tiles"
+  },
+  {
+   "key": "frozen dead",
+   "at": [5996, 642, -40],
+   "note": "level 1: first seen 21:15:29 (5996, 642) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "stalagfright",
+   "at": [5986, 658, 20],
+   "note": "level 1: first seen 21:15:31 (5986, 658) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "ursal forager",
+   "at": [5973, 649, -1],
+   "note": "level 1: first seen 21:15:50 (5973, 649) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "acarid",
+   "at": [5963, 660, 0],
+   "note": "level 1: first seen 21:15:52 (5963, 660) at 18 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "acarid",
+   "at": [5960, 649, 0],
+   "note": "level 1: first seen 21:15:53 (5960, 649) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "polar bear",
+   "at": [5978, 646, -15],
+   "note": "level 1: first seen 21:16:05 (5978, 646) at 3 tiles"
+  },
+  {
+   "key": "acarid",
+   "at": [5960, 669, 0],
+   "note": "level 1: first seen 21:16:26 (5960, 669) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "snowpiercer",
+   "at": [5977, 673, 20],
+   "note": "level 1: first seen 21:16:27 (5977, 673) at 18 tiles"
+  },
+  {
+   "key": "stalagfright",
+   "at": [5988, 673, 20],
+   "note": "level 1: first seen 21:16:56 (5988, 673) at 18 tiles"
+  },
+  {
+   "key": "snowpiercer",
+   "at": [6001, 675, 20],
+   "note": "level 1: first seen 21:17:20 (6001, 675) at 18 tiles"
+  },
+  {
+   "key": "frigid archfiend",
+   "at": [5986, 615, 20],
+   "note": "level 1: first seen 21:17:40 (5986, 615) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "rime elemental",
+   "at": [5973, 612, -40],
+   "note": "level 1: first seen 21:17:40 (5973, 612) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "frost daemon",
+   "at": [5990, 592, 40],
+   "note": "level 1: first seen 21:18:29 (5990, 592) at 18 tiles"
+  },
+  {
+   "key": "rime elemental",
+   "at": [6002, 585, -40],
+   "note": "level 1: first seen 21:18:31 (6002, 585) at 18 tiles"
+  },
+  {
+   "key": "frozen dead",
+   "at": [5933, 661, 20],
+   "note": "level 1: first seen 21:19:53 (5933, 661) at 18 tiles"
+  },
+  {
+   "key": "snow flurry",
+   "at": [5927, 666, 20],
+   "note": "level 1: first seen 21:19:54 (5927, 666) at 18 tiles"
+  },
+  {
+   "key": "rime elemental",
+   "at": [5917, 668, 20],
+   "note": "level 1: first seen 21:19:56 (5917, 668) at 18 tiles"
+  },
+  {
+   "key": "frozen dead",
+   "at": [5927, 654, 20],
+   "note": "level 1: first seen 21:19:58 (5927, 654) at 18 tiles"
+  },
+  {
+   "key": "ursal throatsinger",
+   "at": [5916, 646, 20],
+   "note": "level 1: first seen 21:20:00 (5916, 646) at 18 tiles"
+  },
+  {
+   "key": "frozen dead",
+   "at": [5920, 605, 17],
+   "note": "level 1: first seen 21:20:10 (5920, 605) at 18 tiles"
+  },
+  {
+   "key": "rime guar",
+   "at": [5926, 592, 0],
+   "note": "level 1: first seen 21:20:13 (5926, 592) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "ursal throatsinger",
+   "at": [5915, 587, 20],
+   "note": "level 1: first seen 21:20:14 (5915, 587) at 18 tiles"
+  },
+  {
+   "key": "white wyrmling",
+   "at": [6009, 819, 20],
+   "note": "level 2: first seen 21:20:32 (6009, 819) at 3 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "frozen fury",
+   "at": [5969, 759, 7],
+   "note": "level 2: first seen 21:21:08 (5969, 759) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "winterweed",
+   "at": [5994, 1098, 0],
+   "note": "level 3: first seen 21:21:17 (5994, 1098) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "icy dracolisk",
+   "at": [6024, 1087, 20],
+   "note": "level 3: first seen 21:21:19 (6024, 1087) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "lemura",
+   "at": [6015, 1064, 0],
+   "note": "level 3: first seen 21:21:23 (6015, 1064) at 18 tiles"
+  },
+  {
+   "key": "silicite",
+   "at": [5997, 1062, 3],
+   "note": "level 3: first seen 21:21:24 (5997, 1062) at 18 tiles"
+  },
+  {
+   "key": "charoite",
+   "at": [6016, 1050, 30],
+   "note": "level 3: first seen 21:21:26 (6016, 1050) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "lemura",
+   "at": [6036, 1032, 1],
+   "note": "level 3: first seen 21:22:02 (6036, 1032) at 18 tiles"
+  },
+  {
+   "key": "rhinocerus beetle",
+   "at": [6036, 1060, 0],
+   "note": "level 3: first seen 21:22:15 (6036, 1060) at 18 tiles"
+  },
+  {
+   "key": "lemura",
+   "at": [6008, 1020, 3],
+   "note": "level 3: first seen 21:22:26 (6008, 1020) at 13 tiles"
+  },
+  {
+   "key": "wendigo",
+   "at": [6022, 994, 0],
+   "note": "level 3: first seen 21:22:26 (6022, 994) at 18 tiles"
+  },
+  {
+   "key": "icy lurker",
+   "at": [6000, 1004, 0],
+   "note": "level 3: first seen 21:22:29 (6000, 1004) at 18 tiles"
+  },
+  {
+   "key": "icy lurker",
+   "at": [6057, 1021, 0],
+   "note": "level 3: first seen 21:23:01 (6057, 1021) at 18 tiles"
+  },
+  {
+   "key": "cave gorger",
+   "at": [6058, 1017, 0],
+   "note": "level 3: first seen 21:23:01 (6058, 1017) at 18 tiles"
+  },
+  {
+   "key": "wendigo",
+   "at": [6061, 1053, 0],
+   "note": "level 3: first seen 21:23:02 (6061, 1053) at 18 tiles"
+  },
+  {
+   "key": "cave gorger",
+   "at": [6067, 1037, 0],
+   "note": "level 3: first seen 21:23:03 (6067, 1037) at 18 tiles"
+  },
+  {
+   "key": "walking avalanche",
+   "at": [6055, 1008, 0],
+   "note": "level 3: first seen 21:23:20 (6055, 1008) at 13 tiles"
+  },
+  {
+   "key": "snow elemental",
+   "at": [6061, 612, 20],
+   "note": "level 1: first seen 21:30:04 (6061, 612) at 12 tiles"
+  },
+  {
+   "key": "snow elemental",
+   "at": [6067, 608, 20],
+   "note": "level 1: first seen 21:30:04 (6067, 608) at 18 tiles"
+  },
+  {
+   "key": "snowpiercer",
+   "at": [5963, 664, 0],
+   "note": "level 1: first seen 21:30:21 (5963, 664) at 18 tiles"
+  },
+  {
+   "key": "stalagfright",
+   "at": [5976, 671, 20],
+   "note": "level 1: first seen 21:30:26 (5976, 671) at 18 tiles"
+  },
+  {
+   "key": "polar bear",
+   "at": [5968, 672, 20],
+   "note": "level 1: first seen 21:31:01 (5968, 672) at 3 tiles"
+  },
+  {
+   "key": "acarid",
+   "at": [6006, 671, 20],
+   "note": "level 1: first seen 21:32:00 (6006, 671) at 18 tiles"
+  },
+  {
+   "key": "rime elemental",
+   "at": [5999, 613, -40],
+   "note": "level 1: first seen 21:32:17 (5999, 613) at 18 tiles"
+  },
+  {
+   "key": "frost daemon",
+   "at": [5983, 598, 40],
+   "note": "level 1: first seen 21:33:02 (5983, 598) at 18 tiles"
+  },
+  {
+   "key": "acarid",
+   "at": [5975, 647, -3],
+   "note": "level 1: first seen 21:34:18 (5975, 647) at 18 tiles"
+  },
+  {
+   "key": "ursal huntsman",
+   "at": [5936, 625, 0],
+   "note": "level 1: first seen 21:34:47 (5936, 625) at 18 tiles"
+  },
+  {
+   "key": "frigid hornbeast",
+   "at": [6024, 769, 1],
+   "note": "level 2: first seen 21:34:58 (6024, 769) at 18 tiles"
+  },
+  {
+   "key": "nagalid",
+   "at": [6035, 802, 45],
+   "note": "level 2: first seen 21:34:58 (6035, 802) at 15 tiles"
+  },
+  {
+   "key": "nagalid",
+   "at": [6031, 832, 20],
+   "note": "level 2: first seen 21:35:23 (6031, 832) at 18 tiles"
+  },
+  {
+   "key": "frozen fury",
+   "at": [5975, 790, 23],
+   "note": "level 2: first seen 21:36:22 (5975, 790) at 18 tiles"
+  },
+  {
+   "key": "rime spirit",
+   "at": [5950, 785, 20],
+   "note": "level 2: first seen 21:36:27 (5950, 785) at 18 tiles"
+  },
+  {
+   "key": "colossal frost scorpion",
+   "at": [5951, 818, 20],
+   "note": "level 2: first seen 21:36:28 (5951, 818) at 18 tiles"
+  },
+  {
+   "key": "hoarfrost",
+   "at": [5943, 799, 20],
+   "note": "level 2: first seen 21:36:28 (5943, 799) at 18 tiles"
+  },
+  {
+   "key": "rimestone",
+   "at": [5943, 824, 20],
+   "note": "level 2: first seen 21:36:30 (5943, 824) at 18 tiles"
+  },
+  {
+   "key": "rime spirit",
+   "at": [5929, 816, 20],
+   "note": "level 2: first seen 21:36:59 (5929, 816) at 18 tiles"
+  },
+  {
+   "key": "hoarfrost",
+   "at": [5917, 813, 20],
+   "note": "level 2: first seen 21:37:08 (5917, 813) at 18 tiles"
+  },
+  {
+   "key": "rime spirit",
+   "at": [5904, 793, 20],
+   "note": "level 2: first seen 21:37:32 (5904, 793) at 18 tiles"
+  },
+  {
+   "key": "rimestone",
+   "at": [5900, 817, 20],
+   "note": "level 2: first seen 21:37:34 (5900, 817) at 18 tiles"
+  },
+  {
+   "key": "colossal frost scorpion",
+   "at": [5892, 810, 20],
+   "note": "level 2: first seen 21:37:50 (5892, 810) at 18 tiles"
+  },
+  {
+   "key": "rimestone",
+   "at": [5893, 788, 20],
+   "note": "level 2: first seen 21:38:21 (5893, 788) at 18 tiles"
+  },
+  {
+   "key": "rime spirit",
+   "at": [5904, 764, 20],
+   "note": "level 2: first seen 21:38:50 (5904, 764) at 18 tiles"
+  },
+  {
+   "key": "rimestone",
+   "at": [5948, 757, 21],
+   "note": "level 2: first seen 21:38:53 (5948, 757) at 18 tiles"
+  },
+  {
+   "key": "frigid hornbeast",
+   "at": [5972, 754, 10],
+   "note": "level 2: first seen 21:38:58 (5972, 754) at 18 tiles"
+  },
+  {
+   "key": "frigid hornbeast",
+   "at": [5995, 770, 0],
+   "note": "level 2: first seen 21:39:03 (5995, 770) at 18 tiles"
+  },
+  {
+   "key": "cave gorger",
+   "at": [6005, 1138, 20],
+   "note": "level 3: first seen 21:39:03 (6005, 1138) at 14 tiles"
+  },
+  {
+   "key": "icy dracolisk",
+   "at": [6006, 1134, 20],
+   "note": "level 3: first seen 21:39:03 (6006, 1134) at 18 tiles"
+  },
+  {
+   "key": "rime spirit skirmisher",
+   "at": [6008, 1091, 21],
+   "note": "level 3: first seen 21:40:15 (6008, 1091) at 18 tiles"
+  },
+  {
+   "key": "rime spirit soldier",
+   "at": [6006, 1106, 25],
+   "note": "level 3: first seen 21:40:16 (6006, 1106) at 3 tiles"
+  },
+  {
+   "key": "silicite",
+   "at": [5996, 1045, 26],
+   "note": "level 3: first seen 21:40:41 (5996, 1045) at 18 tiles"
+  },
+  {
+   "key": "rhinocerus beetle",
+   "at": [6004, 1039, 40],
+   "note": "level 3: first seen 21:40:42 (6004, 1039) at 18 tiles"
+  },
+  {
+   "key": "silicite",
+   "at": [6028, 1043, 13],
+   "note": "level 3: first seen 21:40:45 (6028, 1043) at 18 tiles"
+  },
+  {
+   "key": "charoite",
+   "at": [6033, 1031, 1],
+   "note": "level 3: first seen 21:40:46 (6033, 1031) at 18 tiles"
+  },
+  {
+   "key": "snow elemental",
+   "at": [6061, 584, 20],
+   "note": "level 1: first seen 21:43:01 (6061, 584) at 18 tiles"
+  },
+  {
+   "key": "snowdrift",
+   "at": [6062, 621, 20],
+   "note": "level 1: first seen 21:43:02 (6062, 621) at 18 tiles"
+  },
+  {
+   "key": "acarid",
+   "at": [5997, 645, -40],
+   "note": "level 1: first seen 21:43:11 (5997, 645) at 18 tiles"
+  },
+  {
+   "key": "frozen dead",
+   "at": [5939, 621, 1],
+   "note": "level 1: first seen 21:43:26 (5939, 621) at 18 tiles"
+  },
+  {
+   "key": "ursal huntsman",
+   "at": [5950, 643, 0],
+   "note": "level 1: first seen 21:43:26 (5950, 643) at 7 tiles"
+  },
+  {
+   "key": "ursal forager",
+   "at": [5939, 604, -40],
+   "note": "level 1: first seen 21:43:30 (5939, 604) at 18 tiles"
+  },
+  {
+   "key": "frozen fury",
+   "at": [5997, 783, 5],
+   "note": "level 2: first seen 21:44:05 (5997, 783) at 18 tiles"
+  },
+  {
+   "key": "frozen fury",
+   "at": [6019, 755, 2],
+   "note": "level 2: first seen 21:44:08 (6019, 755) at 18 tiles"
+  },
+  {
+   "key": "nagalid",
+   "at": [6008, 753, 0],
+   "note": "level 2: first seen 21:44:08 (6008, 753) at 18 tiles"
+  },
+  {
+   "key": "air drake",
+   "at": [5996, 748, 22],
+   "note": "level 2: first seen 21:44:13 (5996, 748) at 18 tiles"
+  },
+  {
+   "key": "lemura",
+   "at": [6009, 1054, 22],
+   "note": "level 3: first seen 21:44:29 (6009, 1054) at 18 tiles"
+  },
+  {
+   "key": "charoite",
+   "at": [5979, 1044, 4],
+   "note": "level 3: first seen 21:46:44 (5979, 1044) at 18 tiles"
+  },
+  {
+   "key": "rhinocerus beetle",
+   "at": [5973, 1073, 0],
+   "note": "level 3: first seen 21:46:45 (5973, 1073) at 18 tiles"
+  },
+  {
+   "key": "lemura",
+   "at": [5970, 1056, -10],
+   "note": "level 3: first seen 21:46:45 (5970, 1056) at 18 tiles"
+  }
+ ],
+ "spawn_note": "one spawn per cluster of a type's first sightings in the visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept): level 1 42, level 2 24, level 3 27. One evening's play: the tiles within 18 of where Logan stood are 52 % of level 1's floor, 90 % of level 2's, 53 % of level 3's, so the rest has none. Left out: the frozen remains a frozen dead raises (13 sightings on level 1; its `brood`)",
+ "melee_observed": {
+  "silicite": {
+   "melee": [32, 46, 41],
+   "swing_s": 3.37,
+   "note": "its swings (action 5/6, a number on AlaFlambe within 0.15 s): 26-38 as seen, median 34 (9 of 15 swings hit), song-corrected here, every 3.34-3.41 s (median 3.37, n=9). The observed swing period 0.63 s is its Silica Shards cast (50 frames of action 12) and its damage_to_pets median 10 the shards' bleed ticks"
+  },
+  "charoite": {
+   "melee": [42, 51, 47],
+   "swing_s": 3.4,
+   "note": "the wiki's 50-60 x kb_melee_to_pet x upscale.melee_x: its one swing seen hitting was 52 as seen (21:40:54.6), its swings (action 4) 3.4-5.6 s apart; the observed damage_per_swing (median 42) mixes in its crush (78-83) and the silicites' bleed ticks (10), its period 1.03 s other animations"
+  },
+  "hoarfrost": {
+   "melee": [42, 51, 47],
+   "note": "the wiki's 50-60 x kb_melee_to_pet x upscale.melee_x: its only two capture numbers (77, 85 on the pets) were its '*groans*' (not modelled, n=1)"
+  }
+ },
+ "specials": {
+  "silicite": [
+   {
+    "kind": "burst",
+    "id": "shards",
+    "action": 12,
+    "frames": 50,
+    "first_s": [2.1, 3.4],
+    "every_s": 15.9,
+    "delay_s": 1.52,
+    "repeat": 3,
+    "repeat_s": 1.0,
+    "center": "target",
+    "reach": 12,
+    "radius": 2,
+    "damage_pet": [34, 41, 37],
+    "damage_player": [21, 28, 26],
+    "bleed": {
+     "tick_pet": [11, 12, 11],
+     "tick_player": [12, 12],
+     "every_s": 3.0,
+     "seconds": 15.0,
+     "text": "Silica shards crash down and cause you to bleed!"
+    },
+    "note": "its Silica Shards (capture 20261031_170158, level 3, 2026-10-31 21:40:52-21:45:10; Logan's death 21:41:19.99): no emote, animation action 12 fifty times over 1.48-1.55 s with the silicite standing still, then three crashes 1.0 s apart, the first 1.51-1.57 s after the first frame (median 1.52, n=6 casts with hits): one number on each of us within 2 of its target (AlaFlambe, the tank) and a stacked bleed on each. Pets hit 36 of 36 at 0-2 from AlaFlambe; Logan 5 of 5 at 1-2 ('Silica shards crash down and cause you to bleed!' each time), spared 13 of 13 at 3-6 (at 4 from the caster too: not round the silicite; hits from 8-11 tiles off). Openers as seen under the Song of Discordance (18.0 % / 17.2 %): pets 27-35 (median 30, n=36; AlaFlambe 28-35, Bussin 27-32), Logan 17-23 (median 21, n=5); song-corrected here. Each hit a 5-tick bleed 3.0 s apart from 3.0 s after it ('You are no longer bleeding.' 15.08 s after Logan's single stack): Logan 10 a tick under the song (n=13, one 9), the pets 9-10 under it and 11 with no song after Logan's death (7 single ticks, 4 coinciding pairs of 22). Casts 15.13-16.50 s apart (median 15.9, n=3 one silicite; 20.16 the other's), the first 2.1-3.4 s after it went to war (n=3); one cast from 19-21 tiles hit nobody (reach 12 [INFERENCE])"
+   }
+  ],
+  "charoite": [
+   {
+    "kind": "burst",
+    "id": "crush",
+    "action": 11,
+    "first_s": [1.0, 4.4],
+    "every_s": 15.7,
+    "delay_s": 0.87,
+    "center": "target",
+    "reach": 8,
+    "radius": 0,
+    "damage_pet": [94, 101, 97],
+    "damage_player": [66, 71, 68],
+    "note": "no emote: animation action 11, then 0.84-0.93 s later (median 0.87, n=5) one number on its target's tile (21:21:58.8, 21:40:49.4, 21:41:05.1, 21:45:47.5, 21:46:03.0): both pets when they stood on one tile (3 of 3), the other pet 2 tiles off spared (2 of 2), Logan at 1-3 spared (3 of 3); targets at 1-8 tiles. As seen under the Song of Discordance 78-83 (n=8, AlaFlambe and Bussin alike), song-corrected here. 9.2-17.8 s apart (15.6, 15.8, 17.8; the 9.2 one at 18 tiles, no hit seen), median 15.7; action 11 at 15-18 tiles twice with nothing on us. Never on Logan: damage_player [INFERENCE: 0.70 of the pets', the silica openers' Logan/pet ratio]. These are the type's 'damage_ranged_sole' 78-83 in observed.json"
+   }
+  ],
+  "acarid": [
+   {
+    "kind": "bleed",
+    "stack": true,
+    "chance": 0.15,
+    "tick_pet": [17, 17],
+    "tick_player": [26, 26],
+    "every_s": 3.0,
+    "seconds": 15.0,
+    "text": "The creature burrows into you!",
+    "note": "its Burrow: '*burrows*' 4 times (21:16:45.2, 21:30:27.2, 21:30:36.1, 21:30:46.2), each with an attack animation (action 5) and a number at that instant on its victim (Logan 10, AlaFlambe 14-16); Logan 'The creature burrows into you!' (21:30:27.16), then 21 every 3.0 s five times (+3.06..+15.00) and 'You are no longer bleeding.' 15.00 s after; AlaFlambe 14 every 3.0 s five times (21:16:45), two burrows 10 s apart on it ran side by side (stacked). Ticks as seen under the Song of Discordance (17.7 % / 18.0 %), song-corrected here. chance: the wiki's Burrow (knowledge #14479, 15 % a melee hit) [INFERENCE: live 4 burrows in 43 acarid attack animations, 9 %]"
+   }
+  ],
+  "ursal throatsinger": [
+   {
+    "kind": "burst",
+    "id": "shout",
+    "text": "*shouts*",
+    "action": 27,
+    "first_s": [0.3, 0.5],
+    "every_s": 8.0,
+    "delay_s": 0.65,
+    "radius": 10,
+    "damage_pet": [23, 27, 25],
+    "damage_player": [22, 29, 27],
+    "note": "'*shouts*' 3 times (21:20:05.9, 21:34:46.7, 21:34:56.2; two throatsingers), each 0.39-0.41 s after it went to war with Logan walking by, with its animation 27; 0.54-0.78 s later (median 0.65) a number on each of us at 3-9 tiles from it: 9 of 9 (Logan at 3, 4, 9). As seen under the Song of Discordance: pets 19-22 (n=6), Logan 18-24 (n=3); song-corrected here. No second shout seen (each time we were out of view within 4 s): every_s [INFERENCE: the common ~8 s of the Ossuary's area emotes]; radius 10 [INFERENCE: hits out to 9]. Its 'damage_ranged_sole' (n=10, median 20.5) in observed.json is mostly these"
+   }
+  ],
+  "white wyrmling": [
+   {
+    "kind": "burst",
+    "id": "chill",
+    "action": 5,
+    "first_s": [2.3, 5.9],
+    "every_s": 14.5,
+    "delay_s": 1.4,
+    "center": "target",
+    "reach": 8,
+    "radius": 2,
+    "damage_pet": [53, 63, 58],
+    "damage_player": [33, 34],
+    "note": "its chilling area hit (21:20:40.4, 21:35:49.1, 21:36:03.6; two wyrmlings): its animation 5, 1.32-1.57 s later one number on each of us within 2 of the pets and '*chilled*' over each pet hit / 'You feel chilled!' on Logan in the same packet; Logan hit 2 of 2 at 1-2 from the pets, spared once at 4 (8 from it); pets hit from 1 and 5 tiles. As seen under the Song of Discordance pets 44-52 (n=6), Logan 27-28 (n=2); song-corrected here. 14.5 s apart (n=1), the first 2.3-5.9 s after it went to war. The chill (not modelled: its size was never measured; the Chill debuff: Chill debuff (knowledge #3437: 'increases all damage the target takes from you and your followers'), the tamed Chill Touch's 60 s (#14471); [INFERENCE: unmeasured live]). No slow: Logan's steps 0.20 s apart in the 60 s after each of his 3 chills (n=40-168). Its plain chilled bites (2: 21:20:38.3 Ala 30+35, 21:35:50.7 Ala 36+37) not modelled (no on-hit debuff kind)"
+   }
+  ],
+  "frigid archfiend": [
+   {
+    "kind": "burst",
+    "id": "chill",
+    "action": 5,
+    "first_s": [1.6, 2.0],
+    "every_s": 15.3,
+    "delay_s": 0.8,
+    "center": "target",
+    "reach": 8,
+    "radius": 2,
+    "damage_pet": [90, 107, 99],
+    "damage_player": [34, 34],
+    "note": "its chilling area hit (21:17:46.3, 21:18:01.6, 21:32:22.6; two archfiends): its animation 5, 0.58-0.91 s later one number on each of us near its target and '*chilled*' over each pet hit / 'You feel chilled!' on Logan: both pets 3 of 3 (on one tile, 1-6 from it), Logan hit at 1 from them (once), spared at 4-5 (twice). As seen under the Song of Discordance pets 74-88 (n=6), Logan 28 (n=1); song-corrected here. 15.3 s apart (n=1), the first 1.6-2.0 s after it went to war (n=2); radius 2 [INFERENCE: hit at 1, spared at 4]; the chill's size as the white wyrmling's [INFERENCE]. These numbers are in its 'damage_ranged_sole' (n=7, 30-84) in observed.json. Its '*enraged*' (3) had no number after it: not modelled The chill on its victims is not modelled (its size was never measured)."
+   }
+  ],
+  "note": "measured from Logan Wolf's three Cavernam visits (capture 20261031_170158, 2026-10-31 21:15:20-21:23:30, 21:30:04-21:41:40, 21:43:01-21:47:04; docs/NOTES.md \"Cavernam: three visits by hand, dead on level 3\"): per creature, the numbers on our side after its cue with the victims' and the spared ones' distances. Every number was taken under Logan's Song of Discordance (17.7 % to 21:27:30, 18.0 % 21:30:22 to his death, 17.2 % from 21:43:52) and is divided here by (1 - that share), docs/SIM.md's rule (the World cuts it again). Not modelled (seen; too few, no harm or no mechanic): the frozen dead's '*raises frozen remains*' (4: two frozen remains beside it 0.02-0.25 s later, 0.6-1.4 s after it went to war; harmless, 1 number of 5 on a pet) and '*absorbs essence*' (2: one of its remains dies at that instant); the lemura's '*warded*' (10, 4.9-9.9 s apart: the pets' damage reflected, 8 numbers in our hue 89 on them: 15-28 six times, 282 and 60 together on AlaFlambe 21:44:39.6; no reflect kind); the stalagfright's '*jettisons*' (1: pets 12-13 at +0.78 and +1.35 s, Logan 7, at 3-4 tiles); the icy lurker's '*vomits*' (1: Logan 16, 17, 18 at 10-12 tiles 1.42-1.95 s after, the pets at 10 spared); the hoarfrost's '*groans*' (2: once 77/85 on the pets on one tile beside it 0.75 s after, Logan at 4 spared; the type's only numbers); the cave gorger's '*gorges*' (1: 39-95 on both pets 0.27 s before it, an icy dracolisk beside them); the rhinocerus beetle's '*charges*' (1, from 13-16 tiles, no hit); the rime elemental's '*shield bashed*' (over it, the player xander xavier beside it [INFERENCE: his bash]); the ursal forager's '*applies poison to weapon*' (2, no poison on us after) and '*applies herbal poultice*' (3, its own heal); the frigid archfiend's '*enraged*' (3, no number after); the frost daemon's, rime spirit's and icy dracolisk's chill on single hits (frost daemon spell 101-117 on AlaFlambe with Bussin on the same tile spared, 3; no debuff rider on a ranged or melee hit); the colossal frost scorpion's Deadly poison on Logan (1, 21:36:57.1, '*wracked with extreme pain*', cured 1.1 s later). 'You are no longer hindered.' (7) is Logan's own traversal: each 1.07-1.14 s after 'Where do you wish to traverse to?' Chill on its victims (the wyrmling's and archfiend's area hits, the frost daemon's, rime spirit's and dracolisk's single hits: '*chilled*' / 'You feel chilled!'): not modelled, its size never measured (no slow on Logan's steps). Bursts' `action`: the cast animation World sends at the cue (the silicite's action 12 sent 50 times over 1.5 s, the charoite's 11, the wyrmling's and archfiend's 5, the throatsinger's 27)."
+ },
+ "trip": {
+  "note": "Logan Wolf's visits on level 3 (2026-10-31, the user playing): 469 s there, the death included; per hour on the level beside the sim's (run.py --compare). Gold: every gold lift there (corpses others killed included). Levels 1 and 2 by the same rules: level 1 495 s, 20 kills, 423 damage on Logan, 29 vet uses, 4 potions, 28,822 gp; level 2 331 s, 10 kills, 80, 12, 1, 16,148 gp. Discordance 15, Peacemaking 9, Provocation 22 by skill id",
+  "hunt_s": 468.5,
+  "kills": 10,
+  "player_damage": 282,
+  "vet_uses": 23,
+  "potions": 3,
+  "discord_ok": 7,
+  "discord_fail": 4,
+  "peace_ok": 2,
+  "peace_fail": 3,
+  "provoke": 2,
+  "gold": 51979
+ }
+}

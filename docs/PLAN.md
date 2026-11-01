@@ -3260,6 +3260,29 @@ Tomb level 2: the leave without the pets", with every path that goes on without 
   a death 50 -> 42, with a pet death 154 -> 144, runs with a pet left at a gate 5 -> 2 (all the gate dash's), banked
   an hour about the same; level 1 unchanged.
 
+## Cavernam in the simulator; a Cavernam shift skill (user 2026-10-31)
+
+User: "I did a couple of Cavernam dungeon runs today. Add Cavernam to the simulator and create a skill for running it
+like the existing Maus and Tidal Tomb skills." Built from his three visits (docs/SIM.md "Cavernam", docs/NOTES.md
+"Cavernam: three visits by hand, dead on level 3"). Decisions:
+
+- *A fourth scenario the Ossuary's way* (`inherit` from the Mausoleum, a box per level, the spawns' clustering, kb_scan
+  plus hand rows, `calibrate`), nothing new in the World but a burst's cast `action`: the silicite's shards, the
+  charoite's crush and the wyrmling's and archfiend's hits have no emote, only an animation, and the runner should see
+  what a player sees.
+- *`upscale` in the scenario* (hits x 1.5, gold x 1.6, the wiki's melee x 1.7): the capture's creatures were Paragon-
+  like (the Challenger Dungeon [INFERENCE]). Rejected: folding the factors into the kb (a kb_scan rerun would undo them,
+  and the wiki's numbers are what a normal week has) or `gold_observed` per type (one or two corpses each).
+- *The song correction as the Mausoleum audit's rule* (numbers divided by 1 - the song): the World cuts it again.
+- *Level commands*: level 1 out by its golden gate, no `--enter-via` (`run.py --no-enter-via` for the simulator);
+  levels 2 and 3 out by the easier of their two crimson gates. The skill's default is **level 2** (0 of 32 simulated
+  runs with a death, 125k gp a game hour), as the Ossuary's: the runner has never hunted Cavernam live. Level 3 (2 of
+  48 with a death, 149k) needs the user's go, as Logan died there by hand to the shards. Level 4 is refused (never
+  visited).
+- *No runner change*: the shards' area misses `tamer.TARGET_AREA` by its 15 s rule (every 15.9 s); the two simulated
+  deaths in 48 can't tell a change apart. Left open for the first live runs.
+- *Not modelled*: the lemura's reflection (no kind; one 282 on AlaFlambe), the chill's size, the one-sighting specials.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

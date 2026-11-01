@@ -6813,10 +6813,11 @@ def test_area_hitters():
             "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None}
     check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
     want = {"astral zoa": (11, 4), "giant astral zoa": (11, 4), "combustive zoa": (12, 4), "giant combustive zoa": (12, 4),
-            "drowned mariner": (11, 2), "soulcatcher": (11, 2)}
-    check("...the zoas' spell and scorch round the pet they target, the shooters' hits on everyone within 1 of theirs; "
-          "nothing else (not a shellpod's barrage, radius 0; not the zoas' lightning, one every 22-87 s)",
-          tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
+            "drowned mariner": (11, 2), "soulcatcher": (11, 2), "white wyrmling": (8, 3)}
+    check("...the zoas' spell and scorch round the pet they target, the shooters' hits on everyone within 1 of theirs, "
+          "Cavernam's white wyrmling's chilling hit (every 14.5 s); nothing else (not a shellpod's barrage, radius 0; not "
+          "the zoas' lightning, one every 22-87 s; not the silicite's shards or the frigid archfiend's hit, every 15.9 and "
+          "15.3 s)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
 
 
 def test_shy_by_ai():
@@ -7536,6 +7537,105 @@ def test_ossuary_hunt():
           f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
 
 
+CAV_L3 = (6006, 1140)         # Cavernam: level 3 near its arrival (the hunting level), open to the east
+
+
+def cavernam_world(start, spawns=(), seed=1, z=20, team="phoenix_incubus"):
+    from sim import pets
+    sc = load("cavernam")
+    pets.select(sc, team)
+    sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
+    sc["player"]["start"] = [start[0], start[1], z]
+    return World(sc, seed=seed)
+
+
+def test_cavernam_upscale():
+    print("== Cavernam's upscaled creatures (the week's Challenger Dungeon): 1.5 x the wiki's hits, 1.6 x its gold, 1.7 x "
+          "its melee where the capture has none; a capture's melee and another dungeon's creatures untouched ==")
+    import json
+    from sim.scenario import DATA as SIM_DATA
+    sc, kb = load("cavernam"), json.load(open(os.path.join(SIM_DATA, "cavernam_kb.json"), encoding="utf-8"))["creatures"]
+    d, lem = sc["creatures"]["icy dracolisk"], sc["creatures"]["lemura"]
+    lo, hi = kb["icy dracolisk"]["melee_damage"]
+    check("an icy dracolisk: 12,000 hits of the wiki's 8,000, gold 1.6 x 0.9-1.15 of its value, melee 0.5 x 1.7 of the "
+          "wiki's", d["hits"] == 12000 and d["gold"] == [round(kb["icy dracolisk"]["gold_value"] * 1.6 * 0.9),
+                                                          round(kb["icy dracolisk"]["gold_value"] * 1.6 * 1.15)]
+          and abs(d["melee"][0] - lo * 0.85) < 1e-9 and abs(d["melee"][1] - hi * 0.85) < 1e-9,
+          f"hits {d['hits']} gold {d['gold']} melee {d['melee']}")
+    obs = json.load(open(os.path.join(SIM_DATA, "cavernam_observed.json"), encoding="utf-8"))["creatures"]["lemura"]
+    check("a lemura's melee is its swings on the pets in the capture, not scaled again",
+          lem["source"]["melee"] == "capture" and lem["melee"][2] == obs["swing"]["damage_per_swing"]["median"],
+          f"{lem['melee']} {lem['source']}")
+    oss = load("ossuary")["creatures"]["anubite"]
+    okb = json.load(open(os.path.join(SIM_DATA, "ossuary_kb.json"), encoding="utf-8"))["creatures"]["anubite"]
+    check("the Ossuary's anubite keeps the wiki's hits", oss["hits"] == okb["hits"], f"{oss['hits']} vs {okb['hits']}")
+
+
+def test_cavernam_silica_shards():
+    print("== a silicite's Silica Shards: its cast (action 12), then 3 crashes 1.0 s apart from 1.52 s, each on whoever "
+          "stands within 2 of its target, a 5-tick bleed stack on each victim per crash; one 3 off spared ==")
+    x, y = CAV_L3
+    w = cavernam_world(CAV_L3, [{"key": "silicite", "at": [x + 4, y, 20]}])
+    hurts = _log_hurts(w)
+    sent, orig = [], w.send
+
+    def send(*pkts):
+        sent.extend((w.t, p) for p in pkts)
+        orig(*pkts)
+    w.send = send
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+    bus = next(p for p in w.pets() if p.name == "Bussin")
+    _hold_on(w, m, ala)
+    m.spec = {**m.spec, "step_s": 1e9}                   # it stood still live while it cast
+    for p, at in ((ala, (x + 3, y)), (bus, (x + 3, y + 3))):
+        p.mode = "stay"
+        w._teleport(p, (*at, 20))
+        p.hits = p.hits_max = 100000
+    w._teleport(w.player, (x + 1, y, 20))               # Logan 2 from AlaFlambe, Bussin 3
+    w.player.hits = w.player.hits_max = 100000
+    cue = None
+    while cue is None and w.t < 6.0:
+        w.run_until(w.t + 0.1)
+        cue = next((t for t, p in sent if p[0] == 0x6E and int.from_bytes(p[1:5], "big") == m.serial
+                    and int.from_bytes(p[5:7], "big") == 12), None)
+    m.spec = {**m.spec, "specials": []}                  # one cast: its crashes and their bleeds alone
+    w.run_until((cue or 0.0) + 20.0)
+    crashes = [(t, v) for t, v, k, _ in hurts if k == "burst"]
+    times = sorted({round(t, 1) for t, _ in crashes})
+    check("3 crashes 1.0 s apart from 1.52 s after the cast, each on AlaFlambe and Logan, none on Bussin 3 off",
+          cue is not None and len(times) == 3 and all(abs(t - (cue + 1.52 + i)) < 0.11 for i, t in enumerate(times))
+          and all({v.serial for t, v in crashes if round(t, 1) == c} == {ala.serial, w.player.serial} for c in times),
+          f"cue {cue} crashes {[(round(t, 2), v.name) for t, v in crashes]}")
+    bleeds = collections.Counter(v.name for _, v, k, _ in hurts if k == "bleed")
+    check("...and 5 bleed ticks per crash on each of them (15), none on Bussin",
+          bleeds == {"AlaFlambe": 15, w.player.name: 15}, str(dict(bleeds)))
+
+
+def test_cavernam_recall_rule():
+    print("== Cavernam's recall rule: beside level 1's golden gate only; the tome's landing 4 tiles from it, levels 2 "
+          "and 3 refused; outside allowed ==")
+    import escape
+    check("a recall beside the golden gate (6049, 598) is allowed", escape.recall_forbidden((6049, 600, 0), 0) is None)
+    why = escape.recall_forbidden((6049, 602, 0), 0)
+    check("...at the tome's landing (6049, 602), 4 off, refused", why is not None and "Cavernam" in why, str(why))
+    check("...on level 2 and level 3 refused", escape.recall_forbidden((6000, 790, 0), 0) is not None
+          and escape.recall_forbidden((*CAV_L3, 20), 0) is not None)
+    check("...outside the boxes allowed (Cavernam Outside, 2733, 373)", escape.recall_forbidden((2733, 373, 0), 0) is None)
+
+
+def test_cavernam_hunt():
+    print("== a Cavernam hunt from home: recall to level 1, its teleporter and level 2's strip, kills on level 3, out by "
+          "a crimson moongate to Totem, home ==")
+    from sim import run as simrun
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        r = simrun.run_once(1, [], scenario="cavernam", minutes=10, team="phoenix_incubus")
+    check("done, kills on level 3, the gold banked at home", r["outcome"] == "done" and r["kills"] > 0
+          and r["gold_banked"] > 0 and r["hunt_s"] > 120,
+          f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -7601,7 +7701,8 @@ def main():
               test_tidal_hunt,
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,
-              test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt):
+              test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
+              test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

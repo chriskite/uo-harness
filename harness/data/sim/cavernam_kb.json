@@ -1,0 +1,3013 @@
+{
+ "creatures": {
+  "acarid": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 7,
+    "graphics": [
+     "0x181"
+    ],
+    "serials": 11,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 31.3,
+   "gold_value": 314,
+   "graphic": 385,
+   "hits": 2500,
+   "knowledge_ids": [
+    10486,
+    10542,
+    14479,
+    14745
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an acarid",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Burrow (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 2.0) bleed damage over 15 seconds. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "air dragon": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 138.3,
+   "gold_value": 1383,
+   "hits": 10000,
+   "knowledge_ids": [
+    10487,
+    10547,
+    14464,
+    14483,
+    14687
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an air dragon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Air Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, dealing (DamageMax * 1.75) damage and applying a weaken effect of (Control Slots * 5%) for 15 seconds",
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Air Shield (Cooldown): Creates a shield around the creature that increases accuracy and melee defense by 15% for 60 seconds (cannot stack)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 110
+  },
+  "air drake": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x3c"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 92.7,
+   "gold_value": 928,
+   "graphic": 60,
+   "hits": 6000,
+   "knowledge_ids": [
+    10487,
+    10539,
+    14464,
+    14483,
+    14684
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an air drake",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Air Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, dealing (DamageMax * 1.75) damage and applying a weaken effect of (Control Slots * 5%) for 15 seconds",
+    "[tamed-version follower ability, knowledge #14483; that the wild creature uses it is [INFERENCE]] Air Shield (Cooldown): Creates a shield around the creature that increases accuracy and melee defense by 15% for 60 seconds (cannot stack)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 110
+  },
+  "arctic bullvore": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 138.8,
+   "gold_value": 1389,
+   "hits": 10000,
+   "knowledge_ids": [
+    10487,
+    10552,
+    14471,
+    14473,
+    14711
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an arctic bullvore",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14473; that the wild creature uses it is [INFERENCE]] Chilled Charge (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 1 tile. Inflicts (DamageMax * 0.7) damage, with the first target hit taking +75% damage. Applies a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)",
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 100
+  },
+  "barbed prowler": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 138.4,
+   "gold_value": 1384,
+   "hits": 10000,
+   "knowledge_ids": [
+    10487,
+    10561,
+    14476,
+    14482,
+    14847
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a barbed prowler",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14476; that the wild creature uses it is [INFERENCE]] Barb Swarm (Cooldown): Fires projectiles at a location up to 12 tiles away hitting up to 4 targets within 2 tiles. Inflicts (DamageMax * 1.0) bleed damage over for 15 seconds, with the first target hit taking +50% damage.",
+    "[tamed-version follower ability, knowledge #14482; that the wild creature uses it is [INFERENCE]] Frenzy (Passive): Has a 15% chance on melee attack to increase attack speed by 10% for 30 seconds (cannot stack)."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "behemoth basilisk": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 1288.0,
+   "gold_value": 100000,
+   "hits": 200000,
+   "knowledge_ids": [
+    10765,
+    16257
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a behemoth basilisk",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "60%",
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 110
+  },
+  "bonechiller": {
+   "ai": "meleemage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 367.5,
+   "gold_value": 3676,
+   "hits": 22000,
+   "knowledge_ids": [
+    10818,
+    12439
+   ],
+   "location": "Cavernam",
+   "magery": 275,
+   "magic_resist": 300,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a bonechiller",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    55,
+    65
+   ],
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 130
+  },
+  "boreal faerie wyrm": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 81.0,
+   "gold_value": 811,
+   "hits": 6000,
+   "knowledge_ids": [
+    10487,
+    10542,
+    12463,
+    14468
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a boreal faerie wyrm",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Boreal Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, inflicting (DamageMax * 0.8) damage and applying a pierce effect of (Control Slots * 5) for 30 seconds. Also applies a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%)"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 110
+  },
+  "boreal wyrm": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 212.0,
+   "gold_value": 2121,
+   "hits": 16000,
+   "knowledge_ids": [
+    10488,
+    10574,
+    12450,
+    14468
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a boreal wyrm",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Boreal Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, inflicting (DamageMax * 0.8) damage and applying a pierce effect of (Control Slots * 5) for 30 seconds. Also applies a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%)"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 130
+  },
+  "cave elderogre": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 213.0,
+   "gold_value": 2131,
+   "hits": 16000,
+   "knowledge_ids": [
+    10757,
+    12449
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cave elderogre",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 120
+  },
+  "cave explorer": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 174.0,
+   "gold_value": 1741,
+   "hits": 12000,
+   "knowledge_ids": [
+    10681,
+    12457
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 100,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cave explorer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.25,
+   "wrestling": 140
+  },
+  "cave gorger": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x175"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 124.0,
+   "gold_value": 1241,
+   "graphic": 373,
+   "hits": 8000,
+   "knowledge_ids": [
+    10488,
+    10597,
+    14472,
+    14486,
+    15022
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cave gorger",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14486; that the wild creature uses it is [INFERENCE]] Gorge (Cooldown): Inflicts (DamageMax * 2.0) damage against an entangled, hindered, or hamstrung target up to 1 tile away and restores 5% of maximum hit points.",
+    "[tamed-version follower ability, knowledge #14472; that the wild creature uses it is [INFERENCE]] Grasp (Passive): Has a (5% + (Control Slots * 5%)) chance on melee hit to entangle creatures for 6 seconds or hamstring players for 2 seconds."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 100
+  },
+  "cave hunter": {
+   "ai": "ranged",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 180.4,
+   "gold_value": 1804,
+   "hits": 12000,
+   "knowledge_ids": [
+    10686,
+    12456
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cave hunter",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 2.5,
+   "wrestling": 150
+  },
+  "charoite": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x2c1"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 105.9,
+   "gold_value": 1059,
+   "graphic": 705,
+   "hits": 8000,
+   "knowledge_ids": [
+    10663,
+    16272
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a charoite",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 100
+  },
+  "colossal frost scorpion": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x62"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 74.0,
+   "gold_value": 741,
+   "graphic": 98,
+   "hits": 5000,
+   "knowledge_ids": [
+    10488,
+    10560,
+    14471,
+    14944
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal frost scorpion",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 90
+  },
+  "crag daemon": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 212.5,
+   "gold_value": 2125,
+   "hits": 16000,
+   "knowledge_ids": [
+    10628,
+    15074
+   ],
+   "location": "Cavernam",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    65,
+    75
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a crag daemon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 130
+  },
+  "dead of winter": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 225.6,
+   "gold_value": 2256,
+   "hits": 12000,
+   "knowledge_ids": [
+    10816,
+    12448
+   ],
+   "location": "Cavernam",
+   "magery": 150,
+   "magic_resist": 200,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a dead of winter",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 130
+  },
+  "frigid archfiend": {
+   "ai": "meleemage",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x13e"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 194.9,
+   "gold_value": 1950,
+   "graphic": 318,
+   "hits": 12000,
+   "knowledge_ids": [
+    10640,
+    15075
+   ],
+   "location": "Cavernam",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    55,
+    65
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frigid archfiend",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "frigid hornbeast": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x188"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 61.6,
+   "gold_value": 617,
+   "graphic": 392,
+   "hits": 4000,
+   "knowledge_ids": [
+    10488,
+    10626,
+    14475,
+    14481,
+    14853
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frigid hornbeast",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14481; that the wild creature uses it is [INFERENCE]] Frigid Blast (Cooldown): Fires a projectile at a location up to 6 tiles away, hitting up to 3 targets within 1 tile. Inflicts (DamageMax * 0.75) damage, with the first target hit taking +50% damage. Applies a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%).",
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Enrage (Passive): Has a 15% chance on melee attack to increase melee damage by 20% for 30 seconds (cannot stack)."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 100
+  },
+  "frost daemon": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x9"
+    ],
+    "note": "by hand: the wiki's Creatures List row is at Location 'Wilderness' (knowledge #10637), the type met on Cavernam level 1",
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 217.5,
+   "gold_value": 2175,
+   "graphic": 9,
+   "hits": 16000,
+   "knowledge_ids": [
+    10637,
+    16349
+   ],
+   "location": "Wilderness",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frost daemon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 130
+  },
+  "frost daevil": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 400.6,
+   "gold_value": 4007,
+   "hits": 30000,
+   "knowledge_ids": [
+    10626,
+    12428
+   ],
+   "location": "Cavernam",
+   "magery": 200,
+   "magic_resist": 225,
+   "melee_damage": [
+    65,
+    75
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frost daevil",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    40,
+    50
+   ],
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 140
+  },
+  "frostbark": {
+   "ai": "mage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 236.1,
+   "gold_value": 2361,
+   "hits": 16000,
+   "knowledge_ids": [
+    10787,
+    12444
+   ],
+   "location": "Cavernam",
+   "magery": 200,
+   "magic_resist": 225,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frostbark",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "80%",
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "SuperSlow",
+   "spell_damage": [
+    40,
+    50
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 110
+  },
+  "frozen dead": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 6,
+    "graphics": [
+     "0x136"
+    ],
+    "serials": 10,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 57.8,
+   "gold_value": 579,
+   "graphic": 310,
+   "hits": 3000,
+   "knowledge_ids": [
+    10838,
+    15076
+   ],
+   "location": "Cavernam",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frozen dead",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "VerySlow",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 60
+  },
+  "frozen fury": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x174"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 76.4,
+   "gold_value": 765,
+   "graphic": 372,
+   "hits": 5000,
+   "knowledge_ids": [
+    10620,
+    15077
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frozen fury",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "frozen remains": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x135"
+    ],
+    "note": "by hand: the wiki's row has Location '?' (knowledge #10833); raised by the frozen dead ('*raises frozen remains*')",
+    "serials": 13,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 13.5,
+   "gold_value": null,
+   "graphic": 309,
+   "hits": 1500,
+   "knowledge_ids": [
+    10833,
+    16350
+   ],
+   "location": "?",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frozen remains",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 50
+  },
+  "glacial creep": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 32.9,
+   "gold_value": 330,
+   "hits": 2500,
+   "knowledge_ids": [
+    10790,
+    15078
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a glacial creep",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 70
+  },
+  "great abyssal hornbeast": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 595.7,
+   "gold_value": 50000,
+   "hits": 100000,
+   "knowledge_ids": [
+    10376,
+    10587
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a great abyssal hornbeast",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.8,
+   "wrestling": 100
+  },
+  "haunter": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 196.3,
+   "gold_value": 1964,
+   "hits": 10000,
+   "knowledge_ids": [
+    10822,
+    12453
+   ],
+   "location": "Cavernam",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a haunter",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 130
+  },
+  "hoarfrost": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x130"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 91.4,
+   "gold_value": 914,
+   "graphic": 304,
+   "hits": 6000,
+   "knowledge_ids": [
+    10599,
+    15079
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a hoarfrost",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 80
+  },
+  "ice knight": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 239.9,
+   "gold_value": 2399,
+   "hits": 14000,
+   "knowledge_ids": [
+    10640,
+    12443
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ice knight",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 130
+  },
+  "ice lich": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 254.0,
+   "gold_value": 2540,
+   "hits": 12000,
+   "knowledge_ids": [
+    10827,
+    12442
+   ],
+   "location": "Cavernam",
+   "magery": 225,
+   "magic_resist": 250,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ice lich",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    45,
+    55
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "icy dracolisk": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x180"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 128.4,
+   "gold_value": 1285,
+   "graphic": 384,
+   "hits": 8000,
+   "knowledge_ids": [
+    10764,
+    15080
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an icy dracolisk",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 110
+  },
+  "icy lurker": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0xa0"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 118.3,
+   "gold_value": 1183,
+   "graphic": 160,
+   "hits": 8000,
+   "knowledge_ids": [
+    10734,
+    15081
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an icy lurker",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 100
+  },
+  "icy sedimental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 230.8,
+   "gold_value": 2308,
+   "hits": 14000,
+   "knowledge_ids": [
+    10619,
+    12446
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an icy sedimental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 120
+  },
+  "lemura": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x125"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 100.6,
+   "gold_value": 1007,
+   "graphic": 293,
+   "hits": 6000,
+   "knowledge_ids": [
+    10489,
+    10594,
+    14464,
+    14472,
+    14479,
+    14980
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lemura",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Reactive Armor (Cooldown): Applies the reactive armor spell to the creature, with 100 total damage reduction.",
+    "[tamed-version follower ability, knowledge #14464; that the wild creature uses it is [INFERENCE]] Magic Reflect (Cooldown): Applies the magic reflect spell to the creature.",
+    "[tamed-version follower ability, knowledge #14472; that the wild creature uses it is [INFERENCE]] Spellshield (Passive): Spells cast onto the creature have a 15% chance to increase its magic resist skill by (Control Slots * 100) for 3 seconds."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 110
+  },
+  "nagalid": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": 45,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x4f"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 56.3,
+   "gold_value": 564,
+   "graphic": 79,
+   "hits": 3500,
+   "knowledge_ids": [
+    10776,
+    15082
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [],
+   "name": "a nagalid",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 120
+  },
+  "opilion attendant": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 48.7,
+   "gold_value": 487,
+   "hits": 4000,
+   "knowledge_ids": [
+    10737,
+    15083
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an opilion attendant",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 85
+  },
+  "opilion conservator": {
+   "ai": "meleemage",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 82.6,
+   "gold_value": 826,
+   "hits": 5000,
+   "knowledge_ids": [
+    10744,
+    15084
+   ],
+   "location": "Cavernam",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an opilion conservator",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "opilion worker": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 34.1,
+   "gold_value": 341,
+   "hits": 3000,
+   "knowledge_ids": [
+    10731,
+    15085
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an opilion worker",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 80
+  },
+  "permafrost": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 320.3,
+   "gold_value": 3204,
+   "hits": 20000,
+   "knowledge_ids": [
+    10650,
+    12440
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a permafrost",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 150
+  },
+  "polar bear": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0xd5"
+    ],
+    "note": "by hand: no Creatures List row; the Tameables page 'Polar Bear' (knowledge #14569: 175 hits, 18-22 melee, wrestling 55, armor 25, resist 50, underdog scalar 1.371) [INFERENCE: the wild one as the tame's base stats]; two seen on level 1, never fought",
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": null,
+   "gold_value": null,
+   "graphic": 213,
+   "hits": 175,
+   "knowledge_ids": [
+    14569
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 50,
+   "melee_damage": [
+    18,
+    22
+   ],
+   "missing": [
+    "attack_speed",
+    "speed",
+    "difficulty",
+    "gold_value"
+   ],
+   "name": "a polar bear",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "0%",
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": null,
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.371,
+   "wrestling": 55
+  },
+  "rhinocerus beetle": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x5c"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 201.1,
+   "gold_value": 2011,
+   "graphic": 92,
+   "hits": 14000,
+   "knowledge_ids": [
+    10547,
+    15086
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rhinocerus beetle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 90
+  },
+  "rime court wizard": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 264.8,
+   "gold_value": 2648,
+   "hits": 14000,
+   "knowledge_ids": [
+    10820,
+    12441
+   ],
+   "location": "Cavernam",
+   "magery": 200,
+   "magic_resist": 225,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime court wizard",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    40,
+    50
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "rime elemental": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x10"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 48.6,
+   "gold_value": 487,
+   "graphic": 16,
+   "hits": 3000,
+   "knowledge_ids": [
+    10674,
+    15087
+   ],
+   "location": "Cavernam",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime elemental",
+   "parry": 25,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 85
+  },
+  "rime guar": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x10e"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 19.1,
+   "gold_value": 192,
+   "graphic": 270,
+   "hits": 1500,
+   "knowledge_ids": [
+    10489,
+    10556,
+    14471,
+    14812
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime guar",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 70
+  },
+  "rime jarl": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 228.8,
+   "gold_value": 2288,
+   "hits": 18000,
+   "knowledge_ids": [
+    10816,
+    12447
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 200,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime jarl",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.25,
+   "wrestling": 150
+  },
+  "rime royal lancer": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 186.1,
+   "gold_value": 1861,
+   "hits": 16000,
+   "knowledge_ids": [
+    10818,
+    12454
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 125,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime royal lancer",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 130
+  },
+  "rime spirit": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x3ca"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 83.2,
+   "gold_value": 832,
+   "graphic": 970,
+   "hits": 5000,
+   "knowledge_ids": [
+    10818,
+    15088
+   ],
+   "location": "Cavernam",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime spirit",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 80
+  },
+  "rime spirit champion": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 73.0,
+   "gold_value": 730,
+   "hits": 8000,
+   "knowledge_ids": [
+    10837,
+    15089
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime spirit champion",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 130
+  },
+  "rime spirit knight": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 71.9,
+   "gold_value": 720,
+   "hits": 8000,
+   "knowledge_ids": [
+    10822,
+    15090
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime spirit knight",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 120
+  },
+  "rime spirit skirmisher": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x190"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 55.1,
+   "gold_value": 551,
+   "graphic": 400,
+   "hits": 6000,
+   "knowledge_ids": [
+    10817,
+    15091
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    55,
+    65
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime spirit skirmisher",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 130
+  },
+  "rime spirit soldier": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x191"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 54.2,
+   "gold_value": 542,
+   "graphic": 401,
+   "hits": 6000,
+   "knowledge_ids": [
+    10841,
+    15092
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rime spirit soldier",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 120
+  },
+  "rimestone": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 74.5,
+   "gold_value": 746,
+   "graphic": 37,
+   "hits": 5000,
+   "knowledge_ids": [
+    10659,
+    15093
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rimestone",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "sabeartooth": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 38.8,
+   "gold_value": 389,
+   "hits": 3000,
+   "knowledge_ids": [
+    10489,
+    10555,
+    14471,
+    14473,
+    14917
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a sabeartooth",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14473; that the wild creature uses it is [INFERENCE]] Chilled Charge (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 1 tile. Inflicts (DamageMax * 0.7) damage, with the first target hit taking +75% damage. Applies a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)",
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 75
+  },
+  "silicite": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x12c"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 80.1,
+   "gold_value": 802,
+   "graphic": 300,
+   "hits": 6000,
+   "knowledge_ids": [
+    10658,
+    15094
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a silicite",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "VerySlow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "snow elemental": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0xe"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 30.8,
+   "gold_value": 309,
+   "graphic": 14,
+   "hits": 2500,
+   "knowledge_ids": [
+    10659,
+    15095
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a snow elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 70
+  },
+  "snow flurry": {
+   "ai": "meleemage",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0xd"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 26.6,
+   "gold_value": 267,
+   "graphic": 13,
+   "hits": 2000,
+   "knowledge_ids": [
+    10657,
+    15455
+   ],
+   "location": "Cavernam",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a snow flurry",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.05,
+   "wrestling": 90
+  },
+  "snowdrift": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x33"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 21.0,
+   "gold_value": 210,
+   "graphic": 51,
+   "hits": 1500,
+   "knowledge_ids": [
+    10489,
+    10653,
+    14463,
+    14470,
+    14476,
+    14689
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 100,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a snowdrift",
+   "parry": 25,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14463; that the wild creature uses it is [INFERENCE]] Flurry (Cooldown): Fires a projectile at a target up to 6 tiles away, inflicting (DamageMax * 1.3) damage and applying a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%).",
+    "[tamed-version follower ability, knowledge #14470; that the wild creature uses it is [INFERENCE]] Regeneration (Passive): If below 66% hit points, will restore 5% of maximum health (has 15 second cooldown).",
+    "[tamed-version follower ability, knowledge #14476; that the wild creature uses it is [INFERENCE]] Elusive Form (Innate): Creature has an innate 25 parry skill against melee attacks."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 80
+  },
+  "snowpiercer": {
+   "ai": "ranged",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x2ec"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 28.4,
+   "gold_value": 285,
+   "graphic": 748,
+   "hits": 2000,
+   "knowledge_ids": [
+    10598,
+    15096
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a snowpiercer",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 65
+  },
+  "stalagfright": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x13c"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 40.6,
+   "gold_value": 406,
+   "graphic": 316,
+   "hits": 3000,
+   "knowledge_ids": [
+    10619,
+    15097
+   ],
+   "location": "Cavernam",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a stalagfright",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "VerySlow",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 80
+  },
+  "ursal forager": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 31.0,
+   "gold_value": 310,
+   "graphic": 400,
+   "hits": 3000,
+   "knowledge_ids": [
+    10730,
+    15098
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ursal forager",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": 50,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": "1.25}",
+   "wrestling": 85
+  },
+  "ursal huntsman": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x190"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 32.8,
+   "gold_value": 329,
+   "graphic": 400,
+   "hits": 3000,
+   "knowledge_ids": [
+    10714,
+    15099
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ursal huntsman",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 90
+  },
+  "ursal throatsinger": {
+   "ai": "mage",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x190",
+     "0x191"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 46.9,
+   "gold_value": 469,
+   "graphic": 400,
+   "hits": 3000,
+   "knowledge_ids": [
+    10688,
+    15100
+   ],
+   "location": "Cavernam",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ursal throatsinger",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 80
+  },
+  "walking avalanche": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x17c"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 161.0,
+   "gold_value": 1611,
+   "graphic": 380,
+   "hits": 12000,
+   "knowledge_ids": [
+    10786,
+    15101
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a walking avalanche",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "wendigo": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x18a"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 117.7,
+   "gold_value": 1177,
+   "graphic": 394,
+   "hits": 8000,
+   "knowledge_ids": [
+    10776,
+    15102
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a wendigo",
+   "parry": 25,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "white wyrm": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 136.0,
+   "gold_value": 1361,
+   "hits": 8000,
+   "knowledge_ids": [
+    10490,
+    10582,
+    14467,
+    14471,
+    14850
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a white wyrm",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14467; that the wild creature uses it is [INFERENCE]] Massive Ice Breath (Cooldown): Fires projectiles in a cone, hitting up to 3 targets. Inflicts (DamageMax * 0.8) damage which ignores half of target's armor, and the first target hit taking +50% damage. Applies a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%)",
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 115
+  },
+  "white wyrmling": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x5e0"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 87.5,
+   "gold_value": 875,
+   "graphic": 1504,
+   "hits": 5000,
+   "knowledge_ids": [
+    10490,
+    10593,
+    14467,
+    14471,
+    14856
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a white wyrmling",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14467; that the wild creature uses it is [INFERENCE]] Massive Ice Breath (Cooldown): Fires projectiles in a cone, hitting up to 3 targets. Inflicts (DamageMax * 0.8) damage which ignores half of target's armor, and the first target hit taking +50% damage. Applies a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%)",
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 105
+  },
+  "winter tendrils": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 181.7,
+   "gold_value": 1818,
+   "hits": 14000,
+   "knowledge_ids": [
+    10601,
+    12455
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a winter tendrils",
+   "parry": 25,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 140
+  },
+  "winter wolf": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 25.5,
+   "gold_value": 255,
+   "hits": 2000,
+   "knowledge_ids": [
+    10490,
+    10585,
+    14471,
+    14482,
+    14634
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a winter wolf",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Chill Touch (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.9) damage and apply a chill effect of (Control Slots * 2%) for the next 60 seconds (stacks up to 20%).",
+    "[tamed-version follower ability, knowledge #14482; that the wild creature uses it is [INFERENCE]] Frenzy (Passive): Has a 15% chance on melee attack to increase attack speed by 10% for 30 seconds (cannot stack)."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 75
+  },
+  "winterglass": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 236.0,
+   "gold_value": 2360,
+   "hits": 16000,
+   "knowledge_ids": [
+    10619,
+    12445
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    70,
+    80
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a winterglass",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "winterweed": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x49"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261031_170158"
+    ]
+   },
+   "difficulty": 83.0,
+   "gold_value": 831,
+   "graphic": 73,
+   "hits": 5000,
+   "knowledge_ids": [
+    10782,
+    15103
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a winterweed",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "60%",
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 100
+  },
+  "winterwing": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 136.0,
+   "gold_value": 1360,
+   "hits": 10000,
+   "knowledge_ids": [
+    10775,
+    12458
+   ],
+   "location": "Cavernam",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a winterwing",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 120
+  }
+ },
+ "mechanics": {},
+ "source": "harness/sim/kb_scan.py --location 'Cavernam' (wiki rows of the memory store)"
+}

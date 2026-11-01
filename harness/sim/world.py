@@ -2260,6 +2260,9 @@ class World:
                 m.cd[key] = t + sp["every_s"] * self.rng.uniform(0.9, 1.1)
                 if sp.get("text"):
                     self._overhead(m, sp["text"])        # the Ossuary's: its emote, the hit `delay_s` later
+                if sp.get("action") is not None and m.serial in self.viewing:
+                    # Cavernam's: no emote, only its cast animation (the silicite's action 12, the charoite's 11)
+                    self.send(P.animation(m.serial, sp["action"], frames=sp.get("frames", 5)))
                 if sp.get("delay_s") or sp.get("repeat"):
                     # `repeat` hits `repeat_s` apart (a hierarch's channelled fire): each one checks its reach then
                     for i in range(sp.get("repeat", 1)):

@@ -1,4 +1,4 @@
-# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary
+# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary, Cavernam
 
 An offline game world for the hunt runner (user request 2026-10-13: "train our combat runner in the
 emulated game world ... run tests much faster"). It is not an Outlands server: it is the one dungeon
@@ -7,8 +7,9 @@ pets and mechanics the `--pets` runner meets there, each number calibrated from 
 wiki. The runner under test is the unmodified `loop_hunt.HuntLoop` (`tamer.Team`), on virtual time:
 a 30-minute hunt takes 16-24 s of CPU on a loaded desktop (75-115× real time; "Speed" below), and a batch spreads its careers over
 `--jobs` processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
-Logan's first visit there, and since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below);
-everything below that names no dungeon is the Mausoleum's.
+Logan's first visit there, since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below), and
+since 2026-10-31 a fourth, **Cavernam** (`--scenario cavernam`, "Cavernam" below); everything below that names no
+dungeon is the Mausoleum's.
 
 ```mermaid
 flowchart LR
@@ -65,6 +66,11 @@ python harness/sim/run.py --scenario tidal_tomb --runs 8 --compare --instrument 
 python harness/sim/run.py --scenario ossuary --runs 24 --compare      # the Ossuary's level 3 ("The Ossuary" below)
 python harness/sim/run.py --scenario ossuary --area 5581 1225 5689 1363 -- --enter-via 1205 2816 --enter-via 5786 1327 \
     --leave-gate 5672 1277                                             # ... its level 2
+python harness/sim/run.py --scenario cavernam --runs 24 --team phoenix_incubus   # Cavernam's level 3 ("Cavernam" below)
+python harness/sim/run.py --scenario cavernam --area 5886 743 6055 837 -- --enter-via 5895 605 --leave-gate 6011 780 \
+    --leave-gate 6039 831                                              # ... its level 2
+python harness/sim/run.py --scenario cavernam --area 5895 498 6108 675 -- --no-enter-via --leave-gate 6049 598
+                                                                       # ... its level 1 (the recall's level: no teleporter)
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
 python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
@@ -171,6 +177,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
 | `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the observations of captures 20261024_102346 and 20261024_225113, three levels (calibrate). |
 | `data/sim/ossuary.json`, `_kb.json`, `_observed.json` | The Ossuary ("The Ossuary" below): four levels in two boxes, 214 spawns, 12 specials; the wiki's 88 creatures (kb_scan) and 5 by hand; the user's three visits of 2026-10-28 (calibrate). |
+| `data/sim/cavernam.json`, `_kb.json`, `_observed.json` | Cavernam ("Cavernam" below): three levels in three boxes, 93 spawns, 6 specials, the creatures upscaled (`upscale`); the wiki's 69 creatures (kb_scan) and 3 by hand; the user's three visits of 2026-10-31 (calibrate). |
 | `data/sim/tamer/logan_wolf.json`, `_observed.json` | Logan the tamer: skills, species, the 8 pets, 5 team presets, the live anchors, the perk tables (hand-authored, each block with its evidence); the scan's codex, loadouts and Guide values (generated, committed). |
 
 ## Calibration (2026-10-13)
@@ -2762,6 +2769,85 @@ Before af30814 the same batches gave level 3 27 of 48 runs with a death; the res
   Bussin is not with us" (6 of 48 before af30814). Without the nets it was still 4 of 16 on level 2. The cause is
   not traced.
 - **Phoenix and gravebug** on level 3 (24 runs): 14 deaths, against 5 with the old data.
+
+## Cavernam (2026-10-31)
+
+User 2026-10-31: "I did a couple of Cavernam dungeon runs today. Add Cavernam to the simulator and create a skill for
+running it like the existing Maus and Tidal Tomb skills". The fourth scenario, `harness/data/sim/cavernam.json`, is
+built from his three visits that evening (capture `20261031_170158`, 21:15-21:47; docs/NOTES.md "Cavernam: three visits
+by hand, dead on level 3" has the facts). Every number carries its evidence in the scenario's notes.
+
+```mermaid
+flowchart LR
+  Home -- "tome row 'Cavernam'" --> L1["level 1 (6049, 602)<br/>golden gate (6049, 598)"]
+  L1 -- "west end (5895, 605)" --> L2["level 2 (6042, 787)<br/>crimson gates (6011, 780), (6039, 831)"]
+  L2 -- "strip (5978-5980, 765)" --> L3["level 3 (6008, 1152): the hunt<br/>crimson gates (6059, 1020), (5957, 1097)"]
+  L1 -- golden gate --> Totem
+  L2 -- crimson gate --> Totem
+  L3 -- "crimson gate: the runner's leave" --> Totem
+  Totem -- recall --> Home
+```
+
+**What was built:**
+
+- **Three levels by a map flood fill**, one box each (the Ossuary's padded box overlaps level 3's west edge, where it
+  has no floor). 4 teleporter tiles (also in `teleporters.json`), 1 golden and 4 crimson moongates. The tome row
+  lands inside on level 1, so level 1 takes no `--enter-via`: `run.py --no-enter-via` drops the runner block's
+  teleporters for it.
+- **93 spawns** from the first sightings (level 1 42, level 2 24, level 3 27); one evening, so only 52-90 % of each
+  level's floor is within 18 of where Logan stood.
+- **`cavernam_kb.json`** (`kb_scan.py --location Cavernam`): 69 creatures; by hand the frost daemon (its row says
+  Wilderness), the frozen remains (Location "?") and the polar bear (only a Tameables page). A kb_scan rerun drops
+  those three.
+- **`cavernam_observed.json`** (`calibrate.py --scenario cavernam`): 37 creature types. Its silicite, charoite and
+  hoarfrost melee are other attacks; the scenario's `melee_observed` replaces them.
+- **`upscale`** (new; `scenario.creature_spec`): hits x 1.5, gold x 1.6, and melee x 1.7 where the capture has none
+  (`kb_melee_to_pet` and Logan's `player_melee_k`). Every type killed in view took 1.5 x its wiki hits; corpses held
+  ~1.6 x the gold the other scenarios' do; swings on the pets were 0.76-0.95 of the wiki's mean (the Ossuary's 0.59).
+  [INFERENCE: Cavernam was the week's Challenger Dungeon.] Another week's Cavernam would have no `upscale` block.
+- **Barding:** `bard.capture_d` for 5 types with 3+ Discordances (E 120 and 115).
+- **Level 3 reference** (`trip`): 469 s, 10 kills, 282 damage on Logan, 23 vet uses, 3 potions, 51,979 gp lifted.
+
+**Specials** (scenario `specials`; song-corrected, the Mausoleum audit's rule):
+
+- **The silicite's Silica Shards**, what killed Logan: `burst` `center` target, radius 2, `repeat` 3 a second apart
+  from 1.52 s, each crash with a `bleed` stack (5 ticks 3 s apart). Every 15.9 s.
+- **The charoite's crush**: 97 on its target's tile alone 0.87 s after its animation, every 15.7 s.
+- **The white wyrmling's and the frigid archfiend's chilling hit**: on everyone within 2 of its target. The chill
+  itself isn't modelled (its size was never measured).
+- **The ursal throatsinger's shout**: 25-27 on everyone within 10, 0.65 s after `*shouts*`.
+- **The acarid's burrow**: an on-hit stacked bleed, 26 a tick on Logan, chance 0.15 (the wiki's).
+- **`action` on a burst** (new; `World._specials`): the cast animation sent at the cue, for the bursts with no emote
+  (the silicite's action 12, the charoite's 11, the wyrmling's and archfiend's 5, the throatsinger's 27).
+- **Not modelled** (in `specials.note`): the lemura's ward (the pets' damage reflected: no reflect kind), the frozen
+  dead's frozen remains (harmless), the one-sighting specials (stalagfright, icy lurker, hoarfrost, cave gorger).
+
+**Runs for a shift**: the live team (`--team phoenix_incubus`), `--prior` the live store, 30 game minutes from home,
+`-- --vet-range 5 --crawl-learn-s 180`, each level's command (docs/OVERSEER.md §5 "Another hunt level by the user's
+word"; level 1 with `--no-enter-via`):
+
+| level | runs | runs with a death | runs with a pet death | kills an hour on it | damage on Logan an hour | banked gp a game hour |
+|---|---|---|---|---|---|---|
+| 1 | 32 | 0 | 0 | 180 | 823 | 106,015 |
+| 2 | 32 | 0 | 0 | 119 | 93 | 124,907 |
+| 3 | 48 | **2** | 1 | 111 | 364 | 149,233 |
+
+- **Both level 3 deaths were the shards** (the last 15 s: silicite 88 and bleed 46; bleed 132 and silicite 46), as
+  Logan's live death. The runner has no stand-off from the silicite's target: `tamer.TARGET_AREA` takes only
+  target-centred hits every `TARGET_AREA_EVERY_S` 15 s or oftener, and the shards come every 15.9 s. The white
+  wyrmling's hit (14.5 s) is in it: keep 3 from each pet in its reach.
+- 2 of 48 level 3 runs ended "recall home failed (moongate: overall timeout (1800s + 180s to leave))": the leave's walk
+  to a gate ran past the grace, as on the Ossuary's level 3.
+- **Level 3 against Logan's visits** (per hour on the level): kills 111 against 77, damage on Logan 364 against 2,167,
+  vet supplies 210 against 177, heal potions 11 against 23. As at the Ossuary, the runner keeps out of what the user
+  stood in (he stood 1-2 from the tank through the shards).
+
+**Open on Cavernam:**
+
+- The silicite's shards and the runner: no rule keeps Logan 3+ from the tank while a silicite casts at it.
+- Other players (21 seen, no reds) are not measured: `--others` and `--reds` are refused here.
+- Level 4 was never visited; the levels' unseen parts have no spawns.
+- The upscale holds for a Challenger week only [INFERENCE]; its factors on spell damage weren't measured.
 
 ## Player armor (2026-10-24)
 

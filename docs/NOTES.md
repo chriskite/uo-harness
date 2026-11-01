@@ -6798,6 +6798,68 @@ vielle). Evidence for the simulator's 2026-10-31 Ossuary changes (docs/SIM.md "T
   spectraldile; level 3's colossal searing scorpion and cryptwing. 32 other players seen, no reds.
 - The 2026-10-30 capture's 407 packets in the Ossuary's boxes are on no level (no jump into one): not a visit.
 
+## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
+
+The user played them with AlaFlambe (the tank) and Bussin, AR 137, Logan's max hits 100: 21:15:20-21:23:30,
+21:30:04-21:41:40 (dead on level 3 at 21:41:19) and 21:43:01-21:47:04. The evidence behind the simulator's `cavernam`
+scenario (docs/SIM.md "Cavernam"). Decoded with `replay.timed_packets` -> `WorldRuntime` and `calibrate.Session`; the
+scratch passes are not in the repo.
+
+- **In:** the tome 0x444AB1F3's row "Cavernam" (gump 21:15:15) lands **inside**, on level 1 at (6049, 602, 0), 4 tiles
+  south of the golden moongate 0x400020EC (6049, 598, 0) (the rune libraries' "Cavernam Main" (6047, 599)). The
+  recall rule (2 tiles from a gold gate) refuses a recall out from that landing.
+- **Levels by a map flood fill** (`localmap.reachable` from each arrival): level 1 x 5895-6108, y 498-675 (14,759
+  tiles), level 2 x 5886-6055, y 743-837 (8,760), level 3 x 5915-6075, y 898-1152 (14,764). Level 3's west edge lies
+  inside the Ossuary's padded box (x 5520-5940), where the Ossuary has no floor; `escape._dungeon_at` gives the first
+  scenario that matches, and no recall is allowed there either way.
+- **Teleporters** (all in `harness/data/teleporters.json`): level 1's west end, a step W from (5896, 605) onto (5895,
+  605), to level 2 (6042, 787, 56) at 21:20:17, 21:34:58, 21:43:40; level 2's strip north of (5977-5981, 766) to level
+  3: (5980, 765) -> (6008, 1152, 20) 21:21:09, (5978, 765) -> (6006, 1152) 21:39:03, (5979, 765) -> (6007, 1152)
+  21:44:13 (the column kept, x + 28). Two other jumps were Logan's own traverse ("Where do you wish to traverse to?",
+  then "You are no longer hindered." 1.1 s later): (5924, 670) -> (5918, 662) and (6034, 1017) -> (6042, 1009).
+- **Gates:** crimson (hue 2820) 0x400F674A (6039, 831, 20) and 0x400F8E8C (6011, 780, 0) on level 2, 0x400FC1EA (6059,
+  1020, 1) and 0x400FA895 (5957, 1097, 0) on level 3. Logan left by level 3's two (21:23:29, 21:47:02); the menu
+  0xE0E675B8 had the Ossuary's rows, Totem landing (3846, 2876, -40) and (3859, 2890, -40). A hue-2825 gate 0x4000210D
+  (5945, 1062, 0) showed after his death, its menu with Shelter Island, The Arena and Prevalia Meadows too; he took it
+  as a ghost [INFERENCE: the ghosts' gate, as the Mausoleum's hue-2825 ones].
+- **Time and take** (gaps under 30 s on each level's floor): level 1 495 s, 20 kills, 423 on Logan, 28,822 gp lifted;
+  level 2 331 s, 10 kills, 80, 16,148 gp; level 3 469 s, 10 kills, 282, 51,979 gp (others' corpses included). He stood
+  at 452-482/450 stones ("Weight limit exceeded", "unable to move") five times.
+- **Upscaled creatures:** every type killed in view took 1.5 x its wiki hits in numbers (9,001 for 6,000; 15 types)
+  and its corpse held 1.4-3.6 x its wiki gold value (median 1.68, against 1.0-1.1 for Tidal Tomb's and the Ossuary's
+  by the same rule); their swings on the pets were 0.76-0.95 of the wiki's mean melee (the Ossuary's 0.59, Tidal
+  Tomb's 0.41). The patch notes' Challenger Dungeon (knowledge #12657, #16459: one core dungeon a week upscaled like a
+  Paragon, gold recalculated) [INFERENCE: Cavernam was it for the week from Friday 2026-10-30].
+- **New types** (no wiki row at Cavernam): the frost daemon (its row says Wilderness), the frozen remains (Location
+  "?"), the polar bear (only a Tameables page): added to `cavernam_kb.json` by hand.
+- **What killed him: a silicite's Silica Shards.** No emote: the silicite stands still and sends animation action 12
+  fifty times over 1.5 s, then three crashes 1.0 s apart from 1.52 s, each on everyone within 2 of its target (the
+  tank, 36 of 36 pet hits; Logan hit 5 of 5 at 1-2 from AlaFlambe, spared 13 of 13 at 3-6), with "Silica shards crash
+  down and cause you to bleed!" on him. Each crash: pets 27-35, Logan 17-23 as seen, and its own bleed stack, 5 ticks
+  3.0 s apart (10 on Logan as seen, 11 song-free); the vet doesn't cure it. Every 15.9 s (15.1-16.5), first 2.1-3.4 s
+  after it goes to war, cast from 8-11 tiles. From 21:41:11.19 he stood 2 from AlaFlambe through a second cast (three
+  crashes) and took one crash of a second silicite's at 21:41:13.89: four stacks, 164 damage in 8.8 s against 61
+  healed, his potion at 21:41:13.21 on cooldown for six tries. Dead at 21:41:19.99 to a tick; both pets 3 s later.
+  Stepping 4+ from her was what spared him the other crashes.
+- **Other specials** (numbers as seen under his 17.2-18.0 % Song of Discordance):
+  - the charoite's crush: animation 11, 0.87 s later 78-83 on its target's tile only, every 15.7 s;
+  - the acarid's burrow ("The creature burrows into you!"): 5 ticks 3.0 s apart, 21 on Logan, 14 on AlaFlambe, stacking;
+  - the ursal throatsinger's `*shouts*`: 0.65 s later 18-24 on everyone at 3-9 tiles (9 of 9);
+  - the white wyrmling's and frigid archfiend's chilling hit (animation 5, 1.4 s / 0.8 s later) on everyone within 2
+    of its target: pets 44-52 / 74-88, Logan 27-28; with "*chilled*" over a pet, "You feel chilled!" on Logan. The
+    chill rides single hits too (frost daemon, rime spirit, dracolisk); no slow on Logan's steps, size unmeasured;
+  - the lemura's `*warded*` (10, 4.9-9.9 s apart): the pets' damage came back on them in hue 89, 15-28 and once 282;
+  - not measured (one sighting or no number): the frozen dead's `*raises frozen remains*` (two, harmless), the
+    stalagfright's `*jettisons*`, the icy lurker's `*vomits*` (16-18 on Logan three times 0.27 s apart), the hoarfrost's
+    `*groans*` (77/85 on the pets once), the cave gorger's `*gorges*`, the rhinocerus beetle's `*charges*`, the
+    archfiend's `*enraged*`, the colossal frost scorpion's deadly poison (once, cured at once).
+- **Barding:** his songs printed 18.0 % (E 120) until 21:31 and 17.2 % (E 115) from 21:43 (he changed chain links and
+  instruments between visits: Effective Barding +18 -> +15, Follower Damage 18.5 -> 21.5 %). Discordance 31 of 39.
+- 21 other players seen, no reds. DragonSmurfette 0x0039F0FD (body 1504, notoriety 2) at 16-18 tiles was not his.
+- **Calibration hazards in `cavernam_observed.json`:** the silicite's swing period (0.63 s) is its cast's frames and its
+  pet damage (median 10) the bleed ticks; the charoite's swings mix in its crush; the hoarfrost's only numbers are its
+  groan. The scenario's `melee_observed` replaces those three.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

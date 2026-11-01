@@ -114,6 +114,14 @@
     {"facet": 0, "from": [4952, 2052], "to": [0, 5653, 950, -110],
      "note": "Ossuary level 4's east arrival -> level 3's north-west strip (20261031_170158 21:02:26, a step SW from (4953, 2051))"},
     {"facet": 0, "from": [4853, 2073], "to": [0, 5590, 985, -8],
-     "note": "Ossuary level 4's arrival row -> level 3 (20261031_170158 21:12:54, a step S from (4853, 2072))"}
+     "note": "Ossuary level 4's arrival row -> level 3 (20261031_170158 21:12:54, a step S from (4853, 2072))"},
+    {"facet": 0, "from": [5895, 605], "to": [0, 6042, 787, 56],
+     "note": "Cavernam level 1's west end -> level 2 (20261031_170158 21:20:17, 21:34:58, 21:43:40, a step W from (5896, 605))"},
+    {"facet": 0, "from": [5978, 765], "to": [0, 6006, 1152, 20],
+     "note": "Cavernam level 2's strip -> level 3 (20261031_170158 21:39:03, a step NE from (5977, 766))"},
+    {"facet": 0, "from": [5979, 765], "to": [0, 6007, 1152, 20],
+     "note": "Cavernam level 2's strip -> level 3 (20261031_170158 21:44:13, a step NW from (5980, 766))"},
+    {"facet": 0, "from": [5980, 765], "to": [0, 6008, 1152, 20],
+     "note": "Cavernam level 2's strip -> level 3 (20261031_170158 21:21:09, a step NW from (5981, 766))"}
   ]
 }

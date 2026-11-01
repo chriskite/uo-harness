@@ -54,11 +54,12 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
     df = sc["defaults"]
     obs = obs or {}
     sw = obs.get("swing") or {}
+    up = sc.get("upscale") or {}                 # a dungeon's creatures upscaled (Cavernam: the week's Challenger Dungeon)
     melee = _stat(sw.get("damage_per_swing")) or _stat(obs.get("damage_to_pets"))
     src = {"melee": "capture" if melee else "wiki x kb_melee_to_pet"}
     if melee is None and kb.get("melee_damage"):
         lo, hi = kb["melee_damage"]
-        f = df["kb_melee_to_pet"]
+        f = df["kb_melee_to_pet"] * up.get("melee_x", 1.0)
         melee = [lo * f, hi * f, (lo + hi) / 2 * f]
     period = (sw.get("period_s") or {})
     swing = period["median"] if (period.get("n") or 0) >= MIN_N and period["median"] >= MIN_SWING_S else df["swing_s"]
@@ -84,16 +85,17 @@ def creature_spec(key: str, kb: dict, obs: dict | None, sc: dict) -> dict:
         ranged.setdefault("flight_s", df["ranged_flight_s"])
         ranged.setdefault("cast_action", df["ranged_cast_action"])
         ranged.setdefault("effect", df["ranged_effect"])
-    gold = kb.get("gold_value") or 0
+    gold = (kb.get("gold_value") or 0) * up.get("gold_x", 1.0)
     gold_seen = (sc.get("gold_observed", {}).get(key) or {}).get("gold")   # measured live over the kb's (wiki's) value
     noto = 3
     graphics = (obs.get("graphics") or [kb.get("graphic")])
     return {"key": key, "name": kb.get("name") or f"a {key}", "body": graphics[0] if graphics and graphics[0] else 400,
-            "notoriety": noto, "hits": kb.get("hits") or 1000, "difficulty": kb.get("difficulty"),
+            "notoriety": noto, "hits": round((kb.get("hits") or 1000) * up.get("hits_x", 1.0)), "difficulty": kb.get("difficulty"),
             "melee": melee if ai != "mage" else None, "swing_s": swing, "hit_chance": df["hit_chance"],
             "armor": kb.get("armor") or 0, "magic_resist": kb.get("magic_resist") or 0,
             "melee_ref": (mo or {}).get("ref"), "melee_reach": (mo or {}).get("reach", 1),
-            "melee_player": [kb["melee_damage"][0] * df["player_melee_k"], kb["melee_damage"][1] * df["player_melee_k"]]
+            "melee_player": [kb["melee_damage"][0] * df["player_melee_k"] * up.get("melee_x", 1.0),
+                             kb["melee_damage"][1] * df["player_melee_k"] * up.get("melee_x", 1.0)]
             if ai != "mage" and kb.get("melee_damage") else None,
             "step_s": df["speed_step_s"].get(kb.get("speed") or "Medium", df["speed_step_s"]["Medium"]),
             "aggro_range": (sc.get("aggro_observed", {}).get(key) or {}).get("range", df["aggro_range"]),
