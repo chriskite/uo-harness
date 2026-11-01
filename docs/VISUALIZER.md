@@ -153,7 +153,7 @@ channels.
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
-| `GET /api/jobs/plan[?job=lumber\|mining]` | the job's optimizer plan over all history (default lumber; any other job 400), recomputed once a minute per job on its own connection and lock (§2.4) |
+| `GET /api/jobs/plan[?job=lumber\|mining]` | the job's optimizer plan over all history (default lumber; any other job 400), recomputed once a minute per job on its own connection and lock, in the background behind the last plan (§2.4) |
 | `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either |
 | `GET /api/fos/reapers` | the Field of Souls reaper heatmap (`fos_field.reaper_map`, §2.17): `{box, cell, view_r, spawn_r, instances: [{name, offset}], runs, watched_s, cells: [[ix, iy, watched_view_s, watched_spawn_s, deaths, spawns]], spawns: [[x, y]], store}` in the field frame; cached 30 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M[&char=0xS]` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4); `char` (a serial) scopes them to one character (§2.14) |
@@ -356,10 +356,13 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
   `jobs.mining_plan` (both below) at the server's clock over all history, `plan` null without a store
   (which it never creates); any other `job` is **400**. Recomputed once per wall-clock minute (its
   seed) per job and shared by every caller. It has its own `Memory` connection and lock, so its
-  seconds of Monte Carlo (~3.4 s on the 2026-10-05 store, against 10–40 ms for the ranged
-  analytics) never hold up `/api/jobs`, `/api/overseer` or the chat (2026-10-05, user request:
-  the page waited for the plan before showing anything). The two jobs share the lock; the mining
-  plan takes ~0.2 s (live store 2026-10-20, 51 spots).
+  seconds of Monte Carlo (~3.4 s on the 2026-10-05 store, ~5.5 s on the 2026-10-31 one, against 10–40 ms
+  for the ranged analytics) never hold up `/api/jobs`, `/api/overseer` or the chat (2026-10-05, user
+  request: the page waited for the plan before showing anything). Stale-while-revalidate (2026-10-31,
+  user report: the Lumber job pane got slower and slower to load): once a job has a plan, a request
+  in a later minute gets that plan at once and starts one background recomputation; only the first
+  request after the server starts waits. The two jobs share the lock; the mining plan takes ~0.2 s
+  (live store 2026-10-20, 51 spots).
 
 **Analytics (`harness/jobs.py`, pure: `compute()` reads no clock).** Inputs:
 `Memory.episodes(job, since, until)` (trip rows), `Memory.job_events(job, since, until)`, the
@@ -1516,7 +1519,8 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
   `jobs.analytics`, also with `since`+`until`, and answers 400 to an empty, reversed, NaN or
   non-numeric range; `/api/jobs/plan` serves the lumber plan and `?job=mining` the mining one (each
   ranked without a home, null with no store), `?job=hunt` is 400, and while the plan computes,
-  `/api/jobs` and `/api/overseer` answer at once;
+  `/api/jobs` and `/api/overseer` answer at once; a plan from an earlier minute answers at once while
+  it is recomputed in the background, and the next request gets the new one;
   `/api/overseer` cursors, the newest-200 window, open ids after an ack, and heartbeat;
   `POST /api/chat` stores a trimmed `user` row and rejects empty, whitespace, missing,
   non-string and 2001-character text with 400; `/api/captcha` defaults to `human`, writes where

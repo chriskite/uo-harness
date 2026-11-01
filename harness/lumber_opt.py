@@ -60,7 +60,9 @@ Pure functions over plain lists (`plan`, `regrowth`, `trip_obs`, ...) carry the
 logic and are what test_lumber_opt.py checks; `plan_from_store` gathers the
 inputs from the memory store and a state-port snapshot.
 """
+import bisect
 import copy
+import functools
 import json
 import math
 import os
@@ -250,14 +252,38 @@ def in_area(area: dict, x: int, y: int, cells: frozenset | None = None) -> bool:
     return (x // CELL, y // CELL) in cells
 
 
+@functools.lru_cache(maxsize=1024)
+def _cell_rows(cells: frozenset) -> tuple:
+    """A forest's cells as ((cy, (cx, ... ascending)), ...) for area_dist: one row per cy."""
+    rows = {}
+    for cx, cy in cells:
+        rows.setdefault(cy, []).append(cx)
+    return tuple((cy, tuple(sorted(cxs))) for cy, cxs in rows.items())
+
+
 def area_dist(area: dict, p, cells: frozenset | None = None) -> int:
-    """Chebyshev tiles from p to the area (0 inside it)."""
+    """Chebyshev tiles from p to the area (0 inside it). A forest: per row of cells the
+    nearest one by x (bisect), so a landing search over hundreds of runes doesn't scan
+    every cell for each."""
     cells = area_cells(area) if cells is None else cells
     x, y = int(p[0]), int(p[1])
     if cells is None:
         return max(0, cheb((x, y), area["center"]) - int(area["radius"]))
-    return min(max(0, cx * CELL - x, x - cx * CELL - CELL + 1, cy * CELL - y, y - cy * CELL - CELL + 1)
-               for cx, cy in cells)
+    px, best = x // CELL, None
+    for cy, cxs in _cell_rows(cells):
+        dy = max(0, cy * CELL - y, y - cy * CELL - CELL + 1)
+        if best is not None and dy >= best:
+            continue
+        i = bisect.bisect_left(cxs, px)
+        if i < len(cxs) and cxs[i] == px:
+            dx = 0
+        else:                                       # the nearest cell left of p's column, right of it
+            dx = min(x - cxs[i - 1] * CELL - CELL + 1 if i else math.inf,
+                     cxs[i] * CELL - x if i < len(cxs) else math.inf)
+        d = max(dx, dy)
+        if best is None or d < best:
+            best = d
+    return best
 
 
 def landing_dist(area: dict, p) -> int:

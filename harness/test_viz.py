@@ -758,6 +758,30 @@ def test_overseer_routes(logdir):
         check("while the plan computes, /api/jobs and /api/overseer answer at once (the plan has its own lock)",
               entered.is_set() and waited < 2 and side[0]["totals"]["trips"] == 3 and side[1]["store"] is True,
               f"waited {waited:.2f} s")
+        fresh = srv.overseer.plan_cache["lumber"]
+        entered.clear()
+        release.clear()
+        srv.overseer.plan_cache["lumber"] = (fresh[0] - 1, json.dumps({"plan": {"stale": True}, "store": True}).encode())
+        viz_server.jobs_mod.lumber_plan = slow_plan
+        try:
+            t0 = time.monotonic()
+            stale = get(base + "/api/jobs/plan")
+            waited = time.monotonic() - t0
+            refreshing = entered.wait(5)
+            again = get(base + "/api/jobs/plan")
+        finally:
+            release.set()
+            viz_server.jobs_mod.lumber_plan = real_plan
+        for _ in range(100):
+            if not srv.overseer.plan_refresh:
+                break
+            time.sleep(0.05)
+        renewed = get(base + "/api/jobs/plan")
+        check("a plan from an earlier minute answers at once and is recomputed in the background; "
+              "the next request gets the new one",
+              stale["plan"] == {"stale": True} and waited < 2 and refreshing and again["plan"] == {"stale": True}
+              and renewed["plan"].get("spots") and srv.overseer.plan_cache["lumber"][0] >= fresh[0],
+              f"waited {waited:.2f} s, refreshing {refreshing}, renewed {str(renewed)[:120]}")
         code, _ = get_status(base + "/api/jobs?tz=abc")
         check("GET /api/jobs bad tz: 400", code == 400, str(code))
         code, _ = get_status(base + "/api/jobs?since=soon")

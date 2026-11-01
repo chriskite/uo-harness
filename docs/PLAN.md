@@ -1296,6 +1296,19 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
   skeletons in the two plan panels until the plan comes. Live store: KPIs at 0.2 s, plan at
   3.6 s. Rejected: streaming one response in parts (the server is plain `http.server` JSON) and
   precomputing the plan in a background thread (it would run every minute with nobody watching).
+- **Stale-while-revalidate for the plan** (2026-10-31, user report: the Lumber job pane got slower
+  and slower to load). The plan had grown from 3.4 s (2026-10-05) to ~7 s on the live store (132
+  spots, 85 eligible × 2000 Thompson draws: ~70 % of it under cProfile; the landing search 1.8 s;
+  the rest store reads), and with the cache keyed on the minute, every new minute made the next poll
+  wait that long, the pane's Expected and History sections showing skeletons meanwhile. Now a cached
+  plan from an earlier minute answers at once and starts one background recomputation
+  (`OverseerDB.plan`); only the first request after the server starts waits. The refresh runs only
+  when someone polls, so the rejection above (a thread running every minute with nobody watching)
+  still holds. Also `lumber_opt.area_dist` on a forest now bisects each row of cells instead of
+  scanning every cell: same distances (checked on 39 200 points around the 98 forest spots), the
+  landing search 1.8 s → 0.7 s, the plan 7.0 s → 5.4 s. Not done: making the draws cheaper
+  (pure-Python `best_q`/`trip_terms`); numpy across draws would change the seeded stream the
+  `ctl lumber plan` tests pin.
 
 ## Leave on faction tags and on precasts (decided and built offline 2026-10-06)
 
