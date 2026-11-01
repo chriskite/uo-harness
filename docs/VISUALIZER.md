@@ -582,13 +582,17 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     - where trip time goes: stacked bars per trip (travel, lockout, field, the rest), `!` over an
       aborted trip, `∅` when the place gave nothing;
     - logs per trip as bars, with the boards-put-away mark, captcha dots, death marks and the mean;
-    - a trips-and-events strip, with the event list below it (travel events are in the travel
-      panel instead). Since 2026-10-06 the strip has a legend of the dot colours present (red
-      died, orange PK seen, amber theft/speech pause, blue fled, green resumed, grey everything
-      else: harvests, recalls, creatures, tracking, the thief guard, the aspect), each entry naming its
-      event kinds with their meaning on hover (`jobs.ts` `EVENT_HELP`, also on the list's badges).
-      Kinds show by `eventName`: the stored `stand` event is "harvest" (user, 2026-10-06; display
-      only, the data and the runner keep `stand`), `pk_seen` "PK seen", the rest their kind with spaces.
+  - The event list (deaths, thefts, PKs, flees, …; travel events are in the travel panel instead),
+    each kind's meaning on hover (`jobs.ts` `EVENT_HELP`, also on the trip rows' badges). Kinds show
+    by `eventName`: the stored `stand` event is "harvest" (user, 2026-10-06; display only, the data
+    and the runner keep `stand`), `pk_seen` "PK seen", the rest their kind with spaces. Harvests
+    aren't in the list: `/api/jobs` leaves `stand` events out of `events` (`jobs.LUMBER_PER_STAND_KINDS`,
+    as mining's stands and smelts and the hunt's kills and loot) and only counts them in each trip's
+    `events` (the "harvest N" badge), reading them without their data (`Memory.job_events`
+    `bare_kinds`). 2026-10-31, user request after the all-time analytics had grown to 1–2.5 s and
+    12 MB (17k of 21k events were stands): 0.29 s and 5 MB on the live store. The trips-and-events
+    strip that stood above the list on all three dashboards (since 2026-10-06; trips as spans, events
+    as coloured dots) is gone (user, same day: overlapping grey dots, not worth keeping).
   - **Hover explanations (2026-10-06, user request):** every non-obvious term on the lumber
     dashboard explains itself on hover: the KPI tiles (`Kpi.hint`), the chop-outcome line, the
     chart legends (`RateSeries.hint`, the split and logs-per-trip keys), the optimizer's pick and
@@ -617,8 +621,7 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     isn't counted), visits (leaves), active hours, deaths to mobs, deaths to PKs, hits lost (heals, potions). A line
     under them explains the XP estimate and any kills outside recorded visits.
   - Charts: XP/hr and gold/hr over time (rolling, plus cumulative XP/hr); XP per visit as bars with
-    the gold mark, the kill count on top and death marks; the visits-and-events strip with the event
-    list.
+    the gold mark, the kill count on top and death marks; the event list.
   - A monsters table (kills, looted, gold, XP, XP/kill), the per-visit table (newest first; `22+`
     means a kill in it wasn't looted) and a per-day table.
   - Verified in headless Chromium on a copy of the live store (4 visits, 19 mongbat kills, 299 gp,
@@ -640,8 +643,8 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     recalls (hits on hover), last leg, P(best) and why not (with when it's ready). The planner works in ore;
     these panels show ingots, 2 an ore (`jobs.ts` `INGOTS_PER_ORE`). Lumber's Q*, overhead, PK sightings,
     thefts, loss/trip, place fails and supplies have no mining terms and are left out.
-  - A spots-in-range table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the legs-and-
-    events strip with the event list (hops, threats, deaths). Spot cells there and in the legs table show the
+  - A spots-in-range table (legs, ore with a bar, ore/field hr, field time, dry legs, last leg) beside the event
+    list (hops, threats, deaths). Spot cells there and in the legs table show the
     plan's spot name (id on hover).
   - The legs table, newest first: start, spot, trip · leg, field time, ore, ore/hr, digs (landed), smelts,
     ingots made, ingots stored, gold stored (tooltip: each metal's ingots and the price used), ingots carried,

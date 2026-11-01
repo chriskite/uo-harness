@@ -520,7 +520,7 @@ export interface EventView {
   tone: Tone;
 }
 
-/** What each job event kind means, for hover text in the event list and on the strip. */
+/** What each job event kind means, for hover text in the event list and on the trip badges. */
 export const EVENT_HELP: Record<string, string> = {
   death: "We died. The cause is pk (a player), mob (a creature) or unknown.",
   theft: "A suspected theft: wood or items left the pack with no action of ours.",

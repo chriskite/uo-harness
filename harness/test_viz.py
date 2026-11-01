@@ -198,6 +198,7 @@ def seed_jobs(m: memory.Memory):
     m.job_event("lumber", "pk_seen", {"name": "Bob"}, t=1400.0)
     m.job_event("lumber", "pk_seen", {}, t=DAY + 300)
     m.job_event("lumber", "flee", {"reason": "pk"}, t=1450.0)
+    m.job_event("lumber", "stand", {"stand": [100, 200], "logs": 9, "end": "quota"}, t=2000.0)
     m.job_event("mining", "death", {"cause": "pk"}, t=1600.0)
     for i, (outcome, amount) in enumerate([("success", 5), ("success", 6), ("fail", 0), ("success", 7),
                                            ("fail", 0), ("depleted", 0)]):
@@ -286,8 +287,8 @@ def test_jobs():
           str([(r["n"], r["duration_s"], r["logs_per_hour"]) for r in tr]))
     check("trip phases and value per trip", tr[0]["phases_s"]["harvest"] == 1500.0
           and [r["value_gp"] for r in tr] == [190.0, 190.0, 114.0], str([r["value_gp"] for r in tr]))
-    check("events attributed to the trip they fell in (pk death in #1; mob death + theft in #2)",
-          [r["events"] for r in tr] == [{"death": 1, "pk_seen": 1, "flee": 1}, {"death": 1, "theft": 1},
+    check("events attributed to the trip they fell in (pk death in #1; mob death + theft in #2); a stand counts there",
+          [r["events"] for r in tr] == [{"death": 1, "pk_seen": 1, "flee": 1, "stand": 1}, {"death": 1, "theft": 1},
                                         {"theft": 1, "pk_seen": 1}],
           str([r["events"] for r in tr]))
     days = {d["day"]: d for d in a["days"]}
@@ -307,7 +308,7 @@ def test_jobs():
     check("harvest outcomes: 3 success (yield 18), 2 fail, 1 depleted, 60% land",
           {k: a["harvest"][k] for k in ("success", "fail", "depleted", "yield", "success_rate")}
           == {"success": 3, "fail": 2, "depleted": 1, "yield": 18, "success_rate": 0.6}, str(a["harvest"]))
-    check("timeline: 8 lumber events in time order",
+    check("timeline: 8 lumber events in time order, no per-stand rows",
           [e["kind"] for e in a["events"]] == ["pk_seen", "flee", "death", "death", "theft", "death", "theft", "pk_seen"],
           str([e["kind"] for e in a["events"]]))
     check("wood rows: ordinary priced, goldenwood known without a value",

@@ -2141,9 +2141,6 @@ svg.chart {
   height: auto;
   max-height: 260px;
 }
-svg.chart.strip {
-  max-height: 90px;
-}
 .chart .axis text,
 .chart .axis-label {
   fill: var(--dim);
@@ -2227,32 +2224,6 @@ svg.chart.strip {
   stroke: #b0a080;
   stroke-dasharray: 3 4;
 }
-.chart .span-trip {
-  fill: #1c3036;
-  stroke: #2e6e7e;
-}
-.chart .ev-mark {
-  stroke: var(--bg);
-  stroke-width: 1.5;
-}
-.chart .ev-death {
-  fill: var(--bad);
-}
-.chart .ev-theft {
-  fill: var(--warn);
-}
-.chart .ev-pk {
-  fill: #f09048;
-}
-.chart .ev-flee {
-  fill: var(--info);
-}
-.chart .ev-other {
-  fill: #a09888;
-}
-.chart .ev-ok {
-  fill: var(--ok);
-}
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -2307,34 +2278,6 @@ svg.chart.strip {
   color: var(--bad);
   font-weight: 700;
   margin-right: 4px;
-}
-.sw-span {
-  background: #1c3036;
-  border: 1px solid #2e6e7e;
-  height: 9px;
-}
-.sw-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-.sw-dot.ev-death {
-  background: var(--bad);
-}
-.sw-dot.ev-theft {
-  background: var(--warn);
-}
-.sw-dot.ev-pk {
-  background: #f09048;
-}
-.sw-dot.ev-flee {
-  background: var(--info);
-}
-.sw-dot.ev-ok {
-  background: var(--ok);
-}
-.sw-dot.ev-other {
-  background: #a09888;
 }
 /* Jobs page: a term with an explanation on hover (title) */
 .jobs th[title],

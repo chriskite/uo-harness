@@ -1318,6 +1318,16 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
   stream, only outcomes. Cost: `trip_terms` exists twice (scalar for `best_q`, `run_for`,
   `hop_choice`), so `test_lumber_opt` `test_vector_draws` replays recorded numpy draws through the
   scalar path and fails when the two copies diverge.
+- **Stands leave the lumber timeline; the event strips go** (same day, user request: the all-time
+  `/api/jobs?job=lumber` the Lumber job pane polls had grown to 1–2.5 s live and 12 MB, under the lock
+  the chat and overseer polls share). 17k of its 21k events were `stand`s, 11 MB of the answer, and
+  nothing read their data. Now `jobs.LUMBER_PER_STAND_KINDS` keeps them out of `events` (counted per
+  trip only, as mining's stands and the hunt's kills already were), `Memory.job_events(bare_kinds=)`
+  reads them without fetching or parsing their JSON, and events find their trip by a sweep instead
+  of scanning every trip (O(E·T) → O((E+T) log T)): 1.0 s → 0.29 s, 12.2 → 5.0 MB, everything else in
+  the answer identical. The user also had the dashboards' trips-and-events strips deleted (the
+  overlapping grey dots weren't worth keeping). Left: 2 MB of the 5 is `flee` events' `threats` lists
+  (~70 KB each), which no dashboard shows.
 
 ## Leave on faction tags and on precasts (decided and built offline 2026-10-06)
 

@@ -39,6 +39,7 @@ Conventions
 """
 import argparse
 import bisect
+import heapq
 import json
 import os
 import re
@@ -54,6 +55,9 @@ ROLLING_WINDOW_S = 3600.0
 DEATH_CAUSES = ("pk", "mob", "other")
 TIMELINE_KINDS = ("death", "theft", "pk_seen", "flee", "mob_attack", "resurrect")
 HARVEST_OUTCOMES = ("success", "fail", "depleted", "unreachable", "not_tree", "nothing_near", "no_harvest")
+# one event per Smart Harvest stand (17k of the 21k lumber events on 2026-10-31): counted in each trip's
+# `events`, left out of the response's timeline (11 MB of a 12 MB answer), as mining's MINING_PER_STAND_KINDS
+LUMBER_PER_STAND_KINDS = ("stand",)
 
 
 # ------------------------------------------------------------------ inputs
@@ -300,7 +304,8 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
     """Pure core. episodes: trip row dicts; events: job_events dicts
     ({t, kind, data, facet, x, y}); attempts: harvest_attempts rows
     (t, facet, x, y, z, outcome, amount); boards: price_series(..., "board:") of the price history.
-    Only what falls in [since, until) counts (module conventions)."""
+    Only what falls in [since, until) counts (module conventions). `events` in the result leaves out
+    LUMBER_PER_STAND_KINDS (each trip's `events` counts them)."""
     since = float(since)
     rows = [r for r in episodes if isinstance(r, dict) and in_range(r.get("t_start"), since, until)]
     rows.sort(key=lambda r: _num(r.get("t_start"), 0))
@@ -314,13 +319,22 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
         _add_trip(totals, trip)
         if trip["t_start"] is not None:
             _add_trip(days.setdefault(_day(trip["t_start"], utc_offset_s), _blank()), trip)
+    # each event counts for the first trip (in t_start order) whose [t_start, t_end] holds it: a sweep
+    # over the time-sorted events with a heap of the started trips by index, dropping the ended ones
+    timed = [(i, tr) for i, tr in enumerate(trips) if tr["t_start"] is not None and tr["t_end"] is not None]
+    timed.sort(key=lambda it: it[1]["t_start"])
+    started, nxt = [], 0
     for e in evs:
         _add_event(totals, e)
         _add_event(days.setdefault(_day(e["t"], utc_offset_s), _blank()), e)
-        for trip in trips:
-            if trip["t_start"] is not None and trip["t_end"] is not None and trip["t_start"] <= e["t"] <= trip["t_end"]:
-                trip["events"][e["kind"]] = trip["events"].get(e["kind"], 0) + 1
-                break
+        while nxt < len(timed) and timed[nxt][1]["t_start"] <= e["t"]:
+            heapq.heappush(started, timed[nxt])
+            nxt += 1
+        while started and started[0][1]["t_end"] < e["t"]:
+            heapq.heappop(started)
+        if started:
+            ev_counts = started[0][1]["events"]
+            ev_counts[e["kind"]] = ev_counts.get(e["kind"], 0) + 1
     _finish(totals)
     stamps = [t for trip in trips for t in (trip["t_start"], trip["t_end"]) if t is not None] + [e["t"] for e in evs]
     totals["first_t"] = min(stamps) if stamps else None
@@ -366,7 +380,8 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
         "days": [{"day": d, **_finish(a)} for d, a in sorted(days.items())],
         "rolling": rolling_series(trips, window_s),
         "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
-                    "x": e.get("x"), "y": e.get("y"), "data": e["data"]} for e in evs],
+                    "x": e.get("x"), "y": e.get("y"), "data": e["data"]}
+                   for e in evs if e["kind"] not in LUMBER_PER_STAND_KINDS],
         "woods": wood_rows,
         "harvest": harvest,
         "travel": travel_stats(evs),
@@ -1025,7 +1040,9 @@ def analytics(memory, job: str = "lumber", since: float = 0.0, until: float | No
     since = float(since)
     # no t_start bound when since <= 0: rows without t_start stay in the unbounded range (in_range)
     episodes = memory.episodes(job, since if since > 0 else None, until) if memory is not None else []
-    events = memory.job_events(job, since, until) if memory is not None else []
+    # the trip analytics count stands per trip and read nothing else of them
+    bare = () if job in ("hunt", "mining") else LUMBER_PER_STAND_KINDS
+    events = memory.job_events(job, since, until, bare_kinds=bare) if memory is not None else []
     if job == "hunt":
         return compute_hunt(episodes, events, since, utc_offset_s, window_s, until)
     if job == "mining":

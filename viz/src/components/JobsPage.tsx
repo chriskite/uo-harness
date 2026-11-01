@@ -19,7 +19,7 @@ import {
   woodShares,
   type JobsResponse,
 } from "../jobs.ts";
-import { EventStrip, LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
+import { LogsPerTripChart, RateChart, TimeSplitChart } from "./Charts.tsx";
 import { Badge, Panel, Skeleton } from "./common.tsx";
 import { HuntJobs } from "./HuntJobs.tsx";
 import { MiningJobs } from "./MiningJobs.tsx";
@@ -156,7 +156,6 @@ function LumberJobs({ onJob, range, onRange }: JobDashboardProps) {
 
       <div className="jobs-charts">
         <Panel title={`Deaths, thefts, PKs, flees (${data.events.length})`}>
-          <EventStrip spans={trips.map((r) => ({ n: r.n, t_start: r.t_start, t_end: r.t_end, label: `trip #${r.n} · ${r.logs} logs` }))} events={data.events.filter((e) => e.kind !== "travel")} />
           {data.events.length === 0 ? (
             <p className="dim">No deaths, thefts, PK sightings or flees recorded.</p>
           ) : (

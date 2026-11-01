@@ -1,6 +1,6 @@
 // Plain-SVG charts for the Jobs page (geometry in chart.ts).
 import { barSlots, linePath, linScale, niceTicks, timeTicks } from "../chart.ts";
-import { EVENT_HELP, eventName, eventView, fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobEvent, type JobTrip } from "../jobs.ts";
+import { fmtInt, fmtNum, fmtStamp, oneLocalDay, tripHome, type HuntVisit, type JobTrip } from "../jobs.ts";
 import { fmtDuration } from "../format.ts";
 
 const W = 560;
@@ -22,14 +22,11 @@ function YAxis({ ticks, y }: { ticks: number[]; y: (v: number) => number }) {
   );
 }
 
-const STRIP_H = 64;
-
-function Empty({ text, h = H }: { text: string; h?: number }) {
-  const inner = h === H ? { y: M.t, h: H - M.t - M.b } : { y: 6, h: h - 12 };
+function Empty({ text }: { text: string }) {
   return (
-    <svg className={h === H ? "chart" : "chart strip"} viewBox={`0 0 ${W} ${h}`} role="img">
-      <rect x={M.l} y={inner.y} width={W - M.l - M.r} height={inner.h} className="chart-empty" />
-      <text x={W / 2} y={h / 2 + 4} textAnchor="middle" className="chart-empty-text">
+    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img">
+      <rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} className="chart-empty" />
+      <text x={W / 2} y={H / 2 + 4} textAnchor="middle" className="chart-empty-text">
         {text}
       </text>
     </svg>
@@ -307,80 +304,6 @@ export function VisitBarsChart({ visits }: { visits: HuntVisit[] }) {
         <span>
           <span className="mark-death-key">✕</span> death
         </span>
-      </div>
-    </>
-  );
-}
-
-const EVENT_CLASS: Record<string, string> = {
-  death: "ev-death",
-  theft: "ev-theft",
-  pk_seen: "ev-pk",
-  flee: "ev-flee",
-  leave: "ev-flee",
-  speech_hold: "ev-theft",
-  speech_clear: "ev-ok",
-};
-
-/** Legend order of the strip's dot colours (EVENT_CLASS; anything else is ev-other). */
-const EVENT_LEGEND = ["ev-death", "ev-pk", "ev-theft", "ev-flee", "ev-ok", "ev-other"] as const;
-
-/** A trip or visit on the strip: grey span from t_start to t_end. */
-export interface Span {
-  n: number;
-  t_start: number | null;
-  t_end: number | null;
-  label: string;
-}
-
-/** Trips / visits as grey spans and job events as coloured marks on one time axis, with a
- *  legend of the colours present (each entry names its event kinds; their meaning on hover). */
-export function EventStrip({ spans, events }: { spans: Span[]; events: JobEvent[] }) {
-  const stamps = [...spans.flatMap((t) => [t.t_start, t.t_end]), ...events.map((e) => e.t)].filter((t): t is number => t !== null);
-  if (stamps.length === 0) return <Empty text="nothing recorded yet" h={STRIP_H} />;
-  const t0 = Math.min(...stamps);
-  const t1 = Math.max(...stamps);
-  const sh = STRIP_H;
-  const x = linScale(t0, t1, M.l, W - M.r);
-  const sameDay = oneLocalDay([t0, t1]);
-  const kindsByClass = new Map<string, Set<string>>();
-  for (const e of events) {
-    const cls = EVENT_CLASS[e.kind] ?? "ev-other";
-    kindsByClass.set(cls, (kindsByClass.get(cls) ?? new Set<string>()).add(e.kind));
-  }
-  return (
-    <>
-      <svg className="chart strip" viewBox={`0 0 ${W} ${sh}`} role="img" aria-label="trips and job events over time">
-        <line x1={M.l} x2={W - M.r} y1={24} y2={24} className="grid" />
-        {spans.map((t) =>
-          t.t_start !== null && t.t_end !== null ? (
-            <rect key={t.n} x={x(t.t_start)} y={17} width={Math.max(2, x(t.t_end) - x(t.t_start))} height={14} className="span-trip">
-              <title>{`${t.label}: ${fmtStamp(t.t_start)}–${fmtStamp(t.t_end, true)}`}</title>
-            </rect>
-          ) : null,
-        )}
-        {events.map((e, i) => {
-          const v = eventView(e);
-          return (
-            <circle key={e.id ?? i} cx={x(e.t)} cy={24} r={5} className={`ev-mark ${EVENT_CLASS[e.kind] ?? "ev-other"}`}>
-              <title>{`${fmtStamp(e.t)} ${v.label}${v.detail ? ` · ${v.detail}` : ""}`}</title>
-            </circle>
-          );
-        })}
-        <TimeAxis t0={t0} t1={t1} x={x} y={sh - 6} sameDay={sameDay} />
-      </svg>
-      <div className="legend">
-        <span className="hint" title="A trip (or hunt visit), from its start to its end">
-          <i className="sw sw-span" /> trip
-        </span>
-        {EVENT_LEGEND.filter((c) => kindsByClass.has(c)).map((c) => {
-          const kinds = [...kindsByClass.get(c)!];
-          return (
-            <span key={c} className="hint" title={kinds.map((k) => `${eventName(k)}: ${EVENT_HELP[k] ?? "(no description)"}`).join("\n")}>
-              <i className={`sw sw-dot ${c}`} /> {kinds.map(eventName).join(", ")}
-            </span>
-          );
-        })}
       </div>
     </>
   );

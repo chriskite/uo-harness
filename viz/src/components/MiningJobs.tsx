@@ -1,6 +1,5 @@
 import { fmtDuration } from "../format.ts";
 import { eventView, fmtGp, fmtIngotPrice, fmtInt, fmtNum, fmtStamp, legEnd, miningKpis, oneLocalDay, planSpotName, type MiningLeg } from "../jobs.ts";
-import { EventStrip } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
 import { fetchMining, JobsHead, JobsLoading, useJobPoll, useMiningPlan, type JobDashboardProps } from "./JobsCommon.tsx";
 import { MiningOptimizer } from "./MiningOptimizer.tsx";
@@ -107,7 +106,6 @@ export function MiningJobs({ onJob, range, onRange }: JobDashboardProps) {
           )}
         </Panel>
         <Panel title={`Threats and hops (${data.events.length})`}>
-          <EventStrip spans={legs.map((l) => ({ n: l.n, t_start: l.t_start, t_end: l.t_end, label: `leg #${l.n} · ${l.ore} ore` }))} events={data.events} />
           {data.events.length === 0 ? (
             <p className="dim">No deaths, threats or hops recorded.</p>
           ) : (

@@ -1,6 +1,6 @@
 import { fmtDuration } from "../format.ts";
 import { eventView, fmtGp, fmtInt, fmtNum, fmtStamp, huntKpis, oneLocalDay } from "../jobs.ts";
-import { EventStrip, RateChart, VisitBarsChart } from "./Charts.tsx";
+import { RateChart, VisitBarsChart } from "./Charts.tsx";
 import { Badge, Panel } from "./common.tsx";
 import { fetchHunt, JobsHead, JobsLoading, useJobPoll, type JobDashboardProps } from "./JobsCommon.tsx";
 
@@ -71,7 +71,6 @@ export function HuntJobs({ onJob, range, onRange }: JobDashboardProps) {
 
       <div className="jobs-charts">
         <Panel title={`Deaths and leaves (${data.events.length})`}>
-          <EventStrip spans={visits.map((v) => ({ n: v.n, t_start: v.t_start, t_end: v.t_end, label: `visit #${v.n} · ${v.kills} kills` }))} events={data.events} />
           {data.events.length === 0 ? (
             <p className="dim">No deaths or leaves recorded.</p>
           ) : (

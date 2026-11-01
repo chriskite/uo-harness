@@ -549,19 +549,24 @@ class Memory:
         return cur.lastrowid
 
     def job_events(self, job: str, since: float = 0.0, until: float | None = None,
-                   char_serial: int | None = None) -> list[dict]:
+                   char_serial: int | None = None, bare_kinds: tuple = ()) -> list[dict]:
         """Events of `job` with t in [since, until), oldest first. Every character's,
-        unless `char_serial` is given (then that character's plus the untagged ones)."""
+        unless `char_serial` is given (then that character's plus the untagged ones).
+        bare_kinds: kinds whose `data` the caller doesn't read; they come with data {}, their
+        JSON neither fetched nor parsed (the lumber dashboard's 17k stands)."""
         keys = ("id", "t", "job", "kind", "facet", "x", "y", "data")
         out = []
-        sql, args = "SELECT id, t, job, kind, facet, x, y, data FROM job_events WHERE job = ? AND t >= ?", [job, since]
+        bare = ",".join("?" * len(bare_kinds))
+        data_col = f"CASE WHEN kind IN ({bare}) THEN NULL ELSE data END" if bare_kinds else "data"
+        sql = f"SELECT id, t, job, kind, facet, x, y, {data_col} FROM job_events WHERE job = ? AND t >= ?"
+        args = [*bare_kinds, job, since]
         if until is not None:
             sql, args = sql + " AND t < ?", args + [until]
         if char_serial is not None:
             sql, args = sql + " AND (char_serial = ? OR char_serial IS NULL)", args + [char_serial]
         for row in self.con.execute(sql + " ORDER BY t, id", args):
             d = dict(zip(keys, row))
-            d["data"] = json.loads(d["data"])
+            d["data"] = json.loads(d["data"]) if d["data"] is not None else {}
             out.append(d)
         return out
 
