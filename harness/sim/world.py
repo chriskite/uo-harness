@@ -3300,7 +3300,10 @@ class World:
         if tgt is None or not tgt.alive or tgt.kind != "monster":
             return
         pl = self.player
-        if cheb(pl.pos, tgt.pos) > self.sc["bard"]["range"]:
+        # 'All Kill' reaches the view (VIEW), the bard skills the bard range: live 2026-10-12 to 11-01 (every capture,
+        # Logan's 'All Kill' and its target answer) 101 of 133 at 13-18 tiles were taken, 20 "That is too far away."
+        # (500446; 5 at 3-6 tiles too [INFERENCE: not the range alone]), 12 "Target cannot be seen."; docs/SIM.md
+        if cheb(pl.pos, tgt.pos) > (VIEW if pend["kind"] == "kill" else self.sc["bard"]["range"]):
             self.send(P.cliloc(500446))
             return
         if not self.can_see(pl, tgt):

@@ -585,6 +585,18 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    stood 45 s while the gravebug fought her alone), at most every 12 s per mob; the target cursor is
    answered after an aim pause and a fresh read (the monsters-only guard). Not re-guarded until the kill,
    unless a pet comes out of a transfix with something on us (rule 1).
+   **One pet fighting alone** (`Team.lone_fight`, in the care order after the guard; user 2026-11-01: "If only one
+   pet is off fighting a mob, the runner should go 'All Kill' it rather than stand around indefinitely while GR chips
+   away slowly at a mobs health by himself"): a monster in war mode within 1 of exactly one live pet, it or that pet
+   hurt within 10 s, while every other live pet stays out of it (not hurt within 10 s, not within 2 of a monster in
+   war mode, beyond 12 of it or out of war mode, and within 12 of us to hear the command), nothing is on us and no
+   'All Patrol' or 'All Follow Me' runs, for `LONE_FIGHT_S` 3 s: "GraveRobber fights the drowned mariner 0x… alone
+   (13 tiles off): 'All Kill' at it". It needn't be our target: the live mariner wasn't (pick_target's floor rule),
+   and the speech needs no walk, so the area hitters' and shooters' reach stays the stand-off's and cover's. Not at
+   one an ally fights, nor one on another player below 80 % (their loot); 12 s between sends and the "cannot be seen"
+   memory as for every 'All Kill'; a fight both pets are in never qualifies. Live 2026-11-01 11:53:33-11:55:32
+   (hunt-20261101-114614-f76c, docs/NOTES.md "Tidal Tomb: GraveRobber alone on a drowned mariner") the gravebug fought
+   one 2 min alone 13 off while the phoenix guarded Logan; test_sim `test_lone_pet_kill`.
 4. **Vet supplies** (graphic `0x6496`, one double-click, no target): every pet within range and us
    at 25 % (patch 2023-08-14); a 5.0–5.3 s channel (43 on the trip) with the range checked at the
    finish, so no step during it. Used for a hurt or poisoned pet in range, or for us below

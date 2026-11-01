@@ -1246,6 +1246,58 @@ def test_idle_pet():
           f"kill commands {said}, phoenix target {af.target}")
 
 
+def test_lone_pet_kill():
+    print("== the live 11:53 layout: the gravebug fights a drowned mariner alone 13 off up a slope, the phoenix beside "
+          "Logan: 'All Kill' at it within seconds, the phoenix on it ==")
+    # live 2026-11-01 11:53:33-11:55:32 (hunt-20261101-114614-f76c): GraveRobber at (6944, 2018) on the mariner at
+    # (6944, 2017, z -83), Logan at (6951, 2031, z -126) 13 off him, AlaFlambe on guard beside Logan; only "to a hurt
+    # pet: ... staying out of it" for 2 min, no target (pick_target's floor rule: 19 steps up, budget 17), no 'All Kill'.
+    # Live the phoenix on guard stayed out of it; the sim's guard would join on its own, so she is held out until the
+    # command (as test_idle_pet)
+    w = tidal_world((6951, 2031), [{"key": "drowned mariner", "at": [6944, 2017, -83]}], z=-126)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    m.hits = m.hits_max = 10 ** 6
+    m.spec = {**m.spec, "step_s": 999.0}                    # it stood there live throughout
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    af = next(p for p in w.pets() if p.name == "AlaFlambe")
+    w._teleport(gb, (6944, 2018, -87))
+    w._moved(gb)
+    gb.hits = gb.hits_max = 10 ** 6                         # no walk to vet him in the test
+    m.target, m.threat = gb.serial, {gb.serial: 1e9}
+    w._warm(m, True)
+    gb.target = m.serial
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            mark, sent_t = w.metrics["kill_commands"], None
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 20:
+                if w.metrics["kill_commands"] == mark:
+                    af.mode, af.target = "stay", None
+                elif sent_t is None:
+                    sent_t = tamer.time.monotonic() - t0
+                loop.tick()
+                if sent_t is not None and af.target == m.serial:
+                    break
+                clock.advance(0.2)
+            said = w.metrics["kill_commands"] - mark
+            for _ in range(40):                             # 8 s more: no second one (KILL_REPEAT_S)
+                loop.tick()
+                clock.advance(0.2)
+            again = w.metrics["kill_commands"] - mark
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    log = out.getvalue()
+    lines = [ln for ln in log.splitlines() if "alone" in ln]
+    check("'All Kill' at the mariner within 8 s, once in 8 s more, the phoenix on it; 'GraveRobber fights the drowned "
+          "mariner ... alone (13 tiles off)' (before: none in 20 s)",
+          said == 1 and again == 1 and sent_t is not None and sent_t <= 8 and af.target == m.serial
+          and any("GraveRobber fights the drowned mariner" in ln and "alone (13 tiles off)" in ln for ln in lines),
+          f"kill commands {said} then {again}, at {sent_t}, phoenix target {af.target}, {lines[:2]}")
+
+
 def test_pet_shot():
     print("== the phoenix blind to its target (the pillar row, the gravebug in its one gap): it moves to a shot ==")
     # the simulator 2026-10-20 (seed 20, 285-385 s): AlaFlambe at (5265, 651) on a bound soul at (5265, 649) stood
@@ -7795,7 +7847,7 @@ def main():
               test_restart_inside, test_walk_in_through_neighbour,
               test_instrument, test_levels, test_recall_charges,
               test_standoff_sight, test_standoff_ties, test_pet_death_readout,
-              test_idle_pet, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
+              test_idle_pet, test_lone_pet_kill, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
               test_theirs_passed_over,
               test_theirs_after_kill_sent,

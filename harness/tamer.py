@@ -12,8 +12,8 @@ turned war mode on or swung: the pets do the killing, he keeps them alive and ma
   a target the pets haven't engaged is only approached (to APPROACH_R) and waited for, and passed over
   when it can't see us there (`unseen`); the bard skills go only at a target the pets are already
   fighting (`engaged`), and "All Kill" only at a mob already attacking us that the pets leave alone for
-  KILL_AFTER_S (its aggro is on us anyway; a corpse purger or blightmare at once), or one already fighting
-  someone else.
+  KILL_AFTER_S (its aggro is on us anyway; a corpse purger or blightmare at once), one already fighting
+  someone else, or one fighting one pet alone while the other stands out of it (`lone_fight`).
 - **"All Guard Me"** at every arrival (guarding stops at a recall or dungeon level transition:
   wiki Animal Taming, Pet Commands) and after every kill (26 times for 25 kills on the trip; pets
   told "All Kill" go back to the owner after the kill, knowledge #2073); at once (past GUARD_REPEAT_S)
@@ -137,6 +137,10 @@ ELSEWHERE_R = 2               # a monster in war mode this close to another play
 THEIRS_BELOW = 0.8            # a monster on someone else below this share of hits: their kill (the most damage loots)
 KILL_REPEAT_S = 12.0
 IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
+# a monster fighting one live pet alone this long, the other pet out of it within our call and nothing on us: "All Kill"
+# at it (lone_fight; live 2026-11-01 11:53:33-11:55:32, hunt-20261101-114614-f76c: GraveRobber 2 min alone on a drowned
+# mariner up a slope 13 off, AlaFlambe on guard beside Logan, no 'All Kill': not our target, pick_target's floor rule)
+LONE_FIGHT_S = 3.0
 PIN_S = 15.0                  # loop_hunt's rule: a target neither fighting the pets nor us this long is dropped...
 SKIP_S = 60.0                 # ...and passed over this long
 SEE_WALK_S = 10.0             # a monster on another player still unseen this soon after a walk to see it: passed over
@@ -754,6 +758,8 @@ class Team:
         self.at_once_w = 0.0             # idle weight in sight at the last pull_check (its "at once" rule)
         self.at_once_at = []             # [((x, y), monotonic)] where "at once" stopped a patrol lately
         self.idle_since = {}             # pet serial -> monotonic time first seen out of war mode near a fight
+        self.lone_since = {}             # monster serial -> monotonic time first seen fighting one pet alone (lone_fight)
+        self.lone_t = -1e9               # lone_fight's last look
         self.song_ready = 0.0
         self._view = None                # aggro.View of the last state read
         self.pull_why = None
@@ -1334,7 +1340,8 @@ class Team:
         """One care action, True when something was done: "All Follow Me" after
         a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, vet supplies on us
         when we are below --heal-at, keep off the tank, vet supplies, guard (also once an 'All Kill' target is
-        dropped: kill_order_over), walk to a hurt pet or a ghost, a better tile for line of sight, a barding song.
+        dropped: kill_order_over), "All Kill" at a monster one pet fights alone (lone_fight), walk to a hurt pet or a
+        ghost, a better tile for line of sight, a barding song.
         Standing off an area hitter comes before this and the potion (HuntLoop.tick)."""
         self.update(st)
         if self.kill_order_over(st):
@@ -1351,7 +1358,7 @@ class Team:
         return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
             or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st, calm=calm)) \
             or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
-            or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+            or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
 
     def cover(self, st) -> bool:
         """An awake corpse purger or blightmare (aggro.shy) that sees us within its reach: walk (up to COVER_STEPS) to
@@ -3212,6 +3219,68 @@ class Team:
             if now - self.idle_since.setdefault(s, now) >= IDLE_PET_S:
                 out = p["name"]
         return out
+
+    def lone_fight(self, st) -> bool:
+        """'All Kill' at a monster fighting one live pet alone (user 2026-11-01: "If only one pet is off fighting a mob,
+        the runner should go 'All Kill' it rather than stand around indefinitely while GR chips away slowly at a mobs
+        health by himself"). The monster: attackable, in war mode, within PET_NEAR of exactly one live pet, that pet or
+        it hurt within ENGAGED_S. Every other live pet out of it: not hurt within ENGAGED_S, not within PET_NEAR + 1 of
+        a monster in war mode, beyond PET_REACH of it or out of war mode, and within COMMAND_R of us (it hears the
+        command). Nothing on us, no 'All Patrol' or 'All Follow Me' running, and all that for LONE_FIGHT_S. Not one an
+        ally fights (HuntLoop.ally_fight), nor one on another player below THEIRS_BELOW (their loot, as fight);
+        KILL_REPEAT_S and kill_unseen as every 'All Kill'. A speech command: no walk, the area hitters' and shooters'
+        reach stays the stand-off's and cover's. The fight is the pets' (fought: its corpse is ours). Live 2026-11-01
+        11:53:33-11:55:32 (hunt-20261101-114614-f76c): GraveRobber 2 min alone on a drowned mariner up a slope 13 off,
+        AlaFlambe on guard beside Logan; the mariner was no target (HuntLoop.pick_target's floor rule: 19 steps up, the
+        budget 17) and fight's idle_pet only reads the target and a pet out of war mode within PET_REACH of it."""
+        import threats
+        h, now = self.h, time.monotonic()
+        if now - self.lone_t > LONE_FIGHT_S:
+            self.lone_since.clear()       # not looked at meanwhile (a walk, a wait elsewhere): the hold starts over
+        self.lone_t = now
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        if len(pets) < 2 or self.patrol is not None or self.follow_called or now < self.follow_until or h.attackers(st):
+            self.lone_since.clear()
+            return False
+        world = st["world"]
+        labels = world.get("labels") or {}
+
+        def hurt(s) -> bool:
+            return now - h.hurt_t.get(s, -1e9) <= ENGAGED_S
+        war = {}
+        for key, mob in world["mobiles"].items():
+            s = serial_of(key)
+            if s not in self.roster and s not in h.dead and mob.get("x") is not None and not mob.get("pet") \
+                    and not mob.get("dead") and mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY \
+                    and (mob.get("flags") or 0) & aggro.WAR:
+                war[s] = (key, mob)
+        found = []
+        for s, (key, mob) in war.items():
+            at = (mob["x"], mob["y"])
+            on = [p for p in pets if cheb((p["x"], p["y"]), at) <= PET_NEAR and (hurt(p["serial"]) or hurt(s))]
+            if len(on) != 1:
+                continue
+            if any(hurt(p["serial"]) or p["dist"] > COMMAND_R
+                   or (p["war"] and cheb((p["x"], p["y"]), at) <= PET_REACH)
+                   or any(cheb((p["x"], p["y"]), (o["x"], o["y"])) <= PET_NEAR + 1 for _, o in war.values())
+                   for p in pets if p is not on[0]):
+                continue
+            if threats.identify(mob, labels.get(key))[0] == "monster":
+                found.append((s, mob, on[0]))
+        self.lone_since = {s: self.lone_since.get(s, now) for s, _, _ in found}
+        for s, mob, lone in found:
+            if now - self.lone_since[s] < LONE_FIGHT_S or now - self.kill_t.get(s, -1e9) < KILL_REPEAT_S \
+                    or self.kill_unseen(st, s, now) or h.live_target(st, s)[0] is None \
+                    or h.ally_fight(st, mob) is not None \
+                    or (self.elsewhere(st, mob) is not None and h.frac(mob) < THEIRS_BELOW):
+                continue
+            self.fought[s] = (mob, now)
+            self.count("lone_kills")
+            log(f"{lone['name']} fights the {type_key(mob.get('name')) or 'monster'} 0x{s:08X} alone ({lone['dist']} tiles "
+                f"off): 'All Kill' at it")
+            self.all_kill(s)
+            return True
+        return False
 
     def rejoin(self, st, only=None, stop=None) -> bool:
         """Back to within --vet-range - 1 of the nearest live pet (of the serials `only` when given), in view or where it

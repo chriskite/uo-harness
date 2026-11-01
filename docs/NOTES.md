@@ -8067,6 +8067,54 @@ the tile I mentioned earlier and get in a 3 way fight" (hunt-20261101-104822-bfc
   (`loop_hunt.GATE_FOUGHT_STEPS`, docs/HUNT_LOOP.md "Out"). Simulator numbers in docs/SIM.md "Tidal Tomb: the gate
   pocket's crossfire".
 
+## Tidal Tomb: GraveRobber alone on a drowned mariner (2026-11-01 11:53, hunt-20261101-114614-f76c)
+
+User 2026-11-01 ~11:57: "Logan has been separated from GraveRobber. If only one pet is off fighting a mob, the runner
+should go 'All Kill' it rather than stand around indefinitely while GR chips away slowly at a mobs health by himself."
+Run `hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 ... --enter-via 6718 1984 --leave-gate 6913
+2071` (GraveRobber 0x000DDEFE, AlaFlambe 0x0026EF56), task log lines 530-569; capture session_20261101_103015 decoded
+with `replay.timed_packets` -> `WorldRuntime` (positions every 2 s, the '-N'/'+N' overheads; scratch, not kept).
+
+- **11:53:20-30** 'All Kill' at a soulcatcher; the drowned mariner 0x002EE695 at (6944, 2017, z -83) woke (war flag
+  11:53:26), first hit GraveRobber -24 at 29.18. The soulcatcher died at 30; by 32 GraveRobber stood at (6944, 2018,
+  z -87) beside the mariner and AlaFlambe at (6950, 2031) beside Logan at (6951, 2031, z -126). 33.36 "All Guard Me".
+- **11:53:33-11:55:32** nothing changed: Logan, AlaFlambe (war mode on, never hurt) and GraveRobber stood on those
+  tiles; the mariner took GraveRobber's hits 99 -> 31 % (his Devour healed him every ~15 s; he was hit -20..-27 every
+  4-20 s, 86-100 %). Logan 14 from the mariner, 13 from GraveRobber; AlaFlambe 14 from it. The runner logged only
+  "to a hurt pet: GraveRobber (86-94%) is only in reach 3 from the awake drowned mariner, out of its sight 14 off here
+  (80% or more); staying out of it" (to_pet's caster/ranged hold) and once "crawl: not patrolling yet: GraveRobber at
+  13". 11:55:32 the oxygen leg moved him; the mariner died at 11:55:53 (GraveRobber alone, ~2 min 20 s).
+- **Why no target**: `pick_target` had it as a candidate whenever GraveRobber was hurt within 10 s (`pet_attackers`:
+  war mode within 1 of a hurt pet), then dropped it on `on_our_floor`: its surface z -83 is 43 above Logan's -126, so
+  only a walk to beside it at its height counts, at most its distance - 1 + `FLOOR_DETOUR` = 17 steps; the planner's
+  way up the slope is 19 (pathfind.plan on the live tiles; within 17: none). With no target `combat_step` returned
+  False every tick; the crawl's `patrol_hold` held (pets_lagging: GraveRobber at 13; `pets_busy` ignored the mariner by
+  the same floor rule) and Logan waited. The rule was meant for a monster on a ledge the pets can't reach (2026-10-19
+  insane reanimator); here a pet was beside it on its floor.
+- **Why no 'All Kill' even as a target**: Team.fight's "All Kill"s are for a mob on us, one on another player, or the
+  target with a pet out of war mode within 12 of it for 5 s (`idle_pet`). AlaFlambe was 14 off and in war mode.
+  Nothing sent a pet at a monster that isn't the target.
+- **Why the split lasted** [INFERENCE]: pets told 'All Kill' come back to the owner after the kill (knowledge #2073);
+  the mariner was on GraveRobber, so he fought on, and AlaFlambe went back to Logan (by 11:53:32, before the 'All Guard
+  Me'). On guard she never joined: the mariner never hit Logan or her. The simulator's guard joins any monster on us or
+  the pets within 14 of us (docs/SIM.md "Limits"; "Monster mechanics audit": the phoenix on guard joined the gravebug's
+  fight within 2 s in 99 % of 2,414 Mausoleum samples); here, 14 off and 43 z up, she didn't for 2 min.
+- **Fix** (docs/HUNT_LOOP.md "Pets" 3): `Team.lone_fight` in the care order, after the guard: a monster in war mode
+  within 1 of exactly one live pet, it or the pet hurt within 10 s, every other live pet out of it (not hurt lately,
+  not within 2 of a monster in war mode, beyond 12 of it or out of war mode, within 12 of us), nothing on us, for 3 s:
+  "GraveRobber fights the drowned mariner 0x002EE695 alone (13 tiles off): 'All Kill' at it". Not our target, no walk;
+  12 s between sends, the "cannot be seen" memory, not at an ally's fight or one on another player below 80 %.
+  `pick_target`'s floor rule is unchanged: it decides what Logan takes up and walks to, and the 'All Kill' needs neither.
+  A fight both pets are in never qualifies, so the rule can't loop.
+- **'All Kill' reaches past 12 tiles** (every capture 2026-10-12 to 11-01: Logan's 'All Kill', the target answer and
+  the target's distance from him at that moment): at 13-18 tiles 101 of 133 were taken, 20 answered "That is too far
+  away." (500446; also 5 at 3-6 tiles, so not the range alone [INFERENCE]), 12 "Target cannot be seen." The simulator
+  had refused every one beyond the bard range 12; it now takes them to the view (18), with sight.
+- **Replay**: test_sim `test_lone_pet_kill` (this layout on level 2's map, the phoenix held out of the fight until the
+  command as live): bd5aa41 no 'All Kill' in 20 s; now one at ~5 s, the phoenix on it, none again in 8 s. The same
+  layout with the mariner's real hits over seeds 1-12: GraveRobber alone killed it in a median 99 s (74-108) before;
+  after, one 'All Kill' each and a median 17.5 s (13-21). Batches: docs/SIM.md "Tidal Tomb: one pet fighting alone".
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

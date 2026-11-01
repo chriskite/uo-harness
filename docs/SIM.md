@@ -2691,6 +2691,38 @@ rule: docs/HUNT_LOOP.md "Out"). The pocket is the crimson gate (6913, 2071)'s.
   (Logan 6 off, no pinch, 109 on him against the lead's 591), so it tests the lead rule alone, as on a longer walk.
 - **Not modelled:** the voidfin's hiding and coming out beside its target mid-fight (NOTES).
 
+### Tidal Tomb: one pet fighting alone (2026-11-01)
+
+Live 11:53:33-11:55:32 GraveRobber fought a drowned mariner alone 13 off for 2 min while Logan stood (docs/NOTES.md
+"Tidal Tomb: GraveRobber alone on a drowned mariner"; the rule, `Team.lone_fight`, in docs/HUNT_LOOP.md "Pets" 3).
+
+- **'All Kill' reaches the view** (`World._target`): the simulator answered every "All Kill" beyond `bard.range` 12
+  "That is too far away."; live 101 of 133 at 13-18 tiles were taken (the capture scan in the NOTES section). Now the
+  view (18), with sight; the bard skills keep 12. Seeds 1-16 below gave the same numbers on bd5aa41's runner with
+  the old and the new world.
+- **The live layout** (test_sim `test_lone_pet_kill`: Logan at (6951, 2031, -126), GraveRobber beside the mariner at
+  (6944, 2017, -83), up the slope 19 steps away, AlaFlambe beside Logan held out of the fight until a command, as
+  live): bd5aa41 no 'All Kill' in 20 s; after, "GraveRobber fights the drowned mariner 0x… alone (13 tiles off):
+  'All Kill' at it" at ~5 s, the phoenix on it, none again in 8 s. With the mariner's real hits (seeds 1-12, 240 s
+  each): GraveRobber alone killed it in a median 99 s (74-108) on bd5aa41, one 'All Kill' each and a median 17.5 s
+  (13-21) after.
+- **Level 2** (`--scenario tidal_tomb --area 6815 1907 6969 2100 --json -- --enter-via 6718 1984 --leave-gate 6913 2071
+  --vet-range 5 --crawl-learn-s 180`, the default team `phoenix_gravebug`: GraveRobber and AlaFlambe; both runners on
+  the new world):
+
+  | seeds | runner | runs with a death | runs with a pet death | pet deaths | kills / h | gold / h | banked / h | damage on Logan / h |
+  |---|---|---|---|---|---|---|---|---|
+  | 1-16 | bd5aa41 | 1 | 0 | 0 | 150.1 | 149,694 | 131,519 | 598 |
+  | 1-16 | **after** | 1 | 0 | 0 | 150.1 | 149,694 | 131,519 | 598 |
+  | 1-144 | bd5aa41 | 18 | 16 | 20 | 155.4 | 171,872 | 121,239 | 1,330 |
+  | 1-144 | **after** | 18 | 16 | 20 | 155.4 | 171,872 | 121,239 | 1,330 |
+
+  The rule never fired in those 160 runs: the simulator's guard sends the other pet at any monster on a pet within
+  14 of us ("Limits"), so a pet never fights alone here for 3 s with the other in reach of the command. A first
+  version without the hold's restart after a gap in its looks fired once in 144 (seed 109: just after a failed oxygen
+  leg's 20 s wait, the 3 s counted across the wait; "cannot be seen"); the restart is kept (`Team.lone_t`).
+- **Tests:** `test_lone_pet_kill` (above; fails on bd5aa41).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third
@@ -3474,7 +3506,11 @@ other batches loaded the desktop; every summary field identical but the timing):
   15-17 off 0 of 7; live 18:26:51-18:27:28 GraveRobber at 17 fought on through three); before, every pet heard.
   Patrol ("All Patrol", since 2026-10-18 from the user's demo, docs/NOTES.md "All Patrol"): a location
   cursor, "Target cannot be seen." for a tile out of our sight, the pets run to the tile, attack a monster
-  within 3 of it (`PATROL_TAKE_R`) and stay about the spot; "All Guard Me" leaves the target they fight.
+  within 3 of it (`PATROL_TAKE_R`) and stay about the spot; "All Guard Me" leaves the target they fight. "All Kill"'s
+  cursor takes a monster in our sight within the view (18; the bard skills: `bard.range` 12), since 2026-11-01
+  ("Tidal Tomb: one pet fighting alone"). Guard joining the other pet's fight anywhere within 14 of us is the
+  Mausoleum's measure; live 2026-11-01 11:53 the phoenix on guard stayed out of the gravebug's fight 14 off for 2 min
+  (n = 1, not modelled).
 - Purgers against the pets run slower than live: a patrol-pulled purger took 33-42 s to kill in the sim
   (54 % left at 16 s), live 14 s with a Discordance (17:56:01-15). Its disease ticks (21, Logan's live
   number) hit the pets unscaled [INFERENCE]: both make purger fights dearer for the pets than seen.
