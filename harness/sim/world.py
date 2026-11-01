@@ -261,6 +261,8 @@ class Mob:
     brood_at: tuple | None = None  # a nest crab's dig: (time its broodling emerges, special)
     dig: tuple | None = None      # ...with its Dig (`surface_s`): (time it comes up, the target whose tile it comes up on)
     swing_at: tuple | None = None  # a large swing called: (time it lands, target serial, special)
+    dive_at: tuple | None = None  # a voidfin's dive called after its spin (special `dive`): (time it goes under, special)
+    surface: dict | None = None   # ...under: its `dive` special, beside its target with its strike when hidden_until ends
     spray: dict | None = None     # an ocean bedrock's spray under way (_spray_step): origin, axis, wave start, hits
     backlash: list = field(default_factory=list)   # astral zoas' Backlash stacks on one of us: [[expiry, fizzle chance]]
     pressure: dict | None = None  # Pressure stacks on one of us: {"due": resolve time, "hits": [damage per stack]}
@@ -1600,7 +1602,11 @@ class World:
             elif m.relocate is not None:
                 self._teleport(m, self._relocate_tile(m, m.relocate))
             m.relocate = None
+            if m.surface is not None:
+                self._surface(m)
             self._view()
+            if m.surface is not None:
+                self._surface_strike(m)
         if m.charge_at is not None and t >= m.charge_at[0]:
             _, s, sp = m.charge_at
             m.charge_at = None
@@ -1627,6 +1633,9 @@ class World:
                 return
         if m.swing_at is not None and t >= m.swing_at[0]:
             self._large_swing(m)
+        if m.dive_at is not None and t >= m.dive_at[0]:
+            self._dive(m)
+            return
         if m.spray is not None and t >= m.spray["t0"]:
             self._spray_step(m)
         if m.hinder_until > t:
@@ -2270,6 +2279,9 @@ class World:
                                              tgt.serial))
                 else:
                     self._burst(m, sp, tgt)
+                dive = next((d for d in spec.get("specials", []) if d["kind"] == "dive" and d.get("after") == key), None)
+                if dive is not None and m.dive_at is None and self.rng.random() < dive.get("chance", 1.0):
+                    m.dive_at = (t + self.rng.uniform(*dive["delay_s"]), dive)
             elif kind == "vanish":
                 if kind not in m.cd:                     # the first one comes a while into the fight
                     m.cd[kind] = t + self.rng.uniform(*sp["first_s"])
@@ -2694,6 +2706,64 @@ class World:
             return (x, y, z)
         return m.pos
 
+    def _dive(self, m: Mob):
+        """A voidfin's dive (special `dive`, called `delay_s` after its `after` burst, the spin): under at once (0x1D,
+        its target kept), unseen and unhittable for `hidden_s`; the pets on it hold where they stand (_pet). Live
+        (docs/NOTES.md "Tidal Tomb: the voidfin's dive"): 0x90A, ~0.5 s, sound 0x657 and the 0x1D, ~2.9 s under."""
+        sp = m.dive_at[1]
+        m.dive_at = None
+        self._cancel_cast(m, "hidden")
+        self._ev("ability", by=m.serial, kind="dive", v=m.target)
+        self.count("dives", m.key)
+        tail = sp.get("hidden_tail")              # (share, lo, hi): the longer ones, else `hidden_s` uniform
+        secs = self.rng.uniform(*tail[1:]) if tail and self.rng.random() < tail[0] else self.rng.uniform(*sp["hidden_s"])
+        m.hidden_until, m.surface = self.t + secs, sp
+        if m.serial in self.viewing:
+            self.send(P.delete(m.serial))
+            self.viewing.discard(m.serial)
+
+    def _surface(self, m: Mob):
+        """The dive's end: up on a free floor tile `land_r` (rounded) from its target in the target's sight, the
+        nearest such to where it went under (live median 2 from both), else where it went under. The spin's timer
+        starts again (`spin_s`: live return -> spin 4.3 s median)."""
+        sp = m.surface
+        tgt = self.mobs.get(m.target) if m.target is not None else None
+        if sp.get("after"):
+            m.cd[sp["after"]] = self.t + self.roll(sp["spin_s"])
+        if tgt is None or not tgt.alive or tgt.ghost:
+            return
+        r = max(1, int(round(self.roll(sp["land_r"]))))
+        best = None
+        for dx in range(-r, r + 1):
+            for dy in range(-r, r + 1):
+                if max(abs(dx), abs(dy)) != r:
+                    continue
+                x, y = tgt.x + dx, tgt.y + dy
+                z = self.stand_z(x, y, tgt.z)
+                if abs(z - tgt.z) > 15 or self._occupied(x, y, m.serial) \
+                        or not any(self.walk.can_walk(x, y, z, d) for d in TELEPORT_DIRS) \
+                        or not self.sight.can_see(tgt.pos, (x, y, z)):
+                    continue
+                k = (cheb((x, y), m.pos), self.rng.random())
+                if best is None or k < best[0]:
+                    best = (k, (x, y, z))
+        if best is not None:
+            self._teleport(m, best[1])
+            self._face(m, tgt)
+
+    def _surface_strike(self, m: Mob):
+        """...and its strike at once on its target, one number (`strike_pet` / `strike_player`, as taken live), from
+        up to `strike_r` off; its plain melee is none (live no 0x2F from a voidfin in 506 stretches)."""
+        sp, m.surface = m.surface, None
+        tgt = self.mobs.get(m.target) if m.target is not None else None
+        if tgt is None or not tgt.alive or tgt.ghost or cheb(m.pos, tgt.pos) > sp.get("strike_r", 2):
+            return
+        if m.serial in self.viewing and sp.get("action") is not None:
+            self.send(P.animation(m.serial, sp["action"]))
+        self._ev("ability", by=m.serial, kind="surface", v=tgt.serial)
+        self.hurt(tgt, self.roll(sp["strike_player" if tgt.kind == "player" else "strike_pet"]), m, "melee",
+                  ref=sp.get("ref"))
+
     def _feed_step(self, m: Mob):
         """A feed under way: the attempt's outcome, then its ticks 0.5 s apart on the target."""
         t = self.t
@@ -2799,9 +2869,11 @@ class World:
             m.next_think = t + THINK_S
             self._pet_think(m)
         tgt = self.mobs.get(m.target) if m.target is not None else None
-        if tgt is not None and tgt.alive and tgt.hidden_until and tgt.blink_to is not None and m.mode != "follow":
-            return                               # its target blinked: it holds (live 20261017_110506: the gravebug
-            #                                      moved 0-1 tiles in the 1.6 s after 15 of 20 '*phases*')
+        if tgt is not None and tgt.alive and tgt.hidden_until and (tgt.blink_to is not None or tgt.surface is not None) \
+                and m.mode != "follow":
+            return                               # its target blinked or dove: it holds (live 20261017_110506: the
+            #                                      gravebug moved 0-1 tiles in the 1.6 s after 15 of 20 '*phases*'; a
+            #                                      voidfin's dive: the pets 4 from its dive tile mid-dive, median)
         if tgt is not None and tgt.alive and not tgt.hidden_until and cheb(owner.pos, tgt.pos) <= m.spec.get("leash", 14):
             self._warm(m, True)
             self._pet_cooldowns(m, tgt)

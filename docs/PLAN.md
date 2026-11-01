@@ -3336,7 +3336,7 @@ of them"; confirm in the simulator, then tactics so the runner isn't caught in t
   block's spread ~5: noise, the crawl's deaths). Kept for the live evidence and the replay, not for the batch.
 - *Rejected:* 60 fought steps (no better than 30 on the replays); the whole walk out fought and a wide route
   (2026-10-30: both raised the deaths). Not tried: the north gate alone.
-- *Not built:* the voidfin's hide-and-come-out in the simulator (live: 102 times mid-fight, nearly always on a pet).
+- *Not built then:* the voidfin's hide-and-come-out in the simulator (built next: "The voidfin's dive in the simulator").
 - *Live*: the next level 2 run after the Seer gets the new command. Watch for "LEAVING by the moongate at (x, y): ...; the
   easiest of 2 (...)" and "to the moongate: fought through".
 
@@ -3349,6 +3349,22 @@ where the astral zoa they fought hit him (docs/NOTES.md "Tidal Tomb level 2: dea
   zones (`around_areas`); none such: no cover walk. 192 level 2 runs: runs with a death 28 -> 20 (docs/SIM.md "Tidal
   Tomb: the cover's way").
 - *Rejected:* falling back to the old walk when no clear way exists (that was the death).
+
+## The voidfin's dive in the simulator (user 2026-11-01: "Add voidfin stealth behavior to the sim")
+
+Evidence: docs/NOTES.md "Tidal Tomb: the voidfin's dive" (13 captures, 290 dives); numbers: docs/SIM.md "Tidal Tomb: the
+voidfin's dive".
+
+- *Decided:* the stealth is a cycle tied to its spin, not the Mausoleum stealthers' Vanish or a lurk: 0.5 s after a spin
+  it dives (0x1D), ~2.9 s under with its target kept and the pets holding, up 1-2 from its target with one strike at
+  once, the next spin ~4.3 s on. A new `dive` special (`World._dive`, `_surface`), keyed to the burst it follows, so any
+  type with the same signature takes it by data. No plain melee for the voidfin (`melee_observed` null): live it never
+  swung; calibrate's per-swing numbers were the strikes and spins.
+- *Rejected:* the `vanish` special (it comes back where it went under, swings after: live it moves ~2 and strikes at
+  once), the `blink` (onto its target's own tile, with the apparition's area hit), ambush from its spawn (1 in 107 first
+  sightings within 5).
+- *Not done:* the greater voidfin (6 dives seen, no spin modelled for it); the spin's shortfall against live (its
+  victims a spin, docs/SIM.md); no runner change (a dive reads as a target lost alive and taken up again, as live).
 
 ## Risks
 

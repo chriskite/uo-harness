@@ -8058,14 +8058,57 @@ the tile I mentioned earlier and get in a 3 way fight" (hunt-20261101-104822-bfc
 - **The voidfin's stealth, as seen** (53 voidfins, 249 entries into view on level 2): never an ambush on first contact
   (40 of 53 first seen at the 18-tile view edge, 14 in war; 84 of 94 idle sightings 1-3 from a spawn spot). Mid-fight
   it leaves the view and comes back beside one of us 102 times (84 at 2 tiles), 91 with a hit on a pet or Logan within
-  1 s (usually 0.02 s: its spin on all within 2), ~8 s apart, a median 9 tiles from its spot. Mostly on the pets
+  1 s (usually 0.02 s: a single strike as it comes up, not its spin), ~8 s apart, a median 9 tiles from its spot. Mostly on the pets
   (AlaFlambe 45, GraveRobber 24, Bussin 22); on Logan once (11-01 11:28:49.9, -32). [INFERENCE: hiding and coming out
-  beside its target; the scan read the 0x1D/prune and redraw, not why]. The simulator's voidfin stays in view (its spin
-  only): not modelled.
+  beside its target; the scan read the 0x1D/prune and redraw, not why]. Measured whole in "Tidal Tomb: the voidfin's
+  dive" below; the simulator has it since.
 - **Built:** level 2's command gets the north crimson gate 0x4003D7B9 (6897, 1992) as a second `--leave-gate` (its menu
   lists Totem: 2026-10-24 21:04:35, 2026-10-25 11:36:55), and every planned walk out fights its last 30 route steps
   (`loop_hunt.GATE_FOUGHT_STEPS`, docs/HUNT_LOOP.md "Out"). Simulator numbers in docs/SIM.md "Tidal Tomb: the gate
   pocket's crossfire".
+
+## Tidal Tomb: the voidfin's dive (user 2026-11-01: "Add voidfin stealth behavior to the sim")
+
+Thirteen captures with Logan in the Tidal Tomb box, 2026-10-24 to 11-01: 107 voidfins, all on level 2; 290 dives. A
+scan replays each through `replay.timed_packets` and `WorldRuntime` and reads the voidfins' 0x1D, 0x20/0x77/0x78, 0x54
+sounds, 0x6E animations, 0xC0 effects and the numbers on us (scratch scripts, not kept; 0x54's sound id at bytes 2-3, x
+8-9, y 12-13; 0xC0's item at 12-13, x 16-17, y 20-21, from the raw bytes).
+
+- **One cycle of ~7.8 s in war mode**: it comes up with a strike, ~4.3 s later spins, ~0.5 s later dives, ~2.9 s
+  under, up again. Spin to spin 7.79 s (median, n 237), dive to dive 7.81 s (n 192).
+- **The dive**: sound 0x657 on its tile, then a server 0x1D (343 of 343 leaves; its last update still in war mode, the
+  hidden flag 0x80 never set, no 0x77 hiding it, no text); 0.50 s after the spin's 0x90A (p10-p90 0.47-0.52, n 210);
+  every dive but 2 of 255 follows a spin; a few stretches spin 2-3 times with no dive between (~0.92 of spins dive).
+  2.86 dives a war-minute (89 war-minutes); the first 2.93 s after its war onset (median, p10 1.65, p90 11.1, n 62); at
+  any health (56 of 260 below 25 %). Idle: 1 of 290.
+- **Under**: 2.92 s (min 2.74, p10 2.85, p90 4.61, n 260; 170 within 3.1 s, 70 at 3.1-5, 20 longer, up to 90 s). No
+  number of ours on it (median 0 a dive, max 4) and its own effects (item 0x376A, 0x36BD) 2-6 tiles from the dive tile;
+  the pets stood (median 4 from the dive tile mid-dive, 2 from where it came up).
+- **Up**: an 0x20 + 0x78 at the new tile, sound 0x51D (249 of 260, often 0xB27 too), animation 5 (251 of 255), its name
+  label. 2 tiles from where it went under (median; p10 1, p90 5) and 2 from the nearest of ours (p10 1, p90 10).
+- **The strike as it comes up**: one number at the same instant (0.0 s, p90 0.02, n 201 of 260), one victim (192;
+  2 in 3, none in 6): a pet 198 times, Logan 3 (10-24 19:58:22.7 -39, 11-01 11:28:49.9 -32, 12:10:29.8 -45). 14-86,
+  median 51 (p10 33, p90 67, n 205). Its sound is 0x51D, not the spin's.
+- **No plain melee**: no 0x2F from a voidfin in 506 visible stretches. Animation 10 with a number within 1 tile 0.6 s
+  later: 20 in all, on pets, 16-63. calibrate's `damage_to_pets` for it (23-42, n 52) were these strikes and spins.
+- **The spin's numbers** in this larger set: on Logan 21-42 (median 32, n 19), on a pet 13-61 (median 44, n 244); the
+  scenario keeps its 21-58 (median 40) from 58 numbers.
+- **First contact**: 88 of 107 first seen idle (median 18 tiles off, min 5), 13 in war mode at 18, 6 coming up from a
+  dive (one at 5 tiles, 10-24 20:49:56.5). No ambush.
+- **Greater voidfin** (level 3; 4 serials, 6 dives): the same signature (0x90A, 0x657 + 0x1D; up with 0x51D, 0xB27,
+  animation 5), under 2.89-31.96 s (median 3.77), up -> spin 2.78-6.22 s, spin interval 7.85 s, its spin 97 and 101 on
+  pets, a strike in 1 of 6. Too few to model; the simulator has no spin for it either.
+- **Examples**: 10-30 18:26:44.0-18:27:07.4 (capture 20261030_175703, voidfin 0x00185A31): spin at (6856, 2024), its
+  hits 44.3, dive 44.5; up 50.6 at (6862, 2022) (AlaFlambe -25 at +0.17, Bussin -26 and AlaFlambe -30 at +0.36); spin
+  51.8 (Bussin -42, AlaFlambe -47 at 52.2), dive 52.3; up 55.2; spin 59.4, dive 59.9; up 18:27:03.7. 10-30 18:05:33.4
+  (0x001822E5): dove at (6903, 2050), up 37.5 at (6907, 2052) after 4.1 s, AlaFlambe -58 at +0.01 s.
+- **The rate** (74 level-2 voidfins that went to war, 0.25 s samples from the war onset to death or the last delete):
+  25.68 min in view with the war flag, 17.06 under in dives, 2.52 in view with it off (most peace successes dropped it
+  within 1-3 s; 9 matched in the task logs), 44.03 out of view otherwise. Over the 42.74 war-minutes (in view plus
+  under): 5.97 dives and 7.30 spins a minute; within 2 tiles of one of ours 73 % of the in-view time. Its numbers on us:
+  25,482, 596 a war-minute (strikes 206 / 10,452, spins 366 / 14,602 with 1.17 of ours a spin, other 17 / 428); on
+  Logan 1,218 (28.5 a war-minute).
+- **Built**: the simulator's `dive` special (docs/SIM.md "Tidal Tomb: the voidfin's dive").
 
 ## Tidal Tomb: GraveRobber alone on a drowned mariner (2026-11-01 11:53, hunt-20261101-114614-f76c)
 

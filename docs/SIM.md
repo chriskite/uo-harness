@@ -2640,7 +2640,7 @@ rule: docs/HUNT_LOOP.md "Out"). The pocket is the crimson gate (6913, 2071)'s.
   15.5, 1.5x). 44 of 121 leaves crossed it. Windows of 10 s with 3+ monsters hitting him: 1 in the pocket (13 on
   level 2), none on a leave; no death there (16 elsewhere). **Milder than live** (1.2-4.3x there, both live 3-monster
   windows by it on the walk out): the batch's pocket held 2-3 live monsters at a leave's entry, its leaves came at time
-  up from the north, and the voidfin's hide-and-come-out (NOTES) isn't modelled.
+  up from the north, and the voidfin's hide-and-come-out (NOTES) wasn't modelled then ("the voidfin's dive" below).
 - **The replay** (`sim/fight1136.py`, the two live layouts at the walk out's start, each monster at full hits, no
   respawns, the planned leave `leave_by_gate("return")`; seeds 1-24; "2+/3+" the runs with that many monsters hitting
   Logan within 10 s):
@@ -2689,7 +2689,8 @@ rule: docs/HUNT_LOOP.md "Out"). The pocket is the crimson gate (6913, 2071)'s.
   lowest hits 50+, through the gate; the plain walk: lowest 15, 29 and 45 in 3 of them). `test_tidal_leave_crab` now
   runs with the approach off: its 23-step walk lies all within the 30, and with it on the crab woke on a pet 24 of 24
   (Logan 6 off, no pinch, 109 on him against the lead's 591), so it tests the lead rule alone, as on a longer walk.
-- **Not modelled:** the voidfin's hiding and coming out beside its target mid-fight (NOTES).
+- **Not modelled then:** the voidfin's hiding and coming out beside its target mid-fight (since: "Tidal Tomb: the
+  voidfin's dive").
 
 ### Tidal Tomb: one pet fighting alone (2026-11-01)
 
@@ -2743,6 +2744,48 @@ area hits and fire, and walks inside `around_areas` (docs/HUNT_LOOP.md "Out of a
   Over 192 runs: runs with a death 28 -> 20, damage on Logan an hour ~1,667 -> ~1,642, banked ~159k -> ~169k, pet
   deaths 18 -> 24 (a block's spread ~5: the deaths' drop is at the edge of noise, nothing got worse beyond it).
 - **Tests:** `test_cover_route_clear` (the live 14:32:36 tiles: before, the 7-step walk 1 off the pets; after, no walk).
+
+### Tidal Tomb: the voidfin's dive (2026-11-01)
+
+User 2026-11-01: "Add voidfin stealth behavior to the sim". The evidence (13 captures, 107 voidfins, 290 dives) is in
+docs/NOTES.md "Tidal Tomb: the voidfin's dive".
+
+- **The world** (`World._dive`, `_surface`, `_surface_strike`; scenario special `dive` on the voidfin): a spin (its
+  `burst` "spin") is followed `delay_s` 0.47-0.52 s later by a dive with `chance` 0.92: 0x1D to the client, unseen and
+  unhittable, its target kept, the pets on it holding where they stand (as on an apparition's blink); under `hidden_s`
+  2.8-3.1 s, or 3.1-5 s for `hidden_tail`'s 0.35 of them. It comes up on a free tile `land_r` 1-2 (mostly 2) from its
+  target in the target's sight, the nearest such to where it went under, animation 5, and strikes it at once
+  (`strike_pet` 33-67 median 51 as melee on the reference pet; `strike_player` 32-45 median 39, as taken; within
+  `strike_r` 2). Its spin's timer starts again then: `spin_s` 2.74-4.89 s (median 4.3). The spin's `first_s` is now
+  1.1-4 s (live the first dive 2.93 s after the war onset). `melee_observed` gives it no plain melee (no 0x2F live): it
+  was calibrate's 23-42 per swing, which were these strikes and spins. `run.py --json` carries `dives` by type. The
+  greater voidfin (level 3, 6 dives seen, no spin in the scenario) is left as it was.
+- **Against live, per voidfin war-minute** (war mode in view plus under; 16 level-2 runs, seed 11, traced; live 42.74
+  war-minutes): dives 5.88 (live 5.97); everything a voidfin did to us 1,076 before (3af313f; its melee 882) -> 409 now (strike
+  210, spin 200), live 596 (strike 245, spin 342, other 10). The spin falls short: ~6.4 spins a minute against 7.3
+  and ~31 a spin against 47 (live 1.17 of ours in its reach a spin) [INFERENCE: the voidfin closes to 1 off its target,
+  the other pet and Logan farther; not changed here].
+- **Level 2 batches** (`--scenario tidal_tomb --level 2 --runs 96 --others --prior <store> -- --vet-range 5 --crawl-learn-s
+  180`, the default team; both arms in worktrees at 128ada1, "dive" with this change applied):
+
+  | seeds | sim | runs with a death | pet deaths | Logan's damage / h (the voidfins') | the voidfins' on the pets / h | voidfin kills / h | banked / h |
+  |---|---|---|---|---|---|---|---|
+  | 1-96 | before | 8 | 6 | 1,526 (82) | 2,177 | 26.4 | 178,822 |
+  | 1-96 | **dive** | 14 | 1 | 1,520 (156) | 2,659 | 24.8 | 168,269 |
+  | 97-192 | before | 14 | 10 | 1,537 (92) | 2,255 | 24.5 | 161,237 |
+  | 97-192 | **dive** | 9 | 7 | 1,410 (117) | 2,545 | 23.2 | 166,037 |
+  | 193-288 | before | 18 | 4 | 1,389 (71) | 2,316 | 24.6 | 166,518 |
+  | 193-288 | **dive** | 12 | 3 | 1,506 (164) | 2,909 | 24.3 | 167,333 |
+
+  Over 288: runs with a death 40 -> 35 (a block's spread ~5: noise), pet deaths 20 -> 11, the voidfins' damage on
+  Logan an hour 82 -> 146 and on the pets 2,249 -> 2,704 (the fights last longer: ~40 % of the cycle under, unhittable,
+  the pets holding; Logan meets the strike when he is its target), their kills 25.2 -> 24.1 an hour, banked 168.9k ->
+  167.2k. **Level 3** (48 runs): runs with a death 22 -> 23.
+- **The runner** is unchanged: a dive reads as "target 0x... left the client's world (delete); not a kill" and the
+  target is taken up again when it comes up, as live (2026-11-01 11:37:04).
+- **Test:** `test_tidal_voidfin_dive` (a voidfin on GraveRobber, 60 s: 6+ dives 0.5-0.6 s after spins, under 2.8-5 s
+  out of the client's view with the pets holding, up 1-2 from GraveRobber with one strike on him at that instant, the
+  next spin 2.7-4.9 s later, no swing).
 
 ## The Ossuary (2026-10-28)
 

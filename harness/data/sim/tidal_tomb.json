@@ -1312,12 +1312,27 @@
    {
     "kind": "burst",
     "id": "spin",
-    "first_s": [2.0, 8.0],
+    "first_s": [1.1, 4.0],
     "every_s": 7.82,
     "radius": 2,
     "damage_player": [21, 58, 40],
     "damage_pet": [21, 58, 40],
-    "note": "its spin: sound 0x090A on its tile, its facing through all 8 directions in ~0.3 s, then a number on every one of ours within 2 tiles (hit at 1: 36, at 2: 41; not hit 12 and 18 there [INFERENCE: moved or dodged]); 58 in four captures (20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552; e.g. 2026-10-26 22:45:18.46 GraveRobber 38, Logan 33, AlaFlambe 45), 7.82 s apart (median, p10-p90 7.57-9.55), 21-58 (median 40) [INFERENCE: its melee numbers (25-79) may already hold some of these]"
+    "note": "its spin: sound 0x090A on its tile, its facing through all 8 directions in ~0.3 s, then a number on every one of ours within 2 tiles (hit at 1: 36, at 2: 41; not hit 12 and 18 there [INFERENCE: moved or dodged]); 58 in four captures (20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552; e.g. 2026-10-26 22:45:18.46 GraveRobber 38, Logan 33, AlaFlambe 45), 7.82 s apart (median, p10-p90 7.57-9.55), 21-58 (median 40). first_s: its first dive came 2.93 s after its war onset (median, p10 1.65, n 62) and a dive 0.5 s after a spin (the dive below), so the first spin ~1.1-4 s in (was 2-8 s)"
+   },
+   {
+    "kind": "dive",
+    "after": "spin",
+    "chance": 0.92,
+    "delay_s": [0.47, 0.52],
+    "hidden_s": [2.8, 3.1],
+    "hidden_tail": [0.35, 3.1, 5.0],
+    "land_r": [1, 2, 2],
+    "strike_r": 2,
+    "strike_pet": [33, 67, 51],
+    "strike_player": [32, 45, 39],
+    "spin_s": [2.74, 4.89, 4.3],
+    "action": 5,
+    "note": "its stealth (docs/NOTES.md 'Tidal Tomb: the voidfin's dive'; 13 captures 2026-10-24..11-01, 107 voidfins, all on level 2): a cycle of ~7.8 s in war mode. The spin (0x90A), 0.50 s later (p10-p90 0.47-0.52, n 210) sound 0x657 on its tile and a 0x1D (343 of 343 leaves; never the hidden flag, no text), under 2.92 s (p10 2.85, p90 4.61, n 260: 170 within 3.1 s, hidden_s; 70 at 3.1-5 s and 20 longer, hidden_tail), up 2 tiles from the nearest of ours (p10 1, median 2) and 2 from where it went under (0x20/0x78, sound 0x51D, animation 5), and at once (0.0 s, p90 0.02) one number on one of us: 33-67 (p10-p90, median 51, n 205) on a pet 198 times, on Logan 3 (32, 39, 45: strike_player); the next spin 4.3 s after (p10 2.74, p90 4.89, n 215). Every dive follows a spin (253 of 255); about 0.92 of spins dive (a few stretches spin 2-3 times with no dive between). 2.86 dives a war-minute, the first 2.93 s after its war onset (median, p10 1.65: the spin's first_s); at any health; never idle (1 of 290) and no ambush on first contact (1 of 107 first sightings within 5 of Logan). Under, nothing of ours hit it (median 0 numbers) and the pets held (median 4 from the dive tile). No 0x2F from a voidfin in 506 stretches: no plain melee (melee_observed)"
    }
   ],
   "razorfin": [
@@ -1776,6 +1791,10 @@
   }
  },
  "melee_observed": {
+  "voidfin": {
+   "melee": null,
+   "note": "no plain melee: no 0x2F from a voidfin in 506 visible stretches (13 captures 2026-10-24..11-01); its numbers are its dive's strike as it comes up and its spin (specials). Animation 10 with a number within 1 tile 0.6 s later: 20 in 89 war-minutes, all on pets (16-63, median 26), left out. calibrate's damage_to_pets for it (23-42, median 33, n 52) held those strikes and spins"
+  },
   "pincer crab": {
    "melee": [3, 7, 4],
    "note": "its numbers on the pets with no monster but pincer crabs within reach, not 0.3-0.7 s after a scavenger's large swing: 2-7 (median 4, n=17, one 18; captures 20261026_183552 and 20261024_102346). With 2026-10-26 22:36-22:48 in the observations calibrate's damage_to_pets for it read 3-20 (median 5): the scavengers' large swings and the nest crabs beside them"

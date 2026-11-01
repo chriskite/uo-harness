@@ -5753,6 +5753,64 @@ def test_tidal_leave_pocket():
           fought == 6 and min(lows) >= 50 and not fails, f"fought {fought} lows {lows} fails {fails}")
 
 
+def test_tidal_voidfin_dive():
+    print("== Tidal Tomb: a voidfin's dive: 0.5 s after its spin under (0x1D) ~2.9 s, the pets holding; up 1-2 from its "
+          "target with one strike on it at once; the next spin 2.7-4.9 s later; no plain swing ==")
+    # live (docs/NOTES.md "Tidal Tomb: the voidfin's dive", 13 captures, 107 voidfins): spin -> dive 0.50 s (p10-p90
+    # 0.47-0.52), under 2.92 s (p10 2.85, p90 4.61), up 2 from the nearest of ours, the strike at 0.0 s (33-67 on the
+    # pets), return -> spin 4.3 s (p10 2.74, p90 4.89); no 0x2F from a voidfin in 506 stretches
+    x, y = 6900, 2040
+    w = tidal_world((x - 6, y), [{"key": "voidfin", "at": [x + 2, y, -100]}], z=-100)
+    vf = next(m for m in w.mobs.values() if m.key == "voidfin")
+    vf.hits = vf.hits_max = 10 ** 6
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    for p in w.pets():
+        w._place(p, (x, y + (p is not gb), -100), d=0)
+        p.mode, p.kill, p.target = "kill", vf.serial, vf.serial
+    vf.target, vf.threat = gb.serial, {gb.serial: 1e6}
+    w._warm(vf, True)
+    evs, ev0 = [], w._ev
+
+    def ev(name, /, **f):
+        evs.append((round(w.t, 2), name, f, sim_cheb(vf.pos, gb.pos)))
+        ev0(name, **f)
+    w._ev = ev
+    hurts = _log_hurts(w)
+    held, ups = [], []
+    was, pets_at = 0.0, None
+    for _ in range(600):                                    # 60 s
+        w.run_until(w.t + 0.1)
+        if vf.hidden_until and not was:
+            pets_at = {p.serial: p.pos for p in w.pets()}
+        if vf.hidden_until:
+            held.append(all(p.pos == pets_at[p.serial] for p in w.pets()) and vf.serial not in w.viewing)
+        if was and not vf.hidden_until:
+            ups.append((round(w.t, 2), sim_cheb(vf.pos, gb.pos)))
+        was = vf.hidden_until
+    mine = [(t, f.get("kind"), d) for t, n, f, d in evs if n == "ability" and f.get("by") == vf.serial]
+    spins = [t for t, k, _ in mine if k == "burst"]
+    dives = [t for t, k, _ in mine if k == "dive"]
+    surfaces = [(t, d) for t, k, d in mine if k == "surface"]
+    gaps = [round(d - max(s for s in spins if s <= d), 2) for d in dives]
+    hidden = [round(u - d, 2) for (u, _), d in zip(ups, dives)]
+    strikes = [(t, v, n) for t, v, k, n in hurts
+               if k == "melee" and v.kind != "monster" and any(abs(t - s) < 0.01 for s, _ in surfaces)]
+    to_spin = [round(min(s for s in spins if s > u) - u, 2) for u, _ in ups if any(s > u for s in spins)]
+    check("in 60 s: 6+ dives, each 0.47-0.52 s after a spin (the 0.1 s tick: up to 0.6); under 2.8-5 s, the pets "
+          "holding and it out of the client's view meanwhile",
+          len(dives) >= 6 and all(0.45 <= g <= 0.65 for g in gaps) and all(2.75 <= h <= 5.1 for h in hidden)
+          and all(held), f"dives {len(dives)} gaps {gaps} hidden {hidden} held {sum(held)}/{len(held)}")
+    check("...up 1-2 tiles from its target, one strike on it at that instant",
+          surfaces and all(1 <= d <= 2 for _, d in surfaces) and any(d == 2 for _, d in surfaces)
+          and len(strikes) == len(surfaces) >= len(dives) - 1 and all(v is gb for _, v, _ in strikes),
+          f"surfaces {surfaces} strikes {[(t, v.name, round(n)) for t, v, n in strikes]}")
+    check("...the next spin 2.7-4.9 s after it comes up; no plain swing from it",
+          to_spin and all(2.7 <= s <= 4.95 for s in to_spin)
+          and not any(n == "swing" and f.get("by") == vf.serial for _, n, f, _ in evs), f"to the spin {to_spin}")
+
+
 def test_tidal_large_swing():
     print("== Tidal Tomb: a lowtide scavenger's large swing every ~7.8 s, its hit 0.5 s later on each of us within 1 of "
           "its target, its pincer crabs ==")
@@ -7924,7 +7982,7 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
-              test_tidal_leave_crab, test_tidal_leave_pocket, test_tidal_large_swing,
+              test_tidal_leave_crab, test_tidal_leave_pocket, test_tidal_voidfin_dive, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet,
               test_loot_tile_zoa_per_tile, test_to_pet_detour, test_rejoin_detour, test_shooter_hits,
