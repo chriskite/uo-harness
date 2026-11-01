@@ -152,6 +152,7 @@ WALK_TO_PET_S = 5.0
 # 19:14:53, hunt-20261031-184304-5745: "route 156 steps" for AlaFlambe ~16 off round a combustive zoa's reach; its 18
 # moves took Logan to (6861, 2025), farther from the pets than before)
 TO_PET_DETOUR_STEPS = 10
+REJOIN_DETOUR_STEPS = 10      # rejoin's walk back to the pets: the same bound (2 x the distance + this)
 FOLLOW_R = 3                  # mount.PET_RANGE: a following pet stays this close
 # "All Follow Me" before a recall: how long to wait for the pets to come within FOLLOW_R, by the leave's
 # severity. A hostile player: not at all. Our own hits low: no standing wait (the simulator, docs/SIM.md:
@@ -3212,9 +3213,10 @@ class Team:
                 out = p["name"]
         return out
 
-    def rejoin(self, st) -> bool:
-        """Back to within --vet-range - 1 of the nearest live pet, in view or where it was last seen alive (a
-        fight 20 tiles off), unless a leave rule fires on the way: after a leave called off on the way out
+    def rejoin(self, st, only=None, stop=None) -> bool:
+        """Back to within --vet-range - 1 of the nearest live pet (of the serials `only` when given), in view or where it
+        was last seen alive (a fight 20 tiles off), unless a leave rule fires on the way (`stop` instead when given):
+        after a leave called off on the way out
         (HuntLoop.leave_called_off), or a monster on us with no pet near (fight). Live 20261015_171928
         19:49:55-50:16: called off at the gate with the pets out of view in the apparition fight, Logan stood
         there 20 s while a banshee 5 tiles off took him 100 -> 8.
@@ -3223,7 +3225,11 @@ class Team:
         STUCK_FOLLOW_S while they come, then 'All Guard Me' (care). Live 2026-10-24 21:40:56-21:41:30
         (hunt-20261024-211218-bab0): after 'All Kill' at a reanimated daemon on another player's beetle and its drop,
         the three pets stood in war mode 9-10 off it with no attack of their own until it died; the patrol stopped
-        (GirthyEarthy at 9), the reposition out of its reach and the walk back went round seven times."""
+        (GirthyEarthy at 9), the reposition out of its reach and the walk back went round seven times.
+        A route longer than twice the distance + TO_PET_DETOUR_STEPS is not walked (live 2026-10-31 19:14:53,
+        hunt-20261031-184304-5745: a 156-step walk round a zoa's reach led away from the pets): 'All Follow Me' instead,
+        as for a stuck pet, and `rejoin_why` says why (HuntLoop.gather_pets: the leave without that pet)."""
+        self.rejoin_why = None
         h = self.h
         now = time.monotonic()
         if now < self.follow_until:
@@ -3232,6 +3238,8 @@ class Team:
         seen = {p["serial"]: p for p in self.pets(st)}
         spots = []
         for s, name in self.roster.items():
+            if only is not None and s not in only:
+                continue
             p = seen.get(s)
             if p is not None:
                 if not p["dead"]:
@@ -3265,11 +3273,17 @@ class Team:
             return (m["x"], m["y"]) if m is not None and m.get("x") is not None else at
         try:
             h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True, mobile_wait=0,
-                            stop=lambda s: (why := h.leave_reason(s)) and why[0])
+                            stop=stop or (lambda s: (why := h.leave_reason(s)) and why[0]),
+                            max_route=2 * dist + REJOIN_DETOUR_STEPS)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
             log(f"back to the pets: {e}")
+            if "detour" in str(e):
+                self.rejoin_why = f"no way back to {name} at {at} within {2 * dist + REJOIN_DETOUR_STEPS} steps"
+                log(f"{name}: no walk round to it; 'All Follow Me' instead")
+                self.say("all follow me")
+                self.follow_until, self.follow_called = time.monotonic() + STUCK_FOLLOW_S, True
         return True
 
     # ------------------------------------------------------------ the fight

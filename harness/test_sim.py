@@ -1857,6 +1857,54 @@ def test_leave_from_far():
           cheb(w.player.pos, (5261, 652)) > 100, str(w.player.pos))
 
 
+def test_leave_pet_out_of_view():
+    print("== a planned leave (time up) with a pet out of view: back to where it was last seen first, then out with "
+          "both pets; no 'going on' without it ==")
+    # live 2026-10-31 19:14:58 (hunt-20261031-184304-5745): the V* leave walked to the gate from 31 tiles off the pets
+    # fighting out of view, "to the moongate: waiting for the pets (Bussin out of view)", "the pets aren't within 3
+    # tiles after 20 s; going on"; they died there, then Logan (docs/NOTES.md "Tidal Tomb level 2: the leave without the
+    # pets"). Before: the same walk here, through the gate without the pet ("PETS LEFT BEHIND")
+    import loop_hunt
+    from agent_link import Abort, cheb
+    w = world_with([], seed=7, start=(5207, 726))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    far = w.pets()[1]
+    spec = far.spec
+    world_tick, buf = clock.on_advance, io.StringIO()
+
+    def tick(now):
+        world_tick(now)
+        if far.spec is not spec and cheb(w.player.pos, far.pos) <= 12:
+            far.spec, far.next_step = spec, w.t              # it stood where it was last seen till we came near
+    try:
+        with contextlib.redirect_stdout(buf):
+            w._teleport(far, (5261, 652, 0))
+            w._moved(far)
+            far.spec = {**spec, "step_s": 1e9}
+            clock.advance(1.0)
+            loop.team.seen_at[far.serial] = (5261, 652)      # last seen alive there
+            clock.on_advance = tick
+            loop.args.timeout, loop.t0 = 60, loop_hunt.time.monotonic() - 61     # time is up: a planned leave
+            gone = False
+            while not gone and clock.elapsed < 600 and w.player.alive:
+                try:
+                    gone = loop.tick()
+                except Abort:
+                    break
+    finally:
+        clock.on_advance = world_tick
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("'back to the pets before leaving', out of the Mausoleum with both pets beside Logan; no 'going on', no "
+          "PETS LEFT BEHIND (before: through the gate without it)",
+          "back to the pets before leaving" in out and "going on" not in out and "PETS LEFT BEHIND" not in out
+          and cheb(w.player.pos, (5207, 726)) > 100 and all(cheb(p.pos, w.player.pos) <= 3 for p in w.pets()),
+          f"at {w.player.pos} pets {[(p.name, p.pos) for p in w.pets()]} "
+          f"{[ln for ln in out.splitlines() if 'pets' in ln or 'LEAVING' in ln][:6]}")
+
+
+
 def test_instrument():
     print("== the instrument last played is gone: the prompt answered with one from the pack (a lap harp, a psaltery, a "
           "shawm, a vielle); none: skills off, and no recall in ==")
@@ -5896,6 +5944,44 @@ def test_to_pet_detour():
 
 
 
+def test_rejoin_detour():
+    print("== the walk back to the pets refuses a detour: 'All Follow Me' instead of a route longer than twice their "
+          "distance + TO_PET_DETOUR_STEPS ==")
+    # live 2026-10-31 19:14:53 (hunt-20261031-184304-5745): a 156-step route round a zoa's reach led away from the pets;
+    # rejoin's walk had no route bound (docs/NOTES.md "Tidal Tomb level 2: the leave without the pets"). The planner made
+    # to see only a 60-step way to pets 11 off. Before: its first moves walked
+    import agent_link
+    w = tidal_world((6899, 2019), [], z=-90, team="phoenix_incubus")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for p, y in zip(w.pets(), (2022, 2023)):
+        w._teleport(p, (6910, y, -90))
+        w._moved(p)
+        p.next_step = 1e9
+    orig = agent_link.Mover.plan
+    start = tuple(w.player.pos[:2])
+    way = [start] + [(start[0] - i, start[1]) for i in range(1, 31)] + [(start[0] - i, start[1]) for i in range(29, -1, -1)]
+
+    def plan(mover, st, goal, mobiles=True, max_steps=None, through_fields=False):
+        _, walk = orig(mover, st, goal, mobiles, None, through_fields)
+        return (None if max_steps is not None and len(way) - 1 > max_steps else way), walk
+    agent_link.Mover.plan = plan
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(1.0)
+            f0 = w.metrics["follow_commands"]
+            loop.team.rejoin(loop.state())
+            at, follows = tuple(w.player.pos[:2]), w.metrics["follow_commands"] - f0
+    finally:
+        agent_link.Mover.plan = orig
+        store.close()
+        simclock.uninstall(patched)
+    log = out.getvalue()
+    check("not a step of the 60-step way; 'no walk round to it; All Follow Me instead' (before: walked west along it)",
+          at == start and follows == 1 and "no walk round to it" in log and loop.team.rejoin_why,
+          f"at {at} from {start}, follows {follows} {[ln for ln in log.splitlines() if 'back to' in ln][-2:]}")
+
+
 def _shooter_case(key, logan, loop_hits=None, extra=()):
     """The 12:36 layout (_zoa_case) with a Tidal Tomb shooter at ZOA_L2 in war mode on the first pet, held in place, its
     shots not diverted to Logan (at_player_p 0) -> (world, shooter, [(t, victim, number rolled)] of its, the loop or
@@ -7421,7 +7507,8 @@ def main():
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
               test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_backspawn,
-              test_area_first, test_leave_called_off, test_leave_from_far, test_gate_dash, test_gate_after_vet,
+              test_area_first, test_leave_called_off, test_leave_from_far, test_leave_pet_out_of_view, test_gate_dash,
+              test_gate_after_vet,
               test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,
               test_red_out_of_view, test_red_walled,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
@@ -7463,7 +7550,7 @@ def main():
               test_tidal_leave_crab, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet,
-              test_loot_tile_zoa_per_tile, test_to_pet_detour, test_shooter_hits,
+              test_loot_tile_zoa_per_tile, test_to_pet_detour, test_rejoin_detour, test_shooter_hits,
               test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,

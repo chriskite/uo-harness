@@ -3223,6 +3223,27 @@ a loot walk away from the pets").
 - *Evidence* (docs/SIM.md "Tidal Tomb: dead after a loot walk"): level 2, 192 runs with the live team, runs with a death
   37 -> 32 (seeds 1-96 14 -> 16, 97-192 23 -> 16); the loot-only check without the bound 36; level 1 unchanged.
 
+## No leave that isn't to survive goes without a live pet (Logan's pets left on Tidal Tomb level 2, live 2026-10-31 19:14:58)
+
+The V* leave walked to the gate from 31 tiles off the pets fighting out of view and "going on" after 25 s; they died
+there, then Logan. User: "Yes you should fix whatever is causing us to leave the pets behind" (docs/NOTES.md "Tidal
+Tomb level 2: the leave without the pets", with every path that goes on without a pet).
+
+- *Decided:* before a planned leave (time, loot home, a walk's trouble) or one for a pet's sake with Logan not hurt,
+  back to a pet out of view or beyond 8 (`HuntLoop.gather_pets`, `Team.rejoin` route-bounded), the leave held with the
+  care only while their fight lasts, up to 90 s; then the leave, without a pet it couldn't reach, logged and a
+  `pet_left_behind` juncture. Such a leave's walk out calls itself off instead of going on. `Team.rejoin` refuses a
+  route longer than 2 x the distance + 10 and says "All Follow Me".
+- *Kept (survival):* the hurt leave (user 2026-10-15: "its fine if our pets stay or die in the dungeon, we can easily
+  retrieve them at the stablemaster"; the simulator arm that gathered for it had 6 of its 24 deaths within 3 min of a
+  gather at 5-10 hits), a hostile player's flight, the dash within `GATE_DASH_R` of the gate (user 2026-10-17), the
+  walk in's teleporter dash.
+- *Rejected:* holding every leave while a pet near fights, with the tick's whole fight (`test_armor`'s Mausoleum run
+  died taking up a passed-over apparition); the hold now only follows a walk back and only cares.
+- *Evidence* (docs/SIM.md "Tidal Tomb: the leave without the pets"): level 2, 288 runs with the live team, runs with
+  a death 50 -> 42, with a pet death 154 -> 144, runs with a pet left at a gate 5 -> 2 (all the gate dash's), banked
+  an hour about the same; level 1 unchanged.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

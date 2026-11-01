@@ -338,7 +338,8 @@ class World:
                         "recalls": 0, "deaths": 0, "pet_deaths": [], "gold_looted": 0, "gold_banked": 0, "violations": [],
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
                         "patrol_commands": 0, "silenced": 0, "lift_waits": 0, "shoves": 0, "refresh_potions": 0,
-                        "stam_below_s": 0.0, "fights": [], "hunt_s": 0.0}
+                        "stam_below_s": 0.0, "fights": [], "hunt_s": 0.0, "pets_left": []}
+        self.left_pets = set()                # serials of pets a moongate or a recall left (pets_left)
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
         self.orng = random.Random(seed * 7919 + 17)  # the other players' own draws: the rest of the world's stay put
@@ -3756,6 +3757,13 @@ class World:
         r = self.sc["recall"].get("pet_range", 3)
         came = [m for m in self.pets() if cheb(m.pos, pl.pos) <= r
                 or (follow_r is not None and m.mode == "follow" and cheb(m.pos, pl.pos) <= follow_r)]
+        if follow_r is None:
+            # a moongate or a recall away from a live pet: the batch's `pets_left` (run.py), once until it is with us again
+            left = [m for m in self.pets() if m.alive and not m.ghost and m not in came and m.serial not in self.left_pets]
+            if left:
+                self.metrics["pets_left"].append({"t": round(self.t, 1),
+                                                  "pets": {m.name: cheb(m.pos, pl.pos) for m in left}})
+            self.left_pets = (self.left_pets | {m.serial for m in left}) - {m.serial for m in came}
         self._teleport(pl, to)
         self._place_beside(came)
         for m in came:

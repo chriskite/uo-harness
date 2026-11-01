@@ -262,6 +262,13 @@ POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
 WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets (a teleporter, a lag)
+# A leave that isn't to survive (PLANNED: the time, the loot home, a walk's trouble; or one for a pet's sake with Logan
+# not hurt) with a live pet out of view or beyond WALK_IN_LAG_R: back to the pets first, then their fight's end with the
+# vet supplies, up to GATHER_S; then the leave without it, logged and a `pet_left_behind` juncture (HuntLoop.gather_pets).
+# User 2026-10-31 after the 19:14:58 leave left Bussin and AlaFlambe fighting out of view: "you should fix whatever is
+# causing us to leave the pets behind"
+GATHER_S = 90.0
+GATHER_HURT = False           # a leave for our own hits gathers too (the simulator's arm, docs/SIM.md: it cost lives)
 WALK_IN_LAG_R = 8             # --enter-via: a pet farther than this (or out of view) stops the walk until it catches up
 WALK_IN_ARRIVED_R = 3         # --enter-via: this close to a teleporter's known arrival, we are through it (walk_in_through)
 WALK_IN_QUIET_S = 5.0         # --enter-via: first wait this long for a lagging pet without a word (it is on follow)
@@ -502,6 +509,9 @@ class HuntLoop:
                        "banked": 0}
         self.still = stationary.Stationary(self.mover, self.human, args.reposition_s)
         self.left_why = None         # (why, severity) of the last leave
+        self.gather = None           # gather_pets: {"t0", "gave_up"} while a leave waits for the pets
+        self.gathering_leave = False  # leave_by_recall: a leave gather_pets covers, the pets not given up: the walk
+        #                               out calls itself off for a pet apart (leave_by_one_gate), back to them
         self.weapon = None           # the item on layer 1/2 at the start: kept in hand (rearm)
         self.cast_disarms = False    # a cast of ours put the weapon in the pack (seen this run)
         self.potion_wait_logged = False
@@ -2648,6 +2658,12 @@ class HuntLoop:
                             elif why.startswith(IDLE_AHEAD):
                                 self.lead_pets("to the moongate")
                             elif not self.wait_pets("to the moongate", None, required=False):
+                                if self.gathering_leave:
+                                    # back to the pets (gather_pets) rather than on without them (user 2026-10-31)
+                                    lagging = self.pets_lagging(self.link.state())
+                                    return {"ok": False, "from": list(self.pos(self.link.state())[:2]),
+                                            "called_off": f"the pets aren't with us ({lagging})",
+                                            "dest": self.args.gate_dest}
                                 lag["wait"] = False
                             continue
                         if why:
@@ -2663,6 +2679,10 @@ class HuntLoop:
                 hurt = severity not in PLANNED and me.get("hits") is not None and self.frac(me) < self.args.heal_at
                 if not flee:          # fleeing: "All Follow Me" went out at the start of the run here
                     self.team.follow(severity, wait=not (hurt or dash))   # hurt or attacked: through now, pets or not
+                    if self.gathering_leave and not dash and (apart := self.pets_apart(self.link.state())):
+                        return {"ok": False, "from": list(self.pos(self.link.state())[:2]),
+                                "called_off": f"the pets aren't with us at the gate ({', '.join(t for _, t in apart)})",
+                                "dest": self.args.gate_dest}
             fast = urgent or dash
             mark = len(self.link.events)
             st = self.link.state()
@@ -2916,6 +2936,7 @@ class HuntLoop:
         log(f"LEAVING by the moongate at {self.leave_gate}: {why}; {data['gate_choice']}" if picked else
             f"LEAVING by {'the moongate' if self.leave_gates else 'recall'}: {why}")
         self.fleeing = True
+        self.gathering_leave = self.gathers(st, severity) and not (self.gather or {}).get("gave_up")
         try:
             cancelled = self.drop_cursor()
             self.disengage("fled" if severity not in PLANNED else "ended")
@@ -2946,7 +2967,7 @@ class HuntLoop:
             res = self.recall_home(severity not in PLANNED) if gate is None or gate["ok"] else \
                 {"ok": False, "failure": f"moongate: {gate.get('error')}"}
         finally:
-            self.fleeing = False
+            self.fleeing = self.gathering_leave = False
         data.update(cursor_cancelled=cancelled,
                     recall={k: res.get(k) for k in ("ok", "method", "from", "to", "elapsed_s", "attempts",
                                                     "failure", "refused", "walked_first")})
@@ -3751,6 +3772,97 @@ class HuntLoop:
                 return f"{name} at {p['dist']}"
         return None
 
+    def pets_apart(self, st) -> list[tuple]:
+        """The live pets of the roster out of view or farther than WALK_IN_LAG_R -> [(serial, "Bussin out of view" /
+        "AlaFlambe at 12")]; a ghost in view, or one out of view since its death (Team.dead_since), isn't one."""
+        if self.team is None:
+            return []
+        pets, out = {p["serial"]: p for p in self.team.pets(st)}, []
+        for s, name in self.team.roster.items():
+            p = pets.get(s)
+            if p is None:
+                if s not in self.team.dead_since:
+                    out.append((s, f"{name} out of view"))
+            elif not p["dead"] and p["dist"] > WALK_IN_LAG_R:
+                out.append((s, f"{name} at {p['dist']}"))
+        return out
+
+    def gathers(self, st, severity) -> bool:
+        """gather_pets' leaves: PLANNED ones and one for a pet's sake (attention, Logan at --heal-at or more with nothing
+        on him); a leave for our own hits only with GATHER_HURT; never a hostile player's (urgent)."""
+        if self.team is None or severity == "urgent":
+            return False
+        if severity in PLANNED or GATHER_HURT:
+            return True
+        me = st["world"]["self"]
+        return not self.attackers(st) and me.get("hits") is not None and self.frac(me) >= self.args.heal_at
+
+    def gather_stop(self, s) -> str | None:
+        """gather_pets' walk back stops for a hostile player, an attacker on us or our hits below --heal-at."""
+        if self.player_threat(s):
+            return "a hostile player"
+        if self.attackers(s):
+            return "under attack"
+        me = s["world"]["self"]
+        return "hurt" if me.get("hits") is not None and self.frac(me) < self.args.heal_at else None
+
+    def gather_pets(self, st, reason) -> str | None:
+        """Before a leave that isn't to survive (gathers): a live pet apart (pets_apart) -> back toward it (Team.rejoin,
+        route-bounded; "walked"); back with them and a pet fighting (pets_busy) -> "fight": the tick holds the leave with
+        the care only (care_step: vet supplies, heal, stand-off), no target taken up, no patrol. Pets near from the start
+        (no gather begun): the leave as before. Up to GATHER_S from the first such leave (at time up, not past --timeout +
+        60 s). Out of time, no way back to the pet within the bound (Team.rejoin_why) or nowhere to look for it: the leave
+        goes without it, logged
+        ("leaving without the pets (Bussin out of view): ...") with a `pet_left_behind` juncture (attention); None: leave
+        now. Live 2026-10-31 19:14:58 (hunt-20261031-184304-5745): the V* leave walked off 31 tiles from the pets fighting
+        out of view, "the pets aren't within 3 tiles after 20 s; going on"; they died there, then Logan (docs/NOTES.md
+        "Tidal Tomb level 2: the leave without the pets")."""
+        why, severity = reason
+        if not self.gathers(st, severity):
+            return None
+        apart = self.pets_apart(st)
+        busy = None if apart or self.gather is None else self.pets_busy(st)   # their fight, once we came back to it
+        if not apart and not busy:
+            return None
+        now = time.monotonic()
+        g = self.gather
+        if g is None:
+            g = self.gather = {"t0": now, "gave_up": False}
+            self.count("gathers")
+            log(f"{why}: {', '.join(t for _, t in apart) or busy}; back to the pets before leaving")
+        if g["gave_up"]:
+            return None
+        cause = None
+        if now - g["t0"] > GATHER_S:
+            cause = f"not with us after {GATHER_S:.0f} s"
+        elif (self.finished() or self.timed_out()) and self.timed_out(60.0):
+            cause = "a minute past the run's time"
+        if cause is None and not apart:
+            return "fight"
+        if cause is None:
+            self.doing("leave", "Going back for the pets before leaving")
+            moved = self.team.rejoin(st, only={s for s, _ in apart}, stop=self.gather_stop)
+            if self.team.rejoin_why:
+                cause = self.team.rejoin_why
+            elif moved or now < self.team.follow_until:
+                if not moved:
+                    time.sleep(POLL_S)            # 'All Follow Me' said: they come
+                return "walked"
+            else:
+                cause = "not in view where it was last seen"
+        if not apart:
+            log(f"leaving: the pets' fight ({busy}) {cause}")
+            g["gave_up"] = True
+            return None
+        names = ", ".join(t for _, t in apart)
+        log(f"leaving without the pets ({names}): {cause}")
+        self.count("left_pets")
+        self.memory.juncture("hunt", "pet_left_behind", f"Leaving without the pets ({why}): {names}: {cause}",
+                             "attention", {"leg": "leave", "why": why, "apart": [t for _, t in apart], "cause": cause,
+                                           "pets": self.team.summary()["pets"]})
+        g["gave_up"] = True
+        return None
+
     def idle_ahead(self, st) -> str | None:
         """A planned walk's stop (leave_by_gate's, walk_in_stop): an idle melee monster (aggro.melee) whose reach
         (aggro.melee_reach: the giant pincer crab's 2, else 1) plus LEAD_MARGIN covers one of the walk's next LEAD_LOOK
@@ -3890,9 +4002,9 @@ class HuntLoop:
         on follow they catch up by themselves (the user said 'All Follow Me' once for four teleporters);
         then 'All Follow Me' again and WALK_IN_PETS_S more, else Abort: never through a teleporter
         without them. A pet in view beyond COMMAND_R doesn't hear it: first to within COMMAND_R_GO of it (not beside a
-        teleporter: `at` None; fetch_pet). `required` False (the walk out to the gate, which waits for them again
-        beside it): False instead, go on without them. True when they came. Attacked or hurt meanwhile: the walk's
-        fight (walk_in_fight), then the wait from its start (_wait_together)."""
+        teleporter: `at` None; fetch_pet). `required` False (the walk out to the gate): False instead; the walk then
+        calls itself off back to the pets (gather_pets' leaves) or goes on without them. True when they came. Attacked
+        or hurt meanwhile: the walk's fight (walk_in_fight), then the wait from its start (_wait_together)."""
         log(f"{label}: waiting for the pets ({self.pets_lagging(self.link.state()) or 'not all beside it'})")
         self.doing("enter" if required else "leave", "Waiting for the pets to catch up")
         if self._wait_together(label, at, WALK_IN_QUIET_S, "in" if required else "out"):
@@ -4365,6 +4477,7 @@ class HuntLoop:
         self.visit_n += 1
         self.count("visits")
         self.low_posted = False
+        self.gather = None
         self.no_reagents.clear()
         self.attack_scan = len(self.link.events)     # "... is attacking you!" from before this visit is old news
         if self.args.leave_recall is None:
@@ -4619,9 +4732,17 @@ class HuntLoop:
             reason = ("done" if self.finished() else "time is up", "info")
         if reason is None and not winding and not attackers and self.engaged is None and not self.corpses:
             reason = self.return_reason(st)
+        if reason is None and self.gather is not None and not self.pets_apart(st) and not self.pets_busy(st):
+            self.gather = None                  # together again with no leave due: a later leave starts its own
+        if reason is not None and (how := self.gather_pets(st, reason)) is not None:
+            if how == "fight" and not self.care_step(st):
+                self.doing("hold", "Waiting for the pets' fight to end before leaving")
+                time.sleep(POLL_S)
+            return False
         if reason is not None:
             if self.leave(st, *reason) == "called off":
                 return False
+            self.gather = None
             if reason[1] == "info":
                 return True
             return not self.go_back(reason)
@@ -4654,6 +4775,21 @@ class HuntLoop:
                            f"({self.totals['kills']} killed)", self.fight_spot)
         time.sleep(POLL_S)
         return False
+
+    def care_step(self, st) -> bool:
+        """combat_step's care part only, for a leave held while the pets fight (gather_pets "fight"): out of an area hit,
+        a cure, a heal, the pets' care (vet supplies, spacing); no target taken up. Simulator 2026-10-31 (Mausoleum, 0.2
+        min, test_sim `test_armor`'s run): with the whole combat_step a held time-up leave took up the apparition the
+        crawl had passed over, and Logan died in 6 s; the leave as before walked out alive."""
+        me = st["world"]["self"]
+        if not self.team.potion_first(st) and self.team.stand_off(st):
+            return True
+        if self.cure(st):
+            return True
+        if me.get("hits") is not None and self.frac(me) < self.heal_at_now() and self.heal(st):
+            self.human.wait("hotkey")
+            return True
+        return self.team.care(st)
 
     def combat_step(self, st, attackers, winding: bool) -> bool:
         """The tick's fighting, in its order: the weapon back in hand, out of an area hit, a cure, a heal, the pets' care,

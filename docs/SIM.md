@@ -2579,6 +2579,45 @@ layout reproduced neither the walk nor a death on 308aca5 (seeds 1-24, 0 -> 0) a
 - **Tests:** `test_loot_tile_zoa_per_tile` (the 19:14:46 tiles: no loot tile; 308aca5 a tile 3 from the zoa),
   `test_to_pet_detour` (a 60-step way to AlaFlambe 11 off is not walked; 308aca5 19 moves west along it).
 
+### Tidal Tomb: the leave without the pets (2026-10-31)
+
+Live 19:14:58 the V* leave went to the gate without the pets (docs/NOTES.md "Tidal Tomb level 2: the leave without the
+pets"; the rule in docs/HUNT_LOOP.md "Pets" 6). Runner change (`HuntLoop.gather_pets`, `Team.rejoin`'s route bound) and
+one new count:
+
+- **`pets_left`** (World._move_party): a moongate or a recall that leaves a live pet of ours behind, once per pet until
+  it is with us again; the batch summary's `runs_with_pets_left` and `pets_left`. `runs_with_pet_left_behind` (the
+  runner's juncture) also counts the new "leaving without the pets" juncture.
+- **Level 2** (`--scenario tidal_tomb --area 6815 1907 6969 2100 --team phoenix_incubus --runs 96 --seed 1|97|193 --
+  --enter-via 6718 1984 --leave-gate 6913 2071 --vet-range 5 --crawl-learn-s 180`; both runners on the simulator with
+  the new count):
+
+  | seeds | runner | runs with a death | runs with a pet death | runs with a pet left at a gate | damage on Logan / h | banked / h |
+  |---|---|---|---|---|---|---|
+  | 1-96 | 87182b5 | 16 | 56 | 0 | 1,100 | 131,376 |
+  | 1-96 | **after** | 15 | 53 | 0 | 1,291 | 123,544 |
+  | 97-192 | 87182b5 | 16 | 49 | 1 | 1,113 | 120,516 |
+  | 97-192 | **after** | 13 | 49 | 1 | 1,365 | 119,883 |
+  | 193-288 | 87182b5 | 18 | 49 | 4 | 1,271 | 110,457 |
+  | 193-288 | **after** | 14 | 42 | 1 | 1,125 | 122,142 |
+  | 1-288 | 87182b5 / **after** | 50 / **42** | 154 / **144** | 5 / **2** | | |
+
+  Every pet left at a gate, before and after, was the gate dash (a giant pincer crab coming or an attack within 8 of
+  the gate: kept). After: 10 leaves went back to the pets first ("... back to the pets before leaving") in seeds 1-192,
+  one walk out called itself off, no "leaving without the pets"; `Team.rejoin` refused 16 detours ("no walk round to
+  it"). Damage on Logan and banked swing both ways between blocks: noise [INFERENCE].
+- **Arms** (seeds 1-192, an earlier version that held every leave while a pet near fought, with the tick's whole fight):
+  that version 28 runs with a death, 97 with a pet death, 0 pets left; without the fight hold 28 / 102 / 1; without
+  the rejoin bound 35 / 97 / 0; with the gather for our own hits too (`--set loop_hunt.GATHER_HURT=True`) 24 / 99 / 1,
+  but 6 of its 24 deaths came within 3 min of a hurt leave's gather at 5-10 hits, so the hurt leave stays as it was.
+  The whole-fight hold also failed test_sim `test_armor` (its 0.2-minute Mausoleum run died taking up a passed-over
+  apparition); the hold now only follows a walk back and only cares (`care_step`).
+- **Level 1** (`--scenario tidal_tomb --runs 24`): runs with a death 0 -> 0, banked an hour 118,451 -> 121,123, damage
+  on Logan an hour 405 -> 427.
+- **Tests:** `test_leave_pet_out_of_view` (a time-up leave in the Mausoleum with AlaFlambe out of view where she was last
+  seen: back there first, out with both; 87182b5 "the pets aren't within 3 tiles after 20 s; going on", PETS LEFT
+  BEHIND), `test_rejoin_detour` (a 60-step way to pets 11 off: no step, "All Follow Me"; 87182b5 walked 25 west).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

@@ -7830,9 +7830,67 @@ as for the 18:05 death. Pets Bussin and AlaFlambe at (6892, 2018) on a biolumen 
   longer than twice the pet's distance + `TO_PET_DETOUR_STEPS` 10 ("walk to AlaFlambe: to a hurt pet: no route within
   N steps from ... (a longer detour, if any)"). test_sim `test_loot_tile_zoa_per_tile` (308aca5: a tile 3 from the
   zoa) and `test_to_pet_detour` (308aca5: 19 moves west along a 60-step way). Numbers in docs/SIM.md "Tidal Tomb: dead
-  after a loot walk". Not changed: the V* leave going without the pets, `rejoin`'s walk (no route bound).
+  after a loot walk". Not changed then: the V* leave going without the pets, `rejoin`'s walk (no route bound); both
+  since in "Tidal Tomb level 2: the leave without the pets" below.
 - **Replay:** a `sim/fight1805.py` case of this layout reproduced neither the loot walk nor a death on 308aca5 (the
   simulator's pets kill the shellpod and scourgeon; a fresh run carries too little for the V* leave); not kept.
+
+## Tidal Tomb level 2: the leave without the pets (live 2026-10-31 19:14:58)
+
+Same run as above (hunt-20261031-184304-5745). User after it: "Yes you should fix whatever is causing us to leave the
+pets behind".
+
+- **19:14:58** "LEAVING by the moongate: taking the loot home: ..." (V*, 22,186 gp carried; severity `return`) with
+  Logan at (6861, 2025), 31 from the pets fighting the shellpod and the scourgeon out of view. `leave_by_one_gate`:
+  "All Follow Me" with no wait (`follow(severity, wait=flee)`), the walk's stop on a lagging pet, then `wait_pets(...,
+  required=False)`: "to the moongate: waiting for the pets (Bussin out of view)", 5 s quiet, `fetch_pet` (only a pet in
+  view beyond `COMMAND_R`: none), "All Follow Me", 20 s, "the pets aren't within 3 tiles after 20 s; going on", and no
+  stop for a lagging pet for the rest of the walk. The pets died there unvetted, then Logan (the section above).
+- **Every path where Logan goes on without a live pet** (87182b5), with its trigger:
+  1. The walk out's wait (`wait_pets(required=False)`, PLANNED leaves only): a pet out of view or beyond
+     `WALK_IN_LAG_R` 8 for 25 s, then "...; going on" (the 19:14:58 path).
+  2. The gate walk's start: "All Follow Me" with no wait, "pets not all within reach after 'All Follow Me': Bussin at
+     6; not waiting here" (every gate leave that isn't a flight; live 18:05:15 a hurt leave's). A planned walk then
+     stops for a lagging pet (1); a hurt leave never does.
+  3. Beside the gate: "All Follow Me" and up to `FOLLOW_WAIT_S` (10 s planned or for a pet's sake, 0 hurt), then
+     through: "pets not all within reach after 'All Follow Me': X at N".
+  4. A planned walk attacked, or with a monster coming, within `GATE_DASH_R` 8 of the gate: through at once (user
+     2026-10-17: "We were at the gate and Logan just stood there dying instead of going through").
+  5. A hurt leave (Logan's own hits, severity attention): no wait, the fall back, through hurt (user 2026-10-15: "its
+     fine if our pets stay or die in the dungeon, we can easily retrieve them at the stablemaster").
+  6. A hostile player (urgent): "All Follow Me" and the flight, no wait; the walk in's gold-gate flight the same.
+  7. `leave()` (no `--leave-recall`: the exit teleporter) and `leave_by_recall` without a gate: "All Follow Me", the
+     severity's wait, then the walk or the recall.
+  8. The walk in's dash through a teleporter when attacked within `TELE_DASH_R` (`walk_in_dash`; pets on follow in
+     view come through, user 2026-10-20). The walk in's own wait aborts instead ("not going on without them").
+  9. `escape_once` after an error inside: the gate leave as above.
+  10. A pet out of view for 30 s (`Team.leave_reason`, attention): the leave goes, the pet where it was.
+  11. `Team.rejoin`'s walk back to the pets: `3 x VIEW_RANGE` moves of any route, no route bound (19:14:53: a 156-step
+      route round a zoa's reach led away from them, via to_pet; rejoin had the same hole).
+  12. The run's start without a pet in view and without `pets_required`: "...; going on without the pets" (no leave).
+- **Fix** (docs/HUNT_LOOP.md "Pets" 6, docs/PLAN.md, docs/SIM.md "Tidal Tomb: the leave without the pets"):
+  `HuntLoop.gather_pets` before a leave that isn't to survive (PLANNED: time up, the loot home, a walk's trouble; or
+  one for a pet's sake with Logan at `--heal-at` or more and nothing on him; paths 1, 3, 7, 10): a live pet out of view
+  or beyond 8 -> "time is up: Bussin out of view; back to the pets before leaving", `Team.rejoin` toward it
+  (route-bounded, below), then the vet supplies while their fight lasts (`care_step`, no target taken up), up to
+  `GATHER_S` 90 s (at time up not past `--timeout` + 60 s); then the leave. No way back within the bound, nowhere to
+  look or out of time: "leaving without the pets (Bussin out of view): <why>" and a `pet_left_behind` juncture
+  (attention). The walk out of such a leave calls itself off instead of going on ("leave called off at (x, y): the pets
+  aren't with us (Bussin out of view); back to the pets"), and beside the gate too after the 10 s ("... at the gate").
+  `Team.rejoin` refuses a route longer than 2 x the distance + `REJOIN_DETOUR_STEPS` 10: "Bussin: no walk round to it;
+  'All Follow Me' instead" (`rejoin_why`). Kept: 2, 4, 5, 6, 8, 9, 12 (survival, or no leave).
+- **The hurt leave stays as it was** (path 5): a simulator arm that gathered for Logan's own hits too
+  (`GATHER_HURT`) had 6 of its 24 deaths within 3 min of such a gather at 5-10 hits ("hits 5/100 below 50%: the pets
+  are fighting; back to the pets before leaving"). Its total (24 of 192 against 28) is noise; those six went back into
+  a fight at single-digit hits [INFERENCE: each death's cause from the log's order, not traced].
+- **The whole fight while holding a leave cost a life**: the first version held a leave for any pet fighting near and
+  ran the tick's whole `combat_step`; test_sim `test_armor`'s 0.2-minute Mausoleum run (aspect off, AR 88) then took up
+  the apparition the crawl had passed over and Logan died in 6 s, where the leave as before walked out alive. Now the
+  hold only follows a walk back and only cares (`care_step`).
+- **The simulator never showed path 1**: on 87182b5 none of 288 level-2 runs logged "the pets aren't within 3 tiles
+  after 20 s; going on"; every pet left at a gate in either runner (5 runs before, 2 after) was path 4 (a giant pincer
+  crab coming or an attack within 8 of the gate).
+  The new world count `pets_left` (run.py `runs_with_pets_left`) records a moongate or a recall that left a live pet.
 
 ## Network observations
 

@@ -742,6 +742,24 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    in the dungeon are retrieved at the stablemaster, "Retrieve Lost Followers"). The waits read the
    state through the runner's guards, so a due potion is drunk. After a recall a missing pet is an
    urgent `pet_left_behind` juncture.
+   - **No leave that isn't to survive walks off from a live pet** (`HuntLoop.gather_pets`, since 2026-10-31; user,
+     after the 19:14:58 V* leave went without the pets fighting out of view: "you should fix whatever is causing us
+     to leave the pets behind"; docs/NOTES.md "Tidal Tomb level 2: the leave without the pets"). Time up, the loot
+     home, a walk's trouble, or a leave for a pet's sake with Logan at `--heal-at` or more and nothing on him: a live
+     pet out of view or beyond 8 tiles first sends him back toward it ("time is up: Bussin out of view; back to the
+     pets before leaving"; `Team.rejoin` to it, or to where it was last seen alive), then holds the leave with the
+     care only (`care_step`: vet supplies, heal, stand-off; no target taken up) while their fight lasts, up to
+     `GATHER_S` 90 s (at time up not past `--timeout` + 60 s). No way back within the route bound, nowhere to look, or
+     out of time: "leaving without the pets (Bussin out of view): <why>" and a `pet_left_behind` juncture
+     (attention), then the leave. Such a leave's walk out calls itself off instead of "... going on" ("leave called
+     off at (x, y): the pets aren't with us (Bussin out of view); back to the pets"), and beside the gate after its
+     10 s too. Unchanged: a hurt leave, a hostile player's, the dash within `GATE_DASH_R` of the gate, the walk in's
+     teleporter dash (a simulator arm that gathered for our own hits too had 6 of 24 deaths within 3 min of such a
+     gather at 5-10 hits; docs/SIM.md "Tidal Tomb: the leave without the pets"). test_sim
+     `test_leave_pet_out_of_view`.
+   - **The walk back to the pets has a route bound** (`Team.rejoin`, since 2026-10-31): a route longer than twice
+     the distance + `REJOIN_DETOUR_STEPS` 10 isn't walked; "Bussin: no walk round to it; 'All Follow Me' instead"
+     (they come to us; `rejoin_why` tells `gather_pets`). test_sim `test_rejoin_detour`.
 7. **Leaving for the pets**: a pet below `--pet-leave-at`, or out of view for 30 s, or dead (a bonded
    ghost) for `RES_TRY_S` (30 s) with vet supplies in the pack (at once without). With a pet dead or
    gone the run never goes back in (`pet_down` juncture).
@@ -1137,7 +1155,8 @@ moongate, and never near a red one).
     and walk on. Live 22:33:39, with only the pets' care, Logan stood among the mobs dying.
     **While waiting for the pets too** (`_wait_together`, since 2026-10-26; the walk in's waits and the walk out to
     the gate's): a hit or an attacker ends the wait for that fight, then the wait starts over; still attacked when the
-    fight's 90 s run out, the walk goes on its own way (the walk in: no pets, Abort; the walk out: on to the gate).
+    fight's 90 s run out, the walk goes on its own way (the walk in: no pets, Abort; the walk out: back to the pets for
+    a planned leave since 2026-10-31, "Pets" 6, else on to the gate).
     Simulator 2026-10-26 (tidal_tomb seed 3, the leave at time up): "to the moongate: waiting for the pets" with
     both 9 tiles off, an oozing noughtilus took Logan from 100 to dead in 18 s with no potion. test_sim
     `test_wait_pets_attacked`.

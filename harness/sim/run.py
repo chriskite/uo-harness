@@ -227,7 +227,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             "chain_links": sum(v["n"] for v in sc["chain"]["links"].values()),
             "team": sc["party"]["team"], "bestiary": sc["party"]["bestiary"], "levels": sc["party"]["levels"],
             "party_warnings": sc["party"]["warnings"],
-            "deaths": m["deaths"], "pet_deaths": m["pet_deaths"],
+            "deaths": m["deaths"], "pet_deaths": m["pet_deaths"], "pets_left": m["pets_left"],
             "pets_end": {p.name: p.pct() for p in world.pets()},
             "pet_damage_taken": m["pet_damage_taken"], "player_damage_by": m.get("player_damage_by", {}),
             "pet_damage_by": m.get("pet_damage_by", {}), "pet_damage_dealt": m.get("pet_damage_dealt", {}),
@@ -496,6 +496,9 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             "runs_with_death": sum(1 for r in ok if r["deaths"]),
             "runs_with_pet_death": sum(1 for r in ok if r["pet_deaths"]),
             "runs_with_pet_left_behind": left,
+            # the world's count: a moongate or a recall that left a live pet of ours behind (World._move_party)
+            "runs_with_pets_left": sum(1 for r in ok if r["pets_left"]),
+            "pets_left": sum(len(e["pets"]) for r in ok for e in r["pets_left"]),
             "crashed": sum(1 for r in results if r.get("outcome") == "crashed"),
             "violations": sum(len(r["violations"]) for r in ok),
             **({"others": others_summary(ok)} if any(r.get("others") for r in ok) else {}),
