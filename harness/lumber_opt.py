@@ -2076,7 +2076,15 @@ def spot_at(spots: dict, facet: int, x: int, y: int):
 GROVE_MARGIN = 10                 # tiles around a spot's area the grove view also shows (trees the runner doesn't try)
 
 
-def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> dict:
+def store_regrowth(memory) -> dict:
+    """regrowth() over the whole store: harvest_attempts and the lumber `stand` events. Its reads
+    grow with the history (87k attempts, 17k stands on 2026-10-31: ~0.3 s), so a caller polling
+    it keeps the answer a while (viz_server.OverseerDB.REGROW_CACHE_S)."""
+    attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome FROM harvest_attempts ORDER BY t").fetchall()
+    return regrowth(attempts, [e for e in memory.job_events("lumber") if e["kind"] == "stand"])
+
+
+def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN, regrow: dict | None = None) -> dict:
     """A spot's trees as the runner sees them, for the visualizer's map: its area (a
     forest's with its `cells`), and every tree-named static within `margin` tiles of the area with
       - kind "tree" (uomap.find_trees: a tree the runner tries when inside the area) or
@@ -2087,6 +2095,7 @@ def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> di
         passes it): "ready", "not_tree" (the server said so), "depleted" (depleted or a
         stand's nothing-nearby within the window) or "unreachable" (within the window), with
         `since` and `until` (when the window ends) for the last two.
+    regrow: store_regrowth(memory) when the caller has it (None: computed here).
     None when the facet's map files can't be read."""
     um = _umap(int(spot.get("facet") or 0))
     if um is None:
@@ -2095,8 +2104,7 @@ def grove_view(memory, spot: dict, now: float, margin: int = GROVE_MARGIN) -> di
     area = spot["area"]
     (cx, cy), r = area["center"], area["radius"]
     cells = area_cells(area)
-    attempts = memory.con.execute("SELECT t, facet, x, y, z, outcome FROM harvest_attempts ORDER BY t").fetchall()
-    regrow = regrowth(attempts, [e for e in memory.job_events("lumber") if e["kind"] == "stand"])
+    regrow = store_regrowth(memory) if regrow is None else regrow
     window = regrow["minutes"] * 60.0
     R = r + margin
     nodes = {(x, y, z): (dep, unr, bool(nt)) for x, y, z, dep, unr, nt in memory.con.execute(

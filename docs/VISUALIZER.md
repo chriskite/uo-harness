@@ -154,7 +154,7 @@ channels.
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/jobs/plan[?job=lumber\|mining]` | the job's optimizer plan over all history (default lumber; any other job 400), recomputed once a minute per job on its own connection and lock, in the background behind the last plan (§2.4) |
-| `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either |
+| `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either. Its own connection and lock; the regrowth window cached 60 s |
 | `GET /api/fos/reapers` | the Field of Souls reaper heatmap (`fos_field.reaper_map`, §2.17): `{box, cell, view_r, spawn_r, instances: [{name, offset}], runs, watched_s, cells: [[ix, iy, watched_view_s, watched_spawn_s, deaths, spawns]], spawns: [[x, y]], store}` in the field frame; cached 30 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M[&char=0xS]` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4); `char` (a serial) scopes them to one character (§2.14) |
 | `POST /api/chat` | `{"text": T[, "char": "0xS"]}` → a `user` chat row for the overseer (of that character) (§2.4, §2.14) |
@@ -878,6 +878,13 @@ tree counts").
 - **Source:** `GET /api/lumber/grove` (§2.1). The intent's `spot`, else the spot whose area
   holds the true position (older runners). Polled every 15 s while the run lasts; a "grove"
   map button (only during a run) hides it (`localStorage["viz.mapGrove"]`).
+- **Speed** (2026-10-31, user report: the outline and tree dots had got slower to load). Each
+  request refitted the regrowth window over all history (`lumber_opt.store_regrowth`: every
+  `harvest_attempts` row and lumber `stand` event, ~0.35 s of a 0.5 s answer on the live store
+  and growing), and it held the lock the all-time `/api/jobs` shares, which the Lumber job pane
+  polls (1–2.5 s): live, a grove request behind it took 1.7 s. Now the route has its own
+  `Memory` connection and lock (`OverseerDB.grove_lock`) and keeps the window 60 s
+  (`REGROW_CACHE_S`): 0.03 s warm, the same trees and states, and 0.03 s while the analytics run.
 - `viz/src/grove.ts` is the pure model (bun tests). `MapGrid.tsx` draws it.
 - Verified live in headless Chromium on 2026-10-07 against a second viz server (port 8091) during
   the witcher_123 run:

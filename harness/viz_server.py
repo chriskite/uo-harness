@@ -221,11 +221,13 @@ class OverseerDB:
     shared by the HTTP threads under a lock: WAL readers see every commit, and the
     schema bookkeeping write happens once, not per poll. GETs never create the
     store; POST /api/chat does. The plans have their own connection and lock, so
-    their seconds of Monte Carlo never hold up the chat, junctures or job analytics."""
+    their seconds of Monte Carlo never hold up the chat, junctures or job analytics; the
+    map's grove layer has its own too, so it never waits behind the all-time analytics."""
 
     JOBS_CACHE_S = 2.0
     PLAN_CACHE_S = 60          # the plan's draws are seeded by the minute (jobs.lumber_plan)
     FOS_CACHE_S = 30.0         # the reaper map changes only while someone is in the Field of Souls
+    REGROW_CACHE_S = 60.0      # the grove layer's regrowth window: a fit over all history, moves slowly
     PAGE = 200
 
     def __init__(self, path: str):
@@ -239,6 +241,9 @@ class OverseerDB:
         self.plan_refresh = set()  # jobs whose stale plan is being recomputed in the background
         self.plan_state = threading.Lock()  # plan_cache and plan_refresh
         self.fos_cache = None      # (monotonic, body) of fos_reapers
+        self.grove_lock = threading.Lock()  # grove_mem and regrow_cache
+        self.grove_mem = None
+        self.regrow_cache = None   # (monotonic, lumber_opt.store_regrowth)
 
     def _open(self, create: bool):
         if self.mem is None and (create or os.path.exists(self.path)):
@@ -254,6 +259,10 @@ class OverseerDB:
             if self.plan_mem is not None:
                 self.plan_mem.close()
                 self.plan_mem = None
+        with self.grove_lock:
+            if self.grove_mem is not None:
+                self.grove_mem.close()
+                self.grove_mem = None
 
     def jobs(self, job: str, since: float, until: float | None, utc_offset_s: int) -> bytes:
         key = (job, since, until, utc_offset_s)
@@ -380,10 +389,13 @@ class OverseerDB:
 
     def grove(self, spot_id: str | None, facet: int, x: int | None, y: int | None) -> dict:
         """lumber_opt.grove_view of spot `spot_id`, else of the spot whose area holds
-        (x, y) on `facet`; spot null when neither names one (or no store / no map files)."""
+        (x, y) on `facet`; spot null when neither names one (or no store / no map files).
+        Its own connection and lock; the regrowth window cached REGROW_CACHE_S."""
         import lumber_opt
-        with self.lock:
-            mem = self._open(False)
+        with self.grove_lock:
+            if self.grove_mem is None and os.path.exists(self.path):
+                self.grove_mem = memory_mod.Memory(self.path)
+            mem = self.grove_mem
             if mem is None:
                 return {"spot": None, "store": False}
             spots = lumber_opt.load_spots(mem)
@@ -391,7 +403,10 @@ class OverseerDB:
                 lumber_opt.spot_at(spots, facet, x, y) if x is not None and y is not None else None)
             if spot is None or not spot.get("area"):
                 return {"spot": None, "store": True}
-            view = lumber_opt.grove_view(mem, spot, time.time())
+            now = time.monotonic()
+            if self.regrow_cache is None or now - self.regrow_cache[0] >= self.REGROW_CACHE_S:
+                self.regrow_cache = (now, lumber_opt.store_regrowth(mem))
+            view = lumber_opt.grove_view(mem, spot, time.time(), regrow=self.regrow_cache[1])
             if view is None:
                 return {"spot": None, "store": True, "error": f"no map files for facet {spot.get('facet') or 0}"}
             return {**view, "store": True}
