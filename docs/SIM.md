@@ -2723,6 +2723,27 @@ Live 11:53:33-11:55:32 GraveRobber fought a drowned mariner alone 13 off for 2 m
   leg's 20 s wait, the 3 s counted across the wait; "cannot be seen"); the restart is kept (`Team.lone_t`).
 - **Tests:** `test_lone_pet_kill` (above; fails on bd5aa41).
 
+### Tidal Tomb: the cover's way (2026-11-01)
+
+Live 14:32:40 Logan died on level 2 on a cover walk 1-2 off the pets an astral zoa fought (docs/NOTES.md "Tidal Tomb
+level 2: dead on a cover walk past the pets"). Runner only: `Team.cover` now takes only tiles reached by tiles clear of
+area hits and fire, and walks inside `around_areas` (docs/HUNT_LOOP.md "Out of a shy monster's shot first").
+
+- **Level 2 batches** (`--scenario tidal_tomb --level 2 --runs 96 --jobs 14 --careers 14 --others --prior <store> --
+  --vet-range 5 --crawl-learn-s 180`, the default team; both on copies of the working tree at 3af313f with the voidfin's
+  dive then uncommitted, differing in tamer.py only):
+
+  | seeds | runner | runs with a death | pet deaths | damage on Logan / h | banked / h | covers |
+  |---|---|---|---|---|---|---|
+  | 1-96 | 3af313f | 13 | 10 | 1,694 | 157,330 | 1,167 |
+  | 1-96 | **after** | 12 | 15 | 1,834 | 165,986 | 846 |
+  | 97-192 | 3af313f | 15 | 8 | 1,640 | 160,590 | 918 |
+  | 97-192 | **after** | **8** | 9 | **1,450** | 171,328 | 884 |
+
+  Over 192 runs: runs with a death 28 -> 20, damage on Logan an hour ~1,667 -> ~1,642, banked ~159k -> ~169k, pet
+  deaths 18 -> 24 (a block's spread ~5: the deaths' drop is at the edge of noise, nothing got worse beyond it).
+- **Tests:** `test_cover_route_clear` (the live 14:32:36 tiles: before, the 7-step walk 1 off the pets; after, no walk).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

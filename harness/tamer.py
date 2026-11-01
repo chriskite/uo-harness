@@ -1377,10 +1377,14 @@ class Team:
         if v.walk is None or not shy or not self.shot_at(v, shy, v.pos):
             return False
         self.cover_t = now
+        # the way there out of every area hit's reach and fire too, not only the tile: live 2026-11-01 14:32:36-40
+        # (hunt-20261101-141745-051e) the cover from a combustive zoa's shot to (6911, 2041) walked 1 off the pets an
+        # astral zoa fought 10 off, "Astral backlash" -43 on the way, dead (docs/NOTES.md "Tidal Tomb level 2: dead on a
+        # cover walk past the pets")
         clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)    # out of every area hit's reach, as bard_step
         best, best_c = None, None
-        for t, k in self.tiles_within(v, COVER_STEPS).items():
-            if k == 0 or not clear(t) or t[:2] in fire or self.shot_at(v, shy, t):
+        for t, k in self.tiles_within(v, COVER_STEPS, through=lambda n: clear(n) and n[:2] not in fire).items():
+            if k == 0 or self.shot_at(v, shy, t):
                 continue
             c = (round(v.stand_score(t)), k)
             if best_c is None or c < best_c:
@@ -1393,8 +1397,9 @@ class Team:
         self.count("covers")
         log(f"cover: the {kinds} shoots us here; to {best[:2]}, {best_c[1]} steps, out of its shot")
         try:
-            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * COVER_STEPS,
-                            max_route=2 * COVER_STEPS, mobile_wait=0)
+            with self.around_areas(st):
+                h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * COVER_STEPS,
+                                max_route=2 * COVER_STEPS, mobile_wait=0)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -2254,11 +2259,11 @@ class Team:
         return True
 
     @staticmethod
-    def tiles_within(v: aggro.View, steps: int, origin=None, parents: dict | None = None) -> dict:
+    def tiles_within(v: aggro.View, steps: int, origin=None, parents: dict | None = None, through=None) -> dict:
         """{(x, y, z): walking steps} from where we stand (or `origin`, (x, y, z)), up to `steps`
         (pathfind.Walk.can_walk), never onto a known teleporter tile or one beside it (teleporters come in fields: live
         2026-10-18 21:05:41 the step off the tank 3 tiles from the known one at (5522, 637) went onto (5522, 636), unknown
-        till then, and out to Maus 3)."""
+        till then, and out to Maus 3); with `through` (a tile predicate) only by tiles it passes, the start exempt."""
         start = tuple(origin) if origin is not None else v.pos
         tele = [t for t in v.h.mover.teleporter_tiles(v.st["world"]["self"].get("map")) if cheb(t, start) <= steps + 1]
         near = {(x + dx, y + dy) for x, y in tele for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
@@ -2268,7 +2273,7 @@ class Team:
             for x, y, z in frontier:
                 for d in range(8):
                     n = v.walk.can_walk(x, y, z, d)
-                    if n is not None and n not in out and n[:2] not in near:
+                    if n is not None and n not in out and n[:2] not in near and (through is None or through(n)):
                         out[n] = k
                         nxt.append(n)
                         if parents is not None:

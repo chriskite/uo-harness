@@ -8128,6 +8128,26 @@ with `replay.timed_packets` -> `WorldRuntime` (positions every 2 s, the '-N'/'+N
   connection). Not changed: the cursor writes when `wait` returns, and the runners' own store writes, still fail on a
   lock that long.
 
+## Tidal Tomb level 2: dead on a cover walk past the pets (live 2026-11-01 14:32:40, hunt-20261101-141745-051e)
+
+Visit 2 of a level 2 run (the Seer's shift, Bussin and AlaFlambe; visit 1 home with 24,173 gp). Capture
+20261101_124620 replayed (`replay.timed_packets` + `WorldRuntime`, a scratch script):
+- **14:31:58-14:32:36** Logan at (6914, 2034, -100), the pets at (6915, 2038) (4 off: "keeping 4+ off the pets within
+  11" of the awake astral zoa 0x0030A911 at (6924, 2041) they fought), the combustive zoa 0x0030360C drifting south
+  (6919, 2021) -> (6919, 2024). The astral zoa's effect (graphic 14036) went at Logan himself twice, 14:32:30.65 and
+  37.34, each with a number on him and both pets 4 off at once (-31/-26/-17, -30/-23/-23) [INFERENCE: its lightning,
+  centred on Logan]. Potions and vet kept him at 98-100.
+- **14:32:36** "cover: the combustive zoa shoots us here; to (6911, 2041), 7 steps, out of its shot". The tile was 4
+  off the pets, but the route went (6913, 2035), (6914, 2036), (6914, 2037), (6914, 2038): 1-2 off them. 39.25 "Astral
+  backlash impacts your ability to concentrate while casting!", -43 on Logan (2 off), -48/-51 on the pets; 39.48 the
+  combustive zoa's effect at Logan, -28 at 39.92: 100 -> 70 -> 27 -> dead in 2.1 s.
+- **Cause**: `Team.cover` checked its tile against the area hits (`ClearOf(area_zone)`) and fire, not the way there;
+  `tiles_within` counts steps through any tile and the walk had no danger zones. Offline the same tiles (test_sim
+  `test_cover_route_clear`) walked the same 7 steps, 1 off the pets.
+- **Fix**: the cover's tiles are those reached by tiles all clear of area hits and fire (`tiles_within(through=)`), and
+  the walk runs inside `Team.around_areas`. Here no tile qualifies, so no cover walk: Logan stays 4 off the pets in the
+  combustive zoa's shot. Simulator numbers in docs/SIM.md "Tidal Tomb: the cover's way".
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -3340,6 +3340,16 @@ of them"; confirm in the simulator, then tactics so the runner isn't caught in t
 - *Live*: the next level 2 run after the Seer gets the new command. Watch for "LEAVING by the moongate at (x, y): ...; the
   easiest of 2 (...)" and "to the moongate: fought through".
 
+## The cover walks only through tiles clear of area hits (2026-11-01, Logan dead on Tidal Tomb level 2)
+
+Live 14:32:40 `Team.cover` walked Logan out of a combustive zoa's shot to a tile 4 off the pets by a route 1-2 off them,
+where the astral zoa they fought hit him (docs/NOTES.md "Tidal Tomb level 2: dead on a cover walk past the pets").
+
+- *Decided:* the cover's tile must be reached by tiles all clear of area hits and fire, the walk among the Mover's danger
+  zones (`around_areas`); none such: no cover walk. 192 level 2 runs: runs with a death 28 -> 20 (docs/SIM.md "Tidal
+  Tomb: the cover's way").
+- *Rejected:* falling back to the old walk when no clear way exists (that was the death).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

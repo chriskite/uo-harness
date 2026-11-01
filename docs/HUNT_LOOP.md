@@ -944,7 +944,11 @@ disease casters like corpse purgers and blightmares is stay out of their aggro r
 the pets are busy fighting something else just stay out of their aggro range or keep the pets between us and the
 mob"). An awake purger or blightmare that sees us within its reach (12 / 13), not one on someone else (above): walk (up to 8 steps, at most every
 2 s, mid-channel too) to the nearest tile out of every such shot, out of area hits and fire, the fewest idle eyes
-first: "cover: the corpse purger shoots us here; to (x, y), N steps, out of its shot". In care it comes right after
+first: "cover: the corpse purger shoots us here; to (x, y), N steps, out of its shot". **The way there too** (since
+2026-11-01): the tile is one reached in up to 8 steps by tiles all out of area hits and fire, and the walk takes the
+Mover's danger zones of those reaches (`Team.around_areas`); with no such tile there is no cover walk (live 14:32:36 the
+cover to (6911, 2041) walked 1 off the pets an astral zoa fought, -43, dead: docs/NOTES.md "Tidal Tomb level 2: dead on
+a cover walk past the pets"). In care it comes right after
 the retreat, before the vet supplies on anyone, the spacing and the rest; the spacing off the tank and the vet tile
 keep out of such shots too. The reposition's caster rule (4 steps, the pets kept in vet range, no more idle eyes)
 found no tile at any of its tries in the purger room (simulator seed 1003: an awake purger 8 off took Logan 100 -> 13

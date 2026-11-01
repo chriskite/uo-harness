@@ -2996,6 +2996,57 @@ def test_cover():
           f"before {before} moved {moved} after {after} at {w.player.pos} ({sim_cheb(w.player.pos, pg.pos)} off) {said}")
 
 
+def test_cover_route_clear():
+    print("== the live 14:32:36 tiles: a combustive zoa shooting us, the pets 4 off on an astral zoa: no cover walk past "
+          "the pets through its spell's reach ==")
+    # live 2026-11-01 14:32:36-40 (hunt-20261101-141745-051e): "cover: the combustive zoa shoots us here; to (6911, 2041),
+    # 7 steps" from (6914, 2034) walked 1-2 off the pets at (6915, 2038), "Astral backlash" -43 on the way, then the
+    # combustive zoa's shot: dead. Before the fix the same walk here (1 off the pets)
+    import aggro
+    logan, pets, z = (6914, 2034), (6915, 2038), -100
+    w = tidal_world(logan, [{"key": "astral zoa", "at": [6924, 2041, z]}, {"key": "combustive zoa", "at": [6919, 2024, z]}],
+                    z=z, team="phoenix_incubus")
+    az = next(m for m in w.mobs.values() if m.key == "astral zoa")
+    cz = next(m for m in w.mobs.values() if m.key == "combustive zoa")
+    loop, clock, store, patched = hurt_loop(w, 100, ("--no-peace",))
+    for m in (az, cz):
+        m.hits = m.hits_max = 10 ** 6
+        m.spec = {**m.spec, "step_s": 999.0}
+        m.next_step = 1e9                      # they stood there live
+    for p in w.pets():
+        w._place(p, (*pets, z), d=0)
+        p.hits = p.hits_max = 10 ** 6
+        p.mode, p.next_step = "stay", 1e9
+    w.player.hits = w.player.hits_max = 10 ** 6
+    az.target, az.threat = w.pets()[0].serial, {w.pets()[0].serial: 1e9}
+    cz.target, cz.threat = w.player.serial, {w.player.serial: 1e9}
+    w._warm(az, True)
+    w._warm(cz, True)
+    trail, world_tick = [], clock.on_advance
+
+    def watch(now):
+        world_tick(now)
+        if not trail or trail[-1] != w.player.pos[:2]:
+            trail.append(tuple(w.player.pos[:2]))
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            st = loop.state()
+            shot = tamer.Team.shot_at(aggro.View(loop, st), tamer.Team.shy_awake(aggro.View(loop, st)), loop.pos(st))
+            zone = loop.team.area_zone(st)
+            loop.team.cover(st)
+            clock.advance(0.5)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    near = min(sim_cheb(t, pets) for t in trail)
+    check("in the combustive zoa's shot, the pets an area zone of 4; every tile walked 4+ off the pets",
+          shot >= 1 and zone.get(pets) == 4 and near >= 4,
+          f"shot {shot} zone {zone} trail {trail} {[ln for ln in out.getvalue().splitlines() if 'cover' in ln]}")
+
+
 def test_to_pet_not_into_shot():
     print("== a pet fighting an awake corpse purger, hurt beyond vet range: no walk into its shot to vet it ==")
     # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber on a patrolled purger at (5228, 737); "to a
@@ -7839,7 +7890,7 @@ def main():
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
-              test_caster_at_12, test_blightmare_reach, test_cover, test_to_pet_not_into_shot,
+              test_caster_at_12, test_blightmare_reach, test_cover, test_cover_route_clear, test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
