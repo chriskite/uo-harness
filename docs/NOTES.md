@@ -1992,6 +1992,14 @@ Dir: `ClassicUO/Data/Plugins/Assistant/` = `Profiles/*.xml` + `chars.lst`, `Scri
 - **Permissions**: Profiles has `BUILTIN\Users:(RX)` only, so a non-elevated Python can't write it.
   `grant_razor_profiles.ps1` (run once, elevated) gives the user Modify on that folder only
   (user-approved exception to AGENTS.md Constraint 1, 2026-10-11).
+- **Overhead messages** (`<overheadmessages>`, Razor CE `Core/OverheadManager.cs` master, read
+  2026-11-01; the Outlands build assumed to match): `<overheadmessage searchtext="…" message="…"
+  hue="N" [sound="N"] />`. A system line matches by case-insensitive substring; the first matching
+  entry wins (order matters); `{N}` in `message` = the line's Nth space-split word (1-based), left
+  literal when the line is shorter, so variable-length tails like "(1m 15s)" don't fit a fixed slot.
+  Shown over the player as the profile's `OverheadFormat` (`[{msg}]`) when `ShowOverheadMessages`.
+  2026-11-01 "Logan Wolf Tribard Tamer" got DISCORD/PEACE/AREA PEACE/PROVO SUCCESS (hue 68) and
+  FAILURE (hue 33) on the bard answers (§ "Targeting is Razor-fast" texts, `tamer.ANSWER_OK/FAIL`).
 
 ## NativeAOT analysis methodology (worked well)
 
