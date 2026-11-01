@@ -2704,6 +2704,65 @@ the gravebug behind Logan until the walk in gave up: 6 of the first 8 runs.
   and `--reds` are refused here.
 - Level 4 has no gate seen; its leave walks back up the strip.
 
+### The fourth visit; runs per level for a shift (2026-10-31)
+
+User 2026-10-31: "I just did another Oss run, look at it to flesh out the simulator and prepare a runner skill like the
+Maus and Tidal Tomb ones for Oss". Capture `20261031_170158`, 20:37:19-21:13:33: level 3 for 20 min, level 4 for 10.5
+(docs/NOTES.md "The Ossuary: a fourth visit, levels 3 and 4").
+
+- **Calibration:** the capture joins `calibration.tags`; `ossuary_observed.json` now has 90 creature types.
+- **Teleporters:** 7 more (also in `teleporters.json`). Level 2's arrival (5689, 1249) is the way back up to level 1.
+  Level 3 reaches level 4 by a second, north-west strip (5651-5654, 950 -> 4950-4953, 2052, -80), and level 4 comes
+  back by its east arrival (4952, 2052) and its south row (4853, 2073).
+- **Spawns:** 55 more (35 on level 3, 20 on level 4), 269 in all. A new one counts only where the earlier visits
+  couldn't see: its first sighting is more than 18 tiles from every tile they stood on. Seven of level 4's types are
+  new: desert wind, dune revenant, dust storm, fire cobra, flame adderman, sandshark and spectraldile.
+- **Two burst riders** (`World._burst`):
+  - `disease` (`World._disease`): the anubite's exhale blights one of us within 12 (chance 0.3). It does 20-24 to
+    Logan (24-26 to a pet) every 5 s, four times.
+  - `root` (`World._root`, now shared with the pincer crab's pinch): the hunters' and huntresses' net roots everyone
+    within 1 of their target for 5.1 s, with `*entangled*` over each.
+- **Level 4's big hitters:** the cataphract's charge and shield bash (100 each), the dune revenant's grasp (101-103)
+  and the colossal blazing beetle's charge (73-77).
+- **Re-measured over four visits:** the lament's chance 0.74. The terror's reach is 12 at chance 0.9 (26 of 29 at 7-12
+  tiles).
+- **Barding:** `capture_d` now covers 22 types, at the E each song printed (123 on 10-28, 118 on 10-31).
+- **Level 3 reference** (`trip`): 2,573 s, 124 kills, 2,653 damage on Logan, 47 heal potions.
+
+**Runs for a shift**: the live team (`--team phoenix_incubus`: AlaFlambe tanking, Bussin), `--prior` the live store,
+30 game minutes from home, `-- --vet-range 5 --crawl-learn-s 180`, each level's command (docs/OVERSEER.md §5
+"Another hunt level by the user's word"), on the runner of af30814 (a planned leave gathers the pets first):
+
+| level | runs | runs with a death | runs with a pet death | kills an hour on it | damage on Logan an hour | banked gp a game hour |
+|---|---|---|---|---|---|---|
+| 1 | 16 | 0 | 0 | 236 | 594 | 55,172 |
+| 2 | 16 | 0 | 0 | 184 | 648 | 85,235 |
+| 3 | 48 | **19** | 41 | 205 | 2,348 | 77,346 |
+| 4 | 16 | **16** | 12 | | | 0 |
+
+Before af30814 the same batches gave level 3 27 of 48 runs with a death; the rest moved within noise.
+
+- **Level 3's deaths come from the new spawns.** Batches of 24 on the runner before af30814 (seeds 1-24, the same
+  careers), each with one part of the change left out:
+  - the 10-28 scenario as committed, nothing of this change: 5 deaths;
+  - every change but the new spawns (the 10-28 spawns kept): 5;
+  - every change but the nets: 17;
+  - every change but the blight: 12;
+  - every change but the lament's and terror's new numbers: 9.
+- **Where they die:** 12 of the 19 deaths were to a jackal spirit and 5 to a hierarch (17 and 7 of 27 before
+  af30814). Most came in the corridor west of level 3's arrival (x 5619-5649, y 1120-1135). On 2026-10-31 the user
+  met a pack of 8 there within 25 s of arriving: 3 jackal spirits, 2 hierarchs, a phantasm, an anubite and a
+  cryptwing. The earlier visits had only a fiery leaper there.
+  - The user went through it with 312 damage and 5 potions in 5 minutes.
+  - In the simulator a lone jackal spirit stands on Logan for 15 s beside a full-hits AlaFlambe.
+  - The jackal spirit's share of its damage that lands on Logan is close to live: 5.0 % simulated, 3.7 % live
+    (56 of 1,526 where it was the only monster beside the victim).
+- **Level 4 isn't runnable.** All 16 runs died, most on level 3 on the way to the strip.
+- **Bussin left behind on the leave:** 5 of 16 level 2 runs and 2 of 48 level 3 runs ended "not going back in:
+  Bussin is not with us" (6 of 48 before af30814). Without the nets it was still 4 of 16 on level 2. The cause is
+  not traced.
+- **Phoenix and gravebug** on level 3 (24 runs): 14 deaths, against 5 with the old data.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
@@ -3338,10 +3397,10 @@ Tidal Tomb (since 2026-10-24; one visit so far):
 
 The Ossuary (since 2026-10-28; three visits):
 
-14. **The specials not modelled**, one type at a time if possible: the anubite's exhale ("ancient blight": a
-    damage-over-time or a debuff?), a huntress's net (how long are the pets entangled; can they fight?), the lion
-    warrior's spell parry (how much of a phoenix's spell does it stop?), the firebrand's ignite and the embalmer's
-    mixture.
+14. **The specials not modelled**, one type at a time if possible: the lion warrior's spell parry (how much of a
+    phoenix's spell does it stop?), the firebrand's ignite, the embalmer's mixture, and on level 4 the remnant's
+    '*gathers remains*', the zephyrs, the desert wind. (The anubite's blight and the hunters' net are modelled since
+    2026-10-31.)
 15. **Level 3 walked whole**, as Tidal Tomb's level 1 was: 107 spawns from two visits.
 
 ## The consort's closed area (2026-10-31)

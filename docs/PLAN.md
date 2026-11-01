@@ -2871,6 +2871,22 @@ hand"). Decisions:
 - **Not done**, with the evidence for the next session: the six specials not measured enough, other players and reds
   (no `others`/`reds` blocks), the walk-in wait on the ramp (a runner change, not the simulator's).
 
+### The fourth visit and an Ossuary shift skill (user 2026-10-31)
+
+User: "look at it to flesh out the simulator and prepare a runner skill like the Maus and Tidal Tomb ones for Oss".
+Decisions (docs/SIM.md "The fourth visit; runs per level for a shift"):
+
+- **A spawn from a later visit counts only where the earlier ones couldn't see** (Tidal Tomb's rule): 55 more. They
+  include the pack west of level 3's arrival, which turned level 3 from 5 to 12-17 runs with a death in 24.
+  Rejected: leaving that pack out because the runner dies there. The user met it 25 s after arriving.
+- **New burst riders, not kinds:** `disease` (the anubite's blight) and `root` (the hunters' net). The pinch's
+  entangle moved into `World._root`, so both share one rule.
+- **The skill's default is level 2, not level 3**, though the user hunts level 3. With the live team the simulator
+  gave 0 of 16 runs with a death on levels 1 and 2 and 19 of 48 on level 3. Level 3 waits for the user's go, as
+  Tidal Tomb's level 3 does. Level 4 is refused: 16 of 16 died.
+- **Not done** (runner work, with the evidence in docs/SIM.md): the level 3 arrival pack, and Bussin left behind
+  after a leave (5 of 16 level 2 runs).
+
 ## Oxygen: a breath on level 1 or a dolphin on level 3 (user 2026-10-28; built the same day)
 
 User, during the first Tidal Tomb level 2 shift: "The fact the runner doesn't handle oxygen is going to become a

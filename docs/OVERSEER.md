@@ -688,12 +688,31 @@ Paste this (or point the session at this section) to start an overseer.
 >    ...", a few seconds on level 1: not Logan on another level). In the simulator runs with a death were 4 of 24
 >    (level 2) and 5 of 24 (level 3) against Maus 3's 4 of 96 (docs/SIM.md "Level 2's bedrocks"). Start a level 3 run
 >    only when the parent passes the user's go for it; level 2 needs none.
+>    - **The Ossuary** (since 2026-10-31; the parent's `ossuary-shift` skill): `--enter-rune Ossuary` with the
+>      level's teleporters and gate below. The tome's "Ossuary" row lands **outside** at (1213, 2816); the first
+>      `--enter-via` is the entrance 8 tiles west of it, then level 1's west end, then level 2's south end.
+>      - **Ossuary level 1**: `--enter-rune Ossuary --enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870
+>        1310`. Out by the easier of level 1's two golden gates (0x40001A02 beside the arrival, 0x40001A04 at the
+>        rune library's spot). Their menus were never opened live [INFERENCE: Totem on them as on every gate seen].
+>      - **Ossuary level 2** (the default): `--enter-rune Ossuary --enter-via 1205 2816 --enter-via 5786 1327
+>        --leave-gate 5672 1277`. Out by the crimson gate 0x4004A43E (5672, 1277), which Logan took to Totem live
+>        2026-10-28 17:37. Level 2's arrival tile (5689, 1248-1250) is also the teleporter back up to level 1: the
+>        runner lands on it and walks off it.
+>      - **Ossuary level 3**: `--enter-rune Ossuary --enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363
+>        --leave-gate 5577 1095`. Out by the crimson gate 0x493E7470 (5577, 1095) (Logan's way out 3 of 4 times).
+>        The strips north to level 4 at (5588-5590, 985) and (5651-5654, 950) are known walls to the walk rules.
+>      - **Ossuary level 4**: no command. Every simulated run died. Tell the parent: runner work first.
+>    The Ossuary has never been run live by the runner. In the simulator (docs/SIM.md "The fourth visit"), with
+>    AlaFlambe and Bussin, runs with a death were 0 of 16 on level 1, 0 of 16 on level 2 and 19 of 48 on level 3.
+>    Start an Ossuary level 3 run only when the parent passes the user's go for it.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
 >    Maus 1 x 5551-5660, Maus 2 x 5490-5550, Maus 3 x 5150-5300, all y 600-760; Tidal Tomb level 1 x 6608-6738,
->    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221): the go-home run with the command of the level he is on,
->    then the shift's command from home. The runner never changes level on its own during a hunt: the crawl's
+>    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221; the Ossuary's level 1 x 5785-5935, y 1270-1381, level 2
+>    x 5581-5689, y 1225-1363, level 3 x 5527-5739, y 945-1156, level 4 x 4825-5000, y 1744-2073): the go-home run
+>    with the command of the level he is on (level 4: tell the parent, no command), then the shift's command from home.
+>    The runner never changes level on its own during a hunt: the crawl's
 >    "zones" are depth bands of the one floor, and only a leave, an escape or `--leave-via` crosses a teleporter.
 >    What it does, so the log reads right:
 >    - **In:** the recall to "Maus Near 2", the four teleporters with the pets on "All Follow Me" (a fight on

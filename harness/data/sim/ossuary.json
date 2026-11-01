@@ -1,6 +1,6 @@
 {
  "name": "ossuary",
- "description": "The Ossuary as Logan Wolf went through it, played by the user on 2026-10-28: two visits in capture 20261028_165135 (17:13:43-17:26:28 levels 1-3, 17:32:01-17:37:37 levels 1-2; pets GraveRobber and AlaFlambe) and one in 20261028_182147 (20:34:27-21:03:36 levels 1-4; AlaFlambe and Bussin). The tome row 'Ossuary' lands outside at (1213, 2816); the entrance (1205, 2816-2817) takes one to level 1 at (5927, 1316). Levels by a map flood fill (pathfind.Walk from each arrival; all of Logan's steps there walk on the map): level 1 x 5785-5935, y 1270-1381 (9,259 tiles; 141 s there, walked through); level 2 x 5581-5689, y 1225-1363 (6,668; 831 s); level 3 x 5527-5739, y 950-1156 (11,364; 1,355 s), the hunting level by default; level 4 x 4825-5000, y 1744-2073 (21,141; 322 s), in another part of the map, by the strip (5588-5590, 985) at level 3's north end. Merged at load time with ossuary_kb.json (wiki stats, sim/kb_scan.py, plus 5 hand entries) and ossuary_observed.json (sim/calibrate.py --scenario ossuary).",
+ "description": "The Ossuary as Logan Wolf went through it, played by the user on 2026-10-28: two visits in capture 20261028_165135 (17:13:43-17:26:28 levels 1-3, 17:32:01-17:37:37 levels 1-2; pets GraveRobber and AlaFlambe) and one in 20261028_182147 (20:34:27-21:03:36 levels 1-4; AlaFlambe and Bussin); a fourth on 2026-10-31 in 20261031_170158 (20:37:19-21:13:33 levels 1-4, 20 min on level 3 and 10.5 on level 4; AlaFlambe and Bussin). The tome row 'Ossuary' lands outside at (1213, 2816); the entrance (1205, 2816-2817) takes one to level 1 at (5927, 1316). Levels by a map flood fill (pathfind.Walk from each arrival; all of Logan's steps there walk on the map): level 1 x 5785-5935, y 1270-1381 (9,259 tiles; 141 s there, walked through); level 2 x 5581-5689, y 1225-1363 (6,668; 915 s); level 3 x 5527-5739, y 950-1156 (11,364; 2,573 s), the hunting level by default; level 4 x 4825-5000, y 1744-2073 (21,141; 856 s), in another part of the map, by the strips at level 3's north end (5588-5590, 985) and north-west (5651-5654, 950). Merged at load time with ossuary_kb.json (wiki stats, sim/kb_scan.py, plus 5 hand entries) and ossuary_observed.json (sim/calibrate.py --scenario ossuary).",
  "facet": 0,
  "evidence": {
   "kb": "ossuary_kb.json",
@@ -9,8 +9,8 @@
  "calibration": {
   "facet": 0,
   "boxes": [[5520, 945, 5940, 1385], [4820, 1740, 5005, 2078]],
-  "tags": ["20261028_165135", "20261028_182147"],
-  "note": "sim/calibrate.py's region: levels 1-3 (one box; Nusero, Inferno, Pulma and Covetous all lie outside it) and level 4 (its own box: x 4825-5000 is far from the rest), the dungeon's boxes. Captures: the user's three visits on 2026-10-28 (description); the pets differ between them (GraveRobber + AlaFlambe, then AlaFlambe + Bussin), so damage_to_pets mixes their armor"
+  "tags": ["20261028_165135", "20261028_182147", "20261031_170158"],
+  "note": "sim/calibrate.py's region: levels 1-3 (one box; Nusero, Inferno, Pulma and Covetous all lie outside it) and level 4 (its own box: x 4825-5000 is far from the rest), the dungeon's boxes. Captures: the user's three visits on 2026-10-28 and one on 2026-10-31 (description); the pets differ between them (GraveRobber + AlaFlambe, then AlaFlambe + Bussin), so damage_to_pets mixes their armor"
  },
  "inherit": {
   "from": "mausoleum",
@@ -37,23 +37,30 @@
  "bard": {
   "capture_d": {
    "discord": {
-    "anubite": 48.0,
-    "blightwalker": -100.0,
-    "brood beetle": 82.5,
-    "jackal spirit": 37.5,
-    "khamsin": 56.5,
+    "anubite": 51.0,
+    "apophite spirit": -100.0,
+    "blightwalker": 36.5,
+    "brood beetle": 61.5,
+    "bugman": 79.5,
+    "desert wind": 51.5,
+    "dune revenant": 79.5,
+    "hierarch": 59.5,
+    "jackal spirit": 33.0,
+    "khamsin": 61.0,
     "lich": -100.0,
     "lich magus": 37.5,
     "mummy": -100.0,
     "nightmare": 56.5,
+    "ossuarian firebrand": 69.5,
     "ossuarian huntress": -100.0,
-    "ossuarian pyromancer": 43.0,
-    "ossuarian sightless seer": 73.0,
-    "phantasm": -100.0,
-    "spectral terror": -100.0
+    "ossuarian pyromancer": 37.0,
+    "ossuarian sightless seer": 59.5,
+    "phantasm": 35.5,
+    "pocket beetle": -100.0,
+    "spectral terror": 38.5
    }
   },
-  "note": "capture_d: the maximum-likelihood d (bard_scan.fit_d) of the user's Discordances here, types with 3+ answers (3-7), all at E 123 (every song printed 18.4 %: eff_of 123), +25 on a success lasting the barded 89 s instead of 74 s; -100: every answer a success. The types the live fit (bard_observed) lacks and this doesn't cover take the skill's median d. Peacemaking (4 answers) and Provocation (19) too few to fit here: the median and provoke_d"
+  "note": "capture_d: the maximum-likelihood d (bard_scan.fit_d) of the user's Discordances here, types with 3+ answers (3-12), at the E each song printed (18.4 %: E 123 on 2026-10-28; 17.7 %: E 118 on 2026-10-31, his vielle), +25 on a success lasting the barded time; -100: every answer a success. The types the live fit (bard_observed) lacks and this doesn't cover take the skill's median d. Peacemaking and Provocation too few to fit here: the median and provoke_d"
  },
  "recall": {
   "tome": 1145745907,
@@ -79,7 +86,7 @@
   "note": "the user's dungeon rule (2026-10-13): recall only near a gold moongate. Gold gates: the hue-2822 gates on level 1, 0x40001A02 (5926, 1326) beside the arrival and 0x40001A04 (5870, 1310) at the rune library's 'Ossuary' spot (5870, 1307-1308); levels 2 and 3 have only crimson ones (hue 2820). No recall was tried inside [INFERENCE: the rule holds here as at the Mausoleum]. Boxes: the calibration region"
  },
  "area": [5527, 950, 5739, 1156],
- "area_note": "level 3's box (map flood fill), the hunting level: where Logan spent most of his time (1,355 s of 2,649 inside). Level 2: --area 5581 1225 5689 1363; level 4: --area 4825 1744 5000 2073 (runner block note)",
+ "area_note": "level 3's box (map flood fill), the hunting level: where Logan spent most of his time (2,573 s of 5,024 inside, four visits). Level 2: --area 5581 1225 5689 1363; level 4: --area 4825 1744 5000 2073 (runner block note)",
  "teleporters": [
   {
    "from": [1205, 2816],
@@ -136,9 +143,37 @@
   {
    "from": [4850, 2073],
    "to": [5587, 985, -8]
+  },
+  {
+   "from": [5786, 1328],
+   "to": [5689, 1249, 0]
+  },
+  {
+   "from": [5689, 1249],
+   "to": [5786, 1328, 0]
+  },
+  {
+   "from": [5682, 1363],
+   "to": [5666, 1123, 37]
+  },
+  {
+   "from": [5654, 950],
+   "to": [4953, 2052, -80]
+  },
+  {
+   "from": [5651, 950],
+   "to": [4950, 2052, -80]
+  },
+  {
+   "from": [4952, 2052],
+   "to": [5653, 950, -110]
+  },
+  {
+   "from": [4853, 2073],
+   "to": [5590, 985, -8]
   }
  ],
- "teleporters_note": "captures 20261028_165135 and 20261028_182147, each the tile the last step before the jump went for: the entrance outside W from (1206, 2816-2817) to level 1 (5927, 1316-1317, 37) at 17:13:43, 17:32:01, 20:34:27; level 1's west end W from (5787, 1326-1329) to level 2 (5689, 1248-1250, 0) at 17:14:22, 17:32:39, 20:35:30; level 2's stairs NE from (5633, 1310) to (5638, 1300, -40) at 17:18:01, a hop on the same level (the flood fill joins both ends: 20:35-20:39 Logan walked round it); level 2's south end S from (5683-5684, 1362) to level 3 (5667-5668, 1123, 37) at 17:20:26, 20:39:09; level 3's north strip N from (5589-5590, 986) to level 4 (4852-4853, 2073, -3) at 20:52:46, 20:57:52, 20:58:13, and level 4's arrival row back (S from (4852-4854, 2072), W / E along y 2073) to (5587-5590, 985, -8) at 20:56:36-21:00:19: the strips keep the column roughly (x - 737 / + 737), each pair as seen. A landing doesn't move one again (the step onto a strip tile does). No way back up from levels 2-3 was stepped on",
+ "teleporters_note": "captures 20261028_165135 and 20261028_182147, each the tile the last step before the jump went for: the entrance outside W from (1206, 2816-2817) to level 1 (5927, 1316-1317, 37) at 17:13:43, 17:32:01, 20:34:27; level 1's west end W from (5787, 1326-1329) to level 2 (5689, 1248-1250, 0) at 17:14:22, 17:32:39, 20:35:30; level 2's stairs NE from (5633, 1310) to (5638, 1300, -40) at 17:18:01, a hop on the same level (the flood fill joins both ends: 20:35-20:39 Logan walked round it); level 2's south end S from (5683-5684, 1362) to level 3 (5667-5668, 1123, 37) at 17:20:26, 20:39:09; level 3's north strip N from (5589-5590, 986) to level 4 (4852-4853, 2073, -3) at 20:52:46, 20:57:52, 20:58:13, and level 4's arrival row back (S from (4852-4854, 2072), W / E along y 2073) to (5587-5590, 985, -8) at 20:56:36-21:00:19: the strips keep the column roughly (x - 737 / + 737), each pair as seen. A landing doesn't move one again (the step onto a strip tile does). No way back up from levels 2-3 was stepped on Capture 20261031_170158: W onto (5786, 1328) to (5689, 1249, 0) at 20:40:45, then E from (5688, 1249) onto level 2's arrival (5689, 1249) back up to (5786, 1328) at 20:40:46 (the arrival tile is the way up; the pairs land on each other's tile), W onto (5786, 1329) again at 20:40:49; S onto (5682, 1363) to (5666, 1123, 37) at 20:42:12; level 3's north-west strip, N from (5654, 951) onto (5654, 950) to level 4 (4953, 2052, -80) at 21:02:22, SW from (4953, 2051) onto (4952, 2052) back to (5653, 950, -110) at 21:02:26, N onto (5651, 950) to (4950, 2052, -80) at 21:02:27 (the strip keeps the column: x - 701); S from (4853, 2072) onto (4853, 2073) to (5590, 985, -8) at 21:12:54",
  "gates": [
   {
    "name": "golden moongate",
@@ -1363,9 +1398,284 @@
    "key": "brood beetle",
    "at": [4851, 2060, -10],
    "note": "level 4: first seen 20:56:31 (4851, 2060) at 1 tiles"
+  },
+  {
+   "key": "hierarch",
+   "at": [5637, 1134, 0],
+   "note": "level 3: first seen 2026-10-31 20:42:15 (5637, 1134) at 18 tiles"
+  },
+  {
+   "key": "jackal spirit",
+   "at": [5636, 1121, 0],
+   "note": "level 3: first seen 2026-10-31 20:42:15 (5636, 1121) at 18 tiles"
+  },
+  {
+   "key": "jackal spirit",
+   "at": [5636, 1135, 0],
+   "note": "level 3: first seen 2026-10-31 20:42:15 (5636, 1135) at 18 tiles"
+  },
+  {
+   "key": "phantasm",
+   "at": [5629, 1138, 22],
+   "note": "level 3: first seen 2026-10-31 20:42:35 (5629, 1138) at 18 tiles"
+  },
+  {
+   "key": "anubite",
+   "at": [5627, 1136, 0],
+   "note": "level 3: first seen 2026-10-31 20:42:36 (5627, 1136) at 18 tiles"
+  },
+  {
+   "key": "cryptwing",
+   "at": [5622, 1130, 0],
+   "note": "level 3: first seen 2026-10-31 20:42:37 (5622, 1130) at 18 tiles"
+  },
+  {
+   "key": "hierarch",
+   "at": [5622, 1132, 0],
+   "note": "level 3: first seen 2026-10-31 20:42:37 (5622, 1132) at 18 tiles"
+  },
+  {
+   "key": "jackal spirit",
+   "at": [5619, 1122, 20],
+   "note": "level 3: first seen 2026-10-31 20:43:25 (5619, 1122) at 0 tiles"
+  },
+  {
+   "key": "phantasm",
+   "at": [5534, 1129, 0],
+   "note": "level 3: first seen 2026-10-31 20:50:29 (5534, 1129) at 18 tiles"
+  },
+  {
+   "key": "hierarch",
+   "at": [5546, 1130, 0],
+   "note": "level 3: first seen 2026-10-31 20:50:29 (5546, 1130) at 18 tiles"
+  },
+  {
+   "key": "jackal spirit",
+   "at": [5550, 1131, 0],
+   "note": "level 3: first seen 2026-10-31 20:50:29 (5550, 1131) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "ossuarian deathbringer",
+   "at": [5553, 1103, 0],
+   "note": "level 3: first seen 2026-10-31 20:50:49 (5553, 1103) at 18 tiles"
+  },
+  {
+   "key": "phantasm",
+   "at": [5565, 1126, 0],
+   "note": "level 3: first seen 2026-10-31 20:51:06 (5565, 1126) at 18 tiles"
+  },
+  {
+   "key": "sand muck",
+   "at": [5578, 1138, 0],
+   "note": "level 3: first seen 2026-10-31 20:51:22 (5578, 1138) at 3 tiles"
+  },
+  {
+   "key": "sand muck",
+   "at": [5571, 1147, 0],
+   "note": "level 3: first seen 2026-10-31 20:51:43 (5571, 1147) at 12 tiles"
+  },
+  {
+   "key": "cave bat",
+   "at": [5579, 1135, 0],
+   "note": "level 3: first seen 2026-10-31 20:51:59 (5579, 1135) at 6 tiles"
+  },
+  {
+   "key": "khamsin",
+   "at": [5611, 998, 0],
+   "note": "level 3: first seen 2026-10-31 20:54:37 (5611, 998) at 18 tiles"
+  },
+  {
+   "key": "apophite spirit",
+   "at": [5613, 1006, 0],
+   "note": "level 3: first seen 2026-10-31 20:54:38 (5613, 1006) at 18 tiles"
+  },
+  {
+   "key": "spectral terror",
+   "at": [5631, 983, -30],
+   "note": "level 3: first seen 2026-10-31 20:55:03 (5631, 983) at 18 tiles"
+  },
+  {
+   "key": "apophite spirit",
+   "at": [5625, 1028, 25],
+   "note": "level 3: first seen 2026-10-31 20:56:27 (5625, 1028) at 18 tiles"
+  },
+  {
+   "key": "plague of locusts",
+   "at": [5639, 1025, 20],
+   "note": "level 3: first seen 2026-10-31 20:57:10 (5639, 1025) at 18 tiles"
+  },
+  {
+   "key": "fiery leaper",
+   "at": [5651, 1011, 0],
+   "note": "level 3: first seen 2026-10-31 20:57:13 (5651, 1011) at 18 tiles"
+  },
+  {
+   "key": "radiant burrowbug",
+   "at": [5658, 1016, 0],
+   "note": "level 3: first seen 2026-10-31 20:57:14 (5658, 1016) at 18 tiles"
+  },
+  {
+   "key": "colossal blazing beetle",
+   "at": [5647, 1010, 20],
+   "note": "level 3: first seen 2026-10-31 20:57:18 (5647, 1010) at 18 tiles"
+  },
+  {
+   "key": "plague of locusts",
+   "at": [5652, 1003, 0],
+   "note": "level 3: first seen 2026-10-31 20:58:10 (5652, 1003) at 18 tiles"
+  },
+  {
+   "key": "plague of locusts",
+   "at": [5666, 1004, 0],
+   "note": "level 3: first seen 2026-10-31 20:58:31 (5666, 1004) at 18 tiles"
+  },
+  {
+   "key": "anubite",
+   "at": [5646, 975, -70],
+   "note": "level 3: first seen 2026-10-31 20:58:58 (5646, 975) at 18 tiles"
+  },
+  {
+   "key": "spectral terror",
+   "at": [5673, 974, -45],
+   "note": "level 3: first seen 2026-10-31 20:58:59 (5673, 974) at 18 tiles"
+  },
+  {
+   "key": "anubite",
+   "at": [5688, 991, -22],
+   "note": "level 3: first seen 2026-10-31 20:59:04 (5688, 991) at 18 tiles"
+  },
+  {
+   "key": "apophite spirit",
+   "at": [5688, 980, -22],
+   "note": "level 3: first seen 2026-10-31 20:59:04 (5688, 980) at 18 tiles"
+  },
+  {
+   "key": "khamsin",
+   "at": [5695, 1011, 0],
+   "note": "level 3: first seen 2026-10-31 20:59:13 (5695, 1011) at 18 tiles"
+  },
+  {
+   "key": "anubite",
+   "at": [5676, 970, -35],
+   "note": "level 3: first seen 2026-10-31 20:59:34 (5676, 970) at 18 tiles"
+  },
+  {
+   "key": "spectral terror",
+   "at": [5647, 966, -70],
+   "note": "level 3: first seen 2026-10-31 21:00:31 (5647, 966) at 18 tiles"
+  },
+  {
+   "key": "colossal searing scorpion",
+   "at": [5645, 973, -70],
+   "note": "level 3: first seen 2026-10-31 21:00:31 (5645, 973) at 18 tiles"
+  },
+  {
+   "key": "spectral terror",
+   "at": [5631, 964, -30],
+   "note": "level 3: first seen 2026-10-31 21:01:51 (5631, 964) at 18 tiles"
+  },
+  {
+   "key": "brood beetle",
+   "at": [4936, 2035, -60],
+   "note": "level 4: first seen 2026-10-31 21:02:22 (4936, 2035) at 17 tiles"
+  },
+  {
+   "key": "bugman",
+   "at": [4950, 2042, -80],
+   "note": "level 4: first seen 2026-10-31 21:02:22 (4950, 2042) at 10 tiles"
+  },
+  {
+   "key": "fire cobra",
+   "at": [4955, 2036, -80],
+   "note": "level 4: first seen 2026-10-31 21:02:22 (4955, 2036) at 16 tiles"
+  },
+  {
+   "key": "firebite scorpion",
+   "at": [4938, 2034, -60],
+   "note": "level 4: first seen 2026-10-31 21:02:22 (4938, 2034) at 18 tiles"
+  },
+  {
+   "key": "brood beetle",
+   "at": [4948, 2027, -80],
+   "note": "level 4: first seen 2026-10-31 21:03:18 (4948, 2027) at 18 tiles"
+  },
+  {
+   "key": "desert wind",
+   "at": [4958, 2017, -80],
+   "note": "level 4: first seen 2026-10-31 21:03:20 (4958, 2017) at 18 tiles"
+  },
+  {
+   "key": "bugman",
+   "at": [4958, 2015, -80],
+   "note": "level 4: first seen 2026-10-31 21:03:54 (4958, 2015) at 18 tiles"
+  },
+  {
+   "key": "dust storm",
+   "at": [4989, 2015, -80],
+   "note": "level 4: first seen 2026-10-31 21:04:10 (4989, 2015) at 18 tiles"
+  },
+  {
+   "key": "firebite scorpion",
+   "at": [4959, 1978, -80],
+   "note": "level 4: first seen 2026-10-31 21:04:19 (4959, 1978) at 18 tiles"
+  },
+  {
+   "key": "spectraldile",
+   "at": [4967, 1965, -84],
+   "note": "level 4: first seen 2026-10-31 21:04:21 (4967, 1965) at 18 tiles"
+  },
+  {
+   "key": "desert wind",
+   "at": [4931, 2023, -32],
+   "note": "level 4: first seen 2026-10-31 21:04:46 (4931, 2023) at 14 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "flame adderman",
+   "at": [4916, 2025, -30],
+   "note": "level 4: first seen 2026-10-31 21:04:46 (4916, 2025) at 18 tiles"
+  },
+  {
+   "key": "brood beetle",
+   "at": [4927, 2016, -30],
+   "note": "level 4: first seen 2026-10-31 21:05:40 (4927, 2016) at 18 tiles"
+  },
+  {
+   "key": "sandshark",
+   "at": [4915, 2013, -30],
+   "note": "level 4: first seen 2026-10-31 21:05:42 (4915, 2013) at 18 tiles"
+  },
+  {
+   "key": "bugman",
+   "at": [4937, 2037, -60],
+   "note": "level 4: first seen 2026-10-31 21:07:01 (4937, 2037) at 17 tiles"
+  },
+  {
+   "key": "dune revenant",
+   "at": [4899, 2010, -55],
+   "note": "level 4: first seen 2026-10-31 21:08:01 (4899, 2010) at 18 tiles"
+  },
+  {
+   "key": "ossuarian cataphract",
+   "at": [4897, 2024, 0],
+   "note": "level 4: first seen 2026-10-31 21:08:05 (4897, 2024) at 18 tiles"
+  },
+  {
+   "key": "ossuarian spirit guide",
+   "at": [4894, 2005, -60],
+   "note": "level 4: first seen 2026-10-31 21:09:06 (4894, 2005) at 18 tiles"
+  },
+  {
+   "key": "dune revenant",
+   "at": [4884, 2027, 0],
+   "note": "level 4: first seen 2026-10-31 21:09:13 (4884, 2027) at 18 tiles"
+  },
+  {
+   "key": "ossuarian spirit guide",
+   "at": [4877, 2026, 0],
+   "note": "level 4: first seen 2026-10-31 21:09:55 (4877, 2026) at 18 tiles"
   }
  ],
- "spawn_note": "one spawn per cluster of a type's first sightings in the three visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5; sightings of a type within 5 tiles merged, the earliest kept): level 1 40, level 2 52, level 3 107, level 4 15. Two days' play, not the Mausoleum's 41-visit check; most first sightings came at 16-18 tiles (the view's edge), so a spawn point is where it stood then. Left out: the summons (spirit asps at an apophite spirit's death, plague frogs, pocket beetles: specials), the ostards (6, each first seen 3-8 tiles from Logan beside ossuarian hunters and huntresses and dead soon after, no gold: dismounted riders' mounts [INFERENCE]), other players' pets (a phoenix, notoriety 1-2), the mummified remains (level 4, one, no wiki row)",
+ "spawn_note": "one spawn per cluster of a type's first sightings in the visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5; sightings of a type within 5 tiles merged, the earliest kept): level 1 40, level 2 52, level 3 107, level 4 15 from the 2026-10-28 visits; then 55 from 2026-10-31 (35 on level 3, 20 on level 4), only where the earlier visits couldn't see (a first sighting more than 18 tiles from every tile they stood on: 113 of the 184 sightings weren't), so a spawn already had isn't counted twice. Two days' play, not the Mausoleum's 41-visit check; most first sightings came at 16-18 tiles (the view's edge), so a spawn point is where it stood then. Left out: the summons (spirit asps at an apophite spirit's death, plague frogs, pocket beetles: specials), the ostards (6, each first seen 3-8 tiles from Logan beside ossuarian hunters and huntresses and dead soon after, no gold: dismounted riders' mounts [INFERENCE]), other players' pets (a phoenix, notoriety 1-2), the mummified remains (level 4, no wiki row; a remnant's '*gathers remains*' [INFERENCE]), the zephyrs (level 4, one every 8-12 s beside a fight, no wiki row: a summons [INFERENCE]), a shadowy figure, a horse",
  "specials": {
   "phantasm": [
    {
@@ -1376,10 +1686,10 @@
     "every_s": 15.2,
     "delay_s": 1.5,
     "radius": 12,
-    "chance": 0.72,
-    "damage_pet": [26, 31, 28],
-    "damage_player": [26, 33, 32],
-    "note": "'*laments*' 28 times, 15.17 s apart per phantasm (p10-p90 15.05-15.35); 0.8-2.2 s later (median 1.48) a number on each of us out to 12 tiles with no monster beside the victim: hit 38 of 53 at 6-12 tiles, none of 19 at 13-18 (2 of 7 at 3-5, where melee numbers hide it; [INFERENCE] the same chance there). Pets 26-31 (median 28, n=24, on GraveRobber, AlaFlambe, Bussin), Logan 26-33 (median 32, n=16)"
+    "chance": 0.74,
+    "damage_pet": [27, 33, 28],
+    "damage_player": [26, 33, 31],
+    "note": "'*laments*' 35 times in four visits (2026-10-28, 10-31), 15.17 s apart per phantasm (p10-p90 15.09-15.35); 0.8-2.2 s later (median 1.57) a number on each of us out to 12 tiles with no monster beside the victim: hit 49 of 66 at 6-12 tiles, 3 of 13 at 13-14, none of 12 at 15-18 (4 of 9 at 3-5, where melee numbers hide it; [INFERENCE] the same chance there). Pets 27-33 (median 28, n=36, on GraveRobber, AlaFlambe, Bussin), Logan 26-33 (median 31, n=22)"
    }
   ],
   "spectral terror": [
@@ -1390,11 +1700,11 @@
     "first_s": [2.0, 8.0],
     "every_s": 7.86,
     "delay_s": 1.65,
-    "radius": 11,
-    "chance": 0.86,
-    "damage_pet": [55, 56, 55],
-    "damage_player": [37, 46, 46],
-    "note": "'*terrifies*' 8 times, 7.80-8.22 s apart; 1.2-1.9 s later (median 1.67) a number on each of us out to 11 tiles: 12 of 14 at 7-11, 0 of 7 at 13-18 (1 of 2 at 5-6). Pets 55-56 (n=8: AlaFlambe, Bussin), Logan 37-46 (n=4). Any fear effect isn't modelled"
+    "radius": 12,
+    "chance": 0.9,
+    "damage_pet": [54, 57, 55],
+    "damage_player": [32, 50, 39],
+    "note": "'*terrifies*' 15 times, 7.78-8.22 s apart; 1.2-1.9 s later (median 1.61) a number on each of us out to 12 tiles: 26 of 29 at 7-12, 1 of 15 at 13-18 (1 of 3 at 5-6). Pets 54-57 (n=18: AlaFlambe, Bussin), Logan 32-50 (n=9). Any fear effect isn't modelled"
    }
   ],
   "hierarch": [
@@ -1526,7 +1836,6 @@
     "note": "level 4: plague frogs first seen within 9 tiles of the plaguecaller every 3.1-6.9 s (10 in 38 s, 20:55:21-20:55:58), none killed; no emote over either (live)"
    }
   ],
-  "note": "measured 2026-10-28 from the two captures (docs/SIM.md 'The Ossuary'): each emote's period per creature and the numbers on our side after it with no other monster beside the victim. Not modelled (seen, numbers unclear or no mechanic): the anubite's '*exhales*' ('You have been struck by an ancient blight!', 8, 7.7 s apart), the ossuarian huntress's and hunter's '*readies net*' (12, ~16 s apart: '*entangled*' over the pets, 'You have been entangled in a net!'), the ossuarian lion warrior's '*parries spell*' (12: the pets' spells), the ossuarian firebrand's '*ignites*' (8, 15.9 s apart), the ossuarian embalmer's '*prepares mixture*' (6, 16.4 s apart), the ossuarian discguard's disc ('A razor-sharp disc cuts and causes you to bleed!', level 4), and the wiki's tamed-version abilities (kb specials)",
   "ossuarian sightless seer": [
    {
     "kind": "burst",
@@ -1542,20 +1851,140 @@
     "damage_player": [24, 26, 25],
     "note": "'*plumbs the darkness*' 28 times, 8.24 s apart (p10-p90 7.78-9.32); 1.01-1.05 s later one number on 1-2 of us out to 12 tiles, beside it or not: the pets 31-56 (median 35, n=10; with no monster beside them), Logan 24-26 (n=3); patch 2020-05-12 (knowledge #8441): its area hits at most 2 targets. chance 0.8 [INFERENCE: of the 1-2 within reach most took one]"
    }
-  ]
+  ],
+  "anubite": [
+   {
+    "kind": "burst",
+    "id": "blight",
+    "text": "*exhales*",
+    "first_s": [1.0, 6.0],
+    "every_s": 7.63,
+    "delay_s": 1.35,
+    "radius": 12,
+    "targets": 1,
+    "chance": 0.3,
+    "damage_pet": null,
+    "damage_player": null,
+    "disease": {
+     "tick_pet": [24, 26, 24],
+     "tick_player": [20, 24, 20],
+     "every_s": 5.0,
+     "ticks": 4,
+     "text": "You have been struck by an ancient blight!"
+    },
+    "note": "'*exhales*' 29 times, 7.52-10.23 s apart (median 7.63); 1.31-1.42 s later 'You have been struck by an ancient blight!' on Logan (2 of 2 he took), then a number every 5.0 s four times (20-24) and 'You are no longer diseased.' 20 s after; 8 of the 29 exhales blighted one of us (the 5-s ticks from 5.5-6.5 s after it: Logan 20-24, the pets 24-31), 7 of 8 at 7-9 tiles from it and 1 beside it, none of 52 at 2-6: one of us at range, not its melee target [INFERENCE: one of those within 12 at random, chance 0.3]. No number of its own"
+   }
+  ],
+  "ossuarian huntress": [
+   {
+    "kind": "burst",
+    "id": "net",
+    "text": "*readies net*",
+    "first_s": [1.0, 6.0],
+    "every_s": 16.0,
+    "delay_s": 1.3,
+    "center": "target",
+    "reach": 8,
+    "radius": 1,
+    "damage_pet": null,
+    "damage_player": null,
+    "root": {
+     "hold_s": 5.1,
+     "text": "You have been entangled in a net!",
+     "emote": "*entangled*"
+    },
+    "note": "'*readies net*' (10 by huntresses), ~16 s apart (15.0-17.2); 1.1-1.5 s later '*entangled*' over 1-2 victims on a tile or two of each other, 1-6 tiles from it (16 nets, 2026-10-28 and 10-31), monsters beside them too (a lion warrior, a blightwalker); Logan's 'You have been entangled in a net!' 21:02:47.96 and 'You are no longer entangled.' 5.08 s later, no step meanwhile; the pets stood 5.1-5.3 s. No number. Reach 8 [INFERENCE: the farthest seen 6]"
+   }
+  ],
+  "ossuarian hunter": [
+   {
+    "kind": "burst",
+    "id": "net",
+    "text": "*readies net*",
+    "first_s": [1.0, 6.0],
+    "every_s": 16.0,
+    "delay_s": 1.3,
+    "center": "target",
+    "reach": 8,
+    "radius": 1,
+    "damage_pet": null,
+    "damage_player": null,
+    "root": {
+     "hold_s": 5.1,
+     "text": "You have been entangled in a net!",
+     "emote": "*entangled*"
+    },
+    "note": "'*readies net*' (5 by hunters), ~16 s apart (15.0-17.2); 1.1-1.5 s later '*entangled*' over 1-2 victims on a tile or two of each other, 1-6 tiles from it (16 nets, 2026-10-28 and 10-31), monsters beside them too (a lion warrior, a blightwalker); Logan's 'You have been entangled in a net!' 21:02:47.96 and 'You are no longer entangled.' 5.08 s later, no step meanwhile; the pets stood 5.1-5.3 s. No number. Reach 8 [INFERENCE: the farthest seen 6]"
+   }
+  ],
+  "colossal blazing beetle": [
+   {
+    "kind": "charge",
+    "cooldown_s": 8.62,
+    "range": 12,
+    "targets": 3,
+    "delay_s": [0.95, 1.05],
+    "damage": [73, 77],
+    "note": "level 3/4 (2026-10-31): '*charges*' 4 times, 7.82-8.70 s apart; a hit 1.01 s later on the pet by its landing (73, 75, 77; 3 of 4); the wiki's Fiery Charge (#14487: up to 12 tiles, up to 3 targets within 3, the first +75 %) [INFERENCE: the sim's charge hits those within a tile]"
+   }
+  ],
+  "ossuarian cataphract": [
+   {
+    "kind": "charge",
+    "cooldown_s": 15.3,
+    "range": 12,
+    "targets": 3,
+    "delay_s": [0.5, 0.55],
+    "damage": [100, 100],
+    "note": "level 4 (2026-10-31): '*charges*' twice, 15.32 s apart; 100 on AlaFlambe 0.53 s later (1 of 2). n=2"
+   },
+   {
+    "kind": "burst",
+    "id": "bash",
+    "text": "*shield bash*",
+    "first_s": [2.0, 8.0],
+    "every_s": 15.4,
+    "delay_s": 0.73,
+    "center": "target",
+    "reach": 1,
+    "radius": 0,
+    "damage_pet": [100, 100],
+    "damage_player": [100, 100],
+    "damage_type": "physical",
+    "note": "level 4: '*shield bash*' twice, 15.41 s apart; 100 on the pet beside it 0.73 s later both times. Logan's the pets' [INFERENCE]"
+   }
+  ],
+  "dune revenant": [
+   {
+    "kind": "burst",
+    "id": "grasp",
+    "text": "*grasps*",
+    "first_s": [2.0, 8.0],
+    "every_s": 10.1,
+    "delay_s": 0.5,
+    "center": "target",
+    "reach": 2,
+    "radius": 0,
+    "damage_pet": [101, 103],
+    "damage_player": [101, 103],
+    "damage_type": "physical",
+    "note": "level 4 (2026-10-31): '*grasps*' twice, 10.1 s apart; 101 and 103 on the pet within 2 tiles 0.5 s later. Logan's the pets' [INFERENCE]"
+   }
+  ],
+  "note": "measured from the four visits (2026-10-28, 10-31; docs/SIM.md 'The Ossuary'): each emote's period per creature and the numbers on our side after it with no other monster beside the victim. Not modelled (seen, numbers unclear or no mechanic): the ossuarian lion warrior's '*parries spell*' (the pets' spells), the ossuarian firebrand's '*ignites*' (15, 15.6 s apart, no number pattern), the ossuarian embalmer's '*prepares mixture*' (8, 16.4 s apart), the ossuarian discguard's disc ('A razor-sharp disc cuts and causes you to bleed!', level 4), the remnant's '*gathers remains*' (4 in 38 s, level 4; the mummified remains near it [INFERENCE]), the sand muck's '*regens*', the bugman's '*deflects*' and '*taunted*', the level 4 zephyrs (summons: one every 8-12 s beside a fight, no wiki row), 'A swarm of dust penetrates and compromises your armor!' (level 3, 20:51:53, a pierce), and the wiki's tamed-version abilities (kb specials)"
  },
  "trip": {
-  "note": "Logan Wolf's visits on level 3 (both captures, the user playing): 1,354.6 s there; per hour on the level beside the sim's (run.py --compare). Discordance 15, Peacemaking 9, Provocation 22 by skill id",
-  "hunt_s": 1354.6,
-  "kills": 70,
-  "player_damage": 1757,
-  "vet_uses": 80,
-  "potions": 31,
-  "discord_ok": 42,
-  "discord_fail": 9,
-  "peace_ok": 3,
-  "peace_fail": 1,
-  "provoke": 9,
-  "gold": 43867
+  "note": "Logan Wolf's visits on level 3 (2026-10-28 and 10-31, the user playing): 2,573 s there; per hour on the level beside the sim's (run.py --compare). Discordance 15, Peacemaking 9, Provocation 22 by skill id",
+  "hunt_s": 2573.3,
+  "kills": 124,
+  "player_damage": 2653,
+  "vet_uses": 143,
+  "potions": 47,
+  "discord_ok": 75,
+  "discord_fail": 21,
+  "peace_ok": 7,
+  "peace_fail": 6,
+  "provoke": 16,
+  "gold": 82536
  }
 }

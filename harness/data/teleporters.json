@@ -100,6 +100,20 @@
     {"facet": 0, "from": [4854, 2073], "to": [0, 5590, 985, -8],
      "note": "Ossuary level 4's arrival row -> level 3 (20261028_182147 20:58:03, a step S from (4854, 2072))"},
     {"facet": 0, "from": [4850, 2073], "to": [0, 5587, 985, -8],
-     "note": "Ossuary level 4's arrival row -> level 3 (20261028_182147 20:58:15, a step W from (4851, 2073))"}
+     "note": "Ossuary level 4's arrival row -> level 3 (20261028_182147 20:58:15, a step W from (4851, 2073))"},
+    {"facet": 0, "from": [5786, 1328], "to": [0, 5689, 1249, 0],
+     "note": "Ossuary level 1's west end -> level 2 (20261031_170158 20:40:45, a step W from (5787, 1328))"},
+    {"facet": 0, "from": [5689, 1249], "to": [0, 5786, 1328, 0],
+     "note": "Ossuary level 2's arrival -> level 1's west end (20261031_170158 20:40:46, a step E from (5688, 1249))"},
+    {"facet": 0, "from": [5682, 1363], "to": [0, 5666, 1123, 37],
+     "note": "Ossuary level 2's south end -> level 3 (20261031_170158 20:42:12, a step S from (5682, 1362))"},
+    {"facet": 0, "from": [5654, 950], "to": [0, 4953, 2052, -80],
+     "note": "Ossuary level 3's north-west strip -> level 4 (20261031_170158 21:02:22, a step N from (5654, 951))"},
+    {"facet": 0, "from": [5651, 950], "to": [0, 4950, 2052, -80],
+     "note": "Ossuary level 3's north-west strip -> level 4 (20261031_170158 21:02:27, a step N from (5651, 951))"},
+    {"facet": 0, "from": [4952, 2052], "to": [0, 5653, 950, -110],
+     "note": "Ossuary level 4's east arrival -> level 3's north-west strip (20261031_170158 21:02:26, a step SW from (4953, 2051))"},
+    {"facet": 0, "from": [4853, 2073], "to": [0, 5590, 985, -8],
+     "note": "Ossuary level 4's arrival row -> level 3 (20261031_170158 21:12:54, a step S from (4853, 2072))"}
   ]
 }

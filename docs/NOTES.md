@@ -6744,6 +6744,40 @@ seer's 160, the spectral terror's 122), 31 heal potions, 80 vet uses, 43,867 gol
 **Other players:** 25 and 12 seen; four reds (Dfence, Monex, I Make Bodies, Saint Natalie) at 18 tiles on level 2's
 stairs at 17:17:52-57 (Logan took the stairs at 17:18:01 and went on to level 3).
 
+## The Ossuary: a fourth visit, levels 3 and 4 (2026-10-31 20:37:19-21:13:33, capture 20261031_170158)
+
+The user played it with AlaFlambe and Bussin, AR 137 (130 for the first 4 min); his songs printed 17.7 % (E 118, the
+vielle). Evidence for the simulator's 2026-10-31 Ossuary changes (docs/SIM.md "The Ossuary: the fourth visit").
+
+- **The way:** the tome's "Ossuary" row outside (20:37:18), the entrance W onto (1205, 2817), level 1's west end W onto
+  (5786, 1328) at 20:40:45, landing on (5689, 1249). A step E from (5688, 1249) onto that arrival tile put him back on
+  level 1 at (5786, 1328) (20:40:46): **level 2's arrival is the way up**. Again W onto (5786, 1329), level 2's south
+  end S onto (5682, 1363) to level 3 (5666, 1123, 37) at 20:42:12.
+- **Level 3 -> 4 by a second strip**, north-west: N onto (5654, 950) put him on level 4 at (4953, 2052, -80)
+  (21:02:22), SW onto (4952, 2052) back to (5653, 950, -110), N onto (5651, 950) to (4950, 2052, -80): the strip keeps
+  the column (x - 701). Both arrivals lie on the flood fills of the known levels 3 and 4. Back by level 4's south row:
+  S onto (4853, 2073) to (5590, 985, -8) at 21:12:54, then level 3's crimson gate (5577, 1095) to Totem at 21:13:33.
+  All 7 new tiles are in `harness/data/teleporters.json`.
+- **Level 3** 1,219 s: 54 kills, 896 on Logan (2,647 an hour against 4,669 on 2026-10-28 at AR 120), 16 heal
+  potions, 63 vet uses, Discordance 33 of 45, 38,669 gold lifted. **Level 4** 534 s: 18 kills, 142 on Logan, no gold
+  lifted.
+- **Specials measured anew** (four visits; docs/SIM.md has the table):
+  - The anubite's `*exhales*` (29, 7.63 s apart) is a **blight**: 1.31-1.42 s later "You have been struck by an ancient
+    blight!" (or "You have been blighted!"), then 20-24 on Logan every 5.0 s four times and "You are no longer
+    diseased." 20 s after; the pets 24-31. 8 of the 29 exhales blighted one of us, 7 of them 7-9 tiles from it.
+  - The hunters' and huntresses' `*readies net*`: 1.1-1.5 s later `*entangled*` over 1-2 of us (and monsters) a tile
+    apart, 1-6 tiles from it; "You have been entangled in a net!" then "You are no longer entangled." 5.08 s later,
+    the pets standing 5.1-5.3 s. No number.
+  - Level 4's big hitters: the ossuarian cataphract's `*charges*` (100 at 0.53 s) and `*shield bash*` (100 at 0.73 s
+    on the pet beside it, 15.4 s apart); the dune revenant's `*grasps*` (101 and 103 at 0.5 s, 10.1 s apart); the
+    colossal blazing beetle's `*charges*` (73-77 at 1.01 s, 7.8-8.7 s apart).
+  - Not measured: the remnant's `*gathers remains*` (4 in 38 s; mummified remains about), the sand muck's
+    `*regens*`, the bugman's `*deflects*` / `*taunted*`, zephyrs on level 4 (one every 8-12 s beside a fight, no wiki
+    row), "A swarm of dust penetrates and compromises your armor!" (level 3, 20:51:53).
+- **New types:** level 4's desert wind, dune revenant, dust storm, fire cobra, flame adderman, sandshark,
+  spectraldile; level 3's colossal searing scorpion and cryptwing. 32 other players seen, no reds.
+- The 2026-10-30 capture's 407 packets in the Ossuary's boxes are on no level (no jump into one): not a visit.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

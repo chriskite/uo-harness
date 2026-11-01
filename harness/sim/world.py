@@ -2103,13 +2103,33 @@ class World:
         self.hurt(o, self.roll(sp["damage_player" if o.kind == "player" else "damage_pet"]), m, "pinch")
         if not o.alive or o.ghost:
             return
-        o.rooted_until = self.t + sp["hold_s"]
+        self._root(o, sp["hold_s"], sp["text"])
         self.count("pinches", o.name)
+
+    def _root(self, o: Mob, hold_s: float, text: str | None, emote: str | None = None):
+        """Entangle on one of us: no step for `hold_s` (`rooted_until`). On Logan `text`, the buff with its end (a
+        TimeSync first: the runner's Mover.held reads the end, as live); `emote` over the victim (the net's
+        '*entangled*')."""
+        o.rooted_until = max(o.rooted_until, self.t + hold_s)
+        if emote:
+            self._overhead(o, emote)
         if o.kind == "player":
-            self._sys(sp["text"])
+            if text:
+                self._sys(text)
             ms = int(self.t * 1000)
             self.send(P.time_sync(ms), P.buff(o.serial, ENTANGLE_ICON, ENTANGLE_GUMP, "Unable to Move", "Unable to Move",
-                                              1.0, end_ms=ms + int(sp["hold_s"] * 1000)))
+                                              1.0, end_ms=int(o.rooted_until * 1000)))
+
+    def _disease(self, o: Mob, sp: dict):
+        """A disease on `o` from a burst: `ticks` of `tick_pet` / `tick_player` every `every_s`, beside any running
+        (the purger's way); `text` on Logan (the anubite's 'You have been struck by an ancient blight!')."""
+        if not o.alive or o.ghost or o.kind not in ("player", "pet"):
+            return
+        tick = self.roll(sp["tick_player" if o.kind == "player" else "tick_pet"])
+        o.diseases.append([self.t + sp["every_s"], sp["ticks"], tick, sp["every_s"]])
+        if o.kind == "player" and sp.get("text"):
+            self._sys(sp["text"])
+        self.count("diseases", o.name)
 
     def _bleed_stack(self, o: Mob, sp: dict):
         """A stacked bleed on `o`: `tick_pet` / `tick_player` (else `tick`) every `every_s` for `seconds`, beside any
@@ -2569,10 +2589,11 @@ class World:
         zoas' spell). `damage_pet` / `damage_player` null: no number on a pet / on Logan (a debuff or bleed only, or its
         numbers already in the type's swings: the biolumen shellpod's barrage on a pet beside it); `numbers` of them on
         each victim (the shellpod's barrage: two on Logan).
-        A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`). A `debuff`, a stack of `per_stack` for
-        `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut (`heal`),
-        "glowmark" extra threat drawn (`hurt`), "susceptible" more damage taken from the `from` types (`hurt`; each
-        stack's time refreshed by the next, the combustive zoas' scorch)."""
+        A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`); a `disease` one (`_disease`, the anubite's
+        blight); a `root` one (`_root`, the ossuarian hunters' net: no step for `hold_s`). A `debuff`, a stack of
+        `per_stack` for `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut
+        (`heal`), "glowmark" extra threat drawn (`hurt`), "susceptible" more damage taken from the `from` types (`hurt`;
+        each stack's time refreshed by the next, the combustive zoas' scorch)."""
         if sp.get("center") == "target":
             team = self.team()
             if tgt is None or tgt not in team or cheb(m.pos, tgt.pos) > sp["reach"] or not self.can_see(m, tgt):
@@ -2604,6 +2625,10 @@ class World:
                 self._pressure(o, sp["pressure"])
             if sp.get("bleed") and self.rng.random() < sp["bleed"].get("chance", 1.0):
                 self._bleed_stack(o, sp["bleed"])
+            if sp.get("disease"):
+                self._disease(o, sp["disease"])
+            if sp.get("root"):
+                self._root(o, sp["root"]["hold_s"], sp["root"].get("text"), sp["root"].get("emote"))
             if db:
                 stack = [self.t + db["duration_s"], db["per_stack"]]
                 if db["kind"] == "backlash":

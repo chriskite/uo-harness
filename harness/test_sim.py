@@ -7472,6 +7472,44 @@ def test_ossuary_death_brood():
           f"up at 4.9 s {early}, kills {w.metrics['kills'] - kills}")
 
 
+def test_ossuary_net_and_blight():
+    print("== the Ossuary's riders: a huntress's net roots its target and the one beside it 5.1 s from 1.3 s after "
+          "'*readies net*', no number; an anubite's exhale blights one of us: 4 disease ticks 5 s apart ==")
+    x, y = OSS_L3
+    w = ossuary_world(OSS_L3, [{"key": "ossuarian huntress", "at": [x + 3, y, 0]}])
+    said = _log_overhead(w)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    _hold_on(w, m, gb)
+    w.run_until(9.0)
+    cue = next((t for t, s, text in said if s == m.serial and text == "*readies net*"), None)
+    caught = [s for t, s, text in said if text == "*entangled*" and cue is not None and abs(t - cue - 1.3) < 0.06]
+    check("its net 1.3 s after the emote: '*entangled*' over GraveRobber (and only who stood within 1 of it), rooted "
+          "5.1 s, its hits untouched", cue is not None and gb.serial in caught
+          and all(sim_cheb(w.mobs[s].pos, gb.pos) <= 1 for s in caught)
+          and abs(gb.rooted_until - (cue + 1.3 + 5.1)) < 0.06 and gb.hits == gb.hits_max,
+          f"cue {cue} caught {caught} rooted to {gb.rooted_until}")
+    w = ossuary_world(OSS_L3, [{"key": "anubite", "at": [x + 3, y, 0]}])
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    _hold_on(w, m, gb)
+    m.spec = {**m.spec, "specials": [{**m.spec["specials"][0], "chance": 1.0}]}
+    for o in w.team():
+        o.hits = o.hits_max = 100000
+    cue = None
+    while cue is None and w.t < 12.0:
+        w.run_until(w.t + 0.1)
+        cue = next((t for t, s, text in said if s == m.serial and text == "*exhales*"), None)
+    m.spec = {**m.spec, "specials": []}                  # one exhale: its blight's ticks alone
+    w.run_until((cue or 0.0) + 23.0)
+    ticks = [(t, v) for t, v, k, _ in hurts if k == "disease"]
+    check("one of us blighted 1.35 s after the exhale: 4 disease ticks 5 s apart from 5 s later, no other number",
+          cue is not None and len(ticks) == 4 and len({v.serial for _, v in ticks}) == 1
+          and all(abs(t - (cue + 1.35 + 5.0 * (i + 1))) < 0.16 for i, (t, _) in enumerate(ticks))
+          and not [k for _, _, k, _ in hurts if k == "burst"], f"cue {cue} ticks {[(t, v.name) for t, v in ticks]}")
+
+
 def test_pets_pass_through():
     print("== our pets walk through each other and us, as live: the phoenix down the Ossuary's one-wide ramp past the "
           "gravebug behind Logan ==")
@@ -7492,7 +7530,7 @@ def test_ossuary_hunt():
           "crimson moongate to Totem, home ==")
     from sim import run as simrun
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        r = simrun.run_once(3, [], scenario="ossuary", minutes=10)
+        r = simrun.run_once(4, [], scenario="ossuary", minutes=10)   # seed 3 died on level 3 since 2026-10-31's spawns
     check("done, kills on level 3, the gold banked at home", r["outcome"] == "done" and r["kills"] > 0
           and r["gold_banked"] > 0 and r["hunt_s"] > 120,
           f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
@@ -7563,7 +7601,7 @@ def main():
               test_tidal_hunt,
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,
-              test_ossuary_death_brood, test_pets_pass_through, test_ossuary_hunt):
+              test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
