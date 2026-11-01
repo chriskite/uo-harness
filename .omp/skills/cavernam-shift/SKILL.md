@@ -127,8 +127,8 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
   - "The creature burrows into you!": an acarid's bleed (5 ticks of ~21 on Logan, 15 s);
   - "You feel chilled!" / "*chilled*" over a pet: a frost creature's hit, no damage of its own;
   - "*warded*" over a lemura: the pets' damage reflected on them for a while;
-  - the creatures are upscaled (1.5 x hits, 1.6 x gold) while Cavernam is the week's Challenger Dungeon
-    [INFERENCE]; fights take longer and corpses are heavy with gold (the user stood at 452-482/450 stones).
+  - the creatures are upscaled (1.5 x hits, 1.6 x gold) while Cavernam is the week's Challenger Dungeon (it was
+    the week from 2026-10-30, user-confirmed; it rotates Friday nights); fights take longer and corpses are heavy with gold (the user stood at 452-482/450 stones).
 - **Watch for** Logan within 2 of AlaFlambe while a silicite fights her (the death's layout), a leave that times out
   walking to level 3's gates (2 of 48 in the simulator), and the weight on level 3.
 - **Never** `ctl wait` for Logan: it advances the Seer's shared cursors (`overseer_juncture_cursor`,

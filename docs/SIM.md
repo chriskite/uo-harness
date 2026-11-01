@@ -2804,7 +2804,7 @@ flowchart LR
 - **`upscale`** (new; `scenario.creature_spec`): hits x 1.5, gold x 1.6, and melee x 1.7 where the capture has none
   (`kb_melee_to_pet` and Logan's `player_melee_k`). Every type killed in view took 1.5 x its wiki hits; corpses held
   ~1.6 x the gold the other scenarios' do; swings on the pets were 0.76-0.95 of the wiki's mean (the Ossuary's 0.59).
-  [INFERENCE: Cavernam was the week's Challenger Dungeon.] Another week's Cavernam would have no `upscale` block.
+  Cavernam was the week's Challenger Dungeon (user 2026-10-31). Another week's Cavernam would have no `upscale` block.
 - **Barding:** `bard.capture_d` for 5 types with 3+ Discordances (E 120 and 115).
 - **Level 3 reference** (`trip`): 469 s, 10 kills, 282 damage on Logan, 23 vet uses, 3 potions, 51,979 gp lifted.
 
@@ -2847,7 +2847,7 @@ word"; level 1 with `--no-enter-via`):
 - The silicite's shards and the runner: no rule keeps Logan 3+ from the tank while a silicite casts at it.
 - Other players (21 seen, no reds) are not measured: `--others` and `--reds` are refused here.
 - Level 4 was never visited; the levels' unseen parts have no spawns.
-- The upscale holds for a Challenger week only [INFERENCE]; its factors on spell damage weren't measured.
+- The upscale holds for a Challenger week only; its factors on spell damage weren't measured.
 
 ## Player armor (2026-10-24)
 

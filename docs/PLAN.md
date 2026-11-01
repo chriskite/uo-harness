@@ -3271,7 +3271,7 @@ like the existing Maus and Tidal Tomb skills." Built from his three visits (docs
   charoite's crush and the wyrmling's and archfiend's hits have no emote, only an animation, and the runner should see
   what a player sees.
 - *`upscale` in the scenario* (hits x 1.5, gold x 1.6, the wiki's melee x 1.7): the capture's creatures were Paragon-
-  like (the Challenger Dungeon [INFERENCE]). Rejected: folding the factors into the kb (a kb_scan rerun would undo them,
+  like (the Challenger Dungeon, the user confirmed). Rejected: folding the factors into the kb (a kb_scan rerun would undo them,
   and the wiki's numbers are what a normal week has) or `gold_observed` per type (one or two corpses each).
 - *The song correction as the Mausoleum audit's rule* (numbers divided by 1 - the song): the World cuts it again.
 - *Level commands*: level 1 out by its golden gate, no `--enter-via` (`run.py --no-enter-via` for the simulator);

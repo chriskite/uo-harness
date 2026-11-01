@@ -6829,7 +6829,8 @@ scratch passes are not in the repo.
   and its corpse held 1.4-3.6 x its wiki gold value (median 1.68, against 1.0-1.1 for Tidal Tomb's and the Ossuary's
   by the same rule); their swings on the pets were 0.76-0.95 of the wiki's mean melee (the Ossuary's 0.59, Tidal
   Tomb's 0.41). The patch notes' Challenger Dungeon (knowledge #12657, #16459: one core dungeon a week upscaled like a
-  Paragon, gold recalculated) [INFERENCE: Cavernam was it for the week from Friday 2026-10-30].
+  Paragon, gold recalculated): Cavernam was it for the week from Friday 2026-10-30 (user 2026-10-31: "Cavernam is
+  indeed the Challenger dungeon").
 - **New types** (no wiki row at Cavernam): the frost daemon (its row says Wilderness), the frozen remains (Location
   "?"), the polar bear (only a Tameables page): added to `cavernam_kb.json` by hand.
 - **What killed him: a silicite's Silica Shards.** No emote: the silicite stands still and sends animation action 12
