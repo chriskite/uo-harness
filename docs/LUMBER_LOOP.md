@@ -915,21 +915,27 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      runner single-clicks each hatchet it wears or has in the backpack itself (the server's "(N uses
      remaining)" label; else the newest label on record, else its kind's full uses) and needs
      quota / 5 uses (`HATCHET_LOGS_MIN`: the fewest logs a success gave in 11 398 since 2026-10-06; mean
-     8.2). Short, at home: the most worn hatchet goes into the house chest and the house shelf
-     resupplies the loadout's hatchet, until enough or the shelf gives none (a loadout of 2+ hatchets
-     keeps the worn one and tops up anyway; user, 2026-10-08: both). The shelf out of hatchets
-     (`hatchets_from_chest`, since 2026-10-12; live 2026-10-11 the lone hatchet stayed in the chest and
-     the trip recalled out without one): the chest's hatchets come into the pack, the most uses first
-     (the newest label on record, else the kind's full uses), each read by a click once carried, until
-     the quota is covered or the chest has none; the one just put away comes back that way. Still
+     8.2). Short, at home: first the house chest's hatchets come into the pack (`hatchets_from_chest`,
+     since 2026-10-12; live 2026-10-11 the lone hatchet stayed in the chest and the trip recalled out
+     without one), the most uses first (the newest label on record, else the kind's full uses), each
+     read by a click once carried, until the quota is covered or the chest has none. Still short: more
+     from the house shelf (since 2026-10-31, user: "pull more hatchets from the shelf itself if it needs
+     more and there are none in the chest"): every carried hatchet goes into the chest, the shelf's
+     Resupply hands out the loadout's hatchets again, and the chest's best come back out until covered;
+     round after round while each gains uses (the shelf gave none: the hatchets come back and it stops).
+     Until 2026-10-31 only the most worn one was swapped and the chest was read last: with a 2000-use
+     quota, a one-hatchet loadout and fresh verite hatchets of 1875, it swapped full for full until the
+     shelf ran dry (lumber-20261031-220115-8cb4, 8 swaps). Still
      short: an attention `low_supplies` juncture (item `hatchet uses`) and the trip goes on; no hatchet
      at all: the juncture with 0 uses, the run ends at home, exit 1, no trip. A hatchet that breaks
      mid-trip hands the chopping to the next one (`hatchet()` picks among those left); a library hop
      whose quota the hatchets can't cover goes home first. The trip row's `hatchets` {need,
-     have, uses, how, swapped, from_chest}. Scenarios `hatchet_swap` (10 uses for a 100-log trip:
-     swapped for the shelf's fresh one), `hatchet_back` (the shelf has none: the worn one comes back
-     out, the trip goes short), `hatchet_chest` (the chest's spare covers the trip), `hatchet_none` (it
-     won't come back out: no trip) and `hatchet_breaks` (the worn one breaks, the spare chops on, stored).
+     have, uses, how, swapped (each hatchet put into the chest), from_chest}. Scenarios `hatchet_swap`
+     (10 uses for a 100-log trip: swapped for the shelf's fresh one), `hatchet_back` (the shelf has none:
+     the worn one comes back out, the trip goes short), `hatchet_chest` (the chest's spare covers the
+     trip, no swap), `hatchet_none` (it won't come back out: no trip) and `hatchet_breaks` (the worn one
+     breaks, the spare chops on, stored); `harness/test_lumber_hatchets.py` the rounds against the shelf
+     (the live case, a two-hatchet loadout, a quota beyond it).
   1b. **Mount** (since 2026-10-05, user; `mount_home`, `--mount on|off`, default on): at home and not
      riding, our pet within 3 tiles (the one remembered for this character, else the pet whose menu
      offers Release) gets the stock double-click (`harness/mount.py`; docs/NOTES.md "Our mount"). A

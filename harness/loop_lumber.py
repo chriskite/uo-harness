@@ -2775,36 +2775,41 @@ class LumberLoop:
 
     def hatchets_ready(self, at_home: bool):
         """Before a trip, at home (user, 2026-10-08): the hatchets we carry hold the uses the trip's quota
-        may take (uses_needed). Short and at home: the most worn one goes into the house's chest
-        and the house's shelf resupplies the loadout's hatchet (a loadout of 2+ keeps the worn one and tops
-        up anyway: resupply_home), until enough or the shelf gives none. The shelf out of hatchets: the
-        chest's hatchets come back into the pack, the one just put away among them (hatchets_from_chest;
-        live 2026-10-11 the lone hatchet stayed in the chest and the trip went out without one). Still
+        may take (uses_needed). Short and at home: first the house chest's hatchets (hatchets_from_chest),
+        then more from the house's shelf (user 2026-10-31): every carried hatchet goes into the chest, so
+        the shelf's Resupply hands out the loadout's hatchets again, and the chest's best come back out
+        while still short. Each round must gain uses, else it stops (live 2026-10-31,
+        lumber-20261031-220115-8cb4: a 2000-use quota, fresh hatchets of 1875 and a one-hatchet loadout;
+        swapping full for full without taking the parked one back emptied the shelf into the chest). Still
         short: an attention `low_supplies` juncture (item 'hatchet uses') and the trip goes on (a hatchet
         that breaks hands the chopping to the next one); none at all: Abort, no trip. The trip row's
         `hatchets`."""
         need = self.uses_needed(self.args.logs_per_trip)
         uses = self.hatchet_uses(self.state())
         rec = {"need": need, "uses": {f"0x{s:08X}": n for s, (n, _) in uses.items()},
-               "how": {f"0x{s:08X}": how for s, (_, how) in uses.items()}, "swapped": []}
-        while sum(n for n, _ in uses.values()) < need and at_home and uses and self.args.resupply != "off":
-            worn = min(uses, key=lambda s: uses[s][0])
-            it = self.item(self.link.state(), worn) or {}
-            log(f"hatchets: {sum(n for n, _ in uses.values())} uses for the {need} the trip may take; "
-                f"0x{worn:08X} ({uses[worn][0]} uses) into the chest for a fresh one from the shelf")
-            self.to_chest([(worn, it)], "hatchet")
-            rec["swapped"].append({"serial": f"0x{worn:08X}", "uses": uses[worn][0]})
-            before = set(uses) - {worn}
+               "how": {f"0x{s:08X}": how for s, (_, how) in uses.items()}, "swapped": [], "from_chest": []}
+
+        def total():
+            return sum(n for n, _ in uses.values())
+
+        def from_chest():
+            rec["from_chest"] += self.hatchets_from_chest(need, uses)
+            rec["uses"].update({f"0x{s:08X}": n for s, (n, _) in uses.items()})
+            rec["how"].update({f"0x{s:08X}": how for s, (_, how) in uses.items()})
+
+        if total() < need and at_home:
+            from_chest()
+        while total() < need and at_home and uses and self.args.resupply != "off":
+            had, st = total(), self.link.state()
+            log(f"hatchets: {had} uses for the {need} the trip may take; "
+                f"{len(uses)} hatchet(s) into the chest for the loadout's from the shelf")
+            self.to_chest([(s, self.item(st, s) or {}) for s in uses], "hatchet")
+            rec["swapped"] += [{"serial": f"0x{s:08X}", "uses": n} for s, (n, _) in uses.items()]
             self.resupply_here("home")
             uses = self.hatchet_uses(self.state())
-            rec["uses"].update({f"0x{s:08X}": n for s, (n, _) in uses.items()})
-            rec["how"].update({f"0x{s:08X}": how for s, (_, how) in uses.items()})
-            if set(uses) <= before:                     # the shelf gave none
+            from_chest()
+            if total() <= had:                          # the shelf gave none, or none better than the one put away
                 break
-        if sum(n for n, _ in uses.values()) < need and at_home:     # the shelf has none (or we carry none)
-            rec["from_chest"] = self.hatchets_from_chest(need, uses)
-            rec["uses"].update({f"0x{s:08X}": n for s, (n, _) in uses.items()})
-            rec["how"].update({f"0x{s:08X}": how for s, (_, how) in uses.items()})
         have = sum(n for n, _ in uses.values())
         rec["have"] = have
         self.pre_stats["hatchets"] = rec
@@ -2854,8 +2859,8 @@ class LumberLoop:
             est, s = max(spares)
             tried.add(s)
             pack = self.backpack(st)
-            log(f"hatchets: {sum(n for n, _ in uses.values())} uses for the {need} the trip may take, the shelf "
-                f"has none: 0x{s:08X} (~{est} uses) out of the {name}")
+            log(f"hatchets: {sum(n for n, _ in uses.values())} uses for the {need} the trip may take: "
+                f"0x{s:08X} (~{est} uses) out of the {name}")
             self.human.wait("use")
             self.link.act(actions.lift(s, 1))
             self.human.wait("drag")

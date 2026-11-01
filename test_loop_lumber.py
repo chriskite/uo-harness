@@ -2886,7 +2886,7 @@ async def hatchet_back():
 
 
 async def hatchet_chest():
-    """The shelf out of hatchets, a spare in the house chest: after the worn one went in for nothing, the chest's
+    """The shelf out of hatchets, a spare in the house chest: the chest is read first (since 2026-10-31), its
     hatchets come into the pack, the most uses first, until the trip's quota is covered; the trip chops and stores."""
     print("\n== hatchet chest: the shelf has none -> a spare from the chest covers the trip ==")
     world = World("library")

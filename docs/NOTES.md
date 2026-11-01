@@ -2458,6 +2458,17 @@ ground items from a replay of `logs/session_20261011_124101` (`replay.timed_pack
   for the field's delete for up to `FIELD_GONE_WAIT_S` (1 s) and replans. Without a dispel callable, or
   when it returns False, the walk fails "no route" as before. test_mover.py checks both.
 
+## Hatchet shelf loop (live 2026-10-31 22:01, lumber-20261031-220115-8cb4)
+
+- The plan's grove-bound trip asked 10 000 logs = 2000 hatchet uses (`HATCHET_LOGS_MIN` 5). Dan's loadout
+  held one hatchet; a fresh exceptional verite one reads "(1875 uses remaining)" (hatchets.json's table
+  says 1625 for exceptional verite: the label is what counts). `hatchets_ready` put the "most worn" (full)
+  one in the paragon chest, Resupply gave another full one, still 1875 < 2000: 8 rounds in 50 s until the
+  shelf was empty, then the chest's best came back. The user paused the gate; the Seer stopped the run.
+- Fixed the same evening: the chest first, then rounds against the shelf that park every carried hatchet
+  so Resupply hands out the whole loadout again, take the chest's best back, and stop when a round gains
+  nothing (LUMBER_LOOP §13 "Trip" 1a'). The user raised Dan's loadout to 2 verite hatchets (3750 uses).
+
 ## Seer-24 shift: a hatchetless trip, an empty guild shelf (live 2026-10-11 17:20–23:30)
 
 Nine runs, 23,337 boards, no deaths. The first live day of the guard flight (af2f4b0): every spot's
