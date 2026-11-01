@@ -910,6 +910,11 @@ Paste this (or point the session at this section) to start an overseer.
    reports mid-shift with `write agent://Main` and keeps the shift (Logan safe, no new run) until the
    parent says the fix is in; the parent never runs `ctl wait` for Logan (it would advance the Seer's
    cursors) nor acts while the Seer runs.
+   **Lumber shifts with a fixer** (since 2026-11-01, user): `/skill:lumber-shift`
+   (`.omp/skills/lumber-shift/SKILL.md`) does the same for Outland Dan's lumber loops: it checks his runebook
+   ("DTF Loot Chest", "Logan's House") and `ctl lumber plan` before dispatch, maps the user's shift instructions
+   (exploit, keep off a spot, runner flags, a stop time) into the Seer's task, and the parent never runs `ctl
+   lumber plan` while the Seer does (the plan posts an `action` chat row). `/skill:mining-shift` is its mining twin.
 3. Talk to it through the viz chat (or directly in omp), or from your phone once the Telegram
    bridge runs (§8). Pause/kill in the viz still stop the agent at the proxy regardless of the
    overseer.
