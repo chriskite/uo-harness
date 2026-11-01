@@ -1306,9 +1306,18 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
   when someone polls, so the rejection above (a thread running every minute with nobody watching)
   still holds. Also `lumber_opt.area_dist` on a forest now bisects each row of cells instead of
   scanning every cell: same distances (checked on 39 200 points around the 98 forest spots), the
-  landing search 1.8 s → 0.7 s, the plan 7.0 s → 5.4 s. Not done: making the draws cheaper
-  (pure-Python `best_q`/`trip_terms`); numpy across draws would change the seeded stream the
-  `ctl lumber plan` tests pin.
+  landing search 1.8 s → 0.7 s, the plan 7.0 s → 5.4 s.
+- **The P(best) draws run in numpy** (same day, user decision after the trial). `lumber_opt._wins_np`
+  draws each eligible spot's 2000 posterior samples at once (`_values_np`, a numpy Generator seeded
+  from the plan's `random.Random`) and values them with `_rate_np`, `trip_terms`' formulas over
+  arrays; the scalar `value()` loop is gone (it still draws the one Thompson `sample` for the pick).
+  Live store: the draws 3.6 s → 0.24 s, the whole plan 5.4 s → 1.8 s. Fed the same draws, the
+  values are bit-identical to `_draw`/`capacity_logs`/`_value` (258 000 draws over the 86 eligible
+  spots, max relative difference 0.0); P(best) per spot differs from the scalar loop's by ≤ 0.013,
+  within the 0.014 between two scalar seeds. The seeded tests needed no change: none pins the
+  stream, only outcomes. Cost: `trip_terms` exists twice (scalar for `best_q`, `run_for`,
+  `hop_choice`), so `test_lumber_opt` `test_vector_draws` replays recorded numpy draws through the
+  scalar path and fails when the two copies diverge.
 
 ## Leave on faction tags and on precasts (decided and built offline 2026-10-06)
 

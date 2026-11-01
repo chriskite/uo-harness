@@ -356,7 +356,7 @@ not per poll). **GETs never create the store**; the first `POST /api/chat` does.
   `jobs.mining_plan` (both below) at the server's clock over all history, `plan` null without a store
   (which it never creates); any other `job` is **400**. Recomputed once per wall-clock minute (its
   seed) per job and shared by every caller. It has its own `Memory` connection and lock, so its
-  seconds of Monte Carlo (~3.4 s on the 2026-10-05 store, ~5.5 s on the 2026-10-31 one, against 10–40 ms
+  seconds of Monte Carlo (~3.4 s on the 2026-10-05 store, ~1.8 s on the 2026-10-31 one with the draws in numpy, against 10–40 ms
   for the ranged analytics) never hold up `/api/jobs`, `/api/overseer` or the chat (2026-10-05, user
   request: the page waited for the plan before showing anything). Stale-while-revalidate (2026-10-31,
   user report: the Lumber job pane got slower and slower to load): once a job has a plan, a request

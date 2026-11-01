@@ -235,7 +235,7 @@ class OverseerDB:
         self.jobs_cache = {}
         self.plan_lock = threading.Lock()   # plan_mem and the computations, one at a time
         self.plan_mem = None
-        self.plan_cache = {}       # {job: (minute, body)}: lumber ~5.5 s to compute on the 2026-10-31 store
+        self.plan_cache = {}       # {job: (minute, body)}: lumber ~1.8 s to compute on the 2026-10-31 store
         self.plan_refresh = set()  # jobs whose stale plan is being recomputed in the background
         self.plan_state = threading.Lock()  # plan_cache and plan_refresh
         self.fos_cache = None      # (monotonic, body) of fos_reapers

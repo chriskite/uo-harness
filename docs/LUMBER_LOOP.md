@@ -505,7 +505,7 @@ patches show up within weeks):
   sighting), h_D, h_S, h_T), the best wins. No spot pays travel beyond its overhead (since
   2026-10-04 every trip starts at home; the learned moves between spots and `travel_min` are gone).
   `plan` reports P(best) per spot from
-  2 000 draws (the draws search every other grid point), `mode: explore` when the pick isn't the
+  2 000 draws (the draws search every other grid point; all of a spot's at once in numpy, `_wins_np`), `mode: explore` when the pick isn't the
   best by posterior mean, and the runner command (`--spot`, `--trips`, `--logs-per-trip` Q*,
   `--regrow-min`, `--timeout`, `--hatchet`). Per spot it reports `deaths_per_h`, `sent_home_per_h`,
   `thefts_per_h`, `p_death_trip` and `loss_logs_trip` (logs lost to death and thieves plus the gear

@@ -996,13 +996,71 @@ def test_drift_and_lps_projection():
           abs(lo.lps_estimate(steep, NOW) - m2 * (1 + lo.LPS_PROJECT_MAX)) < 1e-9)
 
 
+def test_vector_draws():
+    print("== P(best)'s numpy draws value each draw as the scalar _draw/capacity_logs/_value would ==")
+    import numpy as np
+
+    class Recorded:
+        """A numpy Generator that keeps what each call drew, in call order."""
+        def __init__(self, seed):
+            self.gen, self.calls = np.random.default_rng(seed), []
+
+        def _keep(self, name, *a):
+            out = getattr(self.gen, name)(*a)
+            self.calls.append(np.atleast_1d(np.asarray(out, dtype=float)))
+            return out
+
+        def gamma(self, *a):
+            return self._keep("gamma", *a)
+
+        def normal(self, *a):
+            return self._keep("normal", *a)
+
+        def beta(self, *a):
+            return self._keep("beta", *a)
+
+    class Replay:
+        """random.Random's draws for draw i: the i-th value of each recorded call (a gamma with
+        a shape <= 0 draws nothing, scalar or vector)."""
+        def __init__(self, calls, i):
+            self.vals = iter(float(c[i]) for c in calls if c.size)
+
+        def gammavariate(self, *_):
+            return next(self.vals)
+
+        gauss = betavariate = gammavariate
+
+    base = {"alpha": 40.0, "beta": 0.02, "overhead_s": 400.0, "overhead_sd_s": 120.0, "pvp": True,
+            "sight_a": 1.5, "sight_b": 4.0, "died_w": 0.5, "exposure": 6.0, "home_p_a": 0.8, "home_m_a": 0.6,
+            "home_b": 5.0, "theft_a": 0.3, "theft_b": 8.0, "cap": None, "pre_s": 90.0, "cost_logs": 12.0}
+    pooled = {"tod": {"death": 1.2, "home_p": 0.9, "home_m": 1.1}, "death": (2.0, 5.0), "creature": 0.02, "f": 0.4}
+    calm = {**pooled, "creature": 0.0}
+    cases = [("pvp, every hazard, no capacity model", base, pooled),
+             ("a grove that binds Q mid-grid", {**base, "cap": {"avail": 60, "a": 3.0, "b": 2.0}}, pooled),
+             ("a grove under Q_MIN (Q = what it holds)", {**base, "cap": {"avail": 8, "a": 3.0, "b": 2.0}}, pooled),
+             ("no hazard at all (h 0, no theft)", {**base, "pvp": False, "died_w": 0.0, "home_p_a": 0.0,
+                                                   "home_m_a": 0.0, "theft_a": 0.0}, calm)]
+    n = 400
+    for name, m, pl in cases:
+        gen = Recorded(5)
+        vec = lo._values_np(np, gen, m, pl, n, 30.0, 3000, 19.0, 0.4)
+        worst = 0.0
+        for i in range(n):
+            rr = Replay(gen.calls, i)
+            want = lo._value(*lo._draw(m, pl, rr), 30.0, m["cost_logs"], 3000,
+                             cap_logs=lo.capacity_logs(m["cap"], 19.0, rr), recovery_h=0.4,
+                             t_in=m["pre_s"] / 3600.0)[0]
+            worst = max(worst, abs(vec[i] - want) / max(1e-9, abs(want)))
+        check(f"{name}: the same values", worst < 1e-9, worst)
+
+
 if __name__ == "__main__":
     for fn in (test_explore_exploit, test_greedy_command, test_skill_rescaling, test_trip_size, test_hazard_evidence,
                test_gear_and_capacity, test_eligibility, test_regrowth, test_hatchets, test_spots_store,
                test_failed_places, test_landings, test_home_and_trips, test_libraries, test_discover_witcher,
                test_travel_costs, test_capacity, test_forest_spots, test_library_hops, test_no_go,
                test_character_drift, test_capacity_from_dry_trips, test_stand_regrowth, test_exposure_and_recovery,
-               test_hazard_kinds_and_time_of_day, test_drift_and_lps_projection):
+               test_hazard_kinds_and_time_of_day, test_drift_and_lps_projection, test_vector_draws):
         fn()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)

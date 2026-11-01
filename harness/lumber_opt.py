@@ -1300,6 +1300,81 @@ def _value(lam, t_h, hz, gear_logs, cost_logs=0.0, q_cap=Q_MAX, refine=False, ca
     return v, q, bound
 
 
+def _rate_np(np, q, lam, t_h, hd, hs, ht, f, t_in, gear_logs, cost_logs, recovery_h):
+    """net_rate over numpy arrays that broadcast: trip_terms' formulas with load0 0, kept in
+    step with it (test_lumber_opt test_vector_draws checks them draw for draw)."""
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        tf = q / lam
+        h, k = hd + hs, ht * f
+
+        def e1(a, x):
+            ax = a * x
+            return np.where(ax < 1e-12, x, -np.expm1(-ax) / a)
+
+        stay = e1(h, tf)
+        hx = h * tf
+        e2 = np.where(hx < 1e-4, tf * tf * (0.5 - hx / 3.0 + hx * hx / 8.0),
+                      (-np.expm1(-hx) - hx * np.exp(-hx)) / (h * h))
+        no_theft = k * tf < 1e-9
+        load_tf = np.where(no_theft, q, lam * e1(k, tf))
+        load_int = np.where(no_theft, lam * e2, lam * (stay - e1(h + k, tf)) / k)
+        s = np.exp(-h * t_in)
+        p_in_death = np.where(h > 0, hd / h * (1.0 - s), 0.0)
+        stored = s * (np.exp(-h * tf) * load_tf + hs * load_int)
+        p_death = p_in_death + s * hd * stay
+        return (stored - cost_logs - gear_logs * p_death) / (t_h + s * stay + recovery_h * p_death)
+
+
+def _values_np(np, gen, m, pooled, n, gear_logs, q_cap, lpt, recovery_h):
+    """n posterior draws of _value(*_draw(m, pooled, rng), refine=False, cap_logs=capacity_logs(.., rng))[0]."""
+    tod = pooled["tod"]
+
+    def gamma(a, b):
+        a = np.broadcast_to(np.asarray(a, dtype=float), (n,))
+        pos = a > 0
+        out = np.zeros(n)
+        out[pos] = gen.gamma(a[pos], 1.0 / b)
+        return out
+    lam = gen.gamma(m["alpha"], 1.0 / m["beta"], n)
+    t_h = np.maximum(10.0, gen.normal(m["overhead_s"], m["overhead_sd_s"], n)) / 3600.0
+    sight = gamma(m["sight_a"], m["sight_b"]) if m["pvp"] else np.zeros(n)
+    p_pk = gen.beta(*pooled["death"], n)
+    m0 = (sight * p_pk if m["pvp"] else 0.0) + pooled["creature"]
+    hd = gamma(DEATH_SHRINK_H * m0 + m["died_w"], DEATH_SHRINK_H + m["exposure"]) * tod["death"]
+    hs = gamma(m["home_p_a"], m["home_b"]) * tod["home_p"] + gamma(m["home_m_a"], m["home_b"]) * tod["home_m"]
+    ht = gamma(m["theft_a"], m["theft_b"])
+    f = pooled["f"]
+    hi = np.full(n, float(min(Q_MAX, q_cap)))
+    if m["cap"] is not None:
+        hi = np.minimum(hi, m["cap"]["avail"] * gen.beta(m["cap"]["a"], m["cap"]["b"], n) * lpt)
+    grid = np.asarray(Q_GRID[::2], dtype=float)
+    cols = lambda a: a[:, None]                                       # noqa: E731
+    args = (cols(lam), cols(t_h), cols(hd), cols(hs), cols(ht), f, m["pre_s"] / 3600.0, gear_logs,
+            m["cost_logs"], recovery_h)
+    qs = np.concatenate([np.broadcast_to(grid, (n, grid.size)), cols(np.floor(hi))], axis=1)
+    vals = _rate_np(np, qs, *args)
+    vals[:, :-1][grid[None, :] >= cols(hi)] = -np.inf               # best_q: grid points below hi, then int(hi)
+    best = vals[np.arange(n), np.argmax(vals, axis=1)]
+    low = hi <= Q_MIN                                                 # best_q: max(1, int(hi))
+    if low.any():
+        ql = np.maximum(1.0, np.floor(hi[low]))
+        best[low] = _rate_np(np, ql, lam[low], t_h[low], hd[low], hs[low], ht[low], f, m["pre_s"] / 3600.0,
+                             gear_logs, m["cost_logs"], recovery_h)
+    return best
+
+
+def _wins_np(models, eligible, pooled, rng, draws, gear_logs, q_cap, lpt, recovery_h) -> dict:
+    """{sid: the draws in which it had the highest value}: Thompson sampling for P(best), each
+    spot's draws of _value(*_draw(m, pooled, rng), cap_logs=capacity_logs(m["cap"], lpt, rng))
+    at once with numpy (_values_np), seeded from rng (2026-10-31: 3.6 s -> 0.24 s on the live store)."""
+    import numpy as np
+    gen = np.random.default_rng(rng.getrandbits(64))
+    vals = np.stack([_values_np(np, gen, models[sid], pooled, draws, gear_logs, q_cap, lpt, recovery_h)
+                     for sid in eligible])
+    counts = np.bincount(np.argmax(vals, axis=0), minlength=len(eligible))
+    return {sid: int(c) for sid, c in zip(eligible, counts)}
+
+
 def no_go(facet, p) -> str | None:
     """Why (x, y) on `facet` lies in a NO_GO_AREAS area, or None."""
     return next((why for f, c, r, why in NO_GO_AREAS if f == (facet or 0) and cheb(p, c) <= r), None)
@@ -1689,10 +1764,7 @@ def plan(spots: dict, episodes: list, sightings: list, deaths: list, regrow: dic
                       cap_logs=capacity_logs(mm["cap"], lpt, rng), recovery_h=recovery["h"],
                       t_in=mm["pre_s"] / 3600.0)[0]
 
-    wins = {sid: 0 for sid in eligible}
-    for _ in range(draws):
-        vals = {sid: value(sid) for sid in eligible}
-        wins[max(vals, key=vals.get)] += 1
+    wins = _wins_np(models, eligible, pooled, rng, draws, gear_logs, q_cap, lpt, recovery["h"])
     for r in out["spots"]:
         r["p_best"] = round(wins.get(r["id"], 0) / draws, 3) if r["eligible"] else 0.0
     sample = {sid: value(sid) for sid in eligible}
