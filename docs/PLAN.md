@@ -1326,8 +1326,10 @@ as the store grows. Built (docs/VISUALIZER.md §2.4, docs/MEMORY.md "Indexes for
   reads them without fetching or parsing their JSON, and events find their trip by a sweep instead
   of scanning every trip (O(E·T) → O((E+T) log T)): 1.0 s → 0.29 s, 12.2 → 5.0 MB, everything else in
   the answer identical. The user also had the dashboards' trips-and-events strips deleted (the
-  overlapping grey dots weren't worth keeping). Left: 2 MB of the 5 is `flee` events' `threats` lists
-  (~70 KB each), which no dashboard shows.
+  overlapping grey dots weren't worth keeping). Then (user: "trim it out") the threat snapshot a flee or
+  death stores (`threats`, every mobile in view, ~70 KB a flee) leaves every dashboard's `events` too
+  (`jobs.TIMELINE_DROP_KEYS`, one `jobs.timeline` builder for the three jobs): lumber 5.0 → 3.4 MB,
+  mining 1.4 → 1.0 MB; nothing showed it. The hunt answer (3.2 MB) is mostly its `fight` events.
 
 ## Leave on faction tags and on precasts (decided and built offline 2026-10-06)
 

@@ -590,7 +590,9 @@ self-optimizing loop uses, docs/LUMBER_LOOP.md §6).**
     as mining's stands and smelts and the hunt's kills and loot) and only counts them in each trip's
     `events` (the "harvest N" badge), reading them without their data (`Memory.job_events`
     `bare_kinds`). 2026-10-31, user request after the all-time analytics had grown to 1–2.5 s and
-    12 MB (17k of 21k events were stands): 0.29 s and 5 MB on the live store. The trips-and-events
+    12 MB (17k of 21k events were stands): 0.29 s and 5 MB on the live store; with the threat snapshots
+    of flees and deaths (`threats`) dropped from every dashboard's `events` (`jobs.TIMELINE_DROP_KEYS`),
+    3.4 MB. The trips-and-events
     strip that stood above the list on all three dashboards (since 2026-10-06; trips as spans, events
     as coloured dots) is gone (user, same day: overlapping grey dots, not worth keeping).
   - **Hover explanations (2026-10-06, user request):** every non-obvious term on the lumber

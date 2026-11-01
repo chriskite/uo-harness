@@ -58,6 +58,9 @@ HARVEST_OUTCOMES = ("success", "fail", "depleted", "unreachable", "not_tree", "n
 # one event per Smart Harvest stand (17k of the 21k lumber events on 2026-10-31): counted in each trip's
 # `events`, left out of the response's timeline (11 MB of a 12 MB answer), as mining's MINING_PER_STAND_KINDS
 LUMBER_PER_STAND_KINDS = ("stand",)
+# event data the dashboards' timelines never show: the threat snapshot a flee or death stores (every
+# creature and player in view, ~70 KB a flee; 2 of the lumber answer's 5 MB on 2026-10-31)
+TIMELINE_DROP_KEYS = ("threats",)
 
 
 # ------------------------------------------------------------------ inputs
@@ -153,6 +156,14 @@ def theft_loss(data: dict) -> tuple[int, dict]:
     amount = data.get("amount")
     amount = int(amount) if isinstance(amount, (int, float)) and not isinstance(amount, bool) else sum(items.values())
     return amount, items
+
+
+def timeline(evs: list[dict], skip_kinds=()) -> list[dict]:
+    """The response's `events`: every event but `skip_kinds` (the per-stand / per-kill ones), its
+    data without TIMELINE_DROP_KEYS."""
+    return [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"), "x": e.get("x"),
+             "y": e.get("y"), "data": {k: v for k, v in e["data"].items() if k not in TIMELINE_DROP_KEYS}}
+            for e in evs if e["kind"] not in skip_kinds]
 
 
 # ------------------------------------------------------------------ folding
@@ -379,9 +390,7 @@ def compute(episodes: list[dict], events: list[dict], attempts: list[tuple] | No
         "totals": totals,
         "days": [{"day": d, **_finish(a)} for d, a in sorted(days.items())],
         "rolling": rolling_series(trips, window_s),
-        "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
-                    "x": e.get("x"), "y": e.get("y"), "data": e["data"]}
-                   for e in evs if e["kind"] not in LUMBER_PER_STAND_KINDS],
+        "events": timeline(evs, LUMBER_PER_STAND_KINDS),
         "woods": wood_rows,
         "harvest": harvest,
         "travel": travel_stats(evs),
@@ -798,9 +807,7 @@ def compute_hunt(episodes: list[dict], events: list[dict], since: float = 0.0, u
         "days": day_rows,
         "rolling": hunt_rolling(visits, window_s),
         "monsters": monster_rows,
-        "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
-                    "x": e.get("x"), "y": e.get("y"), "data": e["data"]}
-                   for e in evs if e["kind"] not in HUNT_PER_KILL_KINDS],
+        "events": timeline(evs, HUNT_PER_KILL_KINDS),
     }
 
 
@@ -993,9 +1000,7 @@ def compute_mining(episodes: list[dict], events: list[dict], since: float = 0.0,
                   for sid, a in sorted(spots.items(), key=lambda kv: (-kv[1]["ore"], kv[0]))],
         "open_leg": {"since": last_end, "stands": sum(e["kind"] == "stand" for e in tail),
                      "smelts": len(smelted), "ingots_made": int(sum(_num(d.get("ingots")) for d in smelted))},
-        "events": [{"id": e.get("id"), "t": e["t"], "kind": e["kind"], "facet": e.get("facet"),
-                    "x": e.get("x"), "y": e.get("y"), "data": e["data"]}
-                   for e in evs if e["kind"] not in MINING_PER_STAND_KINDS],
+        "events": timeline(evs, MINING_PER_STAND_KINDS),
     }
 
 

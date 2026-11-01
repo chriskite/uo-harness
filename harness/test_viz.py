@@ -197,7 +197,7 @@ def seed_jobs(m: memory.Memory):
     m.job_event("lumber", "theft", {"amount": 5}, t=DAY + 200)
     m.job_event("lumber", "pk_seen", {"name": "Bob"}, t=1400.0)
     m.job_event("lumber", "pk_seen", {}, t=DAY + 300)
-    m.job_event("lumber", "flee", {"reason": "pk"}, t=1450.0)
+    m.job_event("lumber", "flee", {"reason": "pk", "threats": {"mobiles": [{"name": "Bob", "notoriety": 6}]}}, t=1450.0)
     m.job_event("lumber", "stand", {"stand": [100, 200], "logs": 9, "end": "quota"}, t=2000.0)
     m.job_event("mining", "death", {"cause": "pk"}, t=1600.0)
     for i, (outcome, amount) in enumerate([("success", 5), ("success", 6), ("fail", 0), ("success", 7),
@@ -311,6 +311,9 @@ def test_jobs():
     check("timeline: 8 lumber events in time order, no per-stand rows",
           [e["kind"] for e in a["events"]] == ["pk_seen", "flee", "death", "death", "theft", "death", "theft", "pk_seen"],
           str([e["kind"] for e in a["events"]]))
+    check("timeline data without the threat snapshot (TIMELINE_DROP_KEYS); the rest kept",
+          [e["data"] for e in a["events"] if e["kind"] == "flee"] == [{"reason": "pk"}],
+          str([e["data"] for e in a["events"] if e["kind"] == "flee"]))
     check("wood rows: ordinary priced, goldenwood known without a value",
           [(w["name"], w["logs"], w["total_gp"]) for w in a["woods"]] == [("goldenwood", 10, None), ("ordinary", 20, 190.0)],
           str(a["woods"]))
