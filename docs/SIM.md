@@ -2550,6 +2550,35 @@ capture and nine more: three things were wrong, so the simulator came first.
 - **Not modelled:** the giants' volleys apart from their single numbers; the steady 17-35 on AlaFlambe every 1.5-2 s
   with no effect seen (NOTES); a wandering monster's drift (the shellpod came from (6885, 2001) on its own).
 
+### Tidal Tomb: dead after a loot walk (2026-10-31)
+
+Live 19:15:40 Logan died on level 2 after a loot walk away from the pets (docs/NOTES.md "Tidal Tomb level 2: dead after
+a loot walk away from the pets"). Runner only; the simulator as at 308aca5. A `sim/fight1805.py` case of the 19:14:46
+layout reproduced neither the walk nor a death on 308aca5 (seeds 1-24, 0 -> 0) and was not kept.
+
+- **Level 2 batches** (`--scenario tidal_tomb --area 6815 1907 6969 2100 --team phoenix_incubus --runs 96 [--seed 97]
+  -- --enter-via 6718 1984 --leave-gate 6913 2071 --vet-range 5 --crawl-learn-s 180`, each variant a copy of the tree
+  with run.py run from it). A: the per-tile check in the loot tile only; B (kept): A + the to_pet detour bound. The
+  per-tile check everywhere (cover, spacing, vet tile, to_pet's hold; seeds 1-96): 20 with the bound, 19 without.
+
+  | seeds | runner | runs with a death | runs with a pet death | damage on Logan / h | banked / h |
+  |---|---|---|---|---|---|
+  | 1-96 | 308aca5 | 14 | 49 | 1,136 | 128,674 |
+  | 1-96 | A | 17 | 54 | 1,173 | 123,208 |
+  | 1-96 | **B** | 16 | 56 | 1,100 | 131,376 |
+  | 97-192 | 308aca5 | 23 | 52 | 1,209 | 119,966 |
+  | 97-192 | A | 19 | 61 | 1,293 | 108,552 |
+  | 97-192 | **B** | **16** | 49 | 1,113 | 120,516 |
+  | 1-192 | 308aca5 / A / **B** | 37 / 36 / **32** | 101 / 115 / 105 | | |
+
+  The runs that die hardly overlap between runners (seeds 1-96: 308aca5 and B share 4 of 14 and 16), so a gap of a
+  few is noise [INFERENCE: the careers' shared memory spreads any change through every later run]. In B's seeds 97-192
+  the bound refused no walk (no "to a hurt pet: no route within"); "lies in the shot of the awake" 536 lines against 479.
+- **Level 1** (`--scenario tidal_tomb --runs 24`): runs with a death 0 -> 0, banked an hour 118,465 -> 118,451, damage
+  on Logan an hour 393 -> 405.
+- **Tests:** `test_loot_tile_zoa_per_tile` (the 19:14:46 tiles: no loot tile; 308aca5 a tile 3 from the zoa),
+  `test_to_pet_detour` (a 60-step way to AlaFlambe 11 off is not walked; 308aca5 19 moves west along it).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

@@ -3207,6 +3207,22 @@ back beside the shellpod (docs/NOTES.md "Tidal Tomb level 2: dead between two zo
   with the live team: runs with a death 19 -> 14, pet deaths 194 -> 111, damage on Logan an hour 1,279 -> 1,136,
   banked an hour 126,504 -> 128,674; 48 runs with the scenario's team: 5 -> 5, pet deaths 7 -> 1; level 1 unchanged.
 
+## The loot tile judges the pets-side exemption per tile; no detour walk to a hurt pet (Logan dead on Tidal Tomb level 2, live 2026-10-31 19:15:40)
+
+308aca5's `shy_on_us` was judged from where Logan stood, so a loot tile 3 from a combustive zoa fighting the pets
+counted out of its shot; the loot walk left the pets, the walk back planned 156 steps round the zoa's reach and went
+18 moves away, the V* leave went without them, and they and then he died (docs/NOTES.md "Tidal Tomb level 2: dead after
+a loot walk away from the pets").
+
+- *Decided:* the exemption per candidate tile in the loot tile only (`Team.on_us_at`); the walk to a hurt pet bounded
+  (`max_route` 2 x distance + `TO_PET_DETOUR_STEPS` 10).
+- *Rejected:* the per-tile check everywhere (cover, spacing, vet tile, to_pet's hold): level 2 runs with a death 14 ->
+  20 of 96 with the bound, 19 without.
+- *Not done:* a loot walk refused when the way back to the pets is long (the per-tile shot already refuses the live
+  one); the V* leave waiting for or fetching pets out of view; `rejoin`'s unbounded walk.
+- *Evidence* (docs/SIM.md "Tidal Tomb: dead after a loot walk"): level 2, 192 runs with the live team, runs with a death
+  37 -> 32 (seeds 1-96 14 -> 16, 97-192 23 -> 16); the loot-only check without the bound 36; level 1 unchanged.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -7798,6 +7798,42 @@ session_20261031_170158 decoded with `replay.timed_packets` -> `WorldRuntime` (0
   1-24: deaths 9 -> 0 (HEAD's runner on the old simulator: 0, it didn't reproduce the death); level 2, 96 runs with
   the live team: runs with a death 19 -> 14, pet deaths 194 -> 111.
 
+## Tidal Tomb level 2: dead after a loot walk away from the pets (live 2026-10-31 19:15:40, hunt-20261031-184304-5745)
+
+The first run with 308aca5. Task log lines 2748-2796; capture session_20261031_170158 (it ran on to 19:16:29), decoded
+as for the 18:05 death. Pets Bussin and AlaFlambe at (6892, 2018) on a biolumen shellpod 0x00260616 and a scourgeon
+0x002605D6; an awake combustive zoa 0x0026041F at (6880, 2018), 12 off them.
+
+- **19:14:42** "not looting a soulcatcher yet: the corpse at (6879, 2019) lies in the shot of the awake combustive zoa"
+  (Logan at (6892, 2017), 12 from the zoa, as near it as the pets). **19:14:46** from (6893, 2012), 13 from it, "to
+  the corpse: looting from (6877, 2018)": 16 steps to a tile 3 from the zoa. **Cause in 308aca5:** `Team._reach_tile`
+  (the loot and vet tiles' chooser) took `shy_on_us`, judged from where Logan stood: one tile farther from the zoa
+  than the pets, the zoa counted "on the pets" for every candidate tile, the tile beside it too.
+- **19:14:53** "vet supplies: too far from every pet", "to a hurt pet: (6893, 2014) ... route 156 steps": the Mover's
+  soft zone round the awake zoa's reach ("crawl: keeping out of the reach of the awake combustive zoa") made the way
+  back from inside it a detour round the room [INFERENCE: from the route length and the walk's line; the planner's
+  costs not replayed]. Its 18 moves (`max_moves` VIEW_RANGE) went west to (6861, 2025), 31 from the pets.
+- **19:14:58** LEAVING by V* (22,186 gp carried); "waiting for the pets (Bussin out of view)" 20 s; going on. The pets,
+  out of view, unvetted for 45 s: AlaFlambe 85 % and Bussin 91 % at 19:14:46; numbers on both every 1-2 s (the
+  shellpod and scourgeon beside them), the scorch's pairs on both (19:15:07 -51/-55, 19:15:14 -58/-58); AlaFlambe's
+  ghost beside Logan by 19:15:20, Bussin's last number 19:15:24.8 (killed by the shellpod, the scourgeon and the
+  combustive zoa [INFERENCE: no death packet in view]).
+- **Logan, 100 -> 0 in 8.5 s from 19:15:31** (back past the fight on the way to the gate, the pets' ghosts): the
+  combustive zoa's bolt at him -36 (0x36D4 hue 1590, 19:15:30.8), potion +33, the shellpod's barrage -20/-21 (32.8),
+  the zoa's fire column -35 (0x3709 hue 1590 on him, 34.1), the scourgeon's swing -23 (39.8, after the world save's
+  freeze 36.1-39.2). With no pet alive, every monster there took him.
+- **First fix tried, not kept:** the exemption judged per tile everywhere (cover, spacing, vet and loot tiles, to_pet's
+  hold) plus the to_pet detour bound: level 2, 96 runs, runs with a death 14 -> 20 (the per-tile check alone: 19).
+- **Fix:** the per-tile check only in the loot tile (`_reach_tile(per_tile=True)` from `loot_tile`, `Team.on_us_at` /
+  `pets_war`: an AT_PETS monster is out of a tile's shot only when a pet of ours in war mode stands nearer it than that
+  tile); cover, spacing, the vet tile and to_pet's hold stay judged from where Logan stands. `to_pet` refuses a route
+  longer than twice the pet's distance + `TO_PET_DETOUR_STEPS` 10 ("walk to AlaFlambe: to a hurt pet: no route within
+  N steps from ... (a longer detour, if any)"). test_sim `test_loot_tile_zoa_per_tile` (308aca5: a tile 3 from the
+  zoa) and `test_to_pet_detour` (308aca5: 19 moves west along a 60-step way). Numbers in docs/SIM.md "Tidal Tomb: dead
+  after a loot walk". Not changed: the V* leave going without the pets, `rejoin`'s walk (no route bound).
+- **Replay:** a `sim/fight1805.py` case of this layout reproduced neither the loot walk nor a death on 308aca5 (the
+  simulator's pets kill the shellpod and scourgeon; a fresh run carries too little for the V* leave); not kept.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

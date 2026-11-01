@@ -941,6 +941,16 @@ out of it") kept Logan 11 off while AlaFlambe went 90 -> 19 % unvetted; a wander
 there, the walk in at 13 % met the zoa's volley (-36) and cover walked him back beside the shellpod (-39): dead.
 `sim/fight1805.py` (seeds 1-24): deaths 9 -> 0; level 2 (96 runs, the live team): runs with a death 19 -> 14, pet
 deaths 194 -> 111 (docs/SIM.md "Tidal Tomb: dead between two zoas"); test_sim `test_zoa_on_pets_vet`.
+The loot tile judges it per tile (`Team.on_us_at`, `_reach_tile(per_tile=True)`, since 2026-10-31 evening): for a
+loot tile the exemption holds only when a pet of ours in war mode stands nearer the monster than that tile, so a tile
+beside it is in its shot again; cover, spacing, the vet tile and the hold above stay judged from where Logan stands
+(per tile there too cost level-2 deaths, 14 -> 19 of 96). Live 19:14:46 (hunt-20261031-184304-5745), judged from where
+Logan stood (one tile farther from a combustive zoa than the pets), a loot tile 3 from it counted out of its shot; the
+loot walk left the pets and they and then he died (docs/NOTES.md "Tidal Tomb level 2: dead after a loot walk away from
+the pets"); test_sim `test_loot_tile_zoa_per_tile`. **The walk to a hurt pet refuses a detour** (`TO_PET_DETOUR_STEPS`
+10): a route longer than twice the pet's distance + 10 is not walked ("walk to AlaFlambe: to a hurt pet: no route
+within N steps from ... (a longer detour, if any)"); live that walk's "route 156 steps" took 18 moves away from the
+pets; test_sim `test_to_pet_detour`.
 **A monster beside us that the pets aren't fighting is the target** (`HuntLoop.pick_target`, `loop_hunt.LOOSE_R` 1, since
 2026-10-29): a monster within 1 attacking us that no pet has hurt lately, while the current target isn't on us, takes
 the target over, logged "a razorfin 0x... on us and the pets on 0x...: it is the target now". `Team.fight` then says

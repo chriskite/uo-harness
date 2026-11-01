@@ -5745,6 +5745,36 @@ def test_scorch_susceptible():
           f"scorches on us {on_us}, stacks {k}, ratio {ratio:.3f}, after {after:.3f}")
 
 
+def test_loot_tile_zoa_per_tile():
+    print("== the live 19:14:46 layout: a soulcatcher's corpse 1 from an awake combustive zoa on the pets 12 off it, "
+          "Logan 13 off it: no loot tile in its shot (each tile judged from itself) ==")
+    # live 2026-10-31 19:14:42 "not looting ... in the shot of the awake combustive zoa"; 19:14:46, Logan one tile
+    # farther from it than the pets, "looting from (6877, 2018)" 3 from it: 16 steps there, 156 back, the pets dead
+    # while he was away (docs/NOTES.md "Tidal Tomb level 2: dead after a loot walk"). Before: the tile, judged from
+    # where he stood (the pets nearer the zoa than he was), counted out of its shot
+    w = tidal_world((6893, 2012), [{"key": "combustive zoa", "at": [6880, 2018, -90]}], z=-90, team="phoenix_incubus")
+    z = next(m for m in w.mobs.values() if m.kind == "monster")
+    z.hits = z.hits_max = 10 ** 6
+    z.spec = {**z.spec, "step_s": 999.0}
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for p in w.pets():
+        p.x, p.y = 6892, 2018
+        p.mode, p.kill, p.target, p.next_step = "kill", z.serial, z.serial, 1e9
+        w._warm(p, True)
+    bus = next(p for p in w.pets() if p.name == "Bussin")
+    z.target, z.threat = bus.serial, {bus.serial: 1e9}
+    w._warm(z, True)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            clock.advance(1.0)
+            tile, why = loop.team.loot_tile(loop.state(), (6879, 2019))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("no loot tile; 'lies in the shot of the awake combustive zoa' (before: a tile 3 from it)",
+          tile is None and why and "shot of the awake combustive zoa" in why, f"tile {tile} why {why}")
+
+
 def test_zoa_volley():
     print("== Tidal Tomb: a zoa's volley on its target and on everyone of us within 6 of it, none at 7; the shellpod's "
           "barrage two numbers on Logan at range ==")
@@ -5817,6 +5847,52 @@ def test_zoa_on_pets_vet():
           and "which goes at the pets" in log and "staying out of it" not in log,
           f"walked {walked} to {at} ({cheb(at, (ala.x, ala.y))} from her) cover {covered} "
           f"{[ln for ln in log.splitlines() if 'hurt pet' in ln or 'cover' in ln][:3]}")
+
+
+def test_to_pet_detour():
+    print("== the walk to a hurt pet refuses a detour: a route longer than twice her distance + TO_PET_DETOUR_STEPS "
+          "isn't walked ==")
+    # live 2026-10-31 19:14:53 (hunt-20261031-184304-5745): "to a hurt pet: route 156 steps" for AlaFlambe ~16 off round
+    # a combustive zoa's reach; its 18 moves took Logan west to (6861, 2025), farther from the pets (docs/NOTES.md "Tidal
+    # Tomb level 2: dead after a loot walk away from the pets"). The 18:04:36 layout (test_zoa_on_pets_vet), the planner
+    # made to see only a 60-step way. Before: its first moves walked
+    import agent_link
+    zoa_at = (6909, 2024, -90)
+    w = tidal_world((6899, 2019), [{"key": "astral zoa", "at": list(zoa_at)}], z=-90, team="phoenix_incubus")
+    z = next(m for m in w.mobs.values() if m.kind == "monster")
+    z.hits = z.hits_max = 10 ** 6
+    z.spec = {**z.spec, "step_s": 999.0}
+    loop, clock, store, patched = hurt_loop(w, 100)
+    ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+    for p in w.pets():
+        p.x, p.y = 6910, 2022
+        p.mode, p.kill, p.target, p.next_step = "kill", z.serial, z.serial, 1e9
+        w._warm(p, True)
+    ala.hits = int(ala.hits_max * 0.5)
+    z.target, z.threat = ala.serial, {ala.serial: 1e9}
+    w._warm(z, True)
+    orig = agent_link.Mover.plan
+    start = tuple(w.player.pos[:2])
+    way = [start] + [(start[0] - i, start[1]) for i in range(1, 31)] + [(start[0] - i, start[1]) for i in range(29, -1, -1)]
+
+    def plan(mover, st, goal, mobiles=True, max_steps=None, through_fields=False):
+        _, walk = orig(mover, st, goal, mobiles, None, through_fields)
+        return (None if max_steps is not None and len(way) - 1 > max_steps else way), walk
+    agent_link.Mover.plan = plan
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(2.5)
+            loop.team.to_pet(loop.state())
+            at = tuple(w.player.pos[:2])
+    finally:
+        agent_link.Mover.plan = orig
+        store.close()
+        simclock.uninstall(patched)
+    log = out.getvalue()
+    check("not a step of the 60-step way; 'no route within ... steps' (before: walked west along it)",
+          at == start and "to a hurt pet: no route within" in log,
+          f"at {at} from {start} {[ln for ln in log.splitlines() if 'hurt pet' in ln][-2:]}")
 
 
 
@@ -7386,7 +7462,8 @@ def main():
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
               test_tidal_leave_crab, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
-              test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet, test_shooter_hits,
+              test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet,
+              test_loot_tile_zoa_per_tile, test_to_pet_detour, test_shooter_hits,
               test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,

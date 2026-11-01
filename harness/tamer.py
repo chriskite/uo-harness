@@ -148,6 +148,10 @@ HIT_ON_US_S = 5.0             # a hit on us this recent: something is on us (fre
 APPROACH_R = 6                # [INFERENCE] aggro range: a target the pets haven't engaged is approached to this
 APPROACH_MOVES = 10
 WALK_TO_PET_S = 5.0
+# to_pet: a route to a hurt pet longer than twice its distance and this is a detour, not walked (live 2026-10-31
+# 19:14:53, hunt-20261031-184304-5745: "route 156 steps" for AlaFlambe ~16 off round a combustive zoa's reach; its 18
+# moves took Logan to (6861, 2025), farther from the pets than before)
+TO_PET_DETOUR_STEPS = 10
 FOLLOW_R = 3                  # mount.PET_RANGE: a following pet stays this close
 # "All Follow Me" before a recall: how long to wait for the pets to come within FOLLOW_R, by the leave's
 # severity. A hostile player: not at all. Our own hits low: no standing wait (the simulator, docs/SIM.md:
@@ -2851,7 +2855,7 @@ class Team:
             return None, (f"the corpse at {spot} lies {self.zone_depth(zone, spot)} into an area hit's reach, every tile "
                           f"within {lr} of it too")
         t = self._reach_tile(st, [spot], lr, min(combat.VIEW_RANGE, cheb(pos, spot) + lr + 1), margin=0, spaced=False,
-                             clear=True, unshot=bool(shy))
+                             clear=True, unshot=bool(shy), per_tile=True)
         if t is None and shy:
             return None, (f"the corpse at {spot} lies in the shot of the awake "
                           f"{', '.join(sorted({m['kind'] for m in shy}))}, every tile within {lr} of it too")
@@ -2883,16 +2887,26 @@ class Team:
         """Corpse purgers and blightmares (aggro.shy) in war mode in view: they shoot from where they stand."""
         return [m for m in v.mobs if m["war"] and m["shy"]]
 
+    def pets_war(self, st) -> list[tuple]:
+        """The tiles of our live pets in war mode (on_us_at's)."""
+        return [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["war"]]
+
+    @staticmethod
+    def on_us_at(shy: list, pets: list, at) -> list[dict]:
+        """`shy` less one of an AT_PETS kind with a pet (of `pets`, pets_war) nearer it than the tile `at`: it casts at
+        the pets and those beside them (the area zones keep us off those), not at one standing on `at`."""
+        if not AT_PETS:
+            return shy
+        return [m for m in shy if m["kind"] not in AT_PETS
+                or not any(cheb(q, m["pos"]) < cheb(at, m["pos"]) for q in pets)]
+
     def shy_on_us(self, st, v) -> list[dict]:
-        """shy_awake less one of an AT_PETS kind with a live pet of ours in war mode nearer it than we are: it casts at
-        the pets and those beside them (the area zones keep us off those), not at us. The cover, to_pet's hold, the
-        spacing's and the vet tile's shot go by these."""
+        """shy_awake less those on the pets as seen from where we stand (on_us_at). The cover, to_pet's hold, the
+        spacing's and the vet tile's shot go by these; the loot tile judges each tile from itself (_reach_tile)."""
         shy = self.shy_awake(v)
         if not shy or not AT_PETS:
             return shy
-        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["war"]]
-        return [m for m in shy if m["kind"] not in AT_PETS
-                or not any(cheb(q, m["pos"]) < cheb(v.pos, m["pos"]) for q in pets)]
+        return self.on_us_at(shy, self.pets_war(st), v.pos)
 
     def shy_threats(self, st, v) -> list[dict]:
         """shy_on_us less one fighting someone else (another player or his pets, `elsewhere`) and not us or a pet of
@@ -2930,7 +2944,7 @@ class Team:
                 mv.danger.pop(k, None)
 
     def _reach_tile(self, st, reach: list, r: int, steps: int, margin: int, spaced: bool, clear: bool,
-                    unshot: bool = False):
+                    unshot: bool = False, per_tile: bool = False):
         """vet_tile's and loot_tile's chooser: a tile within `steps` steps and `r` of every tile in `reach`, out of fire;
         `spaced`: SPACING_R from every live pet and monster in war mode; `clear`: clear of every area hit; `unshot`: out
         of every awake shy monster's shot (shot_at). Ranked by the depth in an area hit's reach, the awake shy monsters
@@ -2940,7 +2954,11 @@ class Team:
         if v.walk is None:
             return None
         zone, fire = self.area_zone(st), self.fire_tiles(st)
-        shy = self.shy_on_us(st, v)
+        # `per_tile` (the loot tile): the pets-side exemption judged from each tile, not from where we stand (live
+        # 2026-10-31 19:14:46, hunt-20261031-184304-5745: 13 off a combustive zoa with the pets 12 off it, a tile 3
+        # from it counted out of its shot; the loot walk there left the pets, docs/NOTES.md "Tidal Tomb level 2: dead
+        # after a loot walk away from the pets")
+        shy, pw = (self.shy_awake(v), self.pets_war(st)) if per_tile else (self.shy_on_us(st, v), None)
         war = [m["pos"][:2] for m in v.mobs if m["war"]]
         keep = war + [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
         cands = []
@@ -2951,7 +2969,8 @@ class Team:
             depth = self.zone_depth(zone, t)
             if clear and depth:
                 continue
-            shot = self.shot_at(v, shy, t) if shy else 0
+            on = self.on_us_at(shy, pw, t) if per_tile and shy else shy
+            shot = self.shot_at(v, on, t) if on else 0
             if unshot and shot:
                 continue
             cands.append((depth, shot, sum(cheb(t, n) < SPACING_R for n in war),
@@ -3166,9 +3185,11 @@ class Team:
             if to is not None:
                 log(f"{label}: {to[:2]}, {cheb(to, (p['x'], p['y']))} from {p['name']} (--vet-range "
                     f"{self.a.vet_range}), {self.zone_depth(self.area_zone(st), to)} into an area hit's reach")
-                h.mover.walk_to(lambda: to[:2], 0, label, max_moves=combat.VIEW_RANGE, stop=stop)
+                h.mover.walk_to(lambda: to[:2], 0, label, max_moves=combat.VIEW_RANGE, stop=stop,
+                                max_route=2 * p["dist"] + TO_PET_DETOUR_STEPS)
             else:
-                h.mover.walk_to(where, self.a.vet_range - 1 if wb else 1, label, max_moves=combat.VIEW_RANGE, stop=stop)
+                h.mover.walk_to(where, self.a.vet_range - 1 if wb else 1, label, max_moves=combat.VIEW_RANGE, stop=stop,
+                                max_route=2 * p["dist"] + TO_PET_DETOUR_STEPS)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
