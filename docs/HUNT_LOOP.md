@@ -38,7 +38,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--leave-recall BOOK` | off | Leave by recalling to this book's default rune (home) instead of the exit walk; a hostile player close, a red in view or "X is attacking you!" recalls at once. |
 | `--recall-spot X Y` | the arrival / `--spot` | A recall home refused where we stand (dungeons: only near a golden gate) walks here and recalls again. The route margin is measured to it. |
 | `--bank-gold N` | `0` (off) | At home after a recall: with N gold or more in the pack, bank all of it. Needs `--leave-recall`. |
-| `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. |
+| `--pk-wait S` | `600` | Recall mode: after leaving from a hostile player, stay home this long before going back in. A `ctl stop --after-trip` (or `--kills` reached) ends the wait and the run at home within 2 s (live 2026-11-01: hunt-20261101-103630-fadc sat out all 596 s under one). |
 | `--return-at` | `auto` | Recall mode: take the loot home once this visit's carried value reaches V\* = r·sqrt(2T/h) (`auto`), a fixed gold value, or never (`off`); a full pack always ("Taking the loot home"). |
 | `--drop-off` / `--no-drop-off` | on | Home after a recall (Logan's default rune is the house): the walk to the landing tile and the drop-off (homes.json `dropoff`), then back in from there; a drop-off that can't run (not at home, an item out of reach) ends the run at home. |
 | `--repair` / `--no-repair` | on | Before each recall in from home: double-click the house's repair bench (homes.json `repair_bench`): worn armor and the pack's instruments repaired; an empty bench (or no answer) ends the run at home ("Recall in, recall out"). |
@@ -55,7 +55,7 @@ python harness/loop_hunt.py --enter-recall 0x57C3DEB6 --enter-rune "Urukton Bluf
 | `--pull-range` | `3` (`--pets` 8) | Engage mobs within this many tiles of the spot. At most 10 (the spell range): a larger value is capped, with a log line. |
 | `--kills N` | `0` | Stop after N kills (0: no limit). |
 | `--timeout S` | `0` | Seconds from the run's start, all its visits together: then finish the fights on us, loot, and leave; 180 s past it the runner aborts wherever it is. 0 = no limit (user 2026-10-17: the return rule takes the loot home); the run ends by `--kills`, `ctl stop --after-trip` or a leave that doesn't go back in. |
-| `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. |
+| `--rest-to` | `0.95` | After leaving: Heal / Greater Heal when one can be cast (no potions; else natural regeneration) outside to this share of hits (and `--mana-reserve` mana), then go back in. `0`: stop after leaving. `--rest-timeout` (900 s) bounds the rest. Recall mode: a `ctl stop --after-trip` during the rest ends it and the run at home ("the run is over: not resting"). |
 | `--reposition-s` | `240` | No step for this long: walk 2–4 steps out and back to the fight spot before the Stationary Penalty comes (300 s); with nothing on us already from a draw in 0.8–1 × it. |
 | `--loot` / `--no-loot`, `--loot-max` | on, 25 | Loot our kills' corpses (items per corpse). |
 | `--soul-jars` / `--no-soul-jars` | on | Field of Souls: with an empty soul jar in the pack, walk to an eerie corpse in view and fill the jar there ("Soul jars" below). |

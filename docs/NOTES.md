@@ -6861,6 +6861,20 @@ scratch passes are not in the repo.
   pet damage (median 10) the bleed ticks; the charoite's swings mix in its crush; the hoarfrost's only numbers are its
   groan. The scenario's `melee_observed` replaces those three.
 
+## Cavernam: the runner's first live run, level 2 (2026-11-01 10:36, hunt-20261101-103630-fadc)
+
+Logan with GraveRobber and AlaFlambe (not the simulator's Bussin), the level 2 command of docs/OVERSEER.md §5.
+- In by the "Cavernam" row, across level 1 to (5895, 605), the crawl on level 2 from (6042, 787): zone 2 at 1151.5
+  gold/min, then "crawl: going deeper to zone 3". 2 kills, 42 hits lost on Logan.
+- 10:41:02 "LEAVING by the moongate: red player Lord Mad.Bob in view at 18 tiles", the easier gate "(6011, 780): the
+  easiest of 2 (21 steps; (6039, 831) 55 past them)", a rope to (6016, 778), **the crimson gate 0x400F8E8C's menu
+  listed Totem** (the first live opening; 3846, 2876, -40), the tome home, the drop-off: 4,404 gp carried, 3,364
+  banked.
+- **`ctl stop --after-trip` was ignored in the `--pk-wait`:** `HuntLoop.wait_pk` slept out the 596 s without asking
+  `finished()`, and `rest()` could do the same for up to `--rest-timeout`. The Seer stopped it plainly at home.
+  Fixed: both end at once in recall mode under that request (test_sim `test_after_trip_stop_at_home_waits`, failing
+  before: 600 s and 13 s).
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

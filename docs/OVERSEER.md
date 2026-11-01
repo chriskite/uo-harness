@@ -711,8 +711,8 @@ Paste this (or point the session at this section) to start an overseer.
 >      - **Cavernam level 1**: `--enter-rune Cavernam --leave-gate 6049 598`, no `--enter-via`. Out by the golden gate
 >        0x400020EC beside the arrival; its menu was never opened live [INFERENCE: Totem on it as on every gate seen].
 >      - **Cavernam level 2** (the default): `--enter-rune Cavernam --enter-via 5895 605 --leave-gate 6011 780
->        --leave-gate 6039 831`. Out by the easier of level 2's crimson gates 0x400F8E8C and 0x400F674A (menus never
->        opened live [INFERENCE: Totem]).
+>        --leave-gate 6039 831`. Out by the easier of level 2's crimson gates 0x400F8E8C (6011, 780), whose menu listed
+>        Totem live 2026-11-01, and 0x400F674A (6039, 831) (never opened live [INFERENCE: Totem]).
 >      - **Cavernam level 3**: `--enter-rune Cavernam --enter-via 5895 605 --enter-via 5979 765 --leave-gate 6059 1020
 >        --leave-gate 5957 1097`. Out by the easier of level 3's crimson gates 0x400FC1EA and 0x400FA895, both of which
 >        Logan took to Totem live 2026-10-31.

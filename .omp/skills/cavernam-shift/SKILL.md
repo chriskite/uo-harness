@@ -33,7 +33,7 @@ re-dispatch, until the user changes them. None: level 2. Map each one before dis
 
    | The user says | Level | Arguments | State (simulator 2026-10-31, AlaFlambe and Bussin, 30 min from home) |
    |---|---|---|---|
-   | level 2, nothing | Cav 2 | `--enter-via 5895 605 --leave-gate 6011 780 --leave-gate 6039 831` | The default. 0 of 32 runs with a death, 125k gp a game hour. Level 2's gates' menus were never opened live. |
+   | level 2, nothing | Cav 2 | `--enter-via 5895 605 --leave-gate 6011 780 --leave-gate 6039 831` | The default. 0 of 32 runs with a death, 125k gp a game hour. First live run 2026-11-01 (hunt-20261101-103630-fadc): in, crawl, out from a red by 0x400F8E8C (6011, 780), whose menu listed Totem; 0x400F674A's menu never opened live. |
    | level 1 | Cav 1 | `--leave-gate 6049 598` | 0 of 32 with a death, 106k gp a game hour. The most damage on Logan (823 an hour). The golden gate's menu was never opened live. |
    | level 3 | Cav 3 | `--enter-via 5895 605 --enter-via 5979 765 --leave-gate 6059 1020 --leave-gate 5957 1097` | **2 of 48 runs with a death**, both to a silicite's Silica Shards, which killed Logan by hand there on 2026-10-31; 149k gp a game hour. 2 of 48 leaves timed out walking to a gate. The user hunts here by hand. |
    | level 4 | none | none | Not in the scenario: never visited. Refuse it: runner work first (section 4). |

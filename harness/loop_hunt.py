@@ -4361,7 +4361,8 @@ class HuntLoop:
         raise Abort(f"{label}: no refill from the dolphin in {2 * OXY_DOLPHIN_WAIT_S:.0f} s")
 
     def wait_pk(self):
-        """After leaving from a hostile player: stay home until --pk-wait has passed."""
+        """After leaving from a hostile player: stay home until --pk-wait has passed, or a `ctl stop --after-trip`
+        (finished) ends the run here (live 2026-11-01 hunt-20261101-103630-fadc sat out all 596 s of it)."""
         if self.pk_left_t is None:
             return
         end = self.pk_left_t + self.args.pk_wait
@@ -4369,7 +4370,7 @@ class HuntLoop:
             end = min(end, self.t0 + self.args.timeout)               # never past --timeout
         if time.monotonic() < end:
             log(f"a hostile player at the hunt: waiting {end - time.monotonic():.0f} s more before going back")
-        while time.monotonic() < end:
+        while time.monotonic() < end and not self.finished():
             self.state()
             self.doing("wait", f"Waiting before going back ({end - time.monotonic():.0f} s; a hostile player "
                                f"was at the hunt)")
@@ -4447,7 +4448,8 @@ class HuntLoop:
         without potions: out of the fight regenerating mana is free, potions cost gold),
         else wait for natural regeneration, to --rest-to hits and --mana-reserve mana.
         --pets: the pets too, to --pet-heal-at with the vet supplies (no heal spell without
-        Magery). False when that takes longer than --rest-timeout."""
+        Magery). False when that takes longer than --rest-timeout. True at once in recall mode when the run is over
+        (`ctl stop --after-trip`, --kills): it ends at home, so nothing to rest for."""
         end = time.monotonic() + self.args.rest_timeout
         while True:
             st = self.state()
@@ -4456,6 +4458,9 @@ class HuntLoop:
             pets_ok = self.team is None or self.team.rested(st)
             if self.frac(me) >= self.args.rest_to and (me.get("mana") or 0) >= need_mana and pets_ok:
                 log(f"rested: hits {me.get('hits')}/{me.get('hits_max')}, mana {me.get('mana')}")
+                return True
+            if self.args.leave_recall is not None and self.finished():
+                log("the run is over: not resting")
                 return True
             if time.monotonic() > end:
                 log(f"rest: still {me.get('hits')}/{me.get('hits_max')} hits, mana {me.get('mana')}"

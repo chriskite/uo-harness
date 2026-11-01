@@ -3596,6 +3596,52 @@ def test_rest_hurt_pet():
           not rested and took >= 300 and gb.hits > gb.hits_max * 0.15, f"{rested} {took:.0f} s {gb.hits}/{gb.hits_max}")
 
 
+def test_after_trip_stop_at_home_waits():
+    print("== `ctl stop --after-trip` ends the pk wait and the rest at home at once ==")
+    # live 2026-11-01 10:41 (hunt-20261101-103630-fadc, Cavernam 2): home after a red player, `stop --after-trip`
+    # sat out the whole 596 s pk wait (wait_pk never looked at the request)
+    import tempfile
+    import time
+    import loop_hunt
+    import memory
+    import task_wrap
+    from sim import run as simrun
+    sc = load()
+    sc["player"]["start"] = sc["recall"]["rows"][0]["at"]           # home
+    w = World(sc, seed=1)
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(sc, [], 10) + ["--memory", db, "--seed", "1"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    old = os.environ.get("UO_TASK_ID")
+    os.environ["UO_TASK_ID"] = tid = "hunt-test-finish"
+    took = {}
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            task_wrap.meta_set(store, task_wrap.finish_key(tid), "{}")
+            loop.pk_left_t = time.monotonic()
+            t0 = clock.elapsed
+            loop.wait_pk()
+            took["wait_pk"] = clock.elapsed - t0
+            w.hurt(w.player, w.player.hits_max // 2, None)            # below --rest-to: the rest would wait
+            clock.advance(1.0)
+            t0 = clock.elapsed
+            rested = loop.rest()
+            took["rest"] = clock.elapsed - t0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+        if old is None:
+            os.environ.pop("UO_TASK_ID", None)
+        else:
+            os.environ["UO_TASK_ID"] = old
+    check("the pk wait (--pk-wait) ends within FINISH_CHECK_S of the request", took["wait_pk"] <= 5, took)
+    check("the rest at half hits ends at once too (the run is over)", rested and took["rest"] <= 5, took)
+
+
 def _log_hurts(w):
     """Wrap w.hurt to record (time, victim, kind, hits lost)."""
     log, orig = [], w.hurt
@@ -7715,7 +7761,8 @@ def main():
               test_songs, test_songs_tidal_floor, test_cure_potion,
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
-              test_rest_hurt_pet, test_walk_in, test_walk_in_fetch_pet, test_wait_pets_attacked, test_tele_dash,
+              test_rest_hurt_pet, test_after_trip_stop_at_home_waits, test_walk_in, test_walk_in_fetch_pet,
+              test_wait_pets_attacked, test_tele_dash,
               test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_tidal_gate_no_dest,
