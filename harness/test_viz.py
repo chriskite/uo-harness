@@ -24,6 +24,9 @@
   however many counters the run keeps
 - GET /api/lumber/grove: a spot's area and trees with their harvest-memory
   states, by spot id or by a position inside it; bad params 400
+- GET /api/mining/ore: a mining spot's area, forge, ore blocks with their
+  mine_blocks states, stands with their blocks with ore, the stands dug at
+  within the regrowth window; by spot id or position; bad params 400
 - job analytics (harness/jobs.py): trip rows, totals, per-day split, rolling
   logs/hr, deaths by cause, thefts, value from woods and the board price
   history (as of each trip's end), since filter, determinism; hunt visits;
@@ -699,6 +702,55 @@ def test_grove_route(m: memory.Memory, base: str):
           str(f.get("counts")))
 
 
+def test_ore_route(m: memory.Memory, base: str):
+    """GET /api/mining/ore on the server over store `m` (the map files are read-only from the install dir;
+    without them the route has no stands to show)."""
+    import mining_opt
+    s = mining_opt.load_spots(m)["forge_2599_620"]
+    stands = mining_opt.spot_stands(s, m.path)
+    if stands is None:
+        print("  [SKIP] /api/mining/ore: no map files")
+        return
+    (cx, cy), r = s["area"]["center"], s["area"]["radius"]
+    blocks = sorted({tuple(b) for st in stands for b in st["blocks"]})
+    a, b, c = blocks[:3]
+    now = time.time()
+    m.mine_blocks_mark(0, [a], "depleted", t=now - 60)
+    m.mine_blocks_mark(0, [b], "no_harvest")
+    m.mine_blocks_mark(0, [c], "depleted", t=now - 2 * 86400)           # long regrown
+    sx, sy = stands[0]["x"], stands[0]["y"]
+    m.mine_record(0, sx, sy, 0, "success", 2, t=now - 120)
+    m.mine_record(0, sx, sy, 0, "fail", 0, t=now - 110)
+    m.mine_record(0, sx, sy, 0, "nothing_near", 0, t=now - 100)
+    m.mine_record(0, sx + 1, sy, 0, "success", 5, t=now - 2 * 86400)    # before the window
+    o = get(base + "/api/mining/ore?spot=forge_2599_620")
+    by = {(k["bx"], k["by"]): k for k in o.get("blocks", [])}
+    ready = {k for k, v in by.items() if v["state"] == "ready"}
+    check("GET /api/mining/ore?spot=: the area, the forge, every block a stand reaches with its state (depleted a "
+          "minute ago until the window ends, no_harvest, an old depleted one ready again)",
+          o["spot"]["id"] == "forge_2599_620" and o["spot"]["area"] == {"center": [cx, cy], "radius": r}
+          and o["spot"]["forge"] == s["forge"] and set(by) == set(blocks)
+          and [by[k]["state"] for k in (a, b, c)] == ["depleted", "no_harvest", "ready"]
+          and by[a]["until"] == round(now - 60 + o["regrow_min"] * 60, 1)
+          and o["counts"]["ready"] == len(blocks) - 2 and o["counts"]["blocks"] == len(blocks),
+          f"{o.get('counts')}")
+    rows = {(x, y): (n, k) for x, y, n, k in o["stands"]}
+    check("every stand comes with the blocks it reaches and how many of those have ore",
+          len(rows) == len(stands) and all(rows[(st["x"], st["y"])] == (
+              st["n"], sum(1 for q in st["blocks"] if tuple(q) in ready)) for st in stands)
+          and o["counts"]["stands_ready"] == sum(1 for n, k in rows.values() if k), str(o["counts"]))
+    check("dug: the stand's digs and ore within the window and what ended it; older digs left out",
+          o["dug"] == [{"x": sx, "y": sy, "digs": 2, "ore": 2, "last_t": round(now - 100, 1), "end": "nothing_near"}],
+          str(o["dug"]))
+    at = get(base + f"/api/mining/ore?facet=0&x={cx}&y={cy}")
+    far = get(base + "/api/mining/ore?facet=0&x=1&y=1")
+    check("GET /api/mining/ore by position: the spot whose area holds it, else spot null",
+          at["spot"]["id"] == "forge_2599_620" and far == {"spot": None, "store": True}, str(far))
+    for q in ("", "x=12", "x=a&y=2"):
+        code, _ = get_status(base + f"/api/mining/ore?{q}")
+        check(f"GET /api/mining/ore?{q}: 400", code == 400, str(code))
+
+
 def test_overseer_routes(logdir):
     print("== /api/jobs, /api/overseer, POST /api/chat ==")
     path = os.path.join(tempfile.mkdtemp(), "harness.db")
@@ -858,6 +910,7 @@ def test_overseer_routes(logdir):
               "for two" not in [c["text"] for c in chat3["chat"]] and "for two" in [c["text"] for c in chat2["chat"]],
               str(chat3["chat"]))
         test_grove_route(m, base)
+        test_ore_route(m, base)
     finally:
         srv.shutdown()
         srv.server_close()

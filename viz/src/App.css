@@ -1079,8 +1079,45 @@ table.evtable {
   height: 6px;
   border: 1px solid #cbd5e1;
 }
-.side-map .grove-legend {
+.side-map .grove-legend,
+.side-map .ore-legend {
   display: none;
+}
+/* the mining ore layer (MapGrid OreLegend), one row above the main legend */
+.ore-legend {
+  bottom: 32px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 16px);
+}
+.lg-ore {
+  border: 2px dashed #818cf8;
+}
+.lg-block-ready {
+  background: rgba(34, 197, 94, 0.25);
+  border: 1px solid rgba(34, 197, 94, 0.7);
+}
+.lg-block-depleted {
+  background: rgba(249, 115, 22, 0.3);
+  border: 1px solid rgba(249, 115, 22, 0.8);
+}
+.lg-block-no_harvest {
+  background: rgba(107, 114, 128, 0.45);
+  border: 1px solid rgba(156, 163, 175, 0.8);
+}
+.lg-stand {
+  width: 5px;
+  height: 5px;
+  background: rgba(74, 222, 128, 0.85);
+}
+.lg-dug {
+  border: 2px solid #f8fafc;
+  border-radius: 50%;
+}
+.lg-forge {
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  transform: rotate(45deg);
 }
 /* the Field of Souls reaper heatmap (MapGrid ReaperLegend), one row above the main legend */
 .reaper-legend {

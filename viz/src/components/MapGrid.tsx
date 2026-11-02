@@ -4,6 +4,8 @@ import { DIR_NAMES, NOTORIETY, UNKNOWN_NOTORIETY_COLOR } from "../format.ts";
 import { FacetChunks, chunksInView, fetchFacetMeta, type FacetMeta } from "../facet.ts";
 import { cellOutline, fetchGrove, groveQuery, treeAt, treeText, type GroveResponse, type TreeState } from "../grove.ts";
 import { runningLumber } from "../lumberjob.ts";
+import { runningMining } from "../miningjob.ts";
+import { fetchOre, oreText, type BlockState, type OreResponse } from "../ore.ts";
 import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
 import { fieldTimer } from "../fieldtimer.ts";
 import { hex } from "../serial.ts";
@@ -33,7 +35,8 @@ export const CLICK_SLOP_PX = 4;
 const PROJECTION_KEY = "viz.mapProjection";
 const TERRAIN_KEY = "viz.mapTerrain";
 const GROVE_KEY = "viz.mapGrove";
-const GROVE_POLL_MS = 15_000;
+const ORE_KEY = "viz.mapOre";
+const SPOT_POLL_MS = 15_000;
 const REAPERS_KEY = "viz.mapReapers";
 const REAPER_MODE_KEY = "viz.mapReaperMode";
 const NO_LIVE: LiveWalk = { steps: [], blocked: [] };
@@ -44,6 +47,13 @@ const TREE_COLORS: Record<TreeState, string> = {
   depleted: "#f97316",
   unreachable: "#a855f7",
   not_tree: "#6b7280",
+};
+
+/** Ore layer block fill and edge per mine_blocks state (legend: .lg-block-*). */
+const BLOCK_COLORS: Record<BlockState, { fill: string; edge: string }> = {
+  ready: { fill: "rgba(34, 197, 94, 0.10)", edge: "rgba(34, 197, 94, 0.55)" },
+  depleted: { fill: "rgba(249, 115, 22, 0.16)", edge: "rgba(249, 115, 22, 0.65)" },
+  no_harvest: { fill: "rgba(107, 114, 128, 0.30)", edge: "rgba(156, 163, 175, 0.65)" },
 };
 
 interface Dot {
@@ -100,13 +110,15 @@ interface Scene {
   goalKind: string | null;
   /** The running lumber job's grove (/api/lumber/grove) when on this facet, else null. */
   grove: GroveResponse | null;
+  /** The running mining job's spot (/api/mining/ore) when on this facet, else null. */
+  ore: OreResponse | null;
   /** On facet 0, the only one with a facet picture and walk memory; elsewhere (rental rooms: facet 3) the map is blank. */
   mainFacet: boolean;
   /** The Field of Souls reaper heatmap (/api/fos/reapers) while shown in or near the field, else null. */
   reapers: ReaperLayer | null;
 }
 
-function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse | null, reapers: ReaperLayer | null): Scene {
+function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse | null, ore: OreResponse | null, reapers: ReaperLayer | null): Scene {
   const st = viz.state;
   const world = st?.world;
   const self = world?.self;
@@ -167,6 +179,7 @@ function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse 
     goal: intentGoal(st?.intent, world),
     goalKind: st?.intent && intentGoal(st.intent, world) ? (st.intent.kind ?? "target") : null,
     grove: grove?.spot && (grove.spot.facet ?? 0) === (self?.map ?? 0) ? grove : null,
+    ore: ore?.spot && (ore.spot.facet ?? 0) === (self?.map ?? 0) ? ore : null,
     mainFacet: (self?.map ?? 0) === 0,
     reapers,
   };
@@ -196,6 +209,44 @@ function followTarget(s: Scene): Tile {
 /** The camera across a remount (the map moving between the centre and the side); not across reloads. */
 let keptView: Pick<View, "camX" | "camY" | "zoom" | "follow"> | null = null;
 
+/** A spot layer's answer (grove, ore), polled every SPOT_POLL_MS while `key` names a running job's spot (null:
+ *  cleared, nothing polled). The query is read fresh at each poll, so a position-based one follows us. */
+function useSpotPoll<T extends { error?: string }>(
+  key: string | null,
+  query: string | null,
+  fetcher: (q: string) => Promise<T>,
+): [T | null, string | null] {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const queryRef = useRef(query);
+  queryRef.current = query;
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    if (!key) return;
+    let live = true;
+    const load = () => {
+      const q = queryRef.current;
+      if (!q) return;
+      fetcher(q).then(
+        (d) => {
+          if (!live) return;
+          setData(d);
+          setError(d.error ?? null);
+        },
+        (e: unknown) => live && setError(String(e)),
+      );
+    };
+    load();
+    const t = setInterval(load, SPOT_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [key, fetcher]);
+  return [data, error];
+}
+
 /** `onSwap`, when given, adds a button that swaps the map with the live view (App). */
 export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -224,41 +275,17 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
   const footprints = useRef<MultiFootprints | null>(null);
   const footprint = useCallback((id: number) => footprints.current?.get(id) ?? null, []);
 
-  // Grove layer: polled only while a lumber run is going (the intent's spot, else the spot around us).
-  const initialGrove = localStorage.getItem(GROVE_KEY) !== "off";
-  const [groveOn, setGroveOn] = useState(initialGrove);
-  const [grove, setGrove] = useState<GroveResponse | null>(null);
-  const [groveError, setGroveError] = useState<string | null>(null);
+  // Grove and ore layers: polled only while a lumber / mining run is going (the intent's spot, else the spot around us).
+  const [groveOn, setGroveOn] = useState(localStorage.getItem(GROVE_KEY) !== "off");
+  const [oreOn, setOreOn] = useState(localStorage.getItem(ORE_KEY) !== "off");
   const lumber = runningLumber(viz.state?.intent);
+  const mining = runningMining(viz.state?.intent);
   const self = viz.state?.world?.self;
-  const groveQ = groveQuery(lumber, truePosition(viz.state?.movement, self), self?.map);
-  const groveQRef = useRef(groveQ);
-  groveQRef.current = groveQ;
-  const groveKey = lumber && groveQ ? (lumber.spot ?? "around") : null;
-  useEffect(() => {
-    setGrove(null);
-    setGroveError(null);
-    if (!groveKey) return;
-    let live = true;
-    const load = () => {
-      const q = groveQRef.current;
-      if (!q) return;
-      fetchGrove(q).then(
-        (g) => {
-          if (!live) return;
-          setGrove(g);
-          setGroveError(g.error ?? null);
-        },
-        (e: unknown) => live && setGroveError(String(e)),
-      );
-    };
-    load();
-    const t = setInterval(load, GROVE_POLL_MS);
-    return () => {
-      live = false;
-      clearInterval(t);
-    };
-  }, [groveKey]);
+  const here = truePosition(viz.state?.movement, self);
+  const groveQ = groveQuery(lumber, here, self?.map);
+  const [grove, groveError] = useSpotPoll(lumber && groveQ ? (lumber.spot ?? "around") : null, groveQ, fetchGrove);
+  const oreQ = groveQuery(mining, here, self?.map);
+  const [ore, oreError] = useSpotPoll(mining && oreQ ? (mining.spot ?? "around") : null, oreQ, fetchOre);
 
   const mainFacet = (self?.map ?? 0) === 0;
   const memLayer = useMemo(() => buildWalkLayer(mainFacet ? viz.walkmem : null, NO_LIVE), [mainFacet, viz.walkmem]);
@@ -270,8 +297,7 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
   const [reaperError, setReaperError] = useState<string | null>(null);
   const [reapersOn, setReapersOn] = useState(localStorage.getItem(REAPERS_KEY) !== "off");
   const [reaperMode, setReaperMode] = useState<ReaperMode>(localStorage.getItem(REAPER_MODE_KEY) === "deaths" ? "deaths" : "spawns");
-  const truthNow = truePosition(viz.state?.movement, self);
-  const inField = mainFacet && truthNow !== null && instanceAt(reaperMap, truthNow[0], truthNow[1], NEAR_FIELD) !== null;
+  const inField = mainFacet && here !== null && instanceAt(reaperMap, here[0], here[1], NEAR_FIELD) !== null;
   useEffect(() => {
     let live = true;
     const load = () =>
@@ -302,8 +328,8 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
   }, [reapersOn, inField, reaperMap, reaperMode]);
 
   const scene = useMemo(
-    () => buildScene(viz, layers, groveOn ? grove : null, reaperLayer),
-    [viz, layers, groveOn, grove, reaperLayer],
+    () => buildScene(viz, layers, groveOn ? grove : null, oreOn ? ore : null, reaperLayer),
+    [viz, layers, groveOn, grove, oreOn, ore, reaperLayer],
   );
   // Field of Souls: the time left before the ejection (§2.18; the proxy state's `field`, null outside the field).
   const fieldView = fieldTimer(viz.state?.field);
@@ -542,6 +568,72 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       ctx.globalAlpha = 1;
     }
 
+    // Mining ore: the spot's area, the ore blocks its stands reach by mine_blocks state, the stands (greener:
+    // more blocks with ore; grey: none), rings on the stands dug at within the window, and the forge.
+    const o = s.ore;
+    if (o?.spot) {
+      const quad = (x: number, y: number, w: number) => {
+        ctx.moveTo(...P(x, y));
+        ctx.lineTo(...P(x + w, y));
+        ctx.lineTo(...P(x + w, y + w));
+        ctx.lineTo(...P(x, y + w));
+        ctx.closePath();
+      };
+      const { center, radius: r } = o.spot.area;
+      const b = o.block ?? 8;
+      ctx.lineWidth = 1;
+      for (const k of o.blocks ?? []) {
+        const bx = k.bx * b;
+        const by = k.by * b;
+        if (bx + b - 1 < x0 || bx > x1 || by + b - 1 < y0 || by > y1) continue;
+        const col = BLOCK_COLORS[k.state];
+        ctx.beginPath();
+        quad(bx, by, b);
+        ctx.fillStyle = col.fill;
+        ctx.fill();
+        ctx.strokeStyle = col.edge;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      quad(center[0] - r, center[1] - r, 2 * r + 1);
+      ctx.setLineDash([8, 5]);
+      ctx.strokeStyle = "#818cf8";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const sr = Math.max(1, z * 0.12);
+      for (const [sx, sy, , ready] of o.stands ?? []) {
+        if (!visible(sx, sy)) continue;
+        const [tx, ty] = C(sx, sy);
+        ctx.fillStyle = ready ? `rgba(74, 222, 128, ${0.35 + 0.16 * Math.min(ready, 4)})` : "rgba(148, 163, 184, 0.4)";
+        ctx.fillRect(tx - sr, ty - sr, 2 * sr, 2 * sr);
+      }
+      ctx.lineWidth = Math.max(1.5, z / 12);
+      for (const d of o.dug ?? []) {
+        if (!visible(d.x, d.y)) continue;
+        ctx.strokeStyle = d.end === "nothing_near" ? "#f97316" : d.end === "no_harvest" ? "#9ca3af" : "#f8fafc";
+        ctx.beginPath();
+        ctx.arc(...C(d.x, d.y), Math.max(3, z * 0.4), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      const f = o.spot.forge;
+      if (f && visible(f.x, f.y)) {
+        const [fx, fy] = C(f.x, f.y);
+        const fr = Math.max(5, z * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(fx, fy - fr);
+        ctx.lineTo(fx + fr, fy);
+        ctx.lineTo(fx, fy + fr);
+        ctx.lineTo(fx - fr, fy);
+        ctx.closePath();
+        ctx.fillStyle = "#ef4444";
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#0a0705";
+        ctx.stroke();
+      }
+    }
+
     // Trail of true positions.
     if (s.trail.length > 1) {
       ctx.lineWidth = Math.max(1.5, z / 10);
@@ -714,10 +806,11 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       hud.push(`cursor ${Math.floor(hx)},${Math.floor(hy)}`);
     }
     const extra: string[] = [];
-    if (v.hover && (s.grove || s.reapers)) {
+    if (v.hover && (s.grove || s.ore || s.reapers)) {
       const [hx, hy] = toWorld(v.proj, v, v.hover.mx, v.hover.my);
       const t = s.grove ? treeAt(s.grove, Math.floor(hx), Math.floor(hy)) : null;
       if (t) extra.push(treeText(t, Date.now() / 1000));
+      if (s.ore) extra.push(...oreText(s.ore, Math.floor(hx), Math.floor(hy), Date.now() / 1000));
       const r = s.reapers ? cellText(s.reapers.map, Math.floor(hx), Math.floor(hy)) : null;
       if (r) extra.push(r);
     }
@@ -967,6 +1060,19 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
             grove
           </button>
         )}
+        {mining && (
+          <button
+            type="button"
+            className={oreOn ? "active" : ""}
+            title="the mining spot's area, ore blocks, stands and forge as the runner sees them (mining memory)"
+            onClick={() => {
+              localStorage.setItem(ORE_KEY, oreOn ? "off" : "on");
+              setOreOn(!oreOn);
+            }}
+          >
+            ore
+          </button>
+        )}
         {inField && (
           <button
             type="button"
@@ -996,6 +1102,7 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         <span className="lg lg-house" /> house
       </div>
       {lumber && groveOn && <GroveLegend grove={scene.grove} error={groveError} loaded={grove !== null} />}
+      {mining && oreOn && <OreLegend ore={scene.ore} error={oreError} loaded={ore !== null} />}
       {inField && reapersOn && (
         <ReaperLegend
           layer={scene.reapers}
@@ -1052,6 +1159,31 @@ function ReaperLegend({ layer, error, onMode }: { layer: ReaperLayer | null; err
         · {total} {mode} over {map.runs} {map.runs === 1 ? "run" : "runs"}, {((map.watched_s ?? 0) / 60).toFixed(0)} min watched{" "}
         (within {r} tiles); per {span}x{span}-tile area; blank: watched under a minute
       </span>
+    </div>
+  );
+}
+
+/** The ore layer's key and counts (the spot's blocks by state, its stands, what was dug lately), or why there is none. */
+function OreLegend({ ore, error, loaded }: { ore: OreResponse | null; error: string | null; loaded: boolean }) {
+  if (!ore?.spot || !ore.counts) {
+    return (
+      <div className="map-legend ore-legend">
+        <span className="dim">ore: {error ?? (loaded ? "no mining spot here (or on another facet)" : "loading")}</span>
+      </div>
+    );
+  }
+  const c = ore.counts;
+  return (
+    <div className="map-legend ore-legend">
+      <span className="lg lg-ore" />
+      <b>{ore.spot.name ?? ore.spot.id}</b> {c.blocks} ore blocks in reach:
+      <span className="lg lg-block-ready" /> {c.ready} with ore
+      <span className="lg lg-block-depleted" /> {c.depleted} dug out
+      <span className="lg lg-block-no_harvest" /> {c.no_harvest} no mining
+      <span className="lg lg-stand" /> {c.stands_ready} of {c.stands} stands reach ore
+      <span className="lg lg-dug" /> {c.dug_stands} dug ({c.dug_ore} ore)
+      <span className="lg lg-forge" /> forge
+      <span className="dim">· regrowth {ore.regrow_min} min (the runner's default)</span>
     </div>
   );
 }

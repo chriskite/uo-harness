@@ -155,6 +155,7 @@ channels.
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
 | `GET /api/jobs/plan[?job=lumber\|mining]` | the job's optimizer plan over all history (default lumber; any other job 400), recomputed once a minute per job on its own connection and lock, in the background behind the last plan (§2.4) |
 | `GET /api/lumber/grove?spot=ID` or `?facet=F&x=X&y=Y` | a lumber spot's area and its trees with their harvest-memory states (`lumber_opt.grove_view`, §2.12); by position: the spot whose area holds the tile, else `spot` null; 400 without either. Its own connection and lock; the regrowth window cached 60 s |
+| `GET /api/mining/ore?spot=ID` or `?facet=F&x=X&y=Y` | a mining spot's area, forge, ore blocks with their `mine_blocks` states, stands and the stands dug at lately (`mining_opt.ore_view`, §2.21); by position: the spot whose area holds the tile, else `spot` null; 400 without either. The grove's connection and lock; a spot's stands cached 10 min |
 | `GET /api/fos/reapers` | the Field of Souls reaper heatmap (`fos_field.reaper_map`, §2.17): `{box, cell, view_r, spawn_r, instances: [{name, offset}], runs, watched_s, cells: [[ix, iy, watched_view_s, watched_spawn_s, deaths, spawns]], spawns: [[x, y]], store}` in the field frame; cached 30 s |
 | `GET /api/overseer?after_chat=N&after_juncture=M[&char=0xS]` | overseer chat rows and junctures above the cursors, open junctures, heartbeat (§2.4); `char` (a serial) scopes them to one character (§2.14) |
 | `POST /api/chat` | `{"text": T[, "char": "0xS"]}` → a `user` chat row for the overseer (of that character) (§2.4, §2.14) |
@@ -1257,6 +1258,40 @@ alone, as §2.11.
   tamer.VET_RANGE=3 --armor 118 -- --vet-range 5 --crawl-learn-s 180 --no-songs`; its trace (label `tidal_tomb level
   2`) entered by (6718, 1984) and left by level 2's crimson gate.
 
+### 2.21 Mining ore on the map (added 2026-11-01, user request)
+
+User: "an overlay on the viz ui 'Live' map for mining, kind of like the 'grove' one we have for lumbering". While a
+mining run is going (§2.19's rule), the Live map shows its spot the way loop_mining sees it:
+- **Area:** the spot's square (centre ± radius, `ore_nodes.py spots`: FORGE_NEAR 40 round the forge) as a dashed
+  indigo outline; the **forge** (the spot's `forge`, where field smelting happens) as a red diamond.
+- **Ore blocks** (the server's 8x8 ore bank, ore_nodes.py's model): every block a stand of the area reaches, so blocks
+  at the edge stick out past the square. Filled by `mine_blocks` as `loop_mining.avail` reads it:
+  - green: ore as far as we know;
+  - orange: dug out (a stand reaching it said "nothing nearby" within the regrowth window);
+  - grey: the server said no mining there (for good).
+- **Stands** (`ore_nodes.area_stands`: walkable tiles with a block's mineable tile within reach 2), as small squares:
+  greener with more of their blocks having ore, grey with none.
+- **Dug:** rings on the stand tiles dug at within the window (`mine_attempts`): white while open or left, orange when
+  "nothing in reach has ore" ended it, grey when "no mining allowed" did.
+- **Hover** a tile for its block (tile range, state, how long ago it was dug out, when it's ready), the stand on it
+  (blocks reached, how many with ore) and what was dug there (digs, ore, the ending).
+- **Legend:** a second row above the main legend: the spot, blocks by state, stands reaching ore of all stands, the
+  stands dug lately and their ore, the regrowth window.
+- **What the viz can't see:** the run's own `--regrow-min` (shown at its default, `mining_opt.REGROW_MIN`), its per-leg
+  dry blocks and no-route stands, and the z-aware walk check that drops stands on another level (`candidate_stands`:
+  over a cave the mountain's surface counts as ground in `area_stands`), so some stands drawn may be ones the runner
+  won't walk to.
+- **Source:** `GET /api/mining/ore` (§2.1): the intent's `spot`, else the spot whose area holds the true position
+  (`grove.ts` `groveQuery`, shared). Polled every 15 s while the run lasts (MapGrid `useSpotPoll`, also the grove's);
+  an "ore" map button (only during a run) hides it (`localStorage["viz.mapOre"]`). Stands come from the map
+  (`mining_opt.spot_stands`, ~0.1-0.5 s) and are cached per spot for 10 min (`OverseerDB.STANDS_CACHE_S`; guard points
+  learned since change them); block states and digs are read each poll (~5 ms warm).
+- `viz/src/ore.ts` is the pure model (bun tests); `MapGrid.tsx` draws it.
+- Verified live 2026-11-01 in headless Chromium against a second viz server (port 8091, the live store) during Outland
+  Dan's run at forge_2497_708: 98 blocks (2 with ore, 96 dug out), 23 of 1876 stands reaching ore, 41 stands dug
+  (447 ore); the outline, block grid, rings and forge drew over the facet picture, and hovering read "ore block 316,84
+  (2528-2535, 672-679): dug out 2m ago, ready in 58m". The route answered in 1.2 s cold, 6 ms warm.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see
@@ -1461,6 +1496,7 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
 | `viz/src/huntjob.ts`, `components/HuntJobPanel.tsx` | left-column Hunt job pane: run detection, the damage/tally stream fold, gold and kills per hour, damage per second by side, and the panel (§2.16) |
 | `viz/src/miningjob.ts`, `components/MiningJobPanel.tsx` | left-column Mining job pane: run/phase detection, the ore tally and ore per hour from the intent texts, this trip's legs, what is carried, and the panel (§2.19) |
 | `viz/src/grove.ts` | the map's lumber grove layer: query choice, tree lookup and hover text (§2.12) |
+| `viz/src/ore.ts` | the map's mining ore layer: the `/api/mining/ore` answer, block lookup and hover text (§2.21) |
 | `harness/nystul.py`, `nystul_ext.ts`, `nystul_tools.py`, `nystul_memory.py`, `nystul_prompt.md`, `test_nystul.py` | Nystul the Wizard: conversations and omp runs, the omp extension, the read-only tool boundary, Codex proposals (validate/apply), the system prompt, tests (§2.13) |
 | `viz/src/nystul.ts`, `markdown.ts`, `components/NystulChat.tsx`, `NystulPage.tsx`, `Markdown.tsx` | Nystul view model (validation, step labels, run summary), the markdown parser, the chat, page and renderer (§2.13) |
 | `harness/uoart.py`, `harness/test_uoart.py` | `UooImages` (gumps.uoo / art.uoo reader, shared with `paperdoll.py`) and `ItemArt` for `/api/art` (§2.9) |
@@ -1528,6 +1564,9 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
   - `/api/lumber/grove` (§2.12): the area, every runner tree inside it, harvest-memory states
     (a fresh depleted mark with its window end, not_tree, an old unreachable ready again), trees
     past the edge only up to the margin, lookup by position (else `spot` null), 400s.
+  - `/api/mining/ore` (§2.21): the area and forge, every block a stand reaches with its state (a fresh
+    depleted mark with its window end, no_harvest, an old depleted one ready again), each stand's
+    blocks with ore, the digs within the window and what ended the stand, lookup by position, 400s.
 - **Proxy:** extend `test_movement.py` to check that proxy events and envelopes appear in the
   state-port event log.
 - **Frontend (`bun test`), pure helpers only:** serial normalization, entity lookup precedence,
@@ -1538,8 +1577,8 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
   event wording, the theft-loss rule, wood shares, overseer cursor merging, timeline order,
   heartbeat status and chat validation, and the Jobs date range (query parsing and its inverse,
   local-midnight bounds on DST days, presets), and (§2.11) the lumber run/leg rules, the current
-  logs/hr window, spot trips and wood mixes, and (§2.12) the grove query choice and tree hover
-  text.
+  logs/hr window, spot trips and wood mixes, (§2.12) the grove query choice and tree hover
+  text, and (§2.21) the ore block lookup and hover text.
   `bunx tsc --noEmit` must pass. No DOM snapshot tests; M2–M4 acceptance runs
   are the integration check.
 - **Jobs and overseer (`harness/test_viz.py`):** `jobs.analytics` numbers on a seeded store
