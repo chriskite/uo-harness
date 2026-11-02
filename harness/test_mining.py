@@ -319,9 +319,46 @@ def test_run_past():
           came_from_goal)
 
 
+def test_forge_unreachable():
+    print("the field forge out of reach with a full pack: the leg ends and the ore goes home, no abort")
+    import loop_mining
+    from agent_link import WalkFailed
+    saved = loop_mining.log
+    loop_mining.log = lambda s: None
+    smelts = []
+    try:
+        loop = object.__new__(MineLoop)
+        loop.break_due = loop.finish_requested = False
+        loop.stats, loop.leg_t0, loop.trip_field_s, loop.harvesting = {}, None, 0.0, True
+        loop.home = {}                         # no house forge: the leg-end smelt would walk there again
+        for name in ("aspect_ensure", "ward_ensure"):
+            setattr(loop, name, lambda why: None)
+        loop.guard_route_ready = loop.go_out = lambda: None
+        loop.track_ensure = lambda why: None
+        loop.state = lambda: {}
+        loop.candidate_stands = lambda st: [{"x": 1, "y": 1}]
+        loop.time_up = lambda: False
+        loop.needs_smelt = lambda st: True
+        loop.smeltable_ore = lambda st: 40
+
+        def smelt(why, home=False):
+            smelts.append(why)
+            raise WalkFailed("to the forge: no route from (1418, 1143)")
+        loop.smelt = smelt
+        loop.next_stand = lambda stands: (_ for _ in ()).throw(AssertionError("dug on with a full pack"))
+        got = loop.harvest_trip()
+    except Exception as e:                    # noqa: BLE001 - the abort this test is about
+        got = e
+    finally:
+        loop_mining.log = saved
+    check("the leg returns (no abort)", got == 0, repr(got))
+    check("one walk to the forge, not a second at the leg's end", smelts == ["weight"], smelts)
+    check("the trip row says why", "no route" in loop.stats.get("forge_unreachable", ""), loop.stats)
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
-              test_reachable_stands, test_run_past):
+              test_reachable_stands, test_run_past, test_forge_unreachable):
         t()
     print()
     if FAILURES:

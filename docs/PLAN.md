@@ -2115,6 +2115,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   30000-expansion cap under danger costs and the forge walk aborted the run where the map had a 32-step route.
   `Mover.plan` searches up to `agent_link.DANGER_MAX_EXPAND` (120000) while zones are set (docs/NOTES.md "Mining…").
   Rejected: retrying with the zones ignored (a straight line through the creature, and escapes would run into it).
+- *An unreachable field forge ends the leg, not the run* (2026-11-01, mining-20261101-213114-cd4f at
+  forge_1383_1146: a crowded forge (grizzly, gargoyle, mongbats) cut every way to it even with the larger search;
+  "to the forge: no route from (1418, 1143)" aborted the run, exit 1). The weight smelt's walk failing
+  (`WalkFailed`) now ends the leg like a full pack: log "the forge can't be reached (…); ending the leg at N ore:
+  the ore goes home", the trip row's `forge_unreachable`, no second walk at the leg's end; home smelts it at the
+  house forge (or it rides to the next field forge). test_mining.py `test_forge_unreachable`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

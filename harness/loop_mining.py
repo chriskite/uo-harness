@@ -40,7 +40,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import actions  # noqa: E402
-from agent_link import Abort, cheb, containers_to_open, log, serial_of  # noqa: E402
+from agent_link import Abort, WalkFailed, cheb, containers_to_open, log, serial_of  # noqa: E402
 import dropoff as dropoff_mod  # noqa: E402
 import escape as escape_mod  # noqa: E402
 import localmap  # noqa: E402
@@ -781,6 +781,7 @@ class MineLoop(loop_lumber.LumberLoop):
         (home_forge: the ore rides home or on to the next spot, smelted at home). A monster escape or a
         suspected thief leaves the stand, digging goes on at the next one out of reach."""
         tally = {"ore": 0, "attempts": 0, "successes": 0, "doubles": 0, "unknown": 0}
+        unreachable = None           # this leg: why the walk to the spot's forge failed (no smelt here again)
         try:
             if self.ending:
                 log(f"{self.ending}: no digging this trip")
@@ -803,7 +804,17 @@ class MineLoop(loop_lumber.LumberLoop):
                     break
                 try:
                     if self.needs_smelt(self.state()):
-                        self.smelt("weight")
+                        # live 2026-11-01 (mining-20261101-204544-16a2, -213114-cd4f): creatures round the forge cut
+                        # every way to it ("to the forge: no route") and the run aborted; the pack is full, so the
+                        # leg ends and the ore goes home (the house forge smelts it, or it rides to the next forge)
+                        try:
+                            self.smelt("weight")
+                        except WalkFailed as x:
+                            unreachable = str(x)
+                            self.stats["forge_unreachable"] = unreachable
+                            log(f"the forge can't be reached ({x}); ending the leg at {tally['ore']} ore: the ore "
+                                f"goes home")
+                            break
                         continue
                     stand = self.next_stand(stands)
                     if stand is None:
@@ -823,7 +834,7 @@ class MineLoop(loop_lumber.LumberLoop):
                 except KeepAway as e:
                     self.keep_away(e)
             # leaving the spot, a break or stop request too; with a home forge the ore is smelted at home
-            if self.home_forge is None and self.smeltable_ore(self.state()) > 0:
+            if self.home_forge is None and unreachable is None and self.smeltable_ore(self.state()) > 0:
                 try:
                     self.smelt("leg end")
                 except Escape as e:
