@@ -58,8 +58,8 @@ export interface GroveResponse {
   trees?: GroveTree[];
 }
 
-/** The /api/lumber/grove query for a running lumber intent: its spot, else the spot
- *  around the true position (runners older than the intent's `spot`). Null: nothing to ask. */
+/** The /api/lumber/grove query for a running lumber intent (and /api/mining/ore's for a mining one): its spot, else
+ *  the spot around the true position (runners older than the intent's `spot`). Null: nothing to ask. */
 export function groveQuery(intent: AgentIntent | null, pos: Tile | null, facet: number | null | undefined): string | null {
   if (!intent) return null;
   if (intent.spot) return `spot=${encodeURIComponent(intent.spot)}`;

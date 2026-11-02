@@ -222,12 +222,14 @@ class OverseerDB:
     schema bookkeeping write happens once, not per poll. GETs never create the
     store; POST /api/chat does. The plans have their own connection and lock, so
     their seconds of Monte Carlo never hold up the chat, junctures or job analytics; the
-    map's grove layer has its own too, so it never waits behind the all-time analytics."""
+    map's layers (the lumber grove, the mining ore) have their own too, so they never wait behind the
+    all-time analytics."""
 
     JOBS_CACHE_S = 2.0
     PLAN_CACHE_S = 60          # the plan's draws are seeded by the minute (jobs.lumber_plan)
     FOS_CACHE_S = 30.0         # the reaper map changes only while someone is in the Field of Souls
     REGROW_CACHE_S = 60.0      # the grove layer's regrowth window: a fit over all history, moves slowly
+    STANDS_CACHE_S = 600.0     # the ore layer's stands: the map's, less the guard points learned since
     PAGE = 200
 
     def __init__(self, path: str):
@@ -241,9 +243,10 @@ class OverseerDB:
         self.plan_refresh = set()  # jobs whose stale plan is being recomputed in the background
         self.plan_state = threading.Lock()  # plan_cache and plan_refresh
         self.fos_cache = None      # (monotonic, body) of fos_reapers
-        self.grove_lock = threading.Lock()  # grove_mem and regrow_cache
+        self.grove_lock = threading.Lock()  # grove_mem, regrow_cache and stands_cache
         self.grove_mem = None
         self.regrow_cache = None   # (monotonic, lumber_opt.store_regrowth)
+        self.stands_cache = {}     # {(facet, centre, radius): (monotonic, mining_opt.spot_stands)}
 
     def _open(self, create: bool):
         if self.mem is None and (create or os.path.exists(self.path)):
@@ -387,15 +390,19 @@ class OverseerDB:
             mem.chat_post("system", text[:500], "memory", data={"cmd": "nystul", "op": p["op"], **data})
             return result
 
+    def _map_mem(self):
+        """The map layers' connection (grove, ore), opened lazily; None without a store. Under grove_lock."""
+        if self.grove_mem is None and os.path.exists(self.path):
+            self.grove_mem = memory_mod.Memory(self.path)
+        return self.grove_mem
+
     def grove(self, spot_id: str | None, facet: int, x: int | None, y: int | None) -> dict:
         """lumber_opt.grove_view of spot `spot_id`, else of the spot whose area holds
         (x, y) on `facet`; spot null when neither names one (or no store / no map files).
         Its own connection and lock; the regrowth window cached REGROW_CACHE_S."""
         import lumber_opt
         with self.grove_lock:
-            if self.grove_mem is None and os.path.exists(self.path):
-                self.grove_mem = memory_mod.Memory(self.path)
-            mem = self.grove_mem
+            mem = self._map_mem()
             if mem is None:
                 return {"spot": None, "store": False}
             spots = lumber_opt.load_spots(mem)
@@ -410,6 +417,31 @@ class OverseerDB:
             if view is None:
                 return {"spot": None, "store": True, "error": f"no map files for facet {spot.get('facet') or 0}"}
             return {**view, "store": True}
+
+    def ore(self, spot_id: str | None, facet: int, x: int | None, y: int | None) -> dict:
+        """mining_opt.ore_view of mining spot `spot_id`, else of the one whose area holds (x, y) on `facet`;
+        spot null when neither names one (or no store / no map files). The grove's connection and lock;
+        a spot's stands cached STANDS_CACHE_S (~0.1 s from the map)."""
+        import lumber_opt
+        import mining_opt
+        with self.grove_lock:
+            mem = self._map_mem()
+            if mem is None:
+                return {"spot": None, "store": False}
+            spots = mining_opt.load_spots(mem)
+            spot = spots.get(spot_id) if spot_id else (
+                lumber_opt.spot_at(spots, facet, x, y) if x is not None and y is not None else None)
+            if spot is None or not spot.get("area"):
+                return {"spot": None, "store": True}
+            sfacet = int(spot.get("facet") or 0)
+            key = (sfacet, tuple(spot["area"]["center"]), spot["area"]["radius"])
+            now = time.monotonic()
+            hit = self.stands_cache.get(key)
+            if hit is None or now - hit[0] >= self.STANDS_CACHE_S:
+                hit = self.stands_cache[key] = (now, mining_opt.spot_stands(spot, self.path))
+            if hit[1] is None:
+                return {"spot": None, "store": True, "error": f"no map files for facet {sfacet}"}
+            return {**mining_opt.ore_view(mem, spot, hit[1], time.time()), "store": True}
 
     def fos_reapers(self) -> bytes:
         """fos_field.reaper_map over the store (the Field of Souls reaper heatmap, docs/VISUALIZER.md §2.17),
@@ -738,7 +770,9 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, self.server.overseer.plan(job))
         elif url.path == "/api/lumber/grove":
-            self._grove(parse_qs(url.query))
+            self._spot_layer(parse_qs(url.query), self.server.overseer.grove)
+        elif url.path == "/api/mining/ore":
+            self._spot_layer(parse_qs(url.query), self.server.overseer.ore)
         elif url.path == "/api/fos/reapers":
             self._send(200, self.server.overseer.fos_reapers())
         elif url.path == "/api/overseer":
@@ -796,7 +830,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, self.server.overseer.jobs(job, since, until, utc_offset_s))
 
-    def _grove(self, qs: dict):
+    def _spot_layer(self, qs: dict, view):
+        """A map layer of one spot (OverseerDB.grove, .ore): ?spot=<id>, or ?facet=F&x=X&y=Y for the spot there."""
         spot = qs.get("spot", [None])[0] or None
         try:
             facet = int(qs.get("facet", ["0"])[0])
@@ -807,7 +842,7 @@ class Handler(BaseHTTPRequestHandler):
         if spot is None and (x is None or y is None):
             self._json(400, {"error": "give spot=<id> or x and y (and facet)"})
             return
-        self._json(200, self.server.overseer.grove(spot, facet, x, y))
+        self._json(200, view(spot, facet, x, y))
 
     def _char_serial(self, raw) -> tuple[bool, int | None]:
         """(ok, serial) of a `char` the overseer routes take: absent/empty → (True, None),
