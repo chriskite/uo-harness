@@ -334,6 +334,13 @@ class Params:
         # on the human body 400 the brigands taught as aggressive; the mining run walked away from it
         # (mining-20261019-215055-990f, forge_1193_1066)
         "a quarry miner"})
+    # lower-case labels of weak melee animals a walk to a stand or tree runs past instead of fleeing, while mounted
+    # and that goal is past where a chase gives up (LumberLoop.run_past; user 2026-11-01: "we can run past weak
+    # animal mobs like 'a cougar' rather than recalling away"). Stock-UO melee animals with low damage
+    # [INFERENCE for Outlands' numbers]; no caster, breather or archer
+    run_past_names: frozenset = frozenset({
+        "a cougar", "a panther", "a grey wolf", "a timber wolf", "a black bear", "a brown bear",
+        "a giant rat", "a sewer rat", "a rat", "a snake", "a bullfrog"})
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
     # creature reach (module docstring "Reach"): ranged bodies, and the farthest

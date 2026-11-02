@@ -852,8 +852,8 @@ class MineLoop(loop_lumber.LumberLoop):
         n = (self._steps[1] if self._steps is not None else {}).get((x, y))   # walk_steps from here (next_stand's)
         try:
             # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
-            self.mover.walk_to(lambda: (x, y), 0, f"to the ore stand {x},{y}",
-                               max_route=None if n is None else STAND_ROUTE_MIN + STAND_DETOUR * n)
+            self.walk_to_work((x, y), 0, f"to the ore stand {x},{y}",
+                              max_route=None if n is None else STAND_ROUTE_MIN + STAND_DETOUR * n)
         except Abort as e:
             if "no route" not in str(e):
                 raise

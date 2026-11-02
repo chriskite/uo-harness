@@ -2097,6 +2097,20 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   the last mining-20261023-172637-05d6). The start check now runs only away from home; at home the trip's
   `hatchets_ready` tops up (pickaxes from the chest, lumber's hatchets from the shelf and chest) and posts
   `low_supplies` and stops when there are none. Same fix for the lumber runner (shared `run()`).
+- *Run past weak animals on the way to a stand* (2026-11-01, user: "As long as the destination is far enough from the
+  mob such that the mob will leash back before Dan reaches the stand, we can run past weak animal mobs like 'a
+  cougar' rather than recalling away"; live mining-20261101-202640-6e00 at forge_2551_665: a cougar by the only way
+  from the landing drew 3 escapes in 15 s, each walk back passing it again, then "came back after 3 escapes" sent
+  Dan home). `LumberLoop.run_past` (shared with lumber's tree walks): while walking to a stand or tree
+  (`walk_to_work`), mounted, a creature named in `threats.Params.run_past_names` (cougar, panther, grey/timber wolf,
+  black/brown bear, rats, snake, bullfrog) that hasn't swung at us is not fled from when the goal is at least
+  `ESCAPE_RUN` (20) tiles from where it is and from where it was first weighed (its spawn, roughly). The leash
+  distance is the escape's own "it gave up" distance [INFERENCE: unmeasured on Outlands; the store's 348 `leash`
+  events show chases of at most 14 tiles, a cougar's 3]. Damage still goes through `creature_hit` (escape or home);
+  at the goal one in flee range is fled from as before. Each is a log line "running past a cougar at 8 tiles: the
+  goal X,Y is N tiles from it (>= 20)" and a `run_past` job event (serial, name, body, distance, at, first, goal,
+  gap). Rejected: walking past on foot (a cougar keeps pace), larger creatures (grizzly, dire wolf: left out until
+  the user names them). Test: test_mining.py `test_run_past`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

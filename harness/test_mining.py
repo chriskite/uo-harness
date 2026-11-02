@@ -262,9 +262,66 @@ def test_reachable_stands():
           zoned and (45, 45) not in zoned, zoned)
 
 
+def test_run_past():
+    print("weak animals on the way to a stand: run past when we ride and the stand is past their chase")
+    import loop_lumber
+    import threats
+    me, horse = 0x100, 0x200
+
+    def state(mounted=True, cougar=(2620, 729), orc=None):
+        mobs = {"0x00000C01": {"x": cougar[0], "y": cougar[1]}}
+        if orc:
+            mobs["0x00000C02"] = {"x": orc[0], "y": orc[1]}
+        items = {f"0x{horse:08X}": {"layer": 0x19, "container": f"0x{me:08X}"}} if mounted else {}
+        return {"movement": {"self_serial": me, "pos": [2622, 737, 0, 0]},
+                "world": {"mobiles": mobs, "items": items, "self": {"map": 0}}}
+
+    cougar = threats.Threat(serial=0xC01, name="a cougar", body=63, notoriety=3, kind="monster", player=None,
+                            hostile=True, distance=8)
+    orc = threats.Threat(serial=0xC02, name="an orc", body=17, notoriety=3, kind="monster", player=None,
+                         hostile=True, distance=6)
+    saved = loop_lumber.log
+    loop_lumber.log = lambda s: None
+    events = []
+    try:
+        loop = object.__new__(MineLoop)
+        loop.mode, loop.watch = "work", threats.Watch()
+        loop.run_past_from, loop.ran_past, loop._later = {}, set(), []
+        loop.later = lambda fn: loop._later.append(fn)
+        loop.memory = SimpleNamespace(job_event=lambda job, kind, data, **w: events.append((kind, data)))
+        loop.JOB = "mining"
+
+        def flee(st, goal, monsters=(cougar,), swung=()):
+            loop.walk_goal = goal
+            return [t.name for t in loop.run_past(st, list(monsters), set(swung))]
+        # live mining-20261101-202640-6e00: the stand 2560,686, a cougar at (2620, 729) 8 tiles from Dan
+        far = flee(state(), (2560, 686))
+        for fn in loop._later:
+            fn()
+        near = flee(state(), (2630, 745))
+        afoot = flee(state(mounted=False), (2560, 686))
+        hit_us = flee(state(), (2560, 686), swung={0xC01})
+        digging = flee(state(), None)
+        both = flee(state(orc=(2625, 731)), (2560, 686), monsters=(cougar, orc))
+        loop.run_past_from = {0xC01: (2570, 690)}      # first seen by the stand, chasing us out to (2620, 729)
+        came_from_goal = flee(state(), (2560, 686))
+    finally:
+        loop_lumber.log = saved
+    check("riding to a stand 60 tiles from the cougar: run past it, no escape", far == [], far)
+    check("one run_past job event for it", [k for k, _ in events] == ["run_past"]
+          and events[0][1]["goal"] == [2560, 686], events)
+    check("a stand within ESCAPE_RUN of it: fled from as before", near == ["a cougar"], near)
+    check("on foot it keeps pace: fled from", afoot == ["a cougar"], afoot)
+    check("one that swung at us: fled from", hit_us == ["a cougar"], hit_us)
+    check("no walk under way (digging): fled from", digging == ["a cougar"], digging)
+    check("an orc isn't a weak animal: still fled from", both == ["an orc"], both)
+    check("a stand near where it was first seen: fled from (its spawn is there)", came_from_goal == ["a cougar"],
+          came_from_goal)
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
-              test_reachable_stands):
+              test_reachable_stands, test_run_past):
         t()
     print()
     if FAILURES:

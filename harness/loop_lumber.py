@@ -520,6 +520,9 @@ class LumberLoop:
         #                              ("was", serial) -> the same around where it was when we escaped (fixed)
         self.run_arrived = None      # time.time() when the last walk-away ended (--creature-rehit-s)
         self.walk_hits = 0           # hits that cost hits during the current walk-away (hit_verdict walk_hits)
+        self.walk_goal = None        # (x, y) of the stand or tree a walk heads for (walk_to_work), for run_past
+        self.run_past_from = {}      # creature serial -> (x, y) where run_past first weighed it
+        self.ran_past = set()        # (serial, goal) pairs run_past logged
         self.creature = self.new_creature_tally()   # this trip's creature cost: the episode row's `creature`
         self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_stand)
         self.recent_guards = {}      # creature serial -> (threat, (x, y), zone tiles, monotonic time last seen) (tree_guards)
@@ -1206,6 +1209,7 @@ class LumberLoop:
             self.creature_hit(st, a, swung, monsters, escape)
         if monsters and self.at_home(st):       # in the house (home.at_home): a creature outside can't get at us
             monsters = [t for t in monsters if t.serial in swung]   # (user 2026-10-22); one swinging at us still counts
+        monsters = self.run_past(st, monsters, swung)
         if not monsters or self.mode == "escape":
             return
         if not escape:
@@ -1220,6 +1224,49 @@ class LumberLoop:
             self.monster_stop(st, a, back, swung, f"{back.name or f'0x{back.serial:08X}'} came back after "
                                                   f"{self.escaped_from[back.serial]} escapes")
         raise Escape(monsters, self.post_threat(st, a, monsters[0], swung, "escape"))
+
+    def run_past(self, st, monsters: list, swung) -> list:
+        """The monsters still to flee from. A weak animal (threats.Params.run_past_names) in flee range is run past
+        on a walk to a stand or tree (walk_to_work's goal) when we ride, it hasn't swung at us, and the goal is at
+        least ESCAPE_RUN tiles (where an escape would end) both from where it is and from where run_past first saw
+        it: it gives up the chase before we get there (user 2026-11-01: "we can run past weak animal mobs like 'a
+        cougar' rather than recalling away"; live mining-20261101-202640-6e00: a cougar by the way to the stands
+        drew 3 escapes in 15 s, then a recall home). A hit still goes to creature_hit first; at the goal (digging,
+        chopping) one in flee range is fled from as before. Each one is logged and a `run_past` job event once
+        per goal."""
+        goal = self.walk_goal
+        if goal is None or self.mode != "work" or not monsters or not mount_mod.mounted(st):
+            return monsters
+        names, mobs = self.watch.params.run_past_names, st["world"]["mobiles"]
+        keep = []
+        for t in monsters:
+            m = mobs.get(f"0x{t.serial:08X}") or {}
+            if (t.name or "").lower() not in names or t.serial in swung or m.get("x") is None:
+                keep.append(t)
+                continue
+            now = (m["x"], m["y"])
+            first = self.run_past_from.setdefault(t.serial, now)
+            gap = min(cheb(goal, now), cheb(goal, first))
+            if gap < ESCAPE_RUN:
+                keep.append(t)
+                continue
+            if (t.serial, goal) not in self.ran_past:
+                self.ran_past.add((t.serial, goal))
+                log(f"running past {t.name} at {t.distance} tiles: the goal {goal[0]},{goal[1]} is {gap} tiles "
+                    f"from it (>= {ESCAPE_RUN})")
+                data = {"serial": f"0x{t.serial:08X}", "name": t.name, "body": t.body, "distance": t.distance,
+                        "at": list(now), "first": list(first), "goal": list(goal), "gap": gap}
+                self.later(lambda data=data, where=self._where(st):
+                           self.memory.job_event(self.JOB, "run_past", data, **where))
+        return keep
+
+    def walk_to_work(self, goal, radius: int, label: str, **kw):
+        """mover.walk_to a stand or tree, the goal known to run_past while walking."""
+        self.walk_goal = tuple(goal[:2])
+        try:
+            return self.mover.walk_to(lambda: goal, radius, label, **kw)
+        finally:
+            self.walk_goal = None
 
     def creature_hit(self, st, a, swung, monsters, escape: bool):
         """Damage taken (LUMBER_LOOP.md §13 "Running from a creature"). Who hit us is
@@ -3543,11 +3590,10 @@ class LumberLoop:
         rethink = self.tree_rethink(spot, trees, z_ok)
         try:
             if "stand" in tree:
-                why = self.mover.walk_to(lambda: tree["stand"], 0, f"to {label}", z_ok=z_ok, max_route=max_route,
-                                         stop=rethink)
+                why = self.walk_to_work(tree["stand"], 0, f"to {label}", z_ok=z_ok, max_route=max_route, stop=rethink)
             else:
-                why = self.mover.walk_to(lambda: (tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok,
-                                         max_route=max_route, stop=rethink)
+                why = self.walk_to_work((tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok, max_route=max_route,
+                                        stop=rethink)
             if why:
                 trees.append(tree)               # still a candidate, for later or from elsewhere
                 if why.startswith("a creature's zone"):

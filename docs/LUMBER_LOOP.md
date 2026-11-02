@@ -1068,6 +1068,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   escape, shaken off, chop on at the other tree, stored), `skirmish` (one at our heels through a
   second escape: kept coming, home), `gazer_rehit` (a gazer that outranges the leg hits during the
   look: kept coming, home).
+- **Run past weak animals on a walk (since 2026-11-01, `run_past`, docs/PLAN.md "Mining runner…"):** mounted and
+  walking to a tree or ore stand at least `ESCAPE_RUN` tiles from it, a weak animal in flee range
+  (`threats.Params.run_past_names`, e.g. a cougar) that hasn't swung at us is passed, not fled from; log "running
+  past …" and a `run_past` job event. A hit still goes through the damage rules; at the tree it is fled from.
 - **Keep away from creatures in view, run far, run before recalling (since 2026-10-05, user: "never
   move into aggro range of mobs we can see while lumbering"; "a few steps isn't going to break aggro";
   fighting them is for later):**

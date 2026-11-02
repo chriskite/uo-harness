@@ -5593,6 +5593,10 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       that day up to 14:38, the projection's base window. On that measure the projection at 100 is ~93k (88k–110k).
       The legs from 14:38 to 16:04 (skill 68.5–72, the planner's best spots) already read 93.5k: the choice of spot
       and the failed legs weigh as much as skill.
+  - **Cougar bounce (live 2026-11-01, mining-20261101-202640-6e00, forge_2551_665):** from the library landing (2624,
+    751) every route to the stands passed a cougar at ~(2620, 729); Dan escaped 3 times in 15 s (each shake-off
+    "out of view" after 1–3 legs), the replanned walk passed it again, and the 4th sighting ("came back after 3
+    escapes") recalled home and hopped. Fixed by `run_past` (docs/PLAN.md "Mining runner…").
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
