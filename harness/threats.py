@@ -339,7 +339,7 @@ class Params:
     # animal mobs like 'a cougar' rather than recalling away"). Stock-UO melee animals with low damage
     # [INFERENCE for Outlands' numbers]; no caster, breather or archer
     run_past_names: frozenset = frozenset({
-        "a cougar", "a panther", "a grey wolf", "a timber wolf", "a black bear", "a brown bear",
+        "a cougar", "a panther", "a wolf", "a grey wolf", "a timber wolf", "a black bear", "a brown bear",
         "a giant rat", "a sewer rat", "a rat", "a snake", "a bullfrog"})
     aggressive_notoriety: frozenset = frozenset({6})
     monster_default_aggressive: bool = False
