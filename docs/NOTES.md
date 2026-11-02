@@ -8275,6 +8275,16 @@ in the Tidal Tomb, 2026-10-24 to 11-01 (20261024_102346, 20261024_225113, 202610
   "A combustive zoa's scorch wind-up"). Live it needs the proxy restarted (the world model runs in the proxy). The
   simulator: docs/SIM.md "Tidal Tomb: the scorch's wind-up".
 
+## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
+
+Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's
+gump 0x09F5976B didn't open" (task_failed at home, Logan unhurt). Capture 20261101_215540: "The world is saving, please
+wait." at 23:20:26.23; "All Follow Me" (26.30) and the tome's double-click (28.33) went out during the save; "World
+save complete ... 3.1 seconds" at 29.33; `_open`'s one re-click at 29.39; the server then ran the queued speech (29.41)
+and answered 500119 "You must wait to perform another action." with no gump; no third click, the wait (2 s + the save)
+ended at 33. Fix: `escape._open` clicks again after each RECLICK_S without a gump, OPEN_CLICKS (3) in all, never during
+a save. test_escape `test_open_after_world_save` (fails on the one re-click).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

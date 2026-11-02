@@ -616,6 +616,48 @@ def test_open_through_world_save():
         check("no save: the 0.3 s timeout holds (the gump at 0.6 s is too late)", True)
 
 
+def test_open_after_world_save():
+    """Live 2026-11-01 23:20:26-33 (hunt-20261101-222057-09cc): the tome's double-click went out during a 3.1 s save,
+    the one re-click 0.06 s after "World save complete"; the server answered 500119 "You must wait to perform another
+    action." and no gump; _open gave up and the run aborted."""
+    import time
+
+    class IO:
+        save_t0 = None
+
+        def __init__(self):
+            self.t0, self.sent, self.queue, self.done = None, [], [], False
+
+        def send(self, pkt):
+            now = time.monotonic()
+            self.t0 = self.t0 or now
+            dt = now - self.t0
+            self.sent.append(round(dt, 2))
+            if dt < 0.5:                                  # in the save: answered at its end, refused
+                self.queue.append((0.5, {"ev": "cliloc", "serial": 0xFFFFFFFF, "cliloc": 500119}))
+            elif dt >= 1.0:                               # past the action delay after it: the gump
+                self.queue.append((dt + 0.05, {"ev": "gump_open", "gump_id": "0x1234"}))
+
+        def poll(self):
+            if self.t0 is None:
+                return {}, [{"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": "The world is saving, please wait."}]
+            dt = time.monotonic() - self.t0
+            out = []
+            if dt >= 0.5 and not self.done:
+                self.done = True
+                out.append({"ev": "speech_heard", "serial": 0xFFFFFFFF,
+                            "text": "World save complete. The entire process took 3.1 seconds."})
+            out += [e for t, e in self.queue if t <= dt]
+            self.queue = [(t, e) for t, e in self.queue if t > dt]
+            return {}, out
+    io = IO()
+    io.poll()                                             # the save's start, seen before the click (Link.save_t0)
+    io.save_t0 = time.monotonic()
+    got = escape._open(io, 0x40000001, 0x1234, ME)
+    check("a click in the save refused, the one just after it swallowed: a third click opens the gump",
+          got.get("gump_id") == "0x1234" and len(io.sent) == 3 and io.sent[1] < 1.0 <= io.sent[2], (got, io.sent))
+
+
 def test_death_is_no_arrival():
     """Live 2026-10-20 13:14:56: Dan died 1 s into a recall; the ghost's position jump read as 'arrived'."""
     class IO:
@@ -632,7 +674,7 @@ if __name__ == "__main__":
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
               test_escape_stops, test_escape_late_arrival, test_escape_between, test_no_recall_in_dungeon,
-              test_open_through_world_save, test_death_is_no_arrival):
+              test_open_through_world_save, test_open_after_world_save, test_death_is_no_arrival):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")

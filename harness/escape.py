@@ -59,7 +59,8 @@ GUMP_WAIT_S = 2.0                 # double-click -> the book's gump (48 ms live)
 ARRIVE_WAIT_S = 5.0               # press -> arrival (2.05-2.09 s live)
 LATE_ARRIVAL_S = 10.0             # after our power words, how long an arrival may still come (5.18 s seen live)
 JUMP_TILES = 2                    # an own-position change this large while frozen = arrived
-RECLICK_S = 0.6                   # no gump this long after the double-click: click once more
+RECLICK_S = 0.6                   # no gump this long after a double-click: click once more...
+OPEN_CLICKS = 3                   # ...up to this many clicks in all (_open)
 RECALL_CAST_S = 2.0               # power words -> arrival 1.95-2.09 s (34 live recalls)
 ESCAPE_BUDGET_S = 20.0            # escape(): recast until this long after the first press
 RECOVERY_MARGIN_S = 0.05          # on top of the computed disturb recovery
@@ -518,14 +519,18 @@ class LinkIO:
 def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) -> dict:
     """Double-click the book; the gump_open event of its gump (layout, lines, serial).
     A double-click right after another action is ignored by the server (seen live:
-    the escape's click 0.3 s after the readiness check's), so one more after
-    RECLICK_S without a gump. "This book needs time to recharge." raises BookRecharging.
+    the escape's click 0.3 s after the readiness check's), so another after each
+    RECLICK_S without a gump, OPEN_CLICKS in all, none while a world save is under way.
+    Live 2026-11-01 23:20:26-33 (hunt-20261101-222057-09cc): a click went out during a
+    3.1 s save, the one more 0.06 s after "World save complete", the server answered the
+    queued actions with 500119 "You must wait to perform another action." and no gump;
+    with one reclick only the run aborted ("the book's gump ... didn't open").
+    "This book needs time to recharge." raises BookRecharging.
     A world save doesn't use up the wait (agent_link.Deadline; the server answers after it)."""
     io.poll()
     io.send(actions.dclick(book))
-    t0 = time.monotonic()
+    last, clicks = time.monotonic(), 1
     deadline = Deadline(timeout, getattr(io, "save_t0", None))
-    reclicked = False
     while not deadline.over():
         _, evs = io.poll()
         deadline.see(evs)
@@ -534,9 +539,9 @@ def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) ->
                 return ev
             if failure(ev, me) == "recharging":
                 raise BookRecharging(f"the book 0x{book:08X} needs time to recharge")
-        if not reclicked and not deadline.saving and time.monotonic() - t0 > RECLICK_S:
+        if clicks < OPEN_CLICKS and not deadline.saving and time.monotonic() - last > RECLICK_S:
             io.send(actions.dclick(book))
-            reclicked = True
+            last, clicks = time.monotonic(), clicks + 1
         time.sleep(0.03)
     raise RecallError(f"the book's gump 0x{gump_id:08X} didn't open")
 
