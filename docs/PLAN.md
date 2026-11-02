@@ -2111,6 +2111,10 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   goal X,Y is N tiles from it (>= 20)" and a `run_past` job event (serial, name, body, distance, at, first, goal,
   gap). Rejected: walking past on foot (a cougar keeps pace), larger creatures (grizzly, dire wolf: left out until
   the user names them). Test: test_mining.py `test_run_past`.
+- *A creature zone isn't "no route"* (2026-11-01, mining-20261101-204544-16a2): the walk planner gave up at its
+  30000-expansion cap under danger costs and the forge walk aborted the run where the map had a 32-step route.
+  `Mover.plan` searches up to `agent_link.DANGER_MAX_EXPAND` (120000) while zones are set (docs/NOTES.md "Mining…").
+  Rejected: retrying with the zones ignored (a straight line through the creature, and escapes would run into it).
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

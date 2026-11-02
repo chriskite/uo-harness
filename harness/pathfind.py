@@ -24,6 +24,7 @@ import itertools
 import uomap
 
 TICK_EVERY = 1500        # plan(): expansions between tick() calls (~0.2 s of search) [INFERENCE: timing]
+MAX_EXPAND = 30000       # plan(): tiles expanded before giving up (no route)
 
 POF_IMPASSABLE_OR_SURFACE = 1
 POF_SURFACE = 2
@@ -389,7 +390,7 @@ class Walk:
 
 
 def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=None,
-         max_expand: int = 30000, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY):
+         max_expand: int = MAX_EXPAND, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY):
     """A* over (x, y, z): the cheapest route from start (x, y, z) to the first
     tile satisfying goal_fn((x, y)) (and goal_fn.z_ok(z) when the goal has one:
     a tile below or above the target, e.g. a cave under a tree, isn't the

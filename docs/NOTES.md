@@ -5600,6 +5600,14 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     751) every route to the stands passed a cougar at ~(2620, 729); Dan escaped 3 times in 15 s (each shake-off
     "out of view" after 1–3 legs), the replanned walk passed it again, and the 4th sighting ("came back after 3
     escapes") recalled home and hopped. Fixed by `run_past` (docs/PLAN.md "Mining runner…").
+  - **"No route" from the search cap, not the map (live 2026-11-01, mining-20261101-204544-16a2, forge_2564_535):**
+    the walk to the forge replanned at (2594, 535) for a moved creature zone (a wolf, 18 tiles off, the only
+    non-NPC in view) and ended "to the forge: no route from (2594, 535)": the run aborted home. The map has a
+    32-step route. Offline (pathfind on map 0 with `Mover.danger_cost`, a 13-tile zone placed on that route) the
+    A* hit its 30000-expansion cap (None) for zones at (2573, 542) and (2569, 540); with 120000 it found the route
+    through the zone (32 steps) or round it (321) in ~0.5 s. `Mover.plan` now searches up to
+    `DANGER_MAX_EXPAND` (120000) when danger zones are set (`pathfind.MAX_EXPAND` 30000 otherwise). test_mover
+    `test_danger_search_room`.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

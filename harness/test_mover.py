@@ -402,6 +402,19 @@ def test_danger_rims():
           path is not None and mid and all(abs(y) == 3 for _, y in mid), str(path))
 
 
+def test_danger_search_room():
+    print("== a zone on the only way out of a wide field: still a route (no 'no route' from the search cap) ==")
+    # live 2026-11-01 (mining-20261101-204544-16a2): a wolf's zone by the forge's way made the walk "no route" and
+    # the run abort; A* under the zone's costs expands the whole field (~40k tiles) before crossing it
+    field = {(x, y) for x in range(-100, 101) for y in range(-100, 101)} | {(x, 0) for x in range(101, 131)}
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, field)
+    mv.danger = {("seen", 1): ((103, 0), 5)}           # covers the corridor's first tiles
+    path, _ = mv.plan(link.state(), nav.within((130, 0), 0))
+    check("the route through the zone down the corridor", path is not None and path[-1] == (130, 0),
+          None if path is None else path[-3:])
+
+
 def test_danger_sticky():
     print("== after a danger replan the route keeps to the side it was on ==")
     # live 2026-10-05 (witcher_36): a wandering wisp swung the walk between two sides every second or two
@@ -817,6 +830,7 @@ def main():
     test_no_pause_in_danger()
     test_boxed_in()
     test_danger_rims()
+    test_danger_search_room()
     test_danger_sticky()
     test_shove_denied()
     test_height_goal()

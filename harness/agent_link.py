@@ -78,6 +78,12 @@ DENY_RETRY_S = 30.0
 # tile inside one costs DANGER_COST_X normal steps, so routes bend around monster groups
 # when a way around exists (live 2026-10-03: a straight map route through a harpy nest).
 DANGER_COST_X = 30.0
+# A map search with danger zones in its costs may expand this many tiles (pathfind.MAX_EXPAND without).
+# A* under DANGER_COST_X expands far more before it settles: live 2026-11-01 (mining-20261101-204544-16a2) a wolf's
+# zone by forge_2564_535 made the forge walk from (2594, 535) end "no route" and the run abort, where the map has
+# a 32-step route; offline the same zone needs 30k-120k expansions (a 32-step route through it, or 321 round it),
+# ~0.5 s
+DANGER_MAX_EXPAND = 120000
 # A walk replanned round danger zones this many times in a row without its route getting shorter
 # is boxed in and given up (live 2026-10-05, witcher_137: 178 replans in 4.5 min swinging between
 # two routes round creatures on every side, while the user watched Dan run back and forth).
@@ -1070,9 +1076,10 @@ class Mover:
                 self.denied.discard(edge)
                 del self.denied_t[edge]
             start = (pos[0], pos[1], pos[2])
+            expand = DANGER_MAX_EXPAND if self.danger or self.danger_tiles or self.avoid else pathfind.MAX_EXPAND
             path = pathfind.plan(walk, start, goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
-                                 tick=lambda: self.guard(self.link.state()))
+                                 tick=lambda: self.guard(self.link.state()), max_expand=expand)
             if path is None and self.denied_t:
                 # live 2026-10-17 11:12:45: one step south refused at a one-tile passage (a player stepped onto it),
                 # kept as a wall, and no route anywhere for minutes; the map says those steps go: try them again
@@ -1082,7 +1089,7 @@ class Mover:
                 self.denied_t.clear()
                 path = pathfind.plan(walk, start, goal,
                                      blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
-                                     tick=lambda: self.guard(self.link.state()))
+                                     tick=lambda: self.guard(self.link.state()), max_expand=expand)
             if path is None:
                 return None, walk
             path = nav.straighten(
