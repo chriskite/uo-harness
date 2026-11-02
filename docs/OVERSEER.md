@@ -557,7 +557,7 @@ Paste this (or point the session at this section) to start an overseer.
 > `--spot` into a command. Only `active` spots are planned: a `candidate` spot runs only after
 > `ctl mining spot set <id> --status active`, **with the user's OK**. The run digs its field minutes,
 > smelts at the spot's forge when the weight calls for it, and recalls home to the house. There the rest of
-> the ore is smelted at **the house forge** (homes.json `forge`, 0x56372DCC since 2026-10-21; the rental room's
+> the ore is smelted at **the house forge** (homes.json `forge`, 0x53277729 at (3574, 3250) since 2026-11-01, 0x56372DCC before; the rental room's
 > before, since 2026-10-20: a `smelt` job event with `at: home` (`at: room` on rows before 2026-10-21), "smelted N ore
 > into M ingots at the house's forge (home)") and **the ingots go into the Resource
 > Stockpile** (its Restock with the backpack; user 2026-10-19). The log says "added N ingots to the resource

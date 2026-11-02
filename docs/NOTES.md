@@ -601,6 +601,9 @@ Wolf's house"; data: `harness/data/homes.json`, `harness/home.py`.
   0x4AE0DD2C (3575,3250,23) 1; bank deposit safe 0x431E86F5 (3575,3249) 2; recycler 0x6264BB54
   (3573,3250) 2; tomes 0x62659A52 / 0x431E6BAA / 0x62658F0D / 0x62657BB3 at 1; magic item vault
   0x6264CB96. **New forge 0x56372DCC** (3574,3254,6), 3 tiles off; the room's forge 0x51CF24B3 is gone.
+  **Forge replaced again (2026-11-01):** new forge 0x53277729 at (3574,3250,6) beside the anvil 0x53278453
+  (3575,3250), 1 tile from the landing; 0x56372DCC is gone. mining-20261101-202640-6e00 ended "no smelt at home:
+  the house's forge 0x56372DCC isn't in view at home" with 171 ore in the pack; homes.json `forge` updated.
 - **The four drop-off tomes moved into the "wooden shelf" 0x5656B661** (3573,3251,6), 2 tiles off (user,
   later on 2026-10-21; the chest then read z 19). `act dropoff` first refused them ("isn't in view within
   2 tiles": it measured items on the ground only). `dropoff.run` now takes an item's reach from the
