@@ -1211,6 +1211,8 @@
     ],
     "tick_s": 0.5,
     "first_tick_s": 0.75,
+    "grip": "The creature grips you and begins to feed!",
+    "grip_note": "on Logan (live 2026-11-02 16:28:02.11, hunt-20261102-142649-1bdb): this line and an 'Unable to Move' buff (icon 20) for its ticks; he was held 2.6 s (docs/NOTES.md 'Tidal Tomb: dead dashing for the teleporter')",
     "note": "capture: '*feeds*' at 11:01:33.7 and 11:07:33.6 beside the gravebug, then 4 ticks 0.5 s apart from 0.75 s on it, 8/7/7/7 and 6/5/6/7 (no Song of Discordance up then); its kill took 3,921 in numbers against 3,500 hits (it healed); '*attempts to feed*' once (11:01:43.7, no feed followed). The attempt's delay, cadence and chance are the vampire's [INFERENCE]"
    }
   ],

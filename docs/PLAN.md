@@ -3419,6 +3419,16 @@ zoas' spells"; numbers: docs/SIM.md "Tidal Tomb: the stand-off in the scorch; th
 - *Rejected:* the step without the wait (it walked straight back in: the replay's 765).
 - *Live:* needs the proxy restarted with Logan at home and no run.
 
+## No dash for the teleporter past monsters ahead (2026-11-02, Logan dead on Tidal Tomb level 1)
+
+Live 16:28:07 the walk-in's dash went in among four monsters by the teleporter; a bottomfeeder's grip held him there
+(docs/NOTES.md "Tidal Tomb: dead dashing for the teleporter").
+
+- *Decided:* no dash when a monster in war mode not beside us stands within 1 of the way ahead: the stand instead; a
+  hold on a dash ends it in the stand. Replay of the live layout with the grip: deaths 22 -> 5 of 24.
+- *Rejected:* a dash round them (a way found 1 of 24 times, deaths 23); dashing anyway (the death).
+- *Simulator:* the bottomfeeder's feed now grips Logan (`grip`).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

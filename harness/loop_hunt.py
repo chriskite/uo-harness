@@ -312,6 +312,9 @@ TELE_DASH_R = 15             # --enter-via: attacked this many route steps or fe
 #                               route's 12 to the tile before it and the step on; the stand there was killing Logan until
 #                               the user walked him through. 13 plus a 2-step margin, ~3 s running against a stand of up
 #                               to WALK_IN_FIGHT_S; GATE_DASH_R's rule for the leave gate)
+DASH_CLEAR_R = 1              # ...unless a monster in war mode not beside us stands within this of the way still ahead:
+#                               then the fight there (dash_blocker; live 2026-11-02 16:28; the live layout's replay
+#                               sim/fight1627.py, the grip on: deaths 22 -> 5 of 24; "round" them found no way 23 of 24)
 WALK_FOUGHT_S = 1200.0        # --fight-via: a fought leg not at its teleporter after this long aborts (the escape)
 # Tidal Tomb's oxygen (oxygen.py, docs/HUNT_LOOP.md "Oxygen"; user 2026-10-28: "I would prefer it just fight normally to
 # the easiest oxygen refill to get to"): from OXY_MIN_S under water, a leg to the easiest refill in our underwater box
@@ -3670,12 +3673,17 @@ class HuntLoop:
                     self.walk_in_fought(label, near)
                 while why := self.mover.walk_to(lambda: near, 0, label, stop=self.walk_in_stop):
                     if why == "under attack":
-                        path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+                        st = self.link.state()
+                        path, _ = self.mover.plan(st, nav.within(tile, 0), mobiles=False)
                         if path and len(path) - 1 <= TELE_DASH_R:
-                            log(f"{label}: attacked {len(path) - 1} steps from it; through it now")
-                            self.walk_in_dash(label, near)
-                            dash = True
-                            break
+                            if (blocker := self.dash_blocker(st, path)) is None:
+                                log(f"{label}: attacked {len(path) - 1} steps from it; through it now")
+                                if self.walk_in_dash(label, near):
+                                    dash = True
+                                    break
+                                continue             # held on the way: the pets fought it (walk_in_dash); walk on
+                            log(f"{label}: attacked {len(path) - 1} steps from it; no dash: the way there passes "
+                                f"{blocker}")
                         self.walk_in_fight(label)
                     elif why.startswith(IDLE_AHEAD):
                         self.lead_pets(label)
@@ -3708,6 +3716,36 @@ class HuntLoop:
                 return j + 1
         return i
 
+    def dash_blocker(self, st, path) -> str | None:
+        """walk_in's dash: a monster in war mode within DASH_CLEAR_R of a tile of the way still ahead (`path`, from
+        where we stand), not one already beside us -> "the <kind> at (x, y)", else None. Dashing past it is walking
+        into it: live 2026-11-02 16:27:58-28:07 (hunt-20261102-142649-1bdb) "attacked 11 steps from it; through it now"
+        on Tidal Tomb level 1 went in among a dungeon-nest crab, a lowtide scavenger and a bottomfeeder by the
+        teleporter; the bottomfeeder's grip held him 2.6 s among them, 74 -> 0 (docs/NOTES.md "Tidal Tomb: dead
+        dashing for the teleporter")."""
+        ahead = [tuple(t[:2]) for t in path[1:]]
+        for c, kind in self.war_monsters(st):
+            if any(cheb(c, t) <= DASH_CLEAR_R for t in ahead):
+                return f"the {kind} at {c}"
+        return None
+
+    def war_monsters(self, st) -> list:
+        """[((x, y), kind)] of the monsters in war mode in view, our pets, the dead and those already beside us (a dash
+        leaves those behind) left out."""
+        here = tuple(self.pos(st)[:2])
+        world = st["world"]
+        labels = world.get("labels") or {}
+        pets = set(self.team.roster) if self.team is not None else set()
+        out = []
+        for key, mob in world["mobiles"].items():
+            s = serial_of(key)
+            if s in pets or s in self.dead or mob.get("x") is None or mob.get("pet") \
+                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE \
+                    or threats.identify(mob, labels.get(key))[0] != "monster" or cheb((mob["x"], mob["y"]), here) <= 1:
+                continue
+            out.append(((mob["x"], mob["y"]), aggro.type_key(labels.get(key) or mob.get("name"))))
+        return out
+
     def walk_in_stop(self, st) -> str | None:
         """walk_in's stop: something attacking us or our hits falling (a calamity casts from 13 tiles,
         beyond CASTER_REACH: simulator seeds 15 and 16 died to one walking on), else a lagging pet, else an idle melee
@@ -3716,7 +3754,7 @@ class HuntLoop:
             return "under attack"
         return self.pets_lagging(st) or (self.idle_ahead(st) if LEAD_IN else None)
 
-    def walk_in_dash(self, label, near):
+    def walk_in_dash(self, label, near) -> bool:
         """Attacked within TELE_DASH_R route steps of the teleporter (walk_in): 'All Follow Me' without waiting for the
         pets and on to `near`, the tile its step goes from, at flight pace (no pause, no stop for the attackers);
         a ready heal potion below --heal-at on the way. walk_in then steps through without waiting for the pets
@@ -3724,18 +3762,31 @@ class HuntLoop:
         can be claimed from the stablemaster, Logan dead can't. Live 2026-10-20 22:57:15-31
         (hunt-20261020-223926-1d18): attacked 13 steps from 5522,637, the pets guarded and Logan stood in an
         abomination's, a devourer beetle's and an insane reanimator's hits (potions at 60 and 62, the vet at 56)
-        until the user walked him through (user: "Logan was dying to a mob instead of running to Maus 3")."""
+        until the user walked him through (user: "Logan was dying to a mob instead of running to Maus 3").
+        Held in place on the way (Mover.held: a bottomfeeder's grip, a net): the dash is over, the pets on follow
+        would let it all hit us; walk_in_fight ('All Guard Me' and the fight order) instead, and False (walk_in walks
+        on after). Live 2026-11-02 16:28:02-07 (hunt-20261102-142649-1bdb): gripped 4 from the teleporter among a
+        bottomfeeder, a lowtide scavenger and two crabs, the pets following, 74 -> 0 in 2.6 s held (docs/NOTES.md
+        "Tidal Tomb: dead dashing for the teleporter"). True when at `near`."""
         self.doing("enter", "Attacked near the teleporter: through it now")
         self.team.follow(wait=False)
 
         def stop(s):
+            if self.mover.held(s):
+                return "held"
             me = s["world"]["self"]
             if me.get("hits") is not None and self.frac(me) < self.args.heal_at \
                     and self.potions.ready(time.monotonic()) and healing.heal_potions(s["world"], self.me(s)):
                 return "a heal potion"
             return None
-        while self.mover.walk_to(lambda: near, 0, label, urgent=True, stop=stop):
+        while why := self.mover.walk_to(lambda: near, 0, label, urgent=True, stop=stop):
+            if why == "held":
+                log(f"{label}: held on the dash; the pets take what's on us")
+                self.walk_in_fight(label)
+                self.team.follow(wait=False)
+                return False
             self.heal(self.link.state())
+        return True
 
     def no_idle(self, st) -> bool:
         """Mover.no_idle: no walk pause or sidestep while walking out or with a monster in war mode in view (live

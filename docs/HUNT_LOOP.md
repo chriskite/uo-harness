@@ -1203,7 +1203,14 @@ moongate, and never near a red one).
     of the teleporter walked to, no stand: "<label>: attacked N steps from it; through it now", "All Follow Me"
     without waiting for the pets, on to the tile before it at flight pace with no stop for the attackers (a ready
     heal potion below `--heal-at` on the way), then the step through with no wait for the pets beside it. Farther
-    out it still stands. The leave gate's `GATE_DASH_R` below is the same rule.
+    out it still stands. The leave gate's `GATE_DASH_R` below is the same rule. **Not past monsters ahead** (since
+    2026-11-02; live 16:27:58 the dash on Tidal Tomb level 1 went in among a lowtide scavenger, a bottomfeeder and
+    crabs by the teleporter, the bottomfeeder's grip held Logan 2.6 s, dead; docs/NOTES.md "Tidal Tomb: dead dashing for
+    the teleporter"): a monster in war mode, not one already beside us, within `DASH_CLEAR_R` 1 of the way still ahead
+    (`HuntLoop.dash_blocker`): "<label>: attacked N steps from it; no dash: the way there passes the <kind> at (x, y)",
+    and the stand (`walk_in_fight`) instead. **Held on the dash** (`Mover.held`: a grip, a net): the dash ends, "<label>:
+    held on the dash; the pets take what's on us", the stand, then the walk on. sim/fight1627.py replays the live
+    layout; test_sim `test_tele_dash_blocked`.
   - Before each step onto a teleporter (not after a dash), every pet within 3 tiles of it, else the waits above.
     A caution: on "All Follow Me" pets come through with us while in view (user 2026-10-20, Outlands), not only
     from within 3 tiles. `--songs`: a song due before each leg.

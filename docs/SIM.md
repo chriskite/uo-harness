@@ -2849,6 +2849,27 @@ tile +1, +1) when the zoa is in view; world/runtime.py passes it to the runner.
   stand-off's repeat gap; its reach among the Mover's avoid tiles), test_world_units `test_effect_windup` (the live
   16:54:53.82 packet).
 
+### Tidal Tomb: the dash past monsters by the teleporter (2026-11-02)
+
+Live 16:28:07 Logan died on level 1 dashing for its teleporter (docs/NOTES.md "Tidal Tomb: dead dashing for the
+teleporter"). **The world**: a bottomfeeder's feed on Logan grips him (`grip` on its `feed`: the line and the "Unable to
+Move" buff for its ticks, `World._feed_step` -> `_root`); before, its ticks came with him free to walk.
+
+- **The replay** (`sim/fight1627.py`: the walk from (6705, 1995) to (6718, 1984), the four monsters where they stood,
+  waking on him within 6; seeds 1-24; `--no-grip` without the live grip):
+
+  | runner | grip | deaths | lowest under 50 | damage on Logan |
+  |---|---|---|---|---|
+  | dash as before | on | 22 | 24 | 3,192 |
+  | dash round them | on | 23 | 24 | 3,225 |
+  | **no dash past them, the stand** | on | **5** | 21 | 3,853 |
+  | dash as before | off | 1 | 7 | 1,265 |
+  | **no dash past them** | off | 1 | 16 | 3,384 |
+
+- **Batches** (one-run careers): level 2 192 runs, runs with a death 13 -> 14, banked 177.8k -> 178.2k; Maus 3 96 runs
+  2 -> 2, identical.
+- **Test:** `test_tele_dash_blocked` (the layout: "no dash: the way there passes the ...", then the stand).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

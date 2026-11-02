@@ -8281,6 +8281,26 @@ in the Tidal Tomb, 2026-10-24 to 11-01 (20261024_102346, 20261024_225113, 202610
   it to (6921, 2039), 3 step(s), 5 from it"; it landed there at 20.21 with Logan 5 off, no scorch on him; the next four
   landed 4-5 off him, none on him.
 
+## Tidal Tomb: dead dashing for the teleporter (live 2026-11-02 16:28:07, hunt-20261102-142649-1bdb)
+
+Level 2 shift, the walk in for visit 7 across level 1 to (6718, 1984), pets a skeletal dragon and a tidal mantis.
+Capture 20261102_121104 replayed (scratch scripts):
+- **16:27:57.9-16:28:00.4** a dungeon-nest crab, a lowtide scavenger and a bottomfeeder woke on Logan 4-6 tiles off
+  round (6708-6714, 1979-1983), a pincer crab '*emerges*' at the scavenger's large swing; "to the teleporter at
+  6718,1984: attacked 11 steps from it; through it now": the route went up between them, the pets on 'All Follow Me'.
+- **16:28:01.75-02.04** -18, -14 (the scavenger's swing and the crabs), potion 46 -> 74 at 02.37. **02.11** the
+  bottomfeeder's '*feeds*' with "The creature grips you and begins to feed!" and an "Unable to Move" buff (icon 20) on
+  Logan: "held in place; waiting it out" 2.6 s at (6713, 1980), 4 from the teleporter, -10 every ~0.5 s, then -23 at
+  04.75 (and a net: "You are no longer entangled." at 05.24): 74 -> 1. Free at 05.24, two steps, -2, dead at 06.32.
+- **Feeds in 17 captures** (2026-10-23 to 11-02): a bottomfeeder's first '*feeds*' often has no '*attempts to feed*'
+  before it; attempt -> feed 7.5-8.7 s, feed -> next 9.8-12.5 s; the grip on Logan 20 times. The simulator's feed
+  never held Logan (its `grip`, since: `World._feed_step` -> `_root` with the line and the buff for its ticks).
+- **Fix**: the dash doesn't go past a monster in war mode within 1 of the way ahead (not one already beside us): the
+  stand instead ("no dash: the way there passes the <kind> at (x, y)"); held on a dash, the stand. Replay
+  `sim/fight1627.py` (the live layout, the grip forced as live, 24 seeds): deaths 22 -> 5; without the grip 1 -> 1
+  (lowest under 50 7 -> 16: the stand is longer). A dash round them found a way in 1 of 24. Level 2 (192 one-run
+  careers) runs with a death 13 -> 14, Maus 3 (96) 2 -> 2: it seldom comes up.
+
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
 Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's

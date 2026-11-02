@@ -4121,6 +4121,57 @@ def test_tele_dash():
           str([(p.name, p.pos) for p in w.pets()]))
 
 
+def test_tele_dash_blocked():
+    print("== the live 16:27 layout: attacked 13 steps from level 1's teleporter with a lowtide scavenger and a "
+          "bottomfeeder in war mode by the way ahead: no dash, the pets guard ==")
+    # live 2026-11-02 16:27:58-28:07 (hunt-20261102-142649-1bdb): "attacked 11 steps from it; through it now", into the
+    # monsters by the teleporter, the bottomfeeder's grip, 74 -> 0 (docs/NOTES.md "Tidal Tomb: dead dashing for the
+    # teleporter"). sim/fight1627.py replays it over seeds (the grip on: deaths 22 -> 5 of 24)
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    spawns = [("dungeon-nest crab", (6709, 1983, 14)), ("lowtide scavenger", (6709, 1979, 0)),
+              ("bottomfeeder", (6714, 1980, 0)), ("pincer crab", (6710, 1980, 0))]
+    w = tidal_world((6705, 1995), [{"key": k, "at": list(at)} for k, at in spawns], z=22, team="phoenix_incubus")
+    pl = w.player
+    for p in w.pets():
+        p.x, p.y = 6705, 1996
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--vet-range", "5"], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    mobs, world_tick = [m for m in w.mobs.values() if m.kind == "monster"], clock.on_advance
+
+    def wake(now):
+        world_tick(now)
+        for m in mobs:                          # live they woke on him 4-6 tiles off
+            if m.alive and not m.warmode and sim_cheb(m.pos, pl.pos) <= 6:
+                m.target, m.threat = pl.serial, {pl.serial: 50}
+                w._warm(m, True)
+    clock.on_advance = wake
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            try:
+                loop.walk_in_legs([(6718, 1984)])
+            except Exception:  # noqa: BLE001
+                pass
+    finally:
+        clock.on_advance = world_tick
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    first = next((ln for ln in out.splitlines() if "steps from it;" in ln), "")
+    check("the first decision: 'no dash: the way there passes the ...', then 'attacked on the way in; the pets guard' "
+          "(before: 'through it now')",
+          "no dash: the way there passes the" in first and "attacked on the way in; the pets guard" in out, first)
+
+
 def walk_in_red(start, place, tiles):
     """A --pets runner from `start` on the walk in, a red placed by `place(w)` (None until it places one) as the world
     ticks; walk_in(tiles). -> (exception or None, the runner's log, world, loop)."""
@@ -8085,7 +8136,7 @@ def main():
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_after_trip_stop_at_home_waits, test_walk_in, test_walk_in_fetch_pet,
-              test_wait_pets_attacked, test_tele_dash,
+              test_wait_pets_attacked, test_tele_dash, test_tele_dash_blocked,
               test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_tidal_gate_no_dest,

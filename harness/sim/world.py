@@ -2798,10 +2798,13 @@ class World:
                   ref=sp.get("ref"))
 
     def _feed_step(self, m: Mob):
-        """A feed under way: the attempt's outcome, then its ticks 0.5 s apart on the target."""
+        """A feed under way: the attempt's outcome, then its ticks 0.5 s apart on the target. On Logan (`grip`): the
+        grip's text and a hold for the ticks (_root; live 2026-11-02 16:28:02.11 a bottomfeeder's "The creature grips you
+        and begins to feed!" with an "Unable to Move" buff on Logan, 2.6 s held among its fellows, docs/NOTES.md "Tidal
+        Tomb: dead dashing for the teleporter")."""
         t = self.t
         when, left, s, sp = m.feed
-        tgt = self.mobs.get(s)
+        tgt = self.mobs.get(s) or (self.player if s == self.player.serial else None)
         if tgt is None or not tgt.alive or tgt.ghost or cheb(m.pos, tgt.pos) > 1:
             m.feed = None
             return
@@ -2810,7 +2813,10 @@ class World:
                 m.feed = None
                 return
             self._overhead(m, "*feeds*")
-            m.feed = [t + sp.get("first_tick_s", 0.7), self.rng.randint(*sp["ticks"]), s, sp]
+            ticks = self.rng.randint(*sp["ticks"])
+            m.feed = [t + sp.get("first_tick_s", 0.7), ticks, s, sp]
+            if tgt.kind == "player" and sp.get("grip"):
+                self._root(tgt, sp.get("first_tick_s", 0.7) + ticks * sp.get("tick_s", 0.5), sp["grip"])
             return
         self.hurt(tgt, self.roll(sp["tick"]) * self._taken_x(tgt, "feed"), m, "feed", ref=sp.get("ref"))
         m.feed = [self._due(when, sp.get("tick_s", 0.5)), left - 1, s, sp] if left > 1 else None
