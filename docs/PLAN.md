@@ -2102,7 +2102,7 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   cougar' rather than recalling away"; live mining-20261101-202640-6e00 at forge_2551_665: a cougar by the only way
   from the landing drew 3 escapes in 15 s, each walk back passing it again, then "came back after 3 escapes" sent
   Dan home). `LumberLoop.run_past` (shared with lumber's tree walks): while walking to a stand or tree
-  (`walk_to_work`), mounted, a creature named in `threats.Params.run_past_names` (cougar, panther, grey/timber wolf,
+  (`walk_to_work`), mounted, a creature named in `threats.Params.run_past_names` (cougar, panther, wolf, grey/timber wolf,
   black/brown bear, rats, snake, bullfrog) that hasn't swung at us is not fled from when the goal is at least
   `ESCAPE_RUN` (20) tiles from where it is and from where it was first weighed (its spawn, roughly). The leash
   distance is the escape's own "it gave up" distance [INFERENCE: unmeasured on Outlands; the store's 348 `leash`
