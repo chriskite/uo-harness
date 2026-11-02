@@ -655,8 +655,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    where Logan stands, "LEAVING by the moongate at (x, y): <why>; the easiest of 3 (34 steps; (6652, 2095) 96, …)"
 >    (docs/HUNT_LOOP.md "In and out of a dungeon"): 0x4003D7B5 on the arrival tile (with a hue-2820 one 0x4001AA04 on
 >    it too, either opens the destinations menu [INFERENCE for the second]), 0x4003D7B7 at (6642, 2062), 0x4003D7B6 at
->    (6685, 2064) (its menu opened live 2026-10-24 19:41:11 with Totem). 0x4003D7B7's menu was never opened [INFERENCE:
->    Totem on it as on the others]; a menu without Totem is closed and the runner walks to the next easiest ("the
+>    (6685, 2064) (its menu opened live 2026-10-24 19:41:11 with Totem). 0x4003D7B7's menu listed Totem live 2026-11-01
+>    22:55:24 (hunt-20261101-222057-09cc's first leave); a menu without Totem is closed and the runner walks to the next easiest ("the
 >    moongate at (x, y): no 'Totem' on its menu; to the next easiest of 2"): report that line to the parent. Then
 >    Totem, the tome home. Logan anywhere but level 1 (another teleporter column than these, the exit) is an issue for
 >    the parent, unless the shift's level (below) is another.
