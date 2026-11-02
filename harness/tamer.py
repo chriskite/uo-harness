@@ -379,6 +379,14 @@ SPRAY_WARN_S = 1.6            # after its action 18: the wave's last ring lands 
 SPRAY_AHEAD = 2               # standoff_tile: a tile this much farther down a cone ranks below one beside or behind it (the
 #                               bedrock walks at its target and turns with it: live 2026-10-28 22:04:40-48 and 22:18:01-05
 #                               two came on 5-7 tiles; the user stood beside it 56 % of the time, in front beyond 8 only 8 %)
+# The combustive zoas' scorch wind-up (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells", 15 captures): a moving
+# location effect SCORCH_WINDUP_GRAPHIC in SCORCH_HUE from (the zoa +1, +1) to (its tile +1, +1), the scorch landing on
+# that tile 3.0-4.0 s later on each of us within SCORCH_R of it (248 of 281; 4+ off by then 0 of 35). world/runtime.py
+# passes it to the hunt when it ends within WINDUP_R of us; the tile is an area zone till SCORCH_LEAD_S after it.
+SCORCH_WINDUP_GRAPHIC = 0x7B7F
+SCORCH_HUE = 1590
+SCORCH_R = 3
+SCORCH_LEAD_S = 4.3
 PROVOKE_FIRST = "pairs"       # bard(): provocation before the discord when two monsters are in the fight ("pairs"; the
 #                               user on Tidal Tomb's level 2: "I'm generally able to keep the mobs provo'd onto each
 #                               other"; simulator 2026-10-26: level 3 runs with a death 12 -> 5 of 24, Maus 3 5 -> 2 of
@@ -738,6 +746,7 @@ class Team:
         self.blinks = {}                 # apparition serial -> (monotonic time of its "*phases*", target serial)
         self.spray_t = {}                # sprayer serial -> monotonic time of its action 18 (the spray's wind-up)
         self.spray_upto = 0              # link.events scanned for those (spray_watch)
+        self.scorch_t = {}               # (x, y) a scorch's wind-up named -> monotonic time seen (spray_watch)
         self.spray_waited = None         # the wind-up spray_wait last logged for
         self.poisoned_t = {}             # pet serial -> "*looks violently ill*" over it
         self.seen_t = {}                 # pet serial -> last seen in view
@@ -2453,7 +2462,8 @@ class Team:
         """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone
         near it (a charger: CHARGE_SAFE_R; AREA_R's), and each live pet beside one (the one it fights:
         a Charge lands next to it); each live pet within the reach of one whose hit lands on its target and everyone near
-        that one (target_zone); each tile of an awake sprayer's frontal cone (spray_tiles) at 1."""
+        that one (target_zone); each tile of an awake sprayer's frontal cone (spray_tiles) at 1; each tile a scorch wound
+        up onto (scorch_tiles) at SCORCH_R + 1."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
@@ -2477,6 +2487,8 @@ class Team:
                 zone[c] = max(zone[c], AREA_FAR[kind])     # its far ring round itself (the wail's 4 tiles)
         for tile, r in self.blink_tiles(st).items():
             zone[tile] = max(zone.get(tile, 0), r)
+        for tile in self.scorch_tiles():
+            zone[tile] = max(zone.get(tile, 0), SCORCH_R + 1)
         return zone
 
     def zone_hitters(self, st) -> set:
@@ -2574,31 +2586,62 @@ class Team:
                 m = st["world"]["mobiles"].get(f"0x{s:08X}") or {}
                 if type_key((st["world"].get("labels") or {}).get(f"0x{s:08X}") or m.get("name")) in SPRAY_R:
                     self.spray_t[s] = now
+            elif e.get("ev") == "effect" and e.get("type") == 0 and e.get("graphic") == SCORCH_WINDUP_GRAPHIC \
+                    and e.get("hue") == SCORCH_HUE and not e.get("source") and not e.get("target"):
+                tile = (e["tx"] - 1, e["ty"] - 1)
+                if tile not in self.scorch_tiles():
+                    log(f"scorch wind-up on {tile}: it lands there in 3-4 s on each of us within {SCORCH_R}")
+                self.scorch_t[tile] = now
         self.spray_upto = len(evs)
         for key, tiles in (("spray", set(self.spray_tiles(st))),
                            ("target_area", {(cx + dx, cy + dy) for (cx, cy), r in self.target_zone(st).items()
-                                            for dx in range(1 - r, r) for dy in range(1 - r, r)})):
+                                            for dx in range(1 - r, r) for dy in range(1 - r, r)}),
+                           ("scorch", {(cx + dx, cy + dy) for cx, cy in self.scorch_tiles()
+                                       for dx in range(-SCORCH_R, SCORCH_R + 1) for dy in range(-SCORCH_R, SCORCH_R + 1)})):
             if tiles:
                 self.h.mover.avoid[key] = tiles
             else:
                 self.h.mover.avoid.pop(key, None)
 
+    def scorch_tiles(self) -> list:
+        """The tiles a scorch wind-up named within SCORCH_LEAD_S (spray_watch): it lands there on each of us within
+        SCORCH_R."""
+        now = time.monotonic()
+        for t in [t for t, at in self.scorch_t.items() if now - at > SCORCH_LEAD_S]:
+            del self.scorch_t[t]
+        return list(self.scorch_t)
+
+    def scorch_due(self, pos) -> tuple | None:
+        """The tile of a scorch due within SCORCH_R of `pos` (scorch_tiles), else None."""
+        return next((t for t in self.scorch_tiles() if cheb(t, pos) <= SCORCH_R), None)
+
     def spray_stop(self, st) -> str | None:
         """A walk's stop (Mover.walk_to `stop`): a sprayer wound up with us in its cone or a step from it (spray_due
         `near` 1), so the next tick steps out by the fewest steps (stand_off) or waits beside it for the wave
         (spray_wait) rather than walking on into it. Simulator 2026-10-28, level 2: out of the cone at a wind-up, the walk
-        to a hurt pet the next tick stepped back in under the wave."""
+        to a hurt pet the next tick stepped back in under the wave. A scorch wound up onto a tile within SCORCH_R of us
+        (scorch_due) the same: the stand-off steps off it."""
         if kind := self.spray_due(st, self.h.pos(st), near=1):
             return f"the {kind} wound up its spray with us in or beside its cone"
+        if tile := self.scorch_due(self.h.pos(st)):
+            return f"a scorch wound up onto {tile} with us within {SCORCH_R} of it"
         return None
 
     def spray_wait(self, st) -> str | None:
         """No walk while a sprayer's wave is due with us within a step of its cone (spray_due `near` 1): the stand-off
-        took us out of it if we stood in it, any other walk waits up to SPRAY_WARN_S, till the wave is past. -> why
-        (logged once a wind-up), or None."""
-        kind = self.spray_due(st, self.h.pos(st), near=1)
+        took us out of it if we stood in it, any other walk waits up to SPRAY_WARN_S, till the wave is past. The same
+        within a step of a due scorch's reach (scorch_tiles, SCORCH_R + 1), up to SCORCH_LEAD_S: the walk after the
+        stand-off off it went straight back in (simulator, sim/fight1654.py). -> why (logged once a wind-up), or None."""
+        pos = self.h.pos(st)
+        kind = self.spray_due(st, pos, near=1)
         if kind is None:
-            return None
+            tile = next((t for t in self.scorch_tiles() if cheb(t, pos) <= SCORCH_R + 1), None)
+            if tile is None:
+                return None
+            if self.scorch_t[tile] != self.spray_waited:
+                self.spray_waited = self.scorch_t[tile]
+                log(f"scorch on {tile}: no walk beside its reach till it has landed")
+            return f"Waiting out the scorch on {tile[0]},{tile[1]} beside its reach"
         t = max(self.spray_t.values())
         if t != self.spray_waited:
             self.spray_waited = t
@@ -2705,8 +2748,9 @@ class Team:
         off that pet at once, past the repeat gap and the tank's heal, before the landing 1.1-1.6 s later. A sprayer's
         wind-up (its action 18, spray_t) with us in its cone: the same, before its wave's ring reaches us (0.71 s and
         0.1 s a tile), to the tile out of it the fewest steps off (standoff_tile `spray`). Else a stand-off walk stops at
-        such a wind-up (spray_stop) for that; its route bends round the cone (spray_watch). A clearwater grouper's
-        bubble within reach of us: out of it first, every tick (out_of_bubbles)."""
+        such a wind-up (spray_stop) for that; its route bends round the cone (spray_watch). A scorch wound up onto a tile
+        within SCORCH_R of us (scorch_due): the same, off it by the fewest steps before it lands 3-4 s later (standoff_tile
+        `scorch`). A clearwater grouper's bubble within reach of us: out of it first, every tick (out_of_bubbles)."""
         h, now = self.h, time.monotonic()
         self.update(st)                   # a "*phases*" just heard: act on it in this tick, before a song or a channel
         if self.out_of_bubbles(st):
@@ -2714,8 +2758,8 @@ class Team:
         if self.spray_t:
             st = h.link.state()           # a wind-up seen: the sprayer's place and facing now (its 0x77 comes with it)
         pos = h.pos(st)
-        sprayed = self.spray_due(st, pos)
-        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or sprayed
+        sprayed, scorched = self.spray_due(st, pos), self.scorch_due(pos)
+        landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or sprayed or scorched
         if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:
             return False
         zone = self.area_zone(st)
@@ -2745,7 +2789,7 @@ class Team:
                     raise
                 log(f"{label}: {e}")
             return True
-        to, stay = self.standoff_tile(st, zone, sprayed)
+        to, stay = self.standoff_tile(st, zone, sprayed, scorched)
         if stay:
             if stay != self.standoff_stay:
                 log(f"stand-off: {stay}")
@@ -2755,8 +2799,8 @@ class Team:
         self.standoff_t = now
         label = "out of charge reach"
         h.doing("standoff", f"Standing off an area hitter ({len(zone)} tile(s) in its reach)")
-        self.count("standoffs")
-        stop = None if sprayed else self.spray_stop
+        self.count("scorch_steps" if scorched else "standoffs")
+        stop = None if sprayed or scorched else self.spray_stop
         try:
             if to is not None:
                 h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * STANDOFF_MOVES,
@@ -2770,7 +2814,7 @@ class Team:
             log(f"stand-off cut short: {e}")
         return True
 
-    def standoff_tile(self, st, zone: dict, spray: str | None = None):
+    def standoff_tile(self, st, zone: dict, spray: str | None = None, scorch: tuple | None = None):
         """Where to stand off to -> (tile, None), or (None, why) to stay: a tile within STANDOFF_MOVES steps
         clear of `zone` and fire that the fewest idle monsters would see before a pet (aggro.View.stand_score),
         out of the reach of a step forward of every awake sprayer (spray_tiles `ahead` SPRAY_AHEAD: beside or behind
@@ -2782,7 +2826,8 @@ class Team:
         -46); 20261015_204514 21:02:02 the only clear tiles in reach of the pets were 3 from an idle reanimated knight:
         it woke and hit Logan -46 (user: "Logan went and stood right in front of a reanimated knight while the pets were
         fighting another mob"). Live 2026-10-28 22:18:03-04.97 (capture 20261028_182147) the tile in reach of the
-        pets was 5 steps off down an ocean bedrock's cone; its wave came mid-walk, -42."""
+        pets was 5 steps off down an ocean bedrock's cone; its wave came mid-walk, -42. `scorch` (a wound-up scorch's tile
+        within SCORCH_R of us: scorch_due) as `spray`."""
         v = self.view(st)
         if v.walk is None:
             return None, None
@@ -2802,7 +2847,7 @@ class Team:
         here = (round(v.stand_score(v.pos)), -closest(v.pos))
         if not cands:
             return None, None
-        if spray:
+        if spray or scorch:
             pool = [c for c in cands if c[:2] <= here] or cands
             pick = min(pool, key=lambda c: (c[3], c[0], c[4], c[2], c[1]))
         else:
@@ -2827,6 +2872,9 @@ class Team:
         if spray:
             log(f"{spray}'s spray: stepping out of its cone to {pick[5][:2]}, {pick[3]} step(s)"
                 + (", beyond the vet supplies' reach of the pets" if pick[4] else ""))
+        elif scorch:
+            log(f"scorch on {scorch}: stepping off it to {pick[5][:2]}, {pick[3]} step(s), "
+                f"{cheb(pick[5], scorch)} from it" + (", beyond the vet supplies' reach of the pets" if pick[4] else ""))
         else:
             fresh = round(v.fresh_score(pick[5]))
             shooters = pick[0] - fresh

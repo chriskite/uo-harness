@@ -704,7 +704,18 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    fights (its latest swing's defender, else the nearest pet within 2 of it) is where it lands 1.1-1.6 s
    later with the hit, so that pet's tile is in the zone for 2 s (`Team.blink_tiles`) and the stand-off goes at
    once, past its 2 s repeat gap and the tank's heal; one blinking onto Logan follows him, so nothing to step
-   from. **A clearwater grouper's bubble** within 1 of us (since 2026-10-28; "Fire and bubbles on the ground"
+   from. **A combustive zoa's scorch wind-up** (since 2026-11-01; user: "Do the runner rule that uses the warning to
+   step off the tile"; docs/NOTES.md "Tidal Tomb: the combustive zoas' spells"): its 0x7B7F hue 1590 effect from (zoa
+   +1, +1) to (tile +1, +1) names the tile it lands on 3.0-4.0 s later, on each of us within 3. The world model passes it
+   when it ends within 5 of us (`world/runtime.py` `WINDUP_R`); `Team.spray_watch` keeps the tile 4.3 s
+   (`scorch_tiles`: "scorch wind-up on (x, y): it lands there in 3-4 s on each of us within 3"), in the zone at 4, its
+   reach among the Mover's `avoid` tiles; with us within 3 of it (`scorch_due`) the stand-off goes at once, past its
+   repeat gap and the tank's heal, by the fewest steps among tiles no worse for idle eyes: "scorch on (x, y): stepping
+   off it to (x, y), N step(s), D from it"; a walk under way stops (`spray_stop`), and none starts within 4 of the tile
+   till it has landed (`spray_wait`: "scorch on (x, y): no walk beside its reach till it has landed"; the stationary
+   hunt's walk back to its spot too). The pets, its target, take it. test_sim `test_scorch_windup_step`. **A
+   clearwater grouper's bubble** within 1 of us (since 2026-10-28; "Fire and
+   bubbles on the ground"
    below): out of its reach before anything else in the stand-off, every tick (`Team.out_of_bubbles`). The stand-off
    comes first
    in each decision, mid-channel too, after only a heal potion that is ready (it goes at once) (live

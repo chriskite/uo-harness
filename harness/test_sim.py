@@ -6033,6 +6033,44 @@ def test_standoff_war_sight():
           f"walked {walked} at {w.player.pos} {[ln for ln in out.getvalue().splitlines() if 'stand-off' in ln]}")
 
 
+def test_scorch_windup_step():
+    print("== a scorch's wind-up onto the pets' tile 2 from Logan, no other zone: the stand-off steps him 4+ off it at "
+          "once (inside its repeat gap), its tile out of the routes; it lands on the pets only ==")
+    # live 2026-11-01 16:54:53.82 (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells"): the wind-up 0x7B7F hue 1590
+    # from (6892, 2065) to (6894, 2067), the scorch on (6893, 2066) 3.2 s later, Logan 1 from it: -39. Before: nothing
+    # read it (world/runtime passed no location-to-location effect), so only the zones round the pets moved him
+    from agent_link import cheb
+    from sim import packets as P
+    tile, z = (6893, 2066), -100
+    w = tidal_world((6895, 2066), [], z=z, team="phoenix_incubus")
+    loop, clock, store, patched = hurt_loop(w, 100, ("--no-peace",))
+    for p in w.pets():
+        w._place(p, (*tile, z), d=0)
+        p.mode, p.next_step = "stay", 1e9
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.3)
+            loop.team.update(loop.state())
+            loop.team.standoff_t = tamer.time.monotonic()        # a stand-off just now: the repeat gap holds others
+            w.send(P.effect(0, 0, 0, tamer.SCORCH_WINDUP_GRAPHIC, 6892, 2065, z + 15, tile[0] + 1, tile[1] + 1, z + 15,
+                            speed=2, hue=tamer.SCORCH_HUE))
+            clock.advance(0.2)
+            st = loop.state()
+            loop.team.spray_watch(st)
+            avoid = loop.mover.avoid.get("scorch") or set()
+            walked = loop.team.stand_off(st)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    log = out.getvalue()
+    check("'scorch wind-up on (6893, 2066)', 'scorch on (6893, 2066): stepping off it', Logan 4+ off it; its reach "
+          "among the Mover's avoid tiles",
+          walked and cheb(w.player.pos, tile) >= 4 and f"scorch wind-up on {tile}" in log
+          and f"scorch on {tile}: stepping off it" in log and tile in avoid and (tile[0] + 3, tile[1]) in avoid,
+          f"walked {walked} at {w.player.pos} {[ln for ln in log.splitlines() if 'scorch' in ln]}")
+
+
 def test_potion_after_vet():
     print("== a heal potion right after another item use (the vet supplies' click): refused with 500119, clicked again "
           "and drunk; a refusal is no drink for the potion clock ==")
@@ -8063,6 +8101,7 @@ def main():
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
               test_tidal_leave_crab, test_tidal_leave_pocket, test_tidal_voidfin_dive, test_tidal_large_swing,
               test_tidal_scorch, test_scorch_telegraph, test_scorch_stand_off, test_standoff_war_sight,
+              test_scorch_windup_step,
               test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet,
               test_loot_tile_zoa_per_tile, test_to_pet_detour, test_rejoin_detour, test_shooter_hits,

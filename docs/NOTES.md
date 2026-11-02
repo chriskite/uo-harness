@@ -8267,8 +8267,13 @@ in the Tidal Tomb, 2026-10-24 to 11-01 (20261024_102346, 20261024_225113, 202610
 - **Built** (harness/data/sim/tidal_tomb.json, `World._burst_target`, `_burst(at=)`): the scorches telegraphed
   (`telegraph_s` [3, 4], landing on the named tile) and the scorch, lightning and volley centred on a pet (`target`
   "pet": the zoa's target when a pet, else the pet nearest it); CZ lightning every 43 s, GCZ 33 s; the GCZ's volley
-  (every 20 s, radius 6); the CZ's single spells 18-32; the GCZ's every 6.9 s. test_sim `test_scorch_telegraph`. Not
-  built: a runner rule on the wind-up (step 4+ off its tile; 3-4 s of warning).
+  (every 20 s, radius 6); the CZ's single spells 18-32; the GCZ's every 6.9 s. test_sim `test_scorch_telegraph`.
+- **Runner, built the same day** (user: "Do the runner rule that uses the warning to step off the tile"): the world
+  model passes the wind-up (`world/runtime.py` `WINDUP_R`: a location-to-location moving effect ending within 5 of us;
+  before, only effects on us and location effects within 2 became events, so nothing saw it), `Team.spray_watch` keeps
+  its tile 4.3 s, the stand-off steps 4+ off it at once, no walk starts within 4 of it till it lands (docs/HUNT_LOOP.md
+  "A combustive zoa's scorch wind-up"). Live it needs the proxy restarted (the world model runs in the proxy). The
+  simulator: docs/SIM.md "Tidal Tomb: the scorch's wind-up".
 
 ## Network observations
 

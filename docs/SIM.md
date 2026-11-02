@@ -2816,7 +2816,38 @@ against 15 captures (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells") an
 - **Tests:** `test_scorch_telegraph` (the zoa on Logan: its scorches on the pets; the pets 4 off the named tile at the
   landing: no number, 3 off: struck), `test_standoff_war_sight` (the live 16:54:52 tiles: before "staying").
   `_zoa_case` holds the lightning off by default (its ~43 s lands within the scorch tests' 40 s).
-- **Not built**: a runner rule on the scorch's wind-up (3-4 s to step 4+ off its tile).
+- **Not built here**: a runner rule on the scorch's wind-up (since built: "Tidal Tomb: the scorch's wind-up" below).
+
+### Tidal Tomb: the scorch's wind-up (2026-11-01)
+
+User: "Do the runner rule that uses the warning to step off the tile" (docs/HUNT_LOOP.md "A combustive zoa's scorch
+wind-up"). The world sends the wind-up (`telegraph_effect`: 0xC0 type 0 0x7B7F hue 1590 from the zoa +1, +1 to the
+tile +1, +1) when the zoa is in view; world/runtime.py passes it to the runner.
+
+- **The replay** (`sim/fight1654.py`, seeds 1-24): 1645 (the zoa coming on the pets, Logan 4-8 from them) damage on
+  Logan 719 -> 305, under 50 hits 1 -> 0, within 3 of a pet in the zoa's fight 194 -> 139 s; 1652 unchanged (112). The
+  first version without the wait (`spray_wait`) stepped off and walked straight back ("back to the spot"), 765.
+- **Level 2 batches** (as "the stand-off in the scorch" above, seeds 1-384, careers of 7 runs):
+
+  | runner | runs with a death (by block) | pet deaths | the combustive zoas on Logan / h | banked / h | steps off |
+  |---|---|---|---|---|---|
+  | 64534dc | 40 (12, 5, 9, 14) | 28 | 101 | 165,363 | 0 |
+  | the step, no wait | 52 (11, 9, 10, 22) | 38 | 103 | 167,683 | 337 |
+  | **the step and the wait** | 53 (15, 8, 11, 19) | 35 | 106 | 167,516 | 243 |
+  | placebo: a 0.5 s pause at each such wind-up, nothing else | 46 (7, 8, 15, 16) | 34 | 114 | 165,728 | 0 |
+
+  The gap is the careers drifting apart, not the rule: in the step-and-wait batch the careers' runs before they first
+  differ from 64534dc's had 17 -> 17 deaths, the first differing run 3 -> 2, the runs after it 20 -> 34; those later runs'
+  damage on Logan an hour by every source within 5 % but the combustive zoas' (110 -> 130) and their kills alike; the
+  placebo, which changes nothing but timing, moved the deaths 40 -> 46 and the zoas' damage 101 -> 114. Against the
+  placebo the rule is 46 -> 53 runs with a death (noise) and 114 -> 106 the zoas' damage. **One-run careers** (`--runs
+  384 --careers 384`, no drift between runs): 21 -> 24 runs with a death, the zoas' damage 53 -> 53, banked 175.6k ->
+  177.0k, 103 steps off.
+- **Level 3** (48 runs, the skill's command): runs with a death 20 -> 18 (the step alone) and 24 (with the wait), the
+  combustive zoas' damage on Logan an hour 236 -> 137 and 203, banked 379k -> 413k and 359k.
+- **Tests:** `test_scorch_windup_step` (a wind-up onto the pets' tile 2 from Logan: off it to 4 at once, inside the
+  stand-off's repeat gap; its reach among the Mover's avoid tiles), test_world_units `test_effect_windup` (the live
+  16:54:53.82 packet).
 
 ## The Ossuary (2026-10-28)
 

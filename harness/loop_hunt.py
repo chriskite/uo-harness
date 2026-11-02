@@ -4806,6 +4806,10 @@ class HuntLoop:
             self.crawl.idle(st)
             return False
         if cheb(self.pos(st), self.fight_spot) > 0:
+            if self.team is not None and (why := self.team.spray_wait(st)):
+                self.doing("hold", why)               # the walk back would go into its reach (Team.spray_wait)
+                time.sleep(POLL_S)
+                return False
             self.mover.walk_to(lambda: self.fight_spot, 0, "back to the spot")
         what = self.args.target_name.strip() or "monsters"
         self.doing("wait", f"Hunting for {what} at {self.fight_spot[0]},{self.fight_spot[1]} "

@@ -3403,8 +3403,21 @@ zoas' spells"; numbers: docs/SIM.md "Tidal Tomb: the stand-off in the scorch; th
 - *Rejected:* 'All Guard Me' before a stand-off walk when due (live 16:54:50 the following pets came along): pet deaths
   37 -> 48 on the corrected simulator. A stay that ignores every war-mode shooter's sight (the first version): only the
   hitters' matters here.
-- *Not done:* a runner rule on the scorch's 3-4 s wind-up (step 4+ off the named tile); the lightning's and volley's
-  reach round the pets (4 and 6) in the stand-off's zone (TARGET_AREA_EVERY_S keeps them out, 2026-10-29).
+- *Not done:* the lightning's and volley's reach round the pets (4 and 6) in the stand-off's zone (TARGET_AREA_EVERY_S
+  keeps them out, 2026-10-29).
+
+## Step off a combustive zoa's scorch on its wind-up (2026-11-01, user: "Do the runner rule that uses the warning to step off the tile")
+
+- *Decided:* the world model passes location-to-location moving effects ending within 5 of us (`WINDUP_R`); the hunt
+  takes the scorch's wind-up as a 4.3 s area zone at 4 round its tile, steps off at once by the fewest steps, and starts
+  no walk within 4 of it till it lands. Live: of ours 4+ off the tile at the landing 0 of 35 struck. The live 16:54:45
+  replay: damage on Logan 719 -> 305.
+- *Investigated before shipping* (the user's call): the career batches had 40 -> 53 runs with a death of 384. A placebo
+  (a 0.5 s pause at the same wind-ups, nothing else) moved them 40 -> 46 and the zoas' damage up: the careers drift apart
+  after any change; the deaths came in the runs after a career's first difference, from crabs, bedrock and groupers.
+  One-run careers: 21 -> 24 (noise), the zoas' damage unchanged; against the placebo the zoas' damage 114 -> 106.
+- *Rejected:* the step without the wait (it walked straight back in: the replay's 765).
+- *Live:* needs the proxy restarted with Logan at home and no run.
 
 ## Risks
 

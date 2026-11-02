@@ -55,6 +55,11 @@ MOBILE_SERIAL_MAX = 0x3FFFFFFF
 # tiles around it (live 2026-10-04, session 20261004_113229; RunUO TrapableContainer MagicTrap)
 NEAR_SELF = 2
 EFFECT_AT_LOCATION = 2
+EFFECT_MOVING = 0
+# Moving effects from a location to a location (0xC0 type 0, no source or target) ending within this many tiles of self
+# become events: a combustive zoa's scorch wind-up, aimed at (its tile +1, +1) 3-4 s before it lands on everyone within 3
+# of that tile (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells")
+WINDUP_R = 5
 
 
 def title_tags(text: str, hue: int | None) -> dict:
@@ -417,24 +422,28 @@ def _h_animation(rt, f):
              delay=f["delay"])
 
 
-def _near_self(rt, x, y) -> bool:
+def _near_self(rt, x, y, r: int = NEAR_SELF) -> bool:
     s = rt.state.self
     return (s.serial is not None and s.position_absolute
-            and max(abs(x - s.x), abs(y - s.y)) <= NEAR_SELF)
+            and max(abs(x - s.x), abs(y - s.y)) <= r)
 
 
 def _h_effect(rt, f):
     """S2C 0xC0: a graphic effect. The ones with self as source or target (type 0 moving,
-    1 lightning, 3 fixed on a mobile; graphic 0 is a cast start), and location effects
-    (type 2, source and target 0) within NEAR_SELF tiles of us, become an `effect` event:
-    the threat checks read a spell landing on us from the first (harness/threats.py
-    spell_on_us), the pouch alarm an explosion around us from the second (harness/pouch.py).
-    Everyone else's effects are noise."""
+    1 lightning, 3 fixed on a mobile; graphic 0 is a cast start), location effects
+    (type 2, source and target 0) within NEAR_SELF tiles of us, and moving ones from a
+    location to a location (type 0, source and target 0) ending within WINDUP_R of us
+    become an `effect` event: the threat checks read a spell landing on us from the first
+    (harness/threats.py spell_on_us), the pouch alarm an explosion around us from the
+    second (harness/pouch.py), the hunt a combustive zoa's scorch wind-up from the third
+    (harness/tamer.py Team.spray_watch). Everyone else's effects are noise."""
     me = rt.state.self.serial
     if me is None:
         return
+    located = f["source"] == 0 and f["target"] == 0
     if me not in (f["source"], f["target"]) and not (
-            f["type"] == EFFECT_AT_LOCATION and _near_self(rt, f["x"], f["y"])):
+            located and f["type"] == EFFECT_AT_LOCATION and _near_self(rt, f["x"], f["y"])) and not (
+            located and f["type"] == EFFECT_MOVING and _near_self(rt, f["tx"], f["ty"], WINDUP_R)):
         return
     rt._emit("effect", type=f["type"], source=f["source"], target=f["target"],
              graphic=f["graphic"], x=f["x"], y=f["y"], z=f["z"],

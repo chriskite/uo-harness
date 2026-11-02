@@ -2283,6 +2283,11 @@ class World:
                     if on is not None:
                         self._ev("ability", by=m.serial, kind="windup", v=on.serial)
                         self.delayed.append((t + self.rng.uniform(*sp["telegraph_s"]), m.serial, sp, (on.x, on.y)))
+                        fx = sp.get("telegraph_effect")
+                        if fx and m.serial in self.viewing:
+                            # live: from (it +1, +1) to (the tile +1, +1), no source or target, 15 over its z
+                            self.send(P.effect(0, 0, 0, fx["graphic"], m.x + 1, m.y + 1, m.z + 15, on.x + 1, on.y + 1,
+                                               on.z + 15, speed=2, hue=fx["hue"]))
                 elif sp.get("delay_s") or sp.get("repeat"):
                     # `repeat` hits `repeat_s` apart (a hierarch's channelled fire): each one checks its reach then
                     for i in range(sp.get("repeat", 1)):

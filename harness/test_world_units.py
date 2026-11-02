@@ -1301,6 +1301,27 @@ def test_pouch_pop_near_self():
        (rt.parse_failures, rt.unhandled.get(("s2c", 0x54)), rt.unhandled.get(("s2c", 0xC0))), (0, None, None))
 
 
+# live 2026-11-01 16:54:53.82 (session 20261101_124620): a combustive zoa at (6891, 2064) winds up its scorch onto the
+# pets' tile (6893, 2066): a moving location effect 0x7B7F hue 1590 from (6892, 2065) to (6894, 2067); Logan at (6892, 2066)
+WINDUP_124620 = bytes.fromhex("c000000000000000000000007b7f00001aec00000811ffffffab00001aee00000813ffffffab02000000010000"
+                              "00063600000000")
+
+
+def test_effect_windup():
+    print("== 0xC0 type 0 from a location to a location (a scorch wind-up) ending within WINDUP_R (5) of us: an event ==")
+    rt = WorldRuntime()
+    s = rt.state.self
+    s.serial, s.x, s.y, s.z, s.position_absolute = 0x00104A60, 6892, 2066, -100, True
+    rt.feed_packet("s2c", WINDUP_124620)
+    eq("ending 2 from us: an event with its aim", [(e["ev"], e["type"], e["source"], e["target"], e["graphic"], e["hue"],
+                                                   e["x"], e["y"], e["tx"], e["ty"]) for e in rt.drain_events()],
+       [("effect", 0, 0, 0, 0x7B7F, 1590, 6892, 2065, 6894, 2067)])
+    s.x = 6888                                       # 6 off its end
+    rt.feed_packet("s2c", WINDUP_124620)
+    eq("ending 6 from us: noise", rt.drain_events(), [])
+
+
+
 def test_pruning():
     """The live table holds only what the stock client has (docs/WORLDMODEL.md
     "Pruning"; live 20261001_214649: the ghosts behind ANTICHEAT.md A12)."""
@@ -1429,7 +1450,7 @@ TESTS = [test_fixed_s2c, test_fixed_c2s, test_character_status_11,
          test_vendor_popup_command, test_tracking_packets,
          test_mobile_routing, test_truncation, test_runtime_edges,
          test_event_semantics, test_status_requested, test_pruning, test_worn_layers,
-         test_corpse_notoriety, test_buff_end, test_effect_c0, test_pouch_pop_near_self]
+         test_corpse_notoriety, test_buff_end, test_effect_c0, test_pouch_pop_near_self, test_effect_windup]
 
 
 def main():
