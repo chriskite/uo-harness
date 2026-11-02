@@ -2787,6 +2787,37 @@ docs/NOTES.md "Tidal Tomb: the voidfin's dive".
   out of the client's view with the pets holding, up 1-2 from GraveRobber with one strike on him at that instant, the
   next spin 2.7-4.9 s later, no swing).
 
+### Tidal Tomb: the stand-off in the scorch; the combustive zoas' spells (2026-11-01)
+
+Live 16:54:52 the stand-off kept Logan 1 from the pets a combustive zoa fought, "staying" because every clear tile was in
+the zoa's own sight (docs/NOTES.md "Tidal Tomb level 2: standing in the combustive zoa's scorch"). The runner's fix (the
+stay leaves out the area hitters' sight) first measured worse here: level 2, seeds 1-384, runs with a death 33 -> 48,
+though Logan's damage an hour by every source moved under 5 %. The simulator's combustive zoas were then measured
+against 15 captures (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells") and corrected:
+
+- **The world** (`World._burst_target`, `_burst(at=)`; scenario keys `target` "pet", `telegraph_s`): the scorch, the
+  lightning and the volley centre on a pet always (the zoa's target when a pet, else the pet nearest it; before, its
+  target, Logan too); the scorches land 3-4 s after a wind-up on the tile it named (before, at once on wherever the
+  target stood); the plain zoa's lightning every 43 s (was 87), the giant's 33 (was 40); the giant's volley added (20 s,
+  radius 6); the plain zoa's single spells 18-32 (was the kb's 17.5-22.5), the giant's every 6.9 s (was 3.4).
+- **Level 2 batches on the corrected simulator** (`--scenario tidal_tomb --level 2 --runs 96 --jobs 9 --careers 14
+  --others --prior <store> -- --vet-range 5 --crawl-learn-s 180`, seeds 1-384):
+
+  | runner | runs with a death (by block) | pet deaths | damage on Logan / h | the combustive zoas' on him / h | banked / h |
+  |---|---|---|---|---|---|
+  | 128ada1 | 45 (12, 6, 12, 15) | 37 | 1,615 | 111 | 166,507 |
+  | **the stay without the hitters' sight** | **40** (12, 5, 9, 14) | **28** | 1,697 | **101** | 165,363 |
+  | that and 'All Guard Me' before the walk | 46 (14, 10, 10, 12) | 48 | 1,647 | 111 | 167,749 |
+
+  The stay rule is no worse in any block; the guard-first part was dropped. **Maus 3** (`--runs 96 --seed 17 --eerie`)
+  2 -> 2, **level 1** (`--runs 96`) identical.
+- **The replay** (`sim/fight1654.py`, the live 16:54:45 and 16:54:52 layouts, seeds 1-24): 1652 damage on Logan 229 ->
+  112, no death either way; 1645 unchanged (the stay never came up).
+- **Tests:** `test_scorch_telegraph` (the zoa on Logan: its scorches on the pets; the pets 4 off the named tile at the
+  landing: no number, 3 off: struck), `test_standoff_war_sight` (the live 16:54:52 tiles: before "staying").
+  `_zoa_case` holds the lightning off by default (its ~43 s lands within the scorch tests' 40 s).
+- **Not built**: a runner rule on the scorch's wind-up (3-4 s to step 4+ off its tile).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

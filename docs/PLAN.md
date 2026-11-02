@@ -3366,6 +3366,22 @@ voidfin's dive".
 - *Not done:* the greater voidfin (6 dives seen, no spin modelled for it); the spin's shortfall against live (its
   victims a spin, docs/SIM.md); no runner change (a dive reads as a target lost alive and taken up again, as live).
 
+## The stand-off stays only for fresh eyes; the combustive zoas' spells as live (2026-11-01, user: "Figure out why the runner had Logan just standing in the combustive zoa's fire")
+
+Evidence: docs/NOTES.md "Tidal Tomb level 2: standing in the combustive zoa's scorch" and "Tidal Tomb: the combustive
+zoas' spells"; numbers: docs/SIM.md "Tidal Tomb: the stand-off in the scorch; the combustive zoas' spells".
+
+- *Decided:* the stand-off's stay rule leaves out the area hitters' own sight (`Team.zone_hitters`): out of a zoa's
+  sight is no shelter from spells centred on a pet. The user chose "investigate further first" when it measured worse
+  on the old simulator (33 -> 48 runs with a death of 384); the simulator's zoas were wrong against 15 captures (scorch
+  and lightning centred on Logan, no wind-up, lightning half as often, the giant's volley missing) and were corrected;
+  there it is 45 -> 40, pet deaths 37 -> 28, Maus 3 and level 1 unchanged.
+- *Rejected:* 'All Guard Me' before a stand-off walk when due (live 16:54:50 the following pets came along): pet deaths
+  37 -> 48 on the corrected simulator. A stay that ignores every war-mode shooter's sight (the first version): only the
+  hitters' matters here.
+- *Not done:* a runner rule on the scorch's 3-4 s wind-up (step 4+ off the named tile); the lightning's and volley's
+  reach round the pets (4 and 6) in the stand-off's zone (TARGET_AREA_EVERY_S keeps them out, 2026-10-29).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

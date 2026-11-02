@@ -1069,7 +1069,7 @@ def test_standoff_sight():
     w._warm(ns, True)
     knight = {"kind": "reanimated knight", "pos": kn.pos, "weight": 1.2}
     score, first = aggro.View.stand_score, aggro.View.first_on_us
-    aggro.View.stand_score = lambda self, t: 12.0
+    aggro.View.stand_score = lambda self, t, ignore=(): 12.0
     aggro.View.first_on_us = lambda self, t, margin=1: [knight]
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -1095,7 +1095,7 @@ def test_standoff_ties():
     w = world_with([], seed=7, start=(5268, 648))
     loop, clock, store, patched = hurt_loop(w, 100)
     score, first = aggro.View.stand_score, aggro.View.first_on_us
-    aggro.View.stand_score = lambda self, t: 0.0               # no idle eyes anywhere: only the steps and the tile differ
+    aggro.View.stand_score = lambda self, t, ignore=(): 0.0    # no idle eyes anywhere: only the steps and the tile differ
     aggro.View.first_on_us = lambda self, t, margin=1: []
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -5866,16 +5866,18 @@ PETS_L2 = (6895, 2062)          # ...the pets it fought, 10 off...
 LOGAN_L2 = (6893, 2065)         # ...and Logan, 3 from them, 8 from it and out of its sight (los.Sight)
 
 
-def _zoa_case(logan, loop_hits=None, extra=()):
+def _zoa_case(logan, loop_hits=None, extra=(), hold=("volley", "lightning")):
     """The live 12:36 layout: a combustive zoa at ZOA_L2 in war mode on the first pet and held in place, the live team
     (AlaFlambe and Bussin) held at PETS_L2, 10 off, as live, Logan at `logan`, everyone but Logan tough; with `loop_hits`
-    a HuntLoop there at those hits (hurt_loop, runner arguments `extra`).
+    a HuntLoop there at those hits (hurt_loop, runner arguments `extra`); its specials in `hold` held off (the scorch's
+    tests: its lightning every ~43 s since 2026-11-01 lands within their 40 s).
     -> (world, zoa, the scorch's hits [(t, victim, amount)], the loop's (loop, clock, store, patched) or None)."""
     w = tidal_world(logan, [{"key": "combustive zoa", "at": list(ZOA_L2)}], z=ZOA_L2[2], team="phoenix_incubus")
     z = next(m for m in w.mobs.values() if m.kind == "monster")
     z.hits = z.hits_max = 10 ** 6
     z.spec = {**z.spec, "step_s": 999.0}                    # it stays where the live one stood
-    z.cd["volley"] = 1e9                                    # its volley held off: test_zoa_volley's
+    for k in hold:
+        z.cd[k] = 1e9                                       # held off (the volley: test_zoa_volley's)
     run = hurt_loop(w, loop_hits, extra) if loop_hits is not None else None
     for p in w.pets():
         w._place(p, (PETS_L2[0], PETS_L2[1], ZOA_L2[2]), d=0)
@@ -5909,9 +5911,10 @@ def test_tidal_scorch():
     lands = sorted({t for t, _, _ in rolled})
     gaps = [round(b - a, 2) for a, b in zip(lands, lands[1:])]
     logan = [n for _, v, n in rolled if v is w.player]
-    check("in 40 s: 4+ scorches 6.6-8.2 s apart, each on both pets and on Logan 3 from them (30-48), 8 from the zoa "
+    # gaps: its 7.4 s +-10 % and each landing's own 3-4 s after its wind-up (live landing gaps p10-p90 7.1-11.9)
+    check("in 40 s: 4+ scorches 5.6-9.2 s apart, each on both pets and on Logan 3 from them (30-48), 8 from the zoa "
           "and out of its sight",
-          len(lands) >= 4 and all(6.6 <= g <= 8.2 for g in gaps) and len(rolled) == 3 * len(lands)
+          len(lands) >= 4 and all(5.6 <= g <= 9.2 for g in gaps) and len(rolled) == 3 * len(lands)
           and len(logan) == len(lands) and all(30 <= n <= 48 for n in logan)
           and cheb(w.player.pos, z.pos) == 8 and not w.sight.can_see(z.pos, w.player.pos),
           f"lands {lands} gaps {gaps} hits {len(rolled)} Logan {[round(n) for n in logan]}")
@@ -5923,6 +5926,38 @@ def test_tidal_scorch():
           len(rolled) >= 8 and not any(v is w.player for _, v, _ in rolled)
           and cheb(w.player.pos, (PETS_L2[0], PETS_L2[1])) == 4,
           str([(t, v.name, round(n)) for t, v, n in rolled][:6]))
+
+
+def test_scorch_telegraph():
+    print("== Tidal Tomb: the combustive zoa's scorch on a pet even while it fights Logan, never on him; its wind-up names "
+          "the tile 3-4 s ahead: off it by 4+ by then, no number ==")
+    # live 2026-11-01 over 15 captures (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells"): 0 of 174 scorches on
+    # Logan, also while its single spells were on him; of ours 4+ off the named tile at the landing 0 of 35 struck, within
+    # 3 248 of 281. Before: on its target, Logan too, at once
+    w, z, rolled, _ = _zoa_case((PETS_L2[0] - 6, PETS_L2[1] + 2))
+    for o in w.team():
+        o.hits = o.hits_max = 10 ** 6
+    z.target, z.threat = w.player.serial, {w.player.serial: 1e9}
+    w.run_until(w.t + 30.0)
+    on_us = [n for _, v, n in rolled if v is w.player]
+    on_pets = [n for _, v, n in rolled if v.kind == "pet"]
+    check("the zoa on Logan 6 from the pets: its scorches on the pets, none on him",
+          len(on_pets) >= 6 and not on_us, f"pets {len(on_pets)} Logan {on_us}")
+    sp = next(s for s in z.spec["specials"] if s.get("id") == "scorch")
+    z.cd["scorch"], w.delayed, rolled[:] = 1e9, [], []
+    on = w._burst_target(z, sp, w.player)
+    w.delayed.append((w.t + 3.5, z.serial, sp, (on.x, on.y)))
+    for p in w.pets():
+        w._place(p, (PETS_L2[0], PETS_L2[1] - 4, ZOA_L2[2]), d=0)     # 4 off the named tile
+    w.run_until(w.t + 4.0)
+    dodged = list(rolled)
+    w.delayed.append((w.t + 3.5, z.serial, sp, (on.x, on.y)))
+    for p in w.pets():
+        w._place(p, (PETS_L2[0], PETS_L2[1] - 3, ZOA_L2[2]), d=0)     # 3 off it
+    w.run_until(w.t + 4.0)
+    check("...the pets 4 off the named tile at the landing: no number; 3 off: both struck",
+          on.kind == "pet" and not dodged and {v.name for _, v, _ in rolled} == {p.name for p in w.pets()},
+          f"target {on.name} dodged {dodged} then {[(v.name, round(n)) for _, v, n in rolled]}")
 
 
 def test_scorch_stand_off():
@@ -5954,6 +5989,48 @@ def test_scorch_stand_off():
           and "area hit on its target: the awake combustive zoa" in out and "keeping 4+ off the pets within 12" in out,
           f"Logan scorched {on_us}, ends {w.player.pos} ({cheb(w.player.pos, (PETS_L2[0], PETS_L2[1]))} from the pets) "
           f"{[ln for ln in out.splitlines() if 'stand-off' in ln or 'area hit' in ln][:3]}")
+
+
+def _zoa_1654(logan, pets, zoa, mode):
+    """Live 2026-11-01 16:54:50-52 (hunt-20261101-165054-62a8): a combustive zoa in war mode on a pet, held at `zoa`; the
+    pets at `pets` in `mode`, everyone but Logan tough. -> (world, loop, clock, store, patched)."""
+    z = -100
+    w = tidal_world(logan, [{"key": "combustive zoa", "at": [*zoa, z]}], z=z, team="phoenix_incubus")
+    cz = next(m for m in w.mobs.values() if m.kind == "monster")
+    cz.hits = cz.hits_max = 10 ** 6
+    cz.spec = {**cz.spec, "step_s": 999.0}
+    cz.next_step = 1e9
+    loop, clock, store, patched = hurt_loop(w, 100, ("--no-peace",))
+    for p in w.pets():
+        w._place(p, (*pets, z), d=0)
+        p.hits = p.hits_max = 10 ** 6
+        p.mode = mode
+    w.player.hits = w.player.hits_max = 10 ** 6
+    cz.target, cz.threat = w.pets()[0].serial, {w.pets()[0].serial: 1e9}
+    w._warm(cz, True)
+    return w, loop, clock, store, patched
+
+
+def test_standoff_war_sight():
+    print("== the live 16:54:52 tiles: 1 from the pets a combustive zoa scorches, 2 from it behind an Invisible Wall: "
+          "the stand-off walks 4+ off the pets, its sight of the clear tiles no reason to stay ==")
+    # live 2026-11-01 16:54:52-55:11: "stand-off: every clear tile is nearer an idle monster that would see us before a pet
+    # (0.1 by weight at 99 tiles; here 0 at 99); staying": the 0.1 was the zoa's own sight (stand_score's war casters), a
+    # static Invisible Wall at (6891, 2065) hiding ours; scorched -39, -32, -39, -44, -36 there, 100 -> 21. Before: staying
+    from agent_link import cheb
+    pets = (6893, 2066)
+    w, loop, clock, store, patched = _zoa_1654((6892, 2066), pets, (6891, 2064), "stay")
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.3)
+            walked = loop.team.stand_off(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("a stand-off walk, Logan 4+ off the pets, no 'staying'",
+          walked and cheb(w.player.pos, pets) >= 4 and "staying" not in out.getvalue(),
+          f"walked {walked} at {w.player.pos} {[ln for ln in out.getvalue().splitlines() if 'stand-off' in ln]}")
 
 
 def test_potion_after_vet():
@@ -6029,7 +6106,7 @@ def test_patrol_refused_hold():
 
 def test_zoa_lightning():
     print("== Tidal Tomb: a zoa's lightning on its target and on everyone of us within 4 of it at once, its sight of them "
-          "not needed; none at 5; its own cooldown (~87 s for the combustive zoa) ==")
+          "not needed; none at 5; its own cooldown (~43 s for the combustive zoa) ==")
     # live (docs/NOTES.md "Tidal Tomb: the zoas' lightning, the scorch's susceptibility, the shooters' hits"): 45 casts,
     # Logan struck 22 of 22 times within 4 of its target, 0 of 23 at 5+; 2026-10-29 12:36:51.56 and 54.90 -34 and -18, 8
     # from the combustive zoa and out of its sight, 3 from the pets. Before: not modelled (the giant astral zoa's
@@ -6048,15 +6125,17 @@ def test_zoa_lightning():
           "the pets only",
           names[3] == names[4] == pets | {w.player.name} and names[5] == pets and len(logan) == 2
           and all(21 <= n <= 34 for n in logan), f"{struck}")
-    w, z, rolled, _ = _zoa_case(LOGAN_L2)
+    w, z, rolled, _ = _zoa_case(LOGAN_L2, hold=("volley",))
     for o in w.team():
         o.hits = o.hits_max = 10 ** 6
     fired, orig_burst = collections.defaultdict(list), w._burst
-    w._burst = lambda mob, sp, tgt=None: (fired[sp.get("id")].append(round(w.t, 1)), orig_burst(mob, sp, tgt))
+    w._burst = lambda mob, sp, tgt=None, at=None: (fired[sp.get("id")].append(round(w.t, 1)),
+                                                   orig_burst(mob, sp, tgt, at))
     w.run_until(w.t + 200.0)
     gaps = [round(b - a, 1) for a, b in zip(fired["lightning"], fired["lightning"][1:])]
-    check("...in 200 s of the fight its lightning 2-3 times, 78-96 s apart, beside its scorch every ~7.4 s",
-          2 <= len(fired["lightning"]) <= 3 and all(78 <= g <= 96 for g in gaps) and len(fired["scorch"]) >= 24,
+    # 2026-11-01 over 15 captures: one per ~38-48 s of casting (docs/NOTES.md "Tidal Tomb: the combustive zoas' spells")
+    check("...in 200 s of the fight its lightning 4-5 times, 38-48 s apart, beside its scorch every ~7.4 s",
+          4 <= len(fired["lightning"]) <= 5 and all(38 <= g <= 48 for g in gaps) and len(fired["scorch"]) >= 24,
           f"lightning {fired['lightning']} scorches {len(fired['scorch'])}")
 
 
@@ -6076,11 +6155,11 @@ def test_scorch_susceptible():
         before = w.player.hits
         w.hurt(w.player, 1000, by, "spell")
         return before - w.player.hits
-    w.run_until(w.t + 31.0)
+    w.run_until(w.t + 38.0)                                # 4+ scorches: the first within 8.5 s, each 3-4 s after its wind-up
     k = len([s for s in w.player.susceptible if s[0] > w.t])
     on_us = len([1 for _, v, _ in rolled if v is w.player])
     ratio = taken(z) / taken(mariner)
-    z.cd["scorch"] = 1e9                                   # no more scorches
+    z.cd["scorch"], w.delayed = 1e9, []                    # no more scorches, none under way
     w.run_until(w.t + 18.0)
     after = taken(z) / taken(mariner)
     check("after 4+ scorches on Logan (3 from the pets) as many stacks: the zoa's hits x1 + 0.08 a stack, the mariner's "
@@ -7983,7 +8062,8 @@ def main():
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
               test_tidal_leave_crab, test_tidal_leave_pocket, test_tidal_voidfin_dive, test_tidal_large_swing,
-              test_tidal_scorch, test_scorch_stand_off, test_potion_after_vet, test_patrol_refused_hold,
+              test_tidal_scorch, test_scorch_telegraph, test_scorch_stand_off, test_standoff_war_sight,
+              test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet,
               test_loot_tile_zoa_per_tile, test_to_pet_detour, test_rejoin_detour, test_shooter_hits,
               test_shooter_stand_off, test_loose_on_us,

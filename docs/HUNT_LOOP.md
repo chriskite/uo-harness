@@ -718,7 +718,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    tile was 10 from a second apparition in its sight, and it came onto Logan 5 s later; 20261015_204514 21:02:02 it
    went 3 tiles from an idle reanimated knight, which woke and hit him -46: the user, "Logan went and stood
    right in front of a reanimated knight while the pets were fighting another mob"; test_sim
-   test_standoff_sight: 35e7f83 went from 8 to 6 tiles of it, now 8 to 13). When the tank in the zone needs the
+   test_standoff_sight: 35e7f83 went from 8 to 6 tiles of it, now 8 to 13). That stay leaves out the area hitters'
+   own sight (`Team.zone_hitters`, `aggro.View.stand_score(ignore=)`): out of their sight is no shelter in their hit's
+   reach (since 2026-11-01: live 16:54:52 every clear tile was in the combustive zoa's sight, ours not behind an
+   Invisible Wall 2 from it, and Logan stayed 1 from the pets it scorched, 100 -> 21 in 8 s; docs/NOTES.md "Tidal Tomb
+   level 2: standing in the combustive zoa's scorch"). The log: "stand-off to (x, y): N step(s), seen by X idle before
+   a pet[ and K shooter(s) in war mode]". When the tank in the zone needs the
    vet and the zone reaches farther than `--vet-range` (the daemon's 6 against 5), the stand-off steps in to the
    same vet tile ("to heal the tank: (x, y), N from <pet> ..."), never mid-channel; before, it stayed wherever it
    stood (beside the tank too). Healthy again, the tank's stand-off goes out of the zone (beyond the vet's reach

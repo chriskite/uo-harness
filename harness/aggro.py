@@ -323,19 +323,23 @@ class View:
         """--never-aggro monsters, idle, that would see us on `tile`."""
         return [m for m in self.mobs if m["never"] and not m["war"] and self.sees(m, tile, AGGRO_MAX + margin)]
 
-    def stand_score(self, tile) -> float:
+    def stand_score(self, tile, ignore=()) -> float:
         """Lower is better: idle monsters that would see us there before a pet (first_on_us, by weight), a
-        --never-aggro one above all, then casters and ranged monsters in war mode with sight of us. A tile the closed
-        area takes (stealth_closed) costs STEALTH_CLOSED_COST, as a --never-aggro one's sight: every tile picker that
-        ranks by this (the reposition, off the tank, the stand-off, the loot and vet tiles, the retreat, the cover, the
-        bard's step) takes it only when no open tile is left."""
+        --never-aggro one above all, then casters and ranged monsters in war mode with sight of us (but those in
+        `ignore`, serials). A tile the closed area takes (stealth_closed) costs STEALTH_CLOSED_COST, as a --never-aggro
+        one's sight: every tile picker that ranks by this (the reposition, off the tank, the stand-off, the loot and vet
+        tiles, the retreat, the cover, the bard's step) takes it only when no open tile is left."""
+        casters = sum(1 for m in self.mobs if m["war"] and (m["caster"] or m["ranged"]) and m["serial"] not in ignore
+                      and self.sees(m, tile, los.MAX_DISTANCE))
+        return self.fresh_score(tile) + 1.0 * casters
+
+    def fresh_score(self, tile) -> float:
+        """stand_score without the monsters in war mode: what a fresh monster on us there would weigh."""
         idle = sum(m["weight"] for m in self.first_on_us(tile, margin=1))
         never = len(self.never_near(tile))
-        casters = sum(1 for m in self.mobs if m["war"] and (m["caster"] or m["ranged"])
-                      and self.sees(m, tile, los.MAX_DISTANCE))
         back = sum(weight(kind) for _, kind in self.backspawn_exposed(tile))
         closed = STEALTH_CLOSED_COST if self.stealth_closed(tile) else 0.0
-        return 100.0 * never + 10.0 * (idle + back) + 1.0 * casters + closed
+        return 100.0 * never + 10.0 * (idle + back) + closed
 
     def backspawn_exposed(self, tile) -> list:
         """[(spot, kind)]: stealthers' and shy monsters' spawn spots (Team.backspawn) within their reach (respawn_r) of

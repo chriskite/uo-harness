@@ -8191,6 +8191,70 @@ Visit 2 of a level 2 run (the Seer's shift, Bussin and AlaFlambe; visit 1 home w
   the walk runs inside `Team.around_areas`. Here no tile qualifies, so no cover walk: Logan stays 4 off the pets in the
   combustive zoa's shot. Simulator numbers in docs/SIM.md "Tidal Tomb: the cover's way".
 
+## Tidal Tomb level 2: standing in the combustive zoa's scorch (live 2026-11-01 16:54:50-55:11, hunt-20261101-165054-62a8)
+
+The resumed level 2 run after 128ada1; the user paused and took over at 16:55:11 ("why the runner had Logan just
+standing in the combustive zoa's fire and getting melted"). Capture 20261101_124620 replayed (scratch scripts):
+- **16:54:30-45** a combustive zoa 0x00322FDF passed over at 8 tiles ("it can't see us"), in war mode on the pets from
+  16:54:33, coming east: (6884, 2070) at 45.1, (6891, 2064) at 50.7, where it stood till it died at 16:55:08.
+- **16:54:50** "after 'All Follow Me': the pets with us; 'All Guard Me' due", then "stand-off to (6892, 2066): 4
+  step(s), seen by 0 idle before a pet": the walk from (6896, 2063) west, the pets still following, (6893, 2066) on
+  arrival: Logan 1 from them, 2 from the zoa. "All Guard Me" at 16:54:52.9, after the walk.
+- **16:54:52** "stand-off: every clear tile is nearer an idle monster that would see us before a pet (0.1 by weight at
+  99 tiles; here 0 at 99); staying". No idle monster was in view: the 0.1 was `stand_score`'s 1.0 for a caster in war
+  mode that sees the tile, the zoa itself. Every clear tile was in its modelled sight; Logan's was not: a static
+  "Invisible Wall" (graphic 8611, NoShoot, z -100 to -80) at (6891, 2065) on the line (`los.Sight.blocked_at`
+  (6891, 2065, -86)). The two 0xC0 effects from the zoa at Logan (16:54:56.91, 16:55:07.25) were its volley's bolts to
+  each of us within 6 of a pet, not a spell on him ("Tidal Tomb: the combustive zoas' spells" below).
+- **There, 16:54:57-55:07**, five area hits on all three of us, 190 on Logan in 10.7 s: volley -32, scorch -39 (the
+  pets -60/-57), lightning -39, scorch -44, volley -36; 100 -> 61 -> 29, potion 60, 21, vet 55-70, 26, 29. "area peace"
+  at 21 hits held it 2 s. Every one of them was centred on a pet 1 from him.
+- **Cause**: the stand-off's stay rule (`standoff_tile`, `pick[:2] > here`) compared the whole `stand_score`, whose
+  casters term counted the zoa's own sight of the clear tiles; Logan's tile out of it behind the Invisible Wall "won",
+  though out of its sight is no shelter from its area hits (all centred on a pet, below). The walk there (16:54:50) had
+  the pets still on 'All Follow Me', so they came along with the zone.
+- **Fix**: the stay leaves out the area hitters' own sight (`Team.zone_hitters`, `aggro.View.stand_score(ignore=)`);
+  the log names shooters apart from idle eyes ("... seen by X idle before a pet and K shooter(s) in war mode"). test_sim
+  `test_standoff_war_sight` (16:54:52's tiles: before "staying", the live line). Rejected: 'All Guard Me' before a
+  stand-off walk when due (pet deaths 37 -> 48 in 384 simulated runs). `sim/fight1654.py` replays both layouts.
+  Simulator numbers in docs/SIM.md "Tidal Tomb: the stand-off in the scorch".
+
+## Tidal Tomb: the combustive zoas' spells (2026-11-01, 15 captures)
+
+Why the 16:54 fight above hit every ~3.4 s and why the simulator's zoa was tamer. A scan of the 15 captures with Logan
+in the Tidal Tomb, 2026-10-24 to 11-01 (20261024_102346, 20261024_225113, 20261025_210102, 20261026_183552,
+20261027_220057, 20261028_165135, 20261028_182147, 20261029_100942, 20261029_205240, 20261030_175703, 20261031_105918,
+20261031_132152, 20261031_170158, 20261101_103015, 20261101_124620; 20261026_213634 is another character), each through
+`replay.timed_packets` + `WorldRuntime` (scratch scripts, not kept): 42 fights, 329 spells of plain combustive zoas
+(CZ), 137 of giants (GCZ).
+
+- **The scorch runs on its own timer, telegraphed.** Wind-up: 0xC0 type 0 graphic 0x7B7F hue 1590, sound 0x9FF, from
+  (zoa +1, +1) to (target +1, +1) (196 of 196); 3.0-4.0 s later sound 0x0A70 on that fixed tile and 0x0A72 with a
+  number on each of us within 3 of it. Of ours 4+ off the tile by the landing 0 of 35 struck, within 3 248 of 281. CZ
+  every 7.5 s (p10-p90 7.1-11.9, n=74), GCZ 5.6 s (n=55). **Never on Logan**: 0 of 174 (146 on a pet, 96 of them the
+  pet nearest the zoa, 28 unidentified), also while the zoa's single spells were on him (4 fights).
+- **The rest ride the cast clock** (two animation-4s 1.5 s apart, the spell 1.22 s after; every ~3.37 s), what each cast
+  made (CZ n=314 / GCZ n=98): column (0x3709 type 3 hue 1590, one victim) 39 % / 41 %, nothing seen 30 / 23, explosion
+  (0x36BD, one victim, 2.2 s late) 15 / 8, volley (0x36D4 hue 1590 bolts from the zoa to each of us within 6 of its
+  target, numbers 0.47-0.5 s later) 10 / 17, lightning (type 1 on each victim, sound 0x29, within 4) 7 / 10. A 0x36D4
+  bolt at Logan is a volley's: not a spell aimed at him.
+- **Lightning** 22 of 217 CZ clock spells: one per ~38-48 s of casting (the simulator had 87 s); no trend with the zoa's
+  hits (100-75 % 6 % of casts, 75-50 12, 50-25 12, <25 0). Never centred on Logan alone (0 of 32).
+- **Area hits ~3.4 s apart** were almost always a scorch beside a clock volley or lightning (55 of 61): dense in the
+  giants' fights and in plain ones where the dice gave volleys. What made Logan take them all was standing within 3 of
+  the pets (16:54 here: 5 of 5; 10-29 12:36: 4 of 4).
+- **Logan targeted**: only by single spells (column 10 of 155, explosion 2 of 56), in five fights with the zoa "on" him
+  4-13 tiles off, for 12-27 s; they struck no one else. Struck by area spells by distance only: scorch 29 of 31 within
+  3 (1 of 44 at 4), lightning 16 of 16 within 4 (0 of 16 at 5+), volley 26 of 27 within 6 (0 of 16 at 7+).
+- **Numbers** (pets / Logan medians): scorch CZ 53 / 37, GCZ 96 / 40; lightning CZ 26 / 33, GCZ 46 / 32; volley CZ 25 /
+  30, GCZ 49 / 34; column CZ 26 / 34, GCZ 51; explosion CZ 23, GCZ 45. The CZ's single spells ~20 % over the simulator's
+  17.5-22.5; the GCZ's every ~6.9 s, not 3.4; the GCZ's volley (17 % of its casts) was missing from the simulator.
+- **Built** (harness/data/sim/tidal_tomb.json, `World._burst_target`, `_burst(at=)`): the scorches telegraphed
+  (`telegraph_s` [3, 4], landing on the named tile) and the scorch, lightning and volley centred on a pet (`target`
+  "pet": the zoa's target when a pet, else the pet nearest it); CZ lightning every 43 s, GCZ 33 s; the GCZ's volley
+  (every 20 s, radius 6); the CZ's single spells 18-32; the GCZ's every 6.9 s. test_sim `test_scorch_telegraph`. Not
+  built: a runner rule on the wind-up (step 4+ off its tile; 3-4 s of warning).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

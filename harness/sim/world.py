@@ -1367,7 +1367,10 @@ class World:
                 for _due, ms, sp, ts in due:
                     m = self.mobs.get(ms)
                     if m is not None and m.alive and not m.hidden_until and m.calm_until <= t:
-                        self._burst(m, sp, self.mobs.get(ts))
+                        if isinstance(ts, tuple):
+                            self._burst(m, sp, at=ts)                     # a telegraphed one: on its named tile
+                        else:
+                            self._burst(m, sp, self.mobs.get(ts))
         if self.boss_due:
             due = [b for b in self.boss_due if b[0] <= t + 1e-6]
             if due:
@@ -2272,7 +2275,15 @@ class World:
                 if sp.get("action") is not None and m.serial in self.viewing:
                     # Cavernam's: no emote, only its cast animation (the silicite's action 12, the charoite's 11)
                     self.send(P.animation(m.serial, sp["action"], frames=sp.get("frames", 5)))
-                if sp.get("delay_s") or sp.get("repeat"):
+                if sp.get("telegraph_s"):
+                    # the combustive zoas' scorch: its wind-up names its target's tile 3-4 s ahead, and it lands
+                    # there on everyone of ours within its radius then (docs/NOTES.md "Tidal Tomb: the combustive
+                    # zoas' spells")
+                    on = self._burst_target(m, sp, tgt)
+                    if on is not None:
+                        self._ev("ability", by=m.serial, kind="windup", v=on.serial)
+                        self.delayed.append((t + self.rng.uniform(*sp["telegraph_s"]), m.serial, sp, (on.x, on.y)))
+                elif sp.get("delay_s") or sp.get("repeat"):
                     # `repeat` hits `repeat_s` apart (a hierarch's channelled fire): each one checks its reach then
                     for i in range(sp.get("repeat", 1)):
                         self.delayed.append((t + sp.get("delay_s", 0.0) + i * sp.get("repeat_s", 0.0), m.serial, sp,
@@ -2597,23 +2608,40 @@ class World:
         if sp.get("text", "*emerges*"):
             self._overhead(c, sp.get("text", "*emerges*"))
 
-    def _burst(self, m: Mob, sp: dict, tgt: Mob | None = None):
+    def _burst_target(self, m: Mob, sp: dict, tgt: Mob | None):
+        """The one of us a `center` "target" burst centres on: its target, within `reach` and its sight; `target`
+        "pet": a pet always, its target when that is a pet, else the pet of ours nearest it in reach and sight (live, the
+        combustive zoas' scorch, lightning and volley: never centred on Logan, 0 of 174 scorches, even while its single
+        spells were on him; 96 of 146 scorches on the pet nearest it). None: no burst."""
+        team = self.team()
+
+        def ok(o):
+            return o in team and cheb(m.pos, o.pos) <= sp["reach"] and self.can_see(m, o)
+        if sp.get("target") == "pet" and (tgt is None or tgt.kind != "pet" or not ok(tgt)):
+            pets = [o for o in team if o.kind == "pet" and ok(o)]
+            return min(pets, key=lambda o: cheb(m.pos, o.pos)) if pets else None
+        return tgt if tgt is not None and ok(tgt) else None
+
+    def _burst(self, m: Mob, sp: dict, tgt: Mob | None = None, at: tuple | None = None):
         """One area hit on each of us within `radius`, or on `targets` of us there picked at random (`song_pets`
         false: the pets' share isn't cut by the Song of Discordance, as the apparition's live). `center` "target": on
-        its target (one of us within `reach`) and each of us within `radius` of that one, not round itself (the astral
-        zoas' spell). `damage_pet` / `damage_player` null: no number on a pet / on Logan (a debuff or bleed only, or its
-        numbers already in the type's swings: the biolumen shellpod's barrage on a pet beside it); `numbers` of them on
-        each victim (the shellpod's barrage: two on Logan).
+        its target (one of us within `reach`; `target` "pet": _burst_target) and each of us within `radius` of that one,
+        not round itself (the astral zoas' spell); `at` (x, y): on each of us within `radius` of that tile (a
+        telegraphed burst's named tile, `telegraph_s`). `damage_pet` / `damage_player` null: no number on a pet / on
+        Logan (a debuff or bleed only, or its numbers already in the type's swings: the biolumen shellpod's barrage on a
+        pet beside it); `numbers` of them on each victim (the shellpod's barrage: two on Logan).
         A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`); a `disease` one (`_disease`, the anubite's
         blight); a `root` one (`_root`, the ossuarian hunters' net: no step for `hold_s`). A `debuff`, a stack of
         `per_stack` for `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut
         (`heal`), "glowmark" extra threat drawn (`hurt`), "susceptible" more damage taken from the `from` types (`hurt`;
         each stack's time refreshed by the next, the combustive zoas' scorch)."""
-        if sp.get("center") == "target":
-            team = self.team()
-            if tgt is None or tgt not in team or cheb(m.pos, tgt.pos) > sp["reach"] or not self.can_see(m, tgt):
+        if at is not None:
+            hit = [o for o in self.team() if cheb(o.pos, at) <= sp["radius"]]
+        elif sp.get("center") == "target":
+            tgt = self._burst_target(m, sp, tgt)
+            if tgt is None:
                 return
-            hit = [o for o in team if cheb(o.pos, tgt.pos) <= sp["radius"]]
+            hit = [o for o in self.team() if cheb(o.pos, tgt.pos) <= sp["radius"]]
         else:
             hit = [o for o in self.team() if cheb(o.pos, m.pos) <= sp["radius"]]
         self._ev("ability", by=m.serial, kind="burst", v=None)

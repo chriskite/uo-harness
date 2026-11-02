@@ -2479,6 +2479,23 @@ class Team:
             zone[tile] = max(zone.get(tile, 0), r)
         return zone
 
+    def zone_hitters(self, st) -> set:
+        """Serials of the monsters in war mode in view whose area hits make area_zone's charge and target zones
+        (chargers, AREA_R's, TARGET_AREA's)."""
+        import threats
+        world = st["world"]
+        labels = world.get("labels") or {}
+        out = set()
+        for key, mob in world["mobiles"].items():
+            s = serial_of(key)
+            if s in self.roster or s in self.h.dead or mob.get("x") is None \
+                    or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
+                continue
+            kind = type_key(labels.get(key) or mob.get("name"))
+            if kind in self.chargers or kind in AREA_R or kind in TARGET_AREA:
+                out.add(s)
+        return out
+
     def target_zone(self, st) -> dict:
         """{(x, y): tiles to keep from it}: each live pet within the reach of a monster in war mode in view whose hit
         lands on its target, one of us, and on everyone within its radius of that one (TARGET_AREA: the zoas' scorch and
@@ -2796,14 +2813,25 @@ class Team:
             near, far = best([c for c in cands if not c[4]]), best(cands)
             pick = near if near is not None and near[0] == 0 else far if far[0] == 0 else \
                 best([c for c in (near, far) if c is not None])
-        if pick[:2] > here:
+        # the area hitters themselves don't count for staying: out of their sight is no shelter in their hit's reach
+        # (live 2026-11-01 16:54:52, hunt-20261101-165054-62a8: every clear tile in the combustive zoa's sight, ours not
+        # behind an Invisible Wall 2 from it, 1 from the pets it scorched; "staying", 100 -> 21 in 8 s: docs/NOTES.md
+        # "Tidal Tomb level 2: standing in the combustive zoa's scorch")
+        hitters = self.zone_hitters(st)
+        stay = (round(v.stand_score(pick[5], hitters)), pick[1])
+        stay_here = (round(v.stand_score(v.pos, hitters)), here[1])
+        if stay > stay_here:
             return None, (f"every clear tile is nearer an idle monster that would see us before a pet "
-                          f"({pick[0] / 10:g} by weight at {-pick[1]} tiles; here {here[0] / 10:g} at {-here[1]}); staying")
+                          f"({stay[0] / 10:g} by weight at {-stay[1]} tiles; here {stay_here[0] / 10:g} at "
+                          f"{-stay_here[1]}); staying")
         if spray:
             log(f"{spray}'s spray: stepping out of its cone to {pick[5][:2]}, {pick[3]} step(s)"
                 + (", beyond the vet supplies' reach of the pets" if pick[4] else ""))
         else:
-            log(f"stand-off to {pick[5][:2]}: {pick[3]} step(s), seen by {pick[0] / 10:g} idle before a pet"
+            fresh = round(v.fresh_score(pick[5]))
+            shooters = pick[0] - fresh
+            log(f"stand-off to {pick[5][:2]}: {pick[3]} step(s), seen by {fresh / 10:g} idle before a pet"
+                + (f" and {shooters} shooter(s) in war mode" if shooters > 0 else "")
                 + (", beyond the vet supplies' reach of the pets" if pick[4] else ""))
         return pick[5], None
 
