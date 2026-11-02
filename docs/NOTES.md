@@ -8276,7 +8276,10 @@ in the Tidal Tomb, 2026-10-24 to 11-01 (20261024_102346, 20261024_225113, 202610
   simulator: docs/SIM.md "Tidal Tomb: the scorch's wind-up". **Live, first run with it** (2026-11-02, hunt-20261102-
   121247-1428, capture 20261102_121104): 12:29:55-12:30:20 four "scorch wind-up on (6876, 2011)" lines, each named
   the tile the scorch's 0x0A70 landed on 3.1-3.2 s later (4 of 4); Logan at (6880, 2007), 4 off, so no step, and no
-  scorch on him.
+  scorch on him. 13:22:17.10 the first step: the wind-up onto (6916, 2038) with Logan 2 off at (6917, 2040); "to the
+  corpse: stopped (a scorch wound up onto (6916, 2038) with us within 3 of it)", "scorch on (6916, 2038): stepping off
+  it to (6921, 2039), 3 step(s), 5 from it"; it landed there at 20.21 with Logan 5 off, no scorch on him; the next four
+  landed 4-5 off him, none on him.
 
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
