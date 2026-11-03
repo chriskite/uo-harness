@@ -5629,8 +5629,9 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     On the westward run Dan had 19 changes and Bert 12. Bert ran straight along y ≈ 752 while Dan saw-toothed between y 749 and 759:
     (2416,755) → (2412,759) → (2402,749) → (2394,754) → (2384,749). In moves a zig-zag is no longer (diagonal = straight,
     Chebyshev), but every corner costs a step's time, about 5.5 s over the flight. Dan's straight-on cadence was also 10 %
-    slower than Bert's (0.110 vs 0.100 s, the humanizer's step jitter), about 2.4 s more. At mounted pace that is
-    ~80 tiles of gap given away, while the most the chase ever opened was 15 of the 18 needed to cast. The planner scores
+    slower than Bert's (0.110 vs 0.100 s, the humanizer's step jitter), about 2.4 s more. Against Bert's actual run that
+    is ~3.4 s, ~34 tiles at mounted pace [INFERENCE: how many corners the terrain forces is unmeasured]; the most the
+    chase ever opened was 15 of the 18 needed to cast. The planner scores
     every move 1, with no cost for turning, and adds per-plan route noise (`path_noise` 0.45 per 6×6 cell) to urgent
     walks too. So among the many equal-length grid paths it picks a jagged one, and every replan picks another.
 
