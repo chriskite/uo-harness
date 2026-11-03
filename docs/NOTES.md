@@ -5651,6 +5651,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     with no fall instead of 104 with one). A fall the route can't avoid is marked before the step (`Mover.fell`, log "a
     fall onto (x, y) (z A -> B; …)"), and hits lost within 2 s of it with no swing, spell or damage packet are the fall's
     (`LumberLoop.fall_hit`: log "fall damage: -N … walking on", a `fall` job event), not a threat.
+  - **First flee drill, live 2026-11-02 22:56-22:58 (mining-20261102-225622-2d0d, `--flee-drill --flee-from 2521 771`,
+    the pocket where Bert killed Dan; capture session_20261102_225315).** From (2521, 771) at 22:57:48 to "You are now
+    under the protection of the town guards" at (2277, 709) at 22:58:38: 49.9 s, 430 moves with 38 direction changes
+    (the death flight: 272 moves, 50 changes in 40 s). Straight-on moves 0.101 s apart (was 0.110 with the jitter), 0.202
+    s after a turn. Stops over 0.3 s: 0.67 s planning at the start, two 0.35 s replans for an object on the next step,
+    1.1 s at (2287, 665) for a danger replan and 1.1 s at (2287, 691) after a refused shove (stamina 24/25). Then
+    "guards" and the recall home in 2.2 s. The guard zone came at (2277, 709), short of the Andaria bank goal.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
