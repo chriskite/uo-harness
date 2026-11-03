@@ -1072,6 +1072,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   walking to a tree or ore stand at least `ESCAPE_RUN` tiles from it, a weak animal in flee range
   (`threats.Params.run_past_names`, e.g. a cougar) that hasn't swung at us is passed, not fled from; log "running
   past …" and a `run_past` job event. A hit still goes through the damage rules; at the tree it is fled from.
+- **A creature on another level (since 2026-11-02, `cut_off`, docs/PLAN.md "Mining runner…"):** a melee creature
+  16+ z away with no walk on the map to beside us within 24 steps is neither fled from nor zoned; log "… is on another
+  level … not fled from". A swing or a hit still counts; ranged creatures are never cut off.
 - **Keep away from creatures in view, run far, run before recalling (since 2026-10-05, user: "never
   move into aggro range of mobs we can see while lumbering"; "a few steps isn't going to break aggro";
   fighting them is for later):**

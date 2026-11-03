@@ -2139,6 +2139,16 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   ("…: going round in circles (stood on (x, y) 3 times in N steps)"), a `WalkFailed`: the forge walk then ends
   the leg with the ore going home (`forge_unreachable`), a stand walk counts as a stand given up. test_mover
   `test_circles` (test_boxed_in's swing now drifts so it doesn't revisit tiles).
+- *A creature on another level isn't a threat* (2026-11-02, user: "Dan is running from a skeleton that is on a
+  different z-level... that was a good spot but he recalled out"; mining-20261102-211805-d8d8 at forge_2113_2175,
+  21:23-21:24, capture session_20261102_174945: a skeleton at (2105, 2184) z 47-50 on a ledge above Dan at z 0 never
+  left its tile; 6 escapes, then "came back after 3 escapes" recalled home). `LumberLoop.cut_off` (shared with
+  lumber): a melee creature (reach 1) with |dz| ≥ `LEVEL_APART_Z` (16) and no walk on the map from its tile to beside
+  us on our level within `LEVEL_ROUTE_MAX` (24) steps is neither fled from nor zoned; a swing or a hit still counts.
+  Log once per creature: "a skeleton at (x, y, z 50) is on another level (we stand at z 0) with no way to us within
+  24 steps: not fled from". On the real map the skeleton at z 49-50 has no way down within 24 steps (its route to
+  Dan's tiles is 124-127 steps); at the one z 47 reading the map has a 6-step way, so that reading still counts as a
+  threat. Ranged creatures shoot across levels and are never cut off. test_mining.py `test_cut_off_level`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

@@ -255,6 +255,13 @@ KEEP_RUNNING_LOOK_S = 0.5     # how often run_and_recall looks around while noth
 # lumbering"): RunUO's monsters perceive within 10 tiles (BaseCreature rangePerception, the usual
 # spawn argument) [INFERENCE for Outlands]; trees and routes keep AGGRO_R from every one in view
 AGGRO_R = 13
+# A melee creature on another level isn't fled from or zoned (cut_off; user 2026-11-02: "Dan is running from a
+# skeleton that is on a different z-level... that was a good spot but he recalled out"; live mining-20261102-211805-d8d8
+# at forge_2113_2175, 21:23-21:24: a skeleton at (2105, 2184) z 47-50 on a ledge above Dan at z 0 never left its
+# tile; 6 escapes from it, then "came back after 3 escapes" recalled home): |dz| at least LEVEL_APART_Z, and no walk on
+# the map from its tile to beside us within LEVEL_ROUTE_MAX steps (~3 s of its pace, the recall budget, x 3)
+LEVEL_APART_Z = 16
+LEVEL_ROUTE_MAX = 24
 # An escape runs far, not a few steps (user, 2026-10-05: "a few steps isn't going to break aggro"):
 # its goal is at least ESCAPE_RUN tiles from what we flee [INFERENCE: past perception and view]
 ESCAPE_RUN = 20
@@ -523,6 +530,8 @@ class LumberLoop:
         self.walk_goal = None        # (x, y) of the stand or tree a walk heads for (walk_to_work), for run_past
         self.run_past_from = {}      # creature serial -> (x, y) where run_past first weighed it
         self.ran_past = set()        # (serial, goal) pairs run_past logged
+        self.cut_off_now = set()     # creature serials on another level with no way to us (cut_off), this state read
+        self._cut_off = {}           # (serial, its tile, our tile) -> cut_off's verdict
         self.creature = self.new_creature_tally()   # this trip's creature cost: the episode row's `creature`
         self.avoided = set()         # (tree, creature serial) pairs logged as left alone (next_stand)
         self.recent_guards = {}      # creature serial -> (threat, (x, y), zone tiles, monotonic time last seen) (tree_guards)
@@ -1150,6 +1159,7 @@ class LumberLoop:
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
         self.note_sightings(st)
+        self.cut_off_now = {t.serial for t in a.threats if t.kind == "monster" and self.cut_off(st, t)}
         self.aggro_zones(st)
         if a.dead:
             self.died(st, "ghost body")
@@ -1182,7 +1192,7 @@ class LumberLoop:
         # (Watch.monsters); one never seen is read as a player, the safe side
         aggressors = [s for s in swung
                       if (by_serial[s].kind != "monster" if s in by_serial else s not in self.watch.monsters)]
-        monsters = [t for t in a.flee if t.kind == "monster"]
+        monsters = [t for t in a.flee if t.kind == "monster" and t.serial not in self.cut_off_now]
         monsters += [by_serial[s] for s in swung if s not in aggressors and s in by_serial
                      and s not in {t.serial for t in monsters}]
         for s in [*aggressors, *(t.serial for t in named)]:    # died's cause: players who went for us
@@ -3441,9 +3451,34 @@ class LumberLoop:
         line) or of a passive body or name (threats.Params). Hostile ones (war mode, learned
         bodies, notoriety 6) of course; idle ones too, since they turn when we come near."""
         p = self.watch.params
-        return (t.kind == "monster" and (t.hostile or (
+        return (t.kind == "monster" and t.serial not in self.cut_off_now and (t.hostile or (
             "pet" not in (t.aggression or "") and t.body not in p.passive_bodies
             and (t.name or "").lower() not in p.passive_names)))
+
+    def cut_off(self, st, t) -> bool:
+        """A melee creature on another level: |dz| at least LEVEL_APART_Z and the map has no walk from its tile to
+        beside us within LEVEL_ROUTE_MAX steps. It can't get at us, so it is neither fled from nor zoned (a hit or a
+        swing at us still counts: creature_hit, swung). A ranged one (reach > 1) shoots across levels: never cut off.
+        Cached per its tile and ours; logged once per creature."""
+        if t.reach > 1:
+            return False
+        m = st["world"]["mobiles"].get(f"0x{t.serial:08X}") or {}
+        pos = st["movement"].get("pos")
+        if m.get("z") is None or not pos or len(pos) < 3 or abs(m["z"] - pos[2]) < LEVEL_APART_Z:
+            return False
+        key = (t.serial, m["x"], m["y"], m["z"], pos[0], pos[1], pos[2])
+        if key not in self._cut_off:
+            if len(self._cut_off) > 5000:
+                self._cut_off.clear()
+            walk = self.mover.walk_map(st)
+            beside = nav.within((pos[0], pos[1]), 1, lambda z: abs(z - pos[2]) < LEVEL_APART_Z)   # on our level
+            cut = walk is not None and pathfind.plan(walk, (m["x"], m["y"], m["z"]), beside,
+                                                      max_steps=LEVEL_ROUTE_MAX) is None
+            if cut and not any(k[0] == t.serial and v for k, v in self._cut_off.items()):
+                log(f"{t.name or f'0x{t.serial:08X}'} at ({m['x']}, {m['y']}, z {m['z']}) is on another level (we "
+                    f"stand at z {pos[2]}) with no way to us within {LEVEL_ROUTE_MAX} steps: not fled from")
+            self._cut_off[key] = cut
+        return self._cut_off[key]
 
     def aggro_r(self, t) -> int:
         """Tiles around a creature we stay out of: zone_r, at least AGGRO_R."""

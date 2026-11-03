@@ -447,9 +447,60 @@ def test_stalled_leg():
     check("not with fewer stands given up", few is None, few)
 
 
+def test_cut_off_level():
+    print("a melee creature on a ledge above with no way down: not fled from, not zoned")
+    import threats
+    import loop_lumber
+    import nav
+
+    class Levels:
+        """z 0 ground x 0..40; a ledge at z 50 over x 0..40, y -12..-6; `ramp` joins them (or not)."""
+        def __init__(self, ramp):
+            self.ramp = ramp
+
+        def can_walk(self, x, y, z, d):
+            nx, ny = nav.step((x, y), d)
+            if not (0 <= nx <= 40):
+                return None
+            if z == 0 and -5 <= ny <= 10:
+                return (nx, ny, 0)
+            if z == 50 and -12 <= ny <= -6:
+                return (nx, ny, 50)
+            if self.ramp and (nx, ny) in {(20, -5), (20, -6)} and abs(ny - y) == 1 and nx == x:
+                return (nx, ny, 0 if ny == -5 else 50)
+            return None
+
+    def verdict(ramp, reach=1, sz=50, us=(5, 0, 0)):
+        loop = object.__new__(MineLoop)
+        loop._cut_off = {}
+        loop.mover = SimpleNamespace(walk_map=lambda st: Levels(ramp))
+        st = {"movement": {"pos": list(us) + [0]},
+              "world": {"mobiles": {"0x00000C03": {"x": 5, "y": -7, "z": sz}}}}
+        t = threats.Threat(serial=0xC03, name="a skeleton", body=50, notoriety=3, kind="monster", player=None,
+                           hostile=True, distance=7, reach=reach)
+        return loop.cut_off(st, t)
+    saved = loop_lumber.log
+    loop_lumber.log = lambda s: None
+    try:
+        # live 2026-11-02 21:23-21:24 (mining-20261102-211805-d8d8): a skeleton at z 50 on a ledge 7 tiles off Dan at z 0
+        ledge = verdict(ramp=False)
+        near_ramp = verdict(ramp=True)        # the ramp at x 20: 15 tiles along the ledge, ~25 steps down to us
+        ramp_near_us = verdict(ramp=True, us=(20, 0, 0))
+        ranged = verdict(ramp=False, reach=10)
+        same_level = verdict(ramp=False, sz=10)
+    finally:
+        loop_lumber.log = saved
+    check("no way down: cut off", ledge is True, ledge)
+    check("a way down beyond LEVEL_ROUTE_MAX steps: still cut off", near_ramp is True, near_ramp)
+    check("a way down within LEVEL_ROUTE_MAX: a threat", ramp_near_us is False, ramp_near_us)
+    check("a ranged one shoots across levels: a threat", ranged is False, ranged)
+    check("within LEVEL_APART_Z: a threat", same_level is False, same_level)
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
-              test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg):
+              test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
+              test_cut_off_level):
         t()
     print()
     if FAILURES:
