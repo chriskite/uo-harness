@@ -2185,6 +2185,11 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   within `FALL_HIT_WINDOW_S` (2 s) of it with no swing, spell or damage packet are the fall's (`LumberLoop.fall_hit`:
   logged, a `fall` job event, the walk goes on). Rejected: forbidding falls (a ledge may be the only way, or the way out
   of a fight). test_mover `test_fall`, test_mining `test_fall_hit`.
+- *A smelt answered 500119 is pressed again* (2026-11-03, mining-20261103-140347-e657: the 6 shadow ore's press 0.49 s
+  after the last stack's at the house forge got "You must wait to perform another action."; logged as "no answer",
+  the stack stayed in the pack). The server's item-use delay, not the forge: `BUSY_RETRY_S` (0.4 s) later, up to
+  `SMELT_BUSY_TRIES` (3), as the dig does. Rejected: a floor under `smelt_use` (the jitter is the point; one retry
+  costs 0.4 s). test_mining.py `test_smelt_busy`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

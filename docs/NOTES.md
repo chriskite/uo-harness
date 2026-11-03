@@ -5373,6 +5373,12 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   - A stack the forge refuses or doesn't answer is left for the rest of the leg (`unsmeltable`), not retried in a
     loop. A travel-lockout answer to a smelt is waited out and the stack tried once more [INFERENCE: whether the
     lockout holds smelting is unseen].
+  - 500119 "You must wait to perform another action." to a smelt is the server's item-use delay, not the forge: the
+    stack is pressed again `BUSY_RETRY_S` 0.4 s later, up to `SMELT_BUSY_TRIES` 3 times (log `smelt: 'You must wait
+    to perform another action.' on N ore (0x…); pressing again in 0.4 s`). Live 2026-11-03 14:17:07.04
+    (mining-20261103-140347-e657, session_20261103_134648): at the house forge the 6 shadow ore (hue 0x966) went
+    0.49 s after the last stack's press (the lognormal `smelt_use` 0.65 s drew short), got 500119, and the runner
+    logged "no answer to 6 ore", left them in the pack and stored the rest. test_mining.py test_smelt_busy.
   - **At home the ingots go into the room's Resource Stockpile** (since 2026-10-19 evening; before, they stayed
     carried and the room shelf's Restock was skipped because it takes live trapped pouches).
     - The user's drop-off by hand at 22:44:39 (capture session_20261019_214740):

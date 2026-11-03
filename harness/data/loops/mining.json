@@ -20,6 +20,7 @@
     "not_near_clilocs": [500420],
     "not_near_texts": ["You do not see any nearby forges"],
     "refused_clilocs": [501986, 501987],
+    "busy_clilocs": [500119],
     "forge_range": 2
   },
   "travel_lockout": {

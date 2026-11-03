@@ -92,6 +92,7 @@ STAND_FLOOD = 80
 BUSY_RETRY_S = 0.4           # after 500119 "You must wait to perform another action."
 EQUIP_WAIT_S = 3.0           # a packed pickaxe's double-click until it is in hand
 SMELT_WAIT_S = 4.0           # an ore stack's double-click until the forge's answer (live: at once)
+SMELT_BUSY_TRIES = 3         # an ore stack's double-click again after 500119 (an item use < 0.5 s before), this often
 INGOT_WAIT_S = 2.0           # after the last smelt answer: until 2 ingots an ore are in the pack (the count)
 STOCKPILE_WAIT_S = 3.0       # the stockpile's answer to the Restock's backpack target (live: 46 ms, deletes first)
 
@@ -569,7 +570,9 @@ class MineLoop(loop_lumber.LumberLoop):
         return wmax is not None and w is not None and self.smeltable_ore(st) > 0 and wmax - w < self.args.smelt_free
 
     def smelt_reply(self, mark) -> tuple | None:
-        """('ok' | 'refused' | 'not_near', 0) or ('lockout', seconds) from the answer since events[mark], or None."""
+        """('ok' | 'refused' | 'not_near' | 'busy', 0) or ('lockout', seconds) from the answer since events[mark],
+        or None. 'busy': 500119 "You must wait to perform another action." (live 2026-11-03 14:17:07.04: an ore
+        stack's double-click 0.49 s after the last one's)."""
         sm, lock = self.k["smelt"], self.k["travel_lockout"]
         for ev in self.since(mark):
             if ev.get("ev") == "cliloc":
@@ -580,6 +583,8 @@ class MineLoop(loop_lumber.LumberLoop):
                     return ("refused", 0)
                 if n in sm["not_near_clilocs"]:
                     return ("not_near", 0)
+                if n in sm["busy_clilocs"]:
+                    return ("busy", 0)
             elif ev.get("ev") == "speech_heard":
                 t = ev.get("text") or ""
                 if any(t.startswith(x) for x in sm["not_near_texts"]):
@@ -624,7 +629,8 @@ class MineLoop(loop_lumber.LumberLoop):
         self.doing("smelt", f"Smelting {ore0} ore at {where}", (fx, fy))
         spot = self.k["spot"]["id"]
         for serial, it in stacks:
-            for _try in range(2):                       # a second press only after a travel lockout
+            lockouts = busy = 0                         # a press again only after a travel lockout or 500119
+            while True:
                 st = self.state()
                 if self.item(st, serial) is None:
                     break
@@ -637,12 +643,19 @@ class MineLoop(loop_lumber.LumberLoop):
                 self.link.act(actions.dclick(serial))
                 self.wait_for(lambda s, mark=mark: self.smelt_reply(mark) is not None, SMELT_WAIT_S)
                 reply, secs = self.smelt_reply(mark) or (None, 0)
-                if reply == "lockout" and _try == 0:
+                if reply == "lockout" and not lockouts:
+                    lockouts += 1
                     wait = secs + self.human.rng.uniform(1.0, 3.0)
                     log(f"smelt: travel lockout reported: waiting {wait:.0f} s")
                     self.doing("lockout", f"Waiting out the travel lockout ({wait:.0f} s)", (fx, fy))
                     self.pause(wait, "lockout")
                     self.timing["lockout_s"] += wait
+                    continue
+                if reply == "busy" and busy < SMELT_BUSY_TRIES:
+                    busy += 1
+                    log(f"smelt: 'You must wait to perform another action.' on {it.get('amount') or 1} ore "
+                        f"(0x{serial:08X}); pressing again in {BUSY_RETRY_S:g} s")
+                    time.sleep(BUSY_RETRY_S)
                     continue
                 if reply == "ok":
                     break
@@ -659,7 +672,7 @@ class MineLoop(loop_lumber.LumberLoop):
                                           **self._where(self.link.state()))
                     raise Abort(f"{where} doesn't smelt" + ("" if home else ": spot disabled"))
                 self.unsmeltable.add(serial)            # refused or no answer: not this leg again (no smelt loop)
-                log(f"smelt: {'the forge refused' if reply == 'refused' else 'no answer to'} "
+                log(f"smelt: {'the forge refused' if reply == 'refused' else 'still busy after' if reply == 'busy' else 'no answer to'} "
                     f"{it.get('amount') or 1} ore (0x{serial:08X}); leaving that stack this leg")
                 break
         st = self.state()

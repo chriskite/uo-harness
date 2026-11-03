@@ -590,10 +590,56 @@ def test_red_flight_zones():
           and loop.red_flight is None, loop.mover.danger)
 
 
+def test_smelt_busy():
+    print("an ore stack's double-click answered 'You must wait to perform another action.': pressed again, smelted")
+    # live 2026-11-03 14:17:07.04 (mining-20261103-140347-e657): the 6 shadow ore's press 0.49 s after the last stack's
+    # got 500119; the runner logged "smelt: no answer to 6 ore", left them in the pack and stored the rest
+    import loop_mining
+    with open(os.path.join(HERE, "data", "loops", "mining.json"), encoding="utf-8") as f:
+        know = json.load(f)
+    know["spot"] = {"id": "forge_1_2"}
+    ore = {0x10: {"graphic": 0x19B9, "amount": 100, "hue": 0}, 0x11: {"graphic": 0x19B9, "amount": 6, "hue": 0x966}}
+    ingots = {}
+    pressed, events, logged = [], [], []
+
+    def act(pkt):
+        serial = int.from_bytes(bytes(pkt)[1:5], "big")
+        pressed.append(serial)
+        if serial == 0x11 and pressed.count(0x11) == 1:       # the press too soon after the last one's
+            events.append(cl(500119))
+            return
+        it = ore.pop(serial)
+        ingots[serial | 0x100] = {"graphic": 0x1BF2, "amount": 2 * it["amount"], "hue": it["hue"]}
+        events.append(cl(501988))
+    loop = object.__new__(MineLoop)
+    loop.k, loop.home, loop.unsmeltable, loop.stats, loop.timing, loop.trip_n = know, \
+        {"forge": {"serial": "0x00000099", "pos": [3, 4, 0]}}, set(), {}, {"lockout_s": 0.0}, 1
+    loop.link = SimpleNamespace(events=events, act=act, open_containers=lambda *a: None, state=lambda: {"world": {}})
+    loop.state = lambda: {"world": {}}
+    loop.wait_for = lambda pred, timeout: {"world": {}} if pred({"world": {}}) else None
+    loop.item = lambda st, serial: {} if serial == 0x99 or serial in ore else None
+    loop.in_pack = lambda st, graphics: [(s, it) for s, it in {**ore, **ingots}.items() if it["graphic"] in graphics]
+    loop.doing = lambda *a: None
+    loop.mover = SimpleNamespace(walk_to=lambda *a, **kw: None)
+    loop.human = SimpleNamespace(wait=lambda kind: None)
+    loop.ledger = SimpleNamespace(expect=lambda what: None)
+    loop.memory = SimpleNamespace(job_event=lambda job, kind, data, **kw: logged.append((kind, data)))
+    loop._where = lambda st: {}
+    saved = loop_mining.log, loop_mining.containers_to_open, loop_mining.BUSY_RETRY_S
+    loop_mining.log, loop_mining.containers_to_open, loop_mining.BUSY_RETRY_S = (lambda s: None), (lambda w, s: []), 0.0
+    try:
+        made = loop.smelt("home", home=True)
+    finally:
+        loop_mining.log, loop_mining.containers_to_open, loop_mining.BUSY_RETRY_S = saved
+    check("the busy stack pressed again and smelted: no ore left, 212 ingots", not ore and made == 212
+          and pressed == [0x10, 0x11, 0x11] and not loop.unsmeltable, (ore, made, pressed, loop.unsmeltable))
+    check("the smelt event counts all 106 ore", [d["ore"] for k, d in logged if k == "smelt"] == [106], logged)
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
-              test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones):
+              test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy):
         t()
     print()
     if FAILURES:
