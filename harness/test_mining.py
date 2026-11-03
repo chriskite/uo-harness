@@ -528,10 +528,56 @@ def test_fall_hit():
           (swing, packet, spell))
 
 
+def test_in_guards():
+    print("in the guards after a flight: say 'guards', then the recall home (a drill: no alarm)")
+    import time
+    import loop_lumber
+    from loop_lumber import Unsafe
+    saved = loop_lumber.log
+    loop_lumber.log = lambda s: None
+
+    def run(drill=False, recall=None):
+        loop = object.__new__(MineLoop)
+        said, events, junctures, homes = [], [], [], []
+        st = {"world": {"self": {"map": 0}, "mobiles": {}}, "movement": {"pos": [3840, 2881, 0, 2]}}
+        loop.link = SimpleNamespace(state=lambda: st, act=lambda pkt: said.append(pkt), pos=lambda s: s["movement"]["pos"])
+        loop.watch = SimpleNamespace(update=lambda s, **k: SimpleNamespace(threats=[]))
+        loop.memory = SimpleNamespace(job_event=lambda job, kind, data, **w: events.append(kind),
+                                      juncture=lambda job, kind, text, sev, data: junctures.append((kind, text)))
+        loop.drill, loop._guard_run, loop.hit_by, loop.JOB = drill, True, [], "mining"
+        loop.go_home = lambda: homes.append(True)
+        loop.post_threat = lambda *a, **k: "red X"
+
+        def recall_out(*a, **k):
+            if recall == "lands":
+                raise Unsafe("escaped by recall")
+            return "recall failed after 1 cast(s): disturbed"
+        loop.recall_out = recall_out
+        try:
+            loop.in_guards(None, set(), "flee", time.monotonic(), True)
+            out = "no raise"
+        except Unsafe as e:
+            out = str(e)
+        return said, events, junctures, homes, out
+    try:
+        said, events, junctures, homes, out = run(recall="lands")
+        guards_said = len(said) == 1 and b"guards" in bytes(said[0]).replace(b"\x00", b"")
+        check("a flight: 'guards' said, the guard_flight event, then the recall home (it lands: Unsafe from it)",
+              guards_said and events == ["guard_flight"] and out == "escaped by recall", (events, out))
+        said, events, junctures, homes, out = run(recall="fails")
+        check("the recall fails: an urgent pk_escape juncture there, Unsafe",
+              [k for k, _ in junctures] == ["pk_escape"] and "recall home failed" in out, (junctures, out))
+        said, events, junctures, homes, out = run(drill=True)
+        check("a flee drill: 'guards', a flee_drill event, home by the book, no juncture",
+              len(said) == 1 and events == ["flee_drill"] and homes == [True] and not junctures, (events, junctures))
+    finally:
+        loop_lumber.log = saved
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
-              test_cut_off_level, test_fall_hit):
+              test_cut_off_level, test_fall_hit, test_in_guards):
         t()
     print()
     if FAILURES:

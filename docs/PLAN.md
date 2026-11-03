@@ -494,6 +494,17 @@ it stood. Code: `harness/guards.py`, `LumberLoop.flee_to_guards`, `nav.any_of`,
 - **In town:** "guards" once if a hostile player is within 12 tiles (wiki: a PK attacking a blue
   in a guard zone is guard-whacked; THREATS line 81). Then `guard_flight` job event + urgent
   `pk_escape` (`method: guards`) + stop (Unsafe), as the recall does.
+  **Since 2026-11-02 (user: "when our character reaches a guard zone he should say 'guards' and then recall
+  home"):** "guards" always on arrival, then the recall home (`in_guards` → `recall_out`: its landing posts the
+  `pk_escape` and ends the run at home, the carried goods stored by the next run); a recall that fails leaves us in
+  the guards with an urgent `pk_escape` ("the recall home failed"), as before. No book (`flee_to_guards`): the same
+  failure path.
+- **Flee drill (2026-11-02, user: "Is there a `ctl` command that triggers an escape to a guard zone? It would be cool
+  to watch it live"):** `ctl run mining|lumber --spot S --flee-drill [--flee-from X Y]` (`LumberLoop.flee_drill`):
+  no harvest; out to the spot as a trip goes (mounted, by its landing), to `--flee-from` when given, then the guard
+  run with nobody after us (guard_route, guard_leg legs: urgent, no walk pauses, potions on the run) to the
+  server's 500112 or the place itself; "guards", a `flee_drill` job event, home by the book (`go_home`), no
+  juncture, exit 0. No recall casts on the way (no pursuer to open a gap from). test_mining `test_in_guards`.
 - **Rejected:** a "latest notice was an enter, so we're already inside" shortcut. Notices skip,
   so it can be minutes stale.
 - **Live check (TestWorth, Prevalia, Test Shard):** fake red, `--recall off`, from (1481,1505)

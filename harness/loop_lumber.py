@@ -584,6 +584,7 @@ class LumberLoop:
         self.guard_banks = guards.bank_markers(args.guard_markers)   # [((x, y), facet)] (guard_goals)
         self.spot_routes = {}        # spot id -> guards.Route from the spot to the guards (guard_route_ready)
         self.guard_summary = None    # this escape's guard route as its job events record it (guard_route)
+        self.drill = False           # a --flee-drill's run to the guards (flee_drill): in_guards records it, no alarm
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
         self.setup_tool(args)
         self.trip_t0 = None
@@ -2359,9 +2360,9 @@ class LumberLoop:
         place reachable on foot, any distance (guard_route; legs of guard_leg, mode 'gap'), until we stand on it
         or the server says we're under the guards' protection (cliloc 500112) on the way. The notice lags and
         skips crossings (guards.py), so arriving counts without it; `confirmed` says whether it came. There:
-        "guards" once when a hostile player is within 12 tiles, an urgent `pk_escape` juncture, then Unsafe
-        (in_guards). Returns (after logging why) only when the flight failed or we died; the caller then stops
-        the plain way."""
+        "guards" and the recall home when a book can (in_guards; else an urgent `pk_escape` juncture there), then
+        Unsafe. Returns (after logging why) only when the flight failed or we died; the caller then stops the plain
+        way."""
         self.drop_cursor()
         if a.dead:
             return
@@ -2386,26 +2387,76 @@ class LumberLoop:
         finally:
             self._guard_run = False
 
+    def flee_drill(self):
+        """--flee-drill (user 2026-11-02: "Is there a `ctl` command that triggers an escape to a guard zone? It would be
+        cool to watch it live"): the run to the guards with nobody after us, as a player escape makes it. Out to the
+        spot as a trip goes (mounted, by its landing), on to --flee-from when given, then legs along the guard route
+        (guard_route, guard_leg: urgent, no walk pauses, potions on the run) until the server's 500112 or the place
+        itself, where in_guards says "guards" and recalls home. No recall casts on the way: nobody to open a gap from.
+        No guarded place reachable on foot, or a leg that can't go: home by the book. The run ends at home."""
+        self.trip_n = 1
+        self.guarded(self.mount_home)
+        self.guard_route_ready()
+        self.guarded(self.go_out)
+        self.afield = True
+        if self.args.flee_from:
+            xy = tuple(self.args.flee_from)
+            self.doing("to_start", f"To the flee drill's start {xy}", xy)
+            self.guarded(lambda: self.mover.walk_to(lambda: xy, 0, "to the flee drill's start"))
+        st = self.link.state()
+        self.player_foes, self.guard_summary = set(), None
+        route = self.guard_route(st, None)
+        if route is None:
+            log("flee drill: no guarded place to run to from here; recalling home")
+            self.go_home()
+            return
+        t0 = time.monotonic()
+        self._guard_run, self._flee_mark, self.drill = True, len(self.link.events), True
+        self.doing("flee", f"Flee drill: running to the guards at {route.goal[0]}", route.goal[0])
+        log(f"flee drill from {tuple(self.link.pos(st)[:2])}")
+        try:
+            while True:
+                blocked = self.guard_leg(st, None, set(), route, t0, "flee drill", 0)
+                if blocked is not None:
+                    log(f"flee drill: {blocked}; recalling home")
+                    self.go_home()
+                    return
+                st = self.link.state()
+        except Unsafe as e:                  # in_guards: there, "guards", home
+            log(f"flee drill done: {e}")
+        finally:
+            self._guard_run, self.drill = False, False
+
     def in_guards(self, worst, swung, why, t0, confirmed: bool, extra: dict | None = None):
-        """At a guarded place after a flight: call the guards on a hostile player
-        within 12 tiles, post `guard_flight` + `pk_escape`, raise Unsafe. `extra`: more
-        `guard_flight` data (guard_leg: the route, the recall casts made on the way)."""
+        """At a guarded place after a flight: say "guards" (the guards come for a criminal or murderer near us), then
+        the recall home (user 2026-11-02: "when our character reaches a guard zone he should say 'guards' and then
+        recall home"; until then the run stopped there). A `guard_flight` job event, then recall_out (its landing: a
+        `pk_escape` juncture, Unsafe); a recall that fails leaves us there: a `pk_escape` juncture, Unsafe. A flee
+        drill (flee_drill): a `flee_drill` job event and the plain recall home (go_home), no juncture. `extra`: more
+        event data (guard_leg: the route, the recall casts made on the way)."""
+        self._guard_run = False              # there: the recall's state reads don't look for the 500112 again
         st = self.link.state()
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         pos = self.link.pos(st)
         near = [t for t in a.threats if t.player and t.hostile and 0 <= t.distance <= guards.ATTACKER_NEAR]
-        if near:
-            self.link.act(actions.say_unicode("guards"))
-            log(f"called the guards on {near[0].name or f'0x{near[0].serial:08X}'}")
+        self.link.act(actions.say_unicode("guards"))
+        log(f"in the guards at {tuple(pos[:2])}: said \"guards\""
+            + (f" ({near[0].name or f'0x{near[0].serial:08X}'} {near[0].distance} tiles off)" if near else ""))
         data = {"method": "guards", "recall_failure": why, "to": list(pos[:2]), "confirmed": confirmed,
-                "flight_s": round(time.monotonic() - t0, 2), "called_guards": bool(near),
+                "flight_s": round(time.monotonic() - t0, 2), "called_guards": True, "near": bool(near),
                 "threat": worst.to_dict() if worst else None,
                 "attackers": self.attacker_list(swung), **(extra or {})}
+        if self.drill:
+            self.memory.job_event(self.JOB, "flee_drill", data, **self._where(st))
+            self.go_home()
+            raise Unsafe(f"in the guards at {tuple(pos[:2])} after {data['flight_s']} s; recalled home")
         self.memory.job_event(self.JOB, "guard_flight", data, **self._where(st))
+        fail = self.recall_out(st, a, worst, swung, pk=True, why=f"in the guards at {tuple(pos[:2])}")
         summary = self.post_threat(st, a, worst, swung, "guards")
         self.memory.juncture(self.JOB, "pk_escape",
-                             f"Fled into the guards from {summary} ({data['flight_s']} s); stopped", "urgent", data)
-        raise Unsafe(f"threat: {summary}; fled into the guards at {tuple(pos[:2])}")
+                             f"Fled into the guards from {summary} ({data['flight_s']} s); the recall home failed "
+                             f"({fail}); stopped there", "urgent", {**data, "recall_home": fail})
+        raise Unsafe(f"threat: {summary}; fled into the guards at {tuple(pos[:2])}; recall home failed: {fail}")
 
     def attacker_list(self, swung) -> list:
         """The junctures' and job events' `attackers`: those swinging or casting at us
@@ -5106,6 +5157,10 @@ class LumberLoop:
         self.guarded(lambda: self.track_ensure("start"))   # its human pauses watch for threats (pause)
         # routes bend around where hostile creatures were seen lately (travel_guard)
         self.mover.danger_tiles = travel_guard.remembered_tiles(self.memory, self.facet, self.link.pos(st)[:2])
+        if self.args.flee_drill:
+            self.flee_drill()
+            self.doing("done", "Flee drill done; waiting at home")
+            return
         for n in range(1, self.args.trips + 1):
             if self.ending:                          # asked between trips: no new one
                 log(f"{self.ending}: no trip {n}; waiting at home")
@@ -5152,6 +5207,11 @@ def common_args(ap):
     ap.add_argument("--homes", default=home_mod.HOMES,
                     help="homes by character name: landing, home rune, library rune, chest (tests: a simulated home)")
     ap.add_argument("--trips", type=int, default=1)
+    ap.add_argument("--flee-drill", action="store_true",
+                    help="no harvest: out to --spot as a trip goes, then the run to the nearest guarded place as from "
+                         "a player (urgent legs, potions on the run), 'guards' there and the recall home (flee_drill)")
+    ap.add_argument("--flee-from", type=int, nargs=2, metavar=("X", "Y"),
+                    help="with --flee-drill: walk to this tile at the spot first and run from there")
     ap.add_argument("--hops", type=int, default=3,
                     help="hops per trip to another spot when a leg ends early; 0 = never")
     ap.add_argument("--max-attempts-per-stand", type=int, default=60,
