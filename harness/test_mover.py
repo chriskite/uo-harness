@@ -358,21 +358,20 @@ def test_no_pause_in_danger():
               bool(paused) == want, f"{len(paused)} pauses")
 
 
-def test_boxed_in():
-    print("== creatures on every side: a walk replanning round them without getting nearer gives up ==")
-    # live 2026-10-05 (witcher_137): 178 danger replans in 4.5 min, the walk swinging between two routes
-    from agent_link import DANGER_STALL_REPLANS
+def swing_walk(drift: int):
+    """A walk whose every step asks for a danger replan and whose plans swing east, then west, never nearer the goal
+    (40, 0); each swing `drift` tiles further north. Returns (message, plans)."""
     link = FakeLink((0, 0), facing=2)
-    mv = map_mover(link, OPEN)
+    mv = map_mover(link, {(x, y) for x in range(-25, 45) for y in range(-2, 30)})
     mv.danger = {("seen", 1): ((0, 0), 30)}
     plans, flip = [], [1]
 
     def plan(st, goal, mobiles=True, max_steps=None):
         cur = tuple(link.here)
         flip[0] = -flip[0]                                  # east, then back west: never nearer
-        step = (cur[0] + flip[0], cur[1])
+        step = (cur[0] + flip[0], cur[1] + drift)
         plans.append(cur)
-        return [cur, step, *[(step[0] + flip[0] * k, 0) for k in range(1, 20)]], mv.walk_map(st)
+        return [cur, step, *[(step[0] + flip[0] * k, step[1]) for k in range(1, 20)]], mv.walk_map(st)
     real_fresh = mv.fresh_state
 
     def fresh():
@@ -382,11 +381,28 @@ def test_boxed_in():
     mv.plan, mv.fresh_state = plan, fresh
     try:
         mv.walk_to(lambda: (40, 0), 0, "t")
-        msg = "arrived"
+        return "arrived", plans
     except Abort as e:
-        msg = str(e)
+        return str(e), plans
+
+
+def test_boxed_in():
+    print("== creatures on every side: a walk replanning round them without getting nearer gives up ==")
+    # live 2026-10-05 (witcher_137): 178 danger replans in 4.5 min, the walk swinging between two routes
+    from agent_link import DANGER_STALL_REPLANS
+    msg, plans = swing_walk(drift=1)
     check("boxed in after DANGER_STALL_REPLANS replans without a shorter route",
           "boxed in" in msg and len(plans) == DANGER_STALL_REPLANS + 1, f"{msg} plans {len(plans)}")
+
+
+def test_circles():
+    print("== a walk back and forth over the same tiles gives up at WALK_REVISITS ==")
+    # live 2026-11-02 19:13-19:14 (mining-20261102-185222-6714): the walk to a market forge swung east and back
+    # west for a minute, user: "Dan is looping again"
+    from agent_link import WALK_REVISITS
+    msg, plans = swing_walk(drift=0)
+    check("going round in circles once a tile is stood on WALK_REVISITS times",
+          "going round in circles" in msg and f"for the {WALK_REVISITS}th time" in msg, f"{msg} plans {len(plans)}")
 
 
 def test_danger_rims():
@@ -829,6 +845,7 @@ def main():
     test_danger_replan_when_near()
     test_no_pause_in_danger()
     test_boxed_in()
+    test_circles()
     test_danger_rims()
     test_danger_search_room()
     test_danger_sticky()

@@ -18,6 +18,7 @@
   renounce-Young prompt) and nothing more. A gate the route only passes over is
   a stray: the Mover closes its gump like a player would (stock 0xB1, button 0).
 """
+import collections
 import json
 import os
 import socket
@@ -88,6 +89,11 @@ DANGER_MAX_EXPAND = 120000
 # is boxed in and given up (live 2026-10-05, witcher_137: 178 replans in 4.5 min swinging between
 # two routes round creatures on every side, while the user watched Dan run back and forth).
 DANGER_STALL_REPLANS = 10
+# A walk that stands on one tile this many times without arriving is going round in circles and is given up
+# (live 2026-11-02 19:13-19:14, mining-20261102-185222-6714, user: "Dan is looping again": the walk to the forge at
+# (2620, 561) through a market swung between a 383-step loop east and 161-192-step routes west, ~25 s a round,
+# objects arriving on the route and moved zones replanning it each time; no bound ended it)
+WALK_REVISITS = 3
 # After a danger replan, tiles off the route we were on cost this much more: a creature that moves
 # a tile shouldn't flip the route to the other side of it and back (live 2026-10-05, witcher_36: a
 # wandering wisp swung the walk between routes of 31 and 93 steps every second or two).
@@ -1189,6 +1195,7 @@ class Mover:
         dispelled = set()            # field serials a dispel was tried on in this walk (_clear_fields)
         run = True                   # the client's Always Run is on: a player never walks a route
         mobile_wait_until = None
+        visits = collections.Counter()   # tile -> times this walk stepped onto it (WALK_REVISITS)
         while True:
             st = self.link.state()
             if self.guard(st):
@@ -1338,6 +1345,10 @@ class Mover:
                     here = self.link.pos(after)
                     new = tuple(here[:2])
                     self.mem.add_step(cur, new)
+                    visits[new] += 1
+                    if visits[new] >= WALK_REVISITS:
+                        raise WalkFailed(f"{label}: going round in circles (on {new} for the {visits[new]}th time "
+                                         f"after {self.steps - start_steps} steps)")
                     if new != gate and self.moongate_at(new, after, z=here[2]):
                         self.close_gate_gumps(self.step_mark, new, label)
                     if self.replan_requested:

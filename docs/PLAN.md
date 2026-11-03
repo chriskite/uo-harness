@@ -2131,6 +2131,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   (1163, 1815) was within `ESCAPE_RUN` of it, as the rule says. The leg row's `mount.mounted` read False though Dan
   rode from 5 ms after the landing (capture session_20261102_174945): the landing's escape came before
   `mount_after_recall`; `go_out` now runs it after such an escape. test_mining.py `test_stalled_leg`.
+- *A walk going round in circles is given up* (2026-11-02, user: "End now, Dan is looping again";
+  mining-20261102-185222-6714, 19:13-19:14): the weight smelt's walk to the market forge at (2620, 561) swung for a
+  minute between a 383-step loop east and 161-192-step routes west (objects arriving on the route, moved zones),
+  and no bound of the Mover's ended it (boxed-in counts only danger replans without a shorter route; the routes did
+  get shorter in between). `Mover._walk_to` now fails a walk that steps onto one tile `WALK_REVISITS` (3) times
+  ("…: going round in circles (on (x, y) for the 3th time after N steps)"), a `WalkFailed`: the forge walk then ends
+  the leg with the ore going home (`forge_unreachable`), a stand walk counts as a stand given up. test_mover
+  `test_circles` (test_boxed_in's swing now drifts so it doesn't revisit tiles).
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

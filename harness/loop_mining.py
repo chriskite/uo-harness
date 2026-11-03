@@ -890,14 +890,15 @@ class MineLoop(loop_lumber.LumberLoop):
             # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
             self.walk_to_work((x, y), 0, f"to the ore stand {x},{y}",
                               max_route=None if n is None else STAND_ROUTE_MIN + STAND_DETOUR * n)
-        except Abort as e:
-            if "no route" not in str(e):
-                raise
+        except WalkFailed as e:
+            # no route, or a walk that went round in circles / was boxed in / replanned too often (Mover): the stand
+            # is given up and digging goes on at the next (STALL_STANDS counts it; live 2026-11-02 a circling walk)
+            why = "no route" if "no route" in str(e) else str(e)
             self.no_route_stands.add((x, y))
             self.stall_stands += 1
-            if n is None:            # on the map the stand is walkable: what cut the way (creatures, a player) passes
+            if n is None and why == "no route":   # on the map the stand is walkable: what cut the way passes
                 self.fruitless += 1
-            log(f"ore stand {x},{y}: no route; trying the next one")
+            log(f"ore stand {x},{y}: {why}; trying the next one")
             return
         z = self.link.pos(self.link.state())[2]
         rec = {"trip": self.trip_n, "spot": self.k["spot"]["id"], "stand": [x, y, z],
