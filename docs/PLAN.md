@@ -2190,6 +2190,15 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   the stack stayed in the pack). The server's item-use delay, not the forge: `BUSY_RETRY_S` (0.4 s) later, up to
   `SMELT_BUSY_TRIES` (3), as the dig does. Rejected: a floor under `smelt_use` (the jitter is the point; one retry
   costs 0.4 s). test_mining.py `test_smelt_busy`.
+- *Teleported away: the leg ends; a place that refuses the recall is left by its moongate* (2026-11-03,
+  mining-20261103-141742-4bc0: an unknown teleporter at forge_3537_1948 put Dan on a no-magic moongate at (7338, 1220);
+  110 s of "no route" stands, six recalls read as "no arrival", the run stopped there). The mining leg ends once Dan
+  is over `AWAY_TILES` (150) from every stand. `LumberLoop.go_home` (lumber and mining) reads "Magical travel is not
+  allowed in this location." as 'restricted' (no retry) and goes through the nearest moongate within `GATE_OUT_R` (12)
+  to `GATE_OUT_DEST` (Cambria, guarded; the Seer's way out by hand), then recalls once more; no gate in view aborts
+  there as before. Rejected: walking the teleporter back (the probe found none: the arrival is a gate tile, and a gate
+  only opens its menu); a destination nearest home (no town coordinates per row are known; Cambria is proven).
+  test_mining.py `test_teleported_away`, `test_gate_out`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

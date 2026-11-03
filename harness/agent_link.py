@@ -919,20 +919,23 @@ class Mover:
         return False
 
     def moongate_at(self, tile, st=None, z=None) -> bool:
-        """A moongate (tiledata name, or MOONGATE_GRAPHICS without tiledata) stands
-        on `tile` (world model), within 15 z of `z` when given. Player-cast gates
-        come and go, so this reads the world model of the moment."""
+        """A moongate (moongate_item) stands on `tile` (world model), within 15 z of `z` when given. Player-cast
+        gates come and go, so this reads the world model of the moment."""
         st = st or self.link.state()
-        td = uomap.tiledata() if self.use_map else None
         for it in st["world"]["items"].values():
             if it.get("container") is None and (it.get("x"), it.get("y")) == tuple(tile):
                 if z is not None and it.get("z") is not None and abs(it["z"] - z) > 15:
                     continue
-                g = it.get("graphic")
-                if g in MOONGATE_GRAPHICS or (td is not None and g is not None and td.item(g)
-                                              and "moongate" in (td.item(g).name or "").lower()):
+                if self.moongate_item(it):
                     return True
         return False
+
+    def moongate_item(self, it: dict) -> bool:
+        """`it` is a moongate: tiledata name "moongate", or MOONGATE_GRAPHICS without tiledata."""
+        td = uomap.tiledata() if self.use_map else None
+        g = it.get("graphic")
+        return g in MOONGATE_GRAPHICS or (td is not None and g is not None and td.item(g)
+                                          and "moongate" in (td.item(g).name or "").lower())
 
     def close_gate_gumps(self, mark: int, tile, label: str) -> int:
         """The route passed over the moongate on `tile`: close the gump(s) it

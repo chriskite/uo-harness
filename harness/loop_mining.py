@@ -81,6 +81,11 @@ UNWORKABLE_STANDS = 8
 # STALL_S of field time with at least STALL_STANDS stands given up since the last ore
 STALL_S = 120.0
 STALL_STANDS = 5
+# Farther than this from every stand of the spot (an unplanned teleport with no way back, Mover.step_back) ends the
+# leg at once (live 2026-11-03 14:30:12, mining-20261103-141742-4bc0: a stand walk at forge_3537_1948 stepped onto
+# an unknown teleporter at (3523, 1914), out at (7338, 1220, -55); 90 stands "no route" for 110 s before the leg ended).
+# Beyond the farthest library landing from its forge (61 tiles, 2026-11-03) and any escape run
+AWAY_TILES = 150
 # A walk to a stand on the map may take at most STAND_ROUTE_MIN + STAND_DETOUR x its walking steps (walk_steps):
 # a longer detour round creatures' zones is given up at once, not after a 30000-expansion search (~3 s)
 STAND_ROUTE_MIN, STAND_DETOUR = 10, 2
@@ -825,6 +830,14 @@ class MineLoop(loop_lumber.LumberLoop):
                     f"keep the stands out of reach")
         return None
 
+    def away(self, stands: list) -> str | None:
+        """Why we're no longer at the spot: farther than AWAY_TILES from every stand (a teleport); else None."""
+        here = self.link.pos(self.link.state())
+        near = min((cheb(here, (s["x"], s["y"])) for s in stands), default=None)
+        if near is None or near <= AWAY_TILES:
+            return None
+        return f"at {tuple(here[:2])}, {near} tiles from the spot's nearest stand (teleported away)"
+
     def harvest_trip(self) -> int:
         """Dig at stands until --field-min (across the trip's hops), the stands run dry, or every stand
         left is within a creature's reach; smelt when the weight calls for it and before leaving the spot (the
@@ -868,6 +881,10 @@ class MineLoop(loop_lumber.LumberLoop):
                                 f"goes home")
                             break
                         continue
+                    if (why := self.away(stands)) is not None:
+                        self.stats["away"] = why
+                        log(f"{why}; ending the leg at {tally['ore']} ore")
+                        break
                     if (why := self.stalled()) is not None:
                         self.stats["creature_blocked"] = True
                         log(f"{why}; ending the leg at {tally['ore']} ore")

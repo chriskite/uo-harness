@@ -111,6 +111,9 @@ FAIL_TEXTS = {
     "You are already casting a spell.": "already casting",
     "Thy spell doth not appear to work...": "restricted",
     "You are not allowed to travel there.": "restricted",
+    # live 2026-11-03 14:32:06.87 (mining-20261103-141742-4bc0): a recall at the arrival gate of the teleporter at
+    # (3523, 1914), (7338, 1220, -55); before it the run cast six recalls, each read as "no arrival" after 5 s
+    "Magical travel is not allowed in this location.": "restricted",
 }
 
 

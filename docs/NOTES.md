@@ -5379,6 +5379,21 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     (mining-20261103-140347-e657, session_20261103_134648): at the house forge the 6 shadow ore (hue 0x966) went
     0.49 s after the last stack's press (the lognormal `smelt_use` 0.65 s drew short), got 500119, and the runner
     logged "no answer to 6 ore", left them in the pack and stored the rest. test_mining.py test_smelt_busy.
+  - **A teleporter at forge_3537_1948 (Time Quest Hub) leads to a no-magic place.** Live 2026-11-03 14:30:12
+    (mining-20261103-141742-4bc0): a stand walk from (3524, 1913) stepped onto (3523, 1914), nothing on the map or in
+    view there, and the server put Dan at (7338, 1220, -55), facet 0, on a public moongate. The store keeps the tile
+    (`teleporters`, `(3523, 1914) -> (0, 7338, 1220, -55)`), so routes avoid it now. There a recall gets "Magical
+    travel is not allowed in this location." (speech, ~1 s after the cast's start; escape.FAIL_TEXTS 'restricted');
+    the old runner read it as "no arrival" six times and stopped there. The gate's "Moongate Destinations" menu
+    (0xE0E675B8) lists Anchor's Rest (10), Andaria (11), Cambria (12), Horseshoe Bay (13), Outpost (14), Prevalia (15),
+    Terran (16), Totem (17), Corpse Creek (18), Travel = 2; Cambria put Dan at (1742, 2872, 0) in the guards and the
+    recall home worked from there (the Seer by hand, 14:38). Now: `go_home` on 'restricted' takes the nearest moongate
+    within `GATE_OUT_R` 12 tiles to `GATE_OUT_DEST` Cambria (`gate_out`, a `gate_out` job event; log "recall home
+    refused at (x, y): through the moongate at (x, y) to Cambria, then the recall again", "moongate to Cambria: arrived
+    at …") and recalls again; with no gate in view the run aborts "recall home failed: restricted (at (x, y))". The
+    mining leg ends as soon as Dan is over `AWAY_TILES` 150 from every stand (log "at (x, y), N tiles from the spot's
+    nearest stand (teleported away); ending the leg", trip row `away`). Before, 90 stands "no route" took 110 s.
+    test_mining.py test_teleported_away, test_gate_out.
   - **At home the ingots go into the room's Resource Stockpile** (since 2026-10-19 evening; before, they stayed
     carried and the room shelf's Restock was skipped because it takes live trapped pouches).
     - The user's drop-off by hand at 22:44:39 (capture session_20261019_214740):

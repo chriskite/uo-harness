@@ -140,6 +140,7 @@ import shelf as shelf_mod  # noqa: E402
 import convert as convert_mod  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
 import task_wrap  # noqa: E402
+import moongate  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
@@ -186,6 +187,12 @@ HOP_MIN_HITS = 0.8            # a library hop needs at least this share of max h
 STASH_AFTER_S = 0.8
 BOOK_FULL = 10               # a runebook's charges when full (docs/NOTES.md "Storage shelves": the shelf tops it up to 10)
 CHEST_REACH = 2               # tiles from the home chest to drop into it [INFERENCE: RunUO's 2-tile item reach]
+# A recall home the place refuses ("Magical travel is not allowed in this location."): a public moongate within
+# GATE_OUT_R tiles to GATE_OUT_DEST, a guarded town (live 2026-11-03 14:38: the Seer took Dan from the arrival gate at
+# (7338, 1220) to Cambria, (1742, 2872) "under the protection of the town guards", and the recall home went from
+# there), then the recall again (gate_out)
+GATE_OUT_R = 12
+GATE_OUT_DEST = "Cambria"
 # Coloured-wood success, e.g. "You chop some dullwood logs and put them in your backpack."
 # (live 2026-10-02, Terran; unmatched it counted as an unknown outcome and aborted the trip)
 COLORED_CHOP = re.compile(r"You chop some [a-z]+ logs and put them in your backpack\.$")
@@ -4611,32 +4618,69 @@ class LumberLoop:
 
     def go_home(self):
         """Home by our own book's home rune (prepare_recall: its default, else by the name home_rune_name),
-        unless at home already (home.at_home: in the house; come_home walks to the landing tile). A `travel`
-        job event (leg 'home'); a recall that lands anywhere but home aborts. Either way we're no longer out
-        at the spot (afield)."""
+        unless at home already (home.at_home: in the house; come_home walks to the landing tile). A recall the
+        place refuses ('restricted') goes through a moongate in view to a town first (gate_out), then again. A
+        `travel` job event (leg 'home') per recall; a recall that lands anywhere but home aborts. Either way we're
+        no longer out at the spot (afield)."""
         st = self.link.state()
         if self.at_home(st):
             self.afield = False
             return
-        self.doing("recall_home", "Recalling home" + (f" by {self.home_rune_name!r}" if self.home_rune_name else ""))
-        self.human.wait("use")
-        leg, t0 = {"leg": "home", "book": f"0x{self.recall_book:08X}"}, time.monotonic()
-        before = self.supplies_now(st)
-        try:
-            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, attempts=3, log=log,
-                                    rune=self.home_rune_name)
-        except escape_mod.RecallError as e:
-            self.travel_leg(leg, t0, failure=f"recall: {e}")
-            raise Abort(f"recall home not possible: {e}")
-        self.travel_leg(leg, t0, res, before)
-        self.note_book_charge(res)
+        for gated in (False, True):
+            self.doing("recall_home", "Recalling home" + (f" by {self.home_rune_name!r}" if self.home_rune_name else ""))
+            self.human.wait("use")
+            leg, t0 = {"leg": "home", "book": f"0x{self.recall_book:08X}"}, time.monotonic()
+            before = self.supplies_now(self.link.state())
+            try:
+                res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, attempts=3, log=log,
+                                        rune=self.home_rune_name)
+            except escape_mod.RecallError as e:
+                self.travel_leg(leg, t0, failure=f"recall: {e}")
+                raise Abort(f"recall home not possible: {e}")
+            self.travel_leg(leg, t0, res, before)
+            self.note_book_charge(res)
+            if res["ok"] or gated or res["failure"] != "restricted" or not self.gate_out():
+                break
         if not res["ok"]:
-            raise Abort(f"recall home failed: {res['failure']}")
+            raise Abort(f"recall home failed: {res['failure']}"
+                        + (f" (at {tuple(self.link.pos(self.link.state())[:2])})" if res["failure"] == "restricted"
+                           else ""))
         self.afield = False
         st = self.link.state()
         if not self.at_home(st):
             raise Abort(f"the recall home landed at {tuple(self.link.pos(st)[:2])} (facet {self.facet_now(st)}), "
                         f"not by home {tuple(self.home['landing'][:2])}")
+
+    def gate_out(self) -> bool:
+        """The recall home was refused here: through the nearest moongate within GATE_OUT_R tiles to GATE_OUT_DEST
+        (on its tile or beside it: a double-click opens its menu; else the walk onto it), moongate.travel. A
+        `gate_out` job event. True when the gate moved us."""
+        st = self.link.state()
+        here = tuple(self.link.pos(st)[:2])
+        gates = sorted((cheb(here, (it["x"], it["y"])), (it["x"], it["y"]), serial_of(k))
+                       for k, it in st["world"]["items"].items()
+                       if it.get("container") is None and it.get("x") is not None
+                       and cheb(here, (it["x"], it["y"])) <= GATE_OUT_R and self.mover.moongate_item(it))
+        if not gates:
+            log(f"recall home refused at {here} and no moongate within {GATE_OUT_R} tiles")
+            return False
+        dist, gate, serial = gates[0]
+        log(f"recall home refused at {here}: through the moongate at {gate} to {GATE_OUT_DEST}, then the recall again")
+        self.doing("gate_out", f"Through the moongate to {GATE_OUT_DEST} (no recall here)", gate)
+        mark = len(self.link.events)
+        try:
+            if dist <= 1:
+                self.human.wait("use")
+                self.link.act(actions.dclick(serial))
+            else:
+                self.mover.walk_to(lambda: gate, 0, "onto the moongate", gate=gate)
+            out = moongate.travel(self.link, self.human, GATE_OUT_DEST, since=mark, log=log)
+        except (Abort, moongate.GateError) as e:
+            log(f"the moongate at {gate}: {e}")
+            out = {"ok": False, "from": list(here), "dest": GATE_OUT_DEST, "error": str(e)}
+        st = self.link.state()
+        self.memory.job_event(self.JOB, "gate_out", {**out, "gate": list(gate), "trip": self.trip_n}, **self._where(st))
+        return out["ok"]
 
     def supplies_now(self, st) -> dict:
         """Mana and reagents in the pack now (travel legs: what a recall cost)."""

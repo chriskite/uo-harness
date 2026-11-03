@@ -365,10 +365,11 @@ def test_run_past():
           came_from_goal)
 
 
-def field_loop():
-    """A MineLoop whose harvest_trip runs with the travel and the world stubbed out: at the spot, field time left,
-    one candidate stand, no house forge (the leg-end smelt would walk to the field forge again)."""
+def field_loop(here=(1, 1, 0)):
+    """A MineLoop whose harvest_trip runs with the travel and the world stubbed out: at `here` by the spot, field
+    time left, one candidate stand at (1, 1), no house forge (the leg-end smelt would walk to the field forge again)."""
     loop = object.__new__(MineLoop)
+    loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: here)
     loop.break_due = loop.finish_requested = False
     loop.stats, loop.leg_t0, loop.trip_field_s, loop.harvesting = {}, None, 0.0, True
     loop.last_ore_t, loop.stall_stands, loop.fruitless = None, 0, 0
@@ -445,6 +446,94 @@ def test_stalled_leg():
           len(tried) == max(loop_mining.STALL_STANDS, int(loop_mining.STALL_S // 25) + 1), tried)
     check("not before STALL_S", early is None, early)
     check("not with fewer stands given up", few is None, few)
+
+
+def test_teleported_away():
+    print("a walk's unplanned teleport far from the spot: the leg ends at once, no stand tried from there")
+    import loop_mining
+    # live 2026-11-03 14:30:12 (mining-20261103-141742-4bc0): a stand walk at forge_3537_1948 put Dan at (7338, 1220)
+    # through an unknown teleporter; 90 stands "no route" for 110 s, then the leg ended "the area ran dry"
+    saved = loop_mining.log
+    loop_mining.log = lambda s: None
+    dug = []
+    try:
+        far = field_loop(here=(7338, 1220, -55))
+        far.next_stand = lambda stands: stands[0]
+        far.dig_stand = lambda stand, tally: dug.append(stand)
+        got = far.harvest_trip()
+        edge = field_loop(here=(1 + loop_mining.AWAY_TILES, 1, 0)).away([{"x": 1, "y": 1}])
+    finally:
+        loop_mining.log = saved
+    check("the leg ends with nothing dug, why in the trip row", got == 0 and dug == []
+          and "teleported away" in far.stats.get("away", ""), (got, dug, far.stats))
+    check("AWAY_TILES from the nearest stand is still at the spot", edge is None, edge)
+
+
+def test_gate_out():
+    print("a recall home the place refuses: through the moongate in view to Cambria, then the recall again")
+    # live 2026-11-03 14:32:06.87 (mining-20261103-141742-4bc0): "Magical travel is not allowed in this location." at the
+    # arrival gate (7338, 1220); six recalls read as "no arrival", the run aborted there. By hand the gate's Cambria row
+    # and a recall from there took Dan home (14:38)
+    import escape
+    import loop_lumber
+    import moongate
+    from agent_link import Abort, Mover
+    check("the refusal text is a 'restricted' failure (no retry)",
+          escape.failure({"ev": "speech_heard", "text": "Magical travel is not allowed in this location."}, 0)
+          == "restricted" and escape.retry_wait({"failure": "restricted"}) is None)
+
+    def run(gate_at):
+        calls, events = [], []
+        pos = [7338, 1220, -55]
+        items = {} if gate_at is None else {"0x40001234": {"graphic": 0x0F6C, "x": gate_at[0], "y": gate_at[1], "z": -55}}
+        state = {"world": {"items": items}}
+        loop = object.__new__(MineLoop)
+        loop.JOB, loop.trip_n, loop.recall_book, loop.home_rune_name = "mining", 1, 0x49865F8F, None
+        loop.home = {"landing": [3575, 3251, 0]}
+        loop.link = SimpleNamespace(state=lambda: state, pos=lambda st: pos, events=events,
+                                    act=lambda pkt: calls.append(("dclick", int.from_bytes(bytes(pkt)[1:5], "big"))))
+        loop.mover = object.__new__(Mover)
+        loop.mover.use_map = False
+        loop.mover.walk_to = lambda goal, r, label, **kw: calls.append(("walk", tuple(goal())))
+        loop.human = SimpleNamespace(wait=lambda kind: None)
+        loop.at_home = lambda st: tuple(pos[:2]) == (3575, 3251)
+        loop.doing = loop.travel_leg = loop.note_book_charge = lambda *a, **k: None
+        loop.supplies_now = lambda st: {}
+        loop._where = lambda st: {}
+        loop.memory = SimpleNamespace(job_event=lambda job, kind, data, **kw: calls.append((kind, data["ok"])))
+
+        def recall(io, book, **kw):
+            calls.append(("recall", tuple(pos[:2])))
+            if tuple(pos[:2]) == (7338, 1220):
+                return {"ok": False, "failure": "restricted"}
+            pos[:] = [3575, 3251, 0]
+            return {"ok": True, "failure": None}
+
+        def travel(link, human, dest, since=0, log=None, urgent=False):
+            calls.append(("travel", dest))
+            pos[:] = [1742, 2872, 0]
+            return {"ok": True, "from": [7338, 1220], "to": pos[:], "dest": dest}
+        saved = escape.escape, escape.LinkIO, moongate.travel, loop_lumber.log
+        escape.escape, escape.LinkIO, moongate.travel, loop_lumber.log = recall, (lambda link: None), travel, \
+            (lambda s: None)
+        try:
+            loop.go_home()
+            out = "home"
+        except Abort as e:
+            out = str(e)
+        finally:
+            escape.escape, escape.LinkIO, moongate.travel, loop_lumber.log = saved
+        return calls, out
+    calls, out = run((7338, 1220))
+    check("on the gate: refused, the gate's double-click, Cambria, the recall from there lands home",
+          out == "home" and calls == [("recall", (7338, 1220)), ("dclick", 0x40001234), ("travel", "Cambria"),
+                                      ("gate_out", True), ("recall", (1742, 2872))], (out, calls))
+    calls, out = run((7340, 1226))
+    check("a gate 6 tiles off: walked onto, then Cambria", calls[1:3] == [("walk", (7340, 1226)), ("travel", "Cambria")]
+          and out == "home", (out, calls))
+    calls, out = run(None)
+    check("no gate in view: the run aborts where it is, one recall tried",
+          out == "recall home failed: restricted (at (7338, 1220))" and calls == [("recall", (7338, 1220))], (out, calls))
 
 
 def test_cut_off_level():
@@ -639,7 +728,8 @@ def test_smelt_busy():
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
-              test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy):
+              test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
+              test_teleported_away, test_gate_out):
         t()
     print()
     if FAILURES:
