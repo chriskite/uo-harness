@@ -5622,6 +5622,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     ~25 tiles off, beyond the 18-tile view]. Then he rode in at ~0.1 s a tile and swung (0x2F) at 20:59:30.850, 1.4 s
     after first sight. The recall went out at 20:59:29.49, 0.03 s after sight, and his first hit broke it 1.22 s in.
     Tracking was on the whole leg (`tracking.on_s` 1496.7) and reported nothing.
+    **Why the gap never opened: the flight zig-zagged (user, viz replay: "is a zig-zaggy triangle the shortest path
+    between two points?").** Step by step from the capture: a move in a new direction takes twice as long as one
+    straight on. The turn-in-place costs a move slot: Dan's median gap was 0.228 s after a direction change and 0.110 s
+    straight on; Bert's 0.202 s and 0.100 s. Over the 40 s flight Dan made 272 moves with **50 direction changes**, Bert 287 moves with 41.
+    On the westward run Dan had 19 changes and Bert 12. Bert ran straight along y ≈ 752 while Dan saw-toothed between y 749 and 759:
+    (2416,755) → (2412,759) → (2402,749) → (2394,754) → (2384,749). In moves a zig-zag is no longer (diagonal = straight,
+    Chebyshev), but every corner costs a step's time, about 5.5 s over the flight. Dan's straight-on cadence was also 10 %
+    slower than Bert's (0.110 vs 0.100 s, the humanizer's step jitter), about 2.4 s more. At mounted pace that is
+    ~80 tiles of gap given away, while the most the chase ever opened was 15 of the 18 needed to cast. The planner scores
+    every move 1, with no cost for turning, and adds per-plan route noise (`path_noise` 0.45 per 6×6 cell) to urgent
+    walks too. So among the many equal-length grid paths it picks a jagged one, and every replan picks another.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
