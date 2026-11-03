@@ -3479,8 +3479,9 @@ away from the forge. Similar to how we flood-filled the lumber groves". Built: `
   counts at its Chebyshev distance.
 - *Risk [INFERENCE]:* the weight smelt (40 stones free) walks to the forge from up to ~200 tiles off. Dan smelts
   at home since 2026-10-20, so only the weight smelt does this walk.
-- *Not yet on the store:* `ctl mining fields` was left for after the run that was out at build time. A runner
-  started before this change would read a field's bounding square as its area if a hop took it to one.
+- *On the store since 2026-11-02 (user: "Run it live"):* `ctl mining fields` with no runner process up, 11 s, all 34
+  active spots grown (2 393 -> 6 769 ore blocks, as the dry run). The viz was restarted (`stack.py restart viz`): the
+  old process read forge_1383_1146 as its 188-tile bounding square (623 blocks, against the field's 307).
 
 ## Risks
 
