@@ -5616,6 +5616,12 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     went out. Heals went 68 → 91 → 51 → 45 → 31 → dead in 40 s, as PLAN.md's "his melee outpaces any heal" predicts. Every
     active mining spot is `pvp: true` (34 of 34), so a spot filter can't avoid this. Mining deaths in the store: 2
     (2026-10-20 mob, this one). He carried the leg's ingots (three field smelts, 850 ore → 1700 ingots) and its ore.
+    **How he got close (capture session_20261102_174945):** at 20:59:29.452 one burst brought his 0x78 at (2535, 767),
+    14 tiles from Dan, an 0xC0 effect on himself and sound 0x01FE at his tile. 0x1FE is RunUO/ServUO's Teleport spell
+    sound (Recall is 0x1FC). So he teleported in from out of view [INFERENCE: Teleport's range is 11-12, so he stood
+    ~25 tiles off, beyond the 18-tile view]. Then he rode in at ~0.1 s a tile and swung (0x2F) at 20:59:30.850, 1.4 s
+    after first sight. The recall went out at 20:59:29.49, 0.03 s after sight, and his first hit broke it 1.22 s in.
+    Tracking was on the whole leg (`tracking.on_s` 1496.7) and reported nothing.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
