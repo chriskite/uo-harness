@@ -574,10 +574,26 @@ def test_in_guards():
         loop_lumber.log = saved
 
 
+def test_red_flight_zones():
+    print("running from a red: no route round creature zones meanwhile, back after")
+    loop = object.__new__(MineLoop)
+    zone = {("seen", 1): ((10, 10), 13)}
+    loop.mover = SimpleNamespace(danger=dict(zone), danger_tiles={(5, 5)}, avoid={"spray": {(6, 6)}})
+    loop.red_flight = None
+    loop.red_flight_start()
+    during = (loop.mover.danger, loop.mover.danger_tiles, loop.mover.avoid)
+    loop.aggro_zones({})                      # a state read meanwhile adds no zone (and doesn't look at the state)
+    after_read = dict(loop.mover.danger)
+    loop.red_flight_end()
+    check("set aside while running from a player", during == ({}, set(), {}) and after_read == {}, (during, after_read))
+    check("back afterwards", loop.mover.danger == zone and loop.mover.danger_tiles == {(5, 5)}
+          and loop.red_flight is None, loop.mover.danger)
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
-              test_cut_off_level, test_fall_hit, test_in_guards):
+              test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones):
         t()
     print()
     if FAILURES:

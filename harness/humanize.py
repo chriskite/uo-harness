@@ -84,11 +84,11 @@ STEP_CADENCE_WALK_MOUNTED = 0.200
 @dataclass(frozen=True)
 class Profile:
     reaction_sigma: float = 0.38
-    micro_pause_p: float = 0.025         # per step
+    micro_pause_p: float = 0.00025       # per step (0.025 until 2026-11-02, user: "the goto walk has soooo many pauses")
     micro_pause_median: float = 1.1
-    look_around_p: float = 0.004         # per step
+    look_around_p: float = 0.00004       # per step (0.004 until 2026-11-02)
     look_around_range: tuple = (3.0, 9.0)
-    wander_p: float = 0.012              # per step: sidestep to a known tile, then replan
+    wander_p: float = 0.00012            # per step: sidestep to a known tile, then replan (0.012 until 2026-11-02)
     hesitate_p: float = 0.025            # per tool use (not in the harvest cycle): cancel the cursor and use again
     fatigue_per_hour: float = 0.12       # delays grow 12 %/h of activity
     enabled: bool = True

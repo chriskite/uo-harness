@@ -585,6 +585,7 @@ class LumberLoop:
         self.spot_routes = {}        # spot id -> guards.Route from the spot to the guards (guard_route_ready)
         self.guard_summary = None    # this escape's guard route as its job events record it (guard_route)
         self.drill = False           # a --flee-drill's run to the guards (flee_drill): in_guards records it, no alarm
+        self.red_flight = None       # (danger, danger_tiles, avoid) set aside while running from a player (red_flight_start)
         self.facet = know["facet"]   # the spot's facet: tree records and candidates
         self.setup_tool(args)
         self.trip_t0 = None
@@ -1972,6 +1973,8 @@ class LumberLoop:
         opens and the cast starts the moment its next shot lands (next_shot_gate), each recast
         too. Hits taken on the way and during the casts are monster_hit rows (flight_hit)."""
         fails, gave_up = 0, None
+        if players:
+            self.red_flight_start()
         route = self.guard_route(st, worst) if players else None
         t0 = time.monotonic()
         if route is not None:
@@ -2050,6 +2053,24 @@ class LumberLoop:
                            {"route": self.guard_summary, "casts": fails})
         finally:
             self._guard_run = False
+            if players:
+                self.red_flight_end()
+
+    def red_flight_start(self):
+        """Running from a player (user 2026-11-02: "During a run from a red, the maximum danger comes from the red, so
+        we shouldn't replan the route around other dangers"; the first flee drill bent twice near the guards for
+        nothing but sheep, farmers and crows): the Mover's creature zones, remembered danger tiles and avoid tiles are
+        set aside until red_flight_end, and aggro_zones adds none meanwhile. Hits on the way still count (flight_hit)."""
+        if self.red_flight is None:
+            m = self.mover
+            self.red_flight = (m.danger, m.danger_tiles, m.avoid)
+            m.danger, m.danger_tiles, m.avoid = {}, set(), {}
+
+    def red_flight_end(self):
+        """The creature zones and tiles red_flight_start set aside, back (aggro_zones refreshes them on the next read)."""
+        if self.red_flight is not None:
+            self.mover.danger, self.mover.danger_tiles, self.mover.avoid = self.red_flight
+            self.red_flight = None
 
     def gap_clear(self, s) -> str | None:
         """'clear' when every player we run from (player_foes) is PLAYER_RECALL_GAP tiles off or out of view in
@@ -2373,6 +2394,7 @@ class LumberLoop:
             return
         t0 = time.monotonic()
         self._guard_run, self._flee_mark = True, len(self.link.events)
+        self.red_flight_start()
         self.doing("flee", f"Running to the guards from {worst.name if worst else 'an attacker'}")
         log(f"guard flight ({why})")
         try:
@@ -2386,6 +2408,7 @@ class LumberLoop:
                     return
         finally:
             self._guard_run = False
+            self.red_flight_end()
 
     def flee_drill(self):
         """--flee-drill (user 2026-11-02: "Is there a `ctl` command that triggers an escape to a guard zone? It would be
@@ -2412,6 +2435,7 @@ class LumberLoop:
             return
         t0 = time.monotonic()
         self._guard_run, self._flee_mark, self.drill = True, len(self.link.events), True
+        self.red_flight_start()
         self.doing("flee", f"Flee drill: running to the guards at {route.goal[0]}", route.goal[0])
         log(f"flee drill from {tuple(self.link.pos(st)[:2])}")
         try:
@@ -2426,6 +2450,7 @@ class LumberLoop:
             log(f"flee drill done: {e}")
         finally:
             self._guard_run, self.drill = False, False
+            self.red_flight_end()
 
     def in_guards(self, worst, swung, why, t0, confirmed: bool, extra: dict | None = None):
         """At a guarded place after a flight: say "guards" (the guards come for a criminal or murderer near us), then
@@ -3574,6 +3599,8 @@ class LumberLoop:
         we stand: no going round it, but no closer either (live 2026-10-05: leaving it out let a
         walk from the Prevalia Gate landing pass 2 tiles from a ratman 6 tiles off; keeping it
         whole, a creature at our heels bent an escape back and forth)."""
+        if self.red_flight is not None:      # running from a player: no creature zones (red_flight_start)
+            return
         here = tuple(self.link.pos(st)[:2])
         in_view = {g[0].serial for g in self.tree_guards(st, recent=False)}
         now = time.monotonic()

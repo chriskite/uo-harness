@@ -1844,8 +1844,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
       noise (×1–1.45 per 6×6 cell) was removed the same day (user: "Humans actually don't sawtooth like
       that when we don't need to")
     - routes always run, like the client's Always Run (until 2026-10-01, 7 % were walked)
-    - per-step micro-pauses (2.5 %) and rare 3–9 s look-around pauses (0.4 %)
-    - 1.2 % chance per step of a sidestep onto a known-walkable tile, then a replan
+    - per-step micro-pauses (0.025 %) and rare 3–9 s look-around pauses (0.004 %); 100× fewer since 2026-11-02 (user:
+      "the goto walk has soooo many pauses"; they were 2.5 % and 0.4 %)
+    - 0.012 % chance per step of a sidestep onto a known-walkable tile, then a replan (1.2 % until 2026-11-02)
     - doors are opened like the client's auto-open: right after the turn or step that faces a
       door on the next tile, before stepping into it; routes never cut diagonally past a door
     - every step is re-checked against the objects the world model has right then (an object

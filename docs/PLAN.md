@@ -505,6 +505,11 @@ it stood. Code: `harness/guards.py`, `LumberLoop.flee_to_guards`, `nav.any_of`,
   run with nobody after us (guard_route, guard_leg legs: urgent, no walk pauses, potions on the run) to the
   server's 500112 or the place itself; "guards", a `flee_drill` job event, home by the book (`go_home`), no
   juncture, exit 0. No recall casts on the way (no pursuer to open a gap from). test_mining `test_in_guards`.
+- **Only the red counts on the run (2026-11-02, user: "During a run from a red, the maximum danger comes from the red,
+  so we shouldn't replan the route around other dangers"; the first live drill bent back south twice near Andaria
+  with nothing around but sheep, crows and farmers):** a flight from a player (`run_and_recall` with players,
+  `flee_to_guards`, the drill) sets the Mover's creature zones, remembered danger tiles and avoid tiles aside
+  (`red_flight_start`/`_end`); `aggro_zones` adds none meanwhile. Hits on the way still count (flight_hit).
 - **Rejected:** a "latest notice was an enter, so we're already inside" shortcut. Notices skip,
   so it can be minutes stale.
 - **Live check (TestWorth, Prevalia, Test Shard):** fake red, `--recall off`, from (1481,1505)
