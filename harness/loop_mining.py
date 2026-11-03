@@ -912,7 +912,7 @@ class MineLoop(loop_lumber.LumberLoop):
         except WalkFailed as e:
             # no route, or a walk that went round in circles / was boxed in / replanned too often (Mover): the stand
             # is given up and digging goes on at the next (STALL_STANDS counts it; live 2026-11-02 a circling walk)
-            why = "no route" if "no route" in str(e) else str(e)
+            why = "no route" if "no route" in str(e) else str(e).removeprefix(f"to the ore stand {x},{y}: ")
             self.no_route_stands.add((x, y))
             self.stall_stands += 1
             if steps is None and why == "no route":   # on the map the stand is walkable: what cut the way passes

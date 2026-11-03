@@ -2136,7 +2136,7 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   minute between a 383-step loop east and 161-192-step routes west (objects arriving on the route, moved zones),
   and no bound of the Mover's ended it (boxed-in counts only danger replans without a shorter route; the routes did
   get shorter in between). `Mover._walk_to` now fails a walk that steps onto one tile `WALK_REVISITS` (3) times
-  ("…: going round in circles (on (x, y) for the 3th time after N steps)"), a `WalkFailed`: the forge walk then ends
+  ("…: going round in circles (stood on (x, y) 3 times in N steps)"), a `WalkFailed`: the forge walk then ends
   the leg with the ore going home (`forge_unreachable`), a stand walk counts as a stand given up. test_mover
   `test_circles` (test_boxed_in's swing now drifts so it doesn't revisit tiles).
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the

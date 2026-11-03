@@ -402,7 +402,7 @@ def test_circles():
     from agent_link import WALK_REVISITS
     msg, plans = swing_walk(drift=0)
     check("going round in circles once a tile is stood on WALK_REVISITS times",
-          "going round in circles" in msg and f"for the {WALK_REVISITS}th time" in msg, f"{msg} plans {len(plans)}")
+          "going round in circles" in msg and f"{WALK_REVISITS} times" in msg, f"{msg} plans {len(plans)}")
 
 
 def test_danger_rims():

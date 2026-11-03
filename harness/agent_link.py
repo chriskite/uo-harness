@@ -1347,8 +1347,8 @@ class Mover:
                     self.mem.add_step(cur, new)
                     visits[new] += 1
                     if visits[new] >= WALK_REVISITS:
-                        raise WalkFailed(f"{label}: going round in circles (on {new} for the {visits[new]}th time "
-                                         f"after {self.steps - start_steps} steps)")
+                        raise WalkFailed(f"{label}: going round in circles (stood on {new} {visits[new]} times in "
+                                         f"{self.steps - start_steps} steps)")
                     if new != gate and self.moongate_at(new, after, z=here[2]):
                         self.close_gate_gumps(self.step_mark, new, label)
                     if self.replan_requested:
