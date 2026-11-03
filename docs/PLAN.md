@@ -2121,6 +2121,16 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   (`WalkFailed`) now ends the leg like a full pack: log "the forge can't be reached (…); ending the leg at N ore:
   the ore goes home", the trip row's `forge_unreachable`, no second walk at the leg's end; home smelts it at the
   house forge (or it rides to the next field forge). test_mining.py `test_forge_unreachable`.
+- *A leg that stalls ends* (2026-11-02, user: "Dan seems caught in a loop"; mining-20261102-183117-94bd at
+  forge_1180_1793, 18:34-18:39): 5 min without a dig: 4 escapes (cougar, headless, mongbat), ~20 stands "no route"
+  while walks round roaming creatures swung between 120- and 260-step routes, each map stand's failure not counted
+  by `UNWORKABLE_STANDS` (that counts off-map stands only). `MineLoop.stalled`: no ore for `STALL_S` (120 s) since
+  the last ore or the arrival, with at least `STALL_STANDS` (5) stands given up for want of a route, ends the leg
+  as creature-blocked (a hop may follow); log "no ore for N s while M stands had no route: the creatures here
+  keep the stands out of reach; ending the leg at K ore". The cougar there wasn't run past: each time the stand
+  (1163, 1815) was within `ESCAPE_RUN` of it, as the rule says. The leg row's `mount.mounted` read False though Dan
+  rode from 5 ms after the landing (capture session_20261102_174945): the landing's escape came before
+  `mount_after_recall`; `go_out` now runs it after such an escape. test_mining.py `test_stalled_leg`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

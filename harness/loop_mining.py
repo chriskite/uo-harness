@@ -74,6 +74,12 @@ STATIONARY_MAX = 3           # "A stationary penalty is in effect" this often at
 # counts: a stand there is walkable (walk_steps), so what cut the way passes (live 2026-10-20 11:47, forge_1279_1149:
 # a zombie in a one-tile cave passage made 8 walks fail and the spot was disabled)
 UNWORKABLE_STANDS = 8
+# Stands that keep failing with no ore coming end the leg like every stand guarded (live 2026-11-02 18:34-18:39,
+# mining-20261102-183117-94bd at forge_1180_1793, user: "Dan seems caught in a loop": 5 min without a dig, 4 escapes
+# and ~20 stands "no route" while routes round roaming creatures swung between 120 and 260 steps): no ore for
+# STALL_S of field time with at least STALL_STANDS stands given up since the last ore
+STALL_S = 120.0
+STALL_STANDS = 5
 # A walk to a stand on the map may take at most STAND_ROUTE_MIN + STAND_DETOUR x its walking steps (walk_steps):
 # a longer detour round creatures' zones is given up at once, not after a 30000-expansion search (~3 s)
 STAND_ROUTE_MIN, STAND_DETOUR = 10, 2
@@ -133,6 +139,8 @@ class MineLoop(loop_lumber.LumberLoop):
         self.unsmeltable = set()     # this leg: ore stacks the forge refused or didn't answer (not tried again)
         self._forge_failed = False   # this leg: the forge said it isn't one (smelt_leaving tries no more)
         self.fruitless = 0           # this leg: stands in a row with no route or no mining allowed (UNWORKABLE_STANDS)
+        self.last_ore_t = None       # this leg: monotonic time of the last ore (else of the arrival at the spot)
+        self.stall_stands = 0        # this leg: stands given up (no route) since the last ore (STALL_STANDS)
         self._steps = None           # walk_steps' last flood: ((spot, x, y, z), {(x, y): steps})
 
     # ------------------------------------------------------------ the pickaxe
@@ -256,6 +264,7 @@ class MineLoop(loop_lumber.LumberLoop):
         self.fruitless = 0           # stands in a row with no route or no mining allowed (UNWORKABLE_STANDS)
         self.unsmeltable = set()     # ore stacks this leg's forge didn't take (refused or no answer): not again
         self._forge_failed = False
+        self.last_ore_t, self.stall_stands = None, 0
         return super().leg(n, hops)
 
     def convert(self):
@@ -774,6 +783,17 @@ class MineLoop(loop_lumber.LumberLoop):
     def time_up(self) -> bool:
         return self.field_used_s() >= self.args.field_min * 60
 
+    def stalled(self, now: float | None = None) -> str | None:
+        """Why the creatures here keep the stands out of reach (STALL_S, STALL_STANDS): no ore for that long
+        while that many stands were given up for want of a route; else None."""
+        if self.last_ore_t is None:
+            return None
+        idle = (time.monotonic() if now is None else now) - self.last_ore_t
+        if idle >= STALL_S and self.stall_stands >= STALL_STANDS:
+            return (f"no ore for {idle:.0f} s while {self.stall_stands} stands had no route: the creatures here "
+                    f"keep the stands out of reach")
+        return None
+
     def harvest_trip(self) -> int:
         """Dig at stands until --field-min (across the trip's hops), the stands run dry, or every stand
         left is within a creature's reach; smelt when the weight calls for it and before leaving the spot (the
@@ -793,6 +813,7 @@ class MineLoop(loop_lumber.LumberLoop):
             self.afield = True
             self.track_ensure("at the spot")
             self.leg_t0 = self.leg_t0 or time.monotonic()
+            self.last_ore_t = self.last_ore_t or time.monotonic()
             stands = self.candidate_stands(self.state())
             if not stands:
                 self.stats["dry"] = True
@@ -816,6 +837,10 @@ class MineLoop(loop_lumber.LumberLoop):
                                 f"goes home")
                             break
                         continue
+                    if (why := self.stalled()) is not None:
+                        self.stats["creature_blocked"] = True
+                        log(f"{why}; ending the leg at {tally['ore']} ore")
+                        break
                     stand = self.next_stand(stands)
                     if stand is None:
                         if self._blocked_only:
@@ -869,6 +894,7 @@ class MineLoop(loop_lumber.LumberLoop):
             if "no route" not in str(e):
                 raise
             self.no_route_stands.add((x, y))
+            self.stall_stands += 1
             if n is None:            # on the map the stand is walkable: what cut the way (creatures, a player) passes
                 self.fruitless += 1
             log(f"ore stand {x},{y}: no route; trying the next one")
@@ -906,6 +932,7 @@ class MineLoop(loop_lumber.LumberLoop):
                         tally["successes"] += 1
                         tally["ore"] += n
                         tally["doubles"] += n >= 2
+                        self.last_ore_t, self.stall_stands = time.monotonic(), 0
                     self.memory.mine_record(self.facet, x, y, z, out, n)
                     log(f"{where}: {f'+{n} ore' if out == 'success' else 'fail'} ({tally['ore']} this leg)")
                 elif out in ("nothing_near", "no_harvest"):

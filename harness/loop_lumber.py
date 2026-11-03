@@ -4326,6 +4326,10 @@ class LumberLoop:
         the home library (live 2026-10-05 Wintertop: "to the rune library: no route", a death)."""
         if self.afield:
             log("already out at the spot (after an escape): no travel")
+            # an escape at the landing comes before mount_after_recall (live 2026-11-02 mining-20261102-183117-94bd:
+            # a ratman at 7 tiles as the recall landed; the server put Dan on his mount 5 ms after the landing, but
+            # the leg row said mounted False and the Seer read the leg as on foot): check and record it now
+            self.mount_after_recall()
             return
         st = self.state()
         area = self.k["harvest"]["area"]

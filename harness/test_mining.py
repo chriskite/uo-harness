@@ -319,6 +319,26 @@ def test_run_past():
           came_from_goal)
 
 
+def field_loop():
+    """A MineLoop whose harvest_trip runs with the travel and the world stubbed out: at the spot, field time left,
+    one candidate stand, no house forge (the leg-end smelt would walk to the field forge again)."""
+    loop = object.__new__(MineLoop)
+    loop.break_due = loop.finish_requested = False
+    loop.stats, loop.leg_t0, loop.trip_field_s, loop.harvesting = {}, None, 0.0, True
+    loop.last_ore_t, loop.stall_stands, loop.fruitless = None, 0, 0
+    loop.home = {}
+    for name in ("aspect_ensure", "ward_ensure"):
+        setattr(loop, name, lambda why: None)
+    loop.guard_route_ready = loop.go_out = lambda: None
+    loop.track_ensure = lambda why: None
+    loop.state = lambda: {}
+    loop.candidate_stands = lambda st: [{"x": 1, "y": 1}]
+    loop.time_up = lambda: False
+    loop.needs_smelt = lambda st: False
+    loop.smeltable_ore = lambda st: 0
+    return loop
+
+
 def test_forge_unreachable():
     print("the field forge out of reach with a full pack: the leg ends and the ore goes home, no abort")
     import loop_mining
@@ -327,17 +347,7 @@ def test_forge_unreachable():
     loop_mining.log = lambda s: None
     smelts = []
     try:
-        loop = object.__new__(MineLoop)
-        loop.break_due = loop.finish_requested = False
-        loop.stats, loop.leg_t0, loop.trip_field_s, loop.harvesting = {}, None, 0.0, True
-        loop.home = {}                         # no house forge: the leg-end smelt would walk there again
-        for name in ("aspect_ensure", "ward_ensure"):
-            setattr(loop, name, lambda why: None)
-        loop.guard_route_ready = loop.go_out = lambda: None
-        loop.track_ensure = lambda why: None
-        loop.state = lambda: {}
-        loop.candidate_stands = lambda st: [{"x": 1, "y": 1}]
-        loop.time_up = lambda: False
+        loop = field_loop()
         loop.needs_smelt = lambda st: True
         loop.smeltable_ore = lambda st: 40
 
@@ -356,9 +366,44 @@ def test_forge_unreachable():
     check("the trip row says why", "no route" in loop.stats.get("forge_unreachable", ""), loop.stats)
 
 
+def test_stalled_leg():
+    print("stands with no route and no ore for minutes: the leg ends (no loop)")
+    import loop_mining
+    saved = loop_mining.log, loop_mining.time.monotonic
+    clock = [1000.0]
+    loop_mining.log = lambda s: None
+    loop_mining.time.monotonic = lambda: clock[0]
+    tried = []
+    try:
+        loop = field_loop()
+        loop.next_stand = lambda stands: stands[0]
+
+        def dig_stand(stand, tally):          # live 18:34-18:39: each stand "no route" after a ~25 s walk
+            tried.append(clock[0])
+            clock[0] += 25.0
+            loop.stall_stands += 1
+            if len(tried) > 40:
+                raise AssertionError("still looping")
+        loop.dig_stand = dig_stand
+        got = loop.harvest_trip()
+        early = loop.stalled(now=loop.last_ore_t + loop_mining.STALL_S - 1)
+        loop.stall_stands = loop_mining.STALL_STANDS - 1
+        few = loop.stalled(now=loop.last_ore_t + 600)
+    except Exception as e:                    # noqa: BLE001
+        got, early, few = e, None, None
+    finally:
+        loop_mining.log, loop_mining.time.monotonic = saved
+    check("the leg ends, counted as creature-blocked (a hop may follow)",
+          got == 0 and loop.stats.get("creature_blocked") is True, repr(got))
+    check("after STALL_S without ore and STALL_STANDS stands given up",
+          len(tried) == max(loop_mining.STALL_STANDS, int(loop_mining.STALL_S // 25) + 1), tried)
+    check("not before STALL_S", early is None, early)
+    check("not with fewer stands given up", few is None, few)
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
-              test_reachable_stands, test_run_past, test_forge_unreachable):
+              test_reachable_stands, test_run_past, test_forge_unreachable, test_stalled_leg):
         t()
     print()
     if FAILURES:
