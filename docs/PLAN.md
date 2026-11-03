@@ -3447,6 +3447,41 @@ Live 16:28:07 the walk-in's dash went in among four monsters by the teleporter; 
 - *Rejected:* a dash round them (a way found 1 of 24 times, deaths 23); dashing anyway (the death).
 - *Simulator:* the bottomfeeder's feed now grips Logan (`grip`).
 
+## Ore fields: a mining spot grown over the ore ground around its forge (user 2026-11-02; built offline the same day)
+
+User, looking at forge_1383_1146 on the viz ore layer: "flood-fill them to include more mineable tiles that are further
+away from the forge. Similar to how we flood-filled the lumber groves". Built: `harness/mining_fields.py`,
+`ctl mining fields [--facet 0] [--cap 300] [--dry-run]` (docs/OVERSEER.md).
+
+- *Evidence:* a spot was the 81x81 square round its forge (`ore_nodes.py spots`), 22-115 ore blocks (median ~72) at
+  ~12 ore a block (docs/NOTES.md "Live hand-mining capture"), against ~1 700 ore in a 60-min stint (the store's 42
+  stored legs: 14 117 ore in 477 harvest min). Of 152 legs, 8 ran dry and 7 ended with every stand left in a
+  creature's reach; a mountain running past the square was cut off at its edge (the screenshot: the big rock west of
+  the forge).
+- *Decided, as the forests (docs/LUMBER_LOOP.md §6 "Forest spots"):* a paint-bucket fill (`lumber_forest.grow`, now
+  with a `unit`: what a claim counts as) over walkable tiles within `LINK` 2 of a mineable tile (a stand's reach), from
+  every such tile of the square; an 8x8 ore block is the field's when a mineable tile of it lies within 2 of a filled
+  tile; out of towns, guard points and disabled spots' squares; the area stored as its 8x8 cells with the square in
+  `field.window`, so a rebuild grows from the same seeds.
+- *Different from the forests:*
+  - Each spot grows alone, so fields overlap as the squares did. Grown together they split the shared ground and 7
+    spots shrank (84 -> 45 blocks the most); a block's state is shared in `mine_blocks` anyway.
+  - Fields never merge: a spot is its forge, where the weight smelt walks.
+  - The cap counts ore blocks: 300, ~2 stints (~3 600 ore at 12 a block).
+- *LINK 2 over 3:* 3 added little (median field 197 vs 188 blocks) and joins rock 7 open tiles apart.
+- *Dry run on the store (2026-11-02, 14 s):* the 34 active spots go from 2 393 ore blocks to 6 769 (median 72 -> 192);
+  12 stop at the cap, 5 grow by under 20 %. forge_1383_1146 goes from 46 to 310, taking in the rock west of the forge
+  and the ridge north-east; the farthest cell is 214 tiles from its forge.
+- *The runner:* `candidate_stands` keeps a field's stands whose tile lies in a cell (`ore_nodes.spot_area_stands`,
+  the viz's ore layer too, which draws the cells' outline). The per-stand walking-distance flood (`walk_steps`) is cut
+  to `STAND_FLOOD` 80 tiles round us (a whole field's box: ~6 s a flood against ~0.7 s for a square's); the leg's
+  first flood still covers the whole box, so a stand on another level stays out, and a stand beyond the cut flood
+  counts at its Chebyshev distance.
+- *Risk [INFERENCE]:* the weight smelt (40 stones free) walks to the forge from up to ~200 tiles off. Dan smelts
+  at home since 2026-10-20, so only the weight smelt does this walk.
+- *Not yet on the store:* `ctl mining fields` was left for after the run that was out at build time. A runner
+  started before this change would read a field's bounding square as its area if a hop took it to one.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -262,6 +262,52 @@ def test_reachable_stands():
           zoned and (45, 45) not in zoned, zoned)
 
 
+def test_field_stands():
+    print("an ore field: only its cells' stands; one beyond the per-stand flood is still picked when it's the one left")
+    import loop_mining
+    import ore_nodes
+    # a corridor y 10, x 0-200; the field's cells cover x 0-15 and x 144-159 of it; its square spans them all
+    open_ = {(x, 10) for x in range(0, 201)}
+
+    class Walk:
+        m = SimpleNamespace(tiledata=None)
+
+        def can_walk(self, x, y, z, d):
+            nx, ny = x + (0, 1, 1, 1, 0, -1, -1, -1)[d], y + (-1, -1, 0, 1, 1, 1, 0, -1)[d]
+            return (nx, ny, 0) if z == 0 and (nx, ny) in open_ else None
+    stands = [{"x": 10, "y": 10, "n": 1, "blocks": [[1, 1]]}, {"x": 150, "y": 10, "n": 1, "blocks": [[18, 1]]},
+              {"x": 80, "y": 10, "n": 1, "blocks": [[10, 1]]}]
+    area = {"center": [80, 7], "radius": 80, "cells": [[0, 1], [1, 1], [18, 1], [19, 1]]}
+    saved = ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log
+    ore_nodes.area_stands = lambda *a, **k: [dict(s) for s in stands]
+    ore_nodes.exclusions = lambda facet, db: ([], [], [])
+    ore_nodes.Tiles = lambda td: None
+    loop_mining.log = lambda s: None
+    try:
+        loop = object.__new__(MineLoop)
+        loop.k = {"harvest": {"area": area, "stands": []}, "spot": {"id": "f"}}
+        loop.facet, loop._ore_tiles, loop.dry_blocks, loop._steps = 0, None, set(), None
+        loop.args = SimpleNamespace(memory=":memory:", regrow_min=60)
+        loop.memory = SimpleNamespace(mine_blocks_state=lambda facet, blocks: {})
+        loop.mover = SimpleNamespace(walk_map=lambda st: Walk(), danger={})
+        loop.link = SimpleNamespace(pos=lambda st: [5, 10, 0, 4], state=lambda: {})
+        cands = loop.candidate_stands({})
+        got = sorted((s["x"], s["y"]) for s in cands)
+        loop.no_route_stands, loop.out_of_reach = set(), lambda x, y: True
+        loop.human = SimpleNamespace(rng=random.Random(7))
+        first = loop.next_stand(cands)
+        loop.dry_blocks = {(1, 1)}                  # the near stand dug out
+        loop.link.pos = lambda st: [6, 10, 0, 4]    # a step off: a new flood, cut to STAND_FLOOD around us
+        far = loop.next_stand(cands)
+        box = loop._steps[1]
+    finally:
+        ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log = saved
+    check("the stands in the field's cells, not the one between them", got == [(10, 10), (150, 10)], got)
+    check("the near stand first", first is not None and (first["x"], first["y"]) == (10, 10), first)
+    check("the far stand, beyond the cut flood, once the near one is dug out",
+          box[2] < 150 and far is not None and (far["x"], far["y"]) == (150, 10), (box, far))
+
+
 def test_run_past():
     print("weak animals on the way to a stand: run past when we ride and the stand is past their chase")
     import loop_lumber
@@ -403,7 +449,7 @@ def test_stalled_leg():
 
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
-              test_reachable_stands, test_run_past, test_forge_unreachable, test_stalled_leg):
+              test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg):
         t()
     print()
     if FAILURES:

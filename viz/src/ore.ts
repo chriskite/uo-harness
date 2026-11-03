@@ -46,7 +46,8 @@ export interface OreSpot {
   status: string | null;
   pvp: boolean | null;
   forge: { x: number; y: number; z: number } | null;
-  area: { center: Tile; radius: number };
+  /** the area's square; an ore field (harness/mining_fields.py) also its `cells`, squares of `cell` tiles */
+  area: { center: Tile; radius: number; cells?: [number, number][]; cell?: number };
 }
 
 export interface OreResponse {

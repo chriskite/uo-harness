@@ -121,13 +121,15 @@ def walk_fns(walk):
 
 
 def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH, cap: int = CAP,
-         caps: dict | None = None) -> list:
+         caps: dict | None = None, unit=None) -> list:
     """Grow every source's window into its forest (module doc). sources: [(id, window area
     {center, radius})], the most-tried first (a tile both windows hold goes to the first).
     stop: a Zones (or tile predicate) the fill doesn't enter outside the windows. caps: {id: trees}
     for a spot with its own cap (user 2026-10-19: witcher_280 to 1 200), else `cap`; two territories
     merge while together they hold at most the larger of their caps.
-    -> [{"members": [ids], "cells": [(cx, cy)], "claimed": trees claimed, "trees": tree
+    unit(x, y): what a claimed `trees.at` tile counts as against the cap (default the tile: one tree;
+    mining_fields.py counts its 8x8 ore block).
+    -> [{"members": [ids], "cells": [(cx, cy)], "claimed": units claimed, "trees": tree
     statics in the cells}], members in source order; a source whose window has no walkable
     forest ground comes back alone with no cells."""
     n = len(sources)
@@ -142,9 +144,11 @@ def grow(sources, trees: Trees, stand_z, step, stop=None, *, reach: int = REACH,
         q.append((x, y, z, lab))
         for tx in range(x - reach, x + reach + 1):
             for ty in range(y - reach, y + reach + 1):
-                if (tx, ty) not in claimed and trees.at(tx, ty):
-                    claimed.add((tx, ty))
-                    count[lab] += 1
+                if trees.at(tx, ty):
+                    k = (tx, ty) if unit is None else unit(tx, ty)
+                    if k not in claimed:
+                        claimed.add(k)
+                        count[lab] += 1
         if count[lab] >= lab_cap[lab]:
             done[lab] = True
 

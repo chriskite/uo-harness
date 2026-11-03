@@ -246,7 +246,7 @@ class OverseerDB:
         self.grove_lock = threading.Lock()  # grove_mem, regrow_cache and stands_cache
         self.grove_mem = None
         self.regrow_cache = None   # (monotonic, lumber_opt.store_regrowth)
-        self.stands_cache = {}     # {(facet, centre, radius): (monotonic, mining_opt.spot_stands)}
+        self.stands_cache = {}     # {(facet, centre, radius, cells): (monotonic, mining_opt.spot_stands)}
 
     def _open(self, create: bool):
         if self.mem is None and (create or os.path.exists(self.path)):
@@ -434,7 +434,8 @@ class OverseerDB:
             if spot is None or not spot.get("area"):
                 return {"spot": None, "store": True}
             sfacet = int(spot.get("facet") or 0)
-            key = (sfacet, tuple(spot["area"]["center"]), spot["area"]["radius"])
+            key = (sfacet, tuple(spot["area"]["center"]), spot["area"]["radius"],
+                   tuple(tuple(c) for c in spot["area"].get("cells") or ()))
             now = time.monotonic()
             hit = self.stands_cache.get(key)
             if hit is None or now - hit[0] >= self.STANDS_CACHE_S:

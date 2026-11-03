@@ -568,8 +568,9 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       ctx.globalAlpha = 1;
     }
 
-    // Mining ore: the spot's area, the ore blocks its stands reach by mine_blocks state, the stands (greener:
-    // more blocks with ore; grey: none), rings on the stands dug at within the window, and the forge.
+    // Mining ore: the spot's area (its square, an ore field's cells), the ore blocks its stands reach by mine_blocks
+    // state, the stands (greener: more blocks with ore; grey: none), rings on the stands dug at within the window, and
+    // the forge.
     const o = s.ore;
     if (o?.spot) {
       const quad = (x: number, y: number, w: number) => {
@@ -579,7 +580,7 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         ctx.lineTo(...P(x, y + w));
         ctx.closePath();
       };
-      const { center, radius: r } = o.spot.area;
+      const { center, radius: r, cells, cell } = o.spot.area;
       const b = o.block ?? 8;
       ctx.lineWidth = 1;
       for (const k of o.blocks ?? []) {
@@ -595,7 +596,14 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
         ctx.stroke();
       }
       ctx.beginPath();
-      quad(center[0] - r, center[1] - r, 2 * r + 1);
+      if (cells?.length && cell) {
+        for (const [sx0, sy0, sx1, sy1] of cellOutline(cells, cell)) {
+          ctx.moveTo(...P(sx0, sy0));
+          ctx.lineTo(...P(sx1, sy1));
+        }
+      } else {
+        quad(center[0] - r, center[1] - r, 2 * r + 1);
+      }
       ctx.setLineDash([8, 5]);
       ctx.strokeStyle = "#818cf8";
       ctx.lineWidth = 2;

@@ -269,9 +269,9 @@ _ORE_TILES = {}          # facet -> ore_nodes.Tiles over its map's tiledata (spo
 
 def spot_stands(spot: dict, db: str | None = None) -> list | None:
     """The spot's stands as the runner finds them on the map (loop_mining.candidate_stands before its walk
-    check and the block states): ore_nodes.area_stands over the area, outside the town and guard-point
-    exclusions (`db`: the memory store's path, for its guard points). [{x, y, n, blocks}]; None when the
-    facet's map files can't be read."""
+    check and the block states): ore_nodes.spot_area_stands over the area (an ore field's cells), outside the
+    town and guard-point exclusions (`db`: the memory store's path, for its guard points). [{x, y, n, blocks}];
+    None when the facet's map files can't be read."""
     import ore_nodes
     facet = int(spot.get("facet") or 0)
     um = lumber_opt._umap(facet)
@@ -280,20 +280,19 @@ def spot_stands(spot: dict, db: str | None = None) -> list | None:
     if facet not in _ORE_TILES:
         _ORE_TILES[facet] = ore_nodes.Tiles(um.tiledata)
     rects, _, _ = ore_nodes.exclusions(facet, db)
-    area = spot["area"]
-    return ore_nodes.area_stands(um, _ORE_TILES[facet], rects, area["center"], area["radius"])
+    return ore_nodes.spot_area_stands(um, _ORE_TILES[facet], rects, spot["area"])
 
 
 def ore_view(memory, spot: dict, stands: list, now: float, regrow_min: float = REGROW_MIN) -> dict:
     """A mining spot as the runner sees it, for the visualizer's map (docs/VISUALIZER.md §2.21): its area
-    and forge, and
+    (an ore field's with its `cells` and `cell` size, mining_fields.py) and forge, and
       - blocks: every 8x8 ore block a stand reaches ({bx, by, state}), state from mine_blocks as
         loop_mining.avail reads it: "no_harvest" (the server said harvesting isn't allowed: for good),
         "depleted" (a stand reaching it said nothing nearby within the regrowth window, with `since` and
         `until`), else "ready";
       - stands: [x, y, blocks reached, of those ready] (spot_stands);
-      - dug: the stand tiles dug at within the window (mine_attempts): {x, y, digs, ore, last_t, end},
-        end = the last outcome when it ended the stand (nothing_near / no_harvest), else None.
+      - dug: the stand tiles in the area dug at within the window (mine_attempts): {x, y, digs, ore, last_t,
+        end}, end = the last outcome when it ended the stand (nothing_near / no_harvest), else None.
     regrow_min: the runner's --regrow-min (its default here: the viz can't see a run's flags)."""
     import ore_nodes
     facet = int(spot.get("facet") or 0)
@@ -321,10 +320,13 @@ def ore_view(memory, spot: dict, stands: list, now: float, regrow_min: float = R
     stand_rows = [[s["x"], s["y"], len(s["blocks"]), sum(1 for b in s["blocks"] if (b[0], b[1]) in ready)]
                   for s in stands]
     (cx, cy), r = area["center"], area["radius"]
+    cells = lumber_opt.area_cells(area)
     dug = {}
     for x, y, outcome, amount, t in memory.con.execute(
             "SELECT x, y, outcome, amount, t FROM mine_attempts WHERE facet=? AND t>=? AND x BETWEEN ? AND ? "
             "AND y BETWEEN ? AND ? ORDER BY t", (facet, now - window, cx - r, cx + r, cy - r, cy + r)):
+        if not lumber_opt.in_area(area, x, y, cells):
+            continue
         d = dug.setdefault((x, y), {"x": x, "y": y, "digs": 0, "ore": 0, "last_t": None, "end": None})
         if outcome in ("success", "fail"):
             d["digs"] += 1
@@ -335,7 +337,8 @@ def ore_view(memory, spot: dict, stands: list, now: float, regrow_min: float = R
               "dug_stands": len(dug), "dug_ore": sum(d["ore"] for d in dug.values())}
     for state in ("ready", "depleted", "no_harvest"):
         counts[state] = sum(1 for b in blocks if b["state"] == state)
-    return {"spot": {k: spot.get(k) for k in ("id", "name", "facet", "status", "pvp", "forge")}
-            | {"area": {"center": [cx, cy], "radius": r}},
+    view_area = {"center": [cx, cy], "radius": r} | ({"cells": sorted([int(c[0]), int(c[1])] for c in cells),
+                                                      "cell": lumber_opt.CELL} if cells is not None else {})
+    return {"spot": {k: spot.get(k) for k in ("id", "name", "facet", "status", "pvp", "forge")} | {"area": view_area},
             "regrow_min": regrow_min, "block": ore_nodes.BLOCK, "now": now, "counts": counts,
             "blocks": blocks, "stands": stand_rows, "dug": list(dug.values())}

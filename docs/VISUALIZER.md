@@ -1263,9 +1263,12 @@ alone, as §2.11.
 User: "an overlay on the viz ui 'Live' map for mining, kind of like the 'grove' one we have for lumbering". While a
 mining run is going (§2.19's rule), the Live map shows its spot the way loop_mining sees it:
 - **Area:** the spot's square (centre ± radius, `ore_nodes.py spots`: FORGE_NEAR 40 round the forge) as a dashed
-  indigo outline; the **forge** (the spot's `forge`, where field smelting happens) as a red diamond.
-- **Ore blocks** (the server's 8x8 ore bank, ore_nodes.py's model): every block a stand of the area reaches, so blocks
-  at the edge stick out past the square. Filled by `mine_blocks` as `loop_mining.avail` reads it:
+  indigo outline; an ore field (docs/PLAN.md "Ore fields", `mining_fields.py`) as the outline of its 8x8 cells
+  (`grove.ts` `cellOutline`; the API sends `area.cells` and `area.cell`); the **forge** (the spot's `forge`, where
+  field smelting happens) as a red diamond.
+- **Ore blocks** (the server's 8x8 ore bank, ore_nodes.py's model): every block a stand of the area reaches (a field's:
+  the stands in its cells), so blocks at the edge stick out past the outline. Filled by `mine_blocks` as
+  `loop_mining.avail` reads it:
   - green: ore as far as we know;
   - orange: dug out (a stand reaching it said "nothing nearby" within the regrowth window);
   - grey: the server said no mining there (for good).

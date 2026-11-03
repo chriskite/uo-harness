@@ -3462,7 +3462,7 @@ def cmd_lumber(a, mem):
 
 def cmd_mining(a, mem):
     """The mining job (harness/mining_opt.py, loop_mining.py): `plan` picks the spot for the next
-    `run mining` (Thompson sampling); `spots` and `spot set` manage the spots."""
+    `run mining` (Thompson sampling); `spots`, `spot set` and `fields` (mining_fields.py) manage the spots."""
     import mining_opt
     heartbeat(mem)
     op = a.mining_op
@@ -3505,6 +3505,26 @@ def cmd_mining(a, mem):
         mem.chat_post("overseer", f"mining spot set {a.id} {a.status}" + (f" ({a.reason})" if a.reason else ""),
                       "action", data={"cmd": "mining spot set", "id": a.id, "status": a.status})
         return {"ok": True, "id": a.id, "status": a.status, "reason": a.reason}
+    if op == "fields":
+        import lumber_forest
+        import mining_fields
+        import ore_nodes
+        import pathfind
+        import uomap
+        umap = uomap.UoMap(a.facet)
+        stand_z, step = lumber_forest.walk_fns(pathfind.Walk(umap))
+        rects, towns, gps = ore_nodes.exclusions(a.facet, mem.path)
+        spots = mining_opt.load_spots(mem)
+        t0 = time.time()
+        got = mining_fields.build(spots, a.facet, mining_fields.Ground(umap, ore_nodes.Tiles(umap.tiledata), rects),
+                                  stand_z, step, towns=towns, guard_points=gps, cap=a.cap or mining_fields.CAP)
+        if not a.dry_run:
+            mining_fields.apply(mem, got["writes"])
+            mem.chat_post("overseer", f"mining fields (facet {a.facet}): {len(got['fields'])} spot(s) grown",
+                          "action", data={"cmd": "mining fields", "cap": a.cap,
+                                          "fields": [[f["id"], f["window_nodes"], f["nodes"]] for f in got["fields"]]})
+        return {"ok": True, "facet": a.facet, "fields": got["fields"], "ungrown": got["ungrown"],
+                "saved": not a.dry_run, "seconds": round(time.time() - t0, 1)}
     raise CtlError(f"unknown mining op {op}")
 
 
@@ -3757,6 +3777,11 @@ def _mining_parser(sub):
     r.add_argument("id")
     r.add_argument("--status", choices=("active", "candidate", "disabled"), required=True)
     r.add_argument("--reason")
+    q = ms.add_parser("fields", help="grow every active spot over the ore ground around its square (map data; "
+                                     "docs/PLAN.md 'Ore fields')")
+    q.add_argument("--facet", type=int, default=0)
+    q.add_argument("--cap", type=int, default=None, help="ore blocks per spot at most (default 300)")
+    q.add_argument("--dry-run", action="store_true", help="list, don't save")
     p.set_defaults(fn=cmd_mining)
 
 

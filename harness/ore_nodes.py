@@ -35,8 +35,9 @@ tiledata files and the memory store (read-only); sends nothing anywhere.
 `spots` writes the mining runner's seed spots (loop_mining.py, mining_opt.py): one per non-town
 overworld forge site with --min-nodes node blocks within FORGE_NEAR tiles, outside lumber_opt's
 no-go areas, at most one site per FORGE_NEAR tiles (the richest). Each spot's area is the square
-FORGE_NEAR around the forge. Every spot is 'active' (user 2026-10-19: all of them, the planner learns
-which are worth it); `ctl mining spot set <id> --status disabled` parks one.
+FORGE_NEAR around the forge; `ctl mining fields` (mining_fields.py) grows it over the ore ground beyond.
+Every spot is 'active' (user 2026-10-19: all of them, the planner learns which are worth it);
+`ctl mining spot set <id> --status disabled` parks one.
 """
 import argparse
 import json
@@ -241,6 +242,14 @@ def area_stands(m, tiles, rects, center, radius, reach=REACH) -> list[dict]:
         blocks = sorted([int(bx0[i] + a), int(by0s[i] + b)] for a, b in zip(ix, iy))
         out.append({"x": int(xs[i]), "y": int(gy[i]), "n": len(blocks), "blocks": blocks})
     return out
+
+
+def spot_area_stands(m, tiles, rects, area: dict, reach=REACH) -> list[dict]:
+    """area_stands over a mining spot's area: its square, or an ore field's cells (mining_fields.py;
+    a stand counts when its tile lies in a cell, lumber_opt.in_area)."""
+    out = area_stands(m, tiles, rects, area["center"], area["radius"], reach)
+    cells = lumber_opt.area_cells(area)
+    return out if cells is None else [s for s in out if lumber_opt.in_area(area, s["x"], s["y"], cells)]
 
 
 def grids(m, tiles, by0, by1):
