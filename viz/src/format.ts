@@ -85,6 +85,31 @@ export function fmtClock(t: number): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+/** A time typed for a replay seek -> session time (epoch s), or null when it doesn't parse or falls
+ * outside the session [t0, t1]. Local time of day "H:MM" / "H:MM:SS" (the first such moment from t0's
+ * second on: a session may cross midnight), or "+M:SS" / "+H:MM:SS" elapsed since t0. */
+export function parseSeekTime(text: string, t0: number, t1: number): number | null {
+  const m = /^\s*(\+)?(\d{1,2}):(\d{2})(?::(\d{2}))?\s*$/.exec(text);
+  if (!m) return null;
+  const a = Number(m[2]);
+  const b = Number(m[3]);
+  const c = m[4] === undefined ? null : Number(m[4]);
+  if (b > 59 || (c ?? 0) > 59) return null;
+  if (m[1]) {
+    const t = t0 + (c === null ? a * 60 + b : a * 3600 + b * 60 + c);
+    return t <= t1 ? t : null;
+  }
+  if (a > 23) return null;
+  for (let day = 0; ; day++) {
+    const d = new Date(t0 * 1000);
+    d.setDate(d.getDate() + day);
+    d.setHours(a, b, c ?? 0, 0);
+    const t = d.getTime() / 1000;
+    if (t > t1) return null;
+    if (t >= Math.floor(t0)) return Math.max(t, t0);
+  }
+}
+
 /** Seconds -> "H:MM:SS", or "M:SS" under an hour (truncated; negatives clamp to 0). */
 export function fmtDuration(s: number): string {
   const t = Math.max(0, Math.floor(s));

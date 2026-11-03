@@ -38,7 +38,9 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       read-only; at most CLILOC_MAX numbers, unknown ones left out): the
                       names of buffs the server sent as a cliloc with an empty title
   GET  /api/health    (?char=) mode, session, order, poll lag, connection, diagnostics
-  POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate", "rate": R}
+  POST /api/playback  replay only: {"action": "play"|"pause"|"step"|"rate"|"seek", "rate": R, "t": T}
+                      (seek: session time T, epoch s, clamped to the capture; runs on a worker and returns
+                      at once, `viz.playback.seeking` = T until there; a newer seek supersedes it)
   GET  /api/gate      live only: the proxy's agent gate ({"op": "gate"}), verbatim
   POST /api/gate      live only: {"action": "pause"|"resume"|"kill"} -> {"op": "gate",
                       "action": ...}; the proxy's JSON, 200 if ok else 409. Any other
@@ -1028,6 +1030,8 @@ class Handler(BaseHTTPRequestHandler):
                 feed.step()
             elif action == "rate":
                 feed.set_rate(float(req.get("rate")))
+            elif action == "seek":
+                feed.seek_async(req.get("t"))
             else:
                 self._json(400, {"error": f"unknown action {action!r}"})
                 return
@@ -1417,7 +1421,7 @@ class VizServer(ThreadingHTTPServer):
 
 def build_feed(args):
     if args.replay:
-        feed = viz_feed.ReplayDriver(args.replay, args.logdir)
+        feed = viz_feed.ReplayDriver(args.replay, args.logdir, checkpoints=True)
         feed.set_rate(args.rate)
         if not args.paused:
             feed.play()

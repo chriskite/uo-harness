@@ -42,7 +42,9 @@ deep put a LAN reader minutes behind the game).
   `s2c_confirm_rewritten` events are not reproduced (agent ones are).
 """
 import collections
+import copy
 import json
+import math
 import os
 import socket
 import sys
@@ -76,6 +78,11 @@ RETRY_S = 1.0
 TIMER_EVENTS = ("walk_rejected", "resync_ignored", "reanchor_client")  # jsonl rows of timer decisions
 IDLE_SKIP_S = 2.0      # replay playback: longer quiet gaps (sim time) are shortened to this
 APPROX_DT = 0.01       # approx order: synthetic spacing between packets (s)
+SEEK_CHUNK = 10000     # replay seek: items applied per hold of the sim lock (~0.25 s)
+# replay seek: a tap copy every this many items (the viz server's driver only). Measured on a 4.5 h
+# capture (20261101_124620, 1.9 M items, ~43 k items/s): ~7 MB a copy near its end, 0.08 s to take,
+# so ~140 MB for the session and a seek backwards replays at most ~2.5 s.
+CHECKPOINT_ITEMS = 100_000
 
 
 # ------------------------------------------------------------------- feed base
@@ -392,7 +399,7 @@ class ReplayDriver(Feed):
 
     mode = "replay"
 
-    def __init__(self, tag: str, logdir: str = "logs"):
+    def __init__(self, tag: str, logdir: str = "logs", checkpoints: bool = False):
         super().__init__()
         self.tag = tag
         base = os.path.join(logdir, f"session_{tag}")
@@ -424,23 +431,62 @@ class ReplayDriver(Feed):
             print(f"[viz_feed] {tag}: {self.order_note}", file=sys.stderr)
             self.items, self.t_end = self._approx(rows)
             self.order = "approx"
-        self.tap = proxy.SessionTap(_Null(), _Null(), _Null(), walkers=pathfind.Walkers())
-        # the Field of Souls record and clock, silent (no alarms): replays and `memory.py ingest` get the
-        # fos_* events and the countdown the live proxy has
-        self.tap.field = fos_field.FieldLog()
+        self.walkers = pathfind.Walkers()   # map geometry, kept across the rebuilds of a backward seek
         # a capture whose re-anchors all came after quiet (made before the per-step re-anchor,
         # ANTICHEAT.md §10 A11) replays with that behaviour, so its recorded decisions reproduce
         reanchors = [r for r in rows if r.get("ev") == "reanchor_client"]
-        self.tap.reanchor_on_confirm = not reanchors or any(r.get("on") == "confirm" for r in reanchors)
+        self.reanchor_on_confirm = not reanchors or any(r.get("on") == "confirm" for r in reanchors)
         self.t0 = self.items[0][0] if self.items else 0.0
-        self.now = self.t0
-        self.tap.wall = self.tap.mono = lambda: self.now
-        self.timer_divergences = 0      # recorded timer decisions the tap did not reproduce
-        self.position = 0
+        self.sim = threading.RLock()    # guards tap + playback position
+        # position -> (now, timer_divergences, tap copy), every CHECKPOINT_ITEMS items when kept (the viz
+        # server: seeks backwards); off for the one-pass replays (memory.py ingest, tests)
+        self.keep_checkpoints = checkpoints
+        self.checkpoints = {}
+        self._reset_tap()
         self.playing = False
         self.rate = 1.0
-        self.sim = threading.RLock()    # guards tap + playback position
         self._play_thread = None
+        self.seeking = None             # the session time a seek is moving to, else None
+        self._seek_lock = threading.Lock()   # one seek at a time
+        self._seek_gen = 0              # bumped by seek_async: a running seek with an older gen gives up
+
+    def _reset_tap(self):
+        """A fresh SessionTap at the start of the timeline."""
+        self.tap = proxy.SessionTap(_Null(), _Null(), _Null(), walkers=self.walkers)
+        # the Field of Souls record and clock, silent (no alarms): replays and `memory.py ingest` get the
+        # fos_* events and the countdown the live proxy has
+        self.tap.field = fos_field.FieldLog()
+        self.tap.reanchor_on_confirm = self.reanchor_on_confirm
+        self.now = self.t0
+        # the simulated clock; the world model's too, so no closure holds this tap (a checkpoint's
+        # copy would keep the tap it was copied from alive)
+        self.tap.wall = self.tap.mono = self.tap.world.clock = lambda: self.now
+        self.timer_divergences = 0      # recorded timer decisions the tap did not reproduce
+        self.position = 0
+
+    def _checkpoint(self):
+        """Keep a copy of the tap at this position (every CHECKPOINT_ITEMS items, once), so a seek
+        replays from the nearest one instead of from the start or from far behind. The map geometry is
+        shared."""
+        if self.position not in self.checkpoints:
+            self.checkpoints[self.position] = (self.now, self.timer_divergences,
+                                               copy.deepcopy(self.tap, {id(self.walkers): self.walkers}))
+
+    def _jump(self, t: float) -> bool:
+        """Before a seek replays toward session time t: restore the newest checkpoint at or before t
+        when t is behind the clock (the start without one) or the checkpoint is ahead of us. True
+        when it went back."""
+        best = max((p for p, c in self.checkpoints.items() if c[0] <= t), default=None)
+        back = t < self.now
+        if best is None:
+            if back:
+                self._reset_tap()
+            return back
+        if back or best > self.position:
+            now, div, tap = self.checkpoints[best]
+            self.tap = copy.deepcopy(tap, {id(self.walkers): self.walkers})
+            self.now, self.timer_divergences, self.position = now, div, best
+        return back
 
     # -- timeline construction
     def _exact(self, rows):
@@ -546,6 +592,8 @@ class ReplayDriver(Feed):
             self._apply(item)
             self.position += 1
             n += 1
+            if self.keep_checkpoints and self.position % CHECKPOINT_ITEMS == 0:
+                self._checkpoint()
         if self.position >= total:
             self.now = max(self.now, self.t_end)
             self.playing = False
@@ -588,6 +636,58 @@ class ReplayDriver(Feed):
             self.rate = float(rate)
         self.wake()
 
+    def seek(self, t: float, gen: int | None = None) -> bool:
+        """Put the replay at session time `t` (clamped to the timeline): every item with
+        time <= t applied, none after. Forward it applies the items between; backward it restarts
+        from the newest checkpoint before t (or the start) and the event seqs start again below
+        `next` (the ring is cleared; the browser sees `next` fall and reloads, as on a proxy restart);
+        a checkpoint ahead of the current position is a shortcut forward (the events skipped are not
+        published).
+        It works in SEEK_CHUNK slices, releasing the sim lock between them, so the pump shows the way
+        there. Playing or paused stays as it was. `gen` (seek_async): give up, returning False, as
+        soon as a newer seek_async was asked for."""
+        t = self._clamp(t)
+        with self._seek_lock:
+            if gen is not None and gen != self._seek_gen:
+                return False
+            self.seeking = t
+            try:
+                with self.sim:
+                    if self._jump(t):
+                        with self.lock:
+                            self.ring.clear()
+                            self.cursor = 0
+                while True:
+                    if gen is not None and gen != self._seek_gen:
+                        return False
+                    with self.sim:
+                        if not self._advance(t, SEEK_CHUNK):
+                            self.now = max(self.now, t)
+                            break
+                    self.wake()
+            finally:
+                if gen is None or gen == self._seek_gen:
+                    self.seeking = None
+        self.wake()
+        return True
+
+    def seek_async(self, t: float):
+        """seek(t) on a worker thread (POST /api/playback returns at once); a newer call supersedes
+        a running one, which stops at its next slice. Raises ValueError for a non-finite t."""
+        t = self._clamp(t)
+        with self.sim:
+            self._seek_gen += 1
+            gen = self._seek_gen
+            self.seeking = t
+        threading.Thread(target=self.seek, args=(t, gen), name="replay-seek", daemon=True).start()
+        self.wake()
+
+    def _clamp(self, t) -> float:
+        t = float(t)
+        if not math.isfinite(t):
+            raise ValueError("t must be a finite number")
+        return min(max(t, self.t0), self.t_end)
+
     def _ensure_player(self):
         if self._play_thread is None:
             self._play_thread = threading.Thread(target=self._play_loop, name="replay-play", daemon=True)
@@ -600,7 +700,7 @@ class ReplayDriver(Feed):
             wall = time.monotonic()
             dt, last = wall - last, wall
             with self.sim:
-                if not self.playing:
+                if not self.playing or self.seeking is not None:
                     continue
                 target = self.now + dt * self.rate
                 if self.position < len(self.items):
@@ -619,7 +719,9 @@ class ReplayDriver(Feed):
     def viz(self) -> dict:
         return {"mode": "replay", "session": self.tag, "order": self.order,
                 "playback": {"playing": self.playing, "rate": self.rate,
-                             "position": self.position, "total": len(self.items)},
+                             "position": self.position, "total": len(self.items),
+                             "t": round(self.now, 3), "t0": self.t0, "t_end": self.t_end,
+                             "seeking": self.seeking},
                 "connected": True}
 
     def health(self) -> dict:

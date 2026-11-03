@@ -553,9 +553,17 @@ button.side-rail {
   align-items: center;
   gap: 6px;
 }
-.playback progress {
+.playback .seek {
   width: 140px;
   accent-color: var(--gold);
+}
+.playback .seek-time {
+  width: 11ch;
+}
+/* a seek on its way: the field shows its target until the replay gets there */
+.playback .seek-time.seeking {
+  font-style: italic;
+  color: var(--gold);
 }
 /* gate groups keep their content width: a squeezed group would let its buttons spill over
  * the next one (2026-10-09, with the character picker). When the bar gets too narrow the

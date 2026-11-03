@@ -6,6 +6,10 @@
   recorded the bank errand, since the live proxy may still append to the file):
   exact order, errand outcome, proxy events, /api/state == SessionTap.state()
 - order fallback: 20260928_141253 (pre-fix S2C rows) replays as "approx"
+- replay seek: the state at a session time equals a fresh replay's there, forward, backward,
+  from a checkpoint (before and after one), clamped at both ends; POST /api/playback seek
+  backward drops `next` (the browser's reset signal), a newer seek supersedes a running one,
+  a seek without t is 400
 - SSE framing (one `world_events` batch per write + the newest state),
   monotonic seqs, verbatim envelopes, Last-Event-ID resume without
   duplicates, and state coalescing
@@ -1191,7 +1195,8 @@ def test_replay_parity(logdir):
         check("viz block: replay, session tag, exact, playback at the end",
               got["viz"] == {"mode": "replay", "session": TAG, "order": "exact", "connected": True,
                              "playback": {"playing": False, "rate": 1.0, "position": len(d.items),
-                                          "total": len(d.items)}}, str(got["viz"]))
+                                          "total": len(d.items), "t": d.t_end, "t0": d.t0,
+                                          "t_end": d.t_end, "seeking": None}}, str(got["viz"]))
         h = get(f"http://127.0.0.1:{SERVER_PORT}/api/health")
         check("health: mode/order/diagnostics", h["mode"] == "replay" and h["order"] == "exact"
               and h["diagnostics"]["packet_counts"][0][2] > 0, str({k: h[k] for k in ("mode", "order", "ring")}))
@@ -1226,6 +1231,77 @@ def test_order_fallback():
     st = d.tap.state()
     check("approx replay still builds the world (self known)", st["world"].get("self", {}).get("serial") is not None)
     check("approx viz block says approx", d.viz()["order"] == "approx")
+
+
+def test_seek(logdir):
+    print("== replay seek ==")
+    ckpt = viz_feed.CHECKPOINT_ITEMS
+    viz_feed.CHECKPOINT_ITEMS = 100     # several checkpoints in the pinned capture (1047 items)
+    try:
+        d = viz_feed.ReplayDriver(TAG, logdir, checkpoints=True)
+
+        def at(t):
+            """(position, state) of a fresh replay seeked straight to t."""
+            r = viz_feed.ReplayDriver(TAG, logdir)
+            r.seek(t)
+            return r.position, json.dumps(r.tap.state(0), sort_keys=True)
+
+        def same_as_fresh(name, t):
+            d.seek(t)
+            pos, st = at(t)
+            got = json.dumps(d.tap.state(0), sort_keys=True)
+            check(name, d.position == pos and got == st and d.now == min(max(t, d.t0), d.t_end),
+                  f"pos {d.position} vs {pos}, state same {got == st}, now {d.now} t {t}")
+
+        n = len(d.items)
+        mid = d.items[n // 2][0]
+        d.seek(mid)
+        check("forward seek: every item at or before t applied, none after",
+              d.items[d.position - 1][0] <= mid < d.items[d.position][0] and d.now == mid,
+              f"pos {d.position} now {d.now} mid {mid}")
+        d.seek(d.t_end)
+        check("checkpoints taken on the way", len(d.checkpoints) >= 5, str(sorted(d.checkpoints)))
+        same_as_fresh("backward from the end to the middle == a fresh replay to there (from a checkpoint)", mid)
+        same_as_fresh("backward before the first checkpoint == fresh (from the start)", d.items[50][0])
+        same_as_fresh("forward past several checkpoints == fresh (jumps to the newest)", d.items[n * 9 // 10][0] + 0.001)
+        same_as_fresh("a time between two items == fresh", (d.items[n // 3][0] + d.items[n // 3 + 1][0]) / 2)
+        same_as_fresh("before the start clamps to t0", d.t0 - 100)
+        d.seek(d.t_end + 100)
+        check("past the end clamps: everything applied", d.position == len(d.items) and d.now == d.t_end)
+        for bad in (float("nan"), float("inf"), None, "x"):
+            try:
+                d.seek(bad)
+                check(f"seek({bad!r}) raises", False)
+            except (TypeError, ValueError):
+                pass
+
+        srv = serve(d, SERVER_PORT)
+        base = f"http://127.0.0.1:{SERVER_PORT}"
+        try:
+            d.run()
+            check("state at the end before seeking back", wait_state(base, lambda s: s["viz"]["playback"]["position"] == len(d.items)))
+            before = get(base + "/api/state")["next"]
+            code, resp = post(base + "/api/playback", {"action": "seek", "t": mid})
+            check("POST seek returns at once with the target", code == 200 and resp["playback"]["seeking"] in (mid, None),
+                  f"{code} {resp}")
+            check("backward seek over HTTP: `next` falls, the playback lands on t",
+                  wait_state(base, lambda s: s["next"] < before and s["viz"]["playback"]["seeking"] is None
+                             and s["viz"]["playback"]["t"] == round(mid, 3)), str(before))
+            code, resp = post(base + "/api/playback", {"action": "seek"})
+            check("POST seek without t: 400", code == 400, f"{code} {resp}")
+            near = d.items[150][0]
+            d.seek_async(d.t_end)
+            d.seek_async(near)
+            check("a newer seek supersedes a running one",
+                  wait_state(base, lambda s: s["viz"]["playback"]["seeking"] is None
+                             and s["viz"]["playback"]["t"] == round(near, 3), timeout=10), str(d.viz()["playback"]))
+        finally:
+            d.stop()
+            srv.shutdown()
+            srv.server_close()
+    finally:
+        viz_feed.CHECKPOINT_ITEMS = ckpt
+
 
 
 def test_sse(logdir):
@@ -1680,6 +1756,7 @@ def main():
     try:
         test_replay_parity(logdir)
         test_order_fallback()
+        test_seek(logdir)
         test_sse(logdir)
         test_burst()
         test_intent_fields()

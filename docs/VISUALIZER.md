@@ -149,7 +149,7 @@ channels.
 | `GET /api/walkmem` | walk memory (facet 0) projected from the harness memory store (docs/MEMORY.md), in the `nav.WalkMemory` JSON format (tiles, edges, blocked), cached 2 s; `?since=<unix s>` keeps only moves last seen then or later (the viz sends local midnight) |
 | `GET /api/health` | viz_server mode (live/replay + session tag + order quality), poll lag, connection status, proxy diagnostics; `?char=` as `/api/state` |
 | `GET /api/sessions` | live: the proxy's logged-in characters, `{"ok": true, "sessions": [{tag, serial: "0x%08X"\|null, name}]}` (`{"op":"sessions"}` on the state port); replay: `[]`; 502 when the state port is unreachable (§2.14) |
-| `POST /api/playback` | replay only: `{play,pause,rate,step}` |
+| `POST /api/playback` | replay only: `{play,pause,rate,step}`, and `{"action": "seek", "t": T}` (session time, epoch s; clamped to the capture; returns at once, `viz.playback.seeking` = T until it lands; a newer seek supersedes a running one) |
 | `GET /api/gate` | live only: the proxy's agent gate (`{"op":"gate"}` on the state port), verbatim |
 | `POST /api/gate` | live only: `{"action": "pause"\|"resume"\|"kill"}`, forwarded as `{"op":"gate","action":...}` (§2.2) |
 | `GET /api/jobs?job=lumber[&since=T][&until=T][&tz=M]` | job analytics over [since, until) from the memory store (`harness/jobs.py`, §2.4), cached 2 s |
@@ -1530,6 +1530,26 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
 - **M5: replay scrubber.** Play, pause, rate and single-step.
   *Acceptance:* single-stepping a `step` event moves the true marker one tile; 8× plays 163420
   to completion with identical final state.
+  - **Seek (2026-11-02, user request).** The header's replay controls have a slider over the
+    capture (seeks on release; arrow keys 1 s) and the session clock as an editable field: a local
+    time of day (`14:05`, `14:05:30`; across midnight the next day's) or `+elapsed` (`+12:30`,
+    `+1:02:00`), Enter seeks (`format.parseSeekTime`). The slider's tooltip has elapsed/total and
+    the timeline item. `viz.playback` carries `t`, `t0`, `t_end` and `seeking`.
+  - `ReplayDriver.seek(t)` applies every item at or before t. The tap's state only moves forward,
+    so going back restarts from a copy of the tap (`copy.deepcopy`, map geometry shared) kept every
+    `CHECKPOINT_ITEMS` = 100 000 items on the way (`checkpoints=True`: the viz server only;
+    `memory.py ingest` and the tests' one-pass replays keep none), or from the start before the
+    first; a checkpoint ahead of the position is also a shortcut forward. The state equals a fresh
+    replay's at t (test_viz `test_seek`). Going back clears the feed ring and the event seqs restart
+    below `next`; the browser treats the fall as a proxy restart (store reset, `/api/state` reload).
+  - It runs on a worker in `SEEK_CHUNK` = 10 000-item slices, releasing the sim lock between them,
+    so the map runs through the replay until it lands; the play loop waits while it seeks and
+    playing or paused stays as it was.
+  - Measured on 20261101_124620 (4.5 h, 1.9 M items, ~43 k items/s): the first seek to the end
+    takes ~46 s (nothing replayed yet); afterwards any seek lands in 0.4-1.5 s. A tap copy near
+    the end is ~7 MB and takes 0.08 s, so ~140 MB of checkpoints for that session. A seek far
+    ahead of anything replayed so far still costs the replay up to there (20261024_102346, 12.5 h,
+    2.1 M items: 0 -> 50 % in 22 s).
 - **M6 (later, Phase 4 tie-in): agent intent channel.** The agent publishes its current
   goal/plan/route through a small proxy-side "intent" slot included in the state response, and
   the MapGrid draws the route. Scoped with the Phase 4 runtime, not here.
@@ -1614,7 +1634,8 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
   2026-09-29 23:00 rejects the `intent` op (`unknown op`; runners log it and carry on), so the
   Avatar panel stays empty until the proxy is restarted.
 - Replay: `python harness/viz_server.py --replay <TAG> [--rate 8] [--paused]` (TAG =
-  `logs/session_<TAG>.*`).
+  `logs/session_<TAG>.*`); use another `--port` while a live viz holds 8080. Seek with the
+  header's slider or time field (M5 "Seek").
 - **Phone / home network (2026-10-03, user request).** Start with `--host 0.0.0.0`
   (`python harness/viz_server.py --live --host 0.0.0.0`), then open `http://protostar:8080/`
   (this machine's hostname; a phone may need `protostar.local`, depending on the router's DNS,

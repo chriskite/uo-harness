@@ -188,6 +188,12 @@ export interface Playback {
   rate: number;
   position: number;
   total: number;
+  /** Session clock (epoch s) and the capture's first and last times. */
+  t: number;
+  t0: number;
+  t_end: number;
+  /** The session time a seek is moving to, else null. */
+  seeking: number | null;
 }
 
 export interface VizInfo {
@@ -312,4 +318,5 @@ export type PlaybackAction =
   | { action: "play" }
   | { action: "pause" }
   | { action: "step" }
-  | { action: "rate"; rate: number };
+  | { action: "rate"; rate: number }
+  | { action: "seek"; t: number };

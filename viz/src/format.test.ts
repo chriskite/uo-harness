@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fmtDuration, fmtHM } from "./format.ts";
+import { fmtClock, fmtDuration, fmtHM, parseSeekTime } from "./format.ts";
 
 describe("fmtDuration", () => {
   test("M:SS under an hour, H:MM:SS from an hour", () => {
@@ -23,5 +23,37 @@ describe("fmtHM", () => {
     expect(fmtHM(59)).toBe("0:00");
     expect(fmtHM(36000 + 540)).toBe("10:09");
     expect(fmtHM(-1)).toBe("0:00");
+  });
+});
+
+describe("parseSeekTime", () => {
+  // a session from 23:50:00.400 to 00:20:00 the next day, local time
+  const at = (day: number, h: number, m: number, s = 0) => new Date(2026, 9, day, h, m, s).getTime() / 1000;
+  const t0 = at(29, 23, 50) + 0.4;
+  const t1 = at(30, 0, 20);
+
+  test("time of day: across midnight it is the next day's", () => {
+    expect(parseSeekTime("23:55", t0, t1)).toBe(at(29, 23, 55));
+    expect(parseSeekTime("0:05:30", t0, t1)).toBe(at(30, 0, 5, 30));
+    expect(parseSeekTime(" 00:20:00 ", t0, t1)).toBe(t1);
+  });
+
+  test("the start as shown (whole seconds) lands on t0, not outside the session", () => {
+    expect(parseSeekTime(fmtClock(t0), t0, t1)).toBe(t0);
+  });
+
+  test("outside the session, or not a time: null", () => {
+    expect(parseSeekTime("12:00", t0, t1)).toBeNull();
+    expect(parseSeekTime("00:20:01", t0, t1)).toBeNull();
+    expect(parseSeekTime("24:00", t0, t1)).toBeNull();
+    expect(parseSeekTime("23:60", t0, t1)).toBeNull();
+    expect(parseSeekTime("2355", t0, t1)).toBeNull();
+    expect(parseSeekTime("", t0, t1)).toBeNull();
+  });
+
+  test("+elapsed: M:SS or H:MM:SS since t0, up to t1", () => {
+    expect(parseSeekTime("+12:34", t0, t1)).toBe(t0 + 754);
+    expect(parseSeekTime("+0:29:59", t0, t1)).toBe(t0 + 1799);
+    expect(parseSeekTime("+30:00", t0, t1)).toBeNull();
   });
 });

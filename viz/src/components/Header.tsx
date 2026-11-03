@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { postPlayback } from "../api.ts";
+import { fmtClock, fmtDuration, parseSeekTime } from "../format.ts";
 import type { VizSnapshot } from "../store.ts";
-import type { PlaybackAction } from "../types.ts";
+import type { Playback, PlaybackAction } from "../types.ts";
 import { Badge } from "./common.tsx";
 import { CaptchaToggle } from "./CaptchaToggle.tsx";
 import { CharacterPicker } from "./CharacterPicker.tsx";
@@ -79,10 +80,7 @@ export function Header({ viz, page, onPage }: { viz: VizSnapshot; page: Page; on
               ))}
             </select>
           </label>
-          <progress max={Math.max(pb.total, 1)} value={pb.position} />
-          <span className="mono">
-            {pb.position}/{pb.total}
-          </span>
+          <Seek pb={pb} send={send} onBad={setError} />
         </span>
       )}
       {info && <GateControls gate={viz.state?.gate} live={info.mode === "live"} />}
@@ -95,5 +93,69 @@ export function Header({ viz, page, onPage }: { viz: VizSnapshot; page: Page; on
         </span>
       )}
     </header>
+  );
+}
+
+/** Replay seeking: a slider over the capture (seeks on release) and the session clock as an editable
+ * time (a time of day or +elapsed, Enter seeks; format.parseSeekTime). */
+function Seek({ pb, send, onBad }: { pb: Playback; send: (a: PlaybackAction) => void; onBad: (e: string | null) => void }) {
+  // the slider's value while dragged (a ref too: the release handler runs before the last change renders)
+  const [drag, setDrag] = useState<number | null>(null);
+  const dragRef = useRef<number | null>(null);
+  const [text, setText] = useState<string | null>(null); // the time field while edited
+  const shown = drag ?? pb.seeking ?? pb.t;
+
+  const commitDrag = () => {
+    const t = dragRef.current;
+    if (t === null) return;
+    dragRef.current = null;
+    setDrag(null);
+    send({ action: "seek", t });
+  };
+  const commitText = (el: HTMLInputElement) => {
+    const t = parseSeekTime(el.value, pb.t0, pb.t_end);
+    if (t === null) {
+      onBad(`"${el.value}" is not a time in this session (${fmtClock(pb.t0)}–${fmtClock(pb.t_end)}, or +elapsed)`);
+      return;
+    }
+    send({ action: "seek", t });
+    setText(null);
+    el.blur();
+  };
+
+  return (
+    <>
+      <input
+        type="range"
+        className="seek"
+        min={pb.t0}
+        max={pb.t_end}
+        step={1}
+        value={shown}
+        title={`${fmtDuration(shown - pb.t0)} of ${fmtDuration(pb.t_end - pb.t0)} (item ${pb.position}/${pb.total}). Seek: drag or click, then release; arrow keys 1 s`}
+        onChange={(e) => {
+          dragRef.current = Number(e.target.value);
+          setDrag(dragRef.current);
+        }}
+        onPointerUp={commitDrag}
+        onKeyUp={commitDrag}
+        onBlur={commitDrag}
+      />
+      <input
+        className={pb.seeking !== null ? "mono seek-time seeking" : "mono seek-time"}
+        value={text ?? fmtClock(shown)}
+        title={`${pb.seeking !== null ? "seeking… " : ""}session time: type a time of day (14:05 or 14:05:30) or +elapsed (+12:30), Enter seeks, Esc cancels`}
+        onFocus={(e) => {
+          setText(fmtClock(shown));
+          e.target.select();
+        }}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commitText(e.currentTarget);
+          else if (e.key === "Escape") e.currentTarget.blur();
+        }}
+        onBlur={() => setText(null)}
+      />
+    </>
   );
 }
