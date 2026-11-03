@@ -5608,6 +5608,14 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     through the zone (32 steps) or round it (321) in ~0.5 s. `Mover.plan` now searches up to
     `DANGER_MAX_EXPAND` (120000) when danger zones are set (`pathfind.MAX_EXPAND` 30000 otherwise). test_mover
     `test_danger_search_room`.
+  - **PK death on a field (live 2026-11-02 20:59:29–21:00:10, mining-20261102-202834-8665, forge_2551_665):** a
+    mounted red, Lord Evil Bert (0x005356B7), was first seen 0.01 s before the recall decision at stand (2521, 771),
+    so there was no warning. Tracking ("Hunting murderer players") gave no earlier hit. His first hit disturbed the standing cast 1.22 s in.
+    The runner then fled by option E (docs/PLAN.md "Red sighting") toward the guards at (2188, 628), 475 steps, casting
+    only once the gap reached `PLAYER_RECALL_GAP` (18). Mounted, he kept pace, so the gap never opened and no second cast
+    went out. Heals went 68 → 91 → 51 → 45 → 31 → dead in 40 s, as PLAN.md's "his melee outpaces any heal" predicts. Every
+    active mining spot is `pvp: true` (34 of 34), so a spot filter can't avoid this. Mining deaths in the store: 2
+    (2026-10-20 mob, this one). He carried the leg's ingots (three field smelts, 850 ore → 1700 ingots) and its ore.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
