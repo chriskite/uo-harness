@@ -240,6 +240,10 @@ LOGS = tuple(range(0x1BDD, 0x1BE3))
 BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
 ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's reach (flee radius or spell range)
+# Hits lost within this long of a walk's step down a ledge (Mover.fell: more than pathfind.FALL_DROP_Z), with no swing,
+# spell or damage packet, are the fall's (user 2026-11-02: "That is indeed fall damage"; live at forge_1173_2397 twice:
+# -5 as a bare 0xA1, and "taking damage, no creature in view" recalled home both times): not a threat, the walk goes on
+FALL_HIT_WINDOW_S = 2.0
 ESCAPES_PER_TRIP = 8          # monster escapes per trip (runs from damage included); one more threat stops the run
 ESCAPES_PER_MONSTER = 3       # escapes from one creature per trip: one that comes back a 4th time guards the grove
 # A walk-away runs in legs until each creature has given up (user 2026-10-07: "if you run far enough from a
@@ -1294,6 +1298,8 @@ class LumberLoop:
         is in `swung`, an unnamed one is found like a ranged hit. With no candidate in view,
         a creature that just left it is one (threats.unseen_attackers, at its last tile; user
         2026-10-08: move out of its range, heal and carry on, not recall)."""
+        if self.fall_hit(st, a, swung):
+            return
         spells, self.spelled = len(self.spelled), []
         attackers, ranged, unseen = self.blame(st, a, swung)
         me = st["world"]["self"]
@@ -1335,6 +1341,25 @@ class LumberLoop:
         self.creature["runs"] += 1
         desc = f"{'spell' if spells and not lost else 'hit'} by {what}: -{lost}, {hits}/{hmax}"
         raise Escape(attackers, self.post_threat(st, a, worst, swung, "escape", desc, extra={"hit": hit}), hit=hit)
+
+    def fall_hit(self, st, a, swung) -> bool:
+        """Hits lost to a fall (FALL_HIT_WINDOW_S of the Mover's last fall, no swing, spell or damage packet): logged,
+        a `fall` job event, dealt with (Watch.acknowledge); True. Else False (creature_hit goes on)."""
+        fell = self.mover.fell
+        lost = a.damage["lost"]
+        if (fell is None or time.monotonic() - fell[0] > FALL_HIT_WINDOW_S or lost <= 0 or swung or self.spelled
+                or a.damage["damage_events"]):
+            return False
+        self.mover.fell = None
+        me = st["world"]["self"]
+        log(f"fall damage: -{lost} ({me.get('hits')}/{me.get('hits_max')}) dropping {fell[2]} z onto {fell[1]}; "
+            f"walking on")
+        data = {"tile": list(fell[1]), "drop_z": fell[2], "lost": lost, "hits": me.get("hits"), "trip": self.trip_n,
+                "spot": self.k["spot"]["id"]}
+        self.later(lambda data=data, where=self._where(st): self.memory.job_event(self.JOB, "fall", data, **where))
+        self.watch.acknowledge()
+        self.start_hits = me.get("hits")
+        return True
 
     def blame(self, st, a, swung) -> tuple[list, bool, bool]:
         """(attackers, ranged, unseen) for damage just taken: threats.hit_attackers; else a creature

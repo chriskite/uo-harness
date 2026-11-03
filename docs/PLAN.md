@@ -2161,6 +2161,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   24 steps: not fled from". On the real map the skeleton at z 49-50 has no way down within 24 steps (its route to
   Dan's tiles is 124-127 steps); at the one z 47 reading the map has a 6-step way, so that reading still counts as a
   threat. Ranged creatures shoot across levels and are never cut off. test_mining.py `test_cut_off_level`.
+- *Falls are avoided, and a fall's damage isn't a threat* (2026-11-02, user: "That is indeed fall damage"; twice at
+  forge_1173_2397 a 23 z step down cost 5 hits and "taking damage, no creature in view" recalled the leg home). The
+  planners add `agent_link.FALL_COST` (20 steps) to a step down more than `pathfind.FALL_DROP_Z` (20 z; the line lies
+  between 18 and 23, docs/NOTES.md "Outlands has fall damage"), so a route takes a way down when one exists (that walk:
+  119 steps instead of 104 with the fall). A fall left on a route is marked before its step (`Mover.fell`); hits lost
+  within `FALL_HIT_WINDOW_S` (2 s) of it with no swing, spell or damage packet are the fall's (`LumberLoop.fall_hit`:
+  logged, a `fall` job event, the walk goes on). Rejected: forbidding falls (a ledge may be the only way, or the way out
+  of a fight). test_mover `test_fall`, test_mining `test_fall_hit`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

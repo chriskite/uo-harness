@@ -497,10 +497,41 @@ def test_cut_off_level():
     check("within LEVEL_APART_Z: a threat", same_level is False, same_level)
 
 
+def test_fall_hit():
+    print("hits lost right after a step off a ledge: fall damage, walk on (not 'taking damage, no creature in view')")
+    import time
+    import loop_lumber
+    saved = loop_lumber.log
+    loop_lumber.log = lambda s: None
+    try:
+        def verdict(lost=5, ago=0.3, swung=(), damage_events=0, spelled=()):
+            loop = object.__new__(MineLoop)
+            later = []
+            loop.mover = SimpleNamespace(fell=(time.monotonic() - ago, (1216, 2392), 23))
+            loop.spelled, loop.trip_n, loop.k, loop.JOB = list(spelled), 1, {"spot": {"id": "forge_1173_2397"}}, "mining"
+            loop.later = later.append
+            loop.watch = SimpleNamespace(acknowledge=lambda: None)
+            st = {"world": {"self": {"hits": 95, "hits_max": 100, "map": 0}}, "movement": {"pos": [1216, 2392, 23, 2]}}
+            a = SimpleNamespace(damage={"lost": lost, "damage_events": damage_events})
+            return loop.fall_hit(st, a, set(swung)), later
+        # live 2026-11-02 21:51:16 (forge_1173_2397): -5 as a bare 0xA1 0.007 s after the step onto (1216, 2392)
+        fall, later = verdict()
+        stale, _ = verdict(ago=5.0)
+        swing, _ = verdict(swung={0xC01})
+        packet, _ = verdict(damage_events=1)
+        spell, _ = verdict(spelled=[0xC02])
+    finally:
+        loop_lumber.log = saved
+    check("a hit 0.3 s after the fall: the fall's, dealt with, a `fall` event", fall is True and len(later) == 1, fall)
+    check("not when the fall was long ago", stale is False, stale)
+    check("not with a swing at us, a damage packet or a spell", (swing, packet, spell) == (False, False, False),
+          (swing, packet, spell))
+
+
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
-              test_cut_off_level):
+              test_cut_off_level, test_fall_hit):
         t()
     print()
     if FAILURES:

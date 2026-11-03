@@ -529,6 +529,41 @@ class LayeredWalk:
         return (nx, ny, min(zs, key=lambda nz: abs(nz - z))) if zs else None
 
 
+class FallWalk(LayeredWalk):
+    """LayeredWalk where a step may also go down any height (off a ledge: a fall), as the client allows."""
+
+    def can_walk(self, x, y, z, d):
+        nx, ny = nav.step((x, y), d)
+        zs = [nz for nz in self.levels.get((nx, ny), ()) if nz - z <= 13]
+        return (nx, ny, min(zs, key=lambda nz: abs(nz - z))) if zs else None
+
+
+def test_fall():
+    print("== a ledge: the way down round it, not the 40 z drop (fall damage); with none, the fall is marked ==")
+    # live 2026-11-02 forge_1173_2397: (1215, 2392) z 46 -> (1216, 2392) z 23 cost 5 hits, twice; "taking damage, no
+    # creature in view" sent the leg home. Ledge z 40 along y=0 x 0..4, ground z 0 from x 5 (y 0..2); a ramp down
+    # (3,1) z 30, (3,2) z 20, (4,3) z 10 to (5,2)
+    ledge = {(x, 0): {40} for x in range(5)}
+    ground = {(x, y): {0} for x in range(5, 13) for y in range(3)}
+    ramp = {(3, 1): {30}, (3, 2): {20}, (4, 3): {10}}
+    routes = {}
+    for name, levels in (("ramp", {**ledge, **ground, **ramp}), ("no ramp", {**ledge, **ground})):
+        walls = {(x, y) for x in range(-1, 14) for y in range(-1, 5)} - set(levels)
+        fw = FallWalk(levels)
+        link = FakeLink((0, 0), facing=2, walls=walls, z=40, z_walk=fw)
+        mv = Mover(link, nav.WalkMemory(), Human("off"), use_map=True)
+        mv.walkers.put(0, fw)
+        path, _ = mv.plan(link.state(), nav.within((10, 0), 0))
+        mv.walk_to(lambda: (10, 0), 0, "t")
+        routes[name] = (path, mv.fell, tuple(link.here))
+    path, fell, here = routes["ramp"]
+    check("a way down exists: the route takes it (no step from (4, 0) to (5, 0))",
+          (4, 0) not in path and (4, 3) in path and fell is None and here == (10, 0), f"{path} fell {fell}")
+    path, fell, here = routes["no ramp"]
+    check("no way down: the walk falls, and the Mover marks it (tile, z dropped) for the runner's damage check",
+          here == (10, 0) and fell is not None and fell[1:] == ((5, 0), 40), f"{path} fell {fell}")
+
+
 def test_height_goal():
     print("== tree above a cave: chop from the tree's level, not from the cave below it ==")
     # cave z -20 along y=0 (x 0..6), stairs at (0,1) z -8, surface z 5 along y=2 (x 0..7).
@@ -846,6 +881,7 @@ def main():
     test_no_pause_in_danger()
     test_boxed_in()
     test_circles()
+    test_fall()
     test_danger_rims()
     test_danger_search_room()
     test_danger_sticky()

@@ -25,6 +25,10 @@ import uomap
 
 TICK_EVERY = 1500        # plan(): expansions between tick() calls (~0.2 s of search) [INFERENCE: timing]
 MAX_EXPAND = 30000       # plan(): tiles expanded before giving up (no route)
+# A step down more than this many z is a fall: Outlands takes hits for it (user 2026-11-02: "That is indeed fall
+# damage"; live 19:55:19 and 21:51:16 at forge_1173_2397, (1215, 2392) z 46 -> (1216, 2392) z 23 by the map: -5 of 100,
+# a bare 0xA1, no 0x0B; the same walk's 40 -> 22 drop at (1209, 2387) cost nothing, so the line is between 18 and 23)
+FALL_DROP_Z = 20
 
 POF_IMPASSABLE_OR_SURFACE = 1
 POF_SURFACE = 2
@@ -391,7 +395,7 @@ class Walk:
 
 def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=None,
          max_expand: int = MAX_EXPAND, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY,
-         turn_cost: float = 0.0, facing: int | None = None):
+         turn_cost: float = 0.0, facing: int | None = None, fall_cost: float = 0.0):
     """A* over (x, y, z): the cheapest route from start (x, y, z) to the first
     tile satisfying goal_fn((x, y)) (and goal_fn.z_ok(z) when the goal has one:
     a tile below or above the target, e.g. a cave under a tree, isn't the
@@ -409,7 +413,8 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
     Offline on the real map (2026-11-02) that left 6 / 3 / 16 / 12 corners where the
     exact search found 5 / 3 / 13 / 8 (and no turn cost 44 / 23 / 46 / 49), at the plain
     search's expansions; the exact one took 7x more in a cave field (86831 vs 11820,
-    past MAX_EXPAND: a false "no route")."""
+    past MAX_EXPAND: a false "no route"). `fall_cost`: steps a step down more than FALL_DROP_Z
+    costs on top (Outlands' fall damage), so a route takes a way down when there is one."""
     start = (int(start[0]), int(start[1]), int(start[2]))
     turns = turn_cost > 0
     h = getattr(goal_fn, "heuristic", None) or (lambda t: 0)
@@ -454,6 +459,8 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
             step = cost_scale((x, y), nxt[:2]) if cost_scale else 1.0
             if came is not None and d != came:
                 step += turn_cost
+            if fall_cost and z - nxt[2] > FALL_DROP_Z:
+                step += fall_cost
             ng = g_best[cur] + step
             if ng < g_best.get(nxt, float("inf")):
                 g_best[nxt] = ng

@@ -86,6 +86,9 @@ DANGER_COST_X = 30.0
 # equally short ones: 50 direction changes in 272 moves, while Bert rode straight and closed the gap (user: "we let
 # Bert close the gap by taking slower zig zags while he ran in a straight line")
 TURN_COST = 1.0
+# A step down more than pathfind.FALL_DROP_Z costs a walk this many steps on top: a fall takes hits (5 of 100 at a 23 z
+# drop, live 2026-11-02 forge_1173_2397) and the runner's "taking damage, no creature in view" sent the leg home
+FALL_COST = 20.0
 # A map search with danger zones in its costs may expand this many tiles (pathfind.MAX_EXPAND without).
 # A* under DANGER_COST_X expands far more before it settles: live 2026-11-01 (mining-20261101-204544-16a2) a wolf's
 # zone by forge_2564_535 made the forge walk from (2594, 535) end "no route" and the run abort, where the map has
@@ -607,6 +610,8 @@ class Mover:
         self.blocked_count = 0
         self.doors_opened = 0
         self.sent_at = 0.0           # monotonic time the last walk went out (step cadence)
+        self.plan_z = {}             # the last map plan's z per (x, y) (plan; walk memory plans: none)
+        self.fell = None             # (monotonic time, (x, y), z dropped) of the last fall on a walk's route
         self.refused_steps = 0       # steps not sent: the map with current objects refused them
         self.teleports = 0
         self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (seeds + store + session)
@@ -1091,7 +1096,7 @@ class Mover:
             path = pathfind.plan(walk, start, goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
                                  tick=lambda: self.guard(self.link.state()), max_expand=expand,
-                                 turn_cost=TURN_COST, facing=facing)
+                                 turn_cost=TURN_COST, facing=facing, fall_cost=FALL_COST)
             if path is None and self.denied_t:
                 # live 2026-10-17 11:12:45: one step south refused at a one-tile passage (a player stepped onto it),
                 # kept as a wall, and no route anywhere for minutes; the map says those steps go: try them again
@@ -1102,13 +1107,15 @@ class Mover:
                 path = pathfind.plan(walk, start, goal,
                                      blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
                                      tick=lambda: self.guard(self.link.state()), max_expand=expand,
-                                     turn_cost=TURN_COST, facing=facing)
+                                     turn_cost=TURN_COST, facing=facing, fall_cost=FALL_COST)
             if path is None:
                 return None, walk
+            self.plan_z = {(x, y): z for x, y, z in path}
             return [(x, y) for x, y, _ in path], walk
         path = nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost, turn_cost=TURN_COST, facing=facing)
         if path is None:
             return None, None
+        self.plan_z = {}
         return path, None
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int | None = None, z_ok=None, gate=None,
@@ -1205,6 +1212,7 @@ class Mover:
                 log(f"{label}: arrived at {cur}")
                 return
             path, walk = self.plan(st, goal, max_steps=max_route)
+            route_z = self.plan_z         # the route's map z per tile (a fall: fell), before a stop() plans again
             if path is None:
                 if self.plan(st, goal, mobiles=False, max_steps=max_route)[0] is None:
                     if self._clear_fields(st, goal, max_route, cur, label, dispelled):
@@ -1292,6 +1300,12 @@ class Mover:
                     run = stamina_ok(st)
                 self.pace(run, st)
                 tele_known = nxt in self.teleporter_tiles(st["world"]["self"].get("map"))
+                zp, zn = route_z.get(tuple(cur)), route_z.get(tuple(nxt))
+                drop = zp - zn if zp is not None and zn is not None else 0
+                if drop > pathfind.FALL_DROP_Z:
+                    # before the step: its hits arrive with the step's outcome, and the guard reads them in step()
+                    self.fell = (time.monotonic(), tuple(nxt), drop)
+                    log(f"{label}: a fall onto {tuple(nxt)} (z {zp} -> {zn}; no way down round it on this route)")
                 outcome = self.step(d, run, st)
                 if outcome == "turned":      # facing it now: the client's auto-open fires on the turn
                     self._open_ahead(nxt, z, opened, label)

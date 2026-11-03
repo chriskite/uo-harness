@@ -1075,6 +1075,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **A creature on another level (since 2026-11-02, `cut_off`, docs/PLAN.md "Mining runner…"):** a melee creature
   16+ z away with no walk on the map to beside us within 24 steps is neither fled from nor zoned; log "… is on another
   level … not fled from". A swing or a hit still counts; ranged creatures are never cut off.
+- **Falls (since 2026-11-02, Outlands' fall damage; docs/PLAN.md "Mining runner…"):** a step down more than 20 z costs
+  a route 20 steps more, so it takes a way down when there is one; a fall it can't avoid is marked (`Mover.fell`) and
+  the hits it costs within 2 s ("fall damage: -N … walking on", a `fall` job event) are no threat.
 - **Keep away from creatures in view, run far, run before recalling (since 2026-10-05, user: "never
   move into aggro range of mobs we can see while lumbering"; "a few steps isn't going to break aggro";
   fighting them is for later):**
