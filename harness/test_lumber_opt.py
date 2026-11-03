@@ -24,7 +24,7 @@ HOME = {"landing": [3575, 3251, 6], "facet": 0, "rune": "Logan's House", "librar
         "library_rune": {"name": "DTF Loot Chest", "landing": [4134, 1429, 6]},
         "chest": {"serial": "0x4AE0DD2C", "name": "paragon chest (drake)", "pos": [3575, 3250, 23]},
         "stockpile": {"serial": "0x62645C82", "pos": [3574, 3249, 6]},
-        "forge": {"serial": "0x56372DCC", "name": "forge", "pos": [3574, 3254, 6]}}
+        "forge": {"serial": "0x53277729", "name": "forge", "pos": [3574, 3250, 6]}}
 
 
 def check(name, cond, detail=""):

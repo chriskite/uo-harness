@@ -1828,15 +1828,18 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - Reaction delays are lognormal per action kind, not uniform. Measured medians and p90s: aim
     0.95 s (p90 1.55), menu 1.3 s (p90 2.15), between attempts 2.2 s (p90 3.6).
   - A 12 %/h fatigue drift lengthens delays over a session.
-  - Steps at the stock client's held-key cadence: 200 ms (run) / 400 ms (walk) after the
-    previous send plus 3–15 ms jitter (`Human.step_gap`), never under the proxy's floor. Until
-    2026-09-30 steps were lognormal around 0.30 s after each confirm (~0.40 s on the wire, none at
-    200–220 ms), which a held key never produces (ANTICHEAT.md §10 A8).
+  - Steps at exactly the stock client's held-key cadence: 200 ms (run) / 400 ms (walk) after the
+    previous send, half mounted (`Human.step_gap`), the proxy's floor. The 3–15 ms jitter was removed
+    on 2026-11-02 (user: the client takes exactly 100 ms a mounted step). Until 2026-09-30 steps were
+    lognormal around 0.30 s after each confirm (~0.40 s on the wire, none at 200–220 ms), which a held
+    key never produces (ANTICHEAT.md §10 A8).
   - Routes:
-    - per-plan route noise (×1–1.45) per 6×6-tile map cell, so whole areas get cheaper or dearer
-      and routes vary between plans while staying straight; zig-zag stretches are regrouped into
-      two straight runs (`nav.straighten`). Shelter routes: ~20 % heading changes (human 21 %;
-      per-step noise gave 37 %)
+    - the shortest route with the fewest corners: a change of direction costs one step more
+      (`agent_link.TURN_COST`; the server takes a move slot to turn; Dan's PK flight on 2026-11-02 had
+      50 corners in 272 moves), judged against the direction each tile is reached by. It replaced
+      `nav.straighten` (regrouping zig-zags after planning, blind to danger zones). The per-plan route
+      noise (×1–1.45 per 6×6 cell) was removed the same day (user: "Humans actually don't sawtooth like
+      that when we don't need to")
     - routes always run, like the client's Always Run (until 2026-10-01, 7 % were walked)
     - per-step micro-pauses (2.5 %) and rare 3–9 s look-around pauses (0.4 %)
     - 1.2 % chance per step of a sidestep onto a known-walkable tile, then a replan

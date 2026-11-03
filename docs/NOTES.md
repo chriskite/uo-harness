@@ -5634,6 +5634,20 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     chase ever opened was 15 of the 18 needed to cast. The planner scores
     every move 1, with no cost for turning, and adds per-plan route noise (`path_noise` 0.45 per 6×6 cell) to urgent
     walks too. So among the many equal-length grid paths it picks a jagged one, and every replan picks another.
+    **Potions didn't stop him:** the eight "flight aid" potions (heal, refresh) went out between steps with no gap in
+    the walk. Dan's only stops over 0.25 s in the flight were the disturbed recall cast at the start (2.1 s) and two replans
+    after an object landed on the next step (0.52 s at 20:59:53.9, 0.67 s at 21:00:08.7). The runner drinks on the run
+    (`check_guards` in mode gap/escape: no wait); it holds still only before a recall or heal spell cast.
+    **Fixed 2026-11-02 (user):** turn cost in the planners (`agent_link.TURN_COST`), no route noise, no step jitter, no
+    `nav.straighten` (docs/PLAN.md A8).
+  - **The 5-hit loss at forge_1173_2397 is a drop off a ledge [INFERENCE: fall damage] (live 2026-11-02 19:55:19 and
+    21:51:16, mining-20261102-194205-f556 and -213757-b52d, juncture 2219/2248).** Both times on the walk from stand
+    (1181, 2395) to (1279, 2382), at (1216-1217, 2392). Capture session_20261102_174945, 21:51:14-16.4: Dan walked at z 45
+    from (1209, 2387) (a building's upper level; the map has stone arches and walls at z 40-62 there) onto (1216, 2392),
+    where the map's surface is z 23 (z 17 at (1217, 2392)). The only packet for the hit is 0xA1, hits 100 → 95: no 0x0B
+    damage, no sound, no swing or spell, nothing in view but Prevalian guards (innocent NPCs). Stock UO has no fall damage;
+    Outlands may [INFERENCE]. Not acted on: one spot, 5 hits, but the runner's "taking damage, no creature in view"
+    stop sends the leg home each time.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

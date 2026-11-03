@@ -8,14 +8,17 @@ Everything it adds is stock-client traffic or plain waiting.
 - Timing: reaction delays are lognormal (right-skewed, like human reaction
   times), per action kind, instead of uniform ranges. A slow drift ("fatigue")
   lengthens them over a session.
-- Routes: every plan gets its own random edge-cost noise, so walks pick among
-  near-optimal routes instead of the one optimal path. Now and then the walker
-  steps to a side tile it knows is walkable and replans from there.
-- Walking rhythm: within a straight walk, steps go out at the stock client's
-  held-key cadence (ClassicUO MovementSpeed: 200 ms run, 400 ms walk) plus
-  frame jitter, like a player holding the key; the texture sits between
-  segments: occasional short pauses and rare longer "look around" pauses.
-  Routes are always run (the client's Always Run is on).
+- Routes: the planners take the shortest route with the fewest corners
+  (agent_link.TURN_COST; user 2026-11-02: "Humans actually don't sawtooth like
+  that when we don't need to"; the per-plan route noise this module used to add
+  is gone). Now and then the walker steps to a side tile it knows is walkable
+  and replans from there.
+- Walking rhythm: within a straight walk, steps go out at exactly the stock
+  client's held-key cadence (ClassicUO MovementSpeed: 200 ms run, 400 ms walk,
+  half mounted; the client was measured at a flat 100 ms mounted), like a player
+  holding the key; the texture sits between segments: occasional short pauses and
+  rare longer "look around" pauses. Routes are always run (the client's Always
+  Run is on).
 - Hands: occasional hesitation (a tool cursor cancelled and re-used).
 - The harvest cycle runs at a Razor script's pace, not a person's (user decision
   2026-10-04: every harvester on the shard runs one): SCRIPT_MEDIAN, no fatigue,
@@ -25,8 +28,8 @@ Everything it adds is stock-client traffic or plain waiting.
 
 The proxy still enforces its minimum step spacing; this layer only ever makes
 the agent slower or less direct than the stock client, never faster.
-Profiles: "normal" for live play, "off" for deterministic tests (no pauses,
-noise or wandering; fixed short delays).
+Profiles: "normal" for live play, "off" for deterministic tests (no pauses or
+wandering; fixed short delays).
 
 Every pause (reaction waits, walking pauses) goes through
 `Human.sleep(seconds, kind)`: time.sleep unless the runner passes its own, e.g.
@@ -36,7 +39,6 @@ one that keeps reading the state and checking for threats while it waits
 import math
 import random
 import time
-import zlib
 from dataclasses import dataclass, replace
 
 # reaction-time medians (s) per action kind; lognormal sigma below
@@ -77,18 +79,15 @@ STEP_CADENCE_RUN = 0.200
 STEP_CADENCE_WALK = 0.400
 STEP_CADENCE_RUN_MOUNTED = 0.100
 STEP_CADENCE_WALK_MOUNTED = 0.200
-NOISE_CELL = 6                     # route noise granularity in tiles (cost_scale)
 
 
 @dataclass(frozen=True)
 class Profile:
     reaction_sigma: float = 0.38
-    step_jitter: tuple = (0.003, 0.015)  # added to the stock step cadence (human bins: 200-220 ms)
     micro_pause_p: float = 0.025         # per step
     micro_pause_median: float = 1.1
     look_around_p: float = 0.004         # per step
     look_around_range: tuple = (3.0, 9.0)
-    path_noise: float = 0.45             # cost x uniform(1, 1 + noise) per map cell, per plan
     wander_p: float = 0.012              # per step: sidestep to a known tile, then replan
     hesitate_p: float = 0.025            # per tool use (not in the harvest cycle): cancel the cursor and use again
     fatigue_per_hour: float = 0.12       # delays grow 12 %/h of activity
@@ -98,7 +97,7 @@ class Profile:
 PROFILES = {
     "normal": Profile(),
     "off": Profile(reaction_sigma=0.0, micro_pause_p=0.0,
-                   look_around_p=0.0, path_noise=0.0, wander_p=0.0, hesitate_p=0.0,
+                   look_around_p=0.0, wander_p=0.0, hesitate_p=0.0,
                    fatigue_per_hour=0.0, enabled=False),
 }
 
@@ -115,7 +114,6 @@ class Human:
         self.t0 = time.monotonic()
         self.log = log or (lambda msg: None)
         self.sleep = sleep or (lambda seconds, kind: time.sleep(seconds))
-        self.plan_salt = 0
         self.stats = {"pauses": 0, "pause_s": 0.0, "wanders": 0, "hesitations": 0}
 
     def _fatigue(self) -> float:
@@ -143,38 +141,19 @@ class Human:
     def step_gap(self, run: bool, mounted: bool = False) -> float:
         """Seconds from one step's send to the next along a straight walk: the stock
         client's held-key cadence (MovementSpeed.STEP_DELAY_RUN / _WALK; half of it
-        mounted) plus frame jitter. Human captures (20260929_204225): run steps median
-        200 ms, 565 of 1102 intervals in 200-220 ms; mounted (20261002_153718) median
-        100 ms. Never below the proxy floor (0.2 / 0.4 s, mounted 0.1 / 0.2 s)."""
+        mounted), flat. Measured: the client mounted (20261002_153718) median 100 ms, p10
+        97, p90 104; Bert, a mounted PK, 0.100 s median (session_20261102_174945). The
+        3-15 ms jitter this added until 2026-11-02 made Dan 10 % slower than Bert in the
+        flight that killed him (user: "the real client was measured to take exactly 100ms
+        per step"). The proxy floor is the same (0.2 / 0.4 s, mounted 0.1 / 0.2 s); a send
+        is timed from its OK, after the proxy stamped it, so it never lands under it."""
         if mounted:
-            base = STEP_CADENCE_RUN_MOUNTED if run else STEP_CADENCE_WALK_MOUNTED
-        else:
-            base = STEP_CADENCE_RUN if run else STEP_CADENCE_WALK
-        if not self.p.enabled:
-            return base + 0.01
-        return base + self.rng.uniform(*self.p.step_jitter)
+            return STEP_CADENCE_RUN_MOUNTED if run else STEP_CADENCE_WALK_MOUNTED
+        return STEP_CADENCE_RUN if run else STEP_CADENCE_WALK
 
     def pace_step(self, run: bool, sent_at: float, mounted: bool = False):
         """Sleep until the next step is due, `sent_at` being when the last one went out."""
         time.sleep(max(0.0, sent_at + self.step_gap(run, mounted) - time.monotonic()))
-
-    def cost_scale(self):
-        """Per-plan route noise: a deterministic cost multiplier in [1, 1+noise]
-        per NOISE_CELL x NOISE_CELL block of the map (by the step's destination
-        tile), different for every plan. Whole areas get cheaper or dearer, so
-        routes vary at the scale of streets and clearings while staying straight
-        inside a block. Per-step noise made every route zig-zag (37 % heading
-        changes vs a human's 21 %, 20260930_123206); with 6-tile cells plus
-        nav.straighten, Shelter routes come out at ~21 %."""
-        self.plan_salt += 1
-        if self.p.path_noise <= 0:
-            return None
-        salt, noise, seed = self.plan_salt, self.p.path_noise, self.rng.random()
-
-        def scale(a, b):
-            key = f"{seed}:{salt}:{b[0] // NOISE_CELL},{b[1] // NOISE_CELL}".encode()
-            return 1.0 + noise * (zlib.crc32(key) / 0xFFFFFFFF)
-        return scale
 
     def after_step(self):
         """Occasional pause while walking (returns seconds paused)."""

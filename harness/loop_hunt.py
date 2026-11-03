@@ -2342,9 +2342,12 @@ class HuntLoop:
         ranged = bool(spots) and self.ranged_fight(st)
 
         def ok(t) -> bool:
+            # from melee ones: no landing nearer to one than we stand unless it stays out of his spell range (a route
+            # round them at a distance is clear; until 2026-11-02 the rope then found no landing on it and jumped back
+            # into the dead end: test_sim test_red_out_of_view with the turn-aware planner)
             return cheb(pos, t) >= 4 and sight.point_blocked(eye, t) is None and t[:2] not in occupied \
                 and t[:2] not in self.rope_refused and t[:2] not in tele \
-                and (ranged or all(cheb(t, xy) > cheb(pos, xy) for xy in spots.values()))
+                and (ranged or all(cheb(t, xy) > min(cheb(pos, xy), RED_PASS_R) for xy in spots.values()))
         best, cur, on_route = None, pos, []
         for t in path[1:] if path else ():
             if cheb(pos, t) > ROPE_R:

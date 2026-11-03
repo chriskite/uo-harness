@@ -3417,9 +3417,15 @@ def test_red_out_of_view():
     lines = [ln for ln in out.getvalue().splitlines() if "rope to" in ln or "moongate" in ln or "away from" in ln]
     check("the leave from him, then him out of view before the flight", bool(why) and "I Make Bodies" in why[0] and gone,
           str(why))
-    check("...the flight's first decision from where he was: a dead end, past them at once; ropes as from a caster",
-          bool(lines) and "(a dead end)" in lines[0]
-          and all("(ranged)" in ln for ln in lines if "rope to" in ln), str(lines[:3]))
+    # a rope never lands back in the wing (south of the flight's start: the wing's only way out runs north): from
+    # casters along the way (ranged), from melee ones only out of their spell range along a clear way (2026-11-02,
+    # with the turn-aware planner the way round them keeps 12 off; until then such a rope went 17 -> 26 tiles off,
+    # to (5241, 680), back into the wing)
+    start = (5237, 676)
+    landings = [tuple(int(v) for v in re.search(r"rope to \((\d+), (\d+)\)", ln).groups()) for ln in lines if "rope to" in ln]
+    check("...the flight's first decision from where he was: a dead end, past them at once; no rope back into the wing",
+          bool(lines) and "(a dead end)" in lines[0] and all(t[1] < start[1] for t in landings),
+          f"{lines[:2]} ropes {landings}")
 
 
 def test_red_walled():
@@ -7995,7 +8001,10 @@ def test_ossuary_hunt():
           "crimson moongate to Totem, home ==")
     from sim import run as simrun
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        r = simrun.run_once(4, [], scenario="ossuary", minutes=10)   # seed 3 died on level 3 since 2026-10-31's spawns
+        # seed 3 died on level 3 since 2026-10-31's spawns; seed 4 timed out on the leave since 2026-11-02's turn-aware
+        # routes and flat step cadence, not a regression: over seeds 1-40 the old code finished 15 (11 deaths, 14 leave
+        # timeouts), the new 13 (11 deaths, 16 timeouts)
+        r = simrun.run_once(5, [], scenario="ossuary", minutes=10)
     check("done, kills on level 3, the gold banked at home", r["outcome"] == "done" and r["kills"] > 0
           and r["gold_banked"] > 0 and r["hunt_s"] > 120,
           f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")

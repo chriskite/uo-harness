@@ -95,64 +95,6 @@ def in_cone(d: int, dx: int, dy: int, r: int) -> bool:
     return (fx * dx + fy * dy) / (math.hypot(fx, fy) * math.hypot(dx, dy)) >= math.cos(math.pi / 4) - 1e-9
 
 
-def _turns(dirs) -> int:
-    return sum(1 for a, b in zip(dirs, dirs[1:]) if a != b)
-
-
-def straighten(path: list, can_step: Callable, diagonal_first: Callable[[], bool] | None = None,
-               avoid: Iterable = ()) -> list:
-    """The same route with fewer heading changes, as a player steering toward a
-    point walks it: every stretch that zig-zags between two neighbouring
-    headings (e.g. E, NE, E, NE, E) is regrouped into two straight runs
-    (NE, NE, E, E, E or E, E, E, NE, NE) ending on the same state.
-
-    path: states whose first two fields are the tile ((x, y) or (x, y, z)).
-    can_step(state, d) -> the next state or None (the planner's own step rule).
-    diagonal_first() picks which run comes first (random: human texture);
-    default: the diagonal. A regrouped stretch may not enter an `avoid` tile the
-    original stretch didn't use. A stretch that can't be regrouped stays as it was.
-    Agent paths had 37 % heading changes vs 21 % for a human (20260930_123206)."""
-    if len(path) < 3:
-        return list(path)
-    avoid = set(avoid)
-    dirs = [direction(a[:2], b[:2]) for a, b in zip(path, path[1:])]
-    out = [path[0]]
-    i = 0
-    while i < len(dirs):
-        a, b, j = dirs[i], None, i + 1
-        while j < len(dirs):
-            if dirs[j] == a or dirs[j] == b:
-                j += 1
-            elif b is None and (dirs[j] - a) % 8 in (1, 7):
-                b = dirs[j]
-                j += 1
-            else:
-                break
-        regrouped = None
-        if b is not None and _turns(dirs[i:j]) > 1:
-            seg = dirs[i:j]
-            diag, straight = (a, b) if a & 1 else (b, a)
-            first = [diag] * seg.count(diag) + [straight] * seg.count(straight)
-            second = [straight] * seg.count(straight) + [diag] * seg.count(diag)
-            orders = (first, second) if diagonal_first is None or diagonal_first() else (second, first)
-            used = {p[:2] for p in path[i:j + 1]}
-            for cand in orders:
-                cur, states = out[-1], []
-                for d in cand:
-                    cur = can_step(cur, d)
-                    if cur is None or (cur[:2] in avoid and cur[:2] not in used):
-                        break
-                    states.append(cur)
-                else:
-                    if tuple(states[-1]) == tuple(path[j]):
-                        regrouped = states
-                        break
-        out += regrouped if regrouped is not None else path[i + 1:j + 1]
-        i = j
-    return out
-
-
-
 class WalkMemory:
     """Server-proven walkability: tiles stood on, directed confirmed moves,
     and server-denied (tile, dir) moves."""
@@ -558,7 +500,8 @@ def move_cost(memory: WalkMemory, a: Tile, b: Tile) -> float:
 
 def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
          extra_blocked: Iterable = (), max_expand: int = 20000,
-         cost_scale: Callable[[Tile, Tile], float] | None = None) -> list[Tile] | None:
+         cost_scale: Callable[[Tile, Tile], float] | None = None,
+         turn_cost: float = 0.0, facing: int | None = None) -> list[Tile] | None:
     """Cheapest 8-neighbour tile path from start to the first tile satisfying
     goal_fn, including start; None if unreachable within max_expand expansions.
 
@@ -566,9 +509,12 @@ def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
     entering tiles listed in extra_blocked as bare `(x, y)`, and diagonals whose
     either orthogonal component move from the same tile is blocked (no corner
     cutting). Heuristic: goal_fn.heuristic if present (see `within`), else 0.
-    cost_scale(a, b) >= 1 multiplies each step's cost (humanize.Human route
-    noise); it keeps the heuristic admissible.
+    cost_scale(a, b) >= 1 multiplies each step's cost (the Mover's mobiles, danger
+    zones and sticky route); it keeps the heuristic admissible. `turn_cost`: added
+    to a step in a new direction, judged against the direction the tile's cheapest
+    arrival came by (`facing` at the start), as pathfind.plan's; 0: none.
     """
+    turns = turn_cost > 0
     start = (int(start[0]), int(start[1]))
     blocked_moves = set(memory.blocked)
     blocked_tiles: set[Tile] = set()
@@ -581,12 +527,13 @@ def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
 
     tie = itertools.count()
     g_best = {start: 0.0}
+    heading = {start: (facing & 7) if turns and facing is not None else None}
     parent: dict[Tile, Tile] = {}
-    heap = [(h(start), next(tie), start)]
+    heap = [(h(start), 0.0, next(tie), start)]
     closed: set[Tile] = set()
     expanded = 0
     while heap:
-        _, _, cur = heapq.heappop(heap)
+        _, _, _, cur = heapq.heappop(heap)
         if cur in closed:
             continue
         if goal_fn(cur):
@@ -599,7 +546,7 @@ def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
         expanded += 1
         if expanded > max_expand:
             return None
-        g = g_best[cur]
+        g, came = g_best[cur], heading[cur]
         for d in range(8):
             if (cur, d) in blocked_moves:
                 continue
@@ -610,10 +557,13 @@ def plan(memory: WalkMemory, start: Tile, goal_fn: Callable[[Tile], bool],
             if nxt in closed or nxt in blocked_tiles:
                 continue
             ng = g + move_cost(memory, cur, nxt) * (cost_scale(cur, nxt) if cost_scale else 1.0)
+            if came is not None and d != came:
+                ng += turn_cost
             if ng < g_best.get(nxt, float("inf")):
                 g_best[nxt] = ng
+                heading[nxt] = d if turns else None
                 parent[nxt] = cur
-                heapq.heappush(heap, (ng + h(nxt), next(tie), nxt))
+                heapq.heappush(heap, (ng + h(nxt), -ng, next(tie), nxt))
     return None
 
 

@@ -79,6 +79,13 @@ DENY_RETRY_S = 30.0
 # tile inside one costs DANGER_COST_X normal steps, so routes bend around monster groups
 # when a way around exists (live 2026-10-03: a straight map route through a harpy nest).
 DANGER_COST_X = 30.0
+# A change of direction costs a walk this many steps on top of the step (the planners' `turn_cost`): a walk in a new
+# direction is a turn first, and the server takes a move slot for it. Measured in Dan's PK flight (capture
+# session_20261102_174945, 2026-11-02 20:59:30-21:00:10): a move after a direction change came 0.228 s after the last
+# vs 0.110 s straight on (Bert's 0.202 vs 0.100). The planner scored every move 1 and picked saw-tooth routes among the
+# equally short ones: 50 direction changes in 272 moves, while Bert rode straight and closed the gap (user: "we let
+# Bert close the gap by taking slower zig zags while he ran in a straight line")
+TURN_COST = 1.0
 # A map search with danger zones in its costs may expand this many tiles (pathfind.MAX_EXPAND without).
 # A* under DANGER_COST_X expands far more before it settles: live 2026-11-01 (mining-20261101-204544-16a2) a wolf's
 # zone by forge_2564_535 made the forge walk from (2594, 535) end "no route" and the run abort, where the map has
@@ -564,9 +571,9 @@ class Link:
 
 class Mover:
     """Server-confirmed walking with human texture from a humanize.Human:
-    per-plan route noise, straightened runs (nav.straighten), the stock
-    held-key step cadence, run/walk routes, pauses and sidesteps. Plans on
-    map data when the facet has it (use_map), else on walk memory.
+    routes with few corners (the planners' TURN_COST), the stock held-key step
+    cadence, run/walk routes, pauses and sidesteps. Plans on map data when the
+    facet has it (use_map), else on walk memory.
 
     guard(st) is called after every step outcome (timeouts, HP, stalls...); a truthy return says it acted
     (seconds may have gone by): the walk reads the state again before its stop and plan.
@@ -1046,8 +1053,8 @@ class Mover:
         self.mem at the current facet's walk memory. Mobiles' tiles cost
         MOBILE_COST_X (shove through them if going around is longer); tiles
         where a shove was denied in the last SHOVE_RETRY_S are walls unless
-        mobiles=False (is the route only temporarily cut?). Zig-zag stretches are
-        regrouped into straight runs (nav.straighten), as a player walks them.
+        mobiles=False (is the route only temporarily cut?). A change of direction costs
+        TURN_COST more (from our facing on), so straight runs win among equal routes.
         `max_steps`: the map planner looks only for routes that short (None when there's
         none). A long map search runs the guard every pathfind.TICK_EVERY expansions, so a
         threat raises out of it instead of waiting for the search to end. Spell fields
@@ -1058,12 +1065,11 @@ class Mover:
         occ = self.occupied(st) - {cur}
         now = time.monotonic()
         hard = {t for t in occ if now - self.shove_denied.get(t, -1e9) < SHOVE_RETRY_S} if mobiles else set()
-        noise = self.human.cost_scale()
-
+        facing = pos[3] if len(pos) > 3 else None
         sticky = self.sticky
 
         def cost(a, b):
-            return ((noise(a, b) if noise else 1.0) * (MOBILE_COST_X if b in occ else 1.0)
+            return ((MOBILE_COST_X if b in occ else 1.0)
                     * (self.danger_cost(b) if self.danger or self.danger_tiles or self.avoid else 1.0)
                     * (STICKY_X if sticky and b not in sticky else 1.0))
 
@@ -1075,7 +1081,6 @@ class Mover:
         fields = self.fields(st)
         if not through_fields:
             hard |= {(it["x"], it["y"]) for it in fields.values()}
-        diagonal_first = lambda: self.human.choice((True, False))  # noqa: E731
         walk = self.walk_map(st, skip=fields if through_fields else ())
         if walk is not None:
             for edge in [e for e, t in self.denied_t.items() if now - t > DENY_RETRY_S]:
@@ -1085,7 +1090,8 @@ class Mover:
             expand = DANGER_MAX_EXPAND if self.danger or self.danger_tiles or self.avoid else pathfind.MAX_EXPAND
             path = pathfind.plan(walk, start, goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
-                                 tick=lambda: self.guard(self.link.state()), max_expand=expand)
+                                 tick=lambda: self.guard(self.link.state()), max_expand=expand,
+                                 turn_cost=TURN_COST, facing=facing)
             if path is None and self.denied_t:
                 # live 2026-10-17 11:12:45: one step south refused at a one-tile passage (a player stepped onto it),
                 # kept as a wall, and no route anywhere for minutes; the map says those steps go: try them again
@@ -1095,25 +1101,15 @@ class Mover:
                 self.denied_t.clear()
                 path = pathfind.plan(walk, start, goal,
                                      blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
-                                     tick=lambda: self.guard(self.link.state()), max_expand=expand)
+                                     tick=lambda: self.guard(self.link.state()), max_expand=expand,
+                                     turn_cost=TURN_COST, facing=facing)
             if path is None:
                 return None, walk
-            path = nav.straighten(
-                path, lambda s, d: None if (s[0], s[1], d) in self.denied else walk.can_walk(s[0], s[1], s[2], d),
-                diagonal_first, hard | occ)
             return [(x, y) for x, y, _ in path], walk
-        path = nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost)
+        path = nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost, turn_cost=TURN_COST, facing=facing)
         if path is None:
             return None, None
-        mem = self.mem
-
-        def mem_step(s, d):
-            if (s, d) in mem.blocked or (d & 1 and ((s, (d - 1) % 8) in mem.blocked
-                                                   or (s, (d + 1) % 8) in mem.blocked)):
-                return None
-            n = nav.step(s, d)
-            return n if n in mem.tiles else None
-        return nav.straighten(path, mem_step, diagonal_first, hard | occ), None
+        return path, None
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int | None = None, z_ok=None, gate=None,
                 goal_fn=None, urgent: bool = False, stop=None, max_route: int | None = None,

@@ -125,7 +125,7 @@ LLM planner over the world model + skill library; safety rails: captcha auto-sol
     - Next: once `speech_clear` events include real GM contact (or more real player lines), add them to the held-out set first, re-run `eval_triage.py` on v2 vs stock, and retrain with them. Only after that reconsider letting a confident verdict skip the hold.
 - **Human-like inefficiency in every runner (user request 2026-09-29):** `harness/humanize.py` `Human`, shared by the runners through `Mover`, adds:
   - lognormal reaction times with fatigue drift
-  - per-plan route noise (per 6×6-tile cell, so routes vary but stay straight), pauses and sidesteps; steps at the stock held-key cadence (200/400 ms); doors opened ahead like the client's auto-open. The first version's missed turns into known obstacles were removed on 2026-09-30 (a step the stock client never sends; see the stock-fidelity decision below). **Routes are always run** (user decision 2026-10-01: the client has Always Run on; the earlier 7 % walked routes were dropped). **The client's Auto Open Doors is off** (user decision 2026-10-01): with the per-step re-anchor it would open each door alongside the Mover and shut it again; the Mover's request is the only one
+  - routes with few corners (a change of direction costs a step more, `agent_link.TURN_COST`; the per-plan route noise and `nav.straighten` were removed on 2026-11-02, see A8 below), pauses and sidesteps; steps at exactly the stock held-key cadence (200/400 ms, 100/200 mounted; no jitter since 2026-11-02); doors opened ahead like the client's auto-open. The first version's missed turns into known obstacles were removed on 2026-09-30 (a step the stock client never sends; see the stock-fidelity decision below). **Routes are always run** (user decision 2026-10-01: the client has Always Run on; the earlier 7 % walked routes were dropped). **The client's Auto Open Doors is off** (user decision 2026-10-01): with the per-step re-anchor it would open each door alongside the Mover and shut it again; the Mover's request is the only one
   - occasional cursor hesitation and idle fidgets (backpack open, look at a mobile)
 
   All of it is stock-client traffic or waiting, and it's seeded. Profile `off` is for deterministic tests. Rationale: server-side detection is behavioural statistics (ANTICHEAT.md §8.3), and optimal routes and uniform click timing are signatures. Details: LUMBER_LOOP.md §13.
@@ -209,9 +209,21 @@ the client couldn't do it right now (entity off screen, no menu open, war mode).
   and leaving the cursor up (the human's next click would be a second reply).
 - A2: 3 s confirm timeout, a 5 s late-confirm window, the stock 5-unconfirmed cap. Rejected: a
   proxy resync to heal the ladder (server-visible, §8.11).
-- A8: stock cadence inside a stretch, texture between stretches; route noise per 6-tile map cell
-  plus `nav.straighten` (measured on 24 Shelter routes: ~20 % heading changes, human 21 %).
-  Rejected: a turn-penalty A* (8× the search states; not tried, since the above already matches).
+- A8: stock cadence inside a stretch, texture between stretches. Until 2026-11-02: route noise per 6-tile
+  map cell plus `nav.straighten` (measured on 24 Shelter routes: ~20 % heading changes, human 21 %), and
+  a turn-penalty A* rejected as 8× the search states.
+  **Changed 2026-11-02 (user decision, after Dan's PK death: "the reason we died is we let Bert close the
+  gap by taking slower zig zags while he ran in a straight line"):** a change of direction costs a step
+  (`agent_link.TURN_COST` 1.0; measured, a move after a turn takes 0.228 s vs 0.110 s straight on), judged
+  against the direction each tile is reached by (`pathfind.plan` / `nav.plan` `turn_cost`, `facing`), so
+  the search keeps one state per tile. Offline on the real map: 6 / 3 / 16 / 12 corners on four routes
+  where no turn cost gave 44 / 23 / 46 / 49, same lengths, ~the plain search's expansions; the exact
+  (tile, heading) search found 5 / 3 / 13 / 8 but expanded 7× in a cave field (past MAX_EXPAND: a false
+  "no route"). Route noise removed (user: "Humans actually don't sawtooth like that when we don't need
+  to"); `nav.straighten` removed (its regrouping ignored danger zones: test_mover's danger-rim route went
+  through the creature once the turn-aware plan gave it a long straight run to regroup). The step cadence
+  is flat (user: "the real client was measured to take exactly 100ms per step"); the 3-15 ms jitter made
+  Dan 10 % slower than the PK.
 
 ## Data backups (decided 2026-10-01)
 

@@ -12,9 +12,9 @@ Differences from the client, on purpose:
   tile: the walker opens them ahead, like the client's auto-open
   (agent_link.Mover). They do block a diagonal past them (can_walk).
 - Mobiles are handled by the caller as blocked tiles (they move).
-- The A* is a plain heap-based search over (x, y, z) with per-plan
-  cost noise (humanize.Human.cost_scale); diagonal and straight steps cost
-  the same (both are one step on the server).
+- The A* is a plain heap-based search over (x, y, z), or (x, y, z, heading)
+  with a turn cost (plan's `turn_cost`); diagonal and straight steps cost the
+  same (both are one step on the server).
 
 Read-only: everything comes from the install files through uomap.
 """
@@ -390,7 +390,8 @@ class Walk:
 
 
 def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=None,
-         max_expand: int = MAX_EXPAND, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY):
+         max_expand: int = MAX_EXPAND, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY,
+         turn_cost: float = 0.0, facing: int | None = None):
     """A* over (x, y, z): the cheapest route from start (x, y, z) to the first
     tile satisfying goal_fn((x, y)) (and goal_fn.z_ok(z) when the goal has one:
     a tile below or above the target, e.g. a cave under a tree, isn't the
@@ -400,8 +401,17 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
     heuristic, isn't expanded): a refused detour fails fast. tick(): called every
     tick_every expansions, so a caller can look for threats during a long search (it
     may raise; live 2026-10-05 nine 7 s plans at a landing hid a norse bear rider's
-    approach and Dan died standing there)."""
+    approach and Dan died standing there). `turn_cost`: steps a change of direction
+    costs on top of the step (a walk in a new direction is a turn first: the server
+    takes a move slot for it), judged against the direction the tile's cheapest
+    arrival came by (`facing` at the start). Among equally short routes the one with
+    few corners wins. Not exact: a heading per tile, not a search over (tile, heading).
+    Offline on the real map (2026-11-02) that left 6 / 3 / 16 / 12 corners where the
+    exact search found 5 / 3 / 13 / 8 (and no turn cost 44 / 23 / 46 / 49), at the plain
+    search's expansions; the exact one took 7x more in a cave field (86831 vs 11820,
+    past MAX_EXPAND: a false "no route")."""
     start = (int(start[0]), int(start[1]), int(start[2]))
+    turns = turn_cost > 0
     h = getattr(goal_fn, "heuristic", None) or (lambda t: 0)
     z_ok = getattr(goal_fn, "z_ok", None)
     blocked = set(blocked_moves)
@@ -409,12 +419,13 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
     tie = itertools.count()
     g_best = {start: 0.0}
     steps = {start: 0}
+    heading = {start: (facing & 7) if turns and facing is not None else None}
     parent = {}
-    heap = [(h(start[:2]), next(tie), start)]
+    heap = [(h(start[:2]), 0.0, next(tie), start)]   # equal f: the deeper node first (fewer expansions on plateaus)
     closed = set()
     expanded = 0
     while heap:
-        _, _, cur = heapq.heappop(heap)
+        _, _, _, cur = heapq.heappop(heap)
         if cur in closed:
             continue
         if goal_fn(cur[:2]) and (z_ok is None or z_ok(cur[2])):
@@ -431,6 +442,7 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
             tick()
         x, y, z = cur
         n = steps[cur] + 1
+        came = heading[cur]
         for d in range(8):
             if (x, y, d) in blocked:
                 continue
@@ -440,10 +452,13 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
             if max_steps is not None and n + h(nxt[:2]) > max_steps:
                 continue
             step = cost_scale((x, y), nxt[:2]) if cost_scale else 1.0
+            if came is not None and d != came:
+                step += turn_cost
             ng = g_best[cur] + step
             if ng < g_best.get(nxt, float("inf")):
                 g_best[nxt] = ng
                 steps[nxt] = n
+                heading[nxt] = d if turns else None
                 parent[nxt] = cur
-                heapq.heappush(heap, (ng + h(nxt[:2]), next(tie), nxt))
+                heapq.heappush(heap, (ng + h(nxt[:2]), -ng, next(tie), nxt))
     return None

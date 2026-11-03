@@ -1159,7 +1159,7 @@ class LumberLoop:
         a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         self.last_threats = a
         self.note_sightings(st)
-        self.cut_off_now = {t.serial for t in a.threats if t.kind == "monster" and self.cut_off(st, t)}
+        self.cut_off_now = {t.serial for t in a.threats if self.may_come(t) and self.cut_off(st, t)}
         self.aggro_zones(st)
         if a.dead:
             self.died(st, "ghost body")
@@ -3447,13 +3447,17 @@ class LumberLoop:
         return out
 
     def may_aggro(self, t) -> bool:
-        """A creature that may come for us: a monster that isn't a pet (the "(tame)" / "(bonded)"
-        line) or of a passive body or name (threats.Params). Hostile ones (war mode, learned
-        bodies, notoriety 6) of course; idle ones too, since they turn when we come near."""
+        """A creature that may come for us (may_come) and isn't cut off on another level (cut_off)."""
+        return self.may_come(t) and t.serial not in self.cut_off_now
+
+    def may_come(self, t) -> bool:
+        """A monster that isn't a pet (the "(tame)" / "(bonded)" line) or of a passive body or name
+        (threats.Params). Hostile ones (war mode, learned bodies, notoriety 6) of course; idle ones
+        too, since they turn when we come near."""
         p = self.watch.params
-        return (t.kind == "monster" and t.serial not in self.cut_off_now and (t.hostile or (
+        return t.kind == "monster" and (t.hostile or (
             "pet" not in (t.aggression or "") and t.body not in p.passive_bodies
-            and (t.name or "").lower() not in p.passive_names)))
+            and (t.name or "").lower() not in p.passive_names))
 
     def cut_off(self, st, t) -> bool:
         """A melee creature on another level: |dz| at least LEVEL_APART_Z and the map has no walk from its tile to

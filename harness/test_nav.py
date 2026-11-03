@@ -244,32 +244,29 @@ def test_generated_memory():
     eq("A* cost == Dijkstra cost", path_cost(mem, back), path_cost(mem, dijkstra))
 
 
-def test_straighten():
-    print("straighten: zig-zags regrouped into straight runs")
-    free = lambda s, d: step(s, d)  # noqa: E731
-    zig = [(0, 0)]
-    for d in (2, 1, 2, 1, 2, 1, 2):          # E NE E NE E NE E
-        zig.append(step(zig[-1], d))
-    for first, want in ((True, [1, 1, 1, 2, 2, 2, 2]), (False, [2, 2, 2, 2, 1, 1, 1])):
-        s = nav.straighten(zig, free, lambda f=first: f)
-        dirs = [direction(a, b) for a, b in zip(s, s[1:])]
-        eq(f"one heading change, {'diagonal' if first else 'straight'} run first", dirs, want)
-        check("same start, end and length", s[0] == zig[0] and s[-1] == zig[-1] and len(s) == len(zig), f"{s}")
-    wall = {(1, -1), (4, 0)}                 # blocks both regroupings
-    s = nav.straighten(zig, lambda st, d: None if step(st, d) in wall else step(st, d))
-    eq("a stretch that can't be regrouped stays as it was", s, zig)
-    s = nav.straighten(zig, free, lambda: True, avoid={(1, -1)})
-    eq("regrouping avoids tiles the original stretch didn't use (mobiles, teleporters)",
-       [direction(a, b) for a, b in zip(s, s[1:])], [2, 2, 2, 2, 1, 1, 1])
-    z = [(0, 0, 0), (1, 0, 0), (2, -1, 5), (3, -1, 5), (4, -2, 5)]
-    s = nav.straighten(z, lambda st, d: (*step(st[:2], d), 0))
-    eq("a regrouping that ends on another level (z) is rejected", s, z)
+def test_plan_turn_cost():
+    print("plan: a change of direction costs a step (agent_link.TURN_COST)")
+    open_ = WalkMemory()                      # a 13 x 7 field of known tiles, no edges: every step costs the same
+    for y in range(-6, 1):
+        for x in range(0, 13):
+            open_.tiles.add((x, y))
+    turns = lambda p: sum(1 for a, b, c in zip(p, p[1:], p[2:]) if direction(a, b) != direction(b, c))  # noqa: E731
+    flat = plan(open_, (0, 0), within((12, -6), 0))
+    bent = plan(open_, (0, 0), within((12, -6), 0), turn_cost=1.0)
+    check("equally short (Chebyshev 12 steps)", len(flat) == len(bent) == 13, f"{len(flat)} {len(bent)}")
+    check("with the turn cost: one corner", turns(bent) == 1, f"{turns(bent)} {bent}")
+    facing_e = plan(open_, (0, 0), within((12, -6), 0), turn_cost=1.0, facing=2)
+    check("facing east: the straight run east comes first, no turn on the first step",
+          direction(facing_e[0], facing_e[1]) == 2 and turns(facing_e) == 1, f"{facing_e}")
+    facing_ne = plan(open_, (0, 0), within((12, -6), 0), turn_cost=1.0, facing=1)
+    check("facing north-east: the diagonal comes first",
+          direction(facing_ne[0], facing_ne[1]) == 1 and turns(facing_ne) == 1, f"{facing_ne}")
 
 
 TESTS = [test_direction, test_reconstruct_144541, test_reconstruct_garbage,
          test_jsonl_rows_and_build, test_save_load, test_plan_prefers_known,
          test_plan_blocked, test_plan_no_corner_cut, test_plan_enclosed,
-         test_plan_unknown, test_generated_memory, test_straighten]
+         test_plan_unknown, test_generated_memory, test_plan_turn_cost]
 
 
 def main():
