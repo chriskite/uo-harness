@@ -5394,6 +5394,18 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     mining leg ends as soon as Dan is over `AWAY_TILES` 150 from every stand (log "at (x, y), N tiles from the spot's
     nearest stand (teleported away); ending the leg", trip row `away`). Before, 90 stands "no route" took 110 s.
     test_mining.py test_teleported_away, test_gate_out.
+  - **Antlions dig across 12 tiles: reach 14.** Live 2026-11-03 16:41 (mining-20261103-160706-cc7d at forge_2551_665,
+    capture session_20261103_134648): an antlion (body 787) came into view 13 tiles off at 16:41:35.7 while Dan walked
+    to the stand (2537, 623); it stood ~10 tiles off at z 59-60 (Dan z 48) and went to war mode (0x20 flags 0x40) at
+    51.7; at 52.47 its "*digs*" overhead and animation 27, at 52.98 it left the view (0x1D); at 54.24 it was back on
+    Dan's tile with dirt effects (0xC0 0x6890-0x6895) and "-48": hits 100 -> 52 in one blow, no swing or damage packet.
+    The runner recalled home at once (no death). Wiki (wiki.uooutlands.com/Antlion): Dig "teleports to a location up to
+    12 tiles away, hitting up to 3 targets within 2 tiles", DamageMax x 0.9, +50 % on the first target; wild melee
+    40-50. `threats.BODY_REACH` seeds body 787 at 14 tiles (creature_reach), so its zone is 16 (zone_r: + ESCAPE_MARGIN),
+    the stand choice keeps out of it, the walk-away after a hit goes beyond it, and it is never "cut off" on another
+    level (ranged). Not covered [INFERENCE: a gap]: an antlion that comes within 14 while Dan digs is still only fled
+    from by the flee radius (ETA), as the gazer; its first Dig lands before any reaction (1.8 s from "*digs*").
+    test_travel_guard.py test_learned_from_hits.
   - **At home the ingots go into the room's Resource Stockpile** (since 2026-10-19 evening; before, they stayed
     carried and the room shelf's Restock was skipped because it takes live trapped pouches).
     - The user's drop-off by hand at 22:44:39 (capture session_20261019_214740):

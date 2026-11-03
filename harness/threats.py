@@ -73,8 +73,10 @@ that body was recorded at (Params.body_reach, learned from `monster_hit` job
 events by travel_guard.learned_params). Ranged bodies: RANGED_BODIES (the
 gazer, body 22: live 2026-10-03 it hit us 4 s after a melee-sized walk-away
 left us 11-12 tiles from it) plus every body that hit us with no creature
-adjacent. Reach doesn't change the flee radius or the action below; the lumber
-runner uses it for how far to walk away and which trees to leave alone.
+adjacent. BODY_REACH seeds body_reach with what the wiki and a live hit say a
+body reaches beyond a swing (the antlion's Dig). Reach doesn't change the flee
+radius or the action below; the lumber runner uses it for how far to walk away
+and which trees to leave alone.
 
 Flee radius: flee_radius = strike_range + floor((recall_s + margin_s) /
 s_per_tile). A hostile mobile inside it, i.e. with eta_s <= recall_s +
@@ -249,6 +251,11 @@ _YOUNG = re.compile(r"\(Young\)\s*$")
 ACTIONS = ("flee", "thief", "watch", "ignore")
 CREATURE_SPELL_RANGE = 12       # tiles: a ranged/caster creature's reach (user decision 2026-10-03)
 RANGED_BODIES = frozenset({22})  # gazer (live 2026-10-03: hit us from 11-12 tiles, LUMBER_LOOP.md §13)
+# ((body, tiles), ...) a body reaches beyond melee, known before any hit (Params.body_reach's seed). The antlion (body
+# 787): its Dig "teleports to a location up to 12 tiles away, hitting up to 3 targets within 2 tiles" (wiki.uooutlands.com
+# /Antlion); live 2026-11-03 16:41:52-54 (mining-20261103-160706-cc7d, session_20261103_134648) one 10 tiles off at
+# z 59 ("*digs*", gone from view 0.5 s) came up on Dan's tile 1.3 s later: -48 hits in one blow
+BODY_REACH = ((787, 14),)
 UNSEEN_HIT_S = 30.0             # a creature that left the view this recently may still hit us (unseen_attackers)
 UNSEEN_SLACK = 6                # ... from this many tiles past the view range
 # Spells on us (module docstring "Spells on us")
@@ -346,7 +353,7 @@ class Params:
     # creature reach (module docstring "Reach"): ranged bodies, and the farthest
     # tiles a hit from a body came from ((body, tiles), ...; learned)
     ranged_bodies: frozenset = RANGED_BODIES
-    body_reach: tuple = ()
+    body_reach: tuple = BODY_REACH
     # an unlabeled human that would be hostile only by the assumed-player
     # reading is watched this long after first sight (see module docstring)
     label_grace_s: float = 1.0

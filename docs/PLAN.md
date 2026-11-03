@@ -2199,6 +2199,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   there as before. Rejected: walking the teleporter back (the probe found none: the arrival is a gate tile, and a gate
   only opens its menu); a destination nearest home (no town coordinates per row are known; Cambria is proven).
   test_mining.py `test_teleported_away`, `test_gate_out`.
+- *An antlion reaches 14 tiles* (2026-11-03, mining-20261103-160706-cc7d: one 10 tiles off dug under Dan for -48;
+  docs/NOTES.md "Antlions dig across 12 tiles"). `threats.BODY_REACH` seeds `Params.body_reach` with body 787 at 14
+  (the wiki's 12-tile Dig + its 2-tile blow); learned hits only raise it. Zones, the stand choice, the walk-away and
+  cut_off follow from the reach. Rejected for now: fleeing every creature inside its reach mid-stand (it would also
+  change the gazer's handling, a 2026-10-03 decision: "Reach doesn't change the flee radius or the action"); open for
+  the user. test_travel_guard.py `test_learned_from_hits`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

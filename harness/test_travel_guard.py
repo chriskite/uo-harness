@@ -138,7 +138,7 @@ def test_remembered():
 def test_learned_from_hits():
     print("== monster_hit episodes: a sole attacker's body is aggressive; one that hit from afar is ranged ==")
     mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
-    for body, dist, n in ((0x99, 13, 1), (0x99, 5, 1), (0x27, 1, 1), (0x88, 9, 2), (0xCF, 6, 1)):
+    for body, dist, n in ((0x99, 13, 1), (0x99, 5, 1), (0x27, 1, 1), (0x88, 9, 2), (0xCF, 6, 1), (787, 0, 1)):
         mem.job_event("lumber", "monster_hit", {"body": body, "distance": dist, "attackers": n})
     p = travel_guard.learned_params(mem)
     check("sole attackers' bodies are aggressive; a hit shared by two candidates teaches nothing; "
@@ -152,6 +152,9 @@ def test_learned_from_hits():
           "melee stays 1, an unknown gazer 12",
           threats.creature_reach(0x99, p) == 13 and threats.creature_reach(0x27, p) == 1
           and threats.creature_reach(22, p) == threats.CREATURE_SPELL_RANGE == 12, p.body_reach)
+    # live 2026-11-03 16:41:54: an antlion 10 tiles off dug and came up on Dan's tile (-48); that hit was at 0 tiles
+    check("the antlion's Dig: 14 tiles (12 + its 2-tile blow) before any hit, and its hit on our tile doesn't lower it",
+          threats.creature_reach(787, threats.Params()) == 14 and threats.creature_reach(787, p) == 14, p.body_reach)
     mem.close()
 
 
