@@ -624,6 +624,7 @@ class Mover:
         self.route = None            # walk_to's planned route, (x, y) tiles from its start (the walks' stops look ahead)
         self.danger_tiles = set()    # (x, y) around remembered monster sightings (travel_guard.remembered)
         self.avoid = {}              # key -> {(x, y)}: tiles to route around, DANGER_COST_X flat (tamer.Team.spray_watch)
+        self.keep_out = {}           # key -> ((x, y), radius): walls for a route while we stand outside (keep_out_tiles)
         self.replan_requested = False   # set by a guard (new danger): replan after this step
         self.walled = set()          # (x, y) walls for this walk_to only: doors that refused us (walk_to)
         self.held_until = 0.0        # monotonic end of a hold on us (held): HELD_TEXT seen, HELD_END_TEXT not yet
@@ -632,6 +633,15 @@ class Mover:
     def in_danger(self, tile) -> bool:
         return tile in self.danger_tiles or any(tile in s for s in self.avoid.values()) \
             or any(cheb(tile, c) <= r for c, r in self.danger.values())
+
+    def keep_out_tiles(self, cur, goal_tile=None) -> set:
+        """The keep_out zones' tiles as walls: each zone we stand outside of and whose goal tile (when the goal is one)
+        it doesn't hold. Inside one, the way out stays open (the danger costs lead us out)."""
+        out = set()
+        for (cx, cy), r in self.keep_out.values():
+            if cheb(cur, (cx, cy)) > r and (goal_tile is None or cheb(goal_tile, (cx, cy)) > r):
+                out |= {(cx + dx, cy + dy) for dx in range(-r, r + 1) for dy in range(-r, r + 1)}
+        return out
 
     def held(self, st=None) -> bool:
         """A hold on us now: a transfix (HELD_TEXT seen and neither HELD_END_TEXT nor HELD_MAX_S since), or, given the
@@ -1095,7 +1105,7 @@ class Mover:
         self.mem = self.mem_for(facet)
         # never walk over a known teleporter tile by accident (only onto one as the goal)
         goal_tile = getattr(goal, "center", None) if getattr(goal, "radius", None) == 0 else None
-        hard = hard | (self.teleporter_tiles(facet) - {goal_tile}) | self.walled
+        hard = hard | (self.teleporter_tiles(facet) - {goal_tile}) | self.walled | self.keep_out_tiles(cur, goal_tile)
         fields = self.fields(st)
         if not through_fields:
             hard |= {(it["x"], it["y"]) for it in fields.values()}

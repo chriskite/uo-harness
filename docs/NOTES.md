@@ -5406,6 +5406,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     level (ranged). Not covered [INFERENCE: a gap]: an antlion that comes within 14 while Dan digs is still only fled
     from by the flee radius (ETA), as the gazer; its first Dig lands before any reaction (1.8 s from "*digs*").
     test_travel_guard.py test_learned_from_hits.
+  - **Escapes back into the same creature.** Live 2026-11-04 17:41-17:48 (mining-20261104-173520-8196, capture
+    session_20261104_143250): a blood cultist (0x00065734, reach 12, flee radius 8) stood at (2523-2534, 688-692) east
+    of forge_2497_708's stands. After each escape the walk to the next stand east (2537, 704), (2540, 710) replanned
+    round its soft zone ("danger ahead changed") yet came within 8 at (2526, 691) / (2520, 691): 6 escapes over two
+    legs, both ended "came back after 3 escapes". Mover zones are costs (DANGER_COST_X), so the only way past still
+    crossed. Since then the flee radius of a creature we escaped from is a wall (`Mover.keep_out`); such stands end "no
+    route". docs/PLAN.md "Mining runner…".
   - **At home the ingots go into the room's Resource Stockpile** (since 2026-10-19 evening; before, they stayed
     carried and the room shelf's Restock was skipped because it takes live trapped pouches).
     - The user's drop-off by hand at 22:44:39 (capture session_20261019_214740):

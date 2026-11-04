@@ -418,6 +418,29 @@ def test_danger_rims():
           path is not None and mid and all(abs(y) == 3 for _, y in mid), str(path))
 
 
+def test_keep_out():
+    print("== an escaped creature's flee radius (keep_out): no route into it from outside; a way out from inside ==")
+    # live 2026-11-04 17:47 (mining-20261104-173520-8196): routes to two stands past a blood cultist bent round its
+    # soft zone yet went within its flee radius (8) three times in 37 s, an escape each, the run ended
+    band = {(x, y) for x in range(0, 21) for y in range(-3, 4)}
+    link = FakeLink((0, 0), facing=2)
+    mv = map_mover(link, band)
+    mv.danger = {("seen", 1): ((10, 0), 5)}
+    soft, _ = mv.plan(link.state(), nav.within((20, 0), 0))
+    mv.keep_out = {1: ((10, 0), 2)}                    # covers y -2..2 at x 8..12: the band's rim y +-3 stays open
+    rim, _ = mv.plan(link.state(), nav.within((20, 0), 0))
+    mv.keep_out = {1: ((10, 0), 3)}                    # the band's whole width
+    cut, _ = mv.plan(link.state(), nav.within((20, 0), 0))
+    inside = FakeLink((9, 0), facing=2)
+    mv_in = map_mover(inside, band)
+    mv_in.keep_out = {1: ((10, 0), 3)}
+    out, _ = mv_in.plan(inside.state(), nav.within((0, 0), 0))
+    check("the soft zone alone lets a route through; keep_out walls its core: the rim, or no route at all",
+          soft is not None and rim is not None and all(abs(y) == 3 for x, y in rim if 8 <= x <= 12) and cut is None,
+          (rim, cut))
+    check("standing inside the core: the way out is open", out is not None and out[-1] == (0, 0), out)
+
+
 def test_danger_search_room():
     print("== a zone on the only way out of a wide field: still a route (no 'no route' from the search cap) ==")
     # live 2026-11-01 (mining-20261101-204544-16a2): a wolf's zone by the forge's way made the walk "no route" and
@@ -920,6 +943,7 @@ def main():
     test_circles()
     test_fall()
     test_danger_rims()
+    test_keep_out()
     test_danger_search_room()
     test_danger_sticky()
     test_shove_denied()
