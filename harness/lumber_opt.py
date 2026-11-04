@@ -365,6 +365,18 @@ def mark_bad_landing(memory, row: dict, facet: int, landed, why: str | None = No
                                lambda cur: ({**(cur or {}), landing_key(row, facet): entry}, None), {})
 
 
+def clear_bad_landing(memory, facet: int, x: int, y: int) -> dict | None:
+    """Forget the bad landing at (x, y) on `facet` (mark_bad_landing): plans take it again. Its entry, or None."""
+    import task_wrap
+    key = landing_key({"x": x, "y": y}, facet)
+
+    def drop(cur):
+        cur = dict(cur or {})
+        gone = cur.pop(key, None)
+        return (cur or None), gone
+    return task_wrap.meta_update_json(memory, BAD_LANDINGS_META, drop, {})
+
+
 def landing_view(row: dict | None) -> dict | None:
     """A landing as the plan shows it (and the runner's `out` travel leg records it)."""
     if row is None:

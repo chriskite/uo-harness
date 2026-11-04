@@ -3505,6 +3505,24 @@ def cmd_mining(a, mem):
         mem.chat_post("overseer", f"mining spot set {a.id} {a.status}" + (f" ({a.reason})" if a.reason else ""),
                       "action", data={"cmd": "mining spot set", "id": a.id, "status": a.status})
         return {"ok": True, "id": a.id, "status": a.status, "reason": a.reason}
+    if op == "landing":
+        import lumber_opt
+        import places
+        if a.landing_op == "list":
+            return {"ok": True, "bad": lumber_opt.bad_landings(mem)}
+        x, y = a.xy
+        if a.landing_op == "bad":
+            rows = places.landings(x, y, a.facet, libraries=[lb["id"] for lb in places.libraries()],
+                                   include_dangerous=True)
+            row = next((r for r in rows if r["dist"] == 0), {"name": None})
+            lumber_opt.mark_bad_landing(mem, {**row, "x": x, "y": y}, a.facet, None, why=a.why)
+            mem.chat_post("overseer", f"landing {row['name'] or ''} ({x}, {y}) passed over from now on: {a.why}",
+                          "action", data={"cmd": "mining landing bad", "x": x, "y": y, "facet": a.facet, "why": a.why})
+            return {"ok": True, "landing": [x, y], "facet": a.facet, "name": row["name"], "why": a.why}
+        gone = lumber_opt.clear_bad_landing(mem, a.facet, x, y)
+        mem.chat_post("overseer", f"landing ({x}, {y}) taken again" if gone else f"landing ({x}, {y}) wasn't marked",
+                      "action", data={"cmd": "mining landing clear", "x": x, "y": y, "facet": a.facet})
+        return {"ok": True, "landing": [x, y], "facet": a.facet, "cleared": gone}
     if op == "fields":
         import lumber_forest
         import mining_fields
@@ -3777,6 +3795,17 @@ def _mining_parser(sub):
     r.add_argument("id")
     r.add_argument("--status", choices=("active", "candidate", "disabled"), required=True)
     r.add_argument("--reason")
+    q = ms.add_parser("landing", help="a landing rune the plans pass over (shared with lumber; lumber_opt.bad_landings): "
+                                      "every spot then takes its next landing with a route, or none")
+    ls_ = q.add_subparsers(dest="landing_op", required=True)
+    r = ls_.add_parser("bad", help="pass this landing over from now on (e.g. monsters at it on arrival)")
+    r.add_argument("xy", type=int, nargs=2, metavar=("X", "Y"), help="the rune's tile")
+    r.add_argument("--why", required=True)
+    r.add_argument("--facet", type=int, default=0)
+    r = ls_.add_parser("clear", help="take this landing again")
+    r.add_argument("xy", type=int, nargs=2, metavar=("X", "Y"))
+    r.add_argument("--facet", type=int, default=0)
+    ls_.add_parser("list", help="the landings passed over, with why")
     q = ms.add_parser("fields", help="grow every active spot over the ore ground around its square (map data; "
                                      "docs/PLAN.md 'Ore fields')")
     q.add_argument("--facet", type=int, default=0)

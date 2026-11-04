@@ -631,6 +631,11 @@ def test_landings():
     lo.mark_bad_landing(mem, {"name": "Jonny's House", "x": 1817, "y": 1865}, 0, (1809, 1871))
     check("a bad landing is kept in the memory store by facet and tile, with where we landed",
           lo.bad_landings(mem).get("0:1817,1865", {}).get("landed") == [1809, 1871], lo.bad_landings(mem))
+    lo.mark_bad_landing(mem, {"name": "267", "x": 2598, "y": 531}, 0, None, why="a garou at it on arrival")
+    gone = lo.clear_bad_landing(mem, 0, 2598, 531)
+    check("a landing marked by hand (ctl mining landing bad) is cleared again by tile; the others stay",
+          gone["why"] == "a garou at it on arrival" and set(lo.bad_landings(mem)) == {"0:1817,1865"}
+          and lo.clear_bad_landing(mem, 0, 2598, 531) is None, lo.bad_landings(mem))
     mem.close()
 
 

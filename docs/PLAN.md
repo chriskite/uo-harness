@@ -2205,6 +2205,13 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   cut_off follow from the reach. Rejected for now: fleeing every creature inside its reach mid-stand (it would also
   change the gazer's handling, a 2026-10-03 decision: "Reach doesn't change the flee radius or the action"); open for
   the user. test_travel_guard.py `test_learned_from_hits`.
+- *A landing among monsters is passed over, not its spots* (2026-11-03: a garou at DTF "267" (2598, 531) met Dan on 5
+  arrivals, runs 1, 3, 8 and 17:30, 19:58; §5 had the Seer disable each spot as it came up: forge_2564_535, then
+  forge_2544_743, with four more active spots on that landing). `ctl mining landing bad <x> <y> --why` puts it on the
+  bad-landings list the plans already skip (lumber_opt.bad_landings, the user's own call for the Prevalia crypt landing
+  on 2026-10-20); each spot takes its next landing with a route in. On the store as of 19:57: forge_2620_561 and
+  forge_2765_549 -> "Riverrun Lodge", forge_2616_662 -> "43", forge_2599_620 none (out of the plan). `clear` undoes it.
+  test_lumber_opt.py `test_landings`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 
