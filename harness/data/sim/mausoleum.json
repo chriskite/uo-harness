@@ -280,6 +280,11 @@
     "pet_note": "as the corpse purger's pet_note",
     "note": "live 2026-10-19 19:54:40-57: 4 of its 5 spell hits on Logan came with 'The creature's spell blights you with a foul disease!' (its Spellblight; knowledge #14647's 15 % is the tamed version's [INFERENCE]), each -21 every ~5 s as the purger's disease; one fight"}
   ],
+  "shadowguard": [
+   {"kind": "ensnare", "chance": 0.28, "hold_s": 2.05, "text": "You have been ensnared and diseased!",
+    "tick_player": [21, 25, 24], "tick_pet": [20, 25, 23], "every_s": 5.0, "ticks": 4,
+    "note": "its spells only (World._specials spell): 40 'You have been ensnared and diseased!' on Logan in the store's captures 2026-10-17..11-03 (sessions 140-229), 40 of 40 0.2-1.8 s after a shadowguard's action 6, 41 of 144 of the spells that followed one on him (fireball 35, flamestrike 38, lightning 30 the rest); the pets 203 times ('*looks violently ill*' with buff 20). Its own number 21-28 (median 25) at +0.25-0.55 s, then 'You are no longer entangled.' 1.98-2.14 s after (median 2.05), -21..-25 every 5.0 s 4 times and 'You are no longer diseased.' at +20 s; Bussin's ticks -20, -23 (live 2026-11-03 23:33:03, 08). docs/NOTES.md 'Ensnared on the walk out'"}
+  ],
   "shade wolf": [
    {
     "kind": "vanish",

@@ -3568,6 +3568,30 @@ it was refused (Entangle, then the shove at 24/25: a hit takes a stamina point) 
 - *Not done:* a heal potion inside a cover walk (with no stall the walk is 1-8 steps); waiting at the monster's tile
   for it to die or move.
 
+## A planned leave fights its way to the gate (2026-11-03, Logan dead on the Maus 3 walk out)
+
+Live 23:32:37-23:33:05 the return rule's walk to the gate took Logan, the pets on follow behind him, to 4 tiles of an
+idle shadowguard; it woke on him, ensnared and diseased him twice from 8 and 13 tiles as it followed, and he died 28 s
+into the leave with 30,806 gp (docs/NOTES.md "Ensnared on the walk out"). User: "If we're not fleeing a red it sure
+seems like we should just fight as normal to the gate. We die so often when the runner 'walks out'."
+
+- *Decided:* every planned leave (time up, `--kills`, the return rule) is a fought leg to beside the gate
+  (`HuntLoop.leave_fought` -> `walk_in_fought`: the hunt's own fighting, cover, songs, potions, the loot, the pets
+  healed and with us before each advance). It stops short for a leave rule that isn't planned (a hostile player: the
+  flight; our hits or a pet: that leave's walk, as the hunt would leave), for an attack within 8 of the gate (through at
+  once, the 2026-10-17 rule), under water while deprived of oxygen and after `GATE_FOUGHT_S` 600 s (the plain walk). A
+  flight from a red and the survival leaves (low hits with no heal coming, a pet down) keep their walk: they leave
+  because fighting on isn't possible. Replaces the fought last 30 route steps (`GATE_FOUGHT_STEPS`, 2026-11-01).
+- *Evidence:* the replay `sim/fight2333.py` (96 seeds; the simulator now ensnares, 0.28 of a shadowguard's spells from
+  the store's 40 live ensnares): deaths 0 / 0 (the simulator doesn't reproduce the death), Logan under 50 hits in 5 -> 0
+  runs, ensnared 27 -> 2 times, the leave 30 -> 62 s. Maus 3 batches as live plays, 2 x 192 runs: deaths 17 -> 9 (none
+  on a planned leave either side; the rest the careers' divergence), banked an hour 134.8k / 135.0k -> 138.2k / 136.5k,
+  the planned walk out 89-92 -> 103-104 s. Tidal Tomb level 2 (192 runs) deaths 31 -> 33 (its block spread ~5),
+  planned-leave deaths 6 -> 3; level 1 0 -> 0.
+- *Not done:* the shadowguard's awake reach (`CASTER_R` 12; it ensnared from 13 once): a soft zone he was already in;
+  a heal potion inside a cover walk (live it came 1.0 s late, 10 hits left); the plain walk's hurt stop that a potion in
+  a hold hid (moot on the fought leave).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

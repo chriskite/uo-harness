@@ -8453,6 +8453,87 @@ Visit 4's walk-in fight on Maus 2, 14 steps short of the last teleporter (5522, 
   tile pickers (spacing, reposition, stand-off) keep their own rules. `sim/fight2330.py` no longer runs on HEAD
   (`hurt()` lacks `ref`).
 
+## Ensnared on the walk out (live 2026-11-03 23:33:05, hunt-20261103-232205-58c6)
+
+Maus 3, hunt-20261103-232205-58c6 (task log lines 593-613), capture session_20261103_101743 replayed through
+`WorldRuntime` (0x77/0x20 positions) and the store's `events` (session 229, full speech text). Logan 0x00104A60, the pets
+Bussin 0x000EA04F and AlaFlambe 0x0026EF56; 30,806 gp on him (lost). No player near but WazabiGreen, fighting a
+tormented soul at (5237, 675) that never turned on us.
+
+- **23:32:37** the return rule ("LEAVING by the moongate: taking the loot home") at (5242, 709); "All Follow Me";
+  "to the moongate: route 117 steps", north up x 5243 with both pets 1-2 tiles behind on follow.
+- **48.07** an idle shadowguard 0x004A3974 into view at (5244, 652), 18 off. The walk went on toward it: Logan at
+  (5242, 656) at 51.61, **4 tiles** off, the pets at (5242, 657). **51.84** its first action 6, war mode on (it took
+  the nearest, Logan). 52 "crawl: keeping out of the reach of the awake shadowguard at (5244, 652)" (`CASTER_R` 12, a
+  soft zone round it, Logan already inside); the route turned west along y 654.
+- **53.78** at (5235, 654), **8-9 tiles** from it (the pets 7): "You have been ensnared and diseased!", effects 14154
+  and 22147 on him, buff 20 (Unable to Move) and 22, '*looks violently ill*'; -28 at 54.30 (100 -> 72). The walk denied
+  (53.95), "held in place; waiting it out"; potion 54.72 (72 -> 100); "You are no longer entangled." 55.92 (2.14 s).
+  The walk's hurt stop read its last hits after the potion (100 -> 100) and didn't fire [from the code: `walk_hurt`'s
+  baseline]; "route 57 steps from (5235, 654)" and on west, the shadowguard following (5244 -> 5239 by 58.10).
+- **56.63-57.37** an elder vampire countess (5215, 639, z 15) and an elder vampire (5212, 641, z 22) into view on the
+  ledge west, 15+ off, idle throughout ("keeping out of sight of the elder vampire countess", --never-aggro): no part
+  in the death.
+- **57.93** a lightning (0xC0 type 1) on Logan at (5226, 654) and sounds on Bussin's tile, and the ensnare's 14122 on
+  Bussin (5229, 654) with '*looks violently ill*' over him, 1.19 s after its action 6 at 56.74 (its `cast_s` median):
+  -21 Logan, -8 AlaFlambe, -14 Bussin at 58.33, Logan 3 tiles from Bussin, 13 from it. **58.84** -24, the first
+  disease tick (effect 14186, sound 0x5CB; 5.06 s after the ensnare). 59.49 "attacked on the way out; the pets guard".
+- **00.66** ensnared and diseased again at (5225, 655), **13 tiles** from it at (5238, 653); -25 at 01.16 (-> 30). The
+  pets on it from 01.15 from where they stood (Bussin (5229, 654), AlaFlambe (5226, 655), 7-10 off; neither moved).
+  01.57 "cover: the shadowguard shoots us here; to (5225, 650), 5 steps" (held till 02.73, walked 03.76-05.44).
+- **03.88** -24 (tick, infection 1) and the vet finish +26 (7 -> 33); **04.76** a flamestrike column (14089, sound 0x208)
+  on Logan, -27 at 05.21 (37 -> 10) [INFERENCE: its, action 6 at 03.56; 12 off]; **05.74** the potion click at 10/100
+  (due 04.72, 10 s after 54.72; no potion inside a cover walk); **05.80** -11 (tick, infection 2) -> dead.
+- **The ensnare** (the store, sessions 140-229, 2026-10-17..11-03): 40 on Logan, every one 0.2-1.8 s after a
+  shadowguard's action 6; 41 of the 144 spells that followed one onto him (fireballs 35, flamestrikes 38, lightnings
+  30); the pets 203 times. Its number 21-28 (median 25) at +0.25-0.55 s, Entangle 1.98-2.14 s, then -21..-25 every
+  5.0 s four times ("You are no longer diseased." at +20 s): ~120 from one. Two on him here 7 s apart plus its lightning
+  and flamestrike: 160 in 12 s against one potion (the 10 s clock) and one vet finish.
+- **Cause**: the planned walk out took Logan ahead of the pets to 4 tiles of an idle shadowguard and on through 9
+  tiles of its reach while it followed and cast; nothing on the plain walk stops for an idle shy caster by the way (the
+  pets-first rule is for melee monsters, the fought approach only the last 30 route steps). The runner's awake reach for
+  it, `CASTER_R` 12, is a tile short of the 13 it ensnared from (one sample); the zone is soft and he started inside it,
+  so 13 wouldn't have changed this walk. The potion due inside the cover walk came 1.0 s late [INFERENCE: on time, ~+28
+  at 33, he lives on ~23]; not changed.
+- **Fixed** (the user's decision, 2026-11-03: "If we're not fleeing a red it sure seems like we should just fight as
+  normal to the gate. We die so often when the runner 'walks out'."; docs/HUNT_LOOP.md "Out", docs/PLAN.md "A planned
+  leave fights its way to the gate"): a planned leave is a fought leg to beside the gate (`HuntLoop.leave_fought`,
+  `walk_in_fought`). On this layout it holds at the shadowguard's first sight ("shadowguard ... would see us before the
+  pets at 11 tiles ... back to (5241, 666) out of its sight"), says "All Patrol" at it ("3 from the shadowguard ... the
+  pets wake it, not us"), the pets kill it, then on.
+- **The simulator** now ensnares (`mausoleum.json` specials "shadowguard" `ensnare`: 0.28 of its spells, Entangle 2.05
+  s, the disease 4 x 21-25 every 5 s; `World._specials` on spell landings only). `sim/fight2333.py` replays the layout
+  (the shadowguard at the capture's cadence: every 3.7 s, reach 13, its lightning on all of us within 3 of its target,
+  its spells at a pet going to Logan in reach and sight), 96 seeds, HEAD (14e7ee8) / the fought leave: deaths 0 / 0,
+  runs under 50 hits 5 / 0, Logan's lowest hits median 76 / 100, ensnares on him 27 (22 runs) / 2 (2), damage on him
+  4,322 / 295, the shadowguard killed in 22 / 96, the leave 30 / 62 s (median). The simulator doesn't reproduce the
+  death itself: its shadowguard woke on Logan and cast at him, but the plain walk mostly outran it.
+- **Batches as live plays** (`run.py --runs 192 --team phoenix_incubus --others --eerie --prior harness/data/harness.db
+  -- --vet-range 5 --crawl-learn-s 180`, both sides on copies of the tree with the ensnare model, before = 14e7ee8):
+
+  | batch | runner | deaths (/h) | deaths on a leave walk | pet-death runs | banked / h | kills / h | Logan's damage / h | planned leave s (median, p90) |
+  |---|---|---|---|---|---|---|---|---|
+  | Maus 3, seed 17 | 14e7ee8 | 7 (0.070) | 4 (hurt leaves) | 12 | 134,756 | 123.9 | 1,139 | 89, 157 |
+  | Maus 3, seed 17 | fought leave | 2 (0.020) | 1 (hurt) | 14 | 138,196 | 125.5 | 1,128 | 103, 185 |
+  | Maus 3, seed 1001 | 14e7ee8 | 10 (0.101) | 5 (hurt) | 15 | 135,027 | 124.9 | 1,126 | 92, 155 |
+  | Maus 3, seed 1001 | fought leave | 7 (0.070) | 1 (hurt) | 9 | 136,489 | 125.8 | 1,138 | 104, 186 |
+  | TT level 2, seed 1 | 14e7ee8 | 31 (0.322) | 6 planned, 4 hurt | 125 | 148,803 | 160.8 | 1,811 | 58, 219 |
+  | TT level 2, seed 1 | fought leave | 33 (0.350) | 3 planned, 11 hurt | 134 | 149,412 | 160.9 | 1,823 | 60, 218 |
+  | TT level 1, 96 runs | 14e7ee8 | 0 | 0 | 0 | 126,251 | 351.6 | 375 | 79, 139 |
+  | TT level 1, 96 runs | fought leave | 0 | 0 | 0 | 127,281 | 354.1 | 408 | 80, 151 |
+
+  No planned-leave death on Maus 3 on either side; Maus 3's 17 -> 9 deaths are the hunt's (the careers diverge after
+  the first leave). Tidal Tomb level 2's total within its block spread (~5), its planned-leave deaths 6 -> 3; the hurt
+  leaves' deaths there fired in the crawl's fights, none from a fought leave (no switch logged). The fought leave's
+  longest walk 446 s on Maus 3, 432 s on level 2 (under `GATE_FOUGHT_S` 600). The batches ran before the fought leg
+  kept the gate's jump watch current on every step (`leave_fought`'s `through`; test_sim `test_tidal_gate_no_dest`: a
+  leave starting beside a gate whose menu lacked Totem read the walk to the next gate as "through"); it changes only
+  leaves that start within 2 of a gate.
+- **Older live leave deaths replayed** (24 seeds each, before / after): `fight1136` 1136 deaths 0 / 0, under 50 hits
+  2 / 1, damage on Logan 2,323 / 1,710; 1507 0 / 0, 0 / 1, 666 / 1,162; `fight1820` and `fight1822` (dead on the walk out
+  after a blightmare and a soul-jar walk) 0 / 0 deaths, identical otherwise (their leaves had nothing on the way).
+  `fight1820.py` and `fight1822.py` ran again after their `hurt()` wrappers took `ref`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -87,6 +87,7 @@ python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # 
 python harness/sim/fight1805.py [1805|1804] 1-24 [--log] [--harness DIR]   # Tidal Tomb level 2 2026-10-31 18:05: dead between two zoas, a shellpod on him (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas")
 python harness/sim/fight1136.py [1136|1507] 1-24 [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Tidal Tomb level 2's walk out through the gate pocket, 2026-11-01 11:36 / 10-31 15:07 (docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
 python harness/sim/fight2321.py 1-48 [--stam 24] [--no-hit-stam] [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Maus 2's walk-in fight 2026-11-03 23:20:59: the cover onto an abomination's tile, 47 -> 8 (docs/NOTES.md "A cover onto an abomination")
+python harness/sim/fight2333.py 1-96 [--log] [--trace DIR] [--harness DIR]   # Maus 3's walk out 2026-11-03 23:32:37: an idle shadowguard by the way, ensnared twice, dead (docs/NOTES.md "Ensnared on the walk out")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -3773,3 +3774,21 @@ with it in, the build with the extra state read): the default team deaths 7 -> 7
 123,812, the wolves' 1,875 -> 2,342. No difference beyond the noise either way: kept as it was (soft); the user decides.
 Noise: the first after-build (an extra guarded state read in each approach) had 7 deaths on the default team, seed 17,
 and 7 too with the whole rule switched off (`--set aggro.STEALTH_CLOSED=()`): the timing alone picks which runs die.
+
+## The shadowguard's ensnare (2026-11-03)
+
+Live 23:32:53-33:05 a shadowguard woken on Logan by the walk out ensnared and diseased him twice and he died (docs/NOTES.md
+"Ensnared on the walk out"). The simulator's shadowguard had only its spells' numbers. Now `mausoleum.json` specials
+"shadowguard" holds an `ensnare` (`World._specials` with `spell`: rolled on its spells' landings only, never its melee):
+0.28 of them (41 of the 144 spells after its action 6 that landed on Logan in the store's captures 2026-10-17..11-03),
+"You have been ensnared and diseased!" on Logan, Entangle (buff 20, no step) 2.05 s, '*looks violently ill*' over the
+victim, and a disease of 4 ticks 21-25 (Logan) / 20-25 (a pet) every 5 s beside any running (`World._disease`). The
+pets take it as often (203 live on the pets against Logan's 40, most of its spells being theirs).
+
+`sim/fight2333.py` replays the layout of the leave (Logan at (5242, 709) with both pets, the shadowguard idle at (5244,
+652), the elder vampire countess and elder vampire idle on the ledge west, the master reanimator behind; the return
+rule fires on the first look; the run ends at home). Its shadowguard casts as live (every 3.7 s, reach 13, its spells
+on all of us within 3 of the target, a spell at a pet going to Logan in its reach and sight): the before side woke it
+on Logan as live, but the plain walk mostly outran it (deaths 0 of 96). Before (14e7ee8) / the fought leave: under 50
+hits 5 / 0 runs, lowest hits median 76 / 100, ensnares on Logan 27 / 2, damage on him 4,322 / 295, the shadowguard
+killed 22 / 96 times, the leave 30 / 62 s. Batches on the new model in docs/NOTES.md.

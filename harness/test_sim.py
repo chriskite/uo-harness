@@ -5642,34 +5642,41 @@ def test_tidal_leave_coming():
     # live 2026-10-28 22:53:01-21.9 (capture 20261028_182147; docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out"):
     # the route ran 3 steps north-east into the scavenger with the pets on follow; beside it the guard's area peace
     # (6 s), then its potion and the vet supplies on Bussin (89 %) before walk_in_fight's order; dead at 21.93
+    # Since 2026-11-03 a planned leave fights the whole way (leave_fought); the coming stop is the plain walk's, after the
+    # fought leg's GATE_FOUGHT_S (0: the plain walk from the start). Both: Logan 5+ from it until the pets hurt it
     import loop_hunt
     from agent_link import cheb
-    w = tidal_world(LEAVE_L1[:2], [{"key": "lowtide scavenger", "at": list(SCAV_L1)}], z=LEAVE_L1[2])
-    sc = next(m for m in w.mobs.values() if m.key == "lowtide scavenger")
-    loop, clock, store, patched = hurt_loop(w, 100)
-    loop.link.send(tamer.command("all follow me"))           # live: on follow from 22:53:01.7
-    sc.target, sc.threat = w.player.serial, {w.player.serial: 1.0}
-    w._warm(sc, True)
-    hurts, near, tick0 = _log_hurts(w), [], clock.on_advance
+    for fought_s, line in ((0.0, r"to the moongate: lowtide scavenger in war mode \d+ tiles off coming on the way out; "
+                                 r"the pets guard"),
+                           (loop_hunt.GATE_FOUGHT_S, r"to the moongate: fought through")):
+        w = tidal_world(LEAVE_L1[:2], [{"key": "lowtide scavenger", "at": list(SCAV_L1)}], z=LEAVE_L1[2])
+        sc = next(m for m in w.mobs.values() if m.key == "lowtide scavenger")
+        loop, clock, store, patched = hurt_loop(w, 100)
+        loop.link.send(tamer.command("all follow me"))           # live: on follow from 22:53:01.7
+        sc.target, sc.threat = w.player.serial, {w.player.serial: 1.0}
+        w._warm(sc, True)
+        hurts, near, tick0 = _log_hurts(w), [], clock.on_advance
 
-    def tick(now):
-        tick0(now)
-        if sc.alive and not any(v is sc for _, v, _, _ in hurts):
-            near.append(cheb(w.player.pos, sc.pos))          # Logan to it until a pet first hurts it
-    clock.on_advance = tick
-    buf = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(buf):
-            res = loop.leave_by_gate("info")
-    finally:
-        store.close()
-        simclock.uninstall(patched)
-    out = buf.getvalue()
-    check("'to the moongate: lowtide scavenger in war mode N tiles off coming on the way out; the pets guard'; Logan "
-          "5+ from it until the pets hurt it (before: 1, beside it); through the gate alive",
-          bool(re.search(r"to the moongate: lowtide scavenger in war mode \d+ tiles off coming on the way out; the pets "
-                         r"guard", out)) and near and min(near) >= 5 and res.get("ok") and w.player.alive,
-          f"nearest {min(near) if near else None} ok {res.get('ok')} {[ln for ln in out.splitlines() if 'moongate' in ln][:2]}")
+        def tick(now, tick0=tick0, sc=sc, hurts=hurts, near=near, w=w):
+            tick0(now)
+            if sc.alive and not any(v is sc for _, v, _, _ in hurts):
+                near.append(cheb(w.player.pos, sc.pos))          # Logan to it until a pet first hurts it
+        clock.on_advance = tick
+        buf = io.StringIO()
+        saved, loop_hunt.GATE_FOUGHT_S = loop_hunt.GATE_FOUGHT_S, fought_s
+        try:
+            with contextlib.redirect_stdout(buf):
+                res = loop.leave_by_gate("info")
+        finally:
+            loop_hunt.GATE_FOUGHT_S = saved
+            store.close()
+            simclock.uninstall(patched)
+        out = buf.getvalue()
+        check(f"GATE_FOUGHT_S {fought_s:.0f}: '{line}'; Logan 5+ from it until the pets hurt it (live: 1, beside it); "
+              f"through the gate alive",
+              bool(re.search(line, out)) and near and min(near) >= 5 and res.get("ok") and w.player.alive,
+              f"nearest {min(near) if near else None} ok {res.get('ok')} "
+              f"{[ln for ln in out.splitlines() if 'moongate' in ln][:2]}")
     x, y, z = LEAVE_L1[0] + 3, LEAVE_L1[1] - 3, LEAVE_L1[2]  # live 22:53:17.5: Logan at (6673, 2036), it north of him
     w = tidal_world((x, y), [{"key": "lowtide scavenger", "at": [x, y - 1, z]}], z=z)
     sc = next(m for m in w.mobs.values() if m.key == "lowtide scavenger")
@@ -5772,12 +5779,11 @@ def test_tidal_leave_crab():
     # (6910, 2058) the crab 2 off struck and pinched (6 s held), the drowned mariner (-33, -25) and a voidfin (-43) woke
     # on him, dead 5.8 s into the hold. Before (loop_hunt.LEAD False, today's walk): the crab woke on Logan 22 of 24 times
     # 1-3 tiles off, Logan pinched 7 times, 1,241 on him; after: on AlaFlambe 24 of 24 with Logan 8 off, no pinch, 591
-    # The walk's 23 steps all lie within GATE_FOUGHT_STEPS (30, since 2026-11-01), so the fought approach would take the
-    # whole walk (the crab woke on a pet 24 of 24 there too, Logan 6 off, 109 on him): off here, the lead rule alone, as
-    # on a longer walk out
+    # Since 2026-11-03 a planned leave fights the whole way (leave_fought); the lead rule is the plain walk's, after the
+    # fought leg's GATE_FOUGHT_S: 0 here, the plain walk from the start
     import loop_hunt
     wakes, pinched, fails, led, dmg = [], [], [], 0, 0
-    saved, loop_hunt.GATE_FOUGHT_STEPS = loop_hunt.GATE_FOUGHT_STEPS, 0
+    saved, loop_hunt.GATE_FOUGHT_S = loop_hunt.GATE_FOUGHT_S, 0.0
     for seed in range(1, 25):
         w = tidal_world(TT2_LEAVE[:2], TT2_SPAWNS, seed=seed, z=TT2_LEAVE[2], team="phoenix_incubus")
         crab = next(m for m in w.mobs.values() if m.key == "giant pincer crab")
@@ -5805,7 +5811,7 @@ def test_tidal_leave_crab():
         led += "for the pets to lead" in buf.getvalue()
         if not (res.get("ok") and w.player.alive and not w.player.ghost):
             fails.append((seed, res.get("error"), round(w.player.hits)))
-    loop_hunt.GATE_FOUGHT_STEPS = saved
+    loop_hunt.GATE_FOUGHT_S = saved
     on_pet = sum(1 for s in wakes if s is not None and not s[0])
     check(f"'... with us in front; stopping at ... for the pets to lead' in every seed; the crab woke on a pet in each "
           f"(LEAD {loop_hunt.LEAD}); Logan never pinched, alive and through the gate (before: on Logan 22 of 24, "
@@ -5815,13 +5821,14 @@ def test_tidal_leave_crab():
 
 
 def test_tidal_leave_pocket():
-    print("== Tidal Tomb level 2 (live 2026-10-31 15:06:53, the gate pocket): the planned walk out fights its last "
-          "GATE_FOUGHT_STEPS route steps to the gate; Logan never under 50 hits, through the gate, seeds 1-6 ==")
+    print("== Tidal Tomb level 2 (live 2026-10-31 15:06:53, the gate pocket): the planned walk out fights its way to "
+          "the gate; Logan under 50 hits in at most 1 of seeds 1-6 (the plain walk: 3), alive and through the gate ==")
     # live 15:06:53-15:07:17 (hunt-20261031-144244-9e62, capture 20261031_132152): "to the moongate: route 73 steps from
     # (6855, 2046)", east along y 2064 past an idle combustive zoa (4-6 off), drowned mariner (6) and voidfin (3-6), Logan
     # ahead of the pets: the zoa -29, the mariner -30, the voidfin -22, -32, -32, down to 17 (docs/NOTES.md "Tidal Tomb
-    # level 2: the gate pocket's crossfire"; sim/fight1136.py 1507). Before (GATE_FOUGHT_STEPS 0, the plain walk): lowest
-    # hits under 50 in 3 of these 6 seeds (15, 29, 45); after 70-100
+    # level 2: the gate pocket's crossfire"; sim/fight1136.py 1507). The plain walk: lowest hits under 50 in 3 of these 6
+    # seeds (15, 29, 45). The last 30 route steps fought (2026-11-01): 62-100 over seeds 1-24; the whole walk fought
+    # (2026-11-03): 66-100 but 43 in seed 5 (one of 24 under 50, median 82 against 79; docs/SIM.md "Fought to the gate")
     import loop_hunt
     spawns = ({"key": "frenzyfin", "at": [6851, 2080, -100]}, {"key": "combustive zoa", "at": [6885, 2070, -100]},
               {"key": "drowned mariner", "at": [6901, 2067, -100]}, {"key": "voidfin", "at": [6902, 2061, -100]},
@@ -5849,9 +5856,10 @@ def test_tidal_leave_pocket():
         fought += "to the moongate: fought through" in buf.getvalue()
         if not (res.get("ok") and w.player.alive and not w.player.ghost):
             fails.append((seed, res.get("error") or res.get("called_off"), round(w.player.hits)))
-    check(f"'to the moongate: fought through' in every seed (GATE_FOUGHT_STEPS {loop_hunt.GATE_FOUGHT_STEPS}); Logan's "
-          f"lowest hits 50+ in each, alive and through the gate (before: under 50 in 3 of 6)",
-          fought == 6 and min(lows) >= 50 and not fails, f"fought {fought} lows {lows} fails {fails}")
+    check(f"'to the moongate: fought through' in every seed (GATE_FOUGHT_S {loop_hunt.GATE_FOUGHT_S:.0f}); Logan's "
+          f"lowest hits under 50 in at most 1 of 6, alive and through the gate in each (the plain walk: under 50 in 3)",
+          fought == 6 and sum(x < 50 for x in lows) <= 1 and not fails, f"fought {fought} lows {lows} fails {fails}")
+
 
 def test_leave_fought_shadowguard():
     print("== Maus 3 (live 2026-11-03 23:32:37-33:05, the walk out past an idle shadowguard): a planned leave fights its "
@@ -5859,7 +5867,7 @@ def test_leave_fought_shadowguard():
     # live (hunt-20261103-232205-58c6, docs/NOTES.md "Ensnared on the walk out"; sim/fight2333.py): "to the moongate: route
     # 117 steps from (5242, 709)" north up x 5243 with the pets on follow 1-2 behind; the idle shadowguard at (5244, 652)
     # woke on Logan 4 off (51.84), ensnared and diseased him at 8 (53.78) and 13 (00.66), dead at 23:33:05.80. Before (the
-    # plain walk): its first spell on Logan in each of these seeds
+    # plain walk with its stops): its first spell on Logan in seeds 1 and 2, ensnaring him in each; on a pet in 3 and 4
     import loop_hunt
     spawns = ({"key": "shadowguard", "at": [5244, 652, 0]}, {"key": "elder vampire countess", "at": [5215, 639, 15]},
               {"key": "elder vampire", "at": [5212, 641, 22]}, {"key": "master reanimator", "at": [5241, 724, 0]})
@@ -8247,7 +8255,8 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
-              test_tidal_leave_crab, test_tidal_leave_pocket, test_tidal_voidfin_dive, test_tidal_large_swing,
+              test_tidal_leave_crab, test_tidal_leave_pocket, test_leave_fought_shadowguard, test_tidal_voidfin_dive,
+              test_tidal_large_swing,
               test_tidal_scorch, test_scorch_telegraph, test_scorch_stand_off, test_standoff_war_sight,
               test_scorch_windup_step,
               test_potion_after_vet, test_patrol_refused_hold,

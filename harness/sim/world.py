@@ -140,7 +140,8 @@ CORPSE_GUMP = 0x09
 TOME_ROW_BUTTON0 = 100    # the tome's rows: 100 + row index (test_loop_hunt's layout, escape parses it)
 GHOST_BODY = 0x192
 ROW_HUES = (63, 2655)     # the default row's text hue, other rows'
-ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease", "pressure"}   # scenario specials rolled on a monster's hit
+ON_HIT = {"bleed", "bleed_area", "poison", "drain", "disease", "pressure", "ensnare"}   # scenario specials rolled on a
+# monster's hit ("ensnare" on its spell's only)
 TIMED = {"charge", "transfix", "vanish", "wail", "burst", "blink", "feed", "ooze", "brood",
          "large_swing", "spray", "rope", "bubbles", "rotation"}   # ...used on a cooldown while it fights
 # ("dematerialize" fires from `hurt`: a banshee hit with it ready)
@@ -2023,7 +2024,7 @@ class World:
         if ranged.get("hit_chance") is not None and self.rng.random() >= ranged["hit_chance"]:
             return                                   # a miss: no number on anyone (the drowned mariner's 0x7D1 shots)
         self.hurt(victim, self._shot_damage(ranged, victim), m, "spell", ref=ranged.get("ref"))
-        self._specials(m, victim, m.spec)
+        self._specials(m, victim, m.spec, spell=True)
         for sp in m.spec.get("specials", []):
             if sp["kind"] == "fire_mark":
                 self._fire_mark(victim, sp)
@@ -2051,12 +2052,13 @@ class World:
             self._ev("cast_lost", by=m.serial, v=m.cast[1], why=why)
             m.cast = None
 
-    def _specials(self, m: Mob, tgt: Mob, spec: dict):
-        """On-hit specials (scenario `specials`; the timed ones are `_abilities`)."""
+    def _specials(self, m: Mob, tgt: Mob, spec: dict, spell: bool = False):
+        """On-hit specials (scenario `specials`; the timed ones are `_abilities`). `spell`: a ranged attack's landing
+        (`_impact`), the only hit an `ensnare` rolls on."""
         for sp in spec.get("specials", []):
             kind = sp["kind"]
             chance = sp.get("pet_chance", sp.get("chance", 0)) if tgt.kind == "pet" else sp.get("chance", 0)
-            if kind not in ON_HIT or self.rng.random() >= chance:
+            if kind not in ON_HIT or (kind == "ensnare" and not spell) or self.rng.random() >= chance:
                 continue
             if kind == "bleed" and sp.get("stack"):
                 self._bleed_stack(tgt, sp)
@@ -2092,6 +2094,13 @@ class World:
                 tgt.diseases.append([self.t + sp["every_s"], sp["ticks"], sp["tick"], sp["every_s"]])
                 if tgt.kind == "player":
                     self._sys("You have contracted a foul disease!")
+            elif kind == "ensnare":
+                # a shadowguard's spell (docs/NOTES.md "Ensnared on the walk out"): "You have been ensnared and
+                # diseased!", Entangle (buff 20) for `hold_s`, '*looks violently ill*' over the victim, and a disease
+                # of `ticks` every `every_s` beside any running
+                self._root(tgt, sp["hold_s"], sp["text"])
+                self._overhead(tgt, tamer.TEXT_POISONED)
+                self._disease(tgt, {**sp, "text": None})
 
     def _pressure(self, o: Mob, sp: dict):
         """A Pressure stack on `o` (`damage_pet` / `damage_player` each, `seconds` after its first stack every stack

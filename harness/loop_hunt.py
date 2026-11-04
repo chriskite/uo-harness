@@ -212,18 +212,19 @@ DRINK_TRIES = 2               # a heal potion's double-click again after 500119 
 #                              vet supplies' click, refused; counted as drunk, no potion again at 56-23 hits, dead at 55.1)
 GATE_THROUGH_R = 30          # a jump from beside the leave gate to this far from it: through the gate (live 20261017 16:38:56)
 GATE_DASH_R = 8              # attacked on a planned walk out this close to the leave gate: through it, no stand (live 19:04)
+GATE_DASH_HIT_S = 2.0        # ...on the fought leave a hit this recent counts as attacked (leave_fought)
 GATE_IDLE_COST = 10          # several --leave-gate: an idle monster whose aggro range and sight take in a tile of a gate's
 #                              way adds this many steps to it (way_danger; the leave picks the easiest gate, pick_gate)...
 GATE_AWAKE_COST = 20         # ...an awake one this many (it comes on: the pets' fight on the way, or ours)
-# The gate's approach fought (user 2026-11-01, Tidal Tomb level 2: the walk out "run full bore past the combustive zoa"
-# into "a 3 way fight"; live 10-30 18:29, 10-31 15:07 and 11-01 11:36 the plain walk to the crimson gate (6913, 2071) went
-# east along y 2064, Logan ahead of the pets, 4-6 from a zoa, 6 from a drowned mariner, 3-6 from a voidfin, and all three
-# woke on him; docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire"): a planned walk out fights its last
-# GATE_FOUGHT_STEPS route steps (walk_in_fought: the shooters' first sight backed off from, the pull budget, the pets
-# sent first), up to GATE_FOUGHT_S, never while deprived of oxygen; then walked as before
-GATE_FOUGHT_STEPS = 30
-GATE_FOUGHT_S = 120.0
-FOUGHT_APPROACH = "the gate's approach"   # leave_by_one_gate's stop: GATE_FOUGHT_STEPS reached
+# A planned leave fights its way to the gate (user 2026-11-03, after the 23:33 death on Maus 3's walk out: "If we're not
+# fleeing a red it sure seems like we should just fight as normal to the gate. We die so often when the runner 'walks
+# out'."; docs/NOTES.md "Ensnared on the walk out"): the whole walk to the tile beside the gate is a fought leg
+# (walk_in_fought: what's in reach pulled and killed, the shy ones' first sight backed off from, the pets sent first and
+# healed and with us before each advance), up to GATE_FOUGHT_S, never while deprived of oxygen; a leave rule that isn't
+# a planned one (a hostile player, our hits, a pet) ends it and that leave goes on as it would anyway (the flight, the
+# run); after GATE_FOUGHT_S or under water, the plain walk with its stops. From 2026-11-01 only the last 30 route steps
+# were fought (Tidal Tomb level 2's gate pocket, docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
+GATE_FOUGHT_S = 600.0         # 0: no fought leg (the plain walk)
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
 FLOOR_Z_TOL = 10              # ...ending within this of its surface z (live: a vampire on a ledge 20 above, 11 steps round)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450), and
@@ -2540,11 +2541,13 @@ class HuntLoop:
         time-up walk out of 15:43:52 left them fighting behind on guard: "all follow me to run out, not all
         guard"), then beside it 'All Follow Me' again (tamer.follow: a hurt leave doesn't wait) so they come
         through, a double-click on the gate from that tile (live 20261013_204518; the step onto it when its
-        item isn't in view) and the travel to --gate-dest (moongate.travel). A planned leave (PLANNED) walks
-        as the walk-in does (walk_in_stop): attacked, the pets guard until it's over (walk_in_fight); a pet
-        lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside the gate); an idle
-        melee monster by the way ahead with us in front, the pets first (idle_ahead, lead_pets); the last
-        GATE_FOUGHT_STEPS route steps fought (walk_in_fought, FOUGHT_APPROACH), not walked past what stands there.
+        item isn't in view) and the travel to --gate-dest (moongate.travel). A planned leave (PLANNED) with the pets
+        fights its way to the tile beside the gate as the hunt fights (leave_fought, walk_in_fought; user 2026-11-03: "If
+        we're not fleeing a red it sure seems like we should just fight as normal to the gate"); stopped short (under
+        water, GATE_FOUGHT_S), it walks as the walk-in does (walk_in_stop): attacked, the pets guard until it's over
+        (walk_in_fight); a pet lagging, a wait for it (wait_pets; once it doesn't come, the walk goes on and waits beside
+        the gate); an idle melee monster by the way ahead with us in front, the pets first (idle_ahead, lead_pets). A
+        leave rule that isn't a planned one firing in the fight (leave_fought) makes the rest that leave's walk.
         From a hostile player (severity urgent), as Logan fled reds three times (20261013_173449,
         20261014_170144, _173858): flee_out, away from them first when the way passes them, Adventurer's Rope
         jumps whenever one is worth it (rope_jump).
@@ -2591,15 +2594,7 @@ class HuntLoop:
             jump["last"] = here
             return jump["through"]
         try:
-            if self.team is not None and severity in PLANNED and self.left_level and self.args.fight_via:
-                # up through --leave-via onto a level the walk in fights through (--fight-via): the walk to the gate is
-                # fought the same way (user 2026-10-26: "in TT we'll always have to fight in 2"; simulator the same
-                # day, level 3: two of nine deaths on the time-up walk across level 2 to its gate)
-                path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
-                if path and len(path) >= 2:
-                    self.walk_in_fought("to the moongate", tuple(path[-2]))
             if self.team is not None:
-                self.team.follow(severity, wait=flee)
                 self.walk_hits, self.walk_hurt_t = None, -1e9
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
                 if not path:
@@ -2608,8 +2603,16 @@ class HuntLoop:
                     path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False,
                                               through_fields=True)
                 near = tuple(path[-2]) if path and len(path) >= 2 else None
+                if severity in PLANNED and near is not None and GATE_FOUGHT_S > 0:
+                    # the hunt's fighting to beside the gate; its end says 'All Follow Me' (walk_in_fought)
+                    severity, dash = self.leave_fought(gate, near, severity, through)
+                    urgent, flee = severity not in PLANNED, severity == "urgent"
+                    self.pk_flight, self.walk_out_fought = flee, severity in PLANNED
+                    if dash:
+                        near = None                 # no walk on: onto the gate at its macro's pace (below)
+                else:
+                    self.team.follow(severity, wait=flee)
                 lag = {"wait": severity in PLANNED}
-                approach = {"due": severity in PLANNED and GATE_FOUGHT_STEPS > 0}
 
                 def stop(s):
                     if through(s):
@@ -2624,9 +2627,6 @@ class HuntLoop:
                         return f"coming: {who}"
                     if lag["wait"] and (why := self.pets_lagging(s)):
                         return why
-                    if approach["due"] and (left := self.route_left(s)) is not None and left <= GATE_FOUGHT_STEPS \
-                            and self.oxygen_floor() is None:
-                        return FOUGHT_APPROACH
                     return self.idle_ahead(s)
                 if flee:
                     if near is not None:
@@ -2677,14 +2677,6 @@ class HuntLoop:
                                 self.walk_in_fight("to the moongate", "out", coming=coming)
                             elif why.startswith(IDLE_AHEAD):
                                 self.lead_pets("to the moongate")
-                            elif why == FOUGHT_APPROACH:
-                                approach["due"] = False
-                                t_end = time.monotonic() + GATE_FOUGHT_S
-                                self.walk_in_fought(
-                                    "to the moongate", near, kind="leave",
-                                    bail=lambda s: ("deprived of oxygen" if self.oxygen_floor() is not None else
-                                                    f"{GATE_FOUGHT_S:.0f} s of fighting" if time.monotonic() > t_end
-                                                    else None))
                             elif not self.wait_pets("to the moongate", None, required=False):
                                 if self.gathering_leave:
                                     # back to the pets (gather_pets) rather than on without them (user 2026-10-31)
@@ -2755,6 +2747,47 @@ class HuntLoop:
                     "dest": self.args.gate_dest}
         finally:
             self.walking_out = self.pk_flight = self.left_level = self.walk_out_fought = False
+
+    def leave_fought(self, gate, near, severity: str, through) -> tuple[str, bool]:
+        """A planned leave's way to `near` (beside the gate) fought as the hunt fights (walk_in_fought: the pets on guard,
+        what's in reach pulled and killed, the back-off from a shy one's first sight, 'All Patrol' at one, the pets healed
+        and with us before each advance, the loot). User 2026-11-03, after the 23:33 death on Maus 3's walk out (the plain
+        walk took Logan, the pets on follow behind him, 3-4 tiles past an idle shadowguard; it woke on him and ensnared
+        him twice; docs/NOTES.md "Ensnared on the walk out"): "If we're not fleeing a red it sure seems like we should
+        just fight as normal to the gate. We die so often when the runner 'walks out'." Stops short under water while
+        deprived of oxygen, after GATE_FOUGHT_S, or on a leave rule that isn't a planned one (leave_reason: a hostile
+        player, our hits, a pet): the walk on is that leave's. Attacked or hit within GATE_DASH_R of the gate: through it
+        now (live 2026-10-17 19:04:15, user: "We were at the gate and Logan just stood there dying instead of going
+        through"). `through(st)`: leave_by_one_gate's jump watch, read on every step (a gate gone through on the way ends
+        the leg; its last tile kept current). -> (the severity the rest of the walk goes on with, the dash through the
+        gate)."""
+        t_end = time.monotonic() + GATE_FOUGHT_S
+        out = {"to": None, "dash": False}
+
+        def bail(s):
+            if through(s):
+                return "through the gate"
+            if self.oxygen_floor() is not None:
+                return "deprived of oxygen"
+            if time.monotonic() > t_end:
+                return f"{GATE_FOUGHT_S:.0f} s of fighting"
+            if (reason := self.leave_reason(s)) is not None and reason[1] not in PLANNED:
+                out["to"] = reason
+                return f"a leave rule fired ({reason[0]})"
+            if (d := cheb(self.pos(s), gate)) <= GATE_DASH_R \
+                    and (self.attackers(s) or time.monotonic() - self.walk_hurt_t <= GATE_DASH_HIT_S):
+                out["dash"] = True
+                return f"attacked {d} tiles from it; through it now"
+            return None
+        self.walk_in_fought("to the moongate", near, kind="leave", bail=bail,
+                            walk_stop=lambda s: "through the gate" if through(s) else None,
+                            follow_wait=lambda s: not out["dash"] and self.leave_reason(s) is None)
+        if out["to"] is None:
+            return severity, out["dash"]
+        why, severity = out["to"]
+        self.count("leaves_fought_switched")
+        log(f"to the moongate: {why}; the rest of the way as {'a flight' if severity == 'urgent' else 'that leave'}")
+        return severity, False
 
     def leave_up(self, severity: str):
         """--leave-via: the leave gate a level or more above the hunt's (Tidal Tomb's level 3, its crimson gate on level
@@ -3939,16 +3972,6 @@ class HuntLoop:
         g["gave_up"] = True
         return None
 
-    def route_left(self, st) -> int | None:
-        """The walk's route steps still ahead of us (Mover.route), None off the planned route or without one."""
-        route = getattr(self.mover, "route", None)
-        if not route:
-            return None
-        try:
-            return len(route) - 1 - route.index(tuple(self.pos(st)[:2]))
-        except ValueError:
-            return None
-
     def idle_ahead(self, st) -> str | None:
         """A planned walk's stop (leave_by_gate's, walk_in_stop): an idle melee monster (aggro.melee) whose reach
         (aggro.melee_reach: the giant pincer crab's 2, else 1) plus LEAD_MARGIN covers one of the walk's next LEAD_LOOK
@@ -4219,18 +4242,19 @@ class HuntLoop:
             return "a target in reach"
         return self.team.pull_check(st) or self.patrol_hold(st) if self.team is not None else None
 
-    def walk_in_fought(self, label, near, kind: str | None = None, bail=None) -> bool:
+    def walk_in_fought(self, label, near, kind: str | None = None, bail=None, follow_wait=None, walk_stop=None) -> bool:
         """--fight-via: the leg to this teleporter fought through as on the hunt level, not walked (user 2026-10-26:
         "in TT we'll always have to fight in 2 in order to get to 3"; simulator 2026-10-26: all 8 level 3 runs died on
         the walk across level 2, at its arrival among the drowned mariners and soulcatchers). The pets on 'All Guard
         Me'; each round the tick's fighting (combat_step: what's in reach pulled and killed, the back-off from a shy
         one's first sight, 'All Patrol' at one, the hold for what sees us), the pets healed and with us, then on toward
-        `near` (the tile before the teleporter, or before the leave gate on a planned leave up through --leave-via:
-        leave_by_gate; a refill: oxygen_leg) until fought_stop. Abort when not there after WALK_FOUGHT_S (the run's
-        overall timeout guard doesn't count a fought leg's time: fought_end, fought_s). `kind`: the viz intent's (else
-        "enter" or "leave" by the label); `bail(st)`: a reason to stop short (False back), checked each round. True
-        when there. A shy monster backed off from tamer.BACK_OFF_REPEAT times in the leg with no kill between gets the
-        pass by it (Team.pass_by), else is gone on past, the pets on guard (Team.back_off: the leg must arrive)."""
+        `near` (the tile before the teleporter, before the leave gate on a planned leave: leave_fought; a refill:
+        oxygen_leg) until fought_stop (or `walk_stop(st)` first, on every step). Abort when not there after WALK_FOUGHT_S
+        (the run's overall timeout guard doesn't count a fought leg's time: fought_end, fought_s). `kind`: the viz
+        intent's (else "enter" or "leave" by the label); `bail(st)`: a reason to stop short (False back), checked each
+        round. True when there. A shy monster backed off from tamer.BACK_OFF_REPEAT times in the leg with no kill between
+        gets the pass by it (Team.pass_by), else is gone on past, the pets on guard (Team.back_off: the leg must arrive).
+        At the end 'All Follow Me', waiting for the pets when `follow_wait(st)` (default: no leave rule fires)."""
         log(f"{label}: fought through")
         if self.team is not None:
             self.team.leg, self.team.backed, self.team.faced, self.team.passing = label, {}, {}, None
@@ -4265,14 +4289,17 @@ class HuntLoop:
                     return True
                 self.doing(kind or ("enter" if label.startswith("to the teleporter") else "leave"),
                            f"Fighting through, {label}", near)
-                self.mover.walk_to(lambda: near, 0, label, stop=self.fought_stop)
+                self.mover.walk_to(lambda: near, 0, label,
+                                   stop=lambda s: (walk_stop is not None and walk_stop(s)) or self.fought_stop(s))
         finally:
             self.fought_s += time.monotonic() - (end - WALK_FOUGHT_S)
             self.fought_end = None
             self.disengage("ended")
             if self.team is not None:
                 self.team.leg, self.team.backed, self.team.faced, self.team.passing = None, {}, {}, None
-                self.team.follow()
+                # no wait for the pets when a leave rule fires (a bail for it: its own 'All Follow Me' and pace)
+                st = self.link.state()
+                self.team.follow(wait=follow_wait(st) if follow_wait is not None else self.leave_reason(st) is None)
 
     # ------------------------------------------------------------ oxygen (Tidal Tomb's levels 2+)
     def oxygen_floor(self) -> float | None:

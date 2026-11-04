@@ -584,7 +584,7 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    answered "You play successfully, briefly pacifying one or more nearby creatures."): `Team.area_peace`
    when two or more attack us within 3, or one while we're below `--retreat-at`, or on the walk out to the
    gate past anything in war mode within 3 (first in the care order; on the walk out between steps; since 2026-10-28
-   not on a planned walk out, which stops and fights what attacks it: "Something coming on a planned walk out" below).
+   not on a planned walk out, which stops and fights what attacks it: "Something coming on the plain walk out" below).
    fight1949, 24 seeds: deaths 1 -> 0, damage on Logan 147 -> 83, lowest hits 0 -> 39.
 3. **"All Kill" only at a mob already on us** that the pets leave alone for 4 s (its aggro is on us
    anyway), or at the pets' target when a live pet within 12 of it stands out of war mode for 5 s
@@ -1241,13 +1241,36 @@ moongate, and never near a red one).
       attackers and no wait for the pets. On Maus 3 the visit's first act is the red's leave by the crimson gate
       ("LEAVING by the moongate: <why>, on the walk in").
 - **Out:** `--leave-gate X Y --gate-dest NAME` (`moongate.py`; repeat `--leave-gate` for several: the easiest, below).
-  - The runner says "All Follow Me" and walks to the gate (user 2026-10-17, after a time-up walk out on
-    "All Guard Me" left the pets fighting behind: "all follow me to run out, not all guard"), and says it
-    again beside the gate. A planned leave (time up, `--kills`, the return rule) walks like the walk-in: attacked,
-    the pets guard until it's over; a pet more than 8 tiles off or out of view, a wait for it (once it doesn't
-    come in 25 s the walk goes on and waits beside the gate); an idle melee monster by the way ahead, the pets first
-    (below). Then it double-clicks the gate from that tile, as Logan did (the step onto it only when the gate
-    item isn't in view), and picks the destination by its label.
+  - A leave that isn't a planned one (a hurt leave, a pet's, a hostile player's) says "All Follow Me" and walks to the
+    gate (user 2026-10-17, after a time-up walk out on "All Guard Me" left the pets fighting behind: "all follow me to
+    run out, not all guard"), and says it again beside the gate. **A planned leave** (time up, `--kills`, the return
+    rule) **fights its way to the gate** (below). Then it double-clicks the gate from that tile, as Logan did (the step
+    onto it only when the gate item isn't in view), and picks the destination by its label.
+  - **A planned leave fights its way to the gate** (since 2026-11-03; user, after the Maus 3 death that night: "If
+    we're not fleeing a red it sure seems like we should just fight as normal to the gate. We die so often when the
+    runner 'walks out'."; docs/NOTES.md "Ensnared on the walk out": the plain walk took Logan ahead of the pets to 4
+    tiles of an idle shadowguard, it woke on him and ensnared him twice). The whole way to the tile beside the gate is a
+    fought leg (`HuntLoop.leave_fought`, `walk_in_fought`, as `--fight-via`'s below): the pets on 'All Guard Me', each
+    round the hunt's fighting (`combat_step`: what's in reach pulled and killed, the step-in or back-off from a shy
+    one's first sight, 'All Patrol' at one, the hold for what sees us, cover, songs, potions, the loot), the pets healed
+    and with us before each advance, the walk on toward the gate stopping on the patrol's stops (`fought_stop`); at the
+    end 'All Follow Me', beside the gate again. Log: "to the moongate: fought through", the fight's lines, "to the
+    moongate: route N steps from …". It stops short ("to the moongate: <why>; stopping short"):
+    - **a leave rule that isn't a planned one fires** (a hostile player, our hits below --leave-at with no heal coming,
+      a pet dead, gone or too hurt; `leave_reason`): "a leave rule fired (…)", then "the rest of the way as a flight"
+      (`flee_out`) or "as that leave" (the walk with no stops, called off once healed), as the hunt would leave; no wait
+      for the pets at the leg's end;
+    - **attacked or hit within `GATE_DASH_R` 8 of the gate** (`GATE_DASH_HIT_S` 2 s): "attacked N tiles from it;
+      through it now" (live 2026-10-17 19:04; user: "We were at the gate and Logan just stood there dying instead of
+      going through"): no wait for the pets, onto the gate at its macro's pace;
+    - **deprived of oxygen** under water, or **after `GATE_FOUGHT_S` 600 s** (0: no fought leg): the plain walk below.
+    Simulator (docs/NOTES.md "Ensnared on the walk out", sim/fight2333.py): on the live layout, 96 seeds, Logan under 50
+    hits in 5 runs -> 0, ensnared 27 times -> 2, the leave 30 -> 62 s; Maus 3 batches (2 x 192 runs) deaths 17 -> 9,
+    none on a planned leave either side, banked an hour +1-3 %, the planned walk 89-92 -> 103-104 s (median); Tidal
+    Tomb level 2 deaths 31 -> 33 of 192 runs (its block spread ~5), planned-leave deaths 6 -> 3; level 1 0 -> 0.
+  - **The plain walk** (the leave's walk when the fought leg stopped short; the walk in's): attacked, the pets guard
+    until it's over; a pet more than 8 tiles off or out of view, a wait for it (once it doesn't come in 25 s the walk
+    goes on and waits beside the gate); an idle melee monster by the way ahead, the pets first (below).
   - **Several gates: `--leave-gate X Y` repeated** (since 2026-10-31; user: "the runner leaves by the yellow gate near
     the entrance, but if its time to leave it could leave by the easiest gate to get to"). One given is as before. All
     on one level with `--gate-dest` on each menu; the crawl refuses gates on and off its floor ("crawl: the leave gates
@@ -1274,7 +1297,8 @@ moongate, and never near a red one).
   - **The pets first by an idle melee monster** (since 2026-10-30, the user's "narrow rule" after the level 2 death at
     18:29: the walk to the gate took Logan, the pets 1-3 behind on follow, 2 tiles past an idle giant pincer crab; it
     struck from 2, pinched him in place 6 s, and a drowned mariner and a voidfin killed him in the hold; docs/NOTES.md
-    "Tidal Tomb: level 2 death 2026-10-30 18:29"). The planned walk to the leave gate stops (`HuntLoop.idle_ahead`, in
+    "Tidal Tomb: level 2 death 2026-10-30 18:29"). Since 2026-11-03 the plain walk's only (the planned leave is fought
+    first, above). The planned walk to the leave gate stops (`HuntLoop.idle_ahead`, in
     its stop; the walk in's `walk_in_stop` with `LEAD_IN` only) when one of its next 6 route tiles (`LEAD_LOOK`, the Mover's
     planned `route`) is within an idle melee monster's reach (`aggro.melee`: not shy, not a mage or ranged AI;
     `aggro.melee_reach`, the scenario's `melee_observed` `reach`: the giant pincer crab 2, else 1) plus 1
@@ -1298,23 +1322,13 @@ moongate, and never near a red one).
     the crawl's patrol or the fought legs (`walk_in_fought`, the oxygen legs): they stop for "a target in reach"
     (`pick_target`, the pull range: 8 with the pets) and fight it as the hunt does [from the code; not measured on the
     crab].
-  - **The gate's approach fought** (since 2026-11-01; user on Tidal Tomb level 2: the walk out "run full bore past the
-    combustive zoa to (near) the tile I mentioned earlier and get in a 3 way fight"; docs/NOTES.md "Tidal Tomb level 2:
-    the gate pocket's crossfire"). Live 10-30 18:29, 10-31 15:07 and 11-01 11:36 the plain walk to the crimson gate
-    (6913, 2071) went east along y 2064 with Logan ahead of the pets, past an idle combustive zoa, drowned mariner and
-    voidfin, and all three woke on him; nothing above stops for shy shooters standing by the way, and the pets-first rule
-    is for melee monsters only. A planned walk out now fights its last `GATE_FOUGHT_STEPS` 30 route steps
-    (`HuntLoop.route_left` on the Mover's route, the walk's stop `FOUGHT_APPROACH`): `walk_in_fought` to the tile beside
-    the gate, the hunt's own way through (the back-off from a shooter's first sight, the pull budget, the hold for what
-    sees us, the pets healed and with us before each advance), up to `GATE_FOUGHT_S` 120 s and never while deprived of
-    oxygen ("to the moongate: deprived of oxygen; stopping short" / "120 s of fighting"), then the plain walk as before.
-    Log: "to the moongate: fought through", then the fight's lines and "to the moongate: route N steps". Not a hurt leave
-    or a flight, and not the whole walk (2026-10-30: fought from under water across level 2, the deaths doubled, above).
-    Simulator (docs/SIM.md "Tidal Tomb: the gate pocket's crossfire"): on the two live layouts Logan under 50 hits in 8
-    and 6 of 24 runs -> 0 and 0, 2+ monsters on him within 10 s 9 and 12 -> 2 and 1; level 2's runs with a death within
-    the noise, deaths on planned leaves 5 -> 2 of 288 runs; Maus 3 6 -> 3 of 96, level 1 0 -> 0. Level 2's live command
-    also gives both crimson gates (docs/OVERSEER.md §5), so most leaves from the level's north half skip the pocket
-    (banked an hour +21 %).
+  - **The gate's approach fought** (2026-11-01 to 11-03; user on Tidal Tomb level 2: the walk out "run full bore past
+    the combustive zoa to (near) the tile I mentioned earlier and get in a 3 way fight"; docs/NOTES.md "Tidal Tomb level
+    2: the gate pocket's crossfire"): the planned walk's last 30 route steps were a fought leg, the rest walked. Since
+    2026-11-03 the whole way is (above). Simulator then (docs/SIM.md "Tidal Tomb: the gate pocket's crossfire"): on the
+    two live layouts Logan under 50 hits in 8 and 6 of 24 runs -> 0 and 0; with the whole walk fought 1 and 1 (fight1136,
+    the ensnare model in). Level 2's live command also gives both crimson gates (docs/OVERSEER.md §5), so most leaves
+    from the level's north half skip the pocket (banked an hour +21 %).
   - **The gate a level up: `--leave-via X Y`** (repeat, in order; since 2026-10-25). Tidal Tomb's level 3 has no
     gate known; the user leaves it "by going back to the crimson gate on lvl 2" (live 11:35:19 a step S onto
     (7161, 2221), 11:36:55 the gate at (6897, 1992)). While the walk rules find no route to the gate (the planner never
@@ -1332,14 +1346,12 @@ moongate, and never near a red one).
     wait, or `Team.rejoin`), and the walk toward the tile before the teleporter stops on the patrol's stops
     (`fought_stop`). After `WALK_FOUGHT_S` (20 min) without getting there the leg aborts. Then 'All Follow Me' and
     through. Simulator: level 3 runs with a death 15 of 16 -> 9 of 16 (docs/SIM.md "Level 2's shooters").
-    **The planned leave fights the same way** (since 2026-10-26): up through `--leave-via` onto a level the walk in
-    fights through (any `--fight-via` given), the walk to the leave gate is a fought leg to the tile before it
-    (`leave_by_gate`); a hurt leave or a hostile player's still runs. The run's hard overall timeout (`--timeout` +
-    180 s) doesn't count the time spent in fought legs (`fought_s`). **Not on the hunt level** (tried 2026-10-30 after
-    the level 2 death at 18:29, docs/NOTES.md "Tidal Tomb: level 2 death 2026-10-30 18:29"): a fought leg from under
-    water, and a walk out routed 3 tiles wide of every idle monster in view, both raised level 2's runs with a death in
-    the simulator (21 -> 48 and 21 -> 33 of 144; docs/SIM.md "Tidal Tomb: the giant pincer crab's pinch"). The walk out
-    there is the plain walk with its stops, the pets first by an idle melee monster and its last 30 steps fought (above).
+    **The planned leave fights the same way** (since 2026-10-26 up through `--leave-via` onto a level the walk in fights
+    through; since 2026-11-03 everywhere, above). The run's hard overall timeout (`--timeout` + 180 s) doesn't count the
+    time spent in fought legs (`fought_s`). Tried 2026-10-30 on the hunt level and dropped then (docs/NOTES.md "Tidal
+    Tomb: level 2 death 2026-10-30 18:29"): a fought leg from under water raised level 2's runs with a death in the
+    simulator 21 -> 48 of 144 (docs/SIM.md "Tidal Tomb: the giant pincer crab's pinch"); the fought leave now stops
+    short while deprived of oxygen, and level 2's 192-run block went 31 -> 33 (docs/NOTES.md "Ensnared on the walk out").
   - **A hurt leave is called off** once Logan is back at `--heal-at` on the way out and no leave rule
     fires any more (`HuntLoop.leave_called_off`; user 2026-10-15, live 20261015_171928 18:57:20-40: out
     at 8/100, 98 by the gate, then 10 s there waiting for the pets in a banshee's sight: "There's no point
@@ -1359,8 +1371,9 @@ moongate, and never near a red one).
     lumber runners and `ctl recall`. The leave then fails as "unusable" and the run stops where it is.
   - **Attacked near the gate** (live 19:04, dead 2 tiles from it while the pets guarded): a planned walk out that is
     attacked within `GATE_DASH_R` 8 tiles of the gate doesn't stand and fight (`walk_in_fight`) but goes through at
-    once: "All Follow Me" without waiting for the pets, the gate at its macro's pace. Farther out it still stands.
-  - **Something coming on a planned walk out** (since 2026-10-28; live 22:53 Logan died on Tidal Tomb level 1, docs/NOTES.md
+    once: "All Follow Me" without waiting for the pets, the gate at its macro's pace. Farther out it still stands. The
+    fought leave the same (`leave_fought`'s stop short, above).
+  - **Something coming on the plain walk out** (since 2026-10-28; live 22:53 Logan died on Tidal Tomb level 1, docs/NOTES.md
     "Tidal Tomb: dead on level 1 on the way out"): the walk also stops for a monster in war mode within `COMING_R` 10
     that sees us, fights no one else and comes on (not a shy shooter) while it keeps coming nearer (`COMING_S` 5 s;
     `HuntLoop.coming`): "to the moongate: lowtide scavenger in war mode 9 tiles off coming on the way out; the pets
