@@ -163,6 +163,13 @@ takes the exit step there.
   else, plus, for the session, the tile one `--exit-dir` step from `--spot` (the exit, known
   from the arguments). The NPD arrival tile (5536,530) is an exit teleporter too (Live below)
   and in the table since 2026-10-02, with (5535,530) and (5537,530).
+  **Not a jump the user made** (since 2026-11-03): a step whose jump comes with the client's own walks among ours
+  (more than one world `walk` event since the step went out) is the user steering in the client, not a teleporter:
+  nothing remembered, no step back, the walk replans from there ("moved to (x, y, z) by N walk(s) from the client
+  (the user steering); not a teleporter", `Mover.step` outcome `steered`). Live 2026-11-03 23:21:17-18
+  (hunt-20261103-224044-73bd): the user ran Logan north out of the calamities' crossfire on Maus 2 and two of his
+  steps went into the table; 12 more such rows from user takeovers since 2026-10-16 (every short hop with n 1, each
+  with client walks in the capture around it) were deleted with them. test_mover `test_user_steering`.
 - **A teleport the walk didn't mean** (`Mover.step_back`): a step onto a tile not known as a teleporter that moves
   us anyway, the walk's goal tile included (since 2026-10-24; before, a goal tile counted as meant), steps straight
   back through a known teleporter within 4 tiles leading within 4 of where we were; none known, it steps off the

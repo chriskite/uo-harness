@@ -8394,6 +8394,20 @@ and answered 500119 "You must wait to perform another action." with no gump; no 
 ended at 33. Fix: `escape._open` clicks again after each RECLICK_S without a gump, OPEN_CLICKS (3) in all, never during
 a save. test_escape `test_open_after_world_save` (fails on the one re-click).
 
+## The user's steps remembered as teleporters (live 2026-11-03 23:21:17-18, hunt-20261103-224044-73bd)
+
+Maus 3 shift, visit 4's walk-in on Maus 2 by the last teleporter (5522, 637): the calamities and an insane reanimator
+had Logan at 8 hits (23:21:07). The user took the client at 23:21:14.85 (capture 20261103_101743: C2S 0x02 `src
+client`, dir 0x80/0x81, every ~0.2 s) and paused the gate at 23:21:25; meanwhile the runner's cover walk sent two
+walks of its own (23:21:16.85, 17.72) among his. Each landed 3-4 tiles off its next tile: "teleported: stepping onto
+(5512, 646) put us at (5513, 643, -10) ... remembered" and (5514, 642) -> (5517, 639). The proxy feeds the world model
+every forwarded walk, the agent's and the client's, so the state port's world `walk` events count them: more than our
+one since a step went out is the user steering. Fix: `Mover.step` returns `steered` for such a jump ("moved to (x, y,
+z) by N walk(s) from the client (the user steering); not a teleporter"), nothing remembered, the walk replans.
+test_mover `test_user_steering` (fails before: the row went in). The store held 14 short hops (within 6 tiles, n 1)
+since 2026-10-16; the captures show client walks within 3 s before each of all 14; all deleted (12 on Maus 3 round
+the crawl and the leave gate, (5204, 703) and (5209, 703) beside the gate's way; (1498, 2590); facet 3 (401, 926)).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

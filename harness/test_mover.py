@@ -648,6 +648,43 @@ def test_teleporter():
           str(store2.teleporters(0)))
 
 
+class SteeredLink(FakeLink):
+    """FakeLink whose world log shows a 'walk' event for every walk that goes out, ours and the client's; on our
+    `at`-th walk the user, in the client, runs `user_steps` tiles north first (each walk its own event)."""
+
+    def __init__(self, *a, at, user_steps, **kw):
+        super().__init__(*a, **kw)
+        self.at, self.user_steps, self.ours = at, user_steps, 0
+
+    def send(self, pkt):
+        if pkt[0] == 0x02:
+            self.ours += 1
+            if self.ours == self.at:
+                for _ in range(self.user_steps):
+                    self.events.append({"ev": "walk", "dir": 0})
+                    self.here[1] -= 1
+            self.events.append({"ev": "walk", "dir": pkt[1] & 7})
+        return super().send(pkt)
+
+
+def test_user_steering():
+    print("== the user walks the character in the client mid-walk: a jump, not a teleporter ==")
+    # live 2026-11-03 23:21:14-25 (hunt-20261103-224044-73bd): the user ran Logan north from the cover walk on Maus 2;
+    # two of the jumps were remembered as teleporters at (5512, 646) and (5514, 642)
+    import tempfile
+    import memory
+    store = memory.Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
+    open_tiles = {(x, y) for x in range(-1, 9) for y in range(-6, 3)}
+    link = SteeredLink((0, 0), facing=2, at=3, user_steps=3)
+    mv = Mover(link, store, Human("off"), use_map=True)
+    mv.walkers.put(0, GridWalk(open_tiles))
+    msg = walk_msg(mv, (6, 0))
+    check("the walk replans from where the user put us and arrives", msg == "arrived" and tuple(link.here) == (6, 0),
+          f"{msg} at {link.here}")
+    check("no teleporter counted or remembered", mv.teleports == 0 and store.teleporters(0) == {},
+          f"{mv.teleports} {store.teleporters(0)}")
+
+
 RENOUNCE = 0xE2544541     # the renounce-Young prompt a Shelter moongate opens (20261001_191355)
 RENOUNCE_LAYOUT = ("{ resizepic 28 23 11571 401 501 }{ button 22 24 2094 2095 1 0 1 }"
                    "{ text 64 45 2655 2 18 0 1 0 0 0 }{ button 60 460 247 248 1 0 2 }"
@@ -889,6 +926,7 @@ def main():
     test_height_goal()
     test_not_above()
     test_teleporter()
+    test_user_steering()
     test_moongate_gumps()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 0 if not FAILURES else 1

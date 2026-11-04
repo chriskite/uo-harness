@@ -703,8 +703,10 @@ class Mover:
 
     def step(self, d: int, run: bool = True, st=None) -> str:
         """Send one walk; wait for its outcome. Returns 'moved', 'turned',
-        'blocked' or 'teleported' (the step landed us somewhere other than the
-        next tile: an invisible server teleporter, remembered and avoided).
+        'blocked', 'teleported' (the step landed us somewhere other than the
+        next tile: an invisible server teleporter, remembered and avoided) or
+        'steered' (such a jump with the client's own walks among ours: the user
+        moved us; nothing remembered).
         `st`: a current full state (the caller's, fetched before pacing), so the
         walk goes out right when it is due. The outcome is polled with light
         movement queries; one full state follows (guard, facet, and `fresh_state`
@@ -753,6 +755,10 @@ class Mover:
         st = self.link.state()
         self._after = (st, time.monotonic())
         after = self.link.pos(st)
+        # the walks that went out this step: ours, and any the client sent meanwhile (the user steering; live
+        # 2026-11-03 23:21:14-25, hunt-20261103-224044-73bd: the user ran Logan north while the cover walk went on,
+        # and two of his own steps were remembered as teleporters at (5512, 646) and (5514, 642))
+        walks = sum(1 for e in self.link.events[self.step_mark:] if e.get("ev") == "walk")
         if after[:2] != before[:2] and nav.chebyshev(tuple(before[:2]), tuple(after[:2])) == 1 \
                 and st["world"]["self"].get("map") == facet_before:
             self._guard_entries(facet_before, before, after)   # before guard(): a flight stops on it
@@ -762,6 +768,10 @@ class Mover:
             self.steps += 1
             facet_after = st["world"]["self"].get("map")
             if nav.chebyshev(tuple(before[:2]), tuple(after[:2])) > 1 or facet_after != facet_before:
+                if walks > 1 and facet_after == facet_before:
+                    log(f"moved to {tuple(after[:3])} by {walks - 1} walk(s) from the client (the user steering); "
+                        f"not a teleporter")
+                    return "steered"
                 self._teleported(facet_before, nav.step(tuple(before[:2]), d), facet_after, after)
                 return "teleported"
             return "moved"
@@ -1043,7 +1053,7 @@ class Mover:
         if outcome == "moved":
             self.mem.add_step(cur, tuple(self.link.pos()[:2]))
             return True
-        return outcome == "teleported"
+        return outcome in ("teleported", "steered")
 
     def mem_for(self, facet) -> nav.WalkMemory:
         """Session walk memory for the 2D fallback planner on `facet`: the durable
@@ -1352,6 +1362,9 @@ class Mover:
                         raise WalkFailed(f"{label}: {tuple(nxt)} is a teleporter (it put us at "
                                          f"{tuple(self.link.pos(self.link.state())[:2])})")
                     replan = True
+                    break
+                if outcome == "steered":
+                    replan = True                       # from where the user put us; no step memory, no visit
                     break
                 if outcome == "moved":
                     after = self.fresh_state()

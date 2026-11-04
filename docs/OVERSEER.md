@@ -770,10 +770,10 @@ Paste this (or point the session at this section) to start an overseer.
 >      walked on out of the Mausoleum while he played). Ack it, `ctl say "@user …"` with Logan's position, and
 >      start nothing until the user hands back (step 7). A scheduled break still only waits.
 >    - **"teleported: stepping onto (X, Y) …; remembered"** on open ground (no stairs or teleporter there)
->      right as the user took over is a bogus teleporter: the user's step moved him. Tell the user. Once they
->      agree, delete the row from the store (`teleporters` table, columns `facet, x, y, to_x, to_y`). Live
->      2026-10-17 17:26:28, (5615, 691) → (5618, 692) on the approach. A running run keeps avoiding the tile
->      until it restarts.
+>      right as the user took over: since 2026-11-03 the runner tells the user's steps from a teleporter ("moved
+>      to (x, y, z) by N walk(s) from the client (the user steering); not a teleporter", nothing remembered), so
+>      this line there is an issue for the parent. Before, the user's step went in as a bogus teleporter (live
+>      2026-10-17 17:26:28, (5615, 691) → (5618, 692); 2026-11-03 23:21:17, (5512, 646) and (5514, 642)).
 >    - **"Nothing to patrol to; waiting"** with Logan outside the Mausoleum: a confused run. `ctl stop` it and
 >      tell the user.
 > 5. **Field of Souls (soul jars, until 2026-10-24; docs/HUNT_LOOP.md "Soul jars", NOTES "Field of Souls").**
