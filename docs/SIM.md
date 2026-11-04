@@ -86,6 +86,7 @@ python harness/sim/fight2343.py 1-24 [--log] [--trace DIR] [--harness DIR]      
 python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach (the consort lurking at her spot), the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
 python harness/sim/fight1805.py [1805|1804] 1-24 [--log] [--harness DIR]   # Tidal Tomb level 2 2026-10-31 18:05: dead between two zoas, a shellpod on him (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas")
 python harness/sim/fight1136.py [1136|1507] 1-24 [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Tidal Tomb level 2's walk out through the gate pocket, 2026-11-01 11:36 / 10-31 15:07 (docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
+python harness/sim/fight2321.py 1-48 [--stam 24] [--no-hit-stam] [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Maus 2's walk-in fight 2026-11-03 23:20:59: the cover onto an abomination's tile, 47 -> 8 (docs/NOTES.md "A cover onto an abomination")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -1186,6 +1187,9 @@ our stamina never changed. Measured with `harness/sim/shove_scan.py` (the 82 cap
   10-17 23:08), 22-23 % simulated.
 - **The Total Refresh** (the loadout's 15, `refresh_potion`): stamina to full (live 15-17 -> 25 at once); at full it
   isn't drunk [INFERENCE: ServUO's cliloc 500767]. Metric `refresh_potions`.
+- **Not modelled: a hit takes a stamina point.** In capture 20261103_101743, 75 of 102 hits over 5 on Logan at full
+  stamina came with a -1 0xA3 (2026-11-03; docs/NOTES.md "A cover onto an abomination"), so under fire a shove is
+  mostly refused live where the simulator lets it through. `sim/fight2321.py` applies it (off with `--no-hit-stam`).
 
 Per hour on the level, live (6.76 h of captures on Maus 3 since 10-17 23:00) against the simulator (200 runs, seeds
 1001-1200, the goal batch below): shoves 5.9 / 14.4, refused steps into a mobile 14.5 / 9.3 (the simulator's all

@@ -971,7 +971,12 @@ first: "cover: the corpse purger shoots us here; to (x, y), N steps, out of its 
 2026-11-01): the tile is one reached in up to 8 steps by tiles all out of area hits and fire, and the walk takes the
 Mover's danger zones of those reaches (`Team.around_areas`); with no such tile there is no cover walk (live 14:32:36 the
 cover to (6911, 2041) walked 1 off the pets an astral zoa fought, -43, dead: docs/NOTES.md "Tidal Tomb level 2: dead on
-a cover walk past the pets"). In care it comes right after
+a cover walk past the pets"). **Never onto or through another mobile's tile** (since 2026-11-03; our pets' tiles aside:
+they don't block): a step into a monster's or a player's tile is a shove, which needs full stamina, and a hit under fire
+takes a stamina point; live 23:20:59 the cover chose (5511, 652), the tile a Discorded abomination stood on, the step
+was refused (Entangle, then the shove at 24/25) and Logan stood 6 s at (5512, 652) in the insane reanimator's shot, 47
+-> 8 (docs/NOTES.md "A cover onto an abomination"; test_sim `test_cover_not_onto_monster`, `sim/fight2321.py`). In care
+it comes right after
 the retreat, before the vet supplies on anyone, the spacing and the rest; the spacing off the tank and the vet tile
 keep out of such shots too. The reposition's caster rule (4 steps, the pets kept in vet range, no more idle eyes)
 found no tile at any of its tries in the purger room (simulator seed 1003: an awake purger 8 off took Logan 100 -> 13

@@ -3556,6 +3556,18 @@ away from the forge. Similar to how we flood-filled the lumber groves". Built: `
   active spots grown (2 393 -> 6 769 ore blocks, as the dry run). The viz was restarted (`stack.py restart viz`): the
   old process read forge_1383_1146 as its 188-tile bounding square (623 blocks, against the field's 307).
 
+## The cover never onto or through a monster's tile (2026-11-03, Logan at 8 hits on the Maus 2 walk-in)
+
+Live 23:20:59 the cover from an insane reanimator's shot chose the tile a Discorded abomination stood on; the step into
+it was refused (Entangle, then the shove at 24/25: a hit takes a stamina point) and Logan stood 6 s in the shot, 47 -> 8
+(docs/NOTES.md "A cover onto an abomination").
+
+- *Decided:* `Team.cover`'s tiles, and the tiles its BFS passes, exclude every other mobile's tile but our pets'.
+  Replay `sim/fight2321.py` at the live stamina: lowest hits median 28 -> 47, under 20 in 6 -> 0 of 48; the Maus 3 batch
+  (192 runs) unchanged within noise, refused cover shoves 28 -> 1.
+- *Not done:* a heal potion inside a cover walk (with no stall the walk is 1-8 steps); waiting at the monster's tile
+  for it to die or move.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

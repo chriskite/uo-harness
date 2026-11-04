@@ -8408,6 +8408,51 @@ test_mover `test_user_steering` (fails before: the row went in). The store held 
 since 2026-10-16; the captures show client walks within 3 s before each of all 14; all deleted (12 on Maus 3 round
 the crawl and the leave gate, (5204, 703) and (5209, 703) beside the gate's way; (1498, 2590); facet 3 (401, 926)).
 
+## A cover onto an abomination (live 2026-11-03 23:20:59-23:21:06, hunt-20261103-224044-73bd)
+
+Visit 4's walk-in fight on Maus 2, 14 steps short of the last teleporter (5522, 637), the run before the user took over
+(previous section). Task log lines 2117-2133, capture session_20261103_101743 (`replay.timed_packets` with
+`world.parsers`: 0x77/0x20 positions, 0xA1/0xA3 Logan's hits and stamina, 0xC0, 0x6E, 0x21/0x22, the store's events).
+- **The cover tile was a monster's.** 23:20:59 "cover: the insane reanimator shoots us here; to (5511, 652), 2 steps"
+  from (5513, 651). The abomination 0x004A0D93 stood on (5511, 652, -8) from its last move at 23:20:47.8 to its death
+  at 23:21:04.2: Logan's own Discordance answered its cursor at (5511, 652, -8) at 23:20:58.6, 0.7 s before the
+  choice, and its 0xC0s came from that tile throughout. `Team.cover` took the tiles within 8 steps out of the shot
+  (`tiles_within`, the map's walk graph) with no look at the mobiles. The simulator, from the live tiles, makes the
+  same choice: four tiles out of the shot tie at 2 steps and 0 idle eyes, and the first in BFS order, (5511, 652), wins.
+- **The step into it was refused, then refused again.** 59.46 a step SW onto (5512, 652); 59.52 "Your feet stick to a
+  strange substance!" (Entangle; a ground item the client later named "sticky goo" [INFERENCE: its source]) and 59.74
+  the step W denied (stamina 25/25), logged as
+  "shove ... denied (stamina 24/25)" (read after a hit). 01.31 a Total Refresh, 02.32 the step again, 02.39 denied: a
+  shove needs full stamina and the -27 at 01.88 had taken a point (25 -> 24). A hit on Logan takes a stamina point
+  as a rule here: 75 of the capture's 102 hits over 5 at full stamina came with a -1 0xA3 (the simulator doesn't
+  model it). 04.58 a second Total Refresh, 06 "cut by mobiles we couldn't shove" (mobile_wait 0).
+- **What hit him there** (no 0x2F on him in the window: no melee): at (5512, 652) 48 -> 26 (-22 at 00.65), +39 (the
+  vet supplies' finish on AlaFlambe, 01.02), -27 at 01.88 (the insane reanimator's 14036 bolt at him 01.36, the same
+  instant on both pets: -11, -19), -24 at 04.35, -22 at 04.98 (on all three at once): 8 hits. The reanimator on its
+  ledge (5507, 657, 30), 5 off, animated 0.2-0.8 s before each [INFERENCE: its spells, the three unattributed ones
+  too]. Before the walk the calamity at (5518, 662) (its volley, -27 at 54.97) and -26 at 57.82. The tally's hits_lost
+  719 -> 813.
+- **No heal potion between 23:20:53.1 and 23:21:06.9**: the clock (10 s) ran out at 03.1, inside the cover walk; a walk's
+  step guard drinks only on a walk out (`drink_on_the_run`), so the potion came after the walk gave up ("Drinking a heal
+  potion (8/100 hits)" 06.58, +50 at 06.89). docs/NOTES.md "Dead with the pets off guard" had seen the same: "cover
+  through its tile and 'shove ... denied (stamina 24/25)'".
+- **Fix**: `Team.cover` never picks, nor walks its BFS through, a tile another mobile stands on (our pets' aside: steps
+  into them go through); the Mover still routes round as it did. test_sim `test_cover_not_onto_monster` (the live
+  tiles; before: "to (5511, 652)", onto the abomination; after: "to (5511, 651)").
+- **Replay** `sim/fight2321.py` (the live tiles at 23:20:58.7, 47 hits, the walk-in fight then the walk on; 48 seeds a
+  side, 1d529ad / the fix): with `--stam 24` (as at the refusal) the before side logs the live lines ("shove into
+  (5511, 652) denied", "route ... cut by mobiles"), lowest hits median 28 -> 47, under 20 in 6 -> 0 runs, damage on
+  Logan 1,798 -> 354, covers aimed at a monster's tile 60 -> 0, no deaths either side; at full stamina (the shove goes
+  through: he stands on its tile) under 20 3 -> 0, 61 s on a monster's tile -> 0.2.
+- **Maus 3 batch** (`run.py --runs 192 --seed 17 --team phoenix_incubus --others --eerie --prior harness/data/harness.db
+  -- --vet-range 5 --crawl-learn-s 180`, 1d529ad / the fix): deaths 7 / 8 (0.074 / 0.086 an hour; 5 the same runs, the
+  others none near a cover), pet-death runs 11 / 12, kills an hour 134.9 / 134.3, banked an hour 145,751 / 144,859,
+  damage on Logan an hour 1,184 / 1,234, the lowest hits at a potion median 55 / 54 (under 20: 9 / 7 runs), cover walks'
+  refused shoves 28 / 1 and "cut by mobiles" 20 / 0, Total Refreshes an hour 5.63 / 4.64. Within the noise otherwise.
+- **Not changed**: no heal potion inside a cover walk (the walk is 1-8 steps now that it isn't stalled); the other
+  tile pickers (spacing, reposition, stand-off) keep their own rules. `sim/fight2330.py` no longer runs on HEAD
+  (`hurt()` lacks `ref`).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

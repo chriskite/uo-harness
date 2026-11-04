@@ -1391,8 +1391,17 @@ class Team:
         # astral zoa fought 10 off, "Astral backlash" -43 on the way, dead (docs/NOTES.md "Tidal Tomb level 2: dead on a
         # cover walk past the pets")
         clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)    # out of every area hit's reach, as bard_step
+        # never onto or through a tile another mobile stands on (our pets' aside: they don't block): a shove needs full
+        # stamina and a hit under fire takes a point. Live 2026-11-03 23:20:59 (hunt-20261103-224044-73bd) the cover
+        # from an insane reanimator's shot chose (5511, 652), where a Discorded abomination stood; the shove was refused
+        # at 24/25 and Logan stood 6 s at (5512, 652) in the shot, 47 -> 8 (docs/NOTES.md "A cover onto an abomination")
+        me = h.me(st)
+        held = {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
+                if m.get("x") is not None and not m.get("dead") and serial_of(key) not in self.roster
+                and serial_of(key) != me}
         best, best_c = None, None
-        for t, k in self.tiles_within(v, COVER_STEPS, through=lambda n: clear(n) and n[:2] not in fire).items():
+        for t, k in self.tiles_within(v, COVER_STEPS, through=lambda n: clear(n) and n[:2] not in fire
+                                      and n[:2] not in held).items():
             if k == 0 or self.shot_at(v, shy, t):
                 continue
             c = (round(v.stand_score(t)), k)

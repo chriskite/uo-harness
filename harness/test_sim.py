@@ -3047,6 +3047,50 @@ def test_cover_route_clear():
           f"shot {shot} zone {zone} trail {trail} {[ln for ln in out.getvalue().splitlines() if 'cover' in ln]}")
 
 
+def test_cover_not_onto_monster():
+    print("== the live 23:20:59 tiles: an insane reanimator on its ledge shooting us, a Discorded abomination 2 off on the "
+          "pets: no cover onto or through its tile ==")
+    # live 2026-11-03 23:20:59-21:06 (hunt-20261103-224044-73bd, capture session_20261103_101743): "cover: the insane
+    # reanimator shoots us here; to (5511, 652), 2 steps" from (5513, 651) chose the tile the abomination 0x004A0D93 stood
+    # on (23:20:47.8 until its death 23:21:04.2); the shove into it refused at 24/25 (a hit takes a stamina point), Logan
+    # stood at (5512, 652) in the reanimator's shot 47 -> 8. Before the fix the same choice here (the simulator lets the
+    # shove through at full stamina: he ends on the abomination's tile)
+    spawns = [{"key": "insane reanimator", "at": [5507, 657, 30]}, {"key": "abomination", "at": [5511, 652, -8]},
+              {"key": "calamity", "at": [5518, 662, -10]}, {"key": "abomination", "at": [5517, 642, -10]}]
+    w = world_with(spawns, seed=7, start=(5513, 651))
+    ir, ab, cal, ab2 = [next(m for m in w.mobs.values() if m.kind == "monster" and tuple(m.pos[:2]) == tuple(s["at"][:2]))
+                        for s in spawns]
+    loop, clock, store, patched = hurt_loop(w, 47, pets_at=((5513, 651), (5511, 653)))   # Bussin and AlaFlambe live
+    for m in (ir, ab, cal, ab2):
+        m.hits = m.hits_max = 10 ** 6
+        m.spec = {**m.spec, "step_s": 999.0}
+        m.next_step = 1e9                      # they stood there live
+    pets = w.pets()
+    for m, on in ((ir, w.player), (ab, pets[0]), (cal, pets[1]), (ab2, pets[0])):
+        m.target, m.threat = on.serial, {on.serial: 1e9}
+        w._warm(m, True)
+    trail, world_tick = [], clock.on_advance
+
+    def watch(now):
+        world_tick(now)
+        if not trail or trail[-1] != w.player.pos[:2]:
+            trail.append(tuple(w.player.pos[:2]))
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            moved = loop.team.cover(loop.state())
+            clock.advance(0.5)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [ln for ln in out.getvalue().splitlines() if "cover:" in ln]
+    check("a cover walk, never onto the abomination's tile nor through it (before: 'to (5511, 652)', onto it)",
+          moved and said and "(5511, 652)" not in said[0] and tuple(ab.pos[:2]) not in trail,
+          f"trail {trail} {said}")
+
+
 def test_to_pet_not_into_shot():
     print("== a pet fighting an awake corpse purger, hurt beyond vet range: no walk into its shot to vet it ==")
     # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber on a patrolled purger at (5228, 737); "to a
@@ -5809,6 +5853,49 @@ def test_tidal_leave_pocket():
           f"lowest hits 50+ in each, alive and through the gate (before: under 50 in 3 of 6)",
           fought == 6 and min(lows) >= 50 and not fails, f"fought {fought} lows {lows} fails {fails}")
 
+def test_leave_fought_shadowguard():
+    print("== Maus 3 (live 2026-11-03 23:32:37-33:05, the walk out past an idle shadowguard): a planned leave fights its "
+          "way to the gate; the shadowguard's first spell on a pet, Logan never ensnared, alive and through, seeds 1-4 ==")
+    # live (hunt-20261103-232205-58c6, docs/NOTES.md "Ensnared on the walk out"; sim/fight2333.py): "to the moongate: route
+    # 117 steps from (5242, 709)" north up x 5243 with the pets on follow 1-2 behind; the idle shadowguard at (5244, 652)
+    # woke on Logan 4 off (51.84), ensnared and diseased him at 8 (53.78) and 13 (00.66), dead at 23:33:05.80. Before (the
+    # plain walk): its first spell on Logan in each of these seeds
+    import loop_hunt
+    spawns = ({"key": "shadowguard", "at": [5244, 652, 0]}, {"key": "elder vampire countess", "at": [5215, 639, 15]},
+              {"key": "elder vampire", "at": [5212, 641, 22]}, {"key": "master reanimator", "at": [5241, 724, 0]})
+    rows, fails = [], []
+    for seed in range(1, 5):
+        w = world_with(spawns, seed=seed, start=(5242, 709), team="phoenix_incubus")
+        loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5242, 710), (5242, 710)))
+        first, ensnared = [], [0]
+        hurt0, sys0 = w.hurt, w._sys
+
+        def hurt(victim, amount, by, kind="melee", *a, first=first, hurt0=hurt0, **kw):
+            if by is not None and by.key == "shadowguard" and not first and victim.kind in ("player", "pet"):
+                first.append(victim.kind)
+            return hurt0(victim, amount, by, kind, *a, **kw)
+
+        def sys_text(text, *a, ensnared=ensnared, sys0=sys0, **kw):
+            ensnared[0] += text == "You have been ensnared and diseased!"
+            return sys0(text, *a, **kw)
+        w.hurt, w._sys = hurt, sys_text
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                res = loop.leave_by_gate("return")
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        fought = buf.getvalue().splitlines()[0].endswith("to the moongate: fought through")
+        rows.append((seed, fought, first[0] if first else None, ensnared[0]))
+        if not (res.get("ok") and w.player.alive and not w.player.ghost):
+            fails.append((seed, res.get("error") or res.get("called_off"), round(w.player.hits)))
+    check(f"the leave's first line 'to the moongate: fought through' (GATE_FOUGHT_S {loop_hunt.GATE_FOUGHT_S:.0f}); its "
+          f"first spell on a pet, Logan never ensnared, alive and through the gate in each",
+          all(f and t == "pet" and n == 0 for _, f, t, n in rows) and not fails, f"(seed, fought, first, ensnares) {rows} "
+                                                                                f"fails {fails}")
+
+
 
 def test_tidal_voidfin_dive():
     print("== Tidal Tomb: a voidfin's dive: 0.5 s after its spin under (0x1D) ~2.9 s, the pets holding; up 1-2 from its "
@@ -8125,7 +8212,8 @@ def main():
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
-              test_caster_at_12, test_blightmare_reach, test_cover, test_cover_route_clear, test_to_pet_not_into_shot,
+              test_caster_at_12, test_blightmare_reach, test_cover, test_cover_route_clear, test_cover_not_onto_monster,
+              test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
