@@ -113,6 +113,11 @@ STICKY_X = 1.25
 # short hops a walk just carries on from.
 STEP_BACK_R = 4
 STEP_BACK_MIN = 8
+# A walk with no route from where it stands (the planner never routes over a teleporter): the known teleporters within
+# TELE_WAY_R tiles that a route of at most TELE_WAY_STEPS reaches, nearest first, the first whose landing has a route
+# to the goal stepped through (Mover.teleporter_way; live 2026-11-04 21:35:33-21:37:10, Maus 3's mini-boss room)
+TELE_WAY_R = 20
+TELE_WAY_STEPS = 30
 TELEPORTER_SEEDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "teleporters.json")
 _SEEDS = None
 # A creature's zone that moved asks for a replan only when it touches the next this many tiles of
@@ -871,6 +876,54 @@ class Mover:
         now = self.link.pos(self.link.state())
         return cheb(now, before) <= STEP_BACK_R
 
+    def teleporter_way(self, st, goal, skip=()):
+        """No route from where we stand to `goal` (the planner never routes over a teleporter): a way out through a
+        known one, as a player leaves a side room by its door. The known teleporters within TELE_WAY_R landing on this
+        facet (none in `skip`) that a route of at most TELE_WAY_STEPS reaches (the one we stand on: off it and back on,
+        2 steps), nearest by route first; the first whose landing has a route to `goal` -> (its tile, its
+        landing (facet, x, y, z)), else None. Live 2026-11-04 21:35:33-21:37:10 (hunt-20261104-211543-d101, then the
+        --go-home run hunt-20261104-213625-eb1f): Logan in Maus 3's mini-boss room at (5242, 587), "patrol to (5258,
+        628): no route", the recall refused there, the custodian killed him; (5243, 587) beside him led to (5243, 612)."""
+        here = tuple(self.link.pos(st)[:2])
+        facet = st["world"]["self"].get("map")
+        f = 0 if facet is None else facet
+        self.teleporter_tiles(facet)
+        near = []
+        for t, to in self._tele_to.get(f, {}).items():
+            if t in skip or to[0] != f or cheb(t, here) > TELE_WAY_R:
+                continue
+            if t == here:
+                near.append((2, t, to))
+            elif (path := self.plan(st, nav.within(t, 0), mobiles=False, max_steps=TELE_WAY_STEPS)[0]) is not None:
+                near.append((len(path) - 1, t, to))
+        for _, t, to in sorted(near):
+            there = {**st, "movement": {**st["movement"], "pos": [to[1], to[2], to[3]]}}
+            if self.plan(there, goal, mobiles=False)[0] is not None:
+                return t, to
+        return None
+
+    def through_teleporter(self, way, label: str, urgent: bool = False) -> bool:
+        """Onto the known teleporter of `way` (teleporter_way), off it first when we stand on it (a teleporter fires on
+        the step onto it; live 2026-10-24 12:23:00 the user stepped Logan off (5242, 587) and back on, out at (5243,
+        612)). The calling walk's sticky route and walled doors are kept. True when it put us within STEP_BACK_R of its
+        landing."""
+        t, to = way
+        here = tuple(self.link.pos(self.link.state())[:2])
+        log(f"{label}: no route from {here}; out through the teleporter at {t} (to {tuple(to[1:3])})")
+        sticky, walled = self.sticky, self.walled
+        try:
+            if here == t:
+                self.walk_to(None, 0, f"{label}: off {t}", goal_fn=lambda p: cheb(p, t) == 1, max_moves=2,
+                             urgent=urgent, max_route=2)
+            self.walk_to(lambda: t, 0, f"{label}: out", max_moves=TELE_WAY_STEPS + 2, urgent=urgent,
+                         max_route=TELE_WAY_STEPS)
+        except Abort as e:
+            log(f"{label}: out through {t}: {e}")
+        finally:
+            self.sticky, self.walled = sticky, walled
+        now = self.link.state()
+        return (now["world"]["self"].get("map") or 0) == to[0] and cheb(self.link.pos(now), to[1:3]) <= STEP_BACK_R
+
     def occupied(self, st=None) -> set:
         """Tiles currently occupied by other mobiles."""
         st = st or self.link.state()
@@ -1224,6 +1277,7 @@ class Mover:
         run = True                   # the client's Always Run is on: a player never walks a route
         mobile_wait_until = None
         visits = collections.Counter()   # tile -> times this walk stepped onto it (WALK_REVISITS)
+        took = set()                 # teleporters this walk took (or tried) for want of a route (teleporter_way)
         while True:
             st = self.link.state()
             if self.guard(st):
@@ -1241,6 +1295,13 @@ class Mover:
             if path is None:
                 if self.plan(st, goal, mobiles=False, max_steps=max_route)[0] is None:
                     if self._clear_fields(st, goal, max_route, cur, label, dispelled):
+                        continue
+                    # a side room whose way back is a known teleporter (Maus 3's mini-boss room): through it, then on;
+                    # not for a short walk (max_route) nor inside a step back (its own aim)
+                    if max_route is None and self._back_to is None \
+                            and (way := self.teleporter_way(st, goal, took)) is not None:
+                        took.add(way[0])
+                        self.through_teleporter(way, label, urgent)
                         continue
                     if max_route is not None and walk is not None:
                         raise WalkFailed(f"{label}: no route within {max_route} steps from {cur} (a longer detour, "

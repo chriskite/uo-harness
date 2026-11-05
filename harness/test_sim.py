@@ -869,6 +869,45 @@ def test_boss_room_door():
               + " | ".join(ln for ln in out.getvalue().splitlines() if "teleport" in ln or "back" in ln)[-500:])
 
 
+def test_out_of_boss_room():
+    print("== in Maus 3's mini-boss room: the crawl's patrol and the leave go out through its door, not 'no route' ==")
+    # live 2026-11-04 21:35:33-21:37:10 (hunt-20261104-211543-d101): a double step back left Logan in the room at
+    # (5242, 587); "patrol to (5258, 628): no route from (5242, 587); skipping it for 600 s", the run fought and healed
+    # there; the --go-home run (test_go_home) tried the tome; the custodian killed him. (5243, 587) beside him leads out
+    from agent_link import Abort
+    room, wp = (5242, 587), (5258, 628)
+    out = {}
+    for what in ("patrol", "leave"):
+        w = world_with([], seed=7, start=room)
+        for p, d in zip(w.pets(), ((-1, -1), (1, -1))):
+            w._teleport(p, (room[0] + d[0], room[1] + d[1], 0))
+        loop, clock, store, patched = red_loop(w)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                try:
+                    if what == "patrol":
+                        res = loop.mover.walk_to(lambda: wp, 1, f"patrol to {wp}")
+                    else:
+                        res = loop.leave_by_gate("info")
+                except Abort as e:
+                    res = {"ok": False, "error": str(e)}
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[what] = (res, w.player.pos, buf.getvalue())
+    res, pos, log_ = out["patrol"]
+    check("the patrol from the room: out through (5243, 587), on to its waypoint",
+          res is None and sim_cheb(pos, wp) <= 1 and f"patrol to {wp}: no route from {room}; out through the teleporter "
+                                                     f"at (5243, 587) (to (5243, 612))" in log_,
+          f"{res} at {pos}: " + " | ".join(ln for ln in log_.splitlines() if "route" in ln or "teleport" in ln)[-500:])
+    res, pos, log_ = out["leave"]
+    check("the leave from the room: out through its door first, then through the gate at 5203,703",
+          res.get("ok") and "to the moongate: no route from (5242, 587); out through the teleporter at (5243, 587)" in log_
+          and sim_cheb(pos, (5203, 703)) > 100,
+          f"{res} at {pos}: " + " | ".join(ln for ln in log_.splitlines() if "route" in ln or "teleport" in ln)[-500:])
+
+
 def test_backspawn():
     print("== backspawn: a tile in the open near a stealther's spawn scores worse than one with the pets between ==")
     import tempfile
@@ -4380,10 +4419,15 @@ def test_escape_after_walk_in_error():
 
 
 def test_go_home():
-    print("== --go-home: from the first level, Maus 2 where Logan was left, and Maus 3: home, exit 0, no hunting ==")
+    print("== --go-home: from the first level, Maus 2 where Logan was left, Maus 3 and its mini-boss room: home, exit 0, "
+          "no hunting ==")
+    # the mini-boss room: live 2026-11-04 21:36:27-49 (hunt-20261104-213625-eb1f) "--go-home: at (5242, 587): the recall
+    # home", four tome tries refused ('Magical travel from inside a dungeon is only possible near golden moongates.'),
+    # ABORTED, dead under the custodian by 21:37:10
     for where, start, way in (("the first level", (5600, 689, 0), "the gold moongate at"),
                               ("Maus 2", MAUS2_STUCK, "the teleporters from 5522,637"),
-                              ("Maus 3", (5243, 726, 0), "the leave gate at 5203,703")):
+                              ("Maus 3", (5243, 726, 0), "the leave gate at 5203,703"),
+                              ("Maus 3's mini-boss room", (5242, 587, 0), "the leave gate at 5203,703")):
         code, out, w, js, evs = main_in_sim(start, ["--go-home"])
         check(f"from {where} {start[:2]}: home, exit 0, by {way}", code == 0 and not w.player.ghost
               and sim_cheb(w.player.pos, SIM_HOME) <= 5 and "--go-home: home at" in out
@@ -8212,7 +8256,7 @@ def main():
               test_hunt,
               test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
               test_vet_tile_off_tank, test_calm_heal,
-              test_stairs, test_boss_room_door, test_backspawn,
+              test_stairs, test_boss_room_door, test_out_of_boss_room, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_leave_pet_out_of_view, test_gate_dash,
               test_gate_after_vet,
               test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,

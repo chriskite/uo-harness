@@ -88,6 +88,7 @@ python harness/sim/fight1805.py [1805|1804] 1-24 [--log] [--harness DIR]   # Tid
 python harness/sim/fight1136.py [1136|1507] 1-24 [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Tidal Tomb level 2's walk out through the gate pocket, 2026-11-01 11:36 / 10-31 15:07 (docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
 python harness/sim/fight2321.py 1-48 [--stam 24] [--no-hit-stam] [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Maus 2's walk-in fight 2026-11-03 23:20:59: the cover onto an abomination's tile, 47 -> 8 (docs/NOTES.md "A cover onto an abomination")
 python harness/sim/fight2333.py 1-96 [--log] [--trace DIR] [--harness DIR]   # Maus 3's walk out 2026-11-03 23:32:37: an idle shadowguard by the way, ensnared twice, dead (docs/NOTES.md "Ensnared on the walk out")
+python harness/sim/fight2136.py 1-24 [--live-box] [--log] [--harness DIR]   # Maus 3's mini-boss room 2026-11-04 21:36:25: --go-home from (5242, 587) under a custodian stand-in, IDLE_S 120 s after an abort (docs/NOTES.md "Dead in Maus 3's mini-boss room after a double step back")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -3792,3 +3793,15 @@ on all of us within 3 of the target, a spell at a pet going to Logan in its reac
 on Logan as live, but the plain walk mostly outran it (deaths 0 of 96). Before (14e7ee8) / the fought leave: under 50
 hits 5 / 0 runs, lowest hits median 76 / 100, ensnares on Logan 27 / 2, damage on him 4,322 / 295, the shadowguard
 killed 22 / 96 times, the leave 30 / 62 s. Batches on the new model in docs/NOTES.md.
+
+## Maus 3's mini-boss room (2026-11-04)
+
+Live 21:35:33-21:37:10 Logan was left in the room at (5242, 587) and the --go-home run tried the tome there (docs/NOTES.md
+"Dead in Maus 3's mini-boss room after a double step back"). The scenario: the room is a second box of `dungeon.boxes`
+(5232, 549, 5255, 599; the map's walkable tiles from its arrival), so `World.recall_allowed` refuses a recall there as
+the server did, and the reds' walk graph takes the room in through its door; the door strip's teleporters (5244, 612)
+and (5243, 587) as observed, (5243, 612) [INFERENCE]. A refused recall in a dungeon now sends the live System line
+"Magical travel from inside a dungeon is only possible near golden moongates." (before: RunUO's cliloc 501802, a
+guess). There is no custodian in the scenario: `sim/fight2136.py` adds a stand-in from the capture (on its dais at
+(5242, 575, 17) throughout, 35-45 on Logan every 10 s within 14; [INFERENCE] its hits and attack kind). Results in
+docs/NOTES.md.

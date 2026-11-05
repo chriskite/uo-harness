@@ -327,6 +327,11 @@ def test_failures():
     check("the tome's out-of-charges text",
           escape.failure({"ev": "speech_heard", "text": "That rune tome is out of recall charges."}, ME)
           == "no charges")
+    # live 2026-11-04 21:36:28.11: a tome recall in Maus 3's mini-boss room, 0.05 s after the button; four tries of 5 s
+    check("'Magical travel from inside a dungeon is only possible near golden moongates.' is restricted: no retry",
+          escape.failure({"ev": "speech_heard", "text": "Magical travel from inside a dungeon is only possible near "
+                                                        "golden moongates."}, ME) == "restricted"
+          and escape.retry_wait({"failure": "restricted"}) is None)
     check("power words aren't a failure",
           escape.failure({"ev": "speech_heard", "text": "Kal Ort Por"}, ME) is None)
 
@@ -556,10 +561,11 @@ def test_escape_between():
 
 
 def test_no_recall_in_dungeon():
-    # live 2026-10-17 18:28:29-45: four recalls at (5261, 652) on the Mausoleum's fight level, 9/100 hits
+    # live 2026-10-17 18:28:29-45: four recalls at (5261, 652) on the Mausoleum's fight level, 9/100 hits; live 2026-11-04
+    # 21:36:27-49: four at (5242, 587) in Maus 3's mini-boss room (north of the fight level's box), the custodian on him
     out = {}
-    for where, pos in (("fight level", [5261, 652, 0]), ("beside a gold gate", [5627, 688, 0]),
-                       ("Cambria", [1706, 3181, 0])):
+    for where, pos in (("fight level", [5261, 652, 0]), ("mini-boss room", [5242, 587, 0]),
+                       ("beside a gold gate", [5627, 688, 0]), ("Cambria", [1706, 3181, 0])):
         s = BookServer()
         s.pos = pos
         try:
@@ -569,6 +575,9 @@ def test_no_recall_in_dungeon():
             out[where] = (str(e), s.pressed)
     check("inside the Mausoleum away from a gold gate: refused before the book opens, nothing pressed",
           out["fight level"][0].startswith("no recall from (5261, 652)") and out["fight level"][1] == [], out)
+    check("...Maus 3's mini-boss room too (the second box)",
+          out["mini-boss room"][0].startswith("no recall from (5242, 587): inside the Mausoleum")
+          and out["mini-boss room"][1] == [], out)
     check("...beside a gold gate and outside the dungeon: the recall goes",
           out["beside a gold gate"][0] == "ok" and out["Cambria"][0] == "ok", out)
 

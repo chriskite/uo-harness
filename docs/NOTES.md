@@ -8615,8 +8615,44 @@ Maus 3, task log lines 4052-4131, capture session_20261104_184749 (`replay.timed
   lived (Bussin 57 %, AlaFlambe 93 %).
 - **Fixed** (parent): a step back's walk that crosses a teleporter landing within 4 of the step back's aim is done
   ("back: the teleporter at (x, y) put us back at (x, y)"); test_mover `test_step_back_lands_home` (fails before: in the
-  room). OVERSEER §5 step 4: no plain stop inside the dungeon while the run defends him. The go-home run's reading of the
-  room, the restricted-recall text and the walk out of the room through its door: a separate fix (GoHomeFromMiniBossRoom).
+  room). OVERSEER §5 step 4: no plain stop inside the dungeon while the run defends him. **Fixed** too, the go-home run
+  and the walks out of the room:
+  - *The refusal text.* The store's events: "Magical travel from inside a dungeon is only possible near golden
+    moongates." (System, hue 946) at 21:36:28.107, 33.449, 38.760, 44.099, each 0.046 s after the tome's button
+    (capture: 0xB1 at 28.061), and the same text at 2026-10-17 18:28:35/40 (session 144). escape read it as "no
+    arrival" and waited 5 s each. Now `restricted` (escape.FAIL_TEXTS), no retry, as "Magical travel is not allowed in
+    this location." (aba4348); the simulator's refusal sends this line instead of the RunUO cliloc 501802 it guessed.
+    test_escape `test_failures`.
+  - *The room was outside the dungeon.* `escape.recall_forbidden` reads the scenario's `dungeon.boxes`; the
+    Mausoleum's one box was y 600-760 (the calibration region), and the room lies north of it: the map's walkable
+    tiles from (5242, 587) are x 5233-5254, y 550-587 (a hall x 5241-5245 rising to z 17-20 at y 574-576, where the
+    custodian 0x0008C244 stood all along, and a chamber above). Not the crawl floor: --go-home never reads it. A
+    second box (5232, 549, 5255, 599); among the seeds and the store's teleporters, this room's are the only ones
+    leading out of every dungeon box from inside one (the others are the dungeons' own entrances). test_escape
+    `test_no_recall_in_dungeon`.
+  - *No route out of a room whose way back is a known teleporter* (the planner never routes over one): a walk with no
+    route (no `max_route`, not a step back's own walk) now steps through the nearest known teleporter within 20 tiles
+    whose landing has a route to its goal (`Mover.teleporter_way` / `through_teleporter`), then walks on: the crawl's
+    patrol and every unbounded walk. The escape (`HuntLoop.out_of_room`, before it chooses its way) and the leave by
+    the gate (when its plan to the gate finds no route, before the fought walk) take the same step. In the simulator
+    from (5242, 587): "escape: no route from (5242, 587); out through the teleporter at (5243, 587) (to (5243, 612))",
+    then "escape: the leave gate at 5203,703 is in reach", home. test_sim `test_out_of_boss_room` (the patrol to
+    (5258, 628) and the leave; before: "no route from (5242, 587)"), `test_go_home` (the room; before: "no way out").
+    Why there and not in the planner: one mechanism for every walk, and the plans stay teleporter-free (a teleporter
+    is taken only when no walk reaches the goal).
+  - *Seeds* (harness/data/teleporters.json, the simulator's scenario): (5244, 612) -> (5244, 587) and (5243, 587) ->
+    (5243, 612) as observed tonight; (5243, 612) -> (5243, 587) [INFERENCE: only ever arrived on; its neighbours each
+    lead to their own x on y 587, players vanished beside it]; (5244, 587) not seeded [INFERENCE: likely a way back too,
+    never stepped onto].
+  - *Replay* `sim/fight2136.py` (the --go-home run from (5242, 587) at 100/100, the pets beside him, a custodian
+    stand-in on the dais: a ranged 35-45 every 10 s within 14, from the eight live drops; [INFERENCE] its hits and
+    attack kind), 24 seeds, IDLE_S 120 s after an abort: before (1d819eb, the live box) dead 24, home 0, 48 recall
+    tries ("no arrival" 10 s each in the simulator); before with the room boxed only: dead 24, "no way out" three
+    times; after: home 24, dead 0, not hit (the door is one step from the arrival). Maus 3 batch as live plays (192
+    runs, seed 17, `--others --eerie --prior`), 1d819eb against this with the same scenario and seeds: every summary
+    row identical (deaths 12 / 12, banked 137,707 / 137,707 an hour) [INFERENCE: the new branches never ran there; even
+    a plan more shifts a run's timing (it moved a seed of test_sim's crab test until the leave's step went after its own
+    plan), so no walk had "no route" and none entered the room, the seeded door strip keeping the walks off it].
 
 ## Network observations
 

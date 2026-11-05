@@ -2597,6 +2597,11 @@ class HuntLoop:
             if self.team is not None:
                 self.walk_hits, self.walk_hurt_t = None, -1e9
                 path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
+                if not path and (way := self.mover.teleporter_way(self.link.state(), nav.within(gate, 0))) is not None \
+                        and self.mover.through_teleporter(way, "to the moongate", urgent):
+                    # a side room whose way back is a known teleporter (Maus 3's mini-boss room): through it, then the
+                    # fought walk from its far side (as the escape's out_of_room)
+                    path, _ = self.mover.plan(self.link.state(), nav.within(gate, 0), mobiles=False)
                 if not path:
                     # a field across the way now (a red's Wall of Stone, live 2026-10-30 23:43:31): beside the gate as
                     # the way runs once it goes; the flight takes cover meanwhile (flee_out)
@@ -3580,6 +3585,11 @@ class HuntLoop:
                 if self.team is not None:
                     self.team.follow()
                 return way, self.recall_home(True)
+            gold, _ = escape_mod.gold_gates(here, facet)
+            if self.out_of_room([*gold, *self.leave_gates, *(self.args.leave_via or []), *(self.args.enter_via or [])],
+                                "escape", urgent=True):
+                st = self.state()                    # a side room's door taken: the way out from its far side
+                here = tuple(self.pos(st)[:2])
             if (g := self.gold_gate_way(st, quiet=True)) is not None:
                 way = f"the gold moongate at {g[0][0]},{g[0][1]}"
                 log(f"escape: {way} is within {GOLD_GATE_STEPS} steps: there, and the recall home")
@@ -3614,6 +3624,20 @@ class HuntLoop:
                                                                 "teleporter" if gate else "no --leave-gate")}
         except Abort as e:
             return way, {"ok": False, "failure": str(e)}
+
+    def out_of_room(self, goals, label: str, urgent: bool = False) -> bool:
+        """No route from where we stand to any of `goals` ((x, y) tiles) but one through a known teleporter
+        (Mover.teleporter_way): a side room whose way back is its door, Maus 3's mini-boss room. Through it first, so
+        the escape's choice of way and its walks start where their routes run (escape_once; leave_by_one_gate takes the
+        same step when its own plan to the gate finds no route). Live
+        2026-11-04 21:36:27-49 (hunt-20261104-213625-eb1f): the --go-home run in that room at (5242, 587), no route to
+        the leave gate; the custodian killed him there. True when it took us through."""
+        st = self.link.state()
+        goal = nav.any_of([(tuple(g[:2]), 0) for g in goals])
+        if not goal.goals or self.mover.plan(st, goal, mobiles=False)[0] is not None \
+                or (way := self.mover.teleporter_way(st, goal)) is None:
+            return False
+        return self.mover.through_teleporter(way, label, urgent)
 
     def escape_teleporter(self, st, tiles) -> int | None:
         """The index of the --enter-via teleporter still ahead (walk_in_through: past the ones whose known arrival we

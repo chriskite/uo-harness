@@ -730,7 +730,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
->    Maus 1 x 5551-5660, Maus 2 x 5490-5550, Maus 3 x 5150-5300, all y 600-760; Tidal Tomb level 1 x 6608-6738,
+>    Maus 1 x 5551-5660, Maus 2 x 5490-5550, Maus 3 x 5150-5300, all y 600-760, and Maus 3's mini-boss room x 5232-5255,
+>    y 549-599; Tidal Tomb level 1 x 6608-6738,
 >    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221; the Ossuary's level 1 x 5785-5935, y 1270-1381, level 2
 >    x 5581-5689, y 1225-1363, level 3 x 5527-5739, y 945-1156, level 4 x 4825-5000, y 1744-2073; Cavernam's level 1
 >    x 5895-6108, y 498-675, level 2 x 5886-6055, y 743-837, level 3 x 5915-6075, y 898-1152): the go-home run with the
@@ -821,7 +822,9 @@ Paste this (or point the session at this section) to start an overseer.
 >      loadout) and start the next run.
 >    - Still inside (the escape failed, or a run you stopped with plain `ctl stop`): start the go-home run at
 >      once, the §5 command verbatim plus `--go-home`. It takes the way out from where he stands (the first
->      level's gold moongate, or on through the teleporters to the crimson gate, then the tome home), drops off
+>      level's gold moongate, or on through the teleporters to the crimson gate, then the tome home; from a side room
+>      such as Maus 3's mini-boss room, through the room's door first: "escape: no route from (x, y); out through the
+>      teleporter at …"), drops off
 >      and exits 0 at home ("--go-home: home at …"). Tell the user what happened while it runs. If it fails too,
 >      `ctl say "@user …"` urgently with his position: walking him out by hand is then the user's.
 >

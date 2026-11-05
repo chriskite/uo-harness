@@ -3881,7 +3881,9 @@ class World:
             return
         self._overhead(self.player, "Kal Ort Por", kind=10)
         if not self.recall_allowed(self.player.pos):
-            self.send(P.cliloc(501802))     # [INFERENCE] the live refusal text in a dungeon is unrecorded
+            # live 2026-10-17 18:28:35 and 2026-11-04 21:36:28.11 (a tome charge recall in the Mausoleum, 0.05 s after
+            # the button): a System line, no cliloc
+            self.send(P.system_text("Magical travel from inside a dungeon is only possible near golden moongates."))
             return
         self.recall_at = (self.t + RECALL_S, rows[row])
         self.recall_start_t = self.t

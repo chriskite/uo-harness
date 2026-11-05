@@ -3622,6 +3622,28 @@ soul").
   walks followed at once by "cut by mobiles", against 0 of 202 before); a retry must lift the monster walls in the replan
   before drinking. Redo with that fix and a death comparison over more seeds before it goes live again.
 
+## Out of a side room through its known door; the room inside the dungeon (2026-11-04, Logan dead in Maus 3's mini-boss room)
+
+Live 21:35:33-21:37:10 a double step back left Logan in the mini-boss room at (5242, 587); the crawl found "no route" to
+its waypoints and stood there; after a plain stop the --go-home run read the room as outside the dungeon (its box ended
+at y 600), tried the tome four times ("Magical travel from inside a dungeon is only possible near golden moongates.",
+read as "no arrival") and aborted; the custodian killed him (docs/NOTES.md "Dead in Maus 3's mini-boss room after a
+double step back"; the parent's step-back fix in 1d819eb).
+
+- *Decided:* the server's text is `restricted` (no retry). The Mausoleum's `dungeon.boxes` gets the room as a second box
+  (the map's walkable tiles from its arrival). A walk with no route from where it stands steps through the nearest
+  known teleporter within 20 tiles whose landing has a route to its goal, then walks on (`Mover.teleporter_way`,
+  `through_teleporter`, in `_walk_to`'s no-route branch: not for a `max_route` walk nor a step back's); the escape and
+  the leave by the gate, which choose by a plan first, take the same step before choosing / their fought walk. One
+  mechanism in the Mover covers the crawl's patrol, the leaves, the escape and --go-home at once, and the planner stays
+  teleporter-free: a teleporter is taken only when no walk reaches the goal.
+- *Rejected:* teleporters as edges in the planner (every plan would weigh them, and a walk could drift onto another
+  level for a shorter route); a room special case (the next side room would need its own).
+- *Evidence:* `sim/fight2136.py` (24 seeds, a custodian stand-in): dead 24 -> 0, home 0 -> 24. Maus 3 batch as live plays
+  (192 runs, seed 17): every summary row identical, deaths 12 / 12.
+- *Not done:* (5244, 587) as a way back (never stepped onto, not seeded); a hop across facets; a second hop in one
+  escape choice (the walks' own branch hops again if needed, each teleporter once a walk).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

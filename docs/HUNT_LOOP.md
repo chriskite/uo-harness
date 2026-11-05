@@ -188,6 +188,18 @@ takes the exit step there.
   off the tank onto (5244, 612) put Logan in the room at (5244, 587); the step back toward (5242, 587) crossed
   (5243, 587), out at (5243, 612); a second step back through (5242, 612) put him in the room again, where the custodian
   killed him after a plain stop. test_mover `test_step_back_lands_home`.
+  **A side room whose way back is a teleporter** (since 2026-11-04; `Mover.teleporter_way`, `through_teleporter`): a
+  walk with no route from where it stands (no `max_route`, not a step back's own walk) takes the known teleporters
+  within `TELE_WAY_R` 20 tiles that a route of at most `TELE_WAY_STEPS` 30 reaches (the one it stands on: a step off and
+  back on, 2), nearest by route first, and steps through the first whose landing has a route to its goal, then walks
+  on ("<label>: no route from (x, y); out through the teleporter at (x, y) (to (x, y))"); each at most once a walk. The
+  crawl's patrol, the leave's and the escape's walks get out of the room this way; the escape, which chooses its way
+  by a plan first, steps through before choosing (`HuntLoop.out_of_room`, "Guards" below), and the leave by the gate
+  when its plan to the gate finds no route, before its fought walk (`leave_by_one_gate`). Live
+  2026-11-04 21:35:34 after the double step back: "patrol to (5258, 628): no route from (5242, 587); skipping it for
+  600 s", and the run stood in the room for 46 s, (5243, 587) beside him a known way out. The door strip's seeds since
+  then: (5242, 612), (5244, 612) and (5243, 612) [INFERENCE] in, (5242, 587) and (5243, 587) out. test_sim
+  `test_out_of_boss_room`.
 - **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
   fight spot the runner plans the route back to `--spot` and leaves below
   `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that
@@ -291,7 +303,9 @@ tome "New Player Locations", 0x57C3DEB6; its default rune is Cambria, by the ban
 - **Refused recall** (`--recall-spot X Y`, default the arrival): Outlands dungeons allow
   Recall/Gate only within 8 tiles of a golden gate (docs/research/TRAVEL_DEATH.md). When the
   recall home fails where we stand (escape's new `restricted`: RunUO's 501802 "Thy spell doth not
-  appear to work..." / 1019004, [INFERENCE] for Outlands' wording; or any other failure but death,
+  appear to work..." / 1019004; Outlands' own, live: "Magical travel from inside a dungeon is only possible near golden
+  moongates." (a tome charge recall in a dungeon, 0.05 s after the button; 2026-10-17, 2026-11-04) and "Magical travel
+  is not allowed in this location."; no retry on either; or any other failure but death,
   mana, reagents), the runner walks to the recall spot (running on a survival leave) and recalls
   again; from then on it walks there first when it stands within 2 tiles of a refused tile. The
   route margin (`--leave-per-step`) is measured to the recall spot. A recall that still doesn't
@@ -1854,14 +1868,23 @@ The way out by level (the planner never routes over a teleporter, so each level 
 - **Hunt level below the gate's** (Tidal Tomb's level 3: no route to the leave gate, one onto a `--leave-via`
   teleporter): the leave by the gate, up through them first (`leave_up`).
 - A recall allowed where he stands (a try before got him out): the recall.
+- **A side room off a level** (no route to any gold moongate, `--leave-gate`, `--leave-via` or `--enter-via` tile, but
+  one through a known teleporter: Maus 3's mini-boss room): through it first (`out_of_room`, "escape: no route from
+  (x, y); out through the teleporter at …"), then the level's way as above. The leave by the gate steps through when
+  its plan to the gate finds no route, before its fought walk. Live 2026-11-04 21:36:27-49 (hunt-20261104-213625-eb1f):
+  `--go-home` in that room recalled four times and aborted; the custodian killed Logan at 21:37:10.
+
+"Inside a dungeon" is the scenario's `dungeon.boxes` (`escape.recall_forbidden`); the Mausoleum's has a second box for
+the mini-boss room (x 5232-5255, y 549-599: the map's walkable tiles from (5242, 587)) since 2026-11-04: its first box
+ends at y 600 and the --go-home run read the room as outside ("--go-home: at (5242, 587): the recall home").
 
 No escape after a death (`death` juncture) or a server restriction message (stop, ANTICHEAT.md §8 rule 4), on a
 paused agent gate (`GatePaused`: the user took over) or `ctl stop`, outside a no-recall dungeon, or when the error came
 from the escape itself. The overall timeout no longer aborts once the escape began. `--go-home` takes the same way out
 on its own. test_sim `test_escape_after_walk_in_error` (the live walk in's failure at (5507, 691): home by the
-teleporters and the leave gate, both pets along), `test_go_home` (from the first level, Maus 2 and Maus 3),
-`test_go_home_tidal_level3` (up the arrival strip to level 2's crimson gate),
-`test_no_escape_on_death_or_stop`.
+teleporters and the leave gate, both pets along), `test_go_home` (from the first level, Maus 2, Maus 3 and its
+mini-boss room), `test_go_home_tidal_level3` (up the arrival strip to level 2's crimson gate),
+`test_no_escape_on_death_or_stop`; test_escape `test_no_recall_in_dungeon` (the room inside).
 
 **No speech hold** (removed 2026-10-15; user: "GMs don't check attendance for dungeon crawling and
 stopping because a player speaks will definitely get us killed"). The hunt doesn't read nearby speech

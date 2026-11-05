@@ -93,8 +93,8 @@ FAIL_CLILOCS = {
                                    # after each Kal Ort Por, 4.9 s into the wait)
     501803: "unmarked",            # That rune is not yet marked.
     # RunUO SpellHelper.SendInvalidMessage: recalling from a place that forbids it (Outlands:
-    # dungeons away from golden gates) / to one. Not seen live yet [INFERENCE: Outlands may word it
-    # differently; an unknown text ends as "no arrival"].
+    # dungeons away from golden gates) / to one. Not seen live: Outlands words it in a System line instead
+    # (FAIL_TEXTS "Magical travel ..."); an unknown text ends as "no arrival".
     501802: "restricted",          # Thy spell doth not appear to work...
     1019004: "restricted",         # You are not allowed to travel there.
 }
@@ -114,6 +114,10 @@ FAIL_TEXTS = {
     # live 2026-11-03 14:32:06.87 (mining-20261103-141742-4bc0): a recall at the arrival gate of the teleporter at
     # (3523, 1914), (7338, 1220, -55); before it the run cast six recalls, each read as "no arrival" after 5 s
     "Magical travel is not allowed in this location.": "restricted",
+    # live 2026-11-04 21:36:28.11 (hunt-20261104-213625-eb1f, --go-home in Maus 3's mini-boss room at (5242, 587)):
+    # 0.05 s after the tome's button, each of four tries, each then read as "no arrival" after 5 s; also 2026-10-17
+    # 18:28:35 at (5261, 652)
+    "Magical travel from inside a dungeon is only possible near golden moongates.": "restricted",
 }
 
 
