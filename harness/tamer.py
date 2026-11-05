@@ -134,7 +134,7 @@ PET_NEAR = 1                  # a war-mode monster this close to a pet that took
 KILL_AFTER_S = 4.0            # a mob attacking us that the pets haven't hurt for this long: "All Kill"
 KILL_AFTER_BUSY_S = 0.0       # ...while the pets fight another monster: at once (fight; simulator level 2, 2026-10-29)
 ELSEWHERE_R = 2               # a monster in war mode this close to another player or a pet not ours fights them (elsewhere)
-THEIRS_BELOW = 0.8            # a monster on someone else below this share of hits: their kill (the most damage loots)
+THEIRS_BELOW = 0.96           # a monster on someone else below this share of hits: their kill (user 2026-11-05: >= 96 %)
 KILL_REPEAT_S = 12.0
 IDLE_PET_S = 5.0              # a live pet out of war mode this long near a fight the other pet is in: "All Kill"
 # a monster fighting one live pet alone this long, the other pet out of it within our call and nothing on us: "All Kill"

@@ -518,10 +518,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    taken it (user 2026-10-17: "We need to just 'all kill' if the mob is already aggro'd on something else"). The
    simulator found the walk missing: from Logan's live tile (5242, 683) the first soul stood behind a wall
    (los.Sight), no tile within 2 steps saw it, and the fixed rule still waited 15 s (test_sim
-   `test_on_another_player`). **Only while it is near full hits** (since 2026-10-24): one they already have below
-   `tamer.THEIRS_BELOW` 0.8 of its hits is passed over for 60 s instead ("passing over <it>: <who> has it at N %, its
-   loot is theirs"): the most damage takes the corpse (live 12 % of the credited kills were blue; in the simulator 63
-   of 63 kills after such an "All Kill" were). test_sim `test_theirs_passed_over`. **Not while our "All Kill" at it is
+   `test_on_another_player`). **Only while it is near full hits** (since 2026-10-24; 0.96 since 2026-11-05, was 0.8):
+   one they already have below `tamer.THEIRS_BELOW` 0.96 of its hits is passed over for 60 s instead ("passing over
+   <it>: <who> has it at N %, its loot is theirs"): the most damage takes the corpse (live 12 % of the credited kills
+   were blue; in the simulator 63 of 63 kills after such an "All Kill" were). test_sim `test_theirs_passed_over`. **Not
+   while our "All Kill" at it is
    under `KILL_REPEAT_S` 12 s old** (since 2026-10-25): it was near full hits then, and the hits it loses while the
    pets run there are partly theirs; once 12 s pass with no pet beside it, the share counts again (live: 25 of 34 such
    "All Kill"s were dropped 1-5 s later at 52-79 %, and 11 of the 21 corpses seen were ours all the same).

@@ -3663,6 +3663,15 @@ double step back"; the parent's step-back fix in 1d819eb).
 - *Not done:* (5244, 587) as a way back (never stepped onto, not seeded); a hop across facets; a second hop in one
   escape choice (the walks' own branch hops again if needed, each teleporter once a walk).
 
+## Another player's monster: "All Kill" only at 96 % hits or more (2026-11-05)
+
+- *Decided (user):* `tamer.THEIRS_BELOW` 0.8 -> 0.96. A monster in war mode on another player (`elsewhere`) is passed
+  over below 96 % of its hits, both in `fight` and in the lone-pet "All Kill"; the `KILL_REPEAT_S` hold after our own
+  "All Kill" is unchanged. The 2026-10-25 live count (25 of 34 "All Kill"s at 80 %+ dropped 1-5 s later at 52-79 %)
+  showed the other player usually wins those races; the user wants fewer kill-steal attempts.
+- *Not measured:* no simulator batch for 0.96 (the 2026-10-24 sweep had 1.01, never "All Kill" one on someone else,
+  within noise on gold).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
