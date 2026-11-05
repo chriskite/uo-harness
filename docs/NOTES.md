@@ -8722,6 +8722,58 @@ team (AlaFlambe tanking, Bussin). The capture is logs/session_20261105_084113.js
   (paired -9,469 +- 12,289, noise: the deaths decide it), bard uses/h 262 -> 272, kills with no bard skill 13.9 % ->
   12.2 %, 736 skills at another on the pets.
 
+## Dead to two reds on the way to the gate (2026-11-05 11:56)
+
+Live 2026-11-05 11:56:23.81, Maus 3, hunt-20261105-114104-0635 (task log lines 949-1017), visit 1: 28 kills, 45,430 gp
+carried (lost); the pets Bussin and AlaFlambe lived (94-95 %). Capture session_20261105_084113 (`sim/red_scan.py
+20261105_084113`: 0x20/0x77 tiles, 0x6E actions, 0xC0 bolts, spell words, overhead numbers). Three reds, not two.
+
+- **The leave.** 11:55:57 a planned leave (the loot home by V\*) from (5241, 697), fought through (`leave_fought`):
+  north up x 5243 and west along y 654. 11:56:10 "target a corpsebride at 8 tiles", the approach west from (5232, 654).
+- **The reds** (none in the capture before): MultiCast 0x7FCA55 ('Legendary Serial Killer [Terran]', a spellbook) into
+  view at 11:56:11.23 at (5213, 667, 25), 18 tiles from Logan at (5231, 655); SweDo 0x1886C8 ('Seasoned Strategist
+  [Prevalia]', [R], a crossbow 0x0F50) at 12.96 at (5211, 669); IIIaJIaBa 0x9CE33 ('Serial Killer', a spellbook) at
+  14.97 at (5208, 657), an earth elemental '(summoned)' beside him at 15.27. All on the ramp top west, the gate's way.
+  MultiCast ran straight at Logan (a tile every 0.2 s) to (5224, 656) by 14.18, 2 tiles off, then kept 2-9 off; SweDo
+  came alongside and from 18.5 ran ahead west along y 671 to (5208, 673) by 22.08; IIIaJIaBa stood at (5214, 660-666)
+  to cast, then closed to 2.
+- **The runner.** The approach took two more steps west after the sighting ((5230, 655) 11.39, (5229, 654) 11.85; it
+  stopped for the countess's sight, not the red): a fought leg looks at the leave rules once a round, and recall mode's
+  look on every read is off while leaving (`HuntLoop.fleeing`). The leave rule at ~12.1 (15 tiles), "All Follow Me"
+  12.56, the first flight step 13.08: 1.85 s from sight to flight. "(a dead end): past them at once". The rope from
+  (5226, 657): cursor 14.73, hindered 14.74-15.87 with MultiCast 3 off, landed (5226, 661) at 15.75 ("2 -> 5 tiles", in
+  sight of 1). Then south down x 5226 and west along y 673 (19.3-23.5), SweDo 1-4 tiles south, the mages 2-7 north.
+- **Damage** (100 -> 0): -6 15.58 (MultiCast's "In Por Ylem" 14.30, bolt 0x36E4); -21 17.41 (SweDo's bolt 0x1BFE);
+  potion +21 17.82 (94); MultiCast's "Ort Por Ylem" 18.21, "An explosion potion has stuck to you!" 20.34, its count 5
+  .. 2 to 23.10 (never went off); IIIaJIaBa's "Corp Por" 19.70 and SweDo's bolt 20.30 with no number; vet +5 21.40
+  (100); -27 21.62 (an explosion 0x36BD on him); -30 22.40 (MultiCast's "Corp Por" of 20.85); -31 23.47; -13 23.81
+  (SweDo's bolt): dead at (5207, 673). 101 in 2.2 s once all three were within 2-6. No swing of Logan's; the pets
+  followed a tile behind and fought no one.
+- **The dead end was real.** Maus 3 has one leave gate, the crimson (5203, 703) (the gold ones are on level 1). On the
+  map (`pathfind.plan` from (5229, 654)) every route to it crosses x 5200-5220, y 672-674 (blocked: no route; the
+  shortest 53 steps by (5219, 662) and (5207, 673)); the way round north (y 629-646, down x 5205-5210) joins it there.
+  SweDo stood 3-4 tiles from that strip at his first sight, Logan 25 off. Back east is the east wing (the 10-21 and
+  10-22 deaths). Holding out of sight: MultiCast had come from 18 to 2 tiles in 3 s.
+- **Replay** `sim/fight1156.py`, the live team, each red on its capture tiles to its first cast, 96 seeds a row:
+
+  | layout | today | first sight | away first | hold out of sight | fought walks stop for a red |
+  |---|---|---|---|---|---|
+  | from the leave rule (12.17), empty level | 75 dead | 45 | 55 | 20 | |
+  | the same, the level's monsters (`--spawns`) | 82 | 57 | 83 | 75 | |
+  | from the leave (11:55:57; `--from-leave`) | 8 | | 44 | 94 | 9 |
+
+  `--from-leave` follows the live log line for line (the corpsebride, "a elder vampire countess would see us", "a leave
+  rule fired (red player MultiCast in view at 16 tiles)", two steps nearer him); the leave-rule layout dies a median
+  12.0 s after it (live 11.7). The first rope decides most runs: landed south of y 659 (live (5226, 661)) 1 of 80 died
+  (`--from-leave`) and 11 of 58 ("first sight"); along the way west or north in their sight 7 of 16 and 73 of 92
+  (today, leave-rule layout). "Hold" wins only on the empty level, whose northern loop has no countess. The fought walks'
+  stop (monkeypatched: `player_threat` in the walks' stop during a planned leave) cut sight-to-flight 0.8 -> 0.4 s and
+  the steps toward MultiCast 192 -> 0, deaths 8 -> 9: the "first sight" gain doesn't hold where the log matches.
+- **No change.** At the leave rule three reds stood at the only way to the only gate; past them at once was the best
+  of the flights tried, and live's rope took the way that lives most often in the simulator. Live killed him there
+  anyway: the simulated reds are milder on that leg than these three were [INFERENCE: SweDo cut him off at the strip,
+  101 in 2.2 s]. What put him there was the planned leave's way through the ramp top, where reds come in.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
