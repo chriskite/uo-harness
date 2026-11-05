@@ -503,7 +503,9 @@ BACKSPAWN_SEED_R = 200        # a collected spawn spot this near us goes into Te
 STEALTH_DEAD_R = 12
 STEALTH_RESPAWN_MIN_S = 180.0
 STEALTH_STOP = "a stealther's spawn spot"   # closed_step's reason: the walks' callers tell it by this
-SPAWNS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "mausoleum.json")
+# the dungeons' observed first sightings (each file's `spawns`, its `facet`): Team.seed_backspawn's spawn spots
+SPAWNS_PATHS = tuple(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", f"{d}.json")
+                     for d in ("mausoleum", "tidal_tomb"))
 TAMER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim", "tamer")
 
 
@@ -788,6 +790,8 @@ class Team:
         self.step_none = {}               # serial -> why no step-back tile, logged once a change (step_note)
         self.patrol_why = {}              # serial -> (why no patrol at it, monotonic): patrol_pull's log, once a change
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
+        self.step_why = None              # bard_step's last refusal: (key, text) for no_bard, None for its own timer
+        self.bard_said = {}               # serial -> the no_bard reasons logged for it (once each)
         self.see_walk_t = {}              # serial -> the last walk_to_see at it
         self.spacing_t = -1e9
         self.tank_t = {}                 # pet serial -> the last time it stood next to a monster in war mode
@@ -795,7 +799,7 @@ class Team:
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
-        self.backspawn_pending = []      # [(spot, kind, facet or None)] collected, not yet within BACKSPAWN_SEED_R
+        self.backspawn_pending = []      # [(spot, kind, facet)] collected, not yet within BACKSPAWN_SEED_R
         self.spot_dead = {}              # (x, y) of a STEALTH_CLOSED spawn spot -> monotonic end of its respawn (spot_live)
         self.stealth_at = {}             # serial -> (type, (x, y)) of a STEALTH_CLOSED monster last seen (its death's spot)
         self.closed_said = None          # closed_step's last stop line (logged once)
@@ -841,10 +845,12 @@ class Team:
         self.seed_backspawn(st)
 
     def seed_backspawn(self, st):
-        """Stealthers' spawn spots (aggro.stealthy) on this facet: where the store saw us kill one (our tile then,
-        within the pull range of it) and the Mausoleum's observed first sightings (harness/data/sim/mausoleum.json
-        spawns: every first-seen position in the captures); a corpse purger's or blightmare's spots (aggro.respawn_r,
-        since 2026-10-26) from those first sightings only (they don't come to us: our tile at the kill isn't theirs).
+        """Spawn spots of the stealthers (aggro.stealthy) and of a corpse purger or blightmare (aggro.respawn_r) from
+        first sightings only: the Mausoleum's and Tidal Tomb's observed ones (SPAWNS_PATHS: each scenario's `spawns`,
+        every first-seen position in the captures, on its facet) here and where one is first seen idle this run
+        (update). Not the store's kills of them: a kill record holds our tile at the kill, not the spawn (live
+        2026-11-05 10:16:36-10:17:30, hunt-20261105-094620-aa2f: a shade wolf "spot" at (5259, 653), Logan's tile at a
+        2026-10-25 22:40 kill, outscored the only tiles that saw two bound souls on the pets; 35 s, no bard skill).
         One spot per BACKSPAWN_MERGE tiles. Collected here (setup), each added when we come within BACKSPAWN_SEED_R of
         it (seed_near, every update): a run sets up at home and recalls in, and until 2026-10-31 only the spots within
         BACKSPAWN_SEED_R of the setup were added, so from the first --enter-recall runs (2026-10-21) the fight level's,
@@ -852,22 +858,15 @@ class Team:
         home; live 2026-10-31 11:57:17 Logan was bitten beside the vampiric consort's spot (5243, 633), 3 ahead of the
         pets)."""
         found = []
-        mem = getattr(self.h, "memory", None)
-        if mem is not None and hasattr(mem, "job_events"):
-            for e in mem.job_events("hunt", since=0.0):
-                if e["kind"] != "kill" or e.get("x") is None:
-                    continue
-                data = e["data"] if isinstance(e["data"], dict) else json.loads(e["data"] or "{}")
-                kind = type_key(data.get("name"))
-                if aggro.stealthy(kind):
-                    found.append(((e["x"], e["y"]), kind, e.get("facet") or 0))
-        try:
-            with open(SPAWNS_PATH, encoding="utf-8") as f:
-                for s in json.load(f).get("spawns") or []:
-                    if aggro.respawn_r(s["key"]) is not None:
-                        found.append((tuple(s["at"][:2]), s["key"], None))     # the Mausoleum's: no facet given
-        except OSError:
-            pass
+        for path in SPAWNS_PATHS:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    sc = json.load(f)
+            except OSError:
+                continue
+            facet = sc.get("facet") or 0
+            found += [(tuple(s["at"][:2]), s["key"], facet) for s in sc.get("spawns") or []
+                      if aggro.respawn_r(s["key"]) is not None]
         self.backspawn_pending = found
         self.seed_near(st)
 
@@ -878,13 +877,14 @@ class Team:
         facet = (st["world"].get("self") or {}).get("map") or 0
         n0, left = len(self.backspawn), []
         for spot, kind, f in self.backspawn_pending:
-            if (f is None or f == facet) and cheb(spot, pos) <= BACKSPAWN_SEED_R:
+            if f == facet and cheb(spot, pos) <= BACKSPAWN_SEED_R:
                 self.add_backspawn(spot, kind)
             else:
                 left.append((spot, kind, f))
         self.backspawn_pending = left
         if len(self.backspawn) > n0:
-            log(f"backspawn: {len(self.backspawn)} stealther and shy spawn spot(s) known here; standing out of their sight")
+            log(f"backspawn: {len(self.backspawn)} stealther and shy spawn spot(s) from first sightings known here; "
+                f"standing out of their sight")
 
     def add_backspawn(self, spot, kind):
         if not any(cheb(spot, s) <= BACKSPAWN_MERGE for s in self.backspawn):
@@ -951,6 +951,7 @@ class Team:
                     log(f"barding break on 0x{s:08X}: no peace or provocation at it for {BREAK_IMMUNE_S:.0f} s")
             elif kind == "mobile_death" and s is not None:
                 self.effects.pop(s, None)
+                self.bard_said.pop(s, None)
                 self.attack_t.pop(s, None)
                 if (seen := self.stealth_at.pop(s, None)) is not None:
                     self.stealth_dead(seen[0], seen[1], now)
@@ -3448,7 +3449,8 @@ class Team:
     # ------------------------------------------------------------ the fight
     def fight(self, serial: int):
         """One round against `serial` (module docstring): approach and wait while the pets haven't
-        engaged it; "All Kill" at a mob on us they leave alone; else the bard skills at it."""
+        engaged it (meanwhile a bard skill at another monster the pets fight: bard_others); "All Kill" at a mob on us
+        they leave alone; else the bard skills at it (bard)."""
         h, now = self.h, time.monotonic()
         st = h.state()
         mob, why = h.live_target(st, serial)
@@ -3551,6 +3553,8 @@ class Team:
                 return
             if not on_us and self.hold_reason(st) and self.pull_spot(st):
                 return                    # where it comes to the pets, out of the others' sight (sim fight1949)
+            if self.bard_others(st, serial, now):
+                return                    # the pets already fight others: a skill at one of them meanwhile
             h.doing("wait", f"Pets on guard; waiting for {name} to come on", (mob["x"], mob["y"]), serial)
             time.sleep(0.4)
             return
@@ -3662,23 +3666,36 @@ class Team:
         return True
 
     def bard(self, st, serial: int, mob: dict) -> bool:
-        """The next bard skill at a target the pets fight: discord, provoke another, peace. True when
-        one went out (or we stepped to see the target: bard_step). Only at a target we see by the server's rule
-        (bard_sees), and a provoked pair both in sight (user 2026-10-17: "A lot of times it tries to bard a mob
-        that cannot be seen and fails": 44 of 418 bard uses today answered "out of sight or reach")."""
+        """The next bard skill at a target the pets fight (bard_target); when it gets none this round, at another
+        monster on the pets in our sight (bard_others; user 2026-11-05: "Why is the runner letting the pets fight several
+        mobs without trying to bard?"). True when one went out (or we stepped to see the target: bard_step)."""
         now = time.monotonic()
-        if now < self.skill_ready or self.no_instrument:
+        if now < self.skill_ready:
             return False
+        if self.no_instrument:
+            return self.no_bard(serial, mob, "instrument", "no instrument in the pack")
+        return self.bard_target(st, serial, mob, now) or self.bard_others(st, serial, now)
+
+    def bard_target(self, st, serial: int, mob: dict, now: float) -> bool:
+        """The next bard skill at the target: discord, provoke another, peace. True when one went out (or we stepped to
+        see the target: bard_step). Only at a target we see by the server's rule (bard_sees), and a provoked pair both in
+        sight (user 2026-10-17: "A lot of times it tries to bard a mob that cannot be seen and fails": 44 of 418 bard uses
+        today answered "out of sight or reach"). Why it gets none, other than the skill timers and its effects running,
+        is logged once per target and reason (no_bard; live 2026-11-05 10:16:55-10:17:30 35 s of "The pets are fighting
+        bound soul" with no skill and no word why)."""
         fx = self.effects.setdefault(serial, {})
-        if fx.get("los", 0) > now or cheb(self.h.pos(st), (mob["x"], mob["y"])) > BARD_RANGE:
-            return False
+        if fx.get("los", 0) > now:
+            return self.no_bard(serial, mob, "los", f"the server's last answer was out of sight or reach; no try for "
+                                                    f"{LOS_BLOCK_S:.0f} s")
+        if (d := cheb(self.h.pos(st), (mob["x"], mob["y"]))) > BARD_RANGE:
+            return self.no_bard(serial, mob, "range", f"{d} tiles off, beyond {BARD_RANGE}")
         kind = type_key(mob.get("name"))
         on_us = serial in {serial_of(a["serial"]) for a in self.h.attackers(st)}
         if aggro.shy(kind) and not on_us and not self.engaged(st, serial):
             # our skill draws its aggro before the pets hit it (user 2026-10-12: an aggressive act of ours puts the mob on
             # us) and a purger then barrages us wherever the pets stand; on us, or on the pets, the skills go (live demo
             # 2026-10-18 17:56:02: his Discordance on the purger GraveRobber fought, never a hit on Logan)
-            return False
+            return self.no_bard(serial, mob, "shy", "shy and the pets haven't hurt it yet (our skill would draw it)")
         due = (self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond) or (
             now >= self.calm_ready and (self.a.provoke or self.a.peace) and fx.get("calm", 0) <= now
             and fx.get("immune", 0) <= now)
@@ -3686,7 +3703,7 @@ class Team:
             # a step that sees it, then the skill from there at once: the care (cover from a shy one's shot, the
             # reposition out of a caster's sight) walks us back out next tick and would undo the step before the skill
             if not self.bard_step(st, serial, peek=not on_us):
-                return False
+                return self.step_why is not None and self.no_bard(serial, mob, *self.step_why)
             st = self.h.state()
             if not self.bard_sees(st, serial):
                 return True
@@ -3697,16 +3714,64 @@ class Team:
             return self.use(SKILL_PROVO, *pair)
         if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
             return self.use(SKILL_DISCORD, serial)
-        if now < self.calm_ready:
-            return False
-        if self.a.provoke:
-            others = [s for s in self.others(st, serial) if self.provokable(st, s, now)]
-            if len(others) > 1 or (others and self.bard_sees(st, serial)):
-                return self.use(SKILL_PROVO, others[0], others[1] if len(others) > 1 else serial)
-        if self.a.peace and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
-                and (SKILL_PEACE, kind) not in self.beyond:
-            return self.use(SKILL_PEACE, serial)
+        if now >= self.calm_ready:
+            if self.a.provoke:
+                others = [s for s in self.others(st, serial) if self.provokable(st, s, now)]
+                if len(others) > 1 or (others and self.bard_sees(st, serial)):
+                    return self.use(SKILL_PROVO, others[0], others[1] if len(others) > 1 else serial)
+            if self.a.peace and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
+                    and (SKILL_PEACE, kind) not in self.beyond:
+                return self.use(SKILL_PEACE, serial)
+        beyond = [SKILL_NAMES[sid] for sid, on in ((SKILL_DISCORD, self.a.discord), (SKILL_PEACE, self.a.peace))
+                  if on and (sid, kind) in self.beyond]
+        return bool(beyond) and self.no_bard(serial, mob, "beyond", f"{' and '.join(beyond)} beyond our skill at it")
+
+    def no_bard(self, serial: int, mob: dict, key: str, why: str) -> bool:
+        """Log why the target gets no bard skill, once per target and reason (`key`): "no bard at bound soul
+        0x000EB3B4: ...". False."""
+        said = self.bard_said.setdefault(serial, set())
+        if key not in said:
+            said.add(key)
+            log(f"no bard at {type_key(mob.get('name')) or 'a monster'} 0x{serial:08X}: {why}")
         return False
+
+    def bard_others(self, st, serial: int, now: float) -> bool:
+        """Discordance, else Peacemaking, at another monster fighting the pets (pet_attackers, or engaged) that we see
+        within BARD_RANGE, when the target `serial` gets no skill this round (bard; the fight's wait for a target the
+        pets haven't engaged): under the target's rules (its own effects, beyond our skill, a barding break, the server's
+        out-of-sight answer, a shy one only when the pets fight it or it's on us); the heaviest (aggro.weight) first, then
+        the nearest. Live 2026-11-05 10:16:45-10:17:30: a corpse purger and a second bound soul fought the pets beside the
+        target with no skill at either (discord and peace went only at the target). True when one went out."""
+        if now < self.skill_ready or self.no_instrument or not (self.a.discord or self.a.peace):
+            return False
+        pos = self.h.pos(st)
+        on_us = {serial_of(a["serial"]) for a in self.h.attackers(st)}
+        on_pets = self.pet_attackers(st) | {s for s in self.fought if self.engaged(st, s)}
+        best = None
+        for s in on_pets - {serial}:
+            mob, _ = self.h.live_target(st, s, BARD_RANGE)
+            if mob is None:
+                continue
+            kind, fx = type_key(mob.get("name")), self.effects.get(s, {})
+            if fx.get("los", 0) > now or (aggro.shy(kind) and s not in on_us and not self.engaged(st, s)):
+                continue
+            if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
+                sid = SKILL_DISCORD
+            elif self.a.peace and now >= self.calm_ready and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
+                    and (SKILL_PEACE, kind) not in self.beyond:
+                sid = SKILL_PEACE
+            else:
+                continue
+            rank = (-aggro.weight(kind), cheb(pos, (mob["x"], mob["y"])), s)
+            if (best is None or rank < best[0]) and self.bard_sees(st, s):
+                best = (rank, s, sid, kind)
+        if best is None:
+            return False
+        _, s, sid, kind = best
+        target = type_key(((st["world"]["mobiles"].get(f"0x{serial:08X}") or {}).get("name"))) or "the target"
+        log(f"{SKILL_NAMES[sid]} at {kind} 0x{s:08X}: on the pets, not the target ({target} 0x{serial:08X})")
+        self.count("bard_other")
+        return self.use(sid, s)
 
     def provokable(self, st, s: int, now: float) -> bool:
         """`s` can be provoked now: not calm, not under a break, not out of sight lately, not beyond our skill, in our
@@ -3768,12 +3833,17 @@ class Team:
         are fighting the pets and we are not barding any of them ... Should be firing off discos and provos"). The care
         walks us back out after the skill."""
         h, now = self.h, time.monotonic()
-        if now - self.bard_step_t < REPOSITION_S or (now < self.vet_busy_until and not peek):
+        self.step_why = None              # (key, text) of a refusal for no_bard; None: its own timer (routine)
+        if now - self.bard_step_t < REPOSITION_S:
+            return False
+        if now < self.vet_busy_until and not peek:
+            self.step_why = ("channel", "out of our sight, and no step mid-channel")
             return False
         self.bard_step_t = now
         v = self.view(st)
         m = next((m for m in v.mobs if m["serial"] == serial), None)
         if v.walk is None or m is None:
+            self.step_why = ("map", "out of our sight, and no walk map for a step")
             return False
         keep = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range + 1]
         # clear of every area zone, not only its centres: a step back into one has the stand-off walk us out again, round
@@ -3793,16 +3863,35 @@ class Team:
 
         steps = PEEK_STEPS if peek else REPOSITION_STEPS
         here = score(v.pos)
-        best, best_s, best_c = None, None, None
+        best, best_s, best_c, refused = None, None, None, []
         for t, k in self.tiles_within(v, steps).items():
-            if k == 0 or not clear(t) or t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in in_range) \
-                    or any(cheb(t, n) < SPACING_R for n in spaced) or not v.we_see(m, t, BARD_RANGE):
+            if k == 0:
+                continue
+            rule = "area" if not clear(t) else "fire" if t[:2] in fire \
+                else "vet" if any(cheb(t, p) > self.a.vet_range for p in in_range) \
+                else "spacing" if any(cheb(t, n) < SPACING_R for n in spaced) else None
+            if rule is not None:
+                refused.append((t, rule))
+                continue
+            if not v.we_see(m, t, BARD_RANGE):
                 continue
             c = score(t)
             s = c + 0.3 * k
             if best_s is None or s < best_s:
                 best, best_s, best_c = t, s, c
-        if best is None or (best_c > here if peek else best_s > here):
+        if best is None:
+            # which rule took every tile that sees it (the extra sight checks only on this refusal)
+            rules = sorted({rule for t, rule in refused if v.we_see(m, t, BARD_RANGE)})
+            texts = {"area": "in an area hitter's reach", "fire": "in fire",
+                     "vet": f"out of --vet-range {self.a.vet_range} of a pet",
+                     "spacing": f"within {SPACING_R - 1} of a monster in the fight or a pet (spacing)"}
+            self.step_why = ("+".join(rules), f"the tiles within {steps} steps that see it are "
+                                              + " or ".join(texts[r] for r in rules)) if rules \
+                else ("none", f"no tile within {steps} steps sees it")
+            return False
+        if best_c > here if peek else best_s > here:
+            self.step_why = ("worse", f"no tile within {steps} steps sees it better than here "
+                                      f"({best_c if peek else best_s:.1f} vs {here:.1f})")
             return False
         label = "to see the bard target"
         h.doing("reposition", f"Stepping to {best[0]},{best[1]} to see {m['kind']}", best[:2])

@@ -537,8 +537,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    the kill credit taken back. A blue player's fight is still taken as above. Limits: an ally fighting from range
    (an archer, a mage) more than 2 tiles off isn't seen until the monster comes to them [INFERENCE: a melee monster
    does]. test_loop_hunt `ally_courtesy`, test_sim `test_ally_left_alone`.
-2. **Bard skills only at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
-   tiles, the phoenix's reach). **Provocation first when two monsters are in the fight** (since 2026-10-26,
+2. **Bard skills at a target the pets fight** (`engaged`: hurt within 10 s, a pet within 12
+   tiles, the phoenix's reach; when it gets none, at another monster on the pets, "The others on the pets" below).
+   **Provocation first when two monsters are in the fight** (since 2026-10-26,
    `tamer.PROVOKE_FIRST` "pairs", `Team.provoke_first`: the target onto the one nearest it). The user on Tidal Tomb's
    level 2: "In that area I'm generally able to keep the mobs provo'd onto each other". In the simulator, level 3 runs
    with a death went 12 -> 5 of 24, level 2's damage on Logan 2,192 -> 1,708 an hour, and Maus 3 was no worse. Then
@@ -566,6 +567,25 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    out of the sight of a blightmare, purger or caster the pets fight, so no tile ever counted as good enough: 0 skills
    at 96 shy kills 2026-10-22..25; round a corner from two awake purgers, 23:31, one skill in 50 s with four monsters
    on the pets, the only seeing tile 4 steps off; docs/NOTES.md "No bard skill at a caster or shy monster").
+   **The others on the pets** (since 2026-11-05; user: "Why is the runner letting the pets fight several mobs without
+   trying to bard?"): when the target gets no skill this round (nothing due at it, or due and unseen with no step, out
+   of range, the server's out-of-sight block, shy and not yet hurt), Discordance, else Peacemaking, goes at another
+   monster fighting the pets (`Team.pet_attackers`, or hurt by them) that we see within 10, under the target's rules
+   (its own effect timers, "beyond your skill", a barding break, the out-of-sight block, a shy one only once the pets
+   hurt it or it is on us); the heaviest by `aggro.weight` first, then the nearest (`Team.bard_others`; logged
+   "Discordance at bound soul 0x000EB5AF: on the pets, not the target (bound soul 0x000EB3B4)"). The target keeps
+   priority: its step and skill come first. The same while the pets haven't engaged the target yet and others already
+   fight them ("Pets on guard; waiting for ..."). Live 2026-11-05 10:16:45-10:17:30 a corpse purger and a second bound
+   soul fought the pets beside the target with no skill at either (docs/NOTES.md "No bard skill from the vet pocket").
+   test_sim `test_bard_other_on_pets`.
+   **Why no skill, logged** (since 2026-11-05): when the target gets no skill for a reason other than the skill timers
+   and its own effects running, one line per target and reason (`Team.no_bard`), e.g. "no bard at bound soul
+   0x000EB3B4: no tile within 4 steps sees it better than here (9.2 vs 0.0)"; the others: "the tiles within 4 steps
+   that see it are out of --vet-range 5 of a pet" (or "in an area hitter's reach", "in fire", "within 2 of a monster in
+   the fight or a pet (spacing)", joined by "or"), "no tile within 4 steps sees it", "out of our sight, and no step
+   mid-channel", "the server's last answer was out of sight or reach; no try for 10 s", "11 tiles off, beyond 10", "shy
+   and the pets haven't hurt it yet (our skill would draw it)", "Discordance and Peacemaking beyond our skill at it",
+   "no instrument in the pack". test_sim `test_bard_skip_logged`.
    **Barding songs** (`--songs`; user 2026-10-13, capture 20261013_173449): the same skills at a
    ground tile beside us play the Songs of Discordance, Peacemaking and Provocation on us and the
    pets for 15 minutes (live 15.0 % each: less damage taken from creatures, more healing received,
@@ -1135,20 +1155,30 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   behind you we call it backspawn. A human knows not to stand out in the open when stealth mobs are going to
   respawn there"; live 20261015_171928 18:40:10 an unseen nightstalker hit Logan -58 from 2 tiles, the side
   away from the pets, and killed him in 2.7 s): the spawn spots of stealthers (the wiki's stealth: the
-  nightstalker, the shade wolf, the vampiric consort) come from the store's kills of them, the Mausoleum's
-  observed first sightings (harness/data/sim/mausoleum.json spawns) and where one is first seen idle this
-  run (`Team.backspawn`); since 2026-10-26 a corpse purger's and a blightmare's too, from the first sightings only,
+  nightstalker, the shade wolf, the vampiric consort; Tidal Tomb's voidfins and kelpdwellers) come from first
+  sightings only: the Mausoleum's and Tidal Tomb's observed ones (harness/data/sim/mausoleum.json and tidal_tomb.json
+  `spawns`, `tamer.SPAWNS_PATHS`) and where one is first seen idle this run (`Team.backspawn`); since 2026-10-26 a
+  corpse purger's and a blightmare's too,
   within their reach of 12 (`aggro.respawn_r`; user: "I move to spots where if a mob respawns (like the dreaded
   blightmare) I won't be standing in its sight"; the other shy casters' spots too cost the simulator gold and deaths). A
   tile within 7 of a stealther's spot (12 of a purger's or blightmare's), in its sight, with no pet nearer the spot
   than the tile scores as that monster idle there (`aggro.View.backspawn_exposed`, in `stand_score` and the pull spot):
   the spacing, reposition and retreat tiles keep the pets between Logan and the spawns. Repositioning
-  keeps spacing's 3 tiles off the tank. **Seeded on arrival** (since 2026-10-31, `Team.seed_near`): the store's and the
-  file's spots are collected at the setup and each goes in when Logan comes within 200 tiles of it. Before, only those
+  keeps spacing's 3 tiles off the tank. **Seeded on arrival** (since 2026-10-31, `Team.seed_near`): the files'
+  spots are collected at the setup and each goes in when Logan comes within 200 tiles of it. Before, only those
   within 200 of the setup did, and a run sets up at home and recalls in: from the first `--enter-recall` runs (2026-10-21)
   the fight level's spots never went in (no "backspawn:" line live after 2026-10-20 23:04, none in the simulator's runs
   from home); live 2026-10-31 11:57:17 Logan was bitten -46 and -39 beside the vampiric consort's spot (5243, 633), 3
   ahead of the pets (docs/NOTES.md "Maus 3 near-deaths"). test_sim `test_backspawn_on_arrival`.
+  **Not from the store's kills** (since 2026-11-05): until then the store's kills of a stealther seeded a spot at the
+  kill record's tile, which is Logan's tile at the kill, not the monster's spawn. Live 2026-11-05 10:16:55-10:17:30 a
+  shade wolf "spot" at (5259, 653), Logan's tile at a 2026-10-25 22:40 kill, made the only tiles that saw two bound
+  souls on the pets score 9.2 against 0 at Logan's vet pocket: 35 s, no bard skill (docs/NOTES.md "No bard skill from
+  the vet pocket"). The purger's and blightmare's spots never came from kills. Lost with it: the Mausoleum's level 3
+  shade wolf, nightstalker and consort "spots" at kill tiles (the files keep the observed ones), and every Tidal Tomb
+  spot, which only kills had seeded (now its file's 15 first sightings, levels 2 and 3). Ossuary and Cavernam had none
+  either way: no stored kill of a stealther there, and their files (rag witch, sandshark, wendigo) aren't read. test_sim
+  `test_bard_kill_tile_spot`.
 - **The closed area round a vampiric consort's spawn spot** (since 2026-10-31; user after the 11:57 death: "I'm not
   going to stand unguarded near where the vampiric consort spawns since her stealth backstab + bleed is deadly";
   "getting hit by a weaker stealther like the shade wolf isn't a huge deal compared to 'forgotten soul and consort are

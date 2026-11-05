@@ -88,7 +88,7 @@ def runner_args(sc: dict, extra: list[str], minutes: float, at_hunt: bool = Fals
 def seed_prior(db: str, prior: str, serial: int) -> int:
     """Copy the hunt history of character `serial` from the store `prior` (the live one) into `db`: the hunt episodes
     and job events the runner learns from (crawl.load_prior's fights, loot and zone stats, hunt_return.model's visits,
-    deaths and leaves, the kills of tamer's spawn spots), rows older than EPOCH only. The rows read; 0 when none."""
+    deaths and leaves), rows older than EPOCH only. The rows read; 0 when none."""
     import memory
     import sqlite3
     src = sqlite3.connect(f"file:{prior}?mode=ro", uri=True)

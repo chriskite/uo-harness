@@ -2446,6 +2446,115 @@ def test_bard_peek_corner():
           and loop.team.counts.get("bard", 0) == 1, f"seen {seen} went {went} counts {loop.team.counts} at {w.player.pos}")
 
 
+def pocket_loop(spawns, pets_at, seed=7):
+    """The live 2026-11-05 10:16:56 layout (hunt-20261105-094620-aa2f, capture replay): Logan vetting from the pocket at
+    (5262, 657) (its one way out west), the live team as then (AlaFlambe at (5267, 652), Bussin at (5269, 651)); each
+    monster of `spawns` in war on the pet of `pets_at` ((name, (x, y)) pairs) moved there, both held. -> (world, loop,
+    clock, store, patched, [monsters])."""
+    w = world_with(spawns, seed=seed, start=(5262, 657), team="phoenix_incubus")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    pets = {p.name: p for p in w.pets()}
+    for name, xy in (("AlaFlambe", (5267, 652)), ("Bussin", (5269, 651))):
+        pets[name].x, pets[name].y = xy
+    mobs = [next(m for m in w.mobs.values() if m.kind == "monster" and m.pos[:2] == tuple(s["at"][:2])) for s in spawns]
+    for (name, xy), m in zip(pets_at, mobs):
+        p = pets[name]
+        p.x, p.y = xy
+        p.mode, p.kill = "kill", m.serial
+        m.target, m.threat = p.serial, {p.serial: 50}
+        w._warm(m, True)
+        m.next_step = 1e9
+    return w, loop, clock, store, patched, mobs
+
+
+def test_bard_kill_tile_spot():
+    print("== a bound soul on the pets out of sight of the pocket, a stored shade wolf kill beside the peek tile: the "
+          "peek and the skill (spawn spots from sightings only) ==")
+    # live 2026-11-05 10:16:55-10:17:30 (hunt-20261105-094620-aa2f): "The pets are fighting bound soul" 41 + 32 times, no
+    # bard skill. The only tiles that saw the souls, (5260, 655)/(5260, 656), 4 steps off, scored 9.2 against 0 here for a
+    # shade wolf "spawn spot" at (5259, 653): Logan's tile at a 2026-10-25 22:40 kill in the store (seed_backspawn's kill
+    # source, gone)
+    w, loop, clock, store, patched, (soul,) = pocket_loop([{"key": "bound soul", "at": [5267, 653, 0]}],
+                                                          [("AlaFlambe", (5267, 652))])
+    store.job_event("hunt", "kill", {"serial": "0x000E0001", "name": "a shade wolf", "hits_max": 100}, facet=0,
+                    x=5259, y=653, t=1_792_000_000.0)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.team.seed_backspawn(loop.state())
+            clock.advance(4.0)                          # the pets on it: hurt within ENGAGED_S
+            st = loop.state()
+            seen = loop.team.bard_sees(st, soul.serial)
+            went = loop.team.bard(st, soul.serial, st["world"]["mobiles"][f"0x{soul.serial:08X}"])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    spots = [s for s in loop.team.backspawn if sim_cheb(s, (5259, 653)) <= tamer.BACKSPAWN_MERGE]
+    check("no spot from the kill record; out of sight, then the peek and the skill (before: no step, no skill)",
+          not spots and not seen and went and soul.barded and w.player.pos[:2] != (5262, 657),
+          f"spots {spots} seen {seen} went {went} counts {loop.team.counts} at {w.player.pos[:2]}")
+
+
+def test_bard_skip_logged():
+    print("== a bard target that gets no skill: one line why, once per target and reason ==")
+    # live 2026-11-05 10:16:55-10:17:30: 35 s of "The pets are fighting bound soul" with no skill and no word why. A
+    # spawn spot by the peek tile (here a sighting's, as the kill record's was live) makes it worse than the pocket
+    w, loop, clock, store, patched, (soul,) = pocket_loop([{"key": "bound soul", "at": [5267, 653, 0]}],
+                                                          [("AlaFlambe", (5267, 652))])
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            loop.team.add_backspawn((5259, 653), "shade wolf")
+            clock.advance(4.0)
+            for _ in range(3):                          # three rounds, each past the step's REPOSITION_S
+                st = loop.state()
+                loop.team.bard(st, soul.serial, st["world"]["mobiles"][f"0x{soul.serial:08X}"])
+                clock.advance(tamer.REPOSITION_S + 0.5)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln.split(" ", 1)[1] for ln in out.getvalue().splitlines() if " no bard at " in ln]
+    want = f"no bard at bound soul 0x{soul.serial:08X}: no tile within 4 steps sees it better than here (9.2 vs 0.0)"
+    check("one line naming the target, the rule and both scores, not one a round", lines == [want], str(lines))
+
+
+def test_bard_other_on_pets():
+    print("== two monsters on the pets, the target out of sight with no step, the other in sight: Discordance at the "
+          "other ==")
+    # live 2026-11-05 10:16:45-10:17:30: a corpse purger and a second bound soul fought the pets beside the target with
+    # no skill at either (discord and peace went only at the target). Here mid vet channel: every tile that sees the
+    # target is out of --vet-range of AlaFlambe; the second soul on Bussin is in sight of the pocket
+    out = {}
+    for vet in (True, False):
+        w, loop, clock, store, patched, (a, b) = pocket_loop(
+            [{"key": "bound soul", "at": [5267, 653, 0]}, {"key": "bound soul", "at": [5261, 660, 0]}],
+            [("AlaFlambe", (5267, 652)), ("Bussin", (5260, 660))])
+        log = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(log):
+                clock.advance(4.0)
+                st = loop.state()
+                seen = (loop.team.bard_sees(st, a.serial), loop.team.bard_sees(st, b.serial))
+                if vet:
+                    loop.team.vet_busy_until = tamer.time.monotonic() + 5.0
+                went = loop.team.bard(st, a.serial, st["world"]["mobiles"][f"0x{a.serial:08X}"])
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[vet] = (seen, went, a.barded, b.barded, b.discord_until > w.t or loop.team.counts.get("discord_fail", 0),
+                    loop.team.counts.get("bard_other", 0),
+                    [ln.split(" ", 1)[1] for ln in log.getvalue().splitlines() if "bard at" in ln or "on the pets" in ln])
+    seen, went, a_b, b_b, disc, other, lines = out[True]
+    check("mid-channel: the target unseen with no step (logged), Discordance at the other",
+          seen == (False, True) and went and not a_b and b_b and disc and other == 1
+          and lines == [f"no bard at bound soul 0x{a.serial:08X}: the tiles within 4 steps that see it are out of "
+                        f"--vet-range 5 of a pet",
+                        f"Discordance at bound soul 0x{b.serial:08X}: on the pets, not the target (bound soul "
+                        f"0x{a.serial:08X})"], str(out[True]))
+    seen, went, a_b, b_b, disc, other, lines = out[False]
+    check("...the step open: the target keeps priority (the step and a skill at it, none for the other alone)",
+          went and a_b and other == 0, str(out[False]))
+
+
 def test_purger_back_off():
     print("== an idle corpse purger would see us before the pets: back behind them; no skill at it ==")
     # live 2026-10-17 23:14:08-12: "holding here: corpse purger in sight at 10 tiles: letting it come"; it woke at 9 with
@@ -8259,7 +8368,8 @@ def main():
               test_stairs, test_boss_room_door, test_out_of_boss_room, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_leave_pet_out_of_view, test_gate_dash,
               test_gate_after_vet,
-              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_provoke, test_rope_sight, test_red_flight,
+              test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_kill_tile_spot, test_bard_skip_logged,
+              test_bard_other_on_pets, test_bard_provoke, test_rope_sight, test_red_flight,
               test_red_out_of_view, test_red_walled,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
