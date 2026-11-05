@@ -2220,6 +2220,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   way on and 3327 stands failed "no route" in 65 s under the 120 s stall rule. Kept from that: `STALL_STANDS_MAX` (30)
   stands given up since the last ore end the leg however quickly (creature-blocked: hop or home). The repeated escapes
   stay open. test_mining `test_stalled_leg`.
+- *A stand beyond the walking flood gets a route cap from its Chebyshev distance* (2026-11-04 23:17:57-23:19:51,
+  mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
+  tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round
+  in circles, 2 min and ~1000 steps without ore). `dig_stand` caps such a walk at `STAND_ROUTE_MIN + STAND_DETOUR` x
+  its Chebyshev distance (172 steps for 81 tiles), as a flooded stand at x its walking steps; longer is "only an
+  N-step detour" and the next stand. test_mining `test_far_stand_route_cap`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

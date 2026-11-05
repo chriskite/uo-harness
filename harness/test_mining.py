@@ -473,6 +473,34 @@ def test_stalled_leg():
           (repr(got), len(fast)))
 
 
+def test_far_stand_route_cap():
+    print("a stand beyond the walking flood: its walk is capped by its Chebyshev distance, as a flooded one by its steps")
+    # live 2026-11-04 23:17:57-23:19:51 (mining-20261104-231210-dd9f, forge_2551_665): stands 81-83 tiles off had no
+    # cap, routes of 424-623 steps round creatures, two walks went round in circles, 2 min without ore
+    import loop_mining
+    from agent_link import WalkFailed
+    caps = {}
+
+    def walk(xy, r, label, max_route=None):
+        caps[xy] = max_route
+        raise WalkFailed(f"{label}: only a 424-step detour")
+    loop = object.__new__(MineLoop)
+    loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2511, 659, 0))
+    loop.doing = lambda *a: None
+    loop.walk_to_work = walk
+    loop.no_route_stands, loop.stall_stands, loop.fruitless = set(), 0, 0
+    loop._steps = (None, None, {(2520, 660): 12})          # the flood reached (2520, 660) in 12 steps
+    saved = loop_mining.log
+    loop_mining.log = lambda s: None
+    try:
+        for xy in ((2520, 660), (2592, 640)):
+            loop.dig_stand({"x": xy[0], "y": xy[1], "blocks": []}, {"ore": 0})
+    finally:
+        loop_mining.log = saved
+    check("flooded: 10 + 2 x its 12 steps; beyond the flood: 10 + 2 x its 81 tiles",
+          caps == {(2520, 660): 34, (2592, 640): 172} and loop.no_route_stands == {(2520, 660), (2592, 640)}, caps)
+
+
 def test_teleported_away():
     print("a walk's unplanned teleport far from the spot: the leg ends at once, no stand tried from there")
     import loop_mining
@@ -754,7 +782,7 @@ def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
-              test_teleported_away, test_gate_out):
+              test_teleported_away, test_gate_out, test_far_stand_route_cap):
         t()
     print()
     if FAILURES:

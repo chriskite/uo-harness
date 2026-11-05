@@ -938,7 +938,10 @@ class MineLoop(loop_lumber.LumberLoop):
         x, y = stand["x"], stand["y"]
         self.doing("to_stand", f"Heading to the rock at {x},{y} ({tally['ore']} ore)", (x, y))
         steps = self._steps[2] if self._steps is not None else None    # walk_steps from here (next_stand's)
-        n = None if steps is None else steps.get((x, y))
+        # a stand beyond the flood (an ore field's far side) has its Chebyshev distance for the way (live 2026-11-04
+        # 23:17:57-23:19:51, mining-20261104-231210-dd9f at forge_2551_665: stands 81-83 tiles off took routes of
+        # 424-623 steps round creatures, two walks went round in circles, 2 min without ore)
+        n = None if steps is None else steps.get((x, y), cheb(self.link.pos(self.link.state()), (x, y)))
         try:
             # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
             self.walk_to_work((x, y), 0, f"to the ore stand {x},{y}",
