@@ -181,6 +181,13 @@ takes the exit step there.
   in the room at (5242, 587) under its custodian; the walk took the tile as meant, found "no route", and he stood
   there until the user stepped him off the arrival and back on (out at (5243, 612)). Both tiles are seeds now
   (`harness/data/teleporters.json`); test_sim `test_boss_room_door`.
+  **A teleporter on the way back that already puts us back** (since 2026-11-04): if the step back's own walk crosses
+  another teleporter that lands within 4 of where the first teleport took us from, the step back is done ("<label>:
+  back: the teleporter at (x, y) put us back at (x, y)"); before, that landing counted as a second unplanned teleport
+  and the step back went back again, through the room's door. Live 2026-11-04 21:35:31-33 (hunt-20261104-211543-d101):
+  off the tank onto (5244, 612) put Logan in the room at (5244, 587); the step back toward (5242, 587) crossed
+  (5243, 587), out at (5243, 612); a second step back through (5242, 612) put him in the room again, where the custodian
+  killed him after a plain stop. test_mover `test_step_back_lands_home`.
 - **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
   fight spot the runner plans the route back to `--spot` and leaves below
   `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that

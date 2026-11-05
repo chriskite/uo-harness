@@ -8602,6 +8602,22 @@ Maus 3, task log lines 4052-4131, capture session_20261104_184749 (`replay.timed
   the fix): deaths 3 -> 4, pet-death runs 9 -> 16, banked/h 146,759 -> 145,454; two of its 4 deaths came on "to the
   corpse" (an opted-in walk), two on the moongate walk; none of seed 17's 7 on an opted-in walk (retreat or moongate).
 
+## Dead in Maus 3's mini-boss room after a double step back (live 2026-11-04 21:35:31-21:37, hunt-20261104-211543-d101)
+
+- **21:35:31-33** the step off the tank onto (5244, 612), an unknown tile of the mini-boss room's door strip, put
+  Logan in the room at (5244, 587). `Mover.step_back` walked for the known way back (5242, 587) and crossed (5243, 587),
+  another unknown teleporter, out at (5243, 612): within 4 of where he had been, i.e. back. The walk took that landing
+  as a second unplanned teleport and stepped back again, through the known door (5242, 612): in the room at (5242, 587).
+  The crawl: "no route from (5242, 587)"; the run fought and healed there (62 -> 100, 57 -> 89, 59 -> 100).
+- **21:36:20** the Seer plain-stopped the run ("confused run"); the go-home run read (5242, 587) as a recall spot
+  ("--go-home: at (5242, 587): the recall home") and tried the tome four times, "Magical travel from inside a dungeon
+  is only possible near golden moongates.", 20 s, then aborted; the custodian (-41, -42) killed him by 21:37. The pets
+  lived (Bussin 57 %, AlaFlambe 93 %).
+- **Fixed** (parent): a step back's walk that crosses a teleporter landing within 4 of the step back's aim is done
+  ("back: the teleporter at (x, y) put us back at (x, y)"); test_mover `test_step_back_lands_home` (fails before: in the
+  room). OVERSEER §5 step 4: no plain stop inside the dungeon while the run defends him. The go-home run's reading of the
+  room, the restricted-recall text and the walk out of the room through its door: a separate fix (GoHomeFromMiniBossRoom).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

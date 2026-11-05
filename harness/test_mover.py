@@ -707,6 +707,26 @@ def test_user_steering():
     check("no teleporter counted or remembered", mv.teleports == 0 and store.teleporters(0) == {},
           f"{mv.teleports} {store.teleporters(0)}")
 
+def test_step_back_lands_home():
+    print("== a step back whose walk crosses another teleporter that puts us back where we were: done, no second ==")
+    # live 2026-11-04 21:35:31-33 (hunt-20261104-211543-d101): off the tank onto (5244, 612) put Logan in Maus 3's
+    # mini-boss room at (5244, 587); the step back toward (5242, 587) crossed (5243, 587), which put him at (5243, 612)
+    # beside where he was, and a second step back through (5242, 612) took him into the room again
+    import tempfile
+    import memory
+    store = memory.Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
+    store.teleporter_record(0, 2, -10, 0, 2, 0, 0)              # the room's known way out
+    store.teleporter_record(0, 2, 0, 0, 2, -10, 0)              # and the known way in beside it
+    tele = {(4, 0): (4, -10), (3, -10): (3, 0), (2, -10): (2, 0), (2, 0): (2, -10)}
+    open_tiles = {(x, y) for x in range(0, 7) for y in (-10, 0, 1, 2)}
+    link = FakeLink((4, 2), facing=0, teleports=tele)
+    mv = Mover(link, store, Human("off"), use_map=True)
+    mv.walkers.put(0, GridWalk(open_tiles))
+    msg = walk_msg(mv, (4, 0))
+    check("back out of the room after the second teleporter, not into it again",
+          link.here[1] >= 0, f"{msg} at {link.here}")
+
+
 
 RENOUNCE = 0xE2544541     # the renounce-Young prompt a Shelter moongate opens (20261001_191355)
 RENOUNCE_LAYOUT = ("{ resizepic 28 23 11571 401 501 }{ button 22 24 2094 2095 1 0 1 }"
@@ -951,6 +971,7 @@ def main():
     test_not_above()
     test_teleporter()
     test_user_steering()
+    test_step_back_lands_home()
     test_moongate_gumps()
     print(f"\nmover: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 0 if not FAILURES else 1

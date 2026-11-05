@@ -776,6 +776,12 @@ Paste this (or point the session at this section) to start an overseer.
 >      2026-10-17 17:26:28, (5615, 691) → (5618, 692); 2026-11-03 23:21:17, (5512, 646) and (5514, 642)).
 >    - **"Nothing to patrol to; waiting"** with Logan outside the Mausoleum: a confused run. `ctl stop` it and
 >      tell the user.
+>    - **"no route from (x, y)" / "Nothing to patrol to" with Logan inside the dungeon but off the crawl floor** (a
+>      side room through a teleporter, e.g. Maus 3's mini-boss room at y 575-600): never a plain `ctl stop` while the
+>      run still fights and heals there; message the parent at once and let the run defend him. Live 2026-11-04
+>      21:36:20 a plain stop in that room (Logan 55/100, healing) left him to the custodian: the go-home run tried
+>      the tome there ("Magical travel from inside a dungeon is only possible near golden moongates.") and he died
+>      at 21:37.
 > 5. **Field of Souls (soul jars, until 2026-10-24; docs/HUNT_LOOP.md "Soul jars", NOTES "Field of Souls").**
 >    An empty soul jar (`0xA99F`) filled at an eerie corpse is the event's ticket (+30 score). The corpse is a
 >    ground item of random "dead" art (`0xB1C0`-`0xB21C`), followed within 10 serials by an "eerie whispers"

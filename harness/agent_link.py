@@ -616,6 +616,7 @@ class Mover:
         self.teleports = 0
         self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (seeds + store + session)
         self._tele_to = {}           # facet -> {(x, y): (to_facet, x, y, z)} where each one puts us
+        self._back_to = None         # ((x, y), facet) a step back aims for: a teleport there on the way is the way back
         self.gate_gumps_closed = 0
         self.step_mark = 0           # len(link.events) when the last walk went out
         self._after = None           # (full state, monotonic time) fetched at the end of the last step
@@ -854,7 +855,8 @@ class Mover:
         else:
             t = min(back, key=lambda t: cheb(t, here))
             log(f"{label}: an unplanned teleport to {tuple(here[:2])}; stepping back through {t}")
-        sticky, walled = self.sticky, self.walled
+        sticky, walled, outer = self.sticky, self.walled, self._back_to
+        self._back_to = (tuple(before[:2]), before_facet or 0)
         try:
             if tuple(here[:2]) == t:
                 self.walk_to(None, 0, f"{label}: off {t}", goal_fn=lambda p: cheb(p, t) == 1, max_moves=2,
@@ -863,7 +865,7 @@ class Mover:
         except Abort as e:
             log(f"{label}: stepping back: {e}")
         finally:
-            self.sticky, self.walled = sticky, walled
+            self.sticky, self.walled, self._back_to = sticky, walled, outer
             if probe and t not in self._tele_to.get(0 if facet is None else facet, {}):
                 tiles.discard(t)                # it didn't teleport us: an ordinary tile
         now = self.link.pos(self.link.state())
@@ -1366,6 +1368,15 @@ class Mover:
                     if aimed:
                         log(f"{label}: through the teleporter at {tuple(nxt)}")
                         return                          # replanning would aim back onto it from its far side
+                    st_now = self.link.state()
+                    here_now, facet_now = self.link.pos(st_now), st_now["world"]["self"].get("map") or 0
+                    if self._back_to is not None and facet_now == self._back_to[1] \
+                            and cheb(here_now, self._back_to[0]) <= STEP_BACK_R:
+                        # a step back's walk crossed another teleporter that put us where the step back aims (live
+                        # 2026-11-04 21:35:33: (5243, 587) put Logan at (5243, 612) beside where he was; a second
+                        # step back through (5242, 612) took him into the mini-boss room again)
+                        log(f"{label}: the teleporter at {tuple(nxt)} put us back at {tuple(here_now[:2])}")
+                        return
                     self.step_back(cur, st["world"]["self"].get("map"), label)
                     if goal_fn is None and center_fn is not None and tuple(center_fn()[:2]) == tuple(nxt):
                         # a replan would take us onto it again, now as a teleporter it knows
