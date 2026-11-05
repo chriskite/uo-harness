@@ -81,6 +81,10 @@ UNWORKABLE_STANDS = 8
 # STALL_S of field time with at least STALL_STANDS stands given up since the last ore
 STALL_S = 120.0
 STALL_STANDS = 5
+# ... or STALL_STANDS_MAX stands given up since the last ore, however quickly (live 2026-11-04 23:04:12-23:05:17,
+# mining-20261104-230056-1ee0, user: "The runner is stuck in a loop": after a skeleton escape its keep-out wall cut
+# the only way on, and 3327 stands failed "no route" in 65 s before the leg ended)
+STALL_STANDS_MAX = 30
 # Farther than this from every stand of the spot (an unplanned teleport with no way back, Mover.step_back) ends the
 # leg at once (live 2026-11-03 14:30:12, mining-20261103-141742-4bc0: a stand walk at forge_3537_1948 stepped onto
 # an unknown teleporter at (3523, 1914), out at (7338, 1220, -55); 90 stands "no route" for 110 s before the leg ended).
@@ -820,12 +824,12 @@ class MineLoop(loop_lumber.LumberLoop):
         return self.field_used_s() >= self.args.field_min * 60
 
     def stalled(self, now: float | None = None) -> str | None:
-        """Why the creatures here keep the stands out of reach (STALL_S, STALL_STANDS): no ore for that long
-        while that many stands were given up for want of a route; else None."""
+        """Why the creatures here keep the stands out of reach: no ore for STALL_S while STALL_STANDS stands were
+        given up for want of a route, or STALL_STANDS_MAX given up since the last ore however quickly; else None."""
         if self.last_ore_t is None:
             return None
         idle = (time.monotonic() if now is None else now) - self.last_ore_t
-        if idle >= STALL_S and self.stall_stands >= STALL_STANDS:
+        if (idle >= STALL_S and self.stall_stands >= STALL_STANDS) or self.stall_stands >= STALL_STANDS_MAX:
             return (f"no ore for {idle:.0f} s while {self.stall_stands} stands had no route: the creatures here "
                     f"keep the stands out of reach")
         return None

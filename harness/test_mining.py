@@ -446,6 +446,31 @@ def test_stalled_leg():
           len(tried) == max(loop_mining.STALL_STANDS, int(loop_mining.STALL_S // 25) + 1), tried)
     check("not before STALL_S", early is None, early)
     check("not with fewer stands given up", few is None, few)
+    # live 2026-11-04 23:04:12-23:05:17 (mining-20261104-230056-1ee0, user: "The runner is stuck in a loop"): after an
+    # escape the keep-out wall cut the way on and 3327 stands failed "no route" in 65 s, each at once
+    fast = []
+    saved = loop_mining.log, loop_mining.time.monotonic
+    loop_mining.log = lambda s: None
+    loop_mining.time.monotonic = lambda: clock[0]
+    try:
+        loop = field_loop()
+        loop.next_stand = lambda stands: stands[0]
+
+        def no_route(stand, tally):
+            fast.append(clock[0])
+            clock[0] += 0.02
+            loop.stall_stands += 1
+            if len(fast) > 200:
+                raise AssertionError("still looping")
+        loop.dig_stand = no_route
+        got = loop.harvest_trip()
+    except Exception as e:                    # noqa: BLE001
+        got = e
+    finally:
+        loop_mining.log, loop_mining.time.monotonic = saved
+    check("stands failing at once: the leg ends after STALL_STANDS_MAX of them, well before STALL_S",
+          got == 0 and loop.stats.get("creature_blocked") is True and len(fast) == loop_mining.STALL_STANDS_MAX,
+          (repr(got), len(fast)))
 
 
 def test_teleported_away():

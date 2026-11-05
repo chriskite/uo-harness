@@ -5412,7 +5412,8 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     round its soft zone ("danger ahead changed") yet came within 8 at (2526, 691) / (2520, 691): 6 escapes over two
     legs, both ended "came back after 3 escapes". Mover zones are costs (DANGER_COST_X), so the only way past still
     crossed. Since then the flee radius of a creature we escaped from is a wall (`Mover.keep_out`); such stands end "no
-    route". docs/PLAN.md "Mining runner…".
+    route", and 30 of them (`STALL_STANDS_MAX`) end the leg (live 23:04-23:05 the same day, before that cap: 3327 "no
+    route" lines in 65 s after a skeleton's wall cut the only way on at forge_1439_2436). docs/PLAN.md "Mining runner…".
   - **At home the ingots go into the room's Resource Stockpile** (since 2026-10-19 evening; before, they stayed
     carried and the room shelf's Restock was skipped because it takes live trapped pouches).
     - The user's drop-off by hand at 22:44:39 (capture session_20261019_214740):

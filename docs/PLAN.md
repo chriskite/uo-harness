@@ -2221,7 +2221,10 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   them is "no route" and skipped (the stall rule ends a leg of nothing but those). The core follows the creature
   while in view (aggro_zones), is set aside in a red flight, and is cleared each trip. Inside one, the way out stays
   open. Rejected: a harder soft cost (any finite cost still crosses when it's the only way). test_mover `test_keep_out`,
-  test_mining `test_red_flight_zones`.
+  test_mining `test_red_flight_zones`. The first live wall (2026-11-04 23:04, mining-20261104-230056-1ee0, user: "The
+  runner is stuck in a loop") cut the only way on after a skeleton escape; each stand failed at once, the 120 s stall
+  rule never came, and 3327 stands went by in 65 s. So `STALL_STANDS_MAX` (30) stands given up since the last ore
+  end the leg however quickly (creature-blocked: hop or home, as before). test_mining `test_stalled_leg`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 
