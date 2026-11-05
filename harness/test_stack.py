@@ -11,6 +11,7 @@ services: small Python listeners on free ports, in a temp folder and a temp memo
   5. A wrapper that dies while its child still holds the port (laya-serve.exe under
      triage.py serve): the port owner is killed with it and the service comes back.
   6. restart-<name> and stop request files; status reads the state file.
+  7. A state.json write blocked by another process's handle is skipped, not fatal; a crash in a tick is logged.
 
 Run from a console (CTRL_BREAK needs one): python harness/test_stack.py
 """
@@ -160,6 +161,38 @@ def main():
         check(until(st, lambda: c.status == "up" and c.proc.pid != wrapper), "the service comes back on the port")
         with contextlib.redirect_stdout(io.StringIO()):
             st.shutdown()
+
+        # 7: state.json held open by another process's handle (robocopy, `status`): the tick goes on, the write is
+        # skipped and logged once; a crash in a tick leaves its traceback and the reason in stack.log
+        # (live 2026-11-05 00:00:21 the stack stopped itself, logged only as "stopping the stack")
+        st = stack.Stack([], nat=False, memory_db=db)
+        with contextlib.redirect_stdout(io.StringIO()):
+            st.write_state()
+            held = open(stack.state_path(), "rb")         # a plain open: no FILE_SHARE_DELETE, the replace fails
+            try:
+                blocked = (st.write_state(), st.step(), st.write_state())
+            finally:
+                held.close()
+            back = st.write_state()
+        logged = open(os.path.join(stack.DIR, "stack.log"), encoding="utf-8").read()
+        check(blocked == (False, True, False) and back is True and logged.count("state.json not written") == 1
+              and "state.json written again" in logged,
+              f"a blocked state write is skipped (the tick goes on), logged once, then written again: {blocked} {back}")
+
+        def boom():
+            raise RuntimeError("a tick blew up")
+        st = stack.Stack([], nat=False, memory_db=db)
+        st.step = boom
+        with contextlib.redirect_stdout(io.StringIO()):
+            try:
+                st.run()
+                raised = False
+            except RuntimeError:
+                raised = True
+        logged = open(os.path.join(stack.DIR, "stack.log"), encoding="utf-8").read()
+        check(raised and "supervisor crashed:" in logged and "RuntimeError: a tick blew up" in logged
+              and "stopping the stack (the supervisor crashed)" in logged,
+              "a crash in a tick: its traceback and the reason in stack.log, then the stack stops")
 
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     return 0 if not FAILURES else 1

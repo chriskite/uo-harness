@@ -47,6 +47,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +66,13 @@ SERVICES = ("proxy", "viz", "laya", "bridge")
 BOOT = ("import os, runpy, signal, sys; signal.signal(signal.SIGBREAK, signal.default_int_handler); "
         "sys.argv = sys.argv[1:]; sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[0]))); "
         "runpy.run_path(sys.argv[0], run_name='__main__')")
+# state.json's replace fails with PermissionError while another process has it open (`status`, robocopy, a scanner;
+# reproduced 2026-11-05). Unguarded, that ended the tick and so the whole stack: tried this often, this far apart,
+# then that tick's write is skipped (docs/NOTES.md "Stack supervisor")
+STATE_WRITE_TRIES = 3
+STATE_RETRY_S = 0.05
+# Windows console control events SetConsoleCtrlHandler logs before the default handler ends the process
+CONSOLE_EVENTS = {1: "Ctrl-Break", 2: "the console window closed", 5: "logoff", 6: "Windows shutting down"}
 
 
 def state_path():
@@ -397,8 +405,8 @@ class Stack:
             elif s.status in ("down", "backoff"):
                 s.next_t = 0.0
 
-    def shutdown(self):
-        log("stopping the stack")
+    def shutdown(self, why: str = "stop requested"):
+        log(f"stopping the stack ({why})")
         for name in reversed(self.order):
             s = self.svcs[name]
             s.stop("down")
@@ -408,16 +416,33 @@ class Stack:
             kill_tree(self.nat["proc"].pid)
         log("stack down (the divert NAT keeps running in its elevated window)")
 
-    def write_state(self, stopped=False):
+    def write_state(self, stopped=False) -> bool:
+        """state.json for `status`, replaced whole. A replace another process blocks is tried STATE_WRITE_TRIES
+        times, then skipped for this tick (logged once per run of failures). True when written."""
         st = {"pid": os.getpid(), "started": self.t0, "t": time.time(),
               "services": {n: self.svcs[n].to_dict() for n in self.order},
               "nat": {"status": self.nat["status"], "managed": False, "note": self.nat["note"]}}
         if stopped:
             st["stopped"] = time.time()
         part = state_path() + ".part"
-        with open(part, "w", encoding="utf-8") as f:
-            json.dump(st, f, indent=1)
-        os.replace(part, state_path())
+        err = None
+        for i in range(STATE_WRITE_TRIES):
+            try:
+                with open(part, "w", encoding="utf-8") as f:
+                    json.dump(st, f, indent=1)
+                os.replace(part, state_path())
+                if getattr(self, "_state_failing", False):
+                    log("state.json written again")
+                self._state_failing = False
+                return True
+            except OSError as e:
+                err = e
+                if i + 1 < STATE_WRITE_TRIES:
+                    time.sleep(STATE_RETRY_S)
+        if not getattr(self, "_state_failing", False):
+            log(f"state.json not written this tick ({err!r}); the stack runs on")
+        self._state_failing = True
+        return False
 
     def step(self):
         """One supervision tick: requests, health, restarts, state file. False once stop is asked."""
@@ -429,19 +454,48 @@ class Stack:
         return True
 
     def run(self):
+        """Supervise until a stop request (`down`) or Ctrl-C; an exception in a tick also stops the stack, with
+        its traceback in stack.log (it went only to the console before: docs/NOTES.md "Stack supervisor")."""
         if os.path.exists(stop_path()):
             os.remove(stop_path())
+        watch_console()
         self.adopt(listening())
+        why = "stop requested"
         try:
             while self.step():
                 time.sleep(TICK_S)
         except KeyboardInterrupt:
-            pass
+            why = "Ctrl-C"
+        except BaseException:
+            why = "the supervisor crashed"
+            log(f"supervisor crashed:\n{traceback.format_exc().rstrip()}")
+            raise
         finally:
-            self.shutdown()
+            self.shutdown(why)
             if os.path.exists(stop_path()):
                 os.remove(stop_path())
             self.write_state(stopped=True)
+
+
+_console_handler = None      # kept referenced: Windows calls it after run() set it
+
+
+def watch_console():
+    """Log a console control event (CONSOLE_EVENTS: Ctrl-Break, the window closed, logoff, shutdown) before the
+    default handler ends the process without cleanup (they left no trace in stack.log before). Windows only."""
+    global _console_handler
+    if os.name != "nt" or _console_handler is not None:
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+    def handler(event):
+        if event in CONSOLE_EVENTS:
+            log(f"supervisor ending: {CONSOLE_EVENTS[event]} (no clean stop: services may be left running)")
+        return False                     # the next handler (Python's Ctrl-C, or the default exit) goes on
+    if ctypes.windll.kernel32.SetConsoleCtrlHandler(handler, True):
+        _console_handler = handler
 
 
 def tail_log(name, n=15):

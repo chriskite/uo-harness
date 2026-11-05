@@ -101,7 +101,9 @@ KEEP_ALL_HOURS = 48
 
 # (source dir relative to ROOT, dest subdir, robocopy file filters, robocopy mode flags, required)
 TREES = [
-    ("logs", "logs", [], ["/E"], True),
+    # the stack supervisor's state.json is rewritten every second: robocopy holding it open failed that write and
+    # (until 2026-11-05) stopped the whole stack (docs/NOTES.md "Stack supervisor"); a snapshot of it is worthless
+    ("logs", "logs", [], ["/E", "/XF", "state.json", "state.json.part"], True),
     (".", "artifacts", ["*.pcapng", "*.etl", "*.png", "divert.log"], [], True),
     ("ghidra", "ghidra", [], ["/MIR"], False),
     (os.path.join("harness", "data", "discord_media"), "discord_media", [], ["/E"], False),

@@ -1247,6 +1247,14 @@ and nothing restarted one that died (the viz's native live-view crash, NOTES 202
 - Rejected: **Windows services / NSSM** (a service runs outside the user's session: no console for
   CTRL_BREAK, and the viz live view and the GPU client need the desktop session) and **Task
   Scheduler restarts** (no health checks beyond "process exited", and no adoption).
+- **A tick never takes the stack down for a state file; every stop says why (2026-11-05).** The supervisor had
+  stopped itself, logged as a clean stop, at least 7 times: an unguarded `state.json` replace that another process
+  held open (the hourly backup's robocopy of `logs/`, reproduced) raised in a tick, and `run()`'s `finally` shut
+  everything down (docs/NOTES.md "Stack supervisor"; 2026-11-05 00:00 it left Dan in the field). The user picked
+  fixes 1-3: the write retries 3 times and then skips that tick; the stop line names stop requested / Ctrl-C /
+  crashed, a crash's traceback goes to stack.log, console events (Ctrl-Break, window closed, logoff, shutdown) are
+  logged; the backup skips `state.json`. Left out (fix 4): moving `up` into an existing console or a log file.
+  test_stack.py check 7.
 
 ## Rune libraries: the DTF guild house beside Cambria (decided and built 2026-10-04)
 
