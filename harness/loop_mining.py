@@ -181,6 +181,13 @@ class MineLoop(loop_lumber.LumberLoop):
             raise Abort("no pickaxe worn, in the backpack or in a bag in it")
         return found[0][1]
 
+    def no_pickaxe(self, summary: str):
+        """The `low_supplies` juncture (item pickaxe) the Seer acts on: tell the user, start no run."""
+        self.memory.juncture(self.JOB, "low_supplies", summary,
+                             "attention", {"item": "pickaxe", "have": 0, "need": 1, "trip": self.trip_n,
+                                           "how": "put pickaxes into the house chest, or a provisioner sells a "
+                                                  "Pickaxe (25 gp): ctl act buy <provisioner serial> pickaxe"})
+
     def hatchets_ready(self, at_home: bool):
         """Before a trip: PICKAXES_CARRY pickaxes worn or carried. Short and at home, the house
         chest's pickaxes come into the pack (pickaxes_from_chest). None at all: a `low_supplies` juncture and
@@ -191,10 +198,7 @@ class MineLoop(loop_lumber.LumberLoop):
             taken = self.pickaxes_from_chest(PICKAXES_CARRY - n)
             n = len(self.pickaxes(self.state()))
         if n == 0:
-            self.memory.juncture(self.JOB, "low_supplies", "No pickaxe carried or in the house chest: no trip",
-                                 "attention", {"item": "pickaxe", "have": 0, "need": 1, "trip": self.trip_n,
-                                               "how": "put pickaxes into the house chest, or a provisioner sells a "
-                                                      "Pickaxe (25 gp): ctl act buy <provisioner serial> pickaxe"})
+            self.no_pickaxe("No pickaxe carried or in the house chest: no trip")
             raise Abort("no pickaxe carried or in the house chest: no trip")
         self.pre_stats["pickaxes"] = {"have": n, "from_chest": taken}
 
@@ -256,12 +260,16 @@ class MineLoop(loop_lumber.LumberLoop):
 
     def pickaxe_in_hand(self, st) -> int:
         """The pickaxe in hand; a packed one is double-clicked into the hand first (the server
-        equips it, live 20261019_200350), the bags on the way opened like a player."""
+        equips it, live 20261019_200350), the bags on the way opened like a player. None left (the last one wore out
+        mid-leg): the `low_supplies` juncture, as at a trip's start (live 2026-11-05 14:19, mining-20261105-133044-ff72:
+        both pickaxes wore out after ~2200 ore and the run aborted with none), then Abort."""
         me = self.self_serial(st)
         for key, it in st["world"]["items"].items():
             if it.get("graphic") in PICKAXES and it.get("container") is not None \
                     and serial_of(it["container"]) == me and it.get("layer") in (None, LAYER_ONE_HANDED):
                 return serial_of(key)
+        if not self.pickaxes(st):
+            self.no_pickaxe("The last pickaxe wore out: the leg ends, no new trip without more")
         p = self.hatchet(st)
         log(f"pickaxe 0x{p:08X} isn't in hand: equipping it")
         closed = containers_to_open(st["world"], p)

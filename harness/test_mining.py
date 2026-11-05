@@ -546,6 +546,26 @@ def test_field_forge_route_cap():
           caps == [372, 234, None], caps)
 
 
+def test_last_pickaxe_worn_out():
+    print("the last pickaxe wears out mid-leg: a low_supplies juncture (item pickaxe), then the abort")
+    # live 2026-11-05 14:19 (mining-20261105-133044-ff72): both pickaxes wore out after ~2200 ore; the run aborted
+    # "no pickaxe worn, in the backpack or in a bag in it" with no low_supplies, the juncture the Seer acts on
+    from agent_link import Abort
+    posted = []
+    loop = object.__new__(MineLoop)
+    loop.JOB, loop.trip_n = "mining", 1
+    loop.self_serial = lambda st: 0x14683F
+    loop.pickaxes = lambda st: []
+    loop.memory = SimpleNamespace(juncture=lambda job, kind, summary, sev, data: posted.append((kind, data["item"])))
+    try:
+        loop.pickaxe_in_hand({"world": {"items": {}}})
+        out = None
+    except Abort as e:
+        out = str(e)
+    check("low_supplies for the pickaxe, then Abort", posted == [("low_supplies", "pickaxe")]
+          and out == "no pickaxe worn, in the backpack or in a bag in it", (posted, out))
+
+
 def test_teleported_away():
     print("a walk's unplanned teleport far from the spot: the leg ends at once, no stand tried from there")
     import loop_mining
@@ -827,7 +847,8 @@ def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
-              test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap):
+              test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
+              test_last_pickaxe_worn_out):
         t()
     print()
     if FAILURES:

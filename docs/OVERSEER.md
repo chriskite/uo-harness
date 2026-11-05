@@ -572,7 +572,8 @@ Paste this (or point the session at this section) to start an overseer.
 > line), so its spots take another landing, and tell the user; disable a spot (`ctl mining spot set <id> --status
 > disabled --reason …`) only when its monsters are at the spot itself. Pickaxes wear out (live: one after ~500–1000 digs). Before each trip at home the runner tops
 > up to 2 carried from the house chest; with none carried and none in the chest it posts `low_supplies`
-> (item `pickaxe`) and makes no trip: tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
+> (item `pickaxe`) and makes no trip, and when the last one wears out mid-leg it posts the same `low_supplies` and the
+> leg aborts home ("no pickaxe worn, …"): tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
 > `task_done`: the leg ends at home in the house, the ingots into the stockpile.
 > **Every spot cooling down** (`ok: false`, `retry_in_min` set): each spot is kept out for 30 min after a threat
 > sent Dan home from it (a tracked red included) and 60 min after it ran dry. `spots[].ready_in_min` says when
