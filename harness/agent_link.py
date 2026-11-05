@@ -606,6 +606,8 @@ class Mover:
         self.unload = None           # host's (state) -> True when it shed weight so we can move (walk_to, overweight)
         self.weight_mark = 0         # link.events before it are spent for overloaded (shed)
         self.no_idle = None          # host's (state) -> True: no walk pause or sidestep now (walk_to)
+        self.no_shove = None         # host's (serial, mobile) -> True: never shove into its tile (walk_to no_shove)
+        self.shove_walls = False     # the current walk_to's `no_shove`: those mobiles' tiles are walls (unshovable)
         self.steps = 0
         self.blocked_count = 0
         self.doors_opened = 0
@@ -876,6 +878,16 @@ class Mover:
         return {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
                 if m.get("x") is not None and serial_of(key) != me}
 
+    def unshovable(self, st) -> set:
+        """On a walk_to(no_shove=True): tiles of the mobiles the host's `no_shove` says never to shove into (the hunt:
+        monsters; live 2026-11-04 19:48:24 the walk back to the pets planned through a tormented soul's tile, two shoves
+        refused at 24/25). Empty on any other walk."""
+        if self.no_shove is None or not self.shove_walls:
+            return set()
+        me = st["movement"]["self_serial"]
+        return {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
+                if m.get("x") is not None and (s := serial_of(key)) != me and self.no_shove(s, m)}
+
     # ---------------------------------------------------------------- map
     def walk_map(self, st, skip=()):
         """pathfind.Walk for the player's facet, or None (no map data there).
@@ -1080,8 +1092,8 @@ class Mover:
         """(path of (x, y) tiles including the start, walk or None). Also points
         self.mem at the current facet's walk memory. Mobiles' tiles cost
         MOBILE_COST_X (shove through them if going around is longer); tiles
-        where a shove was denied in the last SHOVE_RETRY_S are walls unless
-        mobiles=False (is the route only temporarily cut?). A change of direction costs
+        where a shove was denied in the last SHOVE_RETRY_S, and the host's unshovable mobiles' tiles
+        (no_shove), are walls unless mobiles=False (is the route only temporarily cut?). A change of direction costs
         TURN_COST more (from our facing on), so straight runs win among equal routes.
         `max_steps`: the map planner looks only for routes that short (None when there's
         none). A long map search runs the guard every pathfind.TICK_EVERY expansions, so a
@@ -1092,7 +1104,8 @@ class Mover:
         cur = (pos[0], pos[1])
         occ = self.occupied(st) - {cur}
         now = time.monotonic()
-        hard = {t for t in occ if now - self.shove_denied.get(t, -1e9) < SHOVE_RETRY_S} if mobiles else set()
+        hard = ({t for t in occ if now - self.shove_denied.get(t, -1e9) < SHOVE_RETRY_S}
+                | (self.unshovable(st) - {cur})) if mobiles else set()
         facing = pos[3] if len(pos) > 3 else None
         sticky = self.sticky
 
@@ -1143,7 +1156,7 @@ class Mover:
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int | None = None, z_ok=None, gate=None,
                 goal_fn=None, urgent: bool = False, stop=None, max_route: int | None = None,
-                mobile_wait: float | None = None):
+                mobile_wait: float | None = None, no_shove: bool = False):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
@@ -1169,17 +1182,19 @@ class Mover:
         mobiles we can't shove waits for them to move (after a stamina potion when short; None:
         MOBILE_WAIT_S), then WalkFailed; 0 fails at once (a fight's step away: standing there waiting is
         the worst of it, live 2026-10-15 22:57:56 and simulator fight1822 seed 5, a retreat 'waiting'
-        until dead)."""
+        until dead). `no_shove`: the tiles of mobiles the host's `no_shove` names (the hunt: monsters) are walls on
+        this walk, planned round and never stepped into (unshovable)."""
         self.sticky = set()
         self.walled = set()
-        outer = self.route
+        outer, outer_walls = self.route, self.shove_walls
+        self.shove_walls = no_shove
         try:
             return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route,
                                  MOBILE_WAIT_S if mobile_wait is None else mobile_wait)
         finally:
             self.sticky = set()
             self.walled = set()
-            self.route = outer
+            self.route, self.shove_walls = outer, outer_walls
 
     def _clear_fields(self, st, goal, max_route, cur, label: str, dispelled: set) -> bool:
         """No route (within max_route): if one runs through spell fields, dispel the first field on
@@ -1301,6 +1316,12 @@ class Mover:
                     # a field cast on the route after the plan: it goes away, so no lasting deny
                     self.refused_steps += 1
                     log(f"{label}: a field lies on {nxt} now; replanning without stepping into it")
+                    replan = True
+                    break
+                if nxt in self.unshovable(st):
+                    # one the host never shoves into came onto the route after the plan: the plan walls its tile
+                    self.refused_steps += 1
+                    log(f"{label}: a monster stands on {nxt} now; replanning round it")
                     replan = True
                     break
                 if nxt in opened and self.door_refused(opened[nxt]):

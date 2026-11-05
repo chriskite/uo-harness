@@ -515,6 +515,7 @@ class HuntLoop:
         self.mover.refresh = self.refresh_potion
         self.mover.unload = self.drop_gold
         self.mover.no_idle = self.no_idle
+        self.mover.no_shove = self.no_shove
         self.visit_n = 0
         self.visit = None            # this visit's counters (episode row)
         self.totals = {"kills": 0, "lost_kills": 0, "gold": 0, "xp": 0, "hits_lost": 0, "casts": 0, "heals": 0,
@@ -1626,12 +1627,13 @@ class HuntLoop:
             try:
                 try:
                     with self.team.around_areas(st) if self.team is not None else contextlib.nullcontext() as round_:
-                        why = self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound, stop=stop)
+                        why = self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound, stop=stop,
+                                                 no_shove=True)
                 except WalkFailed as e:
                     if not round_ or not str(e).startswith("to the corpse: no route within"):
                         raise
                     # through the reach
-                    why = self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound, stop=stop)
+                    why = self.mover.walk_to(lambda: goal, r, "to the corpse", max_route=bound, stop=stop, no_shove=True)
             except Abort as e:
                 if not str(e).startswith("to the corpse"):
                     raise
@@ -3824,6 +3826,18 @@ class HuntLoop:
             self.heal(self.link.state())
         return True
 
+    def no_shove(self, serial: int, mob: dict) -> bool:
+        """Mover.no_shove: a monster's (or a grey, orange or red player's) tile is a wall on the hunt's walks that ask
+        for it (walk_to no_shove: back to the pets, to the corpse, off the tank, the cover, toward a target, to a hurt
+        pet, a fought leg), never a shove: a shove needs full stamina, a hit takes a point (docs/NOTES.md "A cover onto
+        an abomination"), and one that goes through stands us on it. Live 2026-11-04 19:48:24
+        (hunt-20261104-185209-c092) the walk back to the pets planned its first step into a tormented soul's tile,
+        refused twice at 24/25, through on the third at 25/25 (docs/NOTES.md "The walk back to the pets into a tormented
+        soul"). Our pets and blue players and NPCs stay shoveable. The escapes (retreat, stand-off, out of the fire, the
+        flights) keep the shove: with every tile round us walled they went nowhere (simulator: deaths 2 -> 12 of 192)."""
+        return mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY and not mob.get("dead") \
+            and (self.team is None or serial not in self.team.roster)
+
     def no_idle(self, st) -> bool:
         """Mover.no_idle: no walk pause or sidestep while walking out or with a monster in war mode in view (live
         2026-10-17 19:04:08-15: a ~7 s look-around pause 2 tiles from the leave gate while an apparition in war
@@ -3953,9 +3967,9 @@ class HuntLoop:
             moved = self.team.rejoin(st, only={s for s, _ in apart}, stop=self.gather_stop)
             if self.team.rejoin_why:
                 cause = self.team.rejoin_why
-            elif moved or now < self.team.follow_until:
+            elif moved or now < self.team.follow_until or time.monotonic() < self.team.rejoin_retry_until:
                 if not moved:
-                    time.sleep(POLL_S)            # 'All Follow Me' said: they come
+                    time.sleep(POLL_S)            # 'All Follow Me' said: they come; or the walk back again shortly
                 return "walked"
             else:
                 cause = "not in view where it was last seen"
@@ -4290,7 +4304,8 @@ class HuntLoop:
                 self.doing(kind or ("enter" if label.startswith("to the teleporter") else "leave"),
                            f"Fighting through, {label}", near)
                 self.mover.walk_to(lambda: near, 0, label,
-                                   stop=lambda s: (walk_stop is not None and walk_stop(s)) or self.fought_stop(s))
+                                   stop=lambda s: (walk_stop is not None and walk_stop(s)) or self.fought_stop(s),
+                                   no_shove=True)
         finally:
             self.fought_s += time.monotonic() - (end - WALK_FOUGHT_S)
             self.fought_end = None

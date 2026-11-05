@@ -157,6 +157,8 @@ WALK_TO_PET_S = 5.0
 # moves took Logan to (6861, 2025), farther from the pets than before)
 TO_PET_DETOUR_STEPS = 10
 REJOIN_DETOUR_STEPS = 10      # rejoin's walk back to the pets: the same bound (2 x the distance + this)
+REJOIN_RETRY_S = 3.0          # ...a walk back that ended where it began (cut by monsters): not again this soon, the
+#                               fight's order meanwhile (live 2026-11-04 19:48:26-29: 30 tries in 3 s at 64 hits)
 FOLLOW_R = 3                  # mount.PET_RANGE: a following pet stays this close
 # "All Follow Me" before a recall: how long to wait for the pets to come within FOLLOW_R, by the leave's
 # severity. A hostile player: not at all. Our own hits low: no standing wait (the simulator, docs/SIM.md:
@@ -804,6 +806,7 @@ class Team:
         self.held_pets = {}              # countess copy serial -> [pet serial, monotonic of its '*transfixed*', seen]
         self.rejoin_at = {}              # pet serial -> ((x, y), monotonic) at our last walk back (rejoin)
         self.follow_until = 0.0          # 'All Follow Me' at pets stuck off a fight (rejoin): no walk back till then
+        self.rejoin_retry_until = 0.0    # a walk back that failed where it stood (rejoin): none again till then
         self.follow_called = False       # ...and 'All Guard Me' due once they are with us or it is over (care)
 
     # ------------------------------------------------------------ bookkeeping
@@ -1417,11 +1420,11 @@ class Team:
         try:
             with self.around_areas(st):
                 h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * COVER_STEPS,
-                                max_route=2 * COVER_STEPS, mobile_wait=0)
+                                max_route=2 * COVER_STEPS, mobile_wait=0, no_shove=True)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
-            log(f"cover: {e}")
+            log(str(e))                   # the WalkFailed message starts with the label already
         return True
 
     def spacing(self, st) -> bool:
@@ -1468,11 +1471,11 @@ class Team:
         log(f"keeping off the tank: {best[:2]}, {SPACING_R}+ from the pets and what fights them")
         try:
             h.mover.walk_to(lambda: best[:2], 0, label, max_moves=2 * SPACING_STEPS, max_route=2 * SPACING_STEPS,
-                            mobile_wait=0, stop=self.spray_stop)
+                            mobile_wait=0, stop=self.spray_stop, no_shove=True)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
-            log(f"off the tank: {e}")
+            log(str(e))
         return True
 
     def ghost_follow(self) -> bool:
@@ -2338,7 +2341,7 @@ class Team:
         except Abort as e:
             if not str(e).startswith(label):
                 raise
-            log(f"out of the bubbles: {e}")
+            log(str(e))
         return True
 
     def out_of_fire(self, st) -> bool:
@@ -2372,7 +2375,7 @@ class Team:
         except Abort as e:
             if not str(e).startswith(label):
                 raise
-            log(f"out of the fire: {e}")
+            log(str(e))
         return True
 
     def reposition(self, st) -> bool:
@@ -3284,10 +3287,10 @@ class Team:
                 log(f"{label}: {to[:2]}, {cheb(to, (p['x'], p['y']))} from {p['name']} (--vet-range "
                     f"{self.a.vet_range}), {self.zone_depth(self.area_zone(st), to)} into an area hit's reach")
                 h.mover.walk_to(lambda: to[:2], 0, label, max_moves=combat.VIEW_RANGE, stop=stop,
-                                max_route=2 * p["dist"] + TO_PET_DETOUR_STEPS)
+                                max_route=2 * p["dist"] + TO_PET_DETOUR_STEPS, no_shove=True)
             else:
                 h.mover.walk_to(where, self.a.vet_range - 1 if wb else 1, label, max_moves=combat.VIEW_RANGE, stop=stop,
-                                max_route=2 * p["dist"] + TO_PET_DETOUR_STEPS)
+                                max_route=2 * p["dist"] + TO_PET_DETOUR_STEPS, no_shove=True)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -3393,6 +3396,8 @@ class Team:
         now = time.monotonic()
         if now < self.follow_until:
             return False                  # 'All Follow Me' said: they come
+        if now < self.rejoin_retry_until:
+            return False                  # the last walk back went nowhere: the fight's order meanwhile
         pos = h.pos(st)
         seen = {p["serial"]: p for p in self.pets(st)}
         spots = []
@@ -3433,16 +3438,22 @@ class Team:
         try:
             h.mover.walk_to(where, r, label, max_moves=3 * combat.VIEW_RANGE, urgent=True, mobile_wait=0,
                             stop=stop or (lambda s: (why := h.leave_reason(s)) and why[0]),
-                            max_route=2 * dist + REJOIN_DETOUR_STEPS)
+                            max_route=2 * dist + REJOIN_DETOUR_STEPS, no_shove=True)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
-            log(f"back to the pets: {e}")
+            log(str(e))                   # "back to the pets: route from ... cut by mobiles ..." (the label once)
             if "detour" in str(e):
                 self.rejoin_why = f"no way back to {name} at {at} within {2 * dist + REJOIN_DETOUR_STEPS} steps"
                 log(f"{name}: no walk round to it; 'All Follow Me' instead")
                 self.say("all follow me")
                 self.follow_until, self.follow_called = time.monotonic() + STUCK_FOLLOW_S, True
+            elif tuple(h.pos(h.link.state())[:2]) == tuple(pos[:2]):
+                # nothing done (cut by monsters where we stand): the caller's fight goes on, no retry this soon (live
+                # 2026-11-04 19:48:26-29: 30 walks back 'cut by mobiles' in 3 s, nothing else done, a monster beside us)
+                self.rejoin_retry_until = time.monotonic() + REJOIN_RETRY_S
+                log(f"back to the pets: not again for {REJOIN_RETRY_S:g} s; the fight goes on from here")
+                return False
         return True
 
     # ------------------------------------------------------------ the fight
@@ -3612,7 +3623,7 @@ class Team:
             return why
         try:
             h.mover.walk_to(where, APPROACH_R, label, max_moves=APPROACH_MOVES, z_ok=h.floor_z_ok(h.state(), mob),
-                            stop=stop)
+                            stop=stop, no_shove=True)
         except Abort as e:
             if not str(e).startswith(label):
                 raise
@@ -3654,7 +3665,7 @@ class Team:
             return self.bard_sees(s, serial) or self.engaged(s, serial) \
                 or serial in {serial_of(a["serial"]) for a in h.attackers(s)} or self.pull_check(s)
         try:
-            h.mover.walk_to(where, 1, label, max_moves=APPROACH_MOVES, stop=stop)
+            h.mover.walk_to(where, 1, label, max_moves=APPROACH_MOVES, stop=stop, no_shove=True)
         except Abort as e:
             if not str(e).startswith(label):
                 raise

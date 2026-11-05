@@ -8541,6 +8541,61 @@ tormented soul at (5237, 675) that never turned on us.
   after a blightmare and a soul-jar walk) 0 / 0 deaths, identical otherwise (their leaves had nothing on the way).
   `fight1820.py` and `fight1822.py` ran again after their `hurt()` wrappers took `ref`.
 
+## The walk back to the pets into a tormented soul (live 2026-11-04 19:48:24-32, hunt-20261104-185209-c092)
+
+Maus 3, task log lines 4052-4131, capture session_20261104_184749 (`replay.timed_packets` with `world.parsers`: 0x77/0x20,
+0xA1/0xA3, 0x02/0x21/0x22, 0x06).
+- 19:48:22-23 the cover from an awake blightmare at (5245, 685) took Logan to (5247, 669); the pets stayed on it, Bussin
+  (5244, 683), AlaFlambe (5243, 683), 14 off. A tormented soul 0x00080625 (notoriety 4) followed him and stood on
+  **(5246, 669)** from 24.26 to past 30.2: a one-tile gap that opens only east-west (the map: from it only W and E; no
+  other way to the pets within 80 steps). "target tormented soul at 1 tiles", then `Team.fight`'s rule (on us, not on
+  the pets, no pet within --vet-range + 2) called `Team.rejoin`: "back to Bussin ... route 12 steps", its first step W
+  into the soul's tile.
+- 24.81 the step W refused (0x21; stamina 24/25 since a hit at 22.53); a Total Refresh 25.79 (25/25 at 25.83), the -21
+  at 25.92 took it back to 24, 25.93 refused again. 26 "cut by mobiles we couldn't shove" (the tile now walled for
+  SHOVE_RETRY_S, mobile_wait 0), and `rejoin` returned True ("something was done"), so `Team.fight` returned and the
+  next tick's round called it again: **30 walks back in 3 s** (19:48:26-29), each "back to Bussin ... (14 tiles)" and
+  the cut at once, nothing else done but the heal potion at 26.92. Hits 85 -> 64 -> (potion) 100 -> 80 -> 66 meanwhile,
+  no 0x2F swings logged [INFERENCE: the soul's melee and its disease]. 29.62 a Total Refresh again, 29.74 the step W
+  went through at 25/25 (25 -> 15: the shove), "arrived at (5245, 679)" 32.
+- The log said "back to the pets: back to the pets: route from ...": the WalkFailed message carries the label and the
+  caller prefixed it again (so did cover, off the tank, out of the fire and out of the bubbles).
+- **19:02:24-27**, the other case named: "to the corpse: shove into (5245, 632) denied (stamina 24/25)" was the blue
+  player Tim II (notoriety 1, his party walking past) on the loot tile, not the consort; blue players stay shoveable.
+- **Fix**:
+  - `walk_to(no_shove=True)` (`Mover.no_shove`, `HuntLoop.no_shove`: notoriety 3-6, not our pets): those tiles are
+    walls in the plan, and a step whose next tile one has moved onto replans instead ("a monster stands on (x, y) now;
+    replanning round it"). On the walks back to the pets, to the corpse, off the tank, the cover, toward a target and
+    to see it, to a hurt pet, and a fought leg.
+  - `Team.rejoin`: a walk back that ended where it began returns False and isn't tried again for `REJOIN_RETRY_S` 3 s
+    ("back to the pets: not again for 3 s; the fight goes on from here"); the leave's gathering waits it out.
+  - The cut-walk lines carry the label once.
+- **Tried and not kept: monsters as walls on every hunt walk.** 192 Maus 3 runs, deaths 2 -> 12, pet-death runs 14 ->
+  26, banked an hour -5 %: the retreat, the stand-off and out of the fire were boxed in ("stand-off cut short ... cut by
+  mobiles" 23 -> 1,013, "out of the fire" 824) with every tile round him walled. The escapes keep the shove.
+- **Tests** (test_sim, fail before): `test_rejoin_not_through_monster` (the live tiles: before onto (5246, 669) and on to
+  the pets; after no step into it, the walk back cut and False); `test_rejoin_cut_backs_off` (a route cut by mobiles
+  only: before 7 walks back in 7 calls, all True; after 2, the second after REJOIN_RETRY_S).
+- **Replay** `sim/fight1948.py` (the live tiles at 19:48:24, 85 hits, 24/25 stamina, the hunt's ticks for 60 s, 48 seeds,
+  4901633 / the fix): deaths 0 / 0, lowest hits median 66 / 66, refused shoves 51 / 0, seconds on a monster's tile 7.8 /
+  1.0, walks back 41 / 41, damage on Logan 2,135 / 2,469 (per-seed spread 0-170: within noise; the soul's share 1,285 /
+  1,622 as he fights it from his side of the gap instead of shoving through). The simulator's soul doesn't keep him in
+  the hot loop (one walk back a run before the fix too): the loop is `test_rejoin_cut_backs_off`'s.
+- **Batches as live plays** (`run.py --runs 192 --team phoenix_incubus --others --eerie --prior harness/data/harness.db
+  -- --vet-range 5 --crawl-learn-s 180`, both sides on copies of the tree, before = 4901633):
+
+  | seed | runner | deaths (/h) | pet-death runs | banked / h | kills / h | Logan's damage / h | shoves / h | refused shoves | "cut by mobiles" | walks back cut | lowest hits at a potion (median, under 20) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | 17 | 4901633 | 2 (0.021) | 14 | 147,526 | 134.0 | 1,204 | 12.8 | 593 | 142 | 65 | 53, 5 |
+  | 17 | the fix | 7 (0.076) | 10 | 142,420 | 132.3 | 1,128 | 9.1 | 397 | 562 | 50 | 53, 9 |
+  | 209 | 4901633 | 6 (0.065) | 17 | 144,478 | 133.2 | 1,204 | 13.5 | 626 | 99 | 4 | 53.5, 3 |
+  | 209 | the fix | 4 (0.043) | 14 | 144,662 | 132.7 | 1,113 | 8.4 | 337 | 520 | 42 | 53, 5 |
+
+  384 runs: deaths 8 -> 11 (the spread of a 192-run block is 2-8 on the same runner), pet-death runs 31 -> 24, banked an
+  hour -1.7 %, Logan's damage an hour -7 %, refused shoves 1,219 -> 734. The new "cut by mobiles" lines are the walls'
+  ends (to the corpse 197, off the tank 102, to a hurt pet 67 in seed 17); runs of one log line repeated 5+ times in a
+  row 4 -> 2.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

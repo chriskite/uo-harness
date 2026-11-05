@@ -640,6 +640,21 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    mobiles; hurt waiting (A -> B)"); the leave's urgent walk to the gate keeps waiting and drinking (simulator
    2026-10-21: 29 of 84 deaths stood "cut by mobiles we couldn't shove; waiting", 13 of them "off the tank", 11 of
    those at (5192, 672, 25) in the countess corridor).
+   **A monster's tile is a wall on the walks that aren't escapes** (`walk_to(no_shove=True)`, `HuntLoop.no_shove`,
+   since 2026-11-04): the walks back to the pets, to the corpse, off the tank, the cover, toward a target and to see it,
+   to a hurt pet and a fought leg plan round the tiles of mobiles of notoriety 3-6 (monsters; grey, orange and red
+   players) and don't step into one that came onto the route ("<label>: a monster stands on (x, y) now; replanning round
+   it"); our pets and blue players and NPCs stay shoveable (MOBILE_COST_X). A shove needs full stamina and a hit takes a
+   point, so under fire it is refused, and one that goes through stands us on the monster. The retreat, the stand-off,
+   out of the fire and the flights keep the shove: walled on every walk, 192 runs had 12 deaths against 2, boxed in.
+   Live 2026-11-04 19:48:24-29
+   (hunt-20261104-185209-c092) the walk back to the pets planned its first step into a tormented soul in the one-tile
+   gap (5246, 669): refused twice at 24/25, then 30 walks back "cut by mobiles" in 3 s, then a shove through at 25/25
+   (docs/NOTES.md "The walk back to the pets into a tormented soul"). **A walk back that goes nowhere isn't tried again
+   for `REJOIN_RETRY_S` 3 s** (`Team.rejoin` returns False, "back to the pets: not again for 3 s; the fight goes on from
+   here"): the fight round that called it goes on to "All Kill", the bard skills and the potion instead of calling it
+   again at once; the leave's gathering waits it out. test_sim `test_rejoin_not_through_monster`,
+   `test_rejoin_cut_backs_off`, `sim/fight1948.py`.
    **Out of a Charge's reach** (user 2026-10-13). A charger is a nightstalker (knowledge #14625:
    it teleports up to 12 tiles next to its target and hits up to 3 within 1 tile), or any type seen
    to say "*charges*". While one is in war mode, the runner keeps 3 tiles from it and from the pet

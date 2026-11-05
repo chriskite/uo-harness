@@ -3602,6 +3602,19 @@ seems like we should just fight as normal to the gate. We die so often when the 
   a heal potion inside a cover walk (live it came 1.0 s late, 10 hits left); the plain walk's hurt stop that a potion in
   a hold hid (moot on the fought leave).
 
+## Monsters are walls on the hunt's non-escape walks; a cut walk back to the pets backs off (2026-11-04, Logan at 64 hits)
+
+Live 19:48:24-29 the walk back to the pets planned into a tormented soul in a one-tile gap: two refused shoves, then 30
+walks back "cut by mobiles" in 3 s with nothing else done (docs/NOTES.md "The walk back to the pets into a tormented
+soul").
+
+- *Decided:* `walk_to(no_shove=True)` on the walks back to the pets, to the corpse, off the tank, the cover, toward a
+  target, to a hurt pet and a fought leg: tiles of mobiles of notoriety 3-6 are walls and no step goes into one; pets,
+  blue players and NPCs stay shoveable. `Team.rejoin` that went nowhere returns False and waits `REJOIN_RETRY_S` 3 s.
+  Maus 3, 384 runs: deaths 8 -> 11 (block spread 2-8), pet-death runs 31 -> 24, banked -1.7 %, refused shoves 1,219 -> 734.
+- *Rejected:* walls on every hunt walk (retreat, stand-off, out of the fire, flights too): deaths 2 -> 12 of 192, boxed in.
+- *Not done:* the walk to a hurt pet still waits for mobiles (non-urgent: ends on a hit).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
