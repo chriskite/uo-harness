@@ -244,6 +244,7 @@ class Mob:
     calm_until: float = 0.0       # pacified until
     immune_until: float = 0.0     # barding break immunity (peace/provoke)
     provoke: tuple | None = None  # (onto serial, until)
+    barded: bool = False          # a bard skill of ours went at it (Discordance, Peacemaking, either of a provoked pair)
     poison_until: float = 0.0
     poison_next: float = 0.0
     bleed_until: float = 0.0      # 0: not bleeding
@@ -1201,6 +1202,8 @@ class World:
                 self.count("others_kills_in_view")
         elif m.expires is None:                       # a transfixed copy is no kill (kills_by still shows it)
             self.metrics["kills"] += 1
+            if not m.barded:
+                self.count("kills_unbarded")             # ours with no bard skill at it (run.py summaries)
         self.count("kills_by", m.key)
         self.metrics["fights"].append({"key": m.key, "t": round(self.t, 1), "hits": m.hits_max,
                                        "damage_by": {self.mobs[s].name if s in self.mobs else hex(s): v
@@ -3491,6 +3494,9 @@ class World:
         target = first if kind == "provoke" else tgt
         if target is None:
             return
+        for m in (target, tgt):
+            if m is not None:
+                m.barded = True
         if kind != "discord" and (target.immune_until > t or (kind == "provoke" and tgt.immune_until > t)):
             # live: the next use went through 1.1-3 s after such an answer (13 of them): no 5 s skill timer, only the
             # prompt's 1 s (docs/NOTES.md "Bard rates and cooldowns live")

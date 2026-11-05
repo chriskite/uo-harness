@@ -228,7 +228,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     pl = world.player
     r = {"seed": seed, "level": dungeon_level, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
             "wall_s": round(wall, 2), "speed_x": round(clock.elapsed / wall, 1) if wall else None,
-            "kills": m["kills"], "kills_by": m["kills_by"], "gold_looted": m["gold_looted"],
+            "kills": m["kills"], "kills_unbarded": m.get("kills_unbarded", 0), "kills_by": m["kills_by"],
+            "gold_looted": m["gold_looted"],
             # banked: what reached home (World._land); lost: what a death left on the corpse
             "gold_banked": m["gold_banked"], "gold_lost": m["gold_looted"] - m["gold_banked"] if m["deaths"] else 0,
             "hunt_s": round(m["hunt_s"], 1), "place_s": {k: round(v, 1) for k, v in m.get("place_s", {}).items()},
@@ -504,6 +505,9 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
     left = sum(1 for r in ok if any(j["kind"] == "pet_left_behind" for j in r["junctures"]))
     banked = sum(r.get("gold_banked", 0) for r in ok)
     return {"runs": len(results), "game_h": round(hours, 2), "kills_per_h": round(sum(r["kills"] for r in ok) / hours, 1),
+            # our kills with no bard skill of ours at them (World.barded)
+            "kills_unbarded_share": round(sum(r.get("kills_unbarded", 0) for r in ok)
+                                          / (sum(r["kills"] for r in ok) or 1), 3),
             "gold_per_h": round(sum(r["gold_looted"] for r in ok) / hours),
             "banked_per_h": round(banked / hours),
             "banked_per_h_net": round(banked / (hours + deaths * downtime_s / 3600)),
