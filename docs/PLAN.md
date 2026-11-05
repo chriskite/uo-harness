@@ -2226,6 +2226,13 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   in circles, 2 min and ~1000 steps without ore). `dig_stand` caps such a walk at `STAND_ROUTE_MIN + STAND_DETOUR` x
   its Chebyshev distance (172 steps for 81 tiles), as a flooded stand at x its walking steps; longer is "only an
   N-step detour" and the next stand. test_mining `test_far_stand_route_cap`.
+- *With a house forge, the field forge's walk is capped like a stand's* (2026-11-04: three weight-smelt walks went round
+  in circles among creatures, 15:00 forge_1173_2397, 17:56 forge_1383_1146 (103 steps), 23:30:58 forge_2551_665 (an
+  831-step multi-level route from a field stand 112 tiles off); each leg then ended and the ore went home anyway).
+  `smelt` walks to the spot's forge with `max_route` = `STAND_ROUTE_MIN + STAND_DETOUR` x the straight distance when
+  homes.json has a `forge`; longer is "the forge can't be reached (… only an N-step detour …); ending the leg: the ore
+  goes home" at once. Without a house forge the field forge is the only one: no cap. test_mining
+  `test_field_forge_route_cap`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

@@ -634,7 +634,13 @@ class MineLoop(loop_lumber.LumberLoop):
         metals0 = by_metal(self.in_pack(st, INGOTS))
         t0 = time.monotonic()
         self.doing("to_forge", f"To {where} to smelt {ore0} ore", (fx, fy))
-        self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge")
+        # with a house forge the ore can go home instead: a field forge walk longer than a stand's cap (STAND_ROUTE_MIN
+        # + STAND_DETOUR x the straight distance) is given up at once (WalkFailed: the leg ends, the ore goes home; live
+        # 2026-11-04 23:30:58, mining-20261104-232153-a8e3: an 831-step route from a field stand 112 tiles off the
+        # forge at forge_2551_665 went round in circles; 15:00 and 17:56 the same at forge_1173_2397 / forge_1383_1146)
+        cap = None if home or self.home_forge is None \
+            else STAND_ROUTE_MIN + STAND_DETOUR * cheb(self.link.pos(st), (fx, fy))
+        self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge", max_route=cap)
         self.doing("smelt", f"Smelting {ore0} ore at {where}", (fx, fy))
         spot = self.k["spot"]["id"]
         for serial, it in stacks:

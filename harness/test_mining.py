@@ -501,6 +501,36 @@ def test_far_stand_route_cap():
           caps == {(2520, 660): 34, (2592, 640): 172} and loop.no_route_stands == {(2520, 660), (2592, 640)}, caps)
 
 
+def test_field_forge_route_cap():
+    print("with a house forge, the field forge's walk is capped like a stand's; without one it isn't")
+    # live 2026-11-04 23:30:58 (mining-20261104-232153-a8e3, forge_2551_665): an 831-step route to the forge from a field
+    # stand 112 tiles off went round in circles; the leg ended and the ore went home anyway
+    from agent_link import WalkFailed
+    with open(os.path.join(HERE, "data", "loops", "mining.json"), encoding="utf-8") as f:
+        know = json.load(f)
+    know["forge"] = {"x": 2551, "y": 665}
+    caps = []
+
+    def walk_to(center, r, label, max_route=None, **kw):
+        caps.append(max_route)
+        raise WalkFailed(f"{label}: only an 831-step detour")
+    loop = object.__new__(MineLoop)
+    loop.k, loop.unsmeltable = know, set()
+    loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2569, 553, 0))
+    loop.state = lambda: {}
+    loop.in_pack = lambda st, graphics: [(0x10, {"graphic": 0x19B9, "amount": 280, "hue": 0})] \
+        if 0x19B9 in graphics else []
+    loop.doing = lambda *a: None
+    loop.mover = SimpleNamespace(walk_to=walk_to)
+    for home in ({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, {}):
+        loop.home = home
+        try:
+            loop.smelt("weight")
+        except WalkFailed:
+            pass
+    check("house forge: 10 + 2 x 112 tiles = 234 steps; none: no cap", caps == [234, None], caps)
+
+
 def test_teleported_away():
     print("a walk's unplanned teleport far from the spot: the leg ends at once, no stand tried from there")
     import loop_mining
@@ -782,7 +812,7 @@ def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
-              test_teleported_away, test_gate_out, test_far_stand_route_cap):
+              test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap):
         t()
     print()
     if FAILURES:
