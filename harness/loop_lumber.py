@@ -2070,13 +2070,13 @@ class LumberLoop:
         set aside until red_flight_end, and aggro_zones adds none meanwhile. Hits on the way still count (flight_hit)."""
         if self.red_flight is None:
             m = self.mover
-            self.red_flight = (m.danger, m.danger_tiles, m.avoid, m.keep_out)
-            m.danger, m.danger_tiles, m.avoid, m.keep_out = {}, set(), {}, {}
+            self.red_flight = (m.danger, m.danger_tiles, m.avoid)
+            m.danger, m.danger_tiles, m.avoid = {}, set(), {}
 
     def red_flight_end(self):
         """The creature zones and tiles red_flight_start set aside, back (aggro_zones refreshes them on the next read)."""
         if self.red_flight is not None:
-            self.mover.danger, self.mover.danger_tiles, self.mover.avoid, self.mover.keep_out = self.red_flight
+            self.mover.danger, self.mover.danger_tiles, self.mover.avoid = self.red_flight
             self.red_flight = None
 
     def gap_clear(self, s) -> str | None:
@@ -3632,9 +3632,6 @@ class LumberLoop:
                 zones[k] = (xy, z)
         for k in old.keys() - zones.keys():
             del self.mover.danger[k]
-        for t, xy, r in guards:            # an escaped creature's keep-out core moves with it while in view
-            if t.serial in in_view and t.serial in self.mover.keep_out:
-                self.mover.keep_out[t.serial] = (xy, self.mover.keep_out[t.serial][1])
         for k, (xy, r) in zones.items():
             prev = old.get(k)
             self.mover.danger[k] = (xy, r)
@@ -3717,13 +3714,6 @@ class LumberLoop:
         least CREATURE_SPELL_RANGE, threats.creature_reach) or its flee radius, whichever
         is more, plus ESCAPE_MARGIN."""
         return max(t.flee_radius, threats.creature_reach(t.body, self.watch.params)) + ESCAPE_MARGIN
-
-    def keep_out_r(self, t) -> int:
-        """Tiles around a creature we escaped from that no later walk enters while we stand outside them (Mover
-        keep_out): its flee radius, where it sets off the next escape (live 2026-11-04 17:47, mining-20261104-173520-8196:
-        the walks to two stands past a blood cultist at (2534, 688) went within 8 of it three times in 37 s, each an
-        escape, and the run ended 'came back after 3 escapes')."""
-        return t.flee_radius
 
     def work_stand(self, tree, trees, tally):
         """Walk next to `tree` (next_stand) and Smart-Harvest there until the server says
@@ -3952,7 +3942,6 @@ class LumberLoop:
                 zone = ((m["x"], m["y"]), self.zone_r(t))
                 self.danger[t.serial] = self.danger[("was", t.serial)] = zone
                 self.mover.danger[t.serial] = self.mover.danger[("was", t.serial)] = zone   # routes bend around
-                self.mover.keep_out[t.serial] = ((m["x"], m["y"]), self.keep_out_r(t))     # and never back in reach
                 travel_guard.record(self.memory, st, t, (m["x"], m["y"]), job=self.JOB)
         names = ", ".join(t.name or f"0x{t.serial:08X}" for t in e.monsters)
         run_from = list(start.values())
@@ -3990,7 +3979,6 @@ class LumberLoop:
                     if t.serial in last:
                         zone = (last[t.serial], self.zone_r(t))
                         self.danger[t.serial] = self.mover.danger[t.serial] = zone
-                        self.mover.keep_out[t.serial] = (last[t.serial], self.keep_out_r(t))
                 log("escape: " + ", ".join(f"{self.threat_name(t)} still following at {t.distance} tiles"
                                            for t in following) + "; running on")
         finally:
@@ -4005,7 +3993,6 @@ class LumberLoop:
             t = fled[s]
             if ("was", s) in self.danger:    # it went back where it came from: its zone too, not where it chased us
                 self.danger[s] = self.mover.danger[s] = self.danger[("was", s)]
-                self.mover.keep_out[s] = (self.danger[("was", s)][0], self.keep_out_r(t))
             if how == "out of view":         # nor does its last chasing tile guard trees (tree_guards' RECENT_ZONE_S)
                 self.recent_guards.pop(s, None)
                 self.mover.danger.pop(("seen", s), None)
@@ -4883,7 +4870,7 @@ class LumberLoop:
         self.pre_stats = {}
         self.trip_n = n
         self.escapes, self.danger, self.escaped_from = 0, {}, {}
-        self.mover.danger, self.mover.keep_out = {}, {}
+        self.mover.danger = {}
         self.run_arrived, self.creature, self.avoided = None, self.new_creature_tally(), set()
         self.recent_guards, self.dropped_trees, self.no_route, self.switch_tree = {}, {}, set(), None
         self.recalled_home, self.waypost_seen = False, False

@@ -82,8 +82,8 @@ UNWORKABLE_STANDS = 8
 STALL_S = 120.0
 STALL_STANDS = 5
 # ... or STALL_STANDS_MAX stands given up since the last ore, however quickly (live 2026-11-04 23:04:12-23:05:17,
-# mining-20261104-230056-1ee0, user: "The runner is stuck in a loop": after a skeleton escape its keep-out wall cut
-# the only way on, and 3327 stands failed "no route" in 65 s before the leg ended)
+# mining-20261104-230056-1ee0, user: "The runner is stuck in a loop": with the way on cut after a skeleton escape
+# (a flee-radius wall since reverted), 3327 stands failed "no route" in 65 s before the leg ended)
 STALL_STANDS_MAX = 30
 # Farther than this from every stand of the spot (an unplanned teleport with no way back, Mover.step_back) ends the
 # leg at once (live 2026-11-03 14:30:12, mining-20261103-141742-4bc0: a stand walk at forge_3537_1948 stepped onto

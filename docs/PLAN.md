@@ -2212,19 +2212,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   on 2026-10-20); each spot takes its next landing with a route in. On the store as of 19:57: forge_2620_561 and
   forge_2765_549 -> "Riverrun Lodge", forge_2616_662 -> "43", forge_2599_620 none (out of the plan). `clear` undoes it.
   test_lumber_opt.py `test_landings`.
-- *An escaped creature's flee radius is a wall for later walks* (2026-11-04, mining-20261104-173520-8196: a blood
-  cultist standing at (2534, 688) by forge_2551_665 / forge_2497_708; the stand walks bent round its soft zone (14) but
-  the only way east passed within its flee radius (8): three escapes in 37 s, "came back after 3 escapes", the run
-  ended; the same shape ended runs on zombies at forge_1396_1206 / forge_1339_1189 on 2026-11-03). The escape now
-  also puts `Mover.keep_out[serial] = (its tile, flee_radius)` (`LumberLoop.keep_out_r`, shared with lumber): the
-  planner walls those tiles while we stand outside them (`Mover.keep_out_tiles`), so a stand only reachable through
-  them is "no route" and skipped (the stall rule ends a leg of nothing but those). The core follows the creature
-  while in view (aggro_zones), is set aside in a red flight, and is cleared each trip. Inside one, the way out stays
-  open. Rejected: a harder soft cost (any finite cost still crosses when it's the only way). test_mover `test_keep_out`,
-  test_mining `test_red_flight_zones`. The first live wall (2026-11-04 23:04, mining-20261104-230056-1ee0, user: "The
-  runner is stuck in a loop") cut the only way on after a skeleton escape; each stand failed at once, the 120 s stall
-  rule never came, and 3327 stands went by in 65 s. So `STALL_STANDS_MAX` (30) stands given up since the last ore
-  end the leg however quickly (creature-blocked: hop or home, as before). test_mining `test_stalled_leg`.
+- *No wall over an escaped creature's flee radius* (2026-11-04). After a blood cultist at (2534, 688) by forge_2497_708
+  drew 6 escapes over two legs (the stand walks bent round its soft zone but the only way east passed within its flee
+  radius 8; zombies the same at forge_1396_1206 / forge_1339_1189 on 2026-11-03), 4901633 made that radius a wall for
+  later walks (`Mover.keep_out`). Reverted the same night, user: "That 'turn a flee radius into a wall' idea does not
+  seem like a good idea to me, revert it." Live 23:04 (mining-20261104-230056-1ee0) a skeleton's wall had cut the only
+  way on and 3327 stands failed "no route" in 65 s under the 120 s stall rule. Kept from that: `STALL_STANDS_MAX` (30)
+  stands given up since the last ore end the leg however quickly (creature-blocked: hop or home). The repeated escapes
+  stay open. test_mining `test_stalled_leg`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 
