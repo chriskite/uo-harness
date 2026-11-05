@@ -3091,86 +3091,6 @@ def test_cover_not_onto_monster():
           f"trail {trail} {said}")
 
 
-def test_rejoin_not_through_monster():
-    print("== the live 19:48:24 tiles: a tormented soul on us in the one-tile gap (5246, 669) on the way back to the pets "
-          "14 off: no step into its tile, the walk back cut and not tried again at once ==")
-    # live 2026-11-04 19:48:24-32 (hunt-20261104-185209-c092, capture session_20261104_184749): "back to Bussin at (5244,
-    # 683) (14 tiles)", route 12 steps from (5247, 669), its first step W into the tormented soul 0x00080625 on (5246,
-    # 669), a gap that only opens east-west (the map: no other way within 80 steps): refused at 24/25, a Total Refresh,
-    # refused again, through on the third try at 25/25 (25 -> 15). Before the fix the same first step here (the simulator
-    # lets the shove through: he stands on its tile)
-    w = world_with([{"key": "tormented soul", "at": [5246, 669, 0]}], seed=7, start=(5247, 669))
-    ts = next(m for m in w.mobs.values() if m.kind == "monster")
-    loop, clock, store, patched = hurt_loop(w, 64, pets_at=((5248, 669), (5247, 670)))
-    ts.hits = ts.hits_max = 10 ** 6
-    ts.spec = {**ts.spec, "step_s": 999.0}
-    ts.next_step = 1e9                         # it stood there live
-    ts.target, ts.threat = w.player.serial, {w.player.serial: 1e9}
-    w._warm(ts, True)
-    for p, xy in zip(w.pets(), ((5244, 683), (5243, 684))):    # Bussin 14 off on the blightmare live
-        w._teleport(p, (*xy, 0))
-        w._moved(p)
-        p.next_step = 1e9
-    trail, world_tick = [], clock.on_advance
-
-    def watch(now):
-        world_tick(now)
-        if not trail or trail[-1] != w.player.pos[:2]:
-            trail.append(tuple(w.player.pos[:2]))
-    clock.on_advance = watch
-    out = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(out):
-            clock.advance(0.3)
-            moved = loop.team.rejoin(loop.state())
-    finally:
-        store.close()
-        simclock.uninstall(patched)
-    log = out.getvalue()
-    check("never onto the tormented soul's tile, no shove, the walk back cut: False, 'not again for 3 s' (before: "
-          "onto (5246, 669) and on to the pets)",
-          (5246, 669) not in trail and "shove into" not in log and moved is False and "not again for" in log,
-          f"moved {moved} trail {trail} {[ln for ln in log.splitlines() if 'back to' in ln][-3:]}")
-
-
-def test_rejoin_cut_backs_off():
-    print("== the walk back to the pets cut by monsters where we stand: no walk back again for REJOIN_RETRY_S, the fight "
-          "goes on ==")
-    # live 2026-11-04 19:48:26-29 (hunt-20261104-185209-c092): "back to the pets: route from (5247, 669) cut by mobiles we
-    # couldn't shove" 30 times in 3 s, each Team.fight round calling rejoin again at once, at 64 hits with a tormented
-    # soul beside him. Here the planner sees the route cut by mobiles only; before: every call walked again (True)
-    import agent_link
-    w = world_with([], seed=7, start=(5247, 669))
-    loop, clock, store, patched = hurt_loop(w, 64, pets_at=((5248, 669), (5247, 670)))
-    for p, xy in zip(w.pets(), ((5244, 683), (5243, 684))):
-        w._teleport(p, (*xy, 0))
-        w._moved(p)
-        p.next_step = 1e9
-    orig = agent_link.Mover.plan
-
-    def plan(mover, st, goal, mobiles=True, max_steps=None, through_fields=False):
-        path, walk = orig(mover, st, goal, mobiles, max_steps, through_fields)
-        return (None if mobiles else path), walk
-    agent_link.Mover.plan = plan
-    out = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(out):
-            clock.advance(0.3)
-            first = loop.team.rejoin(loop.state())
-            again = [loop.team.rejoin(loop.state()) for _ in range(5)]
-            clock.advance(getattr(tamer, "REJOIN_RETRY_S", 3.0) + 0.1)
-            later = loop.team.rejoin(loop.state())
-    finally:
-        agent_link.Mover.plan = orig
-        store.close()
-        simclock.uninstall(patched)
-    log = out.getvalue()
-    walks = log.count("back to the pets: route from")
-    check("cut: False (nothing done), no walk back on the next 5 calls, one again after REJOIN_RETRY_S (before: 7 walks, "
-          "all True)", first is False and not any(again) and walks == 2 and later is False,
-          f"first {first} again {again} later {later} walks {walks}")
-
-
 def test_to_pet_not_into_shot():
     print("== a pet fighting an awake corpse purger, hurt beyond vet range: no walk into its shot to vet it ==")
     # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber on a patrolled purger at (5228, 737); "to a
@@ -8301,7 +8221,7 @@ def main():
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_cover_route_clear, test_cover_not_onto_monster,
-              test_rejoin_not_through_monster, test_rejoin_cut_backs_off, test_to_pet_not_into_shot,
+              test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,

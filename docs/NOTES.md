@@ -8595,6 +8595,12 @@ Maus 3, task log lines 4052-4131, capture session_20261104_184749 (`replay.timed
   hour -1.7 %, Logan's damage an hour -7 %, refused shoves 1,219 -> 734. The new "cut by mobiles" lines are the walls'
   ends (to the corpse 197, off the tank 102, to a hurt pet 67 in seed 17); runs of one log line repeated 5+ times in a
   row 4 -> 2.
+- **Reverted** (user, 2026-11-04 evening: "Revert it, run without it"): the runner is back to 4901633's walks; the fix,
+  its tests and `sim/fight1948.py` stay in commit 1cd7572 for a redo. A bug found while checking: a `no_shove` walk
+  cut only by monster walls still drank a Total Refresh for the shove (seed 17: 70 of 111 refreshes on those walks
+  followed at once by "cut by mobiles"; 0 of 202 before). docs/PLAN.md has the decision. Seed 401 (192 runs, before ->
+  the fix): deaths 3 -> 4, pet-death runs 9 -> 16, banked/h 146,759 -> 145,454; two of its 4 deaths came on "to the
+  corpse" (an opted-in walk), two on the moongate walk; none of seed 17's 7 on an opted-in walk (retreat or moongate).
 
 ## Network observations
 

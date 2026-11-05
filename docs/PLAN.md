@@ -3602,7 +3602,7 @@ seems like we should just fight as normal to the gate. We die so often when the 
   a heal potion inside a cover walk (live it came 1.0 s late, 10 hits left); the plain walk's hurt stop that a potion in
   a hold hid (moot on the fought leave).
 
-## Monsters are walls on the hunt's non-escape walks; a cut walk back to the pets backs off (2026-11-04, Logan at 64 hits)
+## Monsters are walls on the hunt's non-escape walks; a cut walk back to the pets backs off (2026-11-04, Logan at 64 hits) — REVERTED
 
 Live 19:48:24-29 the walk back to the pets planned into a tormented soul in a one-tile gap: two refused shoves, then 30
 walks back "cut by mobiles" in 3 s with nothing else done (docs/NOTES.md "The walk back to the pets into a tormented
@@ -3614,6 +3614,13 @@ soul").
   Maus 3, 384 runs: deaths 8 -> 11 (block spread 2-8), pet-death runs 31 -> 24, banked -1.7 %, refused shoves 1,219 -> 734.
 - *Rejected:* walls on every hunt walk (retreat, stand-off, out of the fire, flights too): deaths 2 -> 12 of 192, boxed in.
 - *Not done:* the walk to a hurt pet still waits for mobiles (non-urgent: ends on a hit).
+- **Reverted the same evening (user's choice, 2026-11-04):** with deaths 8 -> 11 unresolved, the user chose "Revert it,
+  run without it" over waiting for more simulator blocks. The runner is back to 4901633's walks (the hot loop and the
+  shove into a monster's tile stay; the live harm was nil). One live run (hunt-20261104-204145-b3ec) loaded the change
+  from the working tree before the commit. A clear bug was found while checking: on a `no_shove` walk cut only by
+  monster walls, `Mover._walk_to` still drank a Total Refresh for the shove (seed 17: 70 of 111 refreshes on opted-in
+  walks followed at once by "cut by mobiles", against 0 of 202 before); a retry must lift the monster walls in the replan
+  before drinking. Redo with that fix and a death comparison over more seeds before it goes live again.
 
 ## Risks
 
