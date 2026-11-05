@@ -474,42 +474,54 @@ def test_stalled_leg():
 
 
 def test_far_stand_route_cap():
-    print("a stand beyond the walking flood: its walk is capped by its Chebyshev distance, as a flooded one by its steps")
+    print("a stand beyond the walking flood: its walk is capped by its steps in the whole area's flood (Chebyshev if "
+          "even that doesn't reach it), as a flooded one by its steps")
     # live 2026-11-04 23:17:57-23:19:51 (mining-20261104-231210-dd9f, forge_2551_665): stands 81-83 tiles off had no
-    # cap, routes of 424-623 steps round creatures, two walks went round in circles, 2 min without ore
+    # cap, routes of 424-623 steps round creatures, two walks went round in circles, 2 min without ore. 2026-11-05
+    # 13:31:24-30 (mining-20261105-133044-ff72): capped at their Chebyshev distance, 30 such stands of a multi-level
+    # ruin failed in 6 s and the leg ended at 0 ore
     import loop_mining
     from agent_link import WalkFailed
-    caps = {}
+    caps, floods = {}, []
 
     def walk(xy, r, label, max_route=None):
         caps[xy] = max_route
         raise WalkFailed(f"{label}: only a 424-step detour")
+
+    def walk_steps(st, whole=False):
+        floods.append(whole)
+        return {(2520, 660): 12, (2592, 640): 140}           # the whole area: (2592, 640) 140 steps by the ramps
     loop = object.__new__(MineLoop)
     loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2511, 659, 0))
+    loop.state = lambda: {}
     loop.doing = lambda *a: None
     loop.walk_to_work = walk
+    loop.walk_steps = walk_steps
     loop.no_route_stands, loop.stall_stands, loop.fruitless = set(), 0, 0
-    loop._steps = (None, None, {(2520, 660): 12})          # the flood reached (2520, 660) in 12 steps
+    loop._steps = (None, None, {(2520, 660): 12})          # the 80-tile flood reached (2520, 660) in 12 steps
     saved = loop_mining.log
     loop_mining.log = lambda s: None
     try:
-        for xy in ((2520, 660), (2592, 640)):
+        for xy in ((2520, 660), (2592, 640), (2600, 700)):
             loop.dig_stand({"x": xy[0], "y": xy[1], "blocks": []}, {"ore": 0})
     finally:
         loop_mining.log = saved
-    check("flooded: 10 + 2 x its 12 steps; beyond the flood: 10 + 2 x its 81 tiles",
-          caps == {(2520, 660): 34, (2592, 640): 172} and loop.no_route_stands == {(2520, 660), (2592, 640)}, caps)
+    check("flooded: 10 + 2 x 12 steps; beyond it: 10 + 2 x its 140 steps in the whole flood; reached by neither: "
+          "10 + 2 x its 89 tiles; the whole flood only for the stands beyond",
+          caps == {(2520, 660): 34, (2592, 640): 290, (2600, 700): 188} and floods == [True, True]
+          and loop.no_route_stands == {(2520, 660), (2592, 640), (2600, 700)}, (caps, floods))
 
 
 def test_field_forge_route_cap():
-    print("with a house forge, the field forge's walk is capped like a stand's; without one it isn't")
+    print("with a house forge, the field forge's walk is capped like a stand's (its walking steps); without one it isn't")
     # live 2026-11-04 23:30:58 (mining-20261104-232153-a8e3, forge_2551_665): an 831-step route to the forge from a field
-    # stand 112 tiles off went round in circles; the leg ended and the ore went home anyway
+    # stand 112 tiles (181 walking steps on the map) off went round in circles; the leg ended and the ore went home anyway
     from agent_link import WalkFailed
     with open(os.path.join(HERE, "data", "loops", "mining.json"), encoding="utf-8") as f:
         know = json.load(f)
     know["forge"] = {"x": 2551, "y": 665}
     caps = []
+    flood = [{(2551, 667): 181, (2552, 663): 183, (2560, 600): 70}]      # the tiles within forge_range 2: 181 the nearest
 
     def walk_to(center, r, label, max_route=None, **kw):
         caps.append(max_route)
@@ -518,17 +530,20 @@ def test_field_forge_route_cap():
     loop.k, loop.unsmeltable = know, set()
     loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2569, 553, 0))
     loop.state = lambda: {}
+    loop.walk_steps = lambda st, whole=False: flood[0]
     loop.in_pack = lambda st, graphics: [(0x10, {"graphic": 0x19B9, "amount": 280, "hue": 0})] \
         if 0x19B9 in graphics else []
     loop.doing = lambda *a: None
     loop.mover = SimpleNamespace(walk_to=walk_to)
-    for home in ({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, {}):
-        loop.home = home
+    for home, steps in (({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, flood[0]),
+                        ({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, None), ({}, flood[0])):
+        loop.home, flood[0] = home, steps
         try:
             loop.smelt("weight")
         except WalkFailed:
             pass
-    check("house forge: 10 + 2 x 112 tiles = 234 steps; none: no cap", caps == [234, None], caps)
+    check("house forge: 10 + 2 x its 181 walking steps = 372 (no map: x its 112 tiles = 234); none: no cap",
+          caps == [372, 234, None], caps)
 
 
 def test_teleported_away():

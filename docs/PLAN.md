@@ -2228,19 +2228,23 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   way on and 3327 stands failed "no route" in 65 s under the 120 s stall rule. Kept from that: `STALL_STANDS_MAX` (30)
   stands given up since the last ore end the leg however quickly (creature-blocked: hop or home). The repeated escapes
   stay open. test_mining `test_stalled_leg`.
-- *A stand beyond the walking flood gets a route cap from its Chebyshev distance* (2026-11-04 23:17:57-23:19:51,
+- *A stand beyond the walking flood gets a route cap from its walking steps* (2026-11-04 23:17:57-23:19:51,
   mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
   tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round
   in circles, 2 min and ~1000 steps without ore). `dig_stand` caps such a walk at `STAND_ROUTE_MIN + STAND_DETOUR` x
-  its Chebyshev distance (172 steps for 81 tiles), as a flooded stand at x its walking steps; longer is "only an
-  N-step detour" and the next stand. test_mining `test_far_stand_route_cap`.
+  its steps in the whole area's flood from where we stand (`walk_steps(whole=True)`, ~2 s on that field, cached per
+  tile; the stand's Chebyshev distance only when even that flood doesn't reach it), as a flooded stand x its steps;
+  longer is "only an N-step detour" and the next stand. The first version (18c8432) capped at the Chebyshev distance:
+  2026-11-05 13:31:24-30 (mining-20261105-133044-ff72) the ruin's stands 81-84 tiles off but 204-273 walking steps away
+  were capped at 172-178, 30 failed in 6 s after an antlion escape and the leg ended at 0 ore. test_mining
+  `test_far_stand_route_cap`.
 - *With a house forge, the field forge's walk is capped like a stand's* (2026-11-04: three weight-smelt walks went round
   in circles among creatures, 15:00 forge_1173_2397, 17:56 forge_1383_1146 (103 steps), 23:30:58 forge_2551_665 (an
-  831-step multi-level route from a field stand 112 tiles off); each leg then ended and the ore went home anyway).
-  `smelt` walks to the spot's forge with `max_route` = `STAND_ROUTE_MIN + STAND_DETOUR` x the straight distance when
-  homes.json has a `forge`; longer is "the forge can't be reached (… only an N-step detour …); ending the leg: the ore
-  goes home" at once. Without a house forge the field forge is the only one: no cap. test_mining
-  `test_field_forge_route_cap`.
+  831-step route from a field stand 112 tiles, 181 walking steps, off); each leg then ended and the ore went home
+  anyway). `smelt` walks to the spot's forge with `max_route` = `STAND_ROUTE_MIN + STAND_DETOUR` x its walking steps
+  (the whole flood's nearest tile within `forge_range`; the straight distance without one) when homes.json has a
+  `forge`; longer is "the forge can't be reached (… only an N-step detour …); ending the leg: the ore goes home" at
+  once. Without a house forge the field forge is the only one: no cap. test_mining `test_field_forge_route_cap`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

@@ -635,11 +635,15 @@ class MineLoop(loop_lumber.LumberLoop):
         t0 = time.monotonic()
         self.doing("to_forge", f"To {where} to smelt {ore0} ore", (fx, fy))
         # with a house forge the ore can go home instead: a field forge walk longer than a stand's cap (STAND_ROUTE_MIN
-        # + STAND_DETOUR x the straight distance) is given up at once (WalkFailed: the leg ends, the ore goes home; live
-        # 2026-11-04 23:30:58, mining-20261104-232153-a8e3: an 831-step route from a field stand 112 tiles off the
-        # forge at forge_2551_665 went round in circles; 15:00 and 17:56 the same at forge_1173_2397 / forge_1383_1146)
-        cap = None if home or self.home_forge is None \
-            else STAND_ROUTE_MIN + STAND_DETOUR * cheb(self.link.pos(st), (fx, fy))
+        # + STAND_DETOUR x its walking steps from here in the whole area's flood, its straight distance if the flood
+        # doesn't reach it) is given up at once (WalkFailed: the leg ends, the ore goes home; live 2026-11-04 23:30:58,
+        # mining-20261104-232153-a8e3: an 831-step route from a field stand 181 walking steps off the forge at
+        # forge_2551_665 went round in circles; 15:00 and 17:56 the same at forge_1173_2397 / forge_1383_1146)
+        cap = None
+        if not home and self.home_forge is not None:
+            steps = self.walk_steps(st, whole=True)
+            near = [v for (tx, ty), v in (steps or {}).items() if cheb((tx, ty), (fx, fy)) <= sm["forge_range"]]
+            cap = STAND_ROUTE_MIN + STAND_DETOUR * (min(near) if near else cheb(self.link.pos(st), (fx, fy)))
         self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge", max_route=cap)
         self.doing("smelt", f"Smelting {ore0} ore at {where}", (fx, fy))
         spot = self.k["spot"]["id"]
@@ -944,9 +948,13 @@ class MineLoop(loop_lumber.LumberLoop):
         x, y = stand["x"], stand["y"]
         self.doing("to_stand", f"Heading to the rock at {x},{y} ({tally['ore']} ore)", (x, y))
         steps = self._steps[2] if self._steps is not None else None    # walk_steps from here (next_stand's)
-        # a stand beyond the flood (an ore field's far side) has its Chebyshev distance for the way (live 2026-11-04
-        # 23:17:57-23:19:51, mining-20261104-231210-dd9f at forge_2551_665: stands 81-83 tiles off took routes of
-        # 424-623 steps round creatures, two walks went round in circles, 2 min without ore)
+        if steps is not None and (x, y) not in steps:
+            # beyond the 80-tile flood (an ore field's far side): the whole area's flood from here gives its walking
+            # steps (once per tile we stand on). Live 2026-11-04 23:17:57-23:19:51 (mining-20261104-231210-dd9f,
+            # forge_2551_665) such stands had no cap, 424-623-step routes went round in circles; capped at 10 + 2 x
+            # their Chebyshev distance instead (18c8432), a multi-level ruin's stands 81 tiles off failed 30 in a row
+            # "no route" 6 s after an escape and the leg ended at 0 ore (2026-11-05 13:31:24-30, mining-20261105-133044-ff72)
+            steps = self.walk_steps(self.state(), whole=True)
         n = None if steps is None else steps.get((x, y), cheb(self.link.pos(self.link.state()), (x, y)))
         try:
             # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
