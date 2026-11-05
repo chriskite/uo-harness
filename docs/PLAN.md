@@ -3672,6 +3672,36 @@ double step back"; the parent's step-back fix in 1d819eb).
 - *Not measured:* no simulator batch for 0.96 (the 2026-10-24 sweep had 1.01, never "All Kill" one on someone else,
   within noise on gold).
 
+## Bard gaps: spawn spots from sightings only, the skip logged, the others on the pets (2026-11-05)
+
+Live hunt-20261105-094620-aa2f 10:16:36-10:17:30: from the vet pocket at (5262, 657), 35 s of the pets fighting two
+bound souls with no bard skill and no word why, and a corpse purger and the second soul on the pets with none at all
+(docs/NOTES.md "No bard skill from the vet pocket"). The user's question: "Why is the runner letting the pets fight
+several mobs without trying to bard?"
+
+- *Decided (the user's picks):*
+  1. Spawn spots (`Team.backspawn`) come from first sightings only: the Mausoleum's and Tidal Tomb's observed ones
+     (`tamer.SPAWNS_PATHS`) and the run's own. The store's kills no longer seed them. A kill record holds Logan's tile,
+     not the spawn, and the (5259, 653) "shade wolf spot" from a 2026-10-25 kill refused the only peek that saw the
+     souls. The purger's and blightmare's spots never came from kills. Tidal Tomb's spots had come only from kills, so
+     its file is read now. Ossuary and Cavernam had none and still have none.
+  2. Why the target gets no bard skill is logged once per target and reason (`Team.no_bard`; the routine timers
+     aren't).
+  3. When the target gets no skill this round, Discordance, else Peacemaking, goes at another monster on the pets in
+     our sight, under the target's rules, the heaviest first (`Team.bard_others`). The same applies while waiting for
+     the pets to engage the target. The target keeps priority.
+- *Rejected:* a looser peek cost while the pets fight the target (accept a peek tile up to a set extra cost, or
+  ignore stealther spots with a pet in reach of them): it risks an ambush during the 1-2 s of the step. Choosing the
+  vet tile (`to_pet`, cover) to also see the engaged target: more eyes on Logan and fewer tiles to choose from. Not
+  picked either: peeking between channels before the next vet, and an out-of-range peek mid-channel with the pet
+  above ~90 % (the vet range rule during a channel stays).
+- *Evidence:* test_sim `test_bard_kill_tile_spot`, `test_bard_skip_logged` and `test_bard_other_on_pets` fail before
+  the change. In the Maus 3 batch as live plays (196 runs a side), kills with no bard skill went 24.3 % -> 21.3 %,
+  bard uses/h 170 -> 185, deaths 5 -> 4, pet deaths 16 -> 16, gold/h -1.2 % (within the noise). Tidal Tomb level 2
+  was within the noise too (docs/NOTES.md).
+- *Accepted risk:* the Mausoleum's level 3 shade wolf, nightstalker and consort spots that only kill tiles gave are
+  gone until the run sees one idle. The consort's closed area keeps her file spot (5243, 633).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -8657,6 +8657,71 @@ Maus 3, task log lines 4052-4131, capture session_20261104_184749 (`replay.timed
     a plan more shifts a run's timing (it moved a seed of test_sim's crab test until the leave's step went after its own
     plan), so no walk had "no route" and none entered the room, the seeded door strip keeping the walks off it].
 
+## No bard skill from the vet pocket (live 2026-11-05 10:16:36-10:17:30, hunt-20261105-094620-aa2f)
+
+User: "Why is the runner letting the pets fight several mobs without trying to bard?" Logan Wolf, Maus 3, the live
+team (AlaFlambe tanking, Bussin). The capture is logs/session_20261105_084113.jsonl.
+
+- **10:16:45-10:16:53** a corpse purger 0x000EB358 that 'All Patrol' had woken fought the pets. Cover took Logan to
+  (5259, 658), out of its shot. The vet walk then took him to (5262, 657), 5 from AlaFlambe: a pocket whose only way out
+  is west. The purger was never the target. Discordance and Peacemaking went only at the target, and Provocation
+  needs sight, so it got no skill.
+- **10:16:49-54.6** the target was bound soul 0x000EB3B4 at (5267, 653). "Pets on guard; waiting for bound soul to
+  come on": the pets hadn't hurt it yet, and that branch never reached the bard skills. Bound soul 0x000EB5AF at
+  (5266, 651) was on the pets from 10:16:46.
+- **10:16:55-10:17:30** "The pets are fighting bound soul" 41 times, then 32 (0x000EB3B4 until its death at 10:17:14,
+  then 0x000EB5AF), with no bard skill and no log line. Discordance was due. Neither soul was on Logan (no swings,
+  hits 100), so `bard_step` peeked up to 4 steps. Neither soul is in sight from the pocket at 5 and 6 tiles; the only
+  tiles that see them, (5260, 655) and (5260, 656), are 3-4 steps out by the way west. The peek scored those tiles
+  10 x 0.92 ~ 9.2 for a **shade wolf spawn spot at (5259, 653)** (reach 7, 2 off, in its sight, no pet nearer),
+  against 0 at the pocket, and refused the step. During the four vet channels (49.0-54.1, 58.9-04.0, 09.0-14.2,
+  20.7-26.0 in the capture) those tiles were also out of --vet-range 5 of AlaFlambe (that rule stays: the channel's
+  finish needs a pet in reach).
+- **The spot.** `Team.seed_backspawn` built it from a 2026-10-25 22:40 shade wolf kill in the main store. A kill record
+  holds Logan's tile at the kill, not the wolf's spawn. The Mausoleum's observed first sightings have no shade wolf
+  spot on level 3.
+- **Replay** (investigation, capture into the real `Team.fight` at 10:16:56, 10:17:06, 10:17:17): with the spots the
+  store seeds, no step and no skill, as live. Without the (5259, 653) spot, the peek steps and discords. The simulator's
+  layout of it (test_sim `test_bard_kill_tile_spot` and `test_bard_skip_logged`): with the spot, "no tile within 4
+  steps sees it better than here (9.2 vs 0.0)"; without it, the step to (5260, 655) and "Discordance on bound soul:
+  success".
+- **The run's other gaps** (100 kills): 28 kills had no bard line between `target` and `killed`. About 10 died in 0-5
+  s. 5 were shooters kept out of sight by cover (shadowguards at 09:51:45, 10:10:17 and 10:25:38, the calamity at
+  09:58:00, the purger at 10:24:33). 2 were passed over or stepped away from (the corpsebride at 10:03:08, the
+  vampire countess at 10:22:09). The rest the log can't tell.
+- **Fixed** (the user's three picks; docs/PLAN.md "Bard gaps"):
+  1. *Spawn spots from first sightings only.* The kill-record source is gone. The Mausoleum's and Tidal Tomb's observed
+     first sightings (`tamer.SPAWNS_PATHS`) and the run's own first idle sightings remain. Tidal Tomb's spots had come
+     only from kills (kelpdwellers and voidfins on level 2), so its file's 15 first sightings (levels 2 and 3) are read
+     now. Ossuary and Cavernam had none either way. test_sim `test_bard_kill_tile_spot` (fails before: the spot seeded,
+     no step, no skill).
+  2. *The skip logged*, once per target and reason (`Team.no_bard`): "no bard at bound soul 0x000EB3B4: no tile within
+     4 steps sees it better than here (9.2 vs 0.0)", "... the tiles within 4 steps that see it are out of --vet-range 5
+     of a pet", and the others in docs/HUNT_LOOP.md. The skill timers and the target's own effects are routine and
+     not logged. test_sim `test_bard_skip_logged` (fails before: no line).
+  3. *The others on the pets* (`Team.bard_others`): when the target gets no skill this round, Discordance (else
+     Peacemaking) goes at another monster on the pets that we see, the heaviest first. The same happens while the
+     pets haven't engaged the target yet. Logged as "Discordance at bound soul 0x000EB5AF: on the pets, not the target
+     (bound soul 0x000EB3B4)". test_sim `test_bard_other_on_pets` (fails before: no skill). With the step open, the
+     target keeps priority.
+- **Simulator, Maus 3 as live plays** (196 runs a side, seed 17, careers 14, `--others --eerie --prior <a copy of the
+  main store taken 2026-11-05 11:05> --team phoenix_incubus -- --vet-range 5 --crawl-learn-s 180`; f68c149 against
+  ad6d098, the same simulator; "no bard skill" is the world's count of our kills with no bard skill of ours at them,
+  any answer):
+
+  | | gold/h | banked/h | kills/h | deaths (runs) | pet deaths | bard uses/h | Discordance/h | Peacemaking/h | kills with no bard skill | at another on the pets | peeks | damage on Logan/h |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | before | 137,399 | 137,325 | 124.9 | 5 | 16 | 170.4 | 109.6 | 42.4 | 3,072 of 12,643 (24.3 %) | 0 | 3,759 | 1,073 |
+  | after | 135,739 | 135,184 | 124.5 | 4 | 16 | 185.3 | 118.3 | 49.5 | 2,697 of 12,670 (21.3 %) | 1,301 | 4,252 | 1,115 |
+
+  Paired by seed, gold/h -1,664 +- 1,517 a run (1 SE) and damage on Logan/h +38 +- 61: within the noise. The "--prior"
+  copy only brings rows older than run.py's EPOCH (2026-10-21), so the before side's kill spots are the earlier
+  kills' (the 2026-10-25 one isn't among them). **Tidal Tomb level 2** (96 runs a side, seed 1, `--scenario
+  tidal_tomb --level 2 --others --prior ... --team phoenix_incubus`; before, the simulator had no Tidal Tomb spot
+  at all: its stored kills are all after EPOCH): deaths 20 -> 21, pet deaths 149 -> 133, banked/h 153,039 -> 138,951
+  (paired -9,469 +- 12,289, noise: the deaths decide it), bard uses/h 262 -> 272, kills with no bard skill 13.9 % ->
+  12.2 %, 736 skills at another on the pets.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

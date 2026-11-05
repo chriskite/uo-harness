@@ -137,7 +137,9 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
   sets the runs per hour on the level beside the live trip's; `--json` prints every run's summary (with
   `death_causes`: who did the damage in the 15 s before a death; `pet_deaths`: each pet death's readout, who hurt it
   and what healed it in its last 15 s, where it and Logan stood, his distance at its hits, `vet_reach`, who fought it,
-  the other pets, the runner's intents meanwhile; `junctures`, `kills_by`, `bard`, ...).
+  the other pets, the runner's intents meanwhile; `junctures`, `kills_by`, `bard`, ...; `kills_unbarded`: our kills
+  with no bard skill of ours at them, any answer, a provoked pair both (`World` `Mob.barded`, since 2026-11-05), and
+  `all:`'s `kills_unbarded_share`).
 - Seeds make runs reproducible (the world's randomness and the runner's `--seed`).
 - `--others`: other (blue) players on the fight level (the scenario's `others`, "Other players" below). Off by
   default, so batches stay comparable with the earlier ones; `all:` then adds an `others` block (in-view numbers
