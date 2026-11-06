@@ -23,13 +23,13 @@ tiles from the pets, who stood at (5507, 669) the whole time; 'All Kill' from 20
 (5518, 649) 11.2 s on.
 SEEDS: "1-24" or "1,5,9" (default 1). A row per seed and a summary: deaths, the seconds to the death, Logan's lowest
 hits, his farthest from the nearest pet, the covers and how far their tiles were from the pets, when the first cover
-walk arrived (`cover1_s`; live 10.3 s in), 'All Kill' with no cursor, through the teleporter (on Maus 3) or not, the
-damage on him by source.
+walk arrived (`cover1_s`; live 10.3 s in), the covers that stayed by the pets (`stays`: "staying by them"), through the
+teleporter (on Maus 3) or not, the damage on him by source.
 --alt tries other choices by monkeypatching the runner here (the repo's runner is unchanged); several with commas:
   nocover   no cover walk on the way in (Team.cover off inside walk_in_fight): Logan stands with the pets
-  near      cover only to tiles within --vet-range - 1 of every live pet (the spacing's rule; none: no cover walk)
-  near5     ... within --vet-range of every live pet
   potion    a heal potion below --heal-at between a cover walk's steps (its Mover guard), as drink_on_the_run
+(The cover within --vet-range - 1 of the pets, once `--alt near`, is the runner's own since 2026-11-06:
+tamer.COVER_NEAR_PETS; `--set tamer.COVER_NEAR_PETS=False` for the cover before it.)
 --no-save: no world save. --harness DIR: run another checkout's harness (a before/after pair on the same script).
 """
 import ast
@@ -190,22 +190,6 @@ def patch(loop):
     if "nocover" in ALTS:
         orig = team.cover
         team.cover = lambda st: False if loop.walk_fighting else orig(st)
-    if ALTS & {"near", "near5"}:
-        reach = loop.args.vet_range - (1 if "near" in ALTS else 0)
-        orig_cover, orig_tiles = team.cover, team.tiles_within
-
-        def cover(st):
-            pets = [(p["x"], p["y"]) for p in team.pets(st) if not p["dead"] and p.get("x") is not None]
-
-            def tiles_within(v, steps, *a, **kw):
-                return {t: k for t, k in orig_tiles(v, steps, *a, **kw).items()
-                        if all(cheb(t, p) <= reach for p in pets)}
-            team.tiles_within = tiles_within
-            try:
-                return orig_cover(st)
-            finally:
-                team.tiles_within = orig_tiles
-        team.cover = cover
     if "potion" in ALTS:
         orig_cover2, orig_drink = team.cover, loop.drink_on_the_run
         in_cover = [False]
@@ -346,7 +330,7 @@ def one(seed):
         by[src] = by.get(src, 0) + n
     res = {"seed": seed, "dead": w.metrics["deaths"], "dead_s": died[0], "low": round(low[0]), "far": far[0],
            "covers": len(out.covers), "cover_far": max((d for _, d in out.covers if d is not None), default=0),
-           "cover1_s": out.arrived, "no_cursor": sum("'All Kill': no target cursor" in ln for ln in logl),
+           "cover1_s": out.arrived, "stays": sum("staying by them" in ln for ln in logl),
            "taken": sum(h[2] for h in hits), "by": by, "through": cheb(pl.pos, (*ARRIVAL, 0)) <= 5 and not pl.ghost,
            "why": why, "s": round(clock.elapsed), "log": logl, "hits": hits}
     if tracer is not None:
@@ -379,6 +363,6 @@ if __name__ == "__main__":
               f"hits median {sorted(r['low'] for r in rows)[n // 2]}, under 20 {sum(r['low'] < 20 for r in rows)}, "
               f"farthest from the pets median {sorted(r['far'] for r in rows)[n // 2]} (max {max(r['far'] for r in rows)})"
               f", covers {sum(r['covers'] for r in rows)} (a tile 9+ off the pets in {sum(r['cover_far'] >= 9 for r in rows)}"
-              f" runs), the first arrived median {c1[len(c1) // 2] if c1 else '-'} s in, 'All Kill' with no cursor "
-              f"{sum(r['no_cursor'] for r in rows)}, damage on Logan {sum(r['taken'] for r in rows)} "
+              f" runs), the first arrived median {c1[len(c1) // 2] if c1 else '-'} s in, stays by the pets "
+              f"{sum(r['stays'] for r in rows)}, damage on Logan {sum(r['taken'] for r in rows)} "
               f"{dict(sorted(tot.items(), key=lambda kv: -kv[1]))}")

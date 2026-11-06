@@ -3355,6 +3355,83 @@ def test_cover_not_onto_monster():
           f"trail {trail} {said}")
 
 
+def test_cover_by_pets():
+    print("== the live 23:37:10 tiles: two calamities shooting us, the pets a tile behind: no cover walk beyond "
+          "--vet-range - 1 of them ==")
+    # live 2026-11-05 23:37:10 (hunt-20261105-223546-b3bd): "cover: the calamity shoots us here; to (5506, 663), 5 steps"
+    # from (5507, 668), 6 off the pets guarding at (5507, 669); two more covers took Logan 12 and 20 off, dead there
+    # (docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)"; sim/fight2337.py). Before the rule the same walk here
+    from agent_link import cheb
+    spawns = [{"key": "calamity", "at": [5497, 675, -10]}, {"key": "calamity", "at": [5511, 667, -8]}]
+    w = world_with(spawns, seed=7, start=(5507, 668))
+    cals = [m for m in w.mobs.values() if m.kind == "monster"]
+    loop, clock, store, patched = hurt_loop(w, 83, pets_at=((5507, 669), (5507, 670)))   # Bussin and AlaFlambe live
+    for m in cals:
+        m.hits = m.hits_max = 10 ** 6
+        m.spec = {**m.spec, "step_s": 999.0}
+        m.next_step = 1e9                      # they stood there live
+        m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
+        w._warm(m, True)
+    for p in w.pets():
+        p.mode, p.next_step = "stay", 1e9
+    trail, world_tick = [], clock.on_advance
+
+    def watch(now):
+        world_tick(now)
+        if not trail or trail[-1] != w.player.pos[:2]:
+            trail.append(tuple(w.player.pos[:2]))
+    clock.on_advance = watch
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            loop.team.cover(loop.state())
+            clock.advance(0.5)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [ln for ln in out.getvalue().splitlines() if "cover:" in ln]
+    far = max(max(cheb(t, p.pos) for p in w.pets()) for t in trail)
+    check("in the shot, no tile walked more than 4 off a pet, and the stay said (before: 'to (5506, 663)', 6 off)",
+          said and far <= 4 and ("staying by them" in said[0] or "steps, out of its shot" in said[0]),
+          f"farthest {far} trail {trail} {said}")
+
+
+def test_cover_disease_not_held():
+    print("== the 23:37:10 tiles with corpse purgers for the calamities: the cover walks out of their shot however far "
+          "from the pets ==")
+    # user 2026-11-06: "Everything but purger/blightmare" (docs/NOTES.md "The cover by the pets, tried for the whole
+    # hunt": held by the pets in a purger's or blightmare's shot, Maus 3 runs dead with one in the last 15 s 2 -> 12).
+    # Before the exemption: no walk beyond 4 of the pets ("staying by them", or a tile within 4)
+    from agent_link import cheb
+    spawns = [{"key": "corpse purger", "at": [5497, 675, -10]}, {"key": "corpse purger", "at": [5511, 667, -8]}]
+    w = world_with(spawns, seed=7, start=(5507, 668))
+    purgers = [m for m in w.mobs.values() if m.kind == "monster"]
+    loop, clock, store, patched = hurt_loop(w, 83, pets_at=((5507, 669), (5507, 670)))
+    for m in purgers:
+        m.hits = m.hits_max = 10 ** 6
+        m.spec = {**m.spec, "step_s": 999.0}
+        m.next_step = 1e9
+        m.target, m.threat = w.player.serial, {w.player.serial: 1e9}
+        w._warm(m, True)
+    for p in w.pets():
+        p.mode, p.next_step = "stay", 1e9
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(0.5)
+            moved = loop.team.cover(loop.state())
+            clock.advance(0.5)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [ln for ln in out.getvalue().splitlines() if "cover:" in ln]
+    far = max(cheb(w.player.pos, p.pos) for p in w.pets())
+    check("a cover walk past 4 of the pets, the exemption said",
+          moved and said and "(a disease shooter: not held by the pets)" in said[0] and far > 4,
+          f"moved {moved} at {w.player.pos} ({far} off a pet) {said}")
+
+
 def test_to_pet_not_into_shot():
     print("== a pet fighting an awake corpse purger, hurt beyond vet range: no walk into its shot to vet it ==")
     # live 2026-10-22 19:39:36-53 (hunt-20261022-191304-536b): GraveRobber on a patrolled purger at (5228, 737); "to a
@@ -8491,7 +8568,7 @@ def main():
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_cover_route_clear, test_cover_not_onto_monster,
-              test_to_pet_not_into_shot,
+              test_cover_by_pets, test_cover_disease_not_held, test_to_pet_not_into_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
