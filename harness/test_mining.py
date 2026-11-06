@@ -304,8 +304,8 @@ def test_field_stands():
         ore_nodes.area_stands, ore_nodes.exclusions, ore_nodes.Tiles, loop_mining.log = saved
     check("the stands in the field's cells, not the one between them", got == [(10, 10), (150, 10)], got)
     check("the near stand first", first is not None and (first["x"], first["y"]) == (10, 10), first)
-    check("the far stand, beyond the cut flood, once the near one is dug out",
-          box[2] < 150 and far is not None and (far["x"], far["y"]) == (150, 10), (box, far))
+    check("the far stand, beyond the cut flood, once the near one is dug out (scored by the whole flood then)",
+          box[2] >= 150 and far is not None and (far["x"], far["y"]) == (150, 10), (box, far))
 
 
 def test_run_past():
@@ -544,6 +544,32 @@ def test_field_forge_route_cap():
             pass
     check("house forge: 10 + 2 x its 181 walking steps = 372 (no map: x its 112 tiles = 234); none: no cap",
           caps == [372, 234, None], caps)
+
+
+def test_far_stand_scored_by_steps():
+    print("a pick beyond the 80-tile flood is scored again by the whole flood's walking steps")
+    # live 2026-11-06 14:47:27 (mining-20261106-143925-85da, forge_2551_665): a stand 81 tiles but ~280 steps off
+    # (scored at 81) beat the near ones; 1 min of 411-554-step routes went round in circles
+    near, far_s = {"x": 2520, "y": 660, "blocks": [1]}, {"x": 2592, "y": 646, "blocks": [1, 2, 3, 4, 5, 6]}
+    box80, whole_box = (2431, 578, 2591, 738), (2397, 509, 2713, 825)
+    floods = []
+    loop = object.__new__(MineLoop)
+    loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2511, 658, 0))
+    loop.mover = SimpleNamespace(danger={})
+    loop.human = SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0))
+    loop.no_route_stands = set()
+    loop.avail = lambda s: s["blocks"]
+    loop.out_of_reach = lambda x, y: True
+
+    def walk_steps(st, whole=False):
+        floods.append(whole)
+        loop._steps = (None, whole_box if whole else box80,
+                       {(2520, 660): 12, (2592, 646): 280} if whole else {(2520, 660): 12})
+        return loop._steps[2]
+    loop.walk_steps = walk_steps
+    got = loop.next_stand([near, far_s])
+    check("the near stand (1 block, 12 steps) over the far one (6 blocks, 81 tiles but 280 steps); one whole flood",
+          got is near and floods == [False, True], (got, floods))
 
 
 def test_last_pickaxe_worn_out():
@@ -848,7 +874,7 @@ def main():
               test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
               test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
-              test_last_pickaxe_worn_out):
+              test_last_pickaxe_worn_out, test_far_stand_scored_by_steps):
         t()
     print()
     if FAILURES:

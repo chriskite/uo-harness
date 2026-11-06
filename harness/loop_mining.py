@@ -808,30 +808,38 @@ class MineLoop(loop_lumber.LumberLoop):
         every creature in view (the Mover's ("seen", serial) zones); None when none is (_blocked_only: some had
         ore but were in reach). On the map a stand inside the flood's box (walk_steps) that the walk from here
         doesn't reach is skipped (live 2026-10-19, forge_2599_620: the nearest stand by Chebyshev, 51 tiles off
-        the landing, was 137 steps round the cave); one beyond it (an ore field's far side) counts at its
-        Chebyshev distance: candidate_stands kept only stands the walk reaches. Live 2026-10-20 11:47,
-        forge_1279_1149: a zombie stood among the next stands in a cave; each walk there cost a 3 s search that
-        found no route through its zone."""
+        the landing, was 137 steps round the cave). When the pick lies beyond the 80-tile flood (an ore field's far
+        side, scored at its Chebyshev distance), the whole area's flood from here (walk_steps whole, ~2 s, cached per
+        tile) scores them all again by walking steps (live 2026-11-06 14:47:27, mining-20261106-143925-85da at
+        forge_2551_665: a stand 81 tiles but ~280 steps off won over near ones; 1 min of 411-554-step routes went
+        round in circles). Live 2026-10-20 11:47, forge_1279_1149: a zombie stood among the next stands in a cave;
+        each walk there cost a 3 s search that found no route through its zone."""
         st = self.link.state()
         here = tuple(self.link.pos(st)[:2])
-        far = self.walk_steps(st)
-        box = self._steps[1] if far is not None else None
         seen = [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
-        best, any_avail = None, False
-        for s in stands:
-            xy = (s["x"], s["y"])
-            if xy in self.no_route_stands or (far is not None and xy not in far and _holds(box, (*xy, *xy))):
-                continue
-            free = self.avail(s)
-            if not free:
-                continue
-            any_avail = True
-            if not self.out_of_reach(s["x"], s["y"]) or any(cheb(xy, c) <= r for c, r in seen):
-                continue
-            dist = far[xy] if far is not None and xy in far else cheb(here, xy)
-            score = len(free) / (1 + dist / STAND_DIST_SCALE) * self.human.rng.uniform(1.0, 1.15)
-            if best is None or score > best[0]:
-                best = (score, s)
+
+        def pick(far, box):
+            best, any_avail = None, False
+            for s in stands:
+                xy = (s["x"], s["y"])
+                if xy in self.no_route_stands or (far is not None and xy not in far and _holds(box, (*xy, *xy))):
+                    continue
+                free = self.avail(s)
+                if not free:
+                    continue
+                any_avail = True
+                if not self.out_of_reach(s["x"], s["y"]) or any(cheb(xy, c) <= r for c, r in seen):
+                    continue
+                dist = far[xy] if far is not None and xy in far else cheb(here, xy)
+                score = len(free) / (1 + dist / STAND_DIST_SCALE) * self.human.rng.uniform(1.0, 1.15)
+                if best is None or score > best[0]:
+                    best = (score, s)
+            return best, any_avail
+        far = self.walk_steps(st)
+        best, any_avail = pick(far, self._steps[1] if far is not None else None)
+        if best is not None and far is not None and (best[1]["x"], best[1]["y"]) not in far:
+            far = self.walk_steps(st, whole=True)
+            best, any_avail = pick(far, self._steps[1])
         self._blocked_only = best is None and any_avail
         return None if best is None else best[1]
 

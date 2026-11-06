@@ -2238,6 +2238,10 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   2026-11-05 13:31:24-30 (mining-20261105-133044-ff72) the ruin's stands 81-84 tiles off but 204-273 walking steps away
   were capped at 172-178, 30 failed in 6 s after an antlion escape and the leg ended at 0 ore. test_mining
   `test_far_stand_route_cap`.
+  `next_stand` likewise: a pick beyond the 80-tile flood (scored at its Chebyshev distance) has the whole flood
+  computed and every stand scored again by walking steps (live 2026-11-06 14:47:27, mining-20261106-143925-85da: a
+  stand 81 tiles but ~280 steps off beat the near ones, 1 min of 411-554-step routes went round in circles).
+  test_mining `test_far_stand_scored_by_steps`.
 - *With a house forge, the field forge's walk is capped like a stand's* (2026-11-04: three weight-smelt walks went round
   in circles among creatures, 15:00 forge_1173_2397, 17:56 forge_1383_1146 (103 steps), 23:30:58 forge_2551_665 (an
   831-step route from a field stand 112 tiles, 181 walking steps, off); each leg then ended and the ore went home
