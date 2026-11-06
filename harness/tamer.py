@@ -416,8 +416,9 @@ TO_PET_CASTER_AT = 0.8        # to_pet: a pet at this share of hits or more isn'
 COVER_STEPS = 8               # cover: out of an awake purger's or blightmare's shot this far at most
 COVER_S = 2.0                 # ...at most this often
 COVER_NEAR_PETS = True        # ...and only to tiles within --vet-range - 1 of every live pet in view (no farther than
-#                               now from one already beyond); none out of the shot: staying by them (user 2026-11-06,
-#                               docs/PLAN.md "The cover stays by the pets")
+#                               now from one already beyond); none out of the shot: staying by them; not from a corpse
+#                               purger's or blightmare's shot (aggro.SHOOTERS; user 2026-11-06: "Everything but
+#                               purger/blightmare")
 BACK_OFF_S = 2.0              # back_off at most this often
 KEEP_OFF_S = 60.0             # ...and the purger it backed off from isn't sought this long (loop_hunt.SKIP_S)
 BACK_OFF_REPEAT = 3           # ...and in a fought leg (HuntLoop.walk_in_fought: it must arrive) from one this many times
@@ -1388,7 +1389,11 @@ class Team:
         (hunt-20261105-223546-b3bd) three covers took Logan 1 -> 6 -> 12 -> 20 tiles from the pets guarding at
         (5507, 669); 'All Kill' from there got no cursor, dead (docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05
         23:37)"). No such tile out of the shot: no walk, "staying by them" (logged once for those shooters), and the rest
-        of care goes on (the vet supplies, spacing, the reposition's fewer-casters tile within --vet-range)."""
+        of care goes on (the vet supplies, spacing, the reposition's fewer-casters tile within --vet-range). Not when a
+        corpse purger or blightmare is among those shooting us here (aggro.SHOOTERS, the disease shooters the cover was
+        built for; user 2026-11-06: "Everything but purger/blightmare"): any tile out of the shot, however far from the
+        pets, "(a disease shooter: not held by the pets)". Held by the pets in their shot, Maus 3 batches lost 2 -> 12
+        runs with one of them in the last 15 s (docs/NOTES.md "The cover by the pets, tried for the whole hunt")."""
         h, now = self.h, time.monotonic()
         if now - self.cover_t < COVER_S:
             return False
@@ -1410,8 +1415,11 @@ class Team:
         held = {(m["x"], m["y"]) for key, m in st["world"]["mobiles"].items()
                 if m.get("x") is not None and not m.get("dead") and serial_of(key) not in self.roster
                 and serial_of(key) != me}
+        kinds = ", ".join(sorted({m["kind"] for m in shy if v.sees(m, v.pos, CASTER_R if m["caster"] else RANGED_R)}))
+        disease = COVER_NEAR_PETS and any(m["kind"] in aggro.SHOOTERS and v.sees(m, v.pos, CASTER_R if m["caster"]
+                                                                                  else RANGED_R) for m in shy)
         pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"] and p.get("x") is not None] \
-            if COVER_NEAR_PETS else []
+            if COVER_NEAR_PETS and not disease else []
         reach = max(self.a.vet_range - 1, 1)
         bound = [(p, max(reach, cheb(v.pos, p))) for p in pets]
         best, best_c, beyond = None, None, False
@@ -1425,7 +1433,6 @@ class Team:
             c = (round(v.stand_score(t)), k)
             if best_c is None or c < best_c:
                 best, best_c = t, c
-        kinds = ", ".join(sorted({m["kind"] for m in shy if v.sees(m, v.pos, CASTER_R if m["caster"] else RANGED_R)}))
         if best is None:
             stayed = frozenset(m["serial"] for m in shy)
             if beyond and stayed != self.cover_stayed:
@@ -1438,7 +1445,8 @@ class Team:
         label = "cover"
         h.doing("reposition", f"Out of the {kinds}'s shot to {best[0]},{best[1]}", best[:2])
         self.count("covers")
-        log(f"cover: the {kinds} shoots us here; to {best[:2]}, {best_c[1]} steps, out of its shot")
+        log(f"cover: the {kinds} shoots us here; to {best[:2]}, {best_c[1]} steps, out of its shot"
+            + (" (a disease shooter: not held by the pets)" if disease else ""))
         try:
             with self.around_areas(st):
                 h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * COVER_STEPS,
