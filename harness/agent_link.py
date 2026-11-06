@@ -184,13 +184,19 @@ def world_save(ev: dict) -> str | None:
 class Deadline:
     """A wait's deadline that a world save doesn't use up: `see` the new events, then `over()`. While a save is
     under way (its start line seen, not its end; `save_t0`: the monotonic time a save began before the wait, e.g.
-    Link.save_t0) the wait goes on, for at most WORLD_SAVE_MAX_S; its end adds the save's length to the deadline.
+    Link.save_t0) the wait goes on, for at most WORLD_SAVE_MAX_S; its end adds the part of the save inside the wait
+    (from the later of its start and the wait's) to the deadline.
     Live 2026-10-20 11:58:04-07 (mining-20261020-114825-eee6): a rune library tome's double-clicks went out 0.6 s
     into a save, its gump came 0.1 s after "World save complete", and the 2.5 s wait had already given up ("the
-    book's gump didn't open"): the run aborted."""
+    book's gump didn't open"): the run aborted.
+    Live 2026-11-05 23:37:12.39-16.63 (hunt-20261105-223546-b3bd, a 4.2 s save): a cover walk's turn went out 0.06 s
+    into it, the proxy gave it up at 15.48 and Mover.step's 0.4 s wait for a teleporter's move began then; the save's
+    end added all 4.24 s to it, not the 1.15 s it had waited, and the next step went out at 20.33, 3.1 s late, with
+    Logan in two calamities' shot (-27 at 20.22; docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)")."""
 
     def __init__(self, timeout: float, save_t0: float | None = None):
-        self.end = time.monotonic() + timeout
+        self.t0 = time.monotonic()
+        self.end = self.t0 + timeout
         self.save_t0 = save_t0
 
     def see(self, evs):
@@ -199,7 +205,7 @@ class Deadline:
             if kind == "start" and self.save_t0 is None:
                 self.save_t0 = time.monotonic()
             elif kind == "done" and self.save_t0 is not None:
-                self.end += time.monotonic() - self.save_t0
+                self.end += time.monotonic() - max(self.save_t0, self.t0)
                 self.save_t0 = None
 
     @property

@@ -3721,6 +3721,21 @@ several mobs without trying to bard?"
 - *Evidence:* test_sim `test_essence` (20 refused, 116 in; 100 at home: no leave at 15 kills, the leave at 16; the
   revert line; the rate from readings) and `test_essence_sim` (the simulator's drain, the leave at 4 kills from 40).
 
+## A wait begun inside a world save counts only the rest of it (2026-11-06, Logan dead on the Maus 2 walk in)
+
+Live 2026-11-05 23:37:12.39-16.63 a 4.2 s save held a cover walk's turn; `Mover.step`'s 0.4 s wait after the proxy gave
+the turn up (15.48) got the whole save added at its end line, and the next step went out at 20.33, 3.1 s late, in two
+calamities' shot (-27); Logan died 12 s later, 20 tiles from the pets (docs/NOTES.md "Dead on Maus 2's walk in
+(2026-11-05 23:37)").
+
+- *Decided:* `agent_link.Deadline` adds at a save's end only its part inside the wait (from the later of its start and
+  the wait's). Every `Deadline` user gets it (Link.wait, escape's book gump, the drop-off, the repair bench).
+- *Evidence:* `sim/fight2337.py` (the live layout and save, 96 seeds): deaths 27 -> 0, lowest hits median 3 -> 28; the
+  Maus 3 batch (98 runs) identical run for run (no saves in the simulator); test_mover `test_turn_in_world_save`.
+- *Not done:* the cover kept within --vet-range of the pets on the walk in, or no cover there: 17-32 % less damage on
+  Logan in the replay, no death to cut once the walk isn't stalled (the simulated late phase kills none of 96, live it
+  killed); it wants its own Maus 3 batch before it changes the hunt's cover.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -797,6 +797,66 @@ def test_held_at_door():
           f"at {link.here}, walled {mv.walled}, error {err}")
 
 
+class SavingLink(FakeLink):
+    """FakeLink behind the proxy through a world save: its start line `save_at` s in, its end line `save_s` later
+    (Link.save_t0 set and cleared from them, as the state port's reader does). A walk sent in it gets no answer: the
+    proxy gives it up after `reject_s` (in flight no more, tile and facing unchanged) and the server answers it after
+    the end line. Link.wait's own loop (the Deadline) runs the waits."""
+    wait = agent_link.Link.wait
+
+    def __init__(self, *a, save_at, save_s, reject_s=3.0, **kw):
+        super().__init__(*a, **kw)
+        self.t0, self.save_at, self.save_end, self.reject_s = time.monotonic(), save_at, save_at + save_s, reject_s
+        self.save_t0, self.held, self.walks, self.phase = None, [], [], 0
+
+    def _now(self):
+        return time.monotonic() - self.t0
+
+    def _tick(self):
+        if self.phase == 0 and self._now() >= self.save_at:
+            self.phase, self.save_t0 = 1, time.monotonic()
+            self.events.append({"ev": "speech_heard", "serial": 0xFFFFFFFF, "text": "The world is saving, please wait."})
+        if self.phase == 1 and self._now() >= self.save_end:
+            self.phase, self.save_t0 = 2, None
+            self.events.append({"ev": "speech_heard", "serial": 0xFFFFFFFF,
+                                "text": "World save complete. The entire process took 4.2 seconds."})
+            for pkt, _ in self.held:
+                super().send(pkt)
+            self.held = []
+
+    def send(self, pkt):
+        self._tick()
+        if pkt[0] == 0x02:
+            self.walks.append(round(self._now(), 2))
+            if self.phase == 1:
+                self.held.append((pkt, self._now()))
+                return "OK"
+        return super().send(pkt)
+
+    def state(self):
+        self._tick()
+        st = super().state()
+        if self.held and self._now() - self.held[-1][1] < self.reject_s:
+            st["movement"]["inflight"] = 1
+        return st
+
+    movement = state
+
+
+def test_turn_in_world_save():
+    print("== a turn sent in a world save: the step after it goes out once the save is over, not a save later ==")
+    # live 2026-11-05 23:37:12.39-16.63 (hunt-20261105-223546-b3bd): the cover walk's turn NW went out 0.06 s into a
+    # 4.2 s save, the proxy gave it up at 15.48, the server turned Logan at 16.66; the 0.4 s wait for a teleporter's
+    # move from 15.48 had the whole save added at its end (Deadline), and the step went out at 20.33 in two calamities'
+    # shot
+    link = SavingLink((1, 1), facing=0, save_at=0.0, save_s=4.24)
+    mv = map_mover(link, OPEN)
+    msg = walk_msg(mv, (0, 0))
+    check("arrived", msg == "arrived" and tuple(link.here) == (0, 0), f"{msg} at {link.here}")
+    check("the turn in the save, the step within 1 s of its end (live 3.7 s)",
+          len(link.walks) == 2 and link.walks[0] < 0.5 and link.walks[1] - 4.24 < 1.0, str(link.walks))
+
+
 class HeavyLink(FakeLink):
     """Over the weight limit every step is denied with the server's line (live 2026-10-28 20:09-20:11); the state's
     weight may lag it (`shown`)."""
@@ -927,6 +987,7 @@ def main():
     test_door()
     test_locked_door()
     test_held_at_door()
+    test_turn_in_world_save()
     test_overweight_unload()
     test_fields()
     test_shove_through()

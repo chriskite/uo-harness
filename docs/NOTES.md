@@ -8792,6 +8792,69 @@ user paused the gate at 19:42. The drain follows damage dealt, the pets' include
 ~11030), and per kill it held at 4.5-5.3. Since then the runner refuses under 15 kills' worth and leaves under 5
 (docs/HUNT_LOOP.md "The essence for a trip", PLAN.md).
 
+## Dead on Maus 2's walk in (2026-11-05 23:37)
+
+Live 2026-11-05 23:37:32.29 (the task log's 23:37:34), Maus 2, hunt-20261105-223546-b3bd (task log lines 3866-3906),
+visit 5's walk in on 0e69faa, nothing carried; the pets Bussin 0x000EA04F and AlaFlambe 0x0026EF56 lived (AlaFlambe 82
+%). Capture session_20261105_084113 (`replay.timed_packets`, `world.parsers`: 0x77/0x20 tiles and war flags,
+0xA1/0xA3, 0xC0, 0x6E, the overhead numbers; the store's events with the proxy's `walk_rejected`). No 0x2F on him: no
+melee.
+
+- **The walk in.** 23:37:03.17 the third teleporter put Logan at (5507, 693, -5); "route 58 steps" north up x 5507,
+  the door at (5507, 690) opened at 05.38, the pets on 'All Follow Me' a tile behind him. A calamity 0x0015522E (93 %)
+  at (5497, 675) shot at him (bolt 09.24, -17 at 10.08: 83); 10.12 "Your feet stick to a strange substance!" (an
+  Entangle, to 11.27); 10.1 "attacked on the way in; the pets guard", 'All Guard Me' 10.83. A calamity 0x001546EB
+  (70 %) at (5511, 667), 4 off: -23 at 11.09 (60).
+- **The pets** stood on (5507, 669) from 10.96 to the end, in war mode, fighting: Bussin's fireballs at 0x001546EB
+  (11.61, 17.38; it died 21.45), then at 0x0015522E (90 % at 22.80, 52 % at 24.83), a third calamity 0x00153AF2 at
+  (5500, 676) from 16.97 on AlaFlambe; AlaFlambe took their bolts, 100 -> 82 %. Logan's distance from them: 1 at the
+  attack, 6 on the first cover's tile, 12 on the second's, 20 on the third's.
+- **The first cover, "to (5506, 663), 5 steps", took 10.3 s**: the Entangle (10.12-11.27), four steps 11.61-12.33 to
+  (5507, 664), "The world is saving, please wait." 12.39, the fifth walk (a turn NW) 12.45, the proxy's "agent walk seq
+  31 got no confirm" 15.48, "World save complete. The entire process took 4.2 seconds." 16.63, the server's turn 16.66,
+  and the step NW only at 20.33. No door, no denial, no paralysis. After the proxy gave the turn up, `Mover.step`'s 0.4 s
+  wait for a teleporter's move began (15.48); `agent_link.Deadline` added the whole save at its end line (4.24 s from
+  its start, not the 1.15 s of it inside the wait), so the wait ran to ~20.1. Meanwhile -27 at 20.22 (34; no 0xC0 at
+  him: [INFERENCE] the insane reanimator 0x00154782 on its ledge (5502, 658, 5), 5 off, in war mode from 16.96). A cover
+  walk doesn't drink: the potion came on arrival, 21.11 (+38: 72).
+- **Two more covers, each farther off.** 21.2 "the insane reanimator shoots us here" to (5511, 657) (its fireball -20 at
+  23.57: 53); a calamity 0x00154807 idle at (5509, 650), 2 off that tile, woke on him at 24.48 (-17 at 25.62: 36); "the
+  calamity shoots us here" to (5518, 649) at 27.13; -28 at 26.21 (8; 0x374A on him and the reanimator 25.71
+  [INFERENCE: its spell]). Vet supplies on himself 24.30-29.37 (+26: 35), again from 30.33. 27.86 'All Kill' at
+  0x00154807: "no target cursor" (the pets 20 off, beyond a command's reach). 31.05 area peace, as the potion's clock
+  ran out ("You fail to pacify", 31.80); -21 at 32.04 (the calamity, beside him at (5517, 650)), -24 at 32.29 (with the
+  0x091D bone bursts round the abomination 0x001548B2 at (5517, 646), 3 off [INFERENCE]): dead at (5518, 649); the
+  potion's double-click at 32.42.
+- **Replay** `sim/fight2337.py` (the live team and tiles, 96 seeds a row; the world save as live through `SaveLink`;
+  `--late`: from 23:37:21.11 on the first cover's tile; "either": the same on both runners):
+
+  | layout, runner | deaths | lowest hits median | under 20 | first cover in (s) | farthest off the pets | damage |
+  |---|---|---|---|---|---|---|
+  | 23:37:10, 0e69faa | 27 | 3 | 77 | 9.8 (live 10.3) | 10 (max 12) | 9,665 |
+  | the same, the fix | 0 | 28 | 0 | 6.8 | 10 (15) | 10,212 |
+  | no save, either | 0 | 28 | 0 | 2.4 | 10 (12) | 10,346 |
+  | cover within --vet-range - 1 of the pets, either | 0 | 28 | 0 | 19.5 (26 runs) | 5 (11) | 8,444 |
+  | no cover on the walk in, the fix | 0 | 28 | 0 | | 5 (11) | 8,294 |
+  | a potion between cover steps, the fix | 0 | 44 | 0 | 6.8 | 10 (19) | 10,476 |
+  | `--late`, the fix | 0 | 31 | 2 | 1.7 | 10 (15) | 4,485 |
+  | `--late`, cover within --vet-range - 1 | 0 | 57 | 0 | | 6 (8) | 3,052 |
+  | `--late`, no cover | 0 | 57 | 0 | | 6 (8) | 3,094 |
+
+  The 27 deaths all fall in the stalled first walk (8.0-9.8 s in). The simulated calamities hit harder there than
+  live (30-32 against 17 and 23) and the late phase milder: it kills none of 96 on any runner, where live it took 72 to 0
+  in 11 s; so the far covers' share of this death isn't measured.
+- **Fix**: `agent_link.Deadline` adds at a save's end only the part of the save inside the wait (from the later of its
+  start and the wait's); a wait begun mid-save now runs its timeout from the save's end. test_mover
+  `test_turn_in_world_save` (a turn sent in a 4.24 s save; before: the step 3.46 s after its end, live 3.7 s). Maus 3
+  batch (`run.py --runs 98 --careers 14 --seed 17 --team phoenix_incubus --others --eerie --prior harness/data/harness.db
+  -- --vet-range 5 --crawl-learn-s 180`, 0e69faa / the fix): identical run for run (the simulator has no saves): 2
+  deaths, 3 pet-death runs, 132.4 kills and 134,634 gp banked an hour.
+- **Not changed**: the cover's tiles kept near the pets, or no cover on the walk in: 17-32 % less damage on him and the
+  lowest hits 31 -> 57 on the late layout, but no death to cut in the simulator once the walk isn't stalled; it would
+  want its own Maus 3 batch. Back through (5507, 696) to Maus 1: not replayed (28 steps back past the calamity at
+  (5497, 675), the pets guarding where they stood). An earlier 'All Kill': the pets were on the calamity on him from
+  10.96.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

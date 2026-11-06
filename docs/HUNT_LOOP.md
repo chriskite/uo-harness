@@ -1873,6 +1873,15 @@ Guard Me", 2026-10-21 09:49:20.84 the leave's "All Follow Me"), so `Team.say` wa
 refused).
 test_sim `test_countess_reguard`.
 
+**A world save doesn't use up a wait** (`agent_link.Deadline`, `Link.save_t0`; the wait begun mid-save since
+2026-11-06). The server answers nothing during a save ("The world is saving, please wait." ... "World save complete"),
+so a wait doesn't count the save's time; a wait begun while one was under way counts only the part of it inside the
+wait, not the save from its start line. Live 2026-11-05 23:37:12.39-16.63 (a 4.2 s save, docs/NOTES.md "Dead on Maus 2's
+walk in (2026-11-05 23:37)") a cover walk's turn went out 0.06 s into it, the proxy gave it up at 15.48, and the step's
+0.4 s wait for a teleporter's move from then got all 4.24 s added: the next step went out at 20.33, 3.1 s late, Logan
+standing in two calamities' shot (-27). `sim/fight2337.py` (the live layout and save, 96 seeds): deaths 27 -> 0, the
+first cover's arrival 9.8 -> 6.8 s (median). test_mover `test_turn_in_world_save`.
+
 **A failed walk doesn't end the run** (`agent_link.WalkFailed`, `HuntLoop.walk_failed`, since 2026-10-20). A
 walk the Mover gives up on (no route, too many blocked moves, too many replans, boxed in, cut by mobiles, over
 its move bound) leaves Logan where he stood. Inside the hunt the ticks carry on from there (fight, heal, vet):

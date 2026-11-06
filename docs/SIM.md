@@ -89,6 +89,7 @@ python harness/sim/fight1136.py [1136|1507] 1-24 [--log] [--harness DIR] [--set 
 python harness/sim/fight2321.py 1-48 [--stam 24] [--no-hit-stam] [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Maus 2's walk-in fight 2026-11-03 23:20:59: the cover onto an abomination's tile, 47 -> 8 (docs/NOTES.md "A cover onto an abomination")
 python harness/sim/fight2333.py 1-96 [--log] [--trace DIR] [--harness DIR]   # Maus 3's walk out 2026-11-03 23:32:37: an idle shadowguard by the way, ensnared twice, dead (docs/NOTES.md "Ensnared on the walk out")
 python harness/sim/fight2136.py 1-24 [--live-box] [--log] [--harness DIR]   # Maus 3's mini-boss room 2026-11-04 21:36:25: --go-home from (5242, 587) under a custodian stand-in, IDLE_S 120 s after an abort (docs/NOTES.md "Dead in Maus 3's mini-boss room after a double step back")
+python harness/sim/fight2337.py 1-96 [--late] [--alt nocover|near|near5|potion] [--no-save] [--log] [--harness DIR]   # Maus 2's walk in 2026-11-05 23:37: a cover walk stalled by a world save (SaveLink: the server frozen 4.24 s, the proxy's 3 s rejection), then covers 20 off the pets (docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -3807,3 +3808,14 @@ and (5243, 587) as observed, (5243, 612) [INFERENCE]. A refused recall in a dung
 guess). There is no custodian in the scenario: `sim/fight2136.py` adds a stand-in from the capture (on its dais at
 (5242, 575, 17) throughout, 35-45 on Logan every 10 s within 14; [INFERENCE] its hits and attack kind). Results in
 docs/NOTES.md.
+
+## A world save in a replay (2026-11-06)
+
+Live 2026-11-05 23:37:12.39-16.63 a 4.2 s save held a cover walk on Maus 2 and Logan died 20 s later (docs/NOTES.md
+"Dead on Maus 2's walk in (2026-11-05 23:37)"). The simulator has no saves (`SimLink.save_t0` stays None), so batches
+never meet one. `sim/fight2337.py`'s `SaveLink` gives a replay one, as the capture had it: the save lines on the wire
+(so `Link.save_t0` and every `Deadline` see them), the world frozen for its length (no tick, nothing sent; its clock
+runs that much behind ours after it), our packets held and answered in order at its end, and a walk sent in it left in
+flight until the proxy's 3 s rejection (`proxy.CONFIRM_TIMEOUT_S`), its confirm after the end. On the live layout the
+first cover walk arrived 9.8 s in (median, live 10.3 s) on the runner of the day and 6.8 s with `Deadline` counting a
+mid-save wait's part only.
