@@ -8855,6 +8855,37 @@ melee.
   (5497, 675), the pets guarding where they stood). An earlier 'All Kill': the pets were on the calamity on him from
   10.96.
 
+## The cover by the pets, tried for the whole hunt (2026-11-06; not on main)
+
+User 2026-11-06, after the 23:37 death above: "Test it for the whole hunt". Built on branch `cover-near-pets` (079d873,
+on 36be663): `Team.cover` takes only tiles within --vet-range - 1 (4) of every live pet in view, no farther than now
+from one already beyond that; with none out of the shot no walk, "cover: the calamity shoots us here; no tile out of
+its shot within 4 of the pets; staying by them" (once per set of shooters), and the rest of care goes on (vet,
+spacing, the reposition's tile). Only `care` calls the cover (the hunt tick, the walk-in stand, the fought legs); the
+escape, the flights and the plain walks out don't. test_sim `test_cover_by_pets` (the 23:37:10 tiles; before: "to
+(5506, 663), 5 steps", 7 off a pet).
+
+Batches as live plays, the same seeds before (36be663) / after (`run.py --careers 14 --others --prior
+harness/data/harness.db -- --vet-range 5 --crawl-learn-s 180`; Maus 3 `--team phoenix_incubus --eerie`, seeds 17 and
+213; Tidal Tomb `--scenario tidal_tomb --level 2`, seed 1, the default team). Lowest hits: a run's least at a potion or
+a vet use (the runner's log), 0 for a death.
+
+| batch | runs | deaths | pet deaths (runs) | banked / h | damage on Logan / h | lowest hits median | runs under 20 / 20-39 | covers / h | stays / h |
+|---|---|---|---|---|---|---|---|---|---|
+| Maus 3 seed 17 | 196 | 4 / 11 | 16 (13) / 4 (4) | 135,184 / 134,149 | 1,191 / 1,276 | 53 / 52 | 10, 27 / 15, 29 | 58.6 / 36.7 | 0 / 13.6 |
+| Maus 3 seed 213 | 196 | 9 / 8 | 10 (10) / 5 (5) | 133,203 / 135,318 | 1,213 / 1,314 | 53 / 51 | 14, 19 / 15, 34 | 57.0 / 37.9 | 0 / 13.8 |
+| Tidal Tomb level 2 | 96 | 13 / 8 | 10 (9) / 3 (3) | 165,511 / 163,055 | 1,856 / 1,814 | 43 / 39 | 18, 21 / 19, 30 | 21.8 / 7.6 | 0 / 7.7 |
+
+- **Maus 3 worse where the cover was built for.** Deaths 13 -> 19 of 392; with a corpse purger or blightmare among the
+  last 15 s' damage 2 -> 12 (seed 17: 7 of the 11, disease 12-138 in those 15 s); damage on Logan +7-8 % on both blocks,
+  runs under 40 hits 70 -> 93. Staying by the pets in a disease caster's shot is what the user's rule ("stay out of
+  their aggro range") avoided. The pets lived better: pet deaths 26 -> 9.
+- **Tidal Tomb level 2 better**: deaths 13 -> 8, pet deaths 10 -> 3, banked -1.5 %.
+- **The 23:37 replay** (`sim/fight2337.py`, 96 seeds): from 23:37:10 deaths 0 / 0, farthest off the pets 10 -> 5,
+  damage 10,212 -> 8,436; `--late` lowest hits median 31 -> 57, damage 4,485 -> 3,104.
+- **Not merged** (Main's rule: not if deaths get clearly worse on a batch); the branch waits for the user. An untried
+  middle way: the rule for every shooter but the disease casters (purger, blightmare).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
