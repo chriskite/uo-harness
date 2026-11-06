@@ -3740,16 +3740,18 @@ calamities' shot (-27); Logan died 12 s later, 20 tiles from the pets (docs/NOTE
   Logan in the replay, no death to cut once the walk isn't stalled (the simulated late phase kills none of 96, live it
   killed); it wants its own Maus 3 batch before it changes the hunt's cover.
 
-## The cover stays by the pets: tested for the whole hunt, held off main (2026-11-06, user: "Test it for the whole hunt")
+## The cover stays by the pets, except from a purger or blightmare (2026-11-06, user: "Test it for the whole hunt", then "Everything but purger/blightmare")
 
-- *Tried:* `Team.cover` only to tiles within --vet-range - 1 of every live pet (no farther than now from one already
-  beyond), else no walk and "staying by them"; branch `cover-near-pets` (079d873), test_sim `test_cover_by_pets`.
-- *Evidence* (docs/NOTES.md "The cover by the pets, tried for the whole hunt"): Maus 3, 2 x 196 runs, deaths 13 -> 19
-  (with a purger or blightmare in the last 15 s 2 -> 12), damage on Logan +7-8 %, pet deaths 26 -> 9, banked within
-  1.6 %; Tidal Tomb level 2 (96) deaths 13 -> 8, pet deaths 10 -> 3, banked -1.5 %; the 23:37 replay 0 -> 0 deaths,
-  damage -17 % (early) and -31 % (`--late`).
-- *Open, the user's call:* merge it as it is, keep main's cover, or the rule with the disease casters (purger,
-  blightmare) exempt (not tried).
+- *Decided:* `Team.cover` only to tiles within --vet-range - 1 of every live pet (no farther than now from one already
+  beyond), else no walk and "staying by them"; when a corpse purger or blightmare (`aggro.SHOOTERS`) is among the
+  shooters, any tile out of the shot as before ("a disease shooter: not held by the pets"). Merge rule (decided with the
+  user): Maus 3 deaths over 392 runs no higher than main's 13, gold within ~2 %.
+- *Evidence* (docs/NOTES.md "The cover by the pets, tried for the whole hunt"), against 36be663: Maus 3 2 x 196 runs
+  deaths 13 -> 11 (with a purger or blightmare in the last 15 s 2 -> 0), banked +0.6 / +3.1 %, damage on Logan -5 / -3 %,
+  pet deaths 26 -> 12; Tidal Tomb level 2 (96) deaths 13 -> 8, pet deaths 10 -> 3, banked -1.5 %; the 23:37 replay
+  damage -17 % (early), -31 % (`--late`). test_sim `test_cover_by_pets`, `test_cover_disease_not_held`.
+- *Rejected:* the rule for every shooter (Maus 3 deaths 13 -> 19, the disease deaths 2 -> 12: held by the pets in a
+  purger's shot).
 
 ## Risks
 

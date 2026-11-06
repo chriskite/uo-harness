@@ -1032,8 +1032,18 @@ a cover walk past the pets"). **Never onto or through another mobile's tile** (s
 they don't block): a step into a monster's or a player's tile is a shove, which needs full stamina, and a hit under fire
 takes a stamina point; live 23:20:59 the cover chose (5511, 652), the tile a Discorded abomination stood on, the step
 was refused (Entangle, then the shove at 24/25) and Logan stood 6 s at (5512, 652) in the insane reanimator's shot, 47
--> 8 (docs/NOTES.md "A cover onto an abomination"; test_sim `test_cover_not_onto_monster`, `sim/fight2321.py`). In care
-it comes right after
+-> 8 (docs/NOTES.md "A cover onto an abomination"; test_sim `test_cover_not_onto_monster`, `sim/fight2321.py`).
+**Held by the pets, but not from a disease shooter** (`tamer.COVER_NEAR_PETS`, since 2026-11-06; user: "Test it for the
+whole hunt", then "Everything but purger/blightmare"): the tile is within --vet-range - 1 of every live pet in view (no
+farther than now from one already beyond); with none out of the shot there is no walk, "cover: the calamity shoots us
+here; no tile out of its shot within 4 of the pets; staying by them" (once for those shooters), and care goes on (vet
+supplies, spacing, the reposition). When a corpse purger or blightmare (`aggro.SHOOTERS`) is among those shooting us,
+any tile out of the shot as before: "... out of its shot (a disease shooter: not held by the pets)". Live 2026-11-05
+23:37 three covers from calamities and an insane reanimator took Logan 20 off the pets, dead there (docs/NOTES.md "Dead
+on Maus 2's walk in (2026-11-05 23:37)"); held by the pets in a purger's shot too, Maus 3 batches lost 2 -> 12 runs with
+one in the last 15 s; with the exemption 2 -> 0, deaths 13 -> 11 of 392, Tidal Tomb level 2 13 -> 8 of 96 (docs/NOTES.md
+"The cover by the pets, tried for the whole hunt"). test_sim `test_cover_by_pets`, `test_cover_disease_not_held`. In
+care it comes right after
 the retreat, before the vet supplies on anyone, the spacing and the rest; the spacing off the tank and the vet tile
 keep out of such shots too. The reposition's caster rule (4 steps, the pets kept in vet range, no more idle eyes)
 found no tile at any of its tries in the purger room (simulator seed 1003: an awake purger 8 off took Logan 100 -> 13

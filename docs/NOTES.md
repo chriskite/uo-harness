@@ -8855,7 +8855,7 @@ melee.
   (5497, 675), the pets guarding where they stood). An earlier 'All Kill': the pets were on the calamity on him from
   10.96.
 
-## The cover by the pets, tried for the whole hunt (2026-11-06; not on main)
+## The cover by the pets, tried for the whole hunt (2026-11-06; on main with the disease shooters exempt)
 
 User 2026-11-06, after the 23:37 death above: "Test it for the whole hunt". Built on branch `cover-near-pets` (079d873,
 on 36be663): `Team.cover` takes only tiles within --vet-range - 1 (4) of every live pet in view, no farther than now
@@ -8870,6 +8870,8 @@ harness/data/harness.db -- --vet-range 5 --crawl-learn-s 180`; Maus 3 `--team ph
 213; Tidal Tomb `--scenario tidal_tomb --level 2`, seed 1, the default team). Lowest hits: a run's least at a potion or
 a vet use (the runner's log), 0 for a death.
 
+First try (079d873, every shooter), before / after:
+
 | batch | runs | deaths | pet deaths (runs) | banked / h | damage on Logan / h | lowest hits median | runs under 20 / 20-39 | covers / h | stays / h |
 |---|---|---|---|---|---|---|---|---|---|
 | Maus 3 seed 17 | 196 | 4 / 11 | 16 (13) / 4 (4) | 135,184 / 134,149 | 1,191 / 1,276 | 53 / 52 | 10, 27 / 15, 29 | 58.6 / 36.7 | 0 / 13.6 |
@@ -8883,8 +8885,23 @@ a vet use (the runner's log), 0 for a death.
 - **Tidal Tomb level 2 better**: deaths 13 -> 8, pet deaths 10 -> 3, banked -1.5 %.
 - **The 23:37 replay** (`sim/fight2337.py`, 96 seeds): from 23:37:10 deaths 0 / 0, farthest off the pets 10 -> 5,
   damage 10,212 -> 8,436; `--late` lowest hits median 31 -> 57, damage 4,485 -> 3,104.
-- **Not merged** (Main's rule: not if deaths get clearly worse on a batch); the branch waits for the user. An untried
-  middle way: the rule for every shooter but the disease casters (purger, blightmare).
+- **Not merged then**; the user: "Everything but purger/blightmare".
+
+**The disease shooters exempt** (1124b80, merged in fde8264): when a corpse purger or blightmare (`aggro.SHOOTERS`, the
+cover's first shooters) is among those shooting us, any tile out of the shot as before, "cover: the corpse purger shoots
+us here; to (5506, 663), 5 steps, out of its shot (a disease shooter: not held by the pets)" (test_sim
+`test_cover_disease_not_held`, the 23:37:10 tiles with purgers; before: "staying by them"); mixed shooters take that
+rule too. Against 36be663, the same seeds (the before columns above; disease deaths: a corpse purger or blightmare in
+the last 15 s' damage):
+
+| batch | deaths | disease deaths | pet deaths (runs) | banked / h | damage on Logan / h | lowest hits median | runs under 20 / 20-39 | covers / h | stays / h | disease covers / h |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Maus 3 seed 17 | 4 / 6 | 1 / 0 | 16 (13) / 3 (3) | 135,184 / 136,010 | 1,191 / 1,134 | 53 / 53 | 10, 27 / 10, 29 | 58.6 / 40.3 | 0 / 12.2 | 16.0 |
+| Maus 3 seed 213 | 9 / 5 | 1 / 0 | 10 (10) / 9 (9) | 133,203 / 137,328 | 1,213 / 1,173 | 53 / 53 | 14, 19 / 9, 32 | 57.0 / 38.0 | 0 / 12.2 | 13.9 |
+| Tidal Tomb level 2 | 13 / 8 | 0 / 0 | 10 (9) / 3 (3) | 165,511 / 163,055 | 1,856 / 1,814 | 43 / 39 | 18, 21 / 19, 30 | 21.8 / 7.6 | 0 / 7.7 | 0 |
+
+Maus 3 deaths 13 -> 11 of 392, gold +0.6 / +3.1 %: the merge rule (no more than 13, gold within ~2 %) held. Tidal Tomb
+has no purger or blightmare: as the first try. The 23:37 replay as above (no disease shooter in it).
 
 ## Network observations
 
