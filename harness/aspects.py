@@ -26,6 +26,7 @@ import actions
 ASPECT_GUMP = 0x907FC735
 SECTIONS = ("weapon", "spellbook", "armor")       # top to bottom
 CONFIRM_TEXT = "Click again to confirm."
+REVERT_TEXT = "Your aspect items revert to normal"   # at 0 essence: live 2026-10-25 21:16:06 "... (no arcane essence remaining)."
 HARVEST_HUE = 2086                # Harvest aspect armor and the menu's Harvest icon (live 2026-10-04)
 # The layers of a suit of armor (Outland Dan's six studded pieces, live 2026-10-04): legs, helmet,
 # gloves, gorget, chest, arms. Every piece must be worn and aspected for the armor aspect to work.

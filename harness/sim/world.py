@@ -343,6 +343,10 @@ class World:
                         "aggressive_acts": 0, "kill_commands": 0, "guard_commands": 0, "follow_commands": 0,
                         "patrol_commands": 0, "silenced": 0, "lift_waits": 0, "shoves": 0, "refresh_potions": 0,
                         "stam_below_s": 0.0, "fights": [], "hunt_s": 0.0, "pets_left": []}
+        # the Arcane Essence (scenario player.essence {charges, per_kill}; none: not modelled): each of our kills spends
+        # per_kill (the drain follows the damage dealt, pets' included: live 4.5-5.3 a kill), the server's revert line at 0
+        ess = scenario["player"].get("essence")
+        self.essence = {"charges": float(ess["charges"]), "per_kill": float(ess["per_kill"])} if ess else None
         self.left_pets = set()                # serials of pets a moongate or a recall left (pets_left)
         oth = scenario.get("others") or {}
         self.others_on = bool(oth.get("enabled"))
@@ -1204,6 +1208,10 @@ class World:
             self.metrics["kills"] += 1
             if not m.barded:
                 self.count("kills_unbarded")             # ours with no bard skill at it (run.py summaries)
+            if self.essence is not None and self.essence["charges"] > 0:
+                self.essence["charges"] = max(0.0, self.essence["charges"] - self.essence["per_kill"])
+                if not self.essence["charges"]:
+                    self._sys("Your aspect items revert to normal (no arcane essence remaining).")
         self.count("kills_by", m.key)
         self.metrics["fights"].append({"key": m.key, "t": round(self.t, 1), "hits": m.hits_max,
                                        "damage_by": {self.mobs[s].name if s in self.mobs else hex(s): v

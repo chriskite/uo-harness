@@ -278,6 +278,21 @@ tome "New Player Locations", 0x57C3DEB6; its default rune is Cambria, by the ban
   Command on arms, chest, …; N Arcane Essence". Live 2026-10-25 21:16:06 the essence ran out mid-run ("Your aspect
   items revert to normal (no arcane essence remaining).", the platemail 1782 -> 2207) and two hours of runs went
   without it. Characters without an armor aspect run with `--no-armor-aspect`; the simulator passes it (no menu).
+  **The essence for a trip** (since 2026-11-05, after hunt-20261105-185811-1dd8 went in with 20 and ran dry mid-visit):
+  each home reading is kept (`essence_reading`); the run's rate is the drop between consecutive readings over the kills
+  between, pooled (`essence_rate`; a rise, essence added, doesn't count), `ESSENCE_PER_KILL` 5.0 until measured (live
+  4.5-5.3 a kill: the drain follows damage dealt, the pets' included, not time). At home it refuses under
+  (`ESSENCE_MIN_KILLS` 10 + `ESSENCE_LEAVE_KILLS` 5) kills' worth: "Arcane Essence 20, under the 75 a trip needs (15
+  kills x 5.0): not going in (--no-armor-aspect to go without)", a `low_supplies` juncture with item `arcane essence`
+  (have, need, rate); on, the log line adds "(a trip needs 75: 15 kills x 5.0)". In the dungeon the projection is the
+  reading - rate x the kills since (`essence_leave`, one of `leave_reason`'s rules after the survival ones, severity
+  `return`: a planned leave with the loot): under `ESSENCE_LEAVE_KILLS` kills' worth (the walk out is fought and burns
+  some) it leaves, "LEAVING by the moongate: Arcane Essence about 20 left (100 at home - 5.0 x 16 kills), under 5
+  kills' worth (25)"; the server's revert line ("Your aspect items revert to normal", `aspects.REVERT_TEXT`) leaves at
+  once ("the aspect reverted, no Arcane Essence left (…)"). Either posts one `low_supplies` juncture a visit (item
+  `arcane essence`: have, projected, rate, kills, reverted). The next home check then refuses. The simulator models
+  the drain when a scenario's `player.essence` is `{charges, per_kill}` (the revert line at 0; test_sim
+  `test_essence_sim`).
   **The repair bench** (`--repair`, on by default since 2026-10-27; `HuntLoop.repair_gear`, user: "double click the
   repair bench before each trip into a dungeon to repair our equipment (instrument and armor)"): first of the checks
   before each recall in, at home with a homes.json `repair_bench` (Logan Wolf's 0x5B3BF0CF, 1 tile off the landing;

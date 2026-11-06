@@ -3706,6 +3706,21 @@ several mobs without trying to bard?"
 - *Accepted risk:* the Mausoleum's level 3 shade wolf, nightstalker and consort spots that only kill tiles gave are
   gone until the run sees one idle. The consort's closed area keeps her file spot (5243, 633).
 
+## Arcane Essence for a trip: a home margin and a projected leave (decided and built 2026-11-05)
+
+- *Why:* live hunt-20261105-185811-1dd8 went in at 19:34:20 with 20 Arcane Essence (check_aspect refused only at 0)
+  and the aspect reverted mid-visit (user: "Logan ran out of arcane essence so lost his aspect. I thought the runner
+  had a check for that").
+- *Decided:* keep each home reading; the rate per kill from consecutive readings, pooled over the run
+  (ESSENCE_PER_KILL 5.0 until then); no trip in under 15 kills' worth (ESSENCE_MIN_KILLS 10 + ESSENCE_LEAVE_KILLS 5);
+  inside, a planned leave (the loot home, `leave_reason`'s path) once reading - rate x kills is under 5 kills' worth,
+  or at once on the server's revert line; a `low_supplies` juncture (item `arcane essence`) either way.
+- *Rejected:* reading the Aspect Mastery menu mid-dungeon (a gump and a pause among the monsters for a number the
+  kills project well enough); a time-based rate (the drain follows damage dealt, pets' included, not time:
+  docs/research/DISCORD_KB.md).
+- *Evidence:* test_sim `test_essence` (20 refused, 116 in; 100 at home: no leave at 15 kills, the leave at 16; the
+  revert line; the rate from readings) and `test_essence_sim` (the simulator's drain, the leave at 4 kills from 40).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

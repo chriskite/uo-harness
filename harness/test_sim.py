@@ -2112,6 +2112,122 @@ def test_recall_charges():
           out == {36: (False, 0), 2: (False, 0), 1: (True, 1)}, str(out))
 
 
+@contextlib.contextmanager
+def aspect_menu(charges):
+    """loop_hunt's Aspect Mastery read and armor verdict stubbed (the simulator has no menu): the armor's Command
+    aspect on, `charges` Arcane Essence."""
+    import loop_hunt
+    saved = loop_hunt.aspects.read, loop_hunt.aspects.armor_check
+    loop_hunt.aspects.read = lambda io, human: {"charges": charges}
+    loop_hunt.aspects.armor_check = lambda menu, world, me: {
+        "ok": True, "why": None, "aspect": "Command", "hue": 1782, "charges": menu["charges"],
+        "aspected": ["arms", "chest", "gloves", "gorget", "legs"], "plain": []}
+    try:
+        yield
+    finally:
+        loop_hunt.aspects.read, loop_hunt.aspects.armor_check = saved
+
+
+def test_essence():
+    print("== Arcane Essence: no trip in under 15 kills' worth, the leave under 5 kills' worth or on the revert line ==")
+    # live hunt-20261105-185811-1dd8: home readings 365, 246, 210, 116, 20 over 25, 8, 18, 18 kills; it went in at 20
+    # and the aspect reverted mid-visit
+    import loop_hunt
+    from aspects import REVERT_TEXT
+    out = {}
+    for have in (20, 116):
+        w = world_with([], seed=7)
+        loop, clock, store, patched = hurt_loop(w, 100, extra=("--armor-aspect",))
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), aspect_menu(have):
+                try:
+                    loop.check_aspect()
+                    refused = None
+                except loop_hunt.Abort as e:
+                    refused = str(e)
+                low = [j for j in store.con.execute("SELECT kind, data FROM junctures").fetchall()
+                       if j[0] == "low_supplies" and "arcane essence" in (j[1] or "")]
+                out[have] = (refused, len(low))
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("home: 20 refused (under the 75 a trip needs, one low_supplies), 116 goes in",
+          out[20][0] == "Arcane Essence 20, under the 75 a trip needs (15 kills x 5.0): not going in "
+                        "(--no-armor-aspect to go without)" and out[20][1] == 1 and out[116] == (None, 0), str(out))
+
+    w = world_with([], seed=7)
+    loop, clock, store, patched = hurt_loop(w, 100, extra=("--armor-aspect",))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.essence_reading(100)
+            loop.totals["kills"] += 15
+            at15 = loop.leave_reason(loop.state())
+            loop.totals["kills"] += 1
+            at16 = loop.leave_reason(loop.state())
+            loop.leave_reason(loop.state())
+            low = [j for j in store.con.execute("SELECT kind, data FROM junctures").fetchall()
+                   if j[0] == "low_supplies" and "arcane essence" in (j[1] or "")]
+            loop.essence_reading(300)
+            fresh = loop.leave_reason(loop.state())
+            w._sys(REVERT_TEXT + " (no arcane essence remaining).")
+            clock.advance(0.5)
+            loop.scan_events(loop.state())
+            reverted = loop.essence_reverted, loop.essence_leave()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("100 at home: no leave at 15 kills (25 left), the leave at 16 (20 < 25), planned, one juncture a visit",
+          at15 is None and at16 is not None and at16[1] == "return" and "about 20 left" in at16[0] and len(low) == 1,
+          f"{at15} {at16} {len(low)}")
+    check("300 at home: no leave; the server's revert line: the leave at once",
+          fresh is None and reverted[0] and reverted[1] is not None and "reverted" in reverted[1][0], f"{fresh} {reverted}")
+
+    w = world_with([], seed=7)
+    loop, clock, store, patched = hurt_loop(w, 100, extra=("--armor-aspect",))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            rates = [loop.essence_rate()]
+            for have, kills in ((365, 0), (246, 25), (210, 8), (300, 10)):   # the last: essence added, not a drop
+                loop.totals["kills"] += kills
+                loop.essence_reading(have)
+                rates.append(round(loop.essence_rate(), 2))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the rate: 5.0 until measured, then 119/25, (119+36)/33; a rise leaves it", rates == [5.0, 5.0, 4.76, 4.7, 4.7],
+          str(rates))
+
+
+def test_essence_sim():
+    print("== a simulated hunt: the essence drains a kill, the runner leaves before it runs out ==")
+    import loop_hunt
+    w = world_with([{"key": "shade wolf", "at": [5262 + 2 * i, 652, 0]} for i in range(5)], seed=7)
+    w.essence = {"charges": 40.0, "per_kill": 5.0}        # the scenario's player.essence
+    loop, clock, store, patched = hurt_loop(w, 100, extra=("--armor-aspect",))
+    buf, err = io.StringIO(), None
+    try:
+        with contextlib.redirect_stdout(buf):
+            loop.essence_reading(int(w.essence["charges"]))   # the home reading check_aspect keeps
+            for _ in range(2400):
+                clock.advance(0.5)
+                try:
+                    if loop.tick():
+                        break
+                except loop_hunt.Abort as e:
+                    err = str(e)
+                    break
+                if "LEAVING" in buf.getvalue():
+                    break
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln for ln in buf.getvalue().splitlines() if "essence" in ln.lower() or "LEAVING" in ln or "killed" in ln]
+    print("\n".join("    " + ln for ln in lines[-8:]))
+    check("the leave by the essence rule before the essence ran out",
+          any("LEAVING" in ln and "Arcane Essence" in ln for ln in lines) and w.essence["charges"] > 0,
+          f"{err} {w.essence} {lines[-4:]}")
+
+
 def test_heal_in_place():
     print("== --heal-in-place: a pet below --pet-leave-at is no leave while vet supplies last ==")
     import tempfile
@@ -8381,7 +8497,7 @@ def main():
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,
               test_patrol_after_pass_over, test_vet_channel_not_ours,
               test_restart_inside, test_walk_in_through_neighbour,
-              test_instrument, test_levels, test_recall_charges,
+              test_instrument, test_levels, test_recall_charges, test_essence, test_essence_sim,
               test_standoff_sight, test_standoff_ties, test_pet_death_readout,
               test_idle_pet, test_lone_pet_kill, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
               test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,

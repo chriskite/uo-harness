@@ -171,6 +171,12 @@ from memory import DEFAULT_DB, Memory  # noqa: E402
 ROPE_GRAPHIC = 0x14FA         # an adventurer's rope (a stack of 15 in Logan's pack, 20261014_173858)
 ROPE_R = 9                    # live jumps 7, 9, 10 tiles; an 11-tile target was refused: one short
 PLANNED = ("info", "return")   # leaves with no threat behind them: the planned end, taking the loot home
+# Arcane Essence (--armor-aspect): the drain follows damage dealt, the pets' included, not time (docs/research/DISCORD_KB.md),
+# so it is projected per kill from the last home reading (HuntLoop.essence_leave). Live hunt-20261105-185811-1dd8, Logan's
+# Command aspect with five pets on Maus: 4.8, 4.5, 5.2, 5.3 a kill over four visits (119/25, 36/8, 94/18, 96/18).
+ESSENCE_PER_KILL = 5.0        # the rate until the run has measured its own from two home readings (essence_rate)
+ESSENCE_LEAVE_KILLS = 5       # leave the dungeon below this many kills' worth (the walk out is fought and burns some)
+ESSENCE_MIN_KILLS = 10        # no trip in with less than this many kills' worth on top of the leave margin
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
 STOP_POLL_S = 0.5             # how often watch_stop looks for a `ctl stop` (its own store connection)
 ROPE_COOLDOWN_S = 5.3         # knowledge #13325: 5 s from the use (unless PvP flagged), a margin
@@ -478,6 +484,10 @@ class HuntLoop:
         self.watch = threats.Watch(threats.Params(flee_on_attack=False))
         self.heard_upto = None       # restriction-text scan cursor into link.events
         self.ev_upto = 0             # kill/death scan cursor into link.events
+        self.essence = None          # the last home Arcane Essence reading {have, kills (totals' then)}: check_aspect
+        self.essence_drop = [0, 0]   # essence spent and kills between consecutive home readings, pooled (essence_rate)
+        self.essence_reverted = False   # the server's revert line heard since that reading (aspects.REVERT_TEXT)
+        self.essence_posted = False  # this visit's arcane-essence low_supplies juncture is posted
         self.dead = set()            # serials the server reported dead (0xFF sub 0xDEAD)
         self.corpse_of = {}          # dead mobile serial -> its corpse serial (0xDEAD)
         self.lost_alive = {}         # serial -> (last-seen mob dict, monotonic time): engaged, then gone alive (0x1D)
@@ -1158,6 +1168,9 @@ class HuntLoop:
                         if self.team is not None:
                             self.team.guard_needed = True   # its aggro cleared: the pets back on guard
                     self.disengage("lost")
+            elif kind == "speech_heard" and (ev.get("text") or "").startswith(aspects.REVERT_TEXT):
+                self.essence_reverted = True
+                log(f"the server: {ev.get('text')!r}")
             elif kind == "damage" or (kind == "speech_heard" and DAMAGE_TEXT.match(ev.get("text") or "")):
                 self.hurt_t[serial_of(ev["serial"])] = time.monotonic()
         if self.oxy is not None and (pos := self.pos(st)) is not None:
@@ -1917,7 +1930,12 @@ class HuntLoop:
 
     # ------------------------------------------------------------ leaving / entering
     def leave_reason(self, st):
-        """(why, severity) when the rules say leave now, else None: a hostile player
+        """(why, severity) when the rules say leave now, else None: the survival rules (survival_reason), then the
+        Arcane Essence running out (essence_leave: planned, the loot taken home)."""
+        return self.survival_reason(st) or self.essence_leave()
+
+    def survival_reason(self, st):
+        """A hostile player
         (player_threat; urgent: without --leave-recall no going back in), two or more
         attackers below --leave-multi-at, below --leave-at plus the fight spot's route
         margin (leave_margin); --pets: a pet dead, too hurt or gone (tamer.Team.leave_reason).
@@ -1945,6 +1963,46 @@ class HuntLoop:
             out = f" (--leave-at + {self.out_steps} steps out)" if self.leave_at != self.args.leave_at else ""
             return f"hits {me['hits']}/{me['hits_max']} below {self.leave_at:.0%}{out}", "attention"
         return None
+
+    def essence_rate(self) -> float:
+        """Arcane Essence a kill: the run's own (the drops between consecutive home readings over the kills between,
+        pooled), else ESSENCE_PER_KILL."""
+        drop, kills = self.essence_drop
+        return drop / kills if kills and drop > 0 else ESSENCE_PER_KILL
+
+    def essence_reading(self, have: int):
+        """A home reading of the Aspect Mastery menu (check_aspect): the drop since the last one goes into the rate (a
+        rise, essence bought or added, doesn't), and the projection starts again from it."""
+        k = self.totals["kills"]
+        if self.essence is not None and (kills := k - self.essence["kills"]) > 0 \
+                and (drop := self.essence["have"] - have) > 0:
+            self.essence_drop[0] += drop
+            self.essence_drop[1] += kills
+        self.essence, self.essence_reverted = {"have": have, "kills": k}, False
+
+    def essence_leave(self):
+        """--armor-aspect: (why, "return") when the projected Arcane Essence (the home reading - essence_rate x the
+        kills since) is under ESSENCE_LEAVE_KILLS kills' worth, or the server's revert line was heard; one
+        low_supplies juncture (item `arcane essence`) a visit. Live hunt-20261105-185811-1dd8 went in at 20 and ran
+        dry mid-visit (the 0 reverts the aspect: aspects.armor_check)."""
+        if not self.args.armor_aspect or self.essence is None:
+            return None
+        have, kills, rate = self.essence["have"], self.totals["kills"] - self.essence["kills"], self.essence_rate()
+        proj = have - rate * kills
+        if self.essence_reverted:
+            why = f"the aspect reverted, no Arcane Essence left ({have} at home, {kills} kills since)"
+        elif proj < ESSENCE_LEAVE_KILLS * rate:
+            why = (f"Arcane Essence about {max(proj, 0):.0f} left ({have} at home - {rate:.1f} x {kills} kills), "
+                   f"under {ESSENCE_LEAVE_KILLS} kills' worth ({ESSENCE_LEAVE_KILLS * rate:.0f})")
+        else:
+            return None
+        if not self.essence_posted:
+            self.essence_posted = True
+            self.memory.juncture("hunt", "low_supplies", f"Leaving the hunt: {why}", "attention",
+                                 {"item": "arcane essence", "have": have, "projected": round(proj, 1),
+                                  "rate": round(rate, 2), "kills": kills, "reverted": self.essence_reverted})
+            log(f"low supplies: {why}")
+        return why, "return"
 
     def heal_coming(self, st) -> bool:
         """--heal-in-place: a heal potion ready within HEAL_SOON_S, or (--pets) a vet channel running or one
@@ -3235,7 +3293,10 @@ class HuntLoop:
         aspects.read) for the essence and the armor section's aspect hue, then the worn pieces (aspects.armor_check).
         Off: a low_supplies juncture (item `armor aspect`) and the run ends at home. Live 2026-10-25 21:16:06 the
         Arcane Essence ran out mid-run ("Your aspect items revert to normal"), Logan's platemail went back to its own
-        hue, and the runs went on for two hours without the Command aspect's armor and pet bonuses."""
+        hue, and the runs went on for two hours without the Command aspect's armor and pet bonuses. The reading is
+        kept (essence_reading: the rate and the dungeon's projection, essence_leave); on, but under
+        ESSENCE_MIN_KILLS + ESSENCE_LEAVE_KILLS kills' worth at essence_rate: a low_supplies juncture (item
+        `arcane essence`) and the run ends at home (live hunt-20261105-185811-1dd8 went in at 20 and ran dry)."""
         if not self.args.armor_aspect:
             return
         self.human.wait("read")
@@ -3245,9 +3306,21 @@ class HuntLoop:
             raise Abort(f"the Aspect Mastery menu can't be read: {e}; not going in (--no-armor-aspect to go without)")
         st = self.state()
         res = aspects.armor_check(menu, st["world"], self.me(st))
+        if res["charges"] is not None:
+            self.essence_reading(res["charges"])
         if res["ok"]:
-            log(f"armor aspect: {res['aspect']} on {', '.join(res['aspected'])}; {res['charges']} Arcane Essence")
-            return
+            rate = self.essence_rate()
+            trip = ESSENCE_MIN_KILLS + ESSENCE_LEAVE_KILLS
+            need = trip * rate
+            log(f"armor aspect: {res['aspect']} on {', '.join(res['aspected'])}; {res['charges']} Arcane Essence "
+                f"(a trip needs {need:.0f}: {trip} kills x {rate:.1f})")
+            if res["charges"] >= need:
+                return
+            why = f"Arcane Essence {res['charges']}, under the {need:.0f} a trip needs ({trip} kills x {rate:.1f})"
+            self.memory.juncture("hunt", "low_supplies", f"{why}: not going in", "attention",
+                                 {"item": "arcane essence", "have": res["charges"], "need": round(need, 1),
+                                  "rate": round(rate, 2)})
+            raise Abort(f"{why}: not going in (--no-armor-aspect to go without)")
         self.memory.juncture("hunt", "low_supplies", f"Armor aspect off: {res['why']}; not going in", "attention",
                              {"item": "armor aspect", "aspect": res["aspect"], "charges": res["charges"],
                               "plain": res["plain"]})
@@ -4619,6 +4692,7 @@ class HuntLoop:
         self.visit_n += 1
         self.count("visits")
         self.low_posted = False
+        self.essence_posted = False
         self.gather = None
         self.no_reagents.clear()
         self.attack_scan = len(self.link.events)     # "... is attacking you!" from before this visit is old news

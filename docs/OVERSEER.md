@@ -615,7 +615,12 @@ Paste this (or point the session at this section) to start an overseer.
 >    won't go without the armor aspect on or with no Arcane Essence ("armor aspect off: …; not going in", a
 >    `low_supplies` juncture with item `armor aspect`; on: "armor aspect: Command on …; N Arcane Essence"). That day the
 >    essence ran out mid-run at 21:16 and the aspect reverted unnoticed for two hours. Off: tell the user (activating it
->    and the essence are theirs) and start nothing until they answer.
+>    and the essence are theirs) and start nothing until they answer. Since 2026-11-05 it also wants 15 kills' worth
+>    (about 5 a kill, the run's own rate once measured): "Arcane Essence 20, under the 75 a trip needs (15 kills x 5.0):
+>    not going in (--no-armor-aspect to go without)" (`low_supplies`, item `arcane essence`), and inside it leaves with
+>    the loot when the projection falls under 5 kills' worth or the server says the aspect reverted ("LEAVING by the
+>    moongate: Arcane Essence about 20 left (100 at home - 5.0 x 16 kills), under 5 kills' worth (25)", the same
+>    juncture). Either way: tell the user the essence is low (it's theirs to add) and start nothing until they answer.
 >    **The repair bench**: since 2026-10-27 the runner double-clicks the house's repair bench (0x5B3BF0CF, by the
 >    landing) before each recall in: the armor and the instruments' uses repaired ("repair bench: Repaired N
 >    items."). Out of charges it won't go ("the repair bench is out of charges …: not going in", a `low_supplies`

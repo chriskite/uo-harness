@@ -8774,6 +8774,24 @@ carried (lost); the pets Bussin and AlaFlambe lived (94-95 %). Capture session_2
   anyway: the simulated reds are milder on that leg than these three were [INFERENCE: SweDo cut him off at the strip,
   101 in 2.2 s]. What put him there was the planned leave's way through the ramp top, where reds come in.
 
+## Arcane Essence ran dry mid-visit (live 2026-11-05 19:34-19:42, hunt-20261105-185811-1dd8)
+
+Logan, Command aspect on arms, chest, gloves, gorget, legs, pets on Maus. The home readings (check_aspect's log line)
+and the kills between (`visit N done`):
+
+| visit | in at | essence at home | kills | spent | a kill |
+|---|---|---|---|---|---|
+| 1 | 18:58:17 | 365 | 25 | 119 | 4.8 |
+| 2 | 19:09:48 | 246 | 8 | 36 | 4.5 |
+| 3 | 19:13:56 | 210 | 18 | 94 | 5.2 |
+| 4 | 19:23:39 | 116 | 18 | 96 | 5.3 |
+| 5 | 19:34:20 | 20 | 14 | (ran out) | |
+
+The check only refused at 0, so visit 5 went in with 20 (four kills' worth) and the aspect reverted mid-visit; the
+user paused the gate at 19:42. The drain follows damage dealt, the pets' included, not time (DISCORD_KB.md ~10930,
+~11030), and per kill it held at 4.5-5.3. Since then the runner refuses under 15 kills' worth and leaves under 5
+(docs/HUNT_LOOP.md "The essence for a trip", PLAN.md).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
