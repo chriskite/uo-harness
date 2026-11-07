@@ -5722,6 +5722,16 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     - **A rune nearer the stands saves no field time.** The 60 s lockout runs from the recall and every walk in ended
       inside it. A rune in Dan's own book would save the library's extra recall and the walk to the tome (~8 s of the
       11.2 s travel, ~1.4 %) and let a hop recall field to field.
+  - **A spot dry on arrival; "nothing nearby" comes before the travel lockout (live 2026-11-07, mining-20261107-105923-14d9,
+    capture 20261107_102544).** Sandshear Quarry (forge_3731_2492), dug last at 20:24 the evening before (14 ore at
+    stand 3769,2489, the 58 s lockout first). That morning the first dig 17 s after the recall, which was also the
+    captcha's dig, got "You do not see any harvestable resources nearby." with no lockout line. So did the first dig
+    at each of the 9 stands after it, 11:00:03-11:00:29 across (3721-3774, 2479-2527): 0 digs, 40 blocks marked.
+    The leg ended "the area ran dry at 0 ore" and hopped to the Time Quest Hub, where the first dig got the 57 s
+    lockout. The server checks for ore in reach before it checks the lockout. One empty answer a stand takes ~2 s,
+    so an emptied area costs about a minute and the hop's two charges. The runner did what it was built to do and
+    nothing was changed. [INFERENCE] Other miners had emptied it overnight. Its "a quarry miner" NPCs (*digs*) were
+    also there on 11-01 to 11-06, when it gave ore.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
