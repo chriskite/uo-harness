@@ -161,6 +161,9 @@ class MineLoop(loop_lumber.LumberLoop):
         self.last_ore_t = None       # this leg: monotonic time of the last ore (else of the arrival at the spot)
         self.stall_stands = 0        # this leg: stands given up (no route) since the last ore (STALL_STANDS)
         self._steps = None           # walk_steps' last flood: ((spot, x, y, z), box, {(x, y): steps})
+        self._clear = None           # clear_steps' last flood: ((spot, x, y, z, zones), box, {(x, y): steps})
+        self._clear_route = None     # next_stand's: {(x, y): steps} clear of the danger zones, else None (dig_stand)
+        self._past_logged = None     # the zones next_stand last logged stands passed over for
 
     # ------------------------------------------------------------ the pickaxe
     def pickaxes(self, st) -> list:
@@ -790,6 +793,19 @@ class MineLoop(loop_lumber.LumberLoop):
         self._steps = (key, box, out)
         return out
 
+    def clear_steps(self, st, box, zones) -> dict:
+        """walk_steps over `box` with the tiles of `zones` [((x, y), r)] as walls: the steps to each stand by a way
+        that stays out of them. Only next_stand's choice uses it; the walk itself still goes round them as soft zones
+        (Mover.danger_cost). Kept like walk_steps, while we stand on the same tile and the zones don't change."""
+        x, y, z = (int(v) for v in self.link.pos(st)[:3])
+        key = (self.k["spot"]["id"], x, y, z, tuple(sorted(zones)))
+        if self._clear is not None and self._clear[0] == key and _holds(self._clear[1], box):
+            return self._clear[2]
+        avoid = {(cx + dx, cy + dy) for (cx, cy), r in zones for dx in range(-r, r + 1) for dy in range(-r, r + 1)}
+        out = localmap.steps(self.mover.walk_map(st), (x, y, z), box=box, avoid=avoid)
+        self._clear = (key, box, out)
+        return out
+
     def avail(self, stand) -> list:
         """The stand's blocks with ore as far as we know: not ruled out (no_harvest), not dry this leg,
         not depleted within --regrow-min."""
@@ -806,19 +822,25 @@ class MineLoop(loop_lumber.LumberLoop):
         """The stand to dig at next: available blocks per walking distance (walk_steps; Chebyshev without a
         map; STAND_DIST_SCALE), human noise, out of every escaped creature's reach and of the aggro zone of
         every creature in view (the Mover's ("seen", serial) zones); None when none is (_blocked_only: some had
-        ore but were in reach). On the map a stand inside the flood's box (walk_steps) that the walk from here
-        doesn't reach is skipped (live 2026-10-19, forge_2599_620: the nearest stand by Chebyshev, 51 tiles off
-        the landing, was 137 steps round the cave). When the pick lies beyond the 80-tile flood (an ore field's far
-        side, scored at its Chebyshev distance), the whole area's flood from here (walk_steps whole, ~2 s, cached per
-        tile) scores them all again by walking steps (live 2026-11-06 14:47:27, mining-20261106-143925-85da at
-        forge_2551_665: a stand 81 tiles but ~280 steps off won over near ones; 1 min of 411-554-step routes went
-        round in circles). Live 2026-10-20 11:47, forge_1279_1149: a zombie stood among the next stands in a cave;
-        each walk there cost a 3 s search that found no route through its zone."""
+        ore but were in reach or reached only past one). On the map a stand inside the flood's box (walk_steps) that
+        the walk from here doesn't reach is skipped (live 2026-10-19, forge_2599_620: the nearest stand by Chebyshev,
+        51 tiles off the landing, was 137 steps round the cave). After an escape the stand must also be reached by a
+        way out of every escaped creature's zone (danger_zones, clear_steps: the zones are walls for the choice only;
+        one we stand in is left out), scored by that way's steps (user 2026-11-07: "Pick next stand away from it";
+        live mining-20261107-125005-79d2 13:02:36-56 at forge_1383_1146: the stands picked after each escape lay past
+        the same zombie, 4 escapes in 16 s, then "came back after 3 escapes"). When the pick lies beyond the 80-tile
+        flood (an ore field's far side, scored at its Chebyshev distance), the whole area's flood from here
+        (walk_steps whole, ~2 s, cached per tile) scores them all again by walking steps (live 2026-11-06 14:47:27,
+        mining-20261106-143925-85da at forge_2551_665: a stand 81 tiles but ~280 steps off won over near ones; 1 min
+        of 411-554-step routes went round in circles). Live 2026-10-20 11:47, forge_1279_1149: a zombie stood among
+        the next stands in a cave; each walk there cost a 3 s search that found no route through its zone."""
         st = self.link.state()
         here = tuple(self.link.pos(st)[:2])
         seen = [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
+        zones = sorted((c, r) for c, r in self.danger_zones() if cheb(here, c) > r)
+        past = set()
 
-        def pick(far, box):
+        def pick(far, box, clear):
             best, any_avail = None, False
             for s in stands:
                 xy = (s["x"], s["y"])
@@ -830,16 +852,30 @@ class MineLoop(loop_lumber.LumberLoop):
                 any_avail = True
                 if not self.out_of_reach(s["x"], s["y"]) or any(cheb(xy, c) <= r for c, r in seen):
                     continue
-                dist = far[xy] if far is not None and xy in far else cheb(here, xy)
+                if clear is not None and xy not in clear and _holds(box, (*xy, *xy)):
+                    past.add(xy)       # every way there passes an escaped creature
+                    continue
+                dist = clear[xy] if clear is not None and xy in clear else \
+                    far[xy] if far is not None and xy in far else cheb(here, xy)
                 score = len(free) / (1 + dist / STAND_DIST_SCALE) * self.human.rng.uniform(1.0, 1.15)
                 if best is None or score > best[0]:
                     best = (score, s)
             return best, any_avail
         far = self.walk_steps(st)
-        best, any_avail = pick(far, self._steps[1] if far is not None else None)
+        box = self._steps[1] if far is not None else None
+        clear = self.clear_steps(st, box, zones) if far is not None and zones else None
+        best, any_avail = pick(far, box, clear)
         if best is not None and far is not None and (best[1]["x"], best[1]["y"]) not in far:
             far = self.walk_steps(st, whole=True)
-            best, any_avail = pick(far, self._steps[1])
+            box = self._steps[1]
+            clear = self.clear_steps(st, box, zones) if zones else None
+            past.clear()
+            best, any_avail = pick(far, box, clear)
+        if past and self._past_logged != zones:
+            self._past_logged = zones
+            log(f"{len(past)} stand(s) with ore reached only past an escaped creature "
+                f"({', '.join(f'{r} tiles round {c}' for c, r in zones)}): passed over")
+        self._clear_route = clear
         self._blocked_only = best is None and any_avail
         return None if best is None else best[1]
 
@@ -923,7 +959,8 @@ class MineLoop(loop_lumber.LumberLoop):
                     if stand is None:
                         if self._blocked_only:
                             self.stats["creature_blocked"] = True
-                            log(f"every stand left is within a creature's reach; ending at {tally['ore']} ore")
+                            log(f"every stand left is within a creature's reach or reached only past one; ending at "
+                                f"{tally['ore']} ore")
                         else:
                             self.stats["dry"] = True
                             log(f"the area ran dry at {tally['ore']} ore (every stand dug out or unreachable)")
@@ -972,6 +1009,8 @@ class MineLoop(loop_lumber.LumberLoop):
             # "no route" 6 s after an escape and the leg ended at 0 ore (2026-11-05 13:31:24-30, mining-20261105-133044-ff72)
             steps = self.walk_steps(self.state(), whole=True)
         n = None if steps is None else steps.get((x, y), cheb(self.link.pos(self.link.state()), (x, y)))
+        if self._clear_route is not None and (x, y) in self._clear_route:
+            n = self._clear_route[(x, y)]   # next_stand chose it by the way out of the escaped creatures' zones
         try:
             # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
             self.walk_to_work((x, y), 0, f"to the ore stand {x},{y}",

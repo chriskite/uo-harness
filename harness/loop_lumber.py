@@ -3896,18 +3896,23 @@ class LumberLoop:
             except Escape as e:
                 self.escape(e)
 
-    def out_of_reach(self, x, y) -> bool:
-        """(x, y) is beyond the reach (zone_r) of every monster escaped from this
-        trip, at its live position when in view and where it was when we escaped."""
+    def danger_zones(self) -> list:
+        """[((x, y), tiles)]: the reach (zone_r) of every monster escaped from this trip and the keep-away of every
+        player stepped away from (self.danger), at its live position when in view (kept), and where a monster was when
+        we escaped."""
         mobs = ((self.link.last or {}).get("world") or {}).get("mobiles") or {}
+        out = []
         for key, (pos, tiles) in list(self.danger.items()):
             m = (mobs.get(f"0x{key:08X}") or {}) if isinstance(key, int) else {}
             if m.get("x") is not None:
                 pos = (m["x"], m["y"])
                 self.danger[key] = (pos, tiles)
-            if cheb(pos, (x, y)) <= tiles:
-                return False
-        return True
+            out.append((tuple(pos), tiles))
+        return out
+
+    def out_of_reach(self, x, y) -> bool:
+        """(x, y) is beyond every zone of danger_zones."""
+        return all(cheb(pos, (x, y)) > tiles for pos, tiles in self.danger_zones())
 
     def escape(self, e: Escape):
         """Run from e's monsters until each has given up the chase (user 2026-10-07: "if you run far

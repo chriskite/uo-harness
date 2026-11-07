@@ -5732,6 +5732,15 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     so an emptied area costs about a minute and the hop's two charges. The runner did what it was built to do and
     nothing was changed. [INFERENCE] Other miners had emptied it overnight. Its "a quarry miner" NPCs (*digs*) were
     also there on 11-01 to 11-06, when it gave ore.
+  - **Escapes from one zombie, the next stand past it every time (live 2026-11-07 13:02:36-56,
+    mining-20261107-125005-79d2, forge_1383_1146).** Each escape from zombie 0x00252AF3 ended at about (1302, 1125). The
+    stand picked next was 22-24 steps west, at (1278-1281, 1118-1143), and each walk there met the zombie at 8 tiles
+    again: escapes 3/8 to 6/8 in 16 s, then "came back after 3 escapes" and the recall home (534 ore stored, Dan
+    unhurt). The stand itself was outside the zombie's zone (out_of_reach), but the way to it wasn't. Fix (user's choice):
+    PLAN "After an escape the next stand is one reached clear of the escaped creature". Measured on the live map from
+    (1302, 1125) with a 10-tile zone at three places round (1290, 1130): the clear flood took 0.05 s. The west stands
+    came out at 114-118 clear steps or unreached, and (1303, 1137) at 66-67 steps or unreached, depending on where the
+    zone sat.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

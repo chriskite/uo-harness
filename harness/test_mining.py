@@ -239,12 +239,12 @@ def test_reachable_stands():
         loop.args = SimpleNamespace(memory=":memory:", regrow_min=60)
         loop.memory = SimpleNamespace(mine_blocks_state=lambda facet, blocks: {})
         loop.mover = SimpleNamespace(walk_map=lambda st: Walk(), danger={})
-        loop.link = SimpleNamespace(pos=lambda st: [50, 20, 0, 4], state=lambda: {})
+        loop.link = SimpleNamespace(pos=lambda st: [50, 20, 0, 4], state=lambda: {}, last=None)
         cands = loop.candidate_stands({})
         got = sorted((s["x"], s["y"]) for s in cands)
         # from (55, 49), just north of the wall: (55, 52) is 3 tiles off but ~48 steps round by x 75; (45, 45) 10
         loop.link.pos = lambda st: [55, 49, 0, 4]
-        loop.no_route_stands, loop.out_of_reach = set(), lambda x, y: True
+        loop.no_route_stands, loop.danger = set(), {}
         loop.human = SimpleNamespace(rng=random.Random(7))
         picks = {(p["x"], p["y"]) for p in (loop.next_stand(cands) for _ in range(20))}
         loop.mover.danger = {("seen", 7): ((45, 45), 3)}   # a creature in view among the near stand's rocks
@@ -290,10 +290,10 @@ def test_field_stands():
         loop.args = SimpleNamespace(memory=":memory:", regrow_min=60)
         loop.memory = SimpleNamespace(mine_blocks_state=lambda facet, blocks: {})
         loop.mover = SimpleNamespace(walk_map=lambda st: Walk(), danger={})
-        loop.link = SimpleNamespace(pos=lambda st: [5, 10, 0, 4], state=lambda: {})
+        loop.link = SimpleNamespace(pos=lambda st: [5, 10, 0, 4], state=lambda: {}, last=None)
         cands = loop.candidate_stands({})
         got = sorted((s["x"], s["y"]) for s in cands)
-        loop.no_route_stands, loop.out_of_reach = set(), lambda x, y: True
+        loop.no_route_stands, loop.danger = set(), {}
         loop.human = SimpleNamespace(rng=random.Random(7))
         first = loop.next_stand(cands)
         loop.dry_blocks = {(1, 1)}                  # the near stand dug out
@@ -306,6 +306,63 @@ def test_field_stands():
     check("the near stand first", first is not None and (first["x"], first["y"]) == (10, 10), first)
     check("the far stand, beyond the cut flood, once the near one is dug out (scored by the whole flood then)",
           box[2] >= 150 and far is not None and (far["x"], far["y"]) == (150, 10), (box, far))
+
+
+def test_next_stand_away_from_escaped():
+    print("after an escape the next stand is one reached by a way out of the escaped creature's zone, scored by that "
+          "way; none such: blocked, not dry")
+    # live 2026-11-07 13:02:36-56 (mining-20261107-125005-79d2, forge_1383_1146): after each escape from a zombie the
+    # stand picked lay past it (west), the walk there met it again: 4 escapes in 16 s, then "came back after 3 escapes".
+    # User 2026-11-07: "Pick next stand away from it". A corridor y 20-30, x 30-70; the zombie was at (49, 25), its
+    # zone 10 spans the corridor; we stand at (62, 25), east of it
+    import loop_mining
+    corridor = {(x, y) for x in range(30, 71) for y in range(20, 31)}
+    loop_ = {(x, y) for x in range(30, 71) for y in range(0, 3)} | {(x, y) for x in range(68, 71) for y in range(0, 31)} \
+        | {(x, y) for x in range(30, 33) for y in range(0, 31)}
+    open_ = [corridor]
+
+    class Walk:
+        m = SimpleNamespace(tiledata=None)
+
+        def can_walk(self, x, y, z, d):
+            nx, ny = x + (0, 1, 1, 1, 0, -1, -1, -1)[d], y + (-1, -1, 0, 1, 1, 1, 0, -1)[d]
+            return (nx, ny, 0) if z == 0 and (nx, ny) in open_[0] else None
+    west = {"x": 32, "y": 25, "blocks": [(1, 1), (1, 2), (1, 3), (1, 4)]}
+    east = {"x": 68, "y": 22, "blocks": [(9, 9)]}
+    logs = []
+    saved = loop_mining.log
+    loop_mining.log = logs.append
+    try:
+        loop = object.__new__(MineLoop)
+        loop.k = {"harvest": {"area": {"center": [50, 20], "radius": 20}, "stands": []}, "spot": {"id": "z"}}
+        loop.facet, loop.dry_blocks, loop._block_state, loop._steps, loop._clear = 0, set(), {}, None, None
+        loop._past_logged = None
+        loop.args = SimpleNamespace(regrow_min=60)
+        loop.mover = SimpleNamespace(walk_map=lambda st: Walk(), danger={})
+        loop.link = SimpleNamespace(pos=lambda st: [62, 25, 0, 4], state=lambda: {}, last=None)
+        loop.human = SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0))
+        loop.no_route_stands, loop.danger = set(), {}
+        before = loop.next_stand([west, east])
+        loop.danger = {7: ((49, 25), 10), ("was", 7): ((49, 25), 10)}     # escaped, out of view
+        away = loop.next_stand([west, east])
+        cap = dict(loop._clear_route or {})
+        loop.dry_blocks = {(9, 9)}                                       # the east stand dug out
+        none = loop.next_stand([west, east])
+        blocked = loop._blocked_only
+        open_[0] = corridor | loop_                                      # a way round to the north
+        loop.dry_blocks, loop._steps, loop._clear = set(), None, None   # a new map: no kept floods
+        round_ = loop.next_stand([west, east])
+        far = loop._steps[2][(32, 25)]
+        clear = loop._clear_route[(32, 25)]
+    finally:
+        loop_mining.log = saved
+    check("no escape: the west stand (4 blocks, 30 steps) over the east one (1 block, 6 steps)", before is west, before)
+    check("after the escape: the east stand, its walk capped by the clear way's 6 steps", away is east
+          and cap.get((68, 22)) == 6 and (32, 25) not in cap, (away, cap.get((68, 22))))
+    check("only the stand past it left: none, blocked (not dry), logged once",
+          none is None and blocked and sum("passed over" in s for s in logs) == 1, (none, blocked, logs))
+    check("a way round its zone: the west stand again, scored by the way round", round_ is west and clear > far + 20,
+          (round_, far, clear))
 
 
 def test_run_past():
@@ -499,6 +556,7 @@ def test_far_stand_route_cap():
     loop.walk_steps = walk_steps
     loop.no_route_stands, loop.stall_stands, loop.fruitless = set(), 0, 0
     loop._steps = (None, None, {(2520, 660): 12})          # the 80-tile flood reached (2520, 660) in 12 steps
+    loop._clear_route = None
     saved = loop_mining.log
     loop_mining.log = lambda s: None
     try:
@@ -554,12 +612,12 @@ def test_far_stand_scored_by_steps():
     box80, whole_box = (2431, 578, 2591, 738), (2397, 509, 2713, 825)
     floods = []
     loop = object.__new__(MineLoop)
-    loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2511, 658, 0))
+    loop.link = SimpleNamespace(state=lambda: {}, pos=lambda st: (2511, 658, 0), last=None)
     loop.mover = SimpleNamespace(danger={})
+    loop.danger = {}
     loop.human = SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0))
     loop.no_route_stands = set()
     loop.avail = lambda s: s["blocks"]
-    loop.out_of_reach = lambda x, y: True
 
     def walk_steps(st, whole=False):
         floods.append(whole)
@@ -871,7 +929,8 @@ def test_smelt_busy():
 
 def main():
     for t in (test_outcome, test_plan, test_dashboard_plan, test_hop_choice, test_death_events, test_memory,
-              test_reachable_stands, test_field_stands, test_run_past, test_forge_unreachable, test_stalled_leg,
+              test_reachable_stands, test_field_stands, test_next_stand_away_from_escaped, test_run_past,
+              test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
               test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
               test_last_pickaxe_worn_out, test_far_stand_scored_by_steps):

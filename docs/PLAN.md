@@ -2227,7 +2227,21 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   seem like a good idea to me, revert it." Live 23:04 (mining-20261104-230056-1ee0) a skeleton's wall had cut the only
   way on and 3327 stands failed "no route" in 65 s under the 120 s stall rule. Kept from that: `STALL_STANDS_MAX` (30)
   stands given up since the last ore end the leg however quickly (creature-blocked: hop or home). The repeated escapes
-  stay open. test_mining `test_stalled_leg`.
+  stayed open until 2026-11-07 (next item). test_mining `test_stalled_leg`.
+- *After an escape the next stand is one reached clear of the escaped creature* (2026-11-07; user, offered this, "leave
+  as is" and "end the leg at 2 escapes": "Pick next stand away from it"). Live mining-20261107-125005-79d2 13:02:36-56
+  at forge_1383_1146: after each escape from one zombie, `next_stand` picked a stand to the west, 22-24 steps on, and
+  every walk there passed it again: 4 escapes in 16 s, then "came back after 3 escapes". Now `next_stand` floods from
+  where we stand again with the tiles of every zone in `danger_zones` as walls (`clear_steps`: the monsters escaped
+  from this trip, zone_r around their live tile and where they were, and the players stepped away from; a zone we
+  stand in is left out). A stand that flood doesn't reach is passed over. The others are scored by the clear way's
+  steps, and `dig_stand` caps the walk by them. Unlike the reverted wall, nothing changes for the walk itself: the
+  Mover still goes round the zones as soft ones. With no clear stand left the leg ends at once as creature-blocked
+  (hop or home) instead of after 3 escapes. Log: "N stand(s) with ore reached only past an escaped creature (10 tiles
+  round (x, y), …): passed over" (once per zone set); "every stand left is within a creature's reach or reached only
+  past one; ending at N ore". On the live map at (1302, 1125) with a 10-tile zone the clear flood took 0.05 s and the
+  west stands came out at 114-118 clear steps (22-24 plain), or not at all. test_mining
+  `test_next_stand_away_from_escaped`.
 - *A stand beyond the walking flood gets a route cap from its walking steps* (2026-11-04 23:17:57-23:19:51,
   mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
   tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round

@@ -53,12 +53,14 @@ def standable(walk, x, y) -> list[int]:
     return sorted({o[3] for o in walk.objects(x, y) if o[2] & (pathfind.POF_SURFACE | pathfind.POF_BRIDGE)})
 
 
-def _flood(walk, start, radius, box):
+def _flood(walk, start, radius, box, avoid=None):
     """Breadth-first over (x, y, z) from start by the walk rules, inside the square of `radius`
     around start or the inclusive rectangle `box` (x0, y0, x1, y1): yields (x, y, z, steps) per
-    node reached, fewest steps first (a diagonal is one step, as on the server)."""
+    node reached, fewest steps first (a diagonal is one step, as on the server). `avoid`: (x, y)
+    tiles never entered (walls for this flood only)."""
     sx, sy, sz = start
     x0, y0, x1, y1 = box if box is not None else (sx - radius, sy - radius, sx + radius, sy + radius)
+    avoid = avoid or ()
     seen = {(sx, sy, sz)}
     q = collections.deque([(sx, sy, sz, 0)])
     while q:
@@ -69,7 +71,7 @@ def _flood(walk, start, radius, box):
             if nxt is None:
                 continue
             nx, ny, nz = nxt
-            if not (x0 <= nx <= x1 and y0 <= ny <= y1) or (nx, ny, nz) in seen:
+            if not (x0 <= nx <= x1 and y0 <= ny <= y1) or (nx, ny, nz) in seen or (nx, ny) in avoid:
                 continue
             seen.add((nx, ny, nz))
             q.append((nx, ny, nz, n + 1))
@@ -85,12 +87,12 @@ def reachable(walk, start, radius: int | None = None, box=None) -> dict:
     return {k: sorted(v) for k, v in out.items()}
 
 
-def steps(walk, start, radius: int | None = None, box=None) -> dict:
+def steps(walk, start, radius: int | None = None, box=None, avoid=None) -> dict:
     """{(x, y): the fewest steps from start (x, y, z) to it at any z} by the walk rules, within the
-    square of `radius` around start or `box` (reachable's bounds). Mobiles and learned denies aren't
-    walls here (the Mover's A* goes round them)."""
+    square of `radius` around start or `box` (reachable's bounds), never through an `avoid` (x, y)
+    tile. Mobiles and learned denies aren't walls here (the Mover's A* goes round them)."""
     out = {}
-    for x, y, _z, n in _flood(walk, start, radius, box):
+    for x, y, _z, n in _flood(walk, start, radius, box, avoid):
         out.setdefault((x, y), n)
     return out
 
