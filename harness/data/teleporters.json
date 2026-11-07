@@ -128,6 +128,12 @@
     {"facet": 0, "from": [5979, 765], "to": [0, 6007, 1152, 20],
      "note": "Cavernam level 2's strip -> level 3 (20261031_170158 21:44:13, a step NW from (5980, 766))"},
     {"facet": 0, "from": [5980, 765], "to": [0, 6008, 1152, 20],
-     "note": "Cavernam level 2's strip -> level 3 (20261031_170158 21:21:09, a step NW from (5981, 766))"}
+     "note": "Cavernam level 2's strip -> level 3 (20261031_170158 21:21:09, a step NW from (5981, 766))"},
+    {"facet": 0, "from": [5670, 1225], "to": [0, 5753, 1366, 0],
+     "note": "Ossuary level 2's north-west corner -> the mini-boss rooms east of level 2 (Speaker For The Dead; 20261106_180112 21:20:45, the user with his guild, a step W from (5671, 1225)). As a seed it keeps the level 2 crawl's walks off it"},
+    {"facet": 0, "from": [5717, 1296], "to": [0, 5716, 1271, 0],
+     "note": "Ossuary's mini-boss rooms east of level 2, south room -> north room (20261106_180112 21:21:00, a step N from (5717, 1297))"},
+    {"facet": 0, "from": [5717, 1271], "to": [0, 5718, 1296, 0],
+     "note": "Ossuary's mini-boss rooms east of level 2, north room -> south room (20261106_180112 21:23:01, a step S from (5717, 1270))"}
   ]
 }

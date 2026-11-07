@@ -2031,6 +2031,14 @@ def test_levels():
     check("given ways in and out replace the level's (no --fight-via or --leave-via of its own left)",
           pairs(own, "--enter-via") == [["6718", "1984"]] and "--fight-via" not in own and "--leave-via" not in own
           and pairs(own, "--leave-gate") == [["6913", "2071"]], str(own))
+    trips = {}
+    for name in ("2", "3", "4"):
+        sc = load("ossuary")
+        select_level(sc, name)
+        trips[name] = sc.get("trip", {}).get("hunt_s")
+    check("--compare's live trip is the level's own: the Ossuary's level 2 its runner visits, level 3 (the default) the "
+          "scenario's, level 4 none (not level 3's)",
+          trips["2"] == 6151.0 and trips["3"] == load("ossuary")["trip"]["hunt_s"] and trips["4"] is None, str(trips))
     try:
         select_level(load("mausoleum"), "2")
         refused = None
@@ -7748,11 +7756,12 @@ def test_area_hitters():
     got = {k: tamer.AREA_R.get(k) for k in ("razorfin", "voidfin", "greater razorfin", "tidal sea serpent",
                                              "drowned buccaneer", "corpsebride", "oozing noughtilus", "reanimated daemon",
                                              "giant astral zoa", "giant combustive zoa", "combustive zoa",
-                                             "biolumen shellpod", "ossuarian deathbringer", "phantasm", "hierarch")}
+                                             "biolumen shellpod", "ossuarian deathbringer", "phantasm", "hierarch",
+                                             "mummy")}
     want = {"razorfin": 3, "voidfin": 3, "greater razorfin": 3, "tidal sea serpent": 4, "drowned buccaneer": 2,
             "corpsebride": 3, "oozing noughtilus": 3, "reanimated daemon": 6, "giant astral zoa": None,
             "giant combustive zoa": None, "combustive zoa": None, "biolumen shellpod": None,
-            "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None}
+            "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None, "mummy": 2}
     check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
     want = {"astral zoa": (11, 4), "giant astral zoa": (11, 4), "combustive zoa": (12, 4), "giant combustive zoa": (12, 4),
             "drowned mariner": (11, 2), "soulcatcher": (11, 2), "white wyrmling": (8, 3)}

@@ -487,7 +487,7 @@ def main(argv=None):
         else (load(a.scenario).get("reds") or {}).get("death_downtime_s", 0.0)
     print("all: " + json.dumps(aggregate(results, downtime)))
     if a.compare:
-        print(compare(results, load_trip(a.scenario)))
+        print(compare(results, load_trip(a.scenario, a.level)))
     return 0
 
 
@@ -693,16 +693,21 @@ def others_summary(ok: list[dict]) -> dict:
             "lost_kills": sum((r.get("runner_totals") or {}).get("lost_kills", 0) for r in ok)}
 
 
-def load_trip(scenario: str) -> dict:
-    from sim.scenario import load
-    return load(scenario).get("trip") or {}
+def load_trip(scenario: str, level: str | None = None) -> dict:
+    """The live trip the runs compare with: the hunted level's (scenario.select_level), {} for a level without one."""
+    from sim.scenario import load, select_level
+    sc = load(scenario)
+    select_level(sc, level)
+    return sc.get("trip") or {}
 
 
 def compare(results: list[dict], trip: dict) -> str:
     """A table: per hour on the hunting level, the runs' totals beside the live trip's."""
     ok = [r for r in results if "sim_s" in r]
     h = sum(r["hunt_s"] for r in ok) / 3600 or 1e-9
-    th = trip.get("hunt_s", 0) / 3600 or 1e-9
+    if not trip.get("hunt_s"):
+        return "no live trip for this level to compare with (scenario `trip`, or the level's own)"
+    th = trip["hunt_s"] / 3600
 
     def tot(key, sub=None):
         return sum((r[key].get(sub, 0) if sub else r[key]) for r in ok)
@@ -710,7 +715,9 @@ def compare(results: list[dict], trip: dict) -> str:
             ("damage to us", tot("player_damage_taken") / h, trip.get("player_damage", 0) / th),
             ("vet supplies", tot("vet_uses") / h, trip.get("vet_uses", 0) / th),
             ("heal potions", tot("potions") / h, trip.get("potions", 0) / th),
-            ("provocations", (tot("bard", "provoke_ok") + tot("bard", "provoke_fail")) / h, trip.get("provoke", 0) / th)]
+            ("provocations", (tot("bard", "provoke_ok") + tot("bard", "provoke_fail")) / h, trip.get("provoke", 0) / th),
+            # the trip's gold at a normal week's rate, as the simulator's wiki gold (a Sanctuary week's corpses: gold_x 0.65)
+            ("gold", tot("gold_looted") / h, trip.get("gold", 0) / trip.get("gold_x", 1.0) / th)]
     share = [("discord success", tot("bard", "discord_ok"), tot("bard", "discord_fail"),
               trip.get("discord_ok", 0), trip.get("discord_fail", 0)),
              ("peace success", tot("bard", "peace_ok"), tot("bard", "peace_fail"),

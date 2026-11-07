@@ -6947,8 +6947,9 @@ vielle). Evidence for the simulator's 2026-10-31 Ossuary changes (docs/SIM.md "T
 
 ## The Ossuary: the runner's first live run, level 2 (2026-11-06 22:17:44-23:54:20, hunt-20261106-221743-9644)
 
-Logan with Debuffy 0x001A309A (body 832, a phoenix) and LayMore 0x0089D9D1 (body 293; a lemura's body in
-`tidal_tomb.json` [INFERENCE: a tamed lemura]), not the simulator's AlaFlambe and Bussin; the level 2 command of
+Logan with Debuffy 0x001A309A (body 832, a phoenix's body, but a Bird of Paradise: "Debuffy the Bird Of Paradise has
+increased in level." 2026-11-06 21:22:31 and the society jobs "Kill ... using Bird Of Paradises" / "... using Lemuras"
+on its kills) and LayMore 0x0089D9D1 (body 293, a lemura), not the simulator's AlaFlambe and Bussin; the level 2 command of
 docs/OVERSEER.md §5, the Seer SeerLoganWolf (skill `ossuary-shift`).
 - **In** (as built from the hand visits): "recalled to Ossuary at (1213, 2816)", 7 steps W to the entrance, (1205, 2816)
   -> (5927, 1316, 37), 160 steps across level 1 (36 s), (5786, 1327) -> (5689, 1248, 0). 51 s from the recall to level
@@ -6978,11 +6979,86 @@ docs/OVERSEER.md §5, the Seer SeerLoganWolf (skill `ossuary-shift`).
   is only in reach from the lich magus's shot; staying out of it" every 5 s from 00:02:22 to 00:05:22 while it went 89
   -> 21 %, and "... from the ossuarian slinger's shot ..." 00:07:58-00:10:24, 93 -> 27 %; no death this time. 29 kills,
   10,942 gold, the stop's `--after-trip` leave at 00:15:07, Totem (3839, 2901, -19), home 00:16:59.
-- **Not seen:** a hunter's net on Logan or a pet, an anubite's blight.
+- **Not in the runner's log** (but in the capture, "The Ossuary: level 2 from the runner's capture" below): a hunter's
+  net on Logan (19 times), the mummies' curse. No anubite's blight (no anubite on level 2).
 - The log's "crawl: dungeon level 1 floor: 6662 tiles" is `crawl.FLOOR`, a constant 1 (the NPD's level), not the
   level crawled.
 - The Seer subagent stopped the shift itself at 23:53 (`--after-trip`) with ~150 of its 200-request budget used in 70
   min of ~2-3-min glances; the parent re-dispatched one (SeerLoganWolf2) for the user's remaining time.
+
+## The Ossuary: level 2 from the runner's capture (2026-11-06 22:18-00:17, capture 20261106_221216)
+
+Measured 2026-11-07 for the simulator (docs/SIM.md "The Ossuary: level 2 walked whole by the runner") from the two
+runs above (Debuffy and LayMore, AR 130); scratch passes over `calibrate.Session`, not in the repo.
+
+- **Time and coverage:** 6,151 s on level 2 in five visits (gaps under 30 s): 22:18:38-22:47:10, 22:48:21-23:17:40,
+  23:19:29-23:42:32, 23:43:53-23:54:13, 23:57:05-00:16:50. Logan stood on 2,536 tiles and came within 12 of 95 % of
+  level 2's 6,668-tile floor (the hand visits 65 %), within 18 of 99 %.
+- **The take, by the capture:** 212 kills (deaths of monsters with a number in our hue 89), 735 hits on Logan (62
+  numbers), 145 vet uses, 10 potions, Discordance 170 ok / 17 failed, Peacemaking 97 / 9, Provocation 25 / 1; 80,253
+  gold lifted, the runner's banked total to the coin.
+- **The Ossuary was the week's Sanctuary dungeon.** "Criminal actions are not permitted in the Sanctuary Dungeon."
+  (22:49:48). Its corpses held 0.65 x the wiki gold (median of 206 corpses; 0.61-0.68 for every type and every half
+  hour), against 0.97-0.99 on 2026-10-28 and 10-31. research/DISCORD_KB.md: Sanctuary dungeons give "reduced experience
+  and gold, about 66% of normal", and one rotates weekly. 2026-11-06 is a Friday, as was Cavernam's Challenger week
+  (from 2026-10-30) [INFERENCE: the rotation is on Fridays]. No criminal actions there also means no attacking player
+  [INFERENCE: the rule's wording; no red was seen on level 2].
+- **Met:** 443 first sightings of monsters on level 2, 232 an hour leaving out the 39 ostards (the riders' mounts) and
+  the unnamed bodies. Types the hand visits hadn't met there: black cat (9 sightings, idle at (5613-5629, 1275-1292)),
+  sphinx (3), ghoul (2), temple guardian (1); all have Ossuary rows in the wiki.
+- **Respawns:** 63 monsters first seen within 12 tiles of Logan and 6 of an earlier death of their type came a median
+  245 s after the latest such death (16-32 s 11 times), within the simulator's 120-300 s.
+- **Other players on level 2** (one-second samples, the Mausoleum's method; a player is `threats.identify`'s and
+  carries the 0x20 flag, as all 2,647 live player-seconds did, because unlabelled human-bodied ossuarians pass
+  `identify` for 26 sightings): someone in view 29.7 % of the time, 0.40 on average (at most 4); 127 appearances by
+  43 players (gaps over 30 s split them), stays median 15 s (p90 69); 88 of 127 with a pet or summon within 4 tiles;
+  all blue but 7 green player-seconds, no red. 28 of the 265 deaths in view were beside another player and away from
+  us (15 an hour), every corpse blue. The scenario's `others` block has the rest.
+- **The mummy's curse** (not in the wiki): "Your body begins to decay under a horrific curse!" on Logan 4 times
+  (22:28:39.82, 23:45:37.65, 00:15:44.82, 00:16:47.56), with `*cursed*` and `*looks violently ill*` over each victim at
+  the same instant and a mummy beside every one of them (25 curses in the capture). There is no emote over the mummy
+  and no telltale animation. It curses everyone within 1 tile (36 of 38, other players' pets too, up to 3 at once) and
+  none of 20 at 2-3 tiles. The first curse comes 1.0-13.6 s after the mummy goes to war (median ~3.3), the next 15.0-15.9
+  s after. Each curse is a disease of six ticks 5.0 s apart from +5 s, Logan 7-8 and the pets 5, then "You are no longer
+  diseased." 30 s after the curse.
+- **The executioner's execution, on Logan too:** `*prepares execution*` 61 times by 25 executioners, 7.52-9.87 s apart
+  (median 8.04). 1.98-2.05 s later a hit lands on the one of us beside it (41 of 61): the pets 26-41, Logan 38 and 36
+  (00:11:00.98, 00:11:10.12), each with "They strike a potentially fatal blow!". Then a bleed: a tick 3, 6, 9, 12 and 15 s
+  after the hit, pets 8 (10 at times), Logan 11-13. Two bleeds ran side by side ("You are no longer bleeding." at
+  00:11:25.17, 15.05 s after the second hit) and ticked on after the executioner was pacified.
+- **Nets on Logan: 19** ("You have been entangled in a net!", 10.3 an hour; the hand visits had one). 70 `*readies
+  net*` by 41 hunters and huntresses, 15.0-15.7 s apart (median 15.29). Every one of Logan's 19 was a netter's first
+  net, thrown 0.3-1.3 s after it went to war from 2-10 tiles (median 7). The first nets caught one of us 35 of 36 times
+  we were within 12. The later ones, thrown beside a pet, caught the pet 12 of 25 times and a monster beside it 12
+  times; none caught Logan. `*entangled*` shows 1.10-1.20 s after the emote at 0-1 tiles and ~1.47 s at 5-11. "You are
+  no longer entangled." comes 5.08 s after (n 16); a second net restarts the hold.
+- **The embalmer's `*prepares mixture*`** (23, 15.0-15.9 s apart): its action 9 at +0.5 s, a thrown effect at +1.1 s,
+  then 7-31 puddles (0x122A-0x122F, hue 0x971) within 4-5 tiles of a tile near the pets, deleted 180 s later. Nothing
+  happened to us: no number, no message, and Logan stood in it unharmed.
+- **The lion warrior's `*parries spell*`** (26): 24 were followed 0.23-0.53 s later by 42-85 in our hue 89 on Debuffy,
+  its own spell reflected.
+- **Damage on Logan by source** (735 in 62 numbers; per hour on level 2):
+
+  | source | n | hits | per hour |
+  |---|---|---|---|
+  | mummy curse (disease ticks) | 18 | 137 | 80 |
+  | executioner bleed ticks | 10 | 120 | 70 |
+  | lich spells | 7 | 107 | 63 |
+  | executions | 2 | 74 | 43 |
+  | lich magus spells | 4 | 71 | 42 |
+  | 22:49:50-56, no monster within 12, other players' pets beside him [INFERENCE: another player's] | 7 | 49 | 29 |
+  | executioner melee | 4 | 41 | 24 |
+  | mummy melee, embalmer spells, nightmares, dervish, huntress, archer | 10 | 136 | 80 |
+
+- **The guild's mini-boss, a capture left out of the simulator's calibration** (20261106_180112, 21:20:02-21:23:17):
+  the user took Logan (Debuffy, LayMore) in with ~15 players of his guild. A step W from (5671, 1225) onto (5670,
+  1225), level 2's north-west corner, put him at (5753, 1366) in rooms east of level 2 (21:20:45). There a step N onto
+  (5717, 1296) leads to (5716, 1271) and a step S onto (5717, 1271) leads back to (5718, 1296). Skeletal archers,
+  guardians, marksmen, mages, fiends, revenants and a skeletal mount died there, then the mini-boss Speaker For The
+  Dead at 21:22:31 ("Society Job Progress: 3/12 [Kill 12 Mini-Bosses]", "You may now review results of your latest
+  boss encounter."). "Bone shards pierce your armor, temporarily reducing its effectiveness!" came at 21:23:05, and
+  skeletal dragons died in the south room. The three tiles are in `harness/data/teleporters.json`. As a seed, (5670,
+  1225) keeps the level 2 crawl's walks off it; the runner's 1.7 h came within 4 tiles of it and never stepped on it.
 
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 

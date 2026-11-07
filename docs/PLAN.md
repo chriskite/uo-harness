@@ -3081,6 +3081,40 @@ Decisions (docs/SIM.md "The fourth visit; runs per level for a shift"):
 - **Not done** (runner work, with the evidence in docs/SIM.md): the level 3 arrival pack, and Bussin left behind
   after a leave (5 of 16 level 2 runs).
 
+### Level 2 from the runner's capture (user 2026-11-07)
+
+User: "Last night the hunt runner did several runs of Ossuary 2. Use the session captures to flesh out Oss in the
+simulator." Decisions (docs/SIM.md "The Ossuary: level 2 walked whole by the runner"; facts in docs/NOTES.md "The
+Ossuary: level 2 from the runner's capture"):
+
+- **The runner's capture joins the calibration, the guild's mini-boss capture doesn't.** 20261106_221216 is 1.7 h of
+  the runner on level 2. 20261106_180112 is 3 minutes of a ~15-player guild fight in the rooms east of level 2: group
+  numbers, not a hunt. Its three teleporter tiles are kept (scenario and `teleporters.json`), so the level 2 crawl
+  stays off the corner tile into those rooms.
+- **Level 2's spawns: Tidal Tomb level 1's rule plus a removal.** Added: an idle first sighting more than 8 tiles from
+  every spawn of its type (29). Removed: a 2026-10-28 point with no sighting of its type within 8 tiles in 1.7 h
+  though Logan had it within 12 tiles for 300 s or more (6; five of them were one pack by the stairs beside four reds).
+  Rejected: rebuilding level 2 from scratch, or tuning per type to the met rates. The total met rate is within 14 %
+  of live; a few types are 2-3x off, which the crawl's own route can explain.
+- **The mummy's curse is a self-centred `burst` with a `disease` rider**, so `tamer.AREA_R` gives the mummy 2 and the
+  live runner now keeps 2 tiles off an awake mummy, as from every other area hitter (the 2026-10-28 rule). This is a
+  runner change that comes from the data.
+- **The nets and the execution re-measured**, not new kinds: the net's first throw comes at once and from up to 12
+  tiles (Logan's 19 catches); the execution hits Logan beside it and bleeds (the deathbringer's rider). The nets stay
+  out of `tamer.TARGET_AREA`: every 15.3 s, over its 15-s rule, as before (16 s).
+- **The Sanctuary week isn't in the scenario.** The corpses held 0.65 x the wiki's gold that week, and the status
+  rotates weekly. The level 2 trip carries `gold_x` 0.65, and `run.py --compare` puts its gold back at a normal
+  week's rate. Cavernam's Challenger week went into an `upscale` block because the whole calibration was that week;
+  the Ossuary's other visits were normal weeks.
+- **A level carries its own live `trip`** (`scenario.select_level`, `run.py --compare`): level 2's is the runner's
+  visits. A level without one has no trip to compare with. Before, level 3's trip was compared against every level.
+- **Other players: an `others` block measured on level 2**, the Mausoleum's method, the arrival rate and stays fitted
+  by batches (`run.py --others`; off by default as in every scenario). A player must also carry the 0x20 flag, since
+  `threats.identify` alone counts unlabelled human-bodied ossuarians as players. With it, level 2's kills, vet
+  supplies and provocations an hour come close to the runner's.
+- **Not done:** the live team. Debuffy is a Bird of Paradise and LayMore a lemura, and the simulator has neither
+  species. The comparisons use `--team phoenix_incubus`, so kills and damage differ by team as well as by world.
+
 ## Oxygen: a breath on level 1 or a dolphin on level 3 (user 2026-10-28; built the same day)
 
 User, during the first Tidal Tomb level 2 shift: "The fact the runner doesn't handle oxygen is going to become a

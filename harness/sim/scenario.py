@@ -172,8 +172,9 @@ def levels(sc: dict) -> list[dict]:
 
 def select_level(sc: dict, name: str | None) -> None:
     """Hunt the level `name` (run.py --level): its `area` (the per-hour numbers' box), its arrival `start` (where
-    --at-hunt starts) and the ways in and out it names (`enter_via`, `fight_via`, `leave_gates`, `leave_via`: run.py's
-    runner defaults) instead of the scenario's; a key it lacks stays the scenario's. None: as it is. ValueError for a
+    --at-hunt starts), the ways in and out it names (`enter_via`, `fight_via`, `leave_gates`, `leave_via`: run.py's
+    runner defaults) instead of the scenario's, a key it lacks staying the scenario's; and its own live `trip` (run.py
+    --compare), none if it has none: the scenario's trip is the default level's. None: as it is. ValueError for a
     level the scenario hasn't."""
     if not name:
         return
@@ -188,6 +189,8 @@ def select_level(sc: dict, name: str | None) -> None:
     for k in LEVEL_RUNNER_KEYS:
         if k in lv:
             sc["runner"][k] = [list(p) for p in lv[k]]
+    if not lv.get("default"):
+        sc["trip"] = dict(lv.get("trip") or {})
 
 
 def bard_difficulty(b: dict, data_dir: str = DATA) -> dict:

@@ -718,8 +718,10 @@ Paste this (or point the session at this section) to start an overseer.
 >      - **Ossuary level 4**: no command. Every simulated run died. Tell the parent: runner work first.
 >    The runner's first live Ossuary run was level 2 on 2026-11-06 (docs/NOTES.md "The Ossuary: the runner's first
 >    live run, level 2"): 4 visits in 97 min, 69k gold banked, no death; levels 1 and 3 have never been run live. In
->    the simulator (docs/SIM.md "The fourth visit"), with
->    AlaFlambe and Bussin, runs with a death were 0 of 16 on level 1, 0 of 16 on level 2 and 19 of 48 on level 3.
+>    the simulator with AlaFlambe and Bussin, runs with a death were 0 of 16 on level 1 (docs/SIM.md "The fourth
+>    visit"), 0 of 56 on level 2 and 17 of 48 on level 3 (2026-11-07, docs/SIM.md "Level 2 walked whole by the runner").
+>    The week from Friday 2026-11-06 the Ossuary is the Sanctuary dungeon ("Criminal actions are not permitted in the
+>    Sanctuary Dungeon."): about 0.65 x the usual gold; not a fault.
 >    Start an Ossuary level 3 run only when the parent passes the user's go for it.
 >    - **Cavernam** (since 2026-10-31; the parent's `cavernam-shift` skill): `--enter-rune Cavernam` with the level's
 >      teleporters and gates below. The tome's "Cavernam" row lands inside on level 1 at (6049, 602), 4 tiles south of

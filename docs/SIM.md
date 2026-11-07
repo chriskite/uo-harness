@@ -185,7 +185,7 @@ python harness/sim/red_scan.py <capture tag> ...                       # the liv
 | `data/sim/mausoleum_kb.json` | Wiki stats of 31 creatures, both pets, 22 mechanics, with knowledge ids. |
 | `data/sim/mausoleum_observed.json` | The capture's observations (86 KB), every number with its sample size. |
 | `data/sim/tidal_tomb.json`, `_kb.json`, `_observed.json` | Tidal Tomb: the scenario ("Tidal Tomb" below), the wiki's 41 creatures and 7 patch-note mechanics (kb_scan), the observations of captures 20261024_102346 and 20261024_225113, three levels (calibrate). |
-| `data/sim/ossuary.json`, `_kb.json`, `_observed.json` | The Ossuary ("The Ossuary" below): four levels in two boxes, 214 spawns, 12 specials; the wiki's 88 creatures (kb_scan) and 5 by hand; the user's three visits of 2026-10-28 (calibrate). |
+| `data/sim/ossuary.json`, `_kb.json`, `_observed.json` | The Ossuary ("The Ossuary" below): four levels in two boxes, 292 spawns, specials of 19 types, level 2's own live trip; the wiki's 88 creatures (kb_scan) and 5 by hand; the user's four visits of 2026-10-28 and 10-31 and the runner's level 2 of 2026-11-06 (calibrate). |
 | `data/sim/cavernam.json`, `_kb.json`, `_observed.json` | Cavernam ("Cavernam" below): three levels in three boxes, 93 spawns, 6 specials, the creatures upscaled (`upscale`); the wiki's 69 creatures (kb_scan) and 3 by hand; the user's three visits of 2026-10-31 (calibrate). |
 | `data/sim/tamer/logan_wolf.json`, `_observed.json` | Logan the tamer: skills, species, the 8 pets, 5 team presets, the live anchors, the perk tables (hand-authored, each block with its evidence); the scan's codex, loadouts and Guide values (generated, committed). |
 
@@ -2962,7 +2962,8 @@ the gravebug behind Logan until the walk in gave up: 6 of the first 8 runs.
 - **The walk in stops on the ramp** (5889, 1321-1329) to wait for the pets, where one monster blocks them. A four-wide
   stair is beside it (5882-5886, 1330-1333).
 - **Other players** (25 and 12 seen; 4 reds on level 2) are not measured: no `others` or `reds` block, so `--others`
-  and `--reds` are refused here.
+  and `--reds` are refused here. Since 2026-11-07 an `others` block from level 2 ("Level 2 walked whole by the runner");
+  still no `reds`.
 - Level 4 has no gate seen; its leave walks back up the strip.
 
 ### The fourth visit; runs per level for a shift (2026-10-31)
@@ -3044,6 +3045,80 @@ the change, both run at once from the same live store as `--prior`, 30 game minu
 The simulated Ossuary team (AlaFlambe and Bussin) rarely gets hurt enough for the hold to matter; the live pet it held
 off, LayMore (body 293), isn't modelled. "not going back in: <pet> is not with us" ended 11 -> 12 Ossuary runs and
 8 -> 11 Maus 3 runs.
+
+### Level 2 walked whole by the runner (2026-11-07)
+
+User 2026-11-07: "Last night the hunt runner did several runs of Ossuary 2. Use the session captures to flesh out Oss
+in the simulator." Capture `20261106_221216`: the runner's five visits on level 2, 6,151 s, Debuffy (a Bird of Paradise)
+and LayMore (a lemura), AR 130 (docs/NOTES.md "The Ossuary: level 2 from the runner's capture"). The day's other Ossuary
+capture, `20261106_180112` (21:20-21:23), is the user with his guild at a mini-boss east of level 2: kept out of the
+calibration, its teleporters kept.
+
+- **Calibration:** the capture joins `calibration.tags`; `ossuary_observed.json` now has 101 creature types.
+- **Spawns** (`spawn_note`), Tidal Tomb level 1's rule: Logan came within 12 tiles of 95 % of level 2's floor (the hand
+  visits 65 %).
+  - Added 29: each an idle first sighting more than 8 tiles from every spawn of its type. New types on level 2: the
+    black cat, sphinx, ghoul and temple guardian.
+  - Dropped 6 of 2026-10-28: their type was never seen within 8 tiles in 1.7 h though Logan had them within 12 for
+    321-1,145 s. Five were one pack by the stairs where four reds stood that day.
+  - Level 2 has 75 spawns now. Respawns keep 120-300 s (live: a median 245 s after the latest death of the type).
+- **Specials** (`specials`):
+  - **The mummy's curse** (new): a self-centred `burst`, radius 1, no emote, with a `disease` rider. Everyone within 1
+    gets six ticks 5 s apart (Logan 7-8, the pets 5). It comes 1-5 s into the mummy's fight, then every 15.5 s.
+  - **The executioner's execution** re-measured: it hits Logan too (36-38), and a `bleed` rider follows (11-13 on
+    Logan, 8 on the pets, every 3 s for 15 s). Every 8.04 s.
+  - **The nets** re-measured: the first throw comes 0.3-1.5 s into the fight, from up to 12 tiles (`reach` 12). That
+    is how all 19 of Logan's live nets came. Every 15.3 s, holding 5.08 s.
+  - Not modelled: the embalmer's mixture (puddles, nothing on us), the lion warrior's spell parry (the pet's spell
+    reflected, 42-85 on Debuffy).
+- **The runner keeps 2 off an awake mummy.** `tamer.AREA_R` reads every self-centred burst's radius, so the curse
+  makes the mummy an area hitter (test_sim `test_area_hitters`).
+- **Teleporters:** level 2's north-west corner (5670, 1225) into the mini-boss rooms, and the rooms' pair (also in
+  `teleporters.json`, where (5670, 1225) keeps the crawl's walks off it).
+- **A level's own live trip** (`runner.levels[].trip`, `scenario.select_level`): `run.py --level 2 --compare` compares
+  with the runner's visits; a level without one prints "no live trip for this level". Its `gold_x` 0.65 is the
+  Sanctuary week: the corpses held 0.65 x the wiki gold, so `--compare` divides the trip's gold by it.
+- **Other players** (`others`, new; `run.py --others`): measured on level 2 the Mausoleum's way. Live, someone was in
+  view 29.7 % of the time, 0.40 on average, 127 arrivals in view an hour, pet_share 0.69, no red. A player is
+  `threats.identify`'s and must carry the 0x20 flag: unlabelled human-bodied ossuarians otherwise pass for players.
+  The arrival rate, stays, linger and engage radius were fitted over 5 batches; the damage rules are the Mausoleum's
+  [INFERENCE]. The block's `note` has the fit.
+
+**Batches**, base 41c99df (a worktree) against the change, the live team as before (`--team phoenix_incubus`), `--prior`
+the live store, seed 1, 30 game minutes from home, `-- --vet-range 5 --crawl-learn-s 180`; level 2 `--level 2 --area
+5581 1225 5689 1363`:
+
+| | runs | runs with a death | runs with a pet death | kills / h on the level | damage on Logan / h | met / h | banked / game h (Welch t) | "Bussin is not with us" |
+|---|---|---|---|---|---|---|---|---|
+| level 2, base | 56 | 0 | 0 | 194 | 632 | 233 | 102,286 | 18 |
+| level 2, change | 56 | 0 | 2 | 201 | 668 | 259 | 103,278 (+0.4) | 20 |
+| level 2, change, `--others` | 56 | 0 | 0 | 169 | 531 | 317 | 87,161 | 11 |
+| level 3, base | 48 | 18 | 36 | 174 | 2,410 | 203 | 109,640 | 3 |
+| level 3, change | 48 | 17 | 34 | 191 | 2,506 | 216 | 112,642 (+0.1) | 4 |
+
+**Level 2 against the runner's visits** (`run.py --level 2 --compare`, the change's 56 runs):
+
+| per hour on level 2 | sim | sim `--others` | live trip |
+|---|---|---|---|
+| kills | 201 | 169 | 124 |
+| damage to us | 668 | 531 | 430 |
+| vet supplies | 116 | 88 | 85 |
+| heal potions | 11 | 11 | 6 |
+| provocations | 25 | 15 | 15 |
+| gold (the trip's at a normal week's rate) | 122,063 | 100,171 | 72,261 |
+| discord success | 0.83 | 0.83 | 0.91 |
+| peace success | 0.73 | 0.75 | 0.92 |
+| monsters met | 259 | 317 | 232 |
+| another player in view | | 34 % (0.44 on average, 126 arrivals in view an hour) | 29.7 % (0.40, 127) |
+
+- Without other players the monsters met are within 12 % of live, but the simulated team kills 60 % more. With
+  `--others` the kills come within 36 % and the vet supplies and provocations match. Most of the rest is the team
+  (AlaFlambe and Bussin against Debuffy and LayMore), and the simulator's kills count the walk in. With `--others`,
+  more monsters are met an hour (317): other players' fights bring them into view [INFERENCE].
+- By type the met rates are within 2x, except the huntress (sim 24 an hour, live 12), the lion warrior (20 / 8) and
+  the sand crawler (19 / 7), which are over, and the executioner (6.5 / 16), which is under.
+- **Open:** the live team. The simulator has no Bird of Paradise or lemura species, so live and simulated runs differ by
+  team as well as by world.
 
 ## Cavernam (2026-10-31)
 

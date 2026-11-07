@@ -209,7 +209,8 @@ CHARGE_SAFE_R = 3             # tiles from a charger and from a pet beside it: c
 # of itself in the simulator's scenarios (the measured specials: burst, ooze, wail, bleed_area; not one centred on its
 # target) adds radius + 1: the fins' spins (2: razorfin, voidfin, frenzyfin, greater
 # razorfin and frenzyfin), the colossal scourgeon's sweep (2), the tidal sea serpent's burst (3), the buccaneer's bleed
-# (1), the corpsebride's wail (2), the bound soul's bleed (1); the Ossuary's deathbringer's rain of death (4). A hit
+# (1), the corpsebride's wail (2), the bound soul's bleed (1); the Ossuary's deathbringer's rain of death (4) and, since
+# 2026-11-07, the mummy's curse (1: a 6-tick disease on everyone within 1 of it, live level 2 2026-11-06). A hit
 # reaching beyond AREA_MAX_R (the phantasm's lament 12, the spectral terror's 11) can't be stood out of in a fight: the
 # caster rules keep us from those. Since 2026-10-28 22:53 (Logan dead on Tidal Tomb level 1
 # beside both, docs/NOTES.md "Tidal Tomb: dead on level 1 on the way out") also a hit on everyone within `radius` of its

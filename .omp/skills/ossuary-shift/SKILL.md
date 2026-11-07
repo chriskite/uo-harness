@@ -32,11 +32,11 @@ re-dispatch, until the user changes them. None: level 2. Map each one before dis
    All commands are `ctl run hunt --pets --crawl --heal-in-place --vet-range 5 --crawl-learn-s 180 --leave-recall
    0x444AB1F3 --enter-recall 0x444AB1F3 --gate-dest Totem --enter-rune Ossuary` plus:
 
-   | The user says | Level | Arguments | State (simulator 2026-10-31, AlaFlambe and Bussin, 30 min from home) |
+   | The user says | Level | Arguments | State (simulator, AlaFlambe and Bussin, 30 min from home: levels 2 and 3 2026-11-07, 1 and 4 2026-10-31) |
    |---|---|---|---|
-   | level 2, nothing | Oss 2 | `--enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` | The default. 0 of 16 runs with a death, 85k gp a game hour. 5 of 16 ended "not going back in: Bussin is not with us" after a leave (cause untraced). **Live 2026-11-06** (Debuffy and LayMore): 4 visits in 97 min, no death, 43k gold an hour; LayMore died twice to lich magi and was resurrected by the vet supplies. |
+   | level 2, nothing | Oss 2 | `--enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` | The default. 0 of 56 runs with a death, 103k gp a game hour in a normal week (level 2 rebuilt from the runner's capture, docs/SIM.md "Level 2 walked whole by the runner"). 20 of 56 had "not going back in: Bussin is not with us" after a leave (cause untraced; not seen live). **Live 2026-11-06** (Debuffy and LayMore): 4 visits in 97 min, no death, 43k gold an hour in a Sanctuary week (0.65 x gold); LayMore died twice to lich magi and was resurrected by the vet supplies. |
    | level 1 | Oss 1 | `--enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870 1310` | 0 of 16 with a death, 55k gp a game hour. The golden gates' menus were never opened live. |
-   | level 3 | Oss 3 | `--enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --leave-gate 5577 1095` | **19 of 48 runs with a death**, most at the jackal spirits and hierarchs in the corridor west of the arrival (docs/SIM.md "The fourth visit"); 77k gp a game hour. The user hunts here by hand. |
+   | level 3 | Oss 3 | `--enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --leave-gate 5577 1095` | **17 of 48 runs with a death**, most at the jackal spirits and hierarchs in the corridor west of the arrival (docs/SIM.md "The fourth visit"); 113k gp a game hour. The user hunts here by hand. |
    | level 4 | Oss 4 | none | 16 of 16 dead in the simulator, most on level 3 on the way. Refuse it: runner work first (section 4). |
 
    **Level 3:** before the first run, tell the user in one message what the table says for it and wait for their go;
@@ -122,8 +122,16 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
 - **What the Ossuary does that the other dungeons don't** (docs/NOTES.md "The Ossuary: …"; expected, not new bugs):
   - the walk in starts outside: "recalled to Ossuary at (1213, 2816)", then the entrance teleporter;
   - level 1's way west has a one-wide ramp at (5889, 1321-1329): a wait for the pets there is expected;
-  - "*entangled*" over a pet, or "You have been entangled in a net!" on Logan: a hunter's net, 5 s without a step;
-  - "You have been struck by an ancient blight!": an anubite's blight, 20-24 every 5 s for 20 s.
+  - "*entangled*" over a pet, or "You have been entangled in a net!" on Logan: a hunter's net, 5 s without a step
+    (on level 2 about 10 an hour on Logan, each the netter's first throw as it comes in);
+  - "Your body begins to decay under a horrific curse!": a mummy's curse on everyone within 1 of it, 7-8 every 5 s
+    for 30 s ("You are no longer diseased.");
+  - "They strike a potentially fatal blow!": an executioner's execution on Logan beside it (36-38), then a bleed of
+    11-13 every 3 s for 15 s;
+  - "You have been struck by an ancient blight!": an anubite's blight, 20-24 every 5 s for 20 s;
+  - "Criminal actions are not permitted in the Sanctuary Dungeon.": the Ossuary is that week's Sanctuary dungeon
+    (the week from Friday 2026-11-06: its corpses hold about 0.65 x their usual gold; docs/NOTES.md "The Ossuary:
+    level 2 from the runner's capture"). Not a fault.
 - **Watch for** a pet left behind at a leave ("not going back in: Bussin is not with us", seen in the simulator), and
   on level 3 the corridor west of the arrival (x 5619-5649, y 1120-1135), where the simulated runner died most.
 - **Never** `ctl wait` for Logan: it advances the Seer's shared cursors (`overseer_juncture_cursor`,
