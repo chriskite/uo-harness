@@ -5741,6 +5741,14 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     (1302, 1125) with a 10-tile zone at three places round (1290, 1130): the clear flood took 0.05 s. The west stands
     came out at 114-118 clear steps or unreached, and (1303, 1137) at 66-67 steps or unreached, depending on where the
     zone sat.
+    - **First live leg with it (mining-20261107-143246-bb3c, forge_1951_1523, 14:34:52-14:37:45).** One sand crab
+      escape, zone 10 round (1927, 1529). The "passed over" line came 3 times (20, 16 and 7 stands), and the leg dug
+      12 more stands elsewhere (171 ore). Then it ended "every stand left is within a creature's reach or reached only
+      past one" and hopped. Replayed offline on the map from (1946, 1532, 5) with the store's dry marks: all 31 stands
+      left lay inside the zone itself, none were only "past" it. So the old in-reach rule ended the leg, not the new
+      one. They stand at z -5 and 5, the crab at z -5 (dz under LEVEL_APART_Z 16, the same level). Its "on another
+      level" line at 14:36:11 was against Dan at z 11. Open: the clear flood's zone walls every z of its tiles. The zone
+      held tiles at z 20 too, so a way over it on an upper level would count as past it. That didn't decide this leg.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
