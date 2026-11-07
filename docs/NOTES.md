@@ -6963,6 +6963,10 @@ docs/OVERSEER.md §5, the Seer SeerLoganWolf (skill `ossuary-shift`).
   from the lich magus's shot; staying out of it") kept Logan off while it went 44 -> 20 % chasing a lich magus 14
   tiles off alone; vetted at 8 %, dead 3 s later. Logan was 100/100 throughout. Not changed (the user's call, offered:
   the hold only for the disease shooters, as the cover since 1124b80). Debuffy never died.
+- **The hold again in the second run** (hunt-20261106-235557-7ed5, 23:55:57-00:16:59, SeerLoganWolf2): "LayMore (89%)
+  is only in reach from the lich magus's shot; staying out of it" every 5 s from 00:02:22 to 00:05:22 while it went 89
+  -> 21 %, and "... from the ossuarian slinger's shot ..." 00:07:58-00:10:24, 93 -> 27 %; no death this time. 29 kills,
+  10,942 gold, the stop's `--after-trip` leave at 00:15:07, Totem (3839, 2901, -19), home 00:16:59.
 - **Not seen:** a hunter's net on Logan or a pet, an anubite's blight.
 - The log's "crawl: dungeon level 1 floor: 6662 tiles" is `crawl.FLOOR`, a constant 1 (the NPD's level), not the
   level crawled.
