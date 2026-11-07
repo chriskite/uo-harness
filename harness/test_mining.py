@@ -68,10 +68,13 @@ def spot(sid, status="active", x=1000):
             "forge": {"x": x, "y": 1000, "z": 0}, "nodes": 30}
 
 
-def trip(sid, ore, hours=0.5, ago_min=600, why=None, dry=False):
+def trip(sid, ore, hours=0.5, ago_min=600, why=None, dry=False, blocked=False):
     t1 = NOW - ago_min * 60
-    return {"spot": sid, "t_start": t1 - hours * 3600 - 300, "t_end": t1, "phases_s": {"harvest": hours * 3600 + 120},
-            "walk_out_s": 100, "lockout_s": 20, "ore": ore, "why": why, "dry": dry}
+    out = {"spot": sid, "t_start": t1 - hours * 3600 - 300, "t_end": t1, "phases_s": {"harvest": hours * 3600 + 120},
+           "walk_out_s": 100, "lockout_s": 20, "ore": ore, "why": why, "dry": dry}
+    if blocked:
+        out["creature_blocked"] = True
+    return out
 
 
 LANDING = {"name": "a rune", "dist": 10, "source": "library", "library": "dtf", "x": 0, "y": 0}
@@ -96,6 +99,16 @@ def test_plan():
     check("its command runs it", out["pick"]["command"].startswith("ctl run mining --spot A --trips 1 --field-min 60"),
           out["pick"]["command"])
     check("ineligible rows sort last", [r["eligible"] for r in out["spots"]] == [True, True, False, False, False, False])
+    # live 2026-11-07: forge_1951_1523 ended creature-blocked at 14:37:45 (a sand crab's zone held the ore left), was
+    # planned again at 14:52:28 and ended blocked at 0 ore in 37 s
+    crab = {s["id"]: s for s in (spot("crab", x=1200), spot("old", x=1300))}
+    blocked = mining_opt.plan(crab, [trip("crab", 171, ago_min=15, blocked=True, why="every stand left was within a "
+                                          "creature's reach at 171 ore"), trip("old", 171, ago_min=70, blocked=True)],
+                              NOW, random.Random(1), {sid: LANDING for sid in crab})
+    b = {r["id"]: r for r in blocked["spots"]}
+    check("a creature-blocked leg 15 min ago keeps the spot out for the regrowth (45 min left); 70 min ago it's back",
+          b["crab"]["why_not"] == "creature-blocked 15 min ago" and b["crab"]["ready_in_min"] == 45
+          and b["old"]["eligible"], (b["crab"]["why_not"], b["crab"]["ready_in_min"], b["old"]["why_not"]))
     check("every row carries its hazards: deaths/h, sent home/h, P(death) over one run",
           all({"deaths_per_h", "sent_home_per_h", "p_death_stint"} <= r.keys() for r in out["spots"]), out["spots"])
     check("a spot with a sent-home leg is above the pooled sent-home rate",

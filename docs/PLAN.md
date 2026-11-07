@@ -2242,6 +2242,13 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   past one; ending at N ore". On the live map at (1302, 1125) with a 10-tile zone the clear flood took 0.05 s and the
   west stands came out at 114-118 clear steps (22-24 plain), or not at all. test_mining
   `test_next_stand_away_from_escaped`.
+- *A creature-blocked leg cools its spot like a dry one* (2026-11-07). forge_1951_1523's leg ended creature-blocked
+  at 14:37:45: the ore left was all inside a sand crab's zone, and the rest was dug out. The planner set no cooldown,
+  so it picked the spot again at 14:52:28 (mining-20261107-145228-c8a2). That leg ended blocked at 0 ore in 37 s,
+  costing a recall pair. `mining_opt.plan` now keeps a spot whose last leg ended `creature_blocked` (the trip row's
+  flag: the in-reach rule or the stall rule) out for `REGROW_MIN` (60 min, when the dug blocks come back): `why_not`
+  "creature-blocked N min ago". It doesn't count as sent home, so the hazard rates are unchanged. test_mining
+  `test_plan`.
 - *A stand beyond the walking flood gets a route cap from its walking steps* (2026-11-04 23:17:57-23:19:51,
   mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
   tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round
