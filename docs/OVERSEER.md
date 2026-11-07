@@ -709,13 +709,16 @@ Paste this (or point the session at this section) to start an overseer.
 >        rune library's spot). Their menus were never opened live [INFERENCE: Totem on them as on every gate seen].
 >      - **Ossuary level 2** (the default): `--enter-rune Ossuary --enter-via 1205 2816 --enter-via 5786 1327
 >        --leave-gate 5672 1277`. Out by the crimson gate 0x4004A43E (5672, 1277), which Logan took to Totem live
->        2026-10-28 17:37. Level 2's arrival tile (5689, 1248-1250) is also the teleporter back up to level 1: the
->        runner lands on it and walks off it.
+>        2026-10-28 17:37 and the runner four times on 2026-11-06. Level 2's arrival tile (5689, 1248-1250) is also the
+>        teleporter back up to level 1: the runner lands on it and walks off it. The patrol may cross the gate's tile:
+>        "closing gump 0xE0E675B8 from the moongate at (5672, 1277) (passing through)" is harmless.
 >      - **Ossuary level 3**: `--enter-rune Ossuary --enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363
 >        --leave-gate 5577 1095`. Out by the crimson gate 0x493E7470 (5577, 1095) (Logan's way out 3 of 4 times).
 >        The strips north to level 4 at (5588-5590, 985) and (5651-5654, 950) are known walls to the walk rules.
 >      - **Ossuary level 4**: no command. Every simulated run died. Tell the parent: runner work first.
->    The Ossuary has never been run live by the runner. In the simulator (docs/SIM.md "The fourth visit"), with
+>    The runner's first live Ossuary run was level 2 on 2026-11-06 (docs/NOTES.md "The Ossuary: the runner's first
+>    live run, level 2"): 4 visits in 97 min, 69k gold banked, no death; levels 1 and 3 have never been run live. In
+>    the simulator (docs/SIM.md "The fourth visit"), with
 >    AlaFlambe and Bussin, runs with a death were 0 of 16 on level 1, 0 of 16 on level 2 and 19 of 48 on level 3.
 >    Start an Ossuary level 3 run only when the parent passes the user's go for it.
 >    - **Cavernam** (since 2026-10-31; the parent's `cavernam-shift` skill): `--enter-rune Cavernam` with the level's
@@ -952,6 +955,9 @@ Paste this (or point the session at this section) to start an overseer.
   passed by the cursor (still listed by `ctl junctures`).
 - The omp session's context grows with every wake. Long shifts need a fresh session; the DB
   (open junctures, cursors, chat) carries the state across.
+- **A Seer subagent has a request budget** (200 requests, seen 2026-11-06): near it the Seer ends the shift itself
+  with `ctl stop --after-trip` and yields. That evening ~150 requests went in 70 min of a crawl shift with glances
+  every 2-3 min. The parent re-dispatches a fresh Seer when the user's shift isn't over.
 - `stop` terminates the runner process: it doesn't get to clear its viz intent or finish a
   trip, and items mid-move stay where they were. `stop --after-trip` doesn't (lumber runs).
 - `status` is one snapshot; notoriety names are the RunUO constants (1 innocent … 7

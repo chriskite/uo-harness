@@ -15,8 +15,9 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
 "In and out of a dungeon", "Crawl"; docs/NOTES.md "The Ossuary: …" sections; docs/SIM.md "The Ossuary" and "The
 fourth visit; runs per level for a shift".
 
-**The runner has never hunted the Ossuary live.** Everything it does there was tried only in the simulator, built
-from the user's four hand-played visits (2026-10-28 and 10-31). The first live runs are the test: watch them closely.
+**The runner has hunted the Ossuary live on level 2 only** (2026-11-06, docs/NOTES.md "The Ossuary: the runner's
+first live run, level 2": 4 visits, no death, the crimson gate to Totem every time). Levels 1 and 3 were tried only in
+the simulator, built from the user's four hand-played visits (2026-10-28 and 10-31): watch their first runs closely.
 
 ## 0. The user's instructions
 
@@ -33,7 +34,7 @@ re-dispatch, until the user changes them. None: level 2. Map each one before dis
 
    | The user says | Level | Arguments | State (simulator 2026-10-31, AlaFlambe and Bussin, 30 min from home) |
    |---|---|---|---|
-   | level 2, nothing | Oss 2 | `--enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` | The default. 0 of 16 runs with a death, 85k gp a game hour. 5 of 16 ended "not going back in: Bussin is not with us" after a leave (cause untraced). |
+   | level 2, nothing | Oss 2 | `--enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` | The default. 0 of 16 runs with a death, 85k gp a game hour. 5 of 16 ended "not going back in: Bussin is not with us" after a leave (cause untraced). **Live 2026-11-06** (Debuffy and LayMore): 4 visits in 97 min, no death, 43k gold an hour; LayMore died twice to lich magi and was resurrected by the vet supplies. |
    | level 1 | Oss 1 | `--enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870 1310` | 0 of 16 with a death, 55k gp a game hour. The golden gates' menus were never opened live. |
    | level 3 | Oss 3 | `--enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --leave-gate 5577 1095` | **19 of 48 runs with a death**, most at the jackal spirits and hierarchs in the corridor west of the arrival (docs/SIM.md "The fourth visit"); 77k gp a game hour. The user hunts here by hand. |
    | level 4 | Oss 4 | none | 16 of 16 dead in the simulator, most on level 3 on the way. Refuse it: runner work first (section 4). |
@@ -83,8 +84,8 @@ main checkout's code against the main store (§5 step 0).
 
 ```
 Act as the Seer for Logan Wolf: follow docs/OVERSEER.md §5. Goal: Ossuary crawl shifts (§5 'Mausoleum crawl shifts'
-with its Ossuary commands: 'Another hunt level by the user's word', 'The Ossuary') until the user says stop. The
-runner has never hunted the Ossuary live: these are its first runs there.
+with its Ossuary commands: 'Another hunt level by the user's word', 'The Ossuary') until the user says stop.
+<For level 1 or 3: "The runner has never hunted this level live: these are its first runs there.">
 State at dispatch (checked by the parent, <HH:MM>): <hits, pos, facet, at home or where, pets and their hits,
 gold, gate, tasks, open junctures; the tome's charges and its "Ossuary" row>.
 Runner changes since the last shift (commits <shas>): <what each changes and the log lines it writes>.
@@ -133,8 +134,9 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
   the new command or rule. It takes effect at the next `ctl run`; a run in progress keeps its arguments. A level
   change the user wants now: the Seer's `ctl stop --after-trip` first, then the new command from home.
 - The Seer yielded: read its report, fix what it lists (section 4), then dispatch a fresh Seer (section 2, with the
-  shift's instructions and command) unless the user ended the shift. Long shifts outgrow a Seer's context (§7):
-  re-dispatch when its transcript gets long, between runs.
+  shift's instructions and command) unless the user ended the shift. Long shifts outgrow a Seer's context and its
+  request budget (§7: near 200 requests it stops the run with `--after-trip` and yields, ~70 min of a crawl shift on
+  2026-11-06): re-dispatch when its transcript gets long, between runs, and at once when it yields before the shift's end.
 
 ## 4. Fix
 

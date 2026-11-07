@@ -6935,6 +6935,40 @@ vielle). Evidence for the simulator's 2026-10-31 Ossuary changes (docs/SIM.md "T
   spectraldile; level 3's colossal searing scorpion and cryptwing. 32 other players seen, no reds.
 - The 2026-10-30 capture's 407 packets in the Ossuary's boxes are on no level (no jump into one): not a visit.
 
+## The Ossuary: the runner's first live run, level 2 (2026-11-06 22:17:44-23:54:20, hunt-20261106-221743-9644)
+
+Logan with Debuffy 0x001A309A (body 832, a phoenix) and LayMore 0x0089D9D1 (body 293; a lemura's body in
+`tidal_tomb.json` [INFERENCE: a tamed lemura]), not the simulator's AlaFlambe and Bussin; the level 2 command of
+docs/OVERSEER.md §5, the Seer SeerLoganWolf (skill `ossuary-shift`).
+- **In** (as built from the hand visits): "recalled to Ossuary at (1213, 2816)", 7 steps W to the entrance, (1205, 2816)
+  -> (5927, 1316, 37), 160 steps across level 1 (36 s), (5786, 1327) -> (5689, 1248, 0). 51 s from the recall to level
+  2. Again three times after each drop-off; no wait at level 1's ramp worth a line, no "not going back in: <pet> is not
+  with us" (the simulator's 5 of 16).
+- **The crawl:** level 2's floor 6,662 tiles from the arrival (103 waypoints, zones 1-5, 40 steps each), "the way out
+  is the moongate at (5672, 1277)". Logan stayed in level 2's box throughout (the Seer's checks). The patrol crosses the
+  gate's tile at times: "closing gump 0xE0E675B8 from the moongate at (5672, 1277) (passing through)" (3 times),
+  harmless.
+- **Out:** four leaves by the crimson gate 0x4004A43E: three by the return rule ("LEAVING by the moongate: taking the
+  loot home: 34115 gp carried ... >= V* 25583" 22:46:00; 20,530 >= 20,503 at 23:14:14; 29,929 >= 25,141 at 23:39:49),
+  one by `ctl stop --after-trip` (23:53:47). The walk to the gate took 71, 207, 163 and 28 s, fought ("attacked 8 tiles
+  from it; through it now" twice). Its menu listed Totem every time: (3870, 2891), (3857, 2878), (3882, 2893), (3855,
+  2901), all at z -40; the tome home 2.2-2.8 s.
+- **Take:** 173 kills by the visit rows (4 more lost to others), 69,311 gold banked (21,515 / 21,742 / 19,767 / 6,287 a visit), 106,253 gp
+  carried by the store's prices (gold and items), in 96.6 min: 43k gold an hour, 66k carried an hour (the simulator:
+  85k gp a game hour with the other team). 422 hits lost on Logan, 9 heal potions, never under 88 at a visit's start.
+  No death, no red, no juncture but the run's own.
+- **LayMore died twice** (22:27:14, 22:37:32), both to lich magi on level 2's south half, each resurrected by the vet
+  supplies 3-6 s later ("LayMore is alive again (67%)"), no `pet_down` juncture. Both times a loot walk of 11 steps
+  left it at 37-49 % beyond --vet-range, and at 22:37:05-21 `tamer.to_pet`'s hold ("LayMore (44%) is only in reach
+  from the lich magus's shot; staying out of it") kept Logan off while it went 44 -> 20 % chasing a lich magus 14
+  tiles off alone; vetted at 8 %, dead 3 s later. Logan was 100/100 throughout. Not changed (the user's call, offered:
+  the hold only for the disease shooters, as the cover since 1124b80). Debuffy never died.
+- **Not seen:** a hunter's net on Logan or a pet, an anubite's blight.
+- The log's "crawl: dungeon level 1 floor: 6662 tiles" is `crawl.FLOOR`, a constant 1 (the NPD's level), not the
+  level crawled.
+- The Seer subagent stopped the shift itself at 23:53 (`--after-trip`) with ~150 of its 200-request budget used in 70
+  min of ~2-3-min glances; the parent re-dispatched one (SeerLoganWolf2) for the user's remaining time.
+
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 
 The user played them with AlaFlambe (the tank) and Bussin, AR 137, Logan's max hits 100: 21:15:20-21:23:30,
