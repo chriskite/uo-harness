@@ -723,10 +723,9 @@ def test_ore_route(m: memory.Memory, base: str):
     m.mine_blocks_mark(0, [b], "no_harvest")
     m.mine_blocks_mark(0, [c], "depleted", t=now - 2 * 86400)           # long regrown
     sx, sy = stands[0]["x"], stands[0]["y"]
-    m.mine_record(0, sx, sy, 0, "success", 2, t=now - 120)
-    m.mine_record(0, sx, sy, 0, "fail", 0, t=now - 110)
-    m.mine_record(0, sx, sy, 0, "nothing_near", 0, t=now - 100)
-    m.mine_record(0, sx + 1, sy, 0, "success", 5, t=now - 2 * 86400)    # before the window
+    m.mine_records([(now - 120, 0, sx, sy, 0, "success", 2), (now - 110, 0, sx, sy, 0, "fail", 0),
+                    (now - 100, 0, sx, sy, 0, "nothing_near", 0),
+                    (now - 2 * 86400, 0, sx + 1, sy, 0, "success", 5)])     # the last before the window
     o = get(base + "/api/mining/ore?spot=forge_2599_620")
     by = {(k["bx"], k["by"]): k for k in o.get("blocks", [])}
     ready = {k for k, v in by.items() if v["state"] == "ready"}

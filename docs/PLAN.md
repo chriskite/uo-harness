@@ -2249,6 +2249,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   (the whole flood's nearest tile within `forge_range`; the straight distance without one) when homes.json has a
   `forge`; longer is "the forge can't be reached (… only an N-step detour …); ending the leg: the ore goes home" at
   once. Without a house forge the field forge is the only one: no cap. test_mining `test_field_forge_route_cap`.
+- *A stand's digs are written when it ends; the proxy writes events in bursts* (2026-11-06, user: "improve the gold per
+  wall clock hour"). A dig waited ~0.36 s on the store's write lock for its own row's commit, between the server's reply
+  and the next press, a fifth of the dig cycle; the proxy's `MemoryWriter` held that lock nearly all the time (docs/NOTES.md
+  "The store's write lock", "Where a clock hour goes"). `dig_stand` keeps the stand's rows and `Memory.mine_records`
+  commits them in its `finally` (the viz ore layer sees a stand's digs when it ends); `MemoryWriter` writes each batch in
+  one burst. The dig's pace stays humanize's `dig_use` (~0.2 s after the reply, ANTICHEAT.md §3): the press should come
+  ~0.25 s after the reply, against 0.53 s measured before [INFERENCE until a live capture shows it]. Rejected: a runner
+  thread for store writes (more moving parts; one commit a stand is cheap once the lock is free).
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

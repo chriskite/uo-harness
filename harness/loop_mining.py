@@ -993,6 +993,7 @@ class MineLoop(loop_lumber.LumberLoop):
         t_stand = time.monotonic()
         self.harvesting = True       # the keep-away is on while we stand and dig
         stationary_n = 0
+        digs = []                    # this stand's mine_attempts rows, written when it ends (Memory.mine_records)
         try:
             while rec["attempts"] < self.args.max_attempts_per_stand and not self.ending and not self.time_up():
                 self.track_ensure("between digs")
@@ -1020,14 +1021,14 @@ class MineLoop(loop_lumber.LumberLoop):
                         tally["ore"] += n
                         tally["doubles"] += n >= 2
                         self.last_ore_t, self.stall_stands = time.monotonic(), 0
-                    self.memory.mine_record(self.facet, x, y, z, out, n)
+                    digs.append((time.time(), self.facet, x, y, z, out, n))
                     log(f"{where}: {f'+{n} ore' if out == 'success' else 'fail'} ({tally['ore']} this leg)")
                 elif out in ("nothing_near", "no_harvest"):
                     blocks = stand["blocks"]
                     self.memory.mine_blocks_mark(self.facet, blocks, "depleted" if out == "nothing_near" else out)
                     self.fruitless = self.fruitless + 1 if out == "no_harvest" else 0
                     self.dry_blocks.update(blocks)
-                    self.memory.mine_record(self.facet, x, y, z, out, 0)
+                    digs.append((time.time(), self.facet, x, y, z, out, 0))
                     rec["end"] = out
                     log(f"{where}: {'nothing in reach has ore' if out == 'nothing_near' else 'no mining allowed'} "
                         f"after {rec['attempts']} dig(s), {rec['ore']} ore; {len(blocks)} block(s) marked; next stand")
@@ -1063,6 +1064,7 @@ class MineLoop(loop_lumber.LumberLoop):
         finally:
             self.harvesting = False
             rec["s"] = round(time.monotonic() - t_stand, 1)
+            self.memory.mine_records(digs)
             self.memory.job_event(self.JOB, "stand", rec, facet=self.facet, x=x, y=y)
 
 

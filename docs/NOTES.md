@@ -5701,6 +5701,27 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     s after a turn. Stops over 0.3 s: 0.67 s planning at the start, two 0.35 s replans for an object on the next step,
     1.1 s at (2287, 665) for a danger replan and 1.1 s at (2287, 691) after a refused shove (stamina 24/25). Then
     "guards" and the recall home in 2.2 s. The guard zone came at (2277, 709), short of the Andaria bank goal.
+  - **Where a clock hour goes (store, 2026-11-03 to 11-06 18:13; 102 legs, 16.8 h of legs, 32 469 ore, ~1 930 ore and
+    ~128k gp per leg hour at 33.3 gp an ingot).** Read 2026-11-06 for the user's "improve the gold per wall clock hour".
+    | share of leg time | what |
+    |---|---|
+    | 56 % | digging: 25 159 digs at one stand, a press every 1.59 s (capture session_20261106_132355, 3 731 cycles: the server's reply 0.98 s after the press, then 0.32 s to the runner's next decision and 0.21 s to the press) |
+    | 16 % | stand to stand: 1 570 moves, median 3.3 s; the 115 over 10 s are 4.6 % |
+    | 6.6 % | the travel lockout waited out after the walk in (walk in p50 11.7 s, max 51.8 s, never past the lockout) |
+    | 5.7 % | weight smelts: the forge walks (77, median 26 s) and the smelting |
+    | 2.5 / 1.9 / 1.5 % | walk in from the landing / recalls / home |
+    | 2 % | escapes between two digs |
+    | 1.2 / 0.6 % | captchas / speech holds |
+    Gaps between runs added 56 min (5 %). Leg ends: 42 stored, 30 monsters (15 home, 15 hops; mostly "came back after 3
+    escapes": zombies, ogre mages, blood cultists, uruks, garou), 24 players, 3 dry. The ingot mix is the same at every
+    spot (31-34 gp an ingot, 91 % iron), so spot choice by ore rate loses nothing on value.
+    - **The 0.32 s was the store's write lock.** py-spy on the live runner (60 s, 100 Hz): `Memory.mine_record`'s commit,
+      one a dig, was 23 % of `dig_stand`, ~0.36 s a dig; BEGIN IMMEDIATE on the live store waited 0-3 045 ms (median
+      ~190 ms). Cause and fix: "The store's write lock" below. Expected: a dig every ~1.27 s, digging -20 %, ~+13 % ore
+      per clock hour.
+    - **A rune nearer the stands saves no field time.** The 60 s lockout runs from the recall and every walk in ended
+      inside it. A rune in Dan's own book would save the library's extra recall and the walk to the tome (~8 s of the
+      11.2 s travel, ~1.4 %) and let a hop recall field to field.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
@@ -8278,6 +8299,23 @@ with `replay.timed_packets` -> `WorldRuntime` (positions every 2 s, the '-N'/'+N
   wait goes on; the next poll beats again. test_ctl `test_wait_heartbeat_locked` (a real BEGIN IMMEDIATE from a second
   connection). Not changed: the cursor writes when `wait` returns, and the runners' own store writes, still fail on a
   lock that long.
+
+## The store's write lock (2026-11-06)
+
+- **The proxy's `MemoryWriter` held the store's write lock nearly all the time.** It inserted each event as it came and
+  committed every 0.25 s (`BATCH_S`); sqlite takes the write lock at a transaction's first INSERT and keeps it to the
+  commit, so under a steady event stream the lock was free only between a commit and the next event. Every other
+  writer (the runners' per-dig and per-chop rows, job events, episodes, ctl's heartbeats and cursors) waited in sqlite's
+  busy handler, which polls with growing sleeps and keeps missing those gaps.
+- **Evidence:** BEGIN IMMEDIATE from a second connection on the live store (5.0 GB, all services up, a mining run on)
+  waited 0, 0, 0, 0.1, 0.1, 95, 95, 97, 108, 130, 190, 268, 272, 542, 546, 639, 751, 762, 1 183 and 3 046 ms (20 tries
+  0.2 s apart). py-spy on the mining runner: 0.36 s a dig in `Memory.mine_record`'s commit (NOTES "Where a clock hour
+  goes" above). Offline (a temp store, a thread recording ~500 events/s): with the old writer a one-row commit waited
+  median 4 989 ms (p90 15 839, max 23 107; 12 commits); with the burst writer 0.1 ms (p90 0.1, max 0.2; 60 commits).
+- **Fix:** the writer queues a batch and writes it in one burst (the INSERTs, the commit), so the lock is held only for
+  that; the mining runner writes a stand's digs when the stand ends (`Memory.mine_records`), not one commit a dig. The
+  burst needs a proxy restart to go live; the runner change goes live at the next `ctl run`. The 2026-11-01 `ctl wait`
+  lock errors above are probably the same cause [INFERENCE].
 
 ## Tidal Tomb level 2: dead on a cover walk past the pets (live 2026-11-01 14:32:40, hunt-20261101-141745-051e)
 

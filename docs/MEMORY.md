@@ -92,7 +92,9 @@ range as [since, until); `EXPLAIN QUERY PLAN` on the 2026-10-05 store shows all 
 
 - **Proxy** (`--memory-db harness/data/harness.db`; off when empty, which is what tests use):
   - `SessionTap.sink` hands every event envelope to `MemoryWriter`, a background thread that
-    commits in batches every 0.25 s or 500 rows. The relay never waits on disk.
+    queues them and writes each batch (0.25 s or 500 items) in one burst: the INSERTs and the
+    commit, so it holds the store's write lock only that long and the runners' commits don't wait
+    (docs/NOTES.md "The store's write lock"). The relay never waits on disk.
   - Walk evidence is derived from the proxy's own `step` (confirmed move, with z) and `blocked`
     (deny, with z) events. The facet comes from the world model (S2C 0xBF sub 8). Both the
     human's and the agent's walks teach it.

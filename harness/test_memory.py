@@ -4,7 +4,8 @@ Covers what a consumer relies on:
   * walk evidence derivation from proxy `step` / `blocked` envelopes
   * the walk projection: deny vs confirm recency, facet isolation
   * harvest node availability transitions over the regrowth window
-  * MemoryWriter (the proxy's sink) persists events and walk moves
+  * MemoryWriter (the proxy's sink) persists events and walk moves, and leaves the
+    write lock free between its bursts for the runners' commits
   * capture ingest: matches the capture's known walk (session_20260929_163420:
     36 proxy `step` events, VISUALIZER.md M1) and is idempotent per tag
   * v6 characters: a v5 file migrates in place, sessions learn who logged in,
@@ -148,6 +149,44 @@ def test_writer():
     check("session closed", ended is not None)
     check("no writer errors", w.errors == 0, str(w.errors))
     m.close()
+
+
+def test_writer_leaves_the_lock():
+    """Another writer's commit isn't starved by a steady event stream (docs/NOTES.md "The store's write lock": the
+    writer that held its transaction open between commits made a one-row commit wait median 5 s here)."""
+    import threading
+    import time
+    print("MemoryWriter leaves the write lock to other writers")
+    path = tmpdb()
+    w = MemoryWriter(path)
+    w.open_session("t1")
+    stop = threading.Event()
+
+    def feed():
+        seq = 0
+        while not stop.is_set():
+            w.record("t1", {"seq": seq, "t": 1.0, "origin": "world", "data": {"ev": "x", "pad": "y" * 200}}, 0)
+            seq += 1
+            time.sleep(0.002)
+    th = threading.Thread(target=feed, daemon=True)
+    th.start()
+    time.sleep(0.5)
+    m = Memory(path)
+    waits = []
+    for i in range(10):
+        t0 = time.perf_counter()
+        m.mine_records([(time.time(), 0, 1, 2, 0, "success", 1)])
+        waits.append(time.perf_counter() - t0)
+        time.sleep(0.05)
+    stop.set()
+    th.join()
+    w.flush()
+    check("a runner's commit waits under 0.5 s during the stream", max(waits) < 0.5, f"{max(waits):.2f} s")
+    check("every dig row stored", m.con.execute("SELECT COUNT(*) FROM mine_attempts").fetchone()[0] == 10)
+    check("the stream stored too", m.con.execute("SELECT COUNT(*) FROM events").fetchone()[0] > 100)
+    check("no writer errors", w.errors == 0, str(w.errors))
+    m.close()
+
 
 
 def test_ingest():
@@ -328,8 +367,8 @@ def test_attribute_rows():
 
 
 def main():
-    for t in (test_walk_rows, test_projection, test_harvest, test_writer, test_ingest, test_migrate_v5,
-              test_writer_identity, test_scoping, test_backfill, test_attribute_rows):
+    for t in (test_walk_rows, test_projection, test_harvest, test_writer, test_writer_leaves_the_lock, test_ingest,
+              test_migrate_v5, test_writer_identity, test_scoping, test_backfill, test_attribute_rows):
         t()
     print(f"\nmemory: {'ALL PASS' if not FAILURES else f'{len(FAILURES)} FAILURES'}")
     return 1 if FAILURES else 0

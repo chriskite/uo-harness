@@ -62,8 +62,8 @@ Characters (v6)
   harvest_*, teleporters, guard_points, knowledge) are shared by every character.
 
 Writers
-  - the proxy: MemoryWriter, a background thread with batched commits, fed from
-    SessionTap events; it never blocks the relay
+  - the proxy: MemoryWriter, a background thread fed from SessionTap events, each
+    batch written and committed in one burst; it never blocks the relay
   - runners: Memory directly (harvest nodes/attempts, episodes)
   - `python harness/memory.py ingest [--logdir logs]`: replays captures not yet
     in the store through the proxy's own SessionTap (viz_feed.ReplayDriver)
@@ -397,12 +397,14 @@ class Memory:
         c.commit()
 
     # -- mining (loop_mining.py) -------------------------------------------------
-    def mine_record(self, facet, x, y, z, outcome, amount=0, t=None):
-        """One dig outcome on the stand tile (x, y, z): success/fail (amount: the ore it gave),
-        nothing_near or no_harvest."""
-        t = time.time() if t is None else t
-        self.con.execute("INSERT INTO mine_attempts VALUES(?,?,?,?,?,?,?)", (t, facet, x, y, z, outcome, amount))
-        self.con.commit()
+    def mine_records(self, rows):
+        """Dig outcomes [(t, facet, x, y, z, outcome, amount)] on their stand tiles in one commit: success/fail
+        (amount: the ore it gave), nothing_near or no_harvest. The runner keeps a stand's digs and writes them when
+        the stand ends: a commit per dig waited on the store's write lock between the server's reply and the next
+        dig (live 2026-11-06, py-spy on the runner: ~0.36 s a dig)."""
+        if rows:
+            self.con.executemany("INSERT INTO mine_attempts VALUES(?,?,?,?,?,?,?)", rows)
+            self.con.commit()
 
     def mine_blocks_mark(self, facet, blocks, outcome, t=None):
         """Mark ore blocks [(bx, by)]: 'depleted' (nothing nearby: depleted_at = t, the regrowth
@@ -708,8 +710,15 @@ class Memory:
 # ----------------------------------------------------------------------- writer
 class MemoryWriter:
     """Proxy-side durable event sink. `record(tag, env, facet)` only enqueues;
-    a daemon thread inserts events and derived walk moves, committing in
-    batches (every BATCH_S or BATCH_N rows). The relay never waits on disk."""
+    a daemon thread inserts events and derived walk moves in batches (every
+    BATCH_S or BATCH_N items), each batch written and committed in one burst.
+    The relay never waits on disk.
+
+    The burst is for every other writer of the store (runners, ctl, viz): a
+    transaction holds the write lock from its first INSERT to its commit. Until
+    2026-11-06 each event was inserted as it came, so under a steady stream the
+    writer held the lock nearly all the time and a runner's commit waited
+    0.1-3 s for it (docs/NOTES.md "The store's write lock")."""
 
     BATCH_S = 0.25
     BATCH_N = 500
@@ -749,39 +758,49 @@ class MemoryWriter:
     def _run(self):
         con = connect(self.path)
         cur = con.cursor()
-        pending, last_commit = 0, time.monotonic()
+        batch, t0 = [], 0.0
         while True:
             try:
                 item = self.q.get(timeout=self.BATCH_S)
             except queue.Empty:
                 item = None
+            if item is not None:
+                if not batch:
+                    t0 = time.monotonic()
+                batch.append(item)
+            if batch and (item is None or len(batch) >= self.BATCH_N or time.monotonic() - t0 >= self.BATCH_S
+                          or item[0] in ("flush", "close")):
+                self._write(con, cur, batch)
+                batch = []
+
+    def _write(self, con, cur, batch):
+        """One burst: every queued item, the commit, then the flushes waiting on it."""
+        for item in batch:
             try:
-                if item is not None:
-                    kind = item[0]
-                    if kind == "open":
-                        self._session_id(cur, item[1], item[2], item[3])
-                    elif kind == "close":
-                        cur.execute("UPDATE sessions SET ended=? WHERE tag=?", (item[2], item[1]))
-                    elif kind == "event":
-                        _, tag, env, facet = item
-                        sid = self._session_id(cur, tag)
-                        cur.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?,?,?)",
-                                    (sid, env["seq"], env.get("t"), env.get("origin"),
-                                     env["data"].get("ev"), json.dumps(env["data"])))
-                        _note_identity(cur, sid, env["data"])
-                        rows = walk_rows(env, facet, env.get("t") or time.time())
-                        if rows:
-                            _upsert_walk(cur, rows)
-                    pending += 1
-                if pending and (item is None or pending >= self.BATCH_N
-                                or time.monotonic() - last_commit >= self.BATCH_S
-                                or item[0] in ("flush", "close")):
-                    con.commit()
-                    pending, last_commit = 0, time.monotonic()
-                if item is not None and item[0] == "flush":
-                    item[1].set()
+                kind = item[0]
+                if kind == "open":
+                    self._session_id(cur, item[1], item[2], item[3])
+                elif kind == "close":
+                    cur.execute("UPDATE sessions SET ended=? WHERE tag=?", (item[2], item[1]))
+                elif kind == "event":
+                    _, tag, env, facet = item
+                    sid = self._session_id(cur, tag)
+                    cur.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?,?,?)",
+                                (sid, env["seq"], env.get("t"), env.get("origin"),
+                                 env["data"].get("ev"), json.dumps(env["data"])))
+                    _note_identity(cur, sid, env["data"])
+                    rows = walk_rows(env, facet, env.get("t") or time.time())
+                    if rows:
+                        _upsert_walk(cur, rows)
             except sqlite3.Error:
                 self.errors += 1
+        try:
+            con.commit()
+        except sqlite3.Error:
+            self.errors += 1
+        for item in batch:
+            if item[0] == "flush":
+                item[1].set()
 
 
 # ----------------------------------------------------------------------- ingest
