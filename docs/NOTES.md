@@ -5749,6 +5749,14 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       one. They stand at z -5 and 5, the crab at z -5 (dz under LEVEL_APART_Z 16, the same level). Its "on another
       level" line at 14:36:11 was against Dan at z 11. Open: the clear flood's zone walls every z of its tiles. The zone
       held tiles at z 20 too, so a way over it on an upper level would count as past it. That didn't decide this leg.
+    - **An ogre mage at the only way off a plateau (mining-20261107-153146-bcea, forge_2426_413, 15:50:19-23).** One
+      escape took Dan to (2542, 511, z 50). The mage's zone was 21 tiles round (2532, 534). "1914 stand(s) … passed
+      over", then the leg ended creature-blocked at 781 ore after 18 of 60 field minutes, and Dan went home (1562 ingots
+      stored). Replayed on the map (the stored field, 4990 stands, 4608 reached): avoiding the zone, the flood from
+      there reaches 41 tiles, a plateau of 2537-2547 x 506-512. Its 29 stands had no ore left. Every exit off it lies
+      on y 513, on the zone's rim. The A* way to each of 8 sampled stands beyond passes within 7 tiles of the mage, at
+      (2525-2526, 527, z 50). The escape had fired at 8 tiles, so the end was right: the old choice would have walked
+      back past it.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
