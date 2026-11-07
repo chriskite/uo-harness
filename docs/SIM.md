@@ -3024,6 +3024,27 @@ Before af30814 the same batches gave level 3 27 of 48 runs with a death; the res
   not traced.
 - **Phoenix and gravebug** on level 3 (24 runs): 14 deaths, against 5 with the old data.
 
+### The hold for the disease shooters only (2026-11-07)
+
+User 2026-11-07: "Yes make that change and try it in the simulator". `Team.to_pet` held the walk to a hurt pet for
+every awake shy kind's shot; it now holds only for a corpse purger's or blightmare's (docs/HUNT_LOOP.md "Aggro"; live
+cause in docs/NOTES.md "The Ossuary: the runner's first live run, level 2"). Batches, base 97d7d08 (a worktree) against
+the change, both run at once from the same live store as `--prior`, 30 game minutes a run:
+`--scenario ossuary --team phoenix_incubus --area 5581 1225 5689 1363 --runs 96 --jobs 14 --careers 14 --seed 1|97 --
+--vet-range 5 --crawl-learn-s 180 --enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` and Maus 3
+`--runs 98 --jobs 14 --careers 14 --others --eerie --seed 17|115 -- --vet-range 5 --crawl-learn-s 180`:
+
+| | runs | runs with a death | pet deaths | banked / h (Welch t) | damage on Logan |
+|---|---|---|---|---|---|
+| Ossuary level 2, base | 192 | 1 | 2 | 101,407 | 66,145 |
+| Ossuary level 2, change | 192 | 1 | 1 | 98,950 (-0.6) | 71,542 (+8 %) |
+| Maus 3, base | 196 | 9 | 0 | 137,671 | 124,643 |
+| Maus 3, change | 196 | 7 | 0 | 139,081 (+0.5) | 129,486 (+4 %) |
+
+The simulated Ossuary team (AlaFlambe and Bussin) rarely gets hurt enough for the hold to matter; the live pet it held
+off, LayMore (body 293), isn't modelled. "not going back in: <pet> is not with us" ended 11 -> 12 Ossuary runs and
+8 -> 11 Maus 3 runs.
+
 ## Cavernam (2026-10-31)
 
 User 2026-10-31: "I did a couple of Cavernam dungeon runs today. Add Cavernam to the simulator and create a skill for

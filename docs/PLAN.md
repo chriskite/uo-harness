@@ -3761,6 +3761,17 @@ calamities' shot (-27); Logan died 12 s later, 20 tiles from the pets (docs/NOTE
 - *Rejected:* the rule for every shooter (Maus 3 deaths 13 -> 19, the disease deaths 2 -> 12: held by the pets in a
   purger's shot).
 
+## The walk to a hurt pet held only by a purger's or blightmare's shot (2026-11-07, user: "Yes make that change and try it in the simulator")
+
+- *Decided:* `Team.to_pet`'s hold ("is only in reach from the X's shot; staying out of it") only for `aggro.SHOOTERS`;
+  another shy kind's shot logs "not a disease shooter: going in" and the walk goes on. The same split as the cover's.
+- *Evidence:* live 2026-11-06 Ossuary level 2 the hold kept Logan at 100/100 off LayMore through lich magi and a slinger
+  (44 -> 20 %, dead at 8 %; 89 -> 21 %; 93 -> 27 %; docs/NOTES.md "The Ossuary: the runner's first live run, level
+  2"). Simulator against 97d7d08 (docs/SIM.md "The hold for the disease shooters only"): deaths Ossuary level 2 1 -> 1
+  of 192, Maus 3 9 -> 7 of 196; banked t -0.6 / +0.5; damage on Logan +8 % / +4 %. test_sim
+  `test_to_pet_into_caster_shot`.
+- *Caveat:* the simulated teams seldom bring a pet low under those casters; the live LayMore isn't modelled.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

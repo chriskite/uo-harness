@@ -6961,8 +6961,9 @@ docs/OVERSEER.md §5, the Seer SeerLoganWolf (skill `ossuary-shift`).
   supplies 3-6 s later ("LayMore is alive again (67%)"), no `pet_down` juncture. Both times a loot walk of 11 steps
   left it at 37-49 % beyond --vet-range, and at 22:37:05-21 `tamer.to_pet`'s hold ("LayMore (44%) is only in reach
   from the lich magus's shot; staying out of it") kept Logan off while it went 44 -> 20 % chasing a lich magus 14
-  tiles off alone; vetted at 8 %, dead 3 s later. Logan was 100/100 throughout. Not changed (the user's call, offered:
-  the hold only for the disease shooters, as the cover since 1124b80). Debuffy never died.
+  tiles off alone; vetted at 8 %, dead 3 s later. Logan was 100/100 throughout. Changed 2026-11-07 (user: "Yes make
+  that change"): the hold only for the disease shooters, as the cover since 1124b80 (docs/PLAN.md "The walk to a hurt
+  pet held only by a purger's or blightmare's shot"). Debuffy never died.
 - **The hold again in the second run** (hunt-20261106-235557-7ed5, 23:55:57-00:16:59, SeerLoganWolf2): "LayMore (89%)
   is only in reach from the lich magus's shot; staying out of it" every 5 s from 00:02:22 to 00:05:22 while it went 89
   -> 21 %, and "... from the ossuarian slinger's shot ..." 00:07:58-00:10:24, 93 -> 27 %; no death this time. 29 kills,

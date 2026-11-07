@@ -3466,6 +3466,37 @@ def test_to_pet_not_into_shot():
           f"before {before} walked {walked} after {after} at {w.player.pos}")
 
 
+def test_to_pet_into_caster_shot():
+    print("== the same layout with an awake master reanimator, not a disease shooter: the walk in to vet the pet ==")
+    # live 2026-11-06 22:37:05-21 (hunt-20261106-221743-9644): "LayMore (44%) is only in reach from the lich magus's
+    # shot; staying out of it" held Logan at 100/100 off it 44 -> 20 %, vetted at 8 %, dead (user 2026-11-06: the hold
+    # only for the corpse purger and the blightmare)
+    w = world_with([{"key": "master reanimator", "at": [5228, 737, 0]}], seed=7, start=(5229, 729))
+    mr = next(m for m in w.mobs.values() if m.key == "master reanimator")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    gr = next(p for p in w.pets() if p.name == "GraveRobber")
+    for p, xy in zip(w.pets(), ((5230, 736), (5226, 729))):
+        p.x, p.y = xy
+    gr.hits = int(gr.hits_max * 0.7)
+    mr.target, mr.threat = gr.serial, {gr.serial: 50}
+    w._warm(mr, True)
+    mr.next_step = 1e9                         # it casts from where it stands
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            clock.advance(2.5)
+            start = w.player.pos
+            walked = loop.team.to_pet(loop.state())
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    said = [ln for ln in out.getvalue().splitlines() if "to a hurt pet" in ln]
+    check("walked toward GraveRobber, 'not a disease shooter: going in', no 'staying out of it'",
+          walked and w.player.pos != start and any("not a disease shooter: going in" in ln for ln in said)
+          and not any("staying out of it" in ln for ln in said),
+          f"walked {walked} {start} -> {w.player.pos} {said[:3]}")
+
+
 def test_to_pet_not_into_caster_reach():
     print("== the live 00:38:30 tiles: the tank at 92 % on an awake master reanimator 12 off: no walk to 4 of it; at "
           "70 % the walk; a potion refused at full health starts no cooldown ==")
@@ -8568,7 +8599,7 @@ def main():
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
               test_caster_at_12, test_blightmare_reach, test_cover, test_cover_route_clear, test_cover_not_onto_monster,
-              test_cover_by_pets, test_cover_disease_not_held, test_to_pet_not_into_shot,
+              test_cover_by_pets, test_cover_disease_not_held, test_to_pet_not_into_shot, test_to_pet_into_caster_shot,
               test_to_pet_not_into_caster_reach, test_blightmare_first_sight,
               test_blightmare_awake_patrol, test_seek_by_kill_value, test_guard_after_dropped_kill,
               test_purger_back_off, test_purger_no_ping_pong, test_caster_room_pets_first, test_patrol_pull, test_patrol_after_back_off,

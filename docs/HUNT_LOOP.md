@@ -1050,12 +1050,19 @@ found no tile at any of its tries in the purger room (simulator seed 1003: an aw
 in 13 s while he stepped off the tank and vetted). One on us gets "All Kill" at once (not after `KILL_AFTER_S`: its
 aggro is on us already, and 4 s of its shot and stacking disease is 40-60 hits), and there is no walk back to
 the pets through its shot (`Team.rejoin`; seed 2072 walked 12 steps under one, 100 -> 33). The crawl never seeks
-one in view (`Crawl.seek`): walking up to it puts us in its shot before the pets. **No walk to a hurt pet into one's
-shot** (`Team.to_pet`, since 2026-10-22): a pet above `--pet-leave-at` whose every vet tile is in an awake shy
-monster's shot isn't walked to ("to a hurt pet: GraveRobber (70%) is only in reach from the corpse purger's shot;
-staying out of it"); it is vetted once the shooter is dead or the pet comes out. Below `--pet-leave-at`, or a
-ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in, and cover walked him out each time
-(docs/NOTES.md "Dead on the walk in to a red", the follow-up).
+one in view (`Crawl.seek`): walking up to it puts us in its shot before the pets. **No walk to a hurt pet into a
+purger's or blightmare's shot** (`Team.to_pet`, since 2026-10-22): a pet above `--pet-leave-at` whose every vet tile is
+in an awake corpse purger's or blightmare's shot (`aggro.SHOOTERS`) isn't walked to ("to a hurt pet: GraveRobber (70%)
+is only in reach from the corpse purger's shot; staying out of it"); it is vetted once the shooter is dead or the pet
+comes out. Below `--pet-leave-at`, or a ghost, the walk goes on as before. Live 19:39:36-53 four such walks went in,
+and cover walked him out each time (docs/NOTES.md "Dead on the walk in to a red", the follow-up). **Any other shy
+shooter doesn't hold the walk** (since 2026-11-07, user: "Yes make that change", after the cover's "Everything but
+purger/blightmare"): "to a hurt pet: LayMore (44%) in reach from the lich magus's shot, not a disease shooter: going
+in". Live 2026-11-06 on Ossuary level 2 the hold for every shy kind kept Logan at 100/100 off LayMore while lich magi
+and a slinger took it 44 -> 20 % (dead at 8 %), 89 -> 21 % and 93 -> 27 % (docs/NOTES.md "The Ossuary: the runner's
+first live run, level 2"). Simulator (docs/SIM.md "The Ossuary: the hold for the disease shooters only"): deaths
+Ossuary level 2 1 -> 1 of 192, Maus 3 9 -> 7 of 196, banked within noise, damage on Logan +4-9 %. test_sim
+`test_to_pet_not_into_shot` (the purger), `test_to_pet_into_caster_shot` (a master reanimator).
 **A shy monster that casts at the pets isn't a shot at us while it fights them** (`tamer.AT_PETS`, `Team.shy_on_us`,
 since 2026-10-31; Logan dead on Tidal Tomb level 2, docs/NOTES.md "Tidal Tomb level 2: dead between two zoas"): a kind
 whose measured share of shots at Logan (a scenario `ranged_observed` `at_player_p`) is under `AT_US_MIN_P` 0.04, in war
