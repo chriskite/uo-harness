@@ -960,7 +960,9 @@ Paste this (or point the session at this section) to start an overseer.
   (open junctures, cursors, chat) carries the state across.
 - **A Seer subagent has a request budget** (200 requests, seen 2026-11-06): near it the Seer ends the shift itself
   with `ctl stop --after-trip` and yields. That evening ~150 requests went in 70 min of a crawl shift with glances
-  every 2-3 min. The parent re-dispatches a fresh Seer when the user's shift isn't over.
+  every 2-3 min. The parent re-dispatches a fresh Seer when the user's shift isn't over. Better, the parent hands
+  over before that (2026-11-07 23:43, 141 requests in 63 min): it tells the Seer to yield **without** a stop, then
+  dispatches a fresh one told to adopt the running task (§6 step 4); no trip is lost.
 - `stop` terminates the runner process: it doesn't get to clear its viz intent or finish a
   trip, and items mid-move stay where they were. `stop --after-trip` doesn't (lumber runs).
 - `status` is one snapshot; notoriety names are the RunUO constants (1 innocent … 7

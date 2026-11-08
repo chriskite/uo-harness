@@ -7096,6 +7096,23 @@ runs above (Debuffy and LayMore, AR 130); scratch passes over `calibrate.Session
   skeletal dragons died in the south room. The three tiles are in `harness/data/teleporters.json`. As a seed, (5670,
   1225) keeps the level 2 crawl's walks off it; the runner's 1.7 h came within 4 tiles of it and never stepped on it.
 
+## The Ossuary: the second live shift, level 2 (2026-11-07 from 22:40, hunt-20261107-224027-f81b)
+
+Logan with Borealish 0x000E68B5 and Debuffy 0x001A309A (the user's pick this time), the level 2 command of
+docs/OVERSEER.md §5, the Seers SeerLoganWolf then SeerLoganWolf2 (skill `ossuary-shift`).
+- **The first 63 min:** two leaves by the crimson gate to Totem by the return rule (22:47:20 "42191 gp carried (gold
+  6631, items 35560 ...) >= V* 28056"; 23:19:09 36,260 >= 30,467), drop-offs of 45,349 and 38,792 gp carried, 121 kills
+  (4 lost), Logan never under 88, no death, both pets out and back in every visit (no "not going back in").
+- **The Seer handed over without a stop** (23:43): SeerLoganWolf had used 141 of its ~200 requests in 63 min; asked
+  to yield without `ctl stop`, it did, and SeerLoganWolf2 took over the running run (docs/OVERSEER.md §6 step 4). No
+  trip lost, unlike 2026-11-06's `--after-trip` stop at the budget.
+- **"going in" then "staying out of it" on the same tick** (23:32:31, 36, 41, 47): "to a hurt pet: Borealish (93%) in
+  reach from the lich magus's shot, not a disease shooter: going in" and at once "... is only in reach 5 from the awake
+  lich magus, out of its sight 13 off here (80% or more); staying out of it". Two rules of `Team.to_pet`: de7a929's
+  shot rule let the walk go, then `TO_PET_CASTER_AT` (2026-10-25) held it, as meant (the pet at 80 % or more). Only the
+  log was wrong: the "going in" line is now written when the walk goes (test_sim `test_to_pet_into_caster_shot`, the
+  90 % case, fails before).
+
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 
 The user played them with AlaFlambe (the tank) and Bussin, AR 137, Logan's max hits 100: 21:15:20-21:23:30,

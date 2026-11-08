@@ -1061,8 +1061,11 @@ purger/blightmare"): "to a hurt pet: LayMore (44%) in reach from the lich magus'
 in". Live 2026-11-06 on Ossuary level 2 the hold for every shy kind kept Logan at 100/100 off LayMore while lich magi
 and a slinger took it 44 -> 20 % (dead at 8 %), 89 -> 21 % and 93 -> 27 % (docs/NOTES.md "The Ossuary: the runner's
 first live run, level 2"). Simulator (docs/SIM.md "The Ossuary: the hold for the disease shooters only"): deaths
-Ossuary level 2 1 -> 1 of 192, Maus 3 9 -> 7 of 196, banked within noise, damage on Logan +4-9 %. test_sim
-`test_to_pet_not_into_shot` (the purger), `test_to_pet_into_caster_shot` (a master reanimator).
+Ossuary level 2 1 -> 1 of 192, Maus 3 9 -> 7 of 196, banked within noise, damage on Logan +4-9 %. The "going in" line
+is written only when the walk goes: a pet at `TO_PET_CASTER_AT` (80 %) or more with Logan out of the caster's sight
+still gets that rule's "is only in reach N from the awake X, out of its sight ... staying out of it" alone (live
+2026-11-07 23:32:31 both lines on one tick, four times; docs/NOTES.md "The Ossuary: the second live shift, level 2").
+test_sim `test_to_pet_not_into_shot` (the purger), `test_to_pet_into_caster_shot` (a master reanimator; the 90 % hold).
 **A shy monster that casts at the pets isn't a shot at us while it fights them** (`tamer.AT_PETS`, `Team.shy_on_us`,
 since 2026-10-31; Logan dead on Tidal Tomb level 2, docs/NOTES.md "Tidal Tomb level 2: dead between two zoas"): a kind
 whose measured share of shots at Logan (a scenario `ranged_observed` `at_player_p`) is under `AT_US_MIN_P` 0.04, in war

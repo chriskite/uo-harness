@@ -3293,15 +3293,16 @@ class Team:
                 kinds = ", ".join(sorted({m["kind"] for m in held}))
                 log(f"{label}: {p['name']} ({p['frac']:.0%}) is only in reach from the {kinds}'s shot; staying out of it")
                 return False
+            going = None
             if wb and (others := [m for m in shy if m not in held]) and not p["dead"] \
                     and (to is None or self.shot_at(v, others, to)):
                 # only the disease shooters hold us off (user 2026-11-06: "Yes make that change", the cover's "Everything
                 # but purger/blightmare"): live 2026-11-06 (hunt-20261106-221743-9644, -235557-7ed5) "LayMore (44%) is
                 # only in reach from the lich magus's shot; staying out of it" held Logan at 100/100 off it 44 -> 20 %,
-                # vetted at 8 %, dead; then 89 -> 21 % (lich magus) and 93 -> 27 % (ossuarian slinger) for 2.5-3 min
-                kinds = ", ".join(sorted({m["kind"] for m in others}))
-                log(f"{label}: {p['name']} ({p['frac']:.0%}) in reach from the {kinds}'s shot, not a disease shooter: "
-                    f"going in")
+                # vetted at 8 %, dead; then 89 -> 21 % (lich magus) and 93 -> 27 % (ossuarian slinger) for 2.5-3 min.
+                # Logged once the rules below let the walk go (live 2026-11-07 23:32:31-47, hunt-20261107-224027-f81b:
+                # "going in" then TO_PET_CASTER_AT's "staying out of it" on the same tick, four times)
+                going = ", ".join(sorted({m["kind"] for m in others}))
             there = (to or (p["x"], p["y"]))[:2]
             near = sorted((cheb(m["pos"], there), cheb(m["pos"], v.pos), m["kind"]) for m in v.mobs
                           if m["war"] and (m["caster"] or m["ranged"]) and m["kind"] not in aggro.SHOOTERS
@@ -3321,6 +3322,9 @@ class Team:
                 return False
             if self.spray_wait(st):
                 return False              # a wave due beside us: the walk after it (spray_wait)
+            if going:
+                log(f"{label}: {p['name']} ({p['frac']:.0%}) in reach from the {going}'s shot, not a disease shooter: "
+                    f"going in")
             # and a sprayer's wind-up with us in or beside its cone ends the walk: the stand-off or the wait next
             # (simulator 2026-10-28, level 2: walks to a pet down an ocean bedrock's cone took its wave mid-walk)
             stop = self.spray_stop if p["dead"] else (lambda s: purger_first(s) or self.spray_stop(s))

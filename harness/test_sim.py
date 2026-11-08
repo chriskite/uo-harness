@@ -3475,34 +3475,43 @@ def test_to_pet_not_into_shot():
 
 
 def test_to_pet_into_caster_shot():
-    print("== the same layout with an awake master reanimator, not a disease shooter: the walk in to vet the pet ==")
+    print("== the same layout with an awake master reanimator, not a disease shooter: the walk in to vet the pet; from 13 "
+          "off and out of its reach at 90 %, held by TO_PET_CASTER_AT and no 'going in' said ==")
     # live 2026-11-06 22:37:05-21 (hunt-20261106-221743-9644): "LayMore (44%) is only in reach from the lich magus's
     # shot; staying out of it" held Logan at 100/100 off it 44 -> 20 %, vetted at 8 %, dead (user 2026-11-06: the hold
-    # only for the corpse purger and the blightmare)
-    w = world_with([{"key": "master reanimator", "at": [5228, 737, 0]}], seed=7, start=(5229, 729))
-    mr = next(m for m in w.mobs.values() if m.key == "master reanimator")
-    loop, clock, store, patched = hurt_loop(w, 100)
-    gr = next(p for p in w.pets() if p.name == "GraveRobber")
-    for p, xy in zip(w.pets(), ((5230, 736), (5226, 729))):
-        p.x, p.y = xy
-    gr.hits = int(gr.hits_max * 0.7)
-    mr.target, mr.threat = gr.serial, {gr.serial: 50}
-    w._warm(mr, True)
-    mr.next_step = 1e9                         # it casts from where it stands
-    out = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(out):
-            clock.advance(2.5)
-            start = w.player.pos
-            walked = loop.team.to_pet(loop.state())
-    finally:
-        store.close()
-        simclock.uninstall(patched)
-    said = [ln for ln in out.getvalue().splitlines() if "to a hurt pet" in ln]
+    # only for the corpse purger and the blightmare). Live 2026-11-07 23:32:31 (hunt-20261107-224027-f81b): "Borealish
+    # (93%) in reach from the lich magus's shot, not a disease shooter: going in", then on the same tick "... is only in
+    # reach 5 from the awake lich magus, out of its sight 13 off here (80% or more); staying out of it"
+    res = {}
+    for start, frac in (((5229, 729), 0.7), ((5228, 724), 0.9)):
+        w = world_with([{"key": "master reanimator", "at": [5228, 737, 0]}], seed=7, start=start)
+        mr = next(m for m in w.mobs.values() if m.key == "master reanimator")
+        loop, clock, store, patched = hurt_loop(w, 100)
+        gr = next(p for p in w.pets() if p.name == "GraveRobber")
+        for p, xy in zip(w.pets(), ((5230, 736), (5226, 729) if frac < 0.8 else (5229, 735))):
+            p.x, p.y = xy
+        gr.hits = int(gr.hits_max * frac)
+        mr.target, mr.threat = gr.serial, {gr.serial: 50}
+        w._warm(mr, True)
+        mr.next_step = 1e9                         # it casts from where it stands
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                clock.advance(2.5)
+                walked = loop.team.to_pet(loop.state())
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        res[frac] = (walked, w.player.pos[:2] != start,
+                     [ln for ln in out.getvalue().splitlines() if "to a hurt pet" in ln])
+    walked, moved, said = res[0.7]
     check("walked toward GraveRobber, 'not a disease shooter: going in', no 'staying out of it'",
-          walked and w.player.pos != start and any("not a disease shooter: going in" in ln for ln in said)
-          and not any("staying out of it" in ln for ln in said),
-          f"walked {walked} {start} -> {w.player.pos} {said[:3]}")
+          walked and moved and any("not a disease shooter: going in" in ln for ln in said)
+          and not any("staying out of it" in ln for ln in said), f"{res[0.7]}")
+    walked, moved, said = res[0.9]
+    check("at 90 % from 13 off: no walk, 'out of its sight ... staying out of it', no 'going in'",
+          not walked and not moved and any("out of its sight" in ln and "staying out of it" in ln for ln in said)
+          and not any("going in" in ln for ln in said), f"{res[0.9]}")
 
 
 def test_to_pet_not_into_caster_reach():
