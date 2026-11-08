@@ -817,10 +817,12 @@ class MineLoop(loop_lumber.LumberLoop):
         return out
 
     def escape_zones(self, st) -> list:
-        """danger_zones sorted, less any we stand in (that one is the escape's business): the walls of
-        clear_steps."""
+        """The escaped monsters' zones (danger_zones escaped_only), sorted, less any we stand in (that one is the
+        escape's business): the walls of clear_steps. Not the keep-away of players stepped away from: they move about,
+        and at the Time Quest Hub (live 2026-11-08 12:31-12:35, mining-20261108-122035-886c) four 4-tile zones round
+        blue players there passed 471 of 877 stands over with no monster escaped."""
         here = tuple(self.link.pos(st)[:2])
-        return sorted((c, r) for c, r in self.danger_zones() if cheb(here, c) > r)
+        return sorted((c, r) for c, r in self.danger_zones(escaped_only=True) if cheb(here, c) > r)
 
     def avail(self, stand) -> list:
         """The stand's blocks with ore as far as we know: not ruled out (no_harvest), not dry this leg,

@@ -3901,10 +3901,10 @@ class LumberLoop:
             except Escape as e:
                 self.escape(e)
 
-    def danger_zones(self) -> list:
+    def danger_zones(self, escaped_only: bool = False) -> list:
         """[((x, y), tiles)]: the reach (zone_r) of every monster escaped from this trip and the keep-away of every
         player stepped away from (self.danger), at its live position when in view (kept), and where a monster was when
-        we escaped."""
+        we escaped. `escaped_only`: the escaped monsters' zones alone (self.escaped_from), not the players'."""
         mobs = ((self.link.last or {}).get("world") or {}).get("mobiles") or {}
         out = []
         for key, (pos, tiles) in list(self.danger.items()):
@@ -3912,6 +3912,8 @@ class LumberLoop:
             if m.get("x") is not None:
                 pos = (m["x"], m["y"])
                 self.danger[key] = (pos, tiles)
+            if escaped_only and (key[1] if isinstance(key, tuple) else key) not in self.escaped_from:
+                continue
             out.append((tuple(pos), tiles))
         return out
 

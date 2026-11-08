@@ -354,9 +354,14 @@ def test_next_stand_away_from_escaped():
         loop.mover = SimpleNamespace(walk_map=lambda st: Walk(), danger={})
         loop.link = SimpleNamespace(pos=lambda st: [62, 25, 0, 4], state=lambda: {}, last=None)
         loop.human = SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0))
-        loop.no_route_stands, loop.danger = set(), {}
+        loop.no_route_stands, loop.danger, loop.escaped_from = set(), {}, {}
         before = loop.next_stand([west, east])
+        # live 2026-11-08 12:31-12:35 (mining-20261108-122035-886c, Time Quest Hub): a blue player stepped away from
+        # (keep_away: self.danger, not escaped_from) across the corridor; no monster escaped
+        loop.danger = {9: ((49, 25), 5)}                                # spans the corridor, y 20-30
+        thief = loop.next_stand([west, east])
         loop.danger = {7: ((49, 25), 10), ("was", 7): ((49, 25), 10)}     # escaped, out of view
+        loop.escaped_from = {7: 1}
         away = loop.next_stand([west, east])
         cap = dict(loop._clear_route or {})
         loop.dry_blocks = {(9, 9)}                                       # the east stand dug out
@@ -372,6 +377,7 @@ def test_next_stand_away_from_escaped():
     check("no escape: the west stand (4 blocks, 30 steps) over the east one (1 block, 6 steps)", before is west, before)
     check("after the escape: the east stand, its walk capped by the clear way's 6 steps", away is east
           and cap.get((68, 22)) == 6 and (32, 25) not in cap, (away, cap.get((68, 22))))
+    check("a keep-away player across the way: not a wall, the west stand still", thief is west, thief)
     check("only the stand past it left: none, blocked (not dry), logged once",
           none is None and blocked and sum("passed over" in s for s in logs) == 1, (none, blocked, logs))
     check("a way round its zone: the west stand again, scored by the way round", round_ is west and clear > far + 20,

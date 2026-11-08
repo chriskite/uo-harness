@@ -2250,6 +2250,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   and the ore goes home as for an unreachable forge. Without a house forge the walk goes on as before. On the map
   from (2437, 445, 19) with a 10-14-tile zone round the dragon, the forge was 64 plain steps away and not reachable
   clear, so the leg would have ended after the first dragon escape. test_mining `test_field_forge_route_cap`.
+  **Monsters only** (2026-11-08). The first version also walled the keep-away zones of players the runner had stepped
+  away from: `self.danger` holds them too, as 4-tile zones at the player's live tile. At the Time Quest Hub (live
+  mining-20261108-122035-886c 12:31-12:35), four blue players' zones passed 471 of its 877 stands over with no
+  monster escaped. `escape_zones` now takes only the monsters in `escaped_from` (`danger_zones(escaped_only=True)`).
+  A keep-away still keeps stands within 4 tiles of the player out (`out_of_reach`, as before 156f17a). test_mining
+  `test_next_stand_away_from_escaped` (the keep-away case).
 - *A creature-blocked leg cools its spot like a dry one* (2026-11-07). forge_1951_1523's leg ended creature-blocked
   at 14:37:45: the ore left was all inside a sand crab's zone, and the rest was dug out. The planner set no cooldown,
   so it picked the spot again at 14:52:28 (mining-20261107-145228-c8a2). That leg ended blocked at 0 ore in 37 s,
