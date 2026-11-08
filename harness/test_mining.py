@@ -612,8 +612,9 @@ def test_field_forge_route_cap():
         if 0x19B9 in graphics else []
     loop.doing = lambda *a: None
     loop.mover = SimpleNamespace(walk_to=walk_to)
-    zones, clear = [[]], [{}]
+    zones, clear, every = [[]], [{}], [[]]
     loop.escape_zones = lambda st: zones[0]
+    loop.danger_zones = lambda escaped_only=False: every[0]
     loop.clear_steps = lambda st, box, z: clear[0]
     loop._steps = (None, None, None)
     for home, steps in (({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, flood[0]),
@@ -643,6 +644,17 @@ def test_field_forge_route_cap():
     check("after an escape: no way to the forge out of the creature's zone: the leg's WalkFailed, no walk; "
           "a way round: capped by its 230 steps (470)",
           why is not None and "every way passes an escaped creature" in why and caps == [470], (why, caps))
+    # live 2026-11-08 16:18:32-48 (mining-20261108-160947-05be, forge_1524_2698): a cultist's 19-tile zone held the forge
+    # and each escape ended inside that zone, so escape_zones left it out; 3 escapes in 16 s
+    caps.clear()
+    zones[0], every[0], clear[0] = [], [((2545, 660), 19)], {(2551, 667): 30}
+    try:
+        loop.smelt("weight")
+        held = None
+    except WalkFailed as e:
+        held = str(e)
+    check("the forge within an escaped creature's zone we stand in too: the leg's WalkFailed, no walk",
+          held is not None and "within an escaped creature's reach" in held and caps == [], (held, caps))
 
 
 def test_stash_lift_refused():

@@ -654,8 +654,16 @@ class MineLoop(loop_lumber.LumberLoop):
         # as next_stand's stands): else the leg ends at once and the ore goes home (live 2026-11-08 12:27:49-12:28:17,
         # mining-20261108-122035-886c at forge_2426_413: each walk to the forge went back past one air dragon, 3 escapes
         # in 21 s, then the recall home)
+        # The forge itself within an escaped creature's zone is out whether or not we stand in that zone too (escape_zones
+        # leaves out the zone we stand in: live 2026-11-08 16:18:32-48, mining-20261108-160947-05be at forge_1524_2698,
+        # a cultist of mog roith's 19-tile zone held the forge and the escapes ended 18-19 tiles from it, inside it; 3
+        # escapes in 16 s before one ended 21 tiles off and the clear-way check fired)
         cap = None
         if not home and self.home_forge is not None:
+            held = [(c, r) for c, r in self.danger_zones(escaped_only=True) if cheb((fx, fy), c) <= r]
+            if held:
+                raise WalkFailed(f"to the forge: it is within an escaped creature's reach "
+                                 f"({', '.join(f'{r} tiles round {c}' for c, r in sorted(set(held)))})")
             steps = self.walk_steps(st, whole=True)
             zones = self.escape_zones(st)
             if steps is not None and zones:
@@ -822,7 +830,7 @@ class MineLoop(loop_lumber.LumberLoop):
         and at the Time Quest Hub (live 2026-11-08 12:31-12:35, mining-20261108-122035-886c) four 4-tile zones round
         blue players there passed 471 of 877 stands over with no monster escaped."""
         here = tuple(self.link.pos(st)[:2])
-        return sorted((c, r) for c, r in self.danger_zones(escaped_only=True) if cheb(here, c) > r)
+        return sorted({(c, r) for c, r in self.danger_zones(escaped_only=True) if cheb(here, c) > r})
 
     def avail(self, stand) -> list:
         """The stand's blocks with ore as far as we know: not ruled out (no_harvest), not dry this leg,

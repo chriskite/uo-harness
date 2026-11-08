@@ -2250,6 +2250,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   and the ore goes home as for an unreachable forge. Without a house forge the walk goes on as before. On the map
   from (2437, 445, 19) with a 10-14-tile zone round the dragon, the forge was 64 plain steps away and not reachable
   clear, so the leg would have ended after the first dragon escape. test_mining `test_field_forge_route_cap`.
+  Also out (2026-11-08 later): a field forge inside an escaped monster's zone, even when we stand in that zone too
+  (`escape_zones` leaves out a zone we stand in, so the clear-way check never saw it). Live mining-20261108-160947-05be
+  16:18:32-48 at forge_1524_2698: a cultist of mog roith's 19-tile zone held the forge, and each escape ended 18-19
+  tiles from it, inside the zone. That was 3 escapes in 16 s before one ended 21 tiles off and the clear-way check
+  fired. Now WalkFailed "to the forge: it is within an escaped creature's reach (…)" ends the leg, and the ore goes
+  home. test_mining `test_field_forge_route_cap`.
   **Monsters only** (2026-11-08). The first version also walled the keep-away zones of players the runner had stepped
   away from: `self.danger` holds them too, as 4-tile zones at the player's live tile. At the Time Quest Hub (live
   mining-20261108-122035-886c 12:31-12:35), four blue players' zones passed 471 of its 877 stands over with no
