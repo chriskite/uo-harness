@@ -277,6 +277,7 @@ LOOT_REFUSED = re.compile(r"players cannot commit aggressive actions|you may not
 POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
+ONE_WAY_MOVES = 120           # onto a one-way teleporter from the wrong side or height: the aimed walk's moves (onto)
 WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets (a teleporter, a lag)
 # A leave that isn't to survive (PLANNED: the time, the loot home, a walk's trouble; or one for a pet's sake with Logan
 # not hurt) with a live pet out of view or beyond WALK_IN_LAG_R: back to the pets first, then their fight's end with the
@@ -1037,9 +1038,10 @@ class HuntLoop:
             ok = True                   # our height: the same-floor rules as before (a detour round a wall is fine)
         else:
             goal = nav.within((mob["x"], mob["y"]), 1, lambda sz: abs(sz - z) <= FLOOR_Z_TOL)
-            tele = self.mover.teleporter_tiles(st["world"]["self"].get("map"))
+            facet = st["world"]["self"].get("map")
             budget = max(0, cheb(pos, (mob["x"], mob["y"])) - 1) + FLOOR_DETOUR
-            ok = pathfind.plan(walk, pos[:3], goal, occupied=tele, max_steps=budget) is not None
+            ok = pathfind.plan(walk, pos[:3], goal, occupied=self.mover.teleporter_walls(facet), max_steps=budget,
+                               one_way=self.mover.one_way(facet)) is not None
         self.floor_seen[serial] = (key, ok)
         return ok
 
@@ -2078,6 +2080,31 @@ class HuntLoop:
             if out == "moved":
                 raise Abort(f"{what}: the step in direction {d} moved without a teleport")
         raise Abort(f"{what}: no teleport after {TELEPORT_TRIES} steps in direction {d}")
+
+    def onto(self, tile, label: str):
+        """The step from beside the teleporter `tile` onto it (teleport). A one-way one (Mover.one_way: Shadowspire's
+        strips) whose step from here wouldn't fire (the walk beside it ended at another height: level 2's landing is
+        over its floor, the strip under its stair): a walk aimed at it instead, which the planner ends by its firing
+        step (sim 2026-11-08: "the step in direction 3 moved without a teleport" from the landing at z 33)."""
+        st = self.link.state()
+        here = self.pos(st)
+        facet = st["world"]["self"].get("map")
+        d = nav.direction(tuple(here[:2]), tuple(tile[:2]))
+        what = f"the teleporter at {tile[0]},{tile[1]}"
+        rule = self.mover.one_way(facet).get(tuple(tile[:2]))
+        if rule is not None:
+            walk = self.mover.walk_map(st)
+            land = walk.can_walk(here[0], here[1], here[2], d) if walk is not None else None
+            if land is None or tuple(land[:2]) != tuple(tile[:2]) or not pathfind.fires(rule, d, land[2]):
+                log(f"{label}: {what} is one-way and the step from {tuple(here[:3])} wouldn't fire; by a route onto it "
+                    f"the way it does")
+                n0 = self.mover.teleports
+                self.mover.walk_to(lambda: tuple(tile[:2]), 0, label, max_moves=ONE_WAY_MOVES)
+                if self.mover.teleports > n0:
+                    log(f"{what}: teleported to {self.pos(self.link.state())[:3]}")
+                    return
+                raise Abort(f"{label}: no teleport onto the one-way {what}")
+        self.teleport(d, what)
 
     # ------------------------------------------------------------ recall in, recall out
     def recall(self, book: int, rune: str | None, urgent: bool, leg: str) -> dict:
@@ -3515,8 +3542,7 @@ class HuntLoop:
                 if near is None:
                     raise Abort(f"{label}: no route onto it")
                 self.mover.walk_to(lambda: near, 0, label, urgent=True)
-                here = tuple(self.pos(self.link.state())[:2])
-                self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+                self.onto(tile, label)
                 if self.team is not None:
                     self.team.landed(self.state(), "in")
                 i += 1
@@ -3824,8 +3850,7 @@ class HuntLoop:
                         self.wait_pets(label, None)
                 if not dash and self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
                     self.wait_pets(label, tile[:2])
-                here = tuple(self.pos(self.link.state())[:2])
-                self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+                self.onto(tile, label)
             except Abort as e:
                 if self.walk_in_through(tiles, i) == i:
                     raise
@@ -4545,8 +4570,7 @@ class HuntLoop:
         self.mover.walk_to(lambda: near, 0, label)
         if self.team is not None and not self.team.together(self.link.state(), at=tile[:2]):
             self.wait_pets(label, tile[:2])
-        here = tuple(self.pos(self.link.state())[:2])
-        self.teleport(nav.direction(here, tile), f"the teleporter at {tile[0]},{tile[1]}")
+        self.onto(tile, label)
 
     def oxygen_dolphin(self, label, site):
         """Within oxygen.DOLPHIN_STAND_R of the dolphin: fight what comes until its refill line (every ~5.25 s); none in

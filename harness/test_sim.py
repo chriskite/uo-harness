@@ -8655,6 +8655,70 @@ def test_ssc_strips():
           str(w.player.pos))
 
 
+def test_ssc_strip_routes():
+    print("== the runner's routes over Shadowspire's one-way strips (harness/data/teleporters.json `dirs` / `z`): off each "
+          "landing across the other strip the way it doesn't fire, even with every strip tile in the store; onto one "
+          "only by its firing step when aimed at it ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    import nav
+    from sim import run as simrun
+    w = ssc_world((5276, 2640), z=33)                              # level 2's landing: a 2-tile pocket on the stair top
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    store = memory.Memory(db)
+    for (x, y), to in (((5132, 2653), (5276, 2640, 33)), ((5133, 2653), (5277, 2640, 33)),
+                       ((5276, 2641), (5132, 2654, 36)), ((5277, 2641), (5133, 2654, 36))):
+        store.teleporter_record(0, x, y, 0, *to)                    # every strip tile learnt by a stray step that fired
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+
+    def fired(mv, st, path):
+        """The route's steps onto a strip tile that would fire (its map z per tile from the plan)."""
+        rules = mv.one_way(0)
+        return [(a, b) for a, b in zip(path, path[1:])
+                if b in rules and pathfind.fires(rules[b], nav.direction(a, b), mv.plan_z.get(b))]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            mv = loop.mover
+            st = loop.state()
+            off2, _ = mv.plan(st, nav.within((5290, 2600), 0), mobiles=False)
+            off2_fired = fired(mv, st, off2) if off2 else None
+            try:
+                mv.walk_to(lambda: (5290, 2600), 0, "test", max_moves=120)
+            except Exception:                                      # noqa: BLE001 - the end position is the check
+                pass
+            walked = w.player.pos
+            w._teleport(w.player, (5277, 2643, -25))
+            st = loop.state()
+            up, _ = mv.plan(st, nav.within((5277, 2641), 0), mobiles=False)
+            up_fires = bool(up) and fired(mv, st, up) == [(up[-2], up[-1])]
+            w._teleport(w.player, (5133, 2654, 36))                # level 1's pocket below its strip
+            st = loop.state()
+            off1, _ = mv.plan(st, nav.within((5130, 2620), 0), mobiles=False)
+            off1_fired = fired(mv, st, off1) if off1 else None
+            w._teleport(w.player, (5133, 2640, 39))
+            st = loop.state()
+            gate, _ = mv.plan(st, nav.within((5157, 2647), 0), mobiles=False)
+            gate_fired = fired(mv, st, gate) if gate else None
+            down, _ = mv.plan(st, nav.within((5132, 2653), 0), mobiles=False)
+            down_fires = bool(down) and fired(mv, st, down) == [(down[-2], down[-1])]
+    finally:
+        simclock.uninstall(patched)
+    check("off level 2's landing: a route down the stair, no step onto the strip that fires",
+          off2 is not None and off2_fired == [], f"{off2 and len(off2)} steps, firing {off2_fired}")
+    check("...walked: on level 2's floor at (5290, 2600), not teleported", walked[:2] == (5290, 2600), str(walked))
+    check("aimed at (5277, 2641) from level 2's floor: the last step fires, none before it", up_fires, str(up))
+    check("off level 1's pocket (5133, 2654): north across the strip, no firing step", off1 is not None and off1_fired == [],
+          f"{off1 and len(off1)} steps, firing {off1_fired}")
+    check("level 1 to the crimson gate (5157, 2647) from the west corridor: never a step south onto the strip",
+          gate is not None and gate_fired == [], f"firing {gate_fired}")
+    check("aimed at (5132, 2653) from the north: the last step fires", down_fires, str(down))
+
+
 def test_ssc_mud_spray():
     print("== a mud gargoyle's spray: '*mud spray*', then 10 numbers 0.137 s apart from 0.61 s on its target alone, a mud "
           "puddle within 2 of it each; Logan's step onto a puddle roots him (the next step refused) ==")
@@ -8789,7 +8853,7 @@ def main():
               test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
-              test_ssc_recall_rule, test_ssc_strips, test_ssc_mud_spray, test_ssc_hunt):
+              test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

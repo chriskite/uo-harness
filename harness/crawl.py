@@ -57,6 +57,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import aggro  # noqa: E402
 import combat  # noqa: E402
 import nav  # noqa: E402
+import pathfind  # noqa: E402
 import tamer  # noqa: E402
 import threats  # noqa: E402
 from agent_link import Abort, log  # noqa: E402
@@ -146,10 +147,13 @@ class Floor:
         return min(near)[1] if near else None
 
 
-def floor_from_map(walk, start, exit_tile, teleporters) -> Floor:
+def floor_from_map(walk, start, exit_tile, teleporters, one_way=None) -> Floor:
     """The floor from the map: BFS over (x, y, z) with walk.can_walk (pathfind.Walk)
-    from `start` (x, y, z), never onto a tile in `teleporters` except `exit_tile`."""
-    tele = set(teleporters) - {tuple(exit_tile)}
+    from `start` (x, y, z), never onto a tile in `teleporters` except `exit_tile`. A one-way
+    teleporter's tile (`one_way` {(x, y): rule}, pathfind.fires) is floor where a step onto it
+    doesn't fire (Shadowspire's strips: each landing's way off crosses the other strip)."""
+    one_way = one_way or {}
+    tele = set(teleporters) - {tuple(exit_tile)} - set(one_way)
     s = (int(start[0]), int(start[1]), int(start[2]))
     seen, q, adj, depth = {s}, collections.deque([s]), {}, {s: 0}
     while q and len(adj) < MAX_TILES:
@@ -161,6 +165,8 @@ def floor_from_map(walk, start, exit_tile, teleporters) -> Floor:
         for d in range(8):
             n = walk.can_walk(x, y, z, d)
             if n is None or n[:2] in tele:
+                continue
+            if n[:2] in one_way and n[:2] != tuple(exit_tile) and pathfind.fires(one_way[n[:2]], d, n[2]):
                 continue
             here.add(n[:2])
             adj.setdefault(n[:2], set()).add((x, y))
@@ -494,7 +500,7 @@ class Crawl:
         walk = m.walk_map(st)
         t0 = time.monotonic()
         if walk is not None:
-            self.floor = floor_from_map(walk, pos[:3], self.h.spot, tele)
+            self.floor = floor_from_map(walk, pos[:3], self.h.spot, tele, m.one_way(facet))
         else:
             self.floor = floor_from_memory(m.mem_for(facet), self.h.spot, self.h.spot, tele)
         if self.h.spot not in self.floor.dist_exit or len(self.floor) < 2:
@@ -1111,7 +1117,6 @@ def _ro(path):
 
 
 def _cli_floor(args):
-    import pathfind
     import uomap
     con = _ro(args.memory) if args.memory else None
     tele = {(x, y) for x, y in con.execute("SELECT x, y FROM teleporters WHERE facet = 0")} if con else set()

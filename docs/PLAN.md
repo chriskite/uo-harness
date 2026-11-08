@@ -3860,19 +3860,42 @@ built from his seven hand visits of 2026-10-24 to 11-03 (docs/SIM.md "Shadowspir
   - level 2 down the strip with the leg across level 1 fought (`--fight-via`: without it, 9 of 32 died there), out up
     the strip from its floor to level 1's crimson gate.
 - *The skill's default is level 1* (the user's pick; 0 of 32 simulated runs with a death, 145k gp a game hour).
-- *Level 2 is refused* until runner work, for two reasons:
-  - 15 of 32 runs with a death [INFERENCE: overstated by the stoneshapers, 5 x the user's rate];
-  - the runner's teleporter tiles are 2-D and two-way (`Mover.teleporter_tiles`). A stray step onto a strip's
-    unseeded twin fires, is learnt into the store as a wall, and closes a landing for every later run.
-
-  Its command is kept for the go-home run only.
-- *`teleporters.json` holds one tile per strip* ((5132, 2653) and (5277, 2641)) plus the surface exit as a wall.
-  Seeding all four crashed the crawl on the 2-tile landing ("max() iterable argument is empty").
+- *Level 2 is refused*: 66 of 96 runs with a death after the strips' fix below [INFERENCE: overstated by the
+  stoneshapers, 5 x the user's rate]. Its command is kept for the go-home run only.
 - *Not fixed, open*: the time-up leave's "attacked N tiles from it; through it now" took Logan through a gate with
   the pets 4-10 back in 3-4 of 32 level 1 runs, leaving them in SSC (`pet_left_behind`). It happened at all three
   gates. This is the runner's general gate rule, not SSC's own; it waits on live evidence.
 - *Live side effect*: `tamer._area_r` / `_target_area` read every scenario's specials, so the live runner now keeps
   2 off a horned devil and 2 off each pet within 12 of an awake gargan stoneshaper. Both types are only in SSC's files.
+
+## One-way teleporters in the runner (user 2026-11-08: "fix the issue with the stairs one-way teleporters")
+
+Shadowspire's strips fire one way (level 1's on a step S/SE/SW, level 2's only at its floor's height), and each
+landing's way off crosses the other strip. The runner took every known teleporter tile as a wall to every walk. So
+only one tile per strip was seeded, and a stray step onto the other tile fired and was learnt into the store as a
+wall, closing that landing for every later run.
+
+- *Decided*: `teleporters.json` seeds carry the sim's `dirs` / `z`. `pathfind.plan(one_way=, aim=)` steps onto such
+  a tile only when the step fires and the tile is the walk's aimed goal, or when it doesn't fire and it isn't.
+  `Mover.plan` passes the facet's one-way tiles that way and keeps the rest as walls.
+  - The same rule is used by `crawl.floor_from_map`, `on_our_floor`'s reach plans, and the walk's firing test
+    (`Mover.step_fires`).
+  - `HuntLoop.onto` replaces the bare step onto an `--enter-via` / `--leave-via` teleporter. When the step from where
+    the walk ended wouldn't fire (level 2's landing is over the strip's floor), it walks a route aimed at the tile
+    instead.
+  - The seed's rule stands over the store's row, so a learnt twin no longer walls a landing. All four strip tiles are
+    seeded.
+- *Rejected*:
+  - A `dirs` column in the store's `teleporters` table: a step that fires shows one direction, not the rule. Only
+    the seeds, from the captures, know it.
+  - Walk memory with one-way tiles: it has no heights, so they stay walls there.
+- *Evidence*:
+  - test_sim `test_ssc_strip_routes` fails before the fix: no route off level 2's landing with every strip tile in
+    the store.
+  - Level 2, 96 runs: the 30 runs that ended on the strips before (15 crawl crashes at the landing, 5 "moved without a
+    teleport", 3 "no route") are gone, and there was no stray teleport in 32 logged runs. Deaths 43 -> 66 runs and
+    1.28 -> 1.65 an hour [INFERENCE: mostly the full time on level 2 that those runs now get]. Level 1, 96 runs: no
+    death.
 
 ## Risks
 

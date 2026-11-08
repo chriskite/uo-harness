@@ -200,6 +200,19 @@ takes the exit step there.
   600 s", and the run stood in the room for 46 s, (5243, 587) beside him a known way out. The door strip's seeds since
   then: (5242, 612), (5244, 612) and (5243, 612) [INFERENCE] in, (5242, 587) and (5243, 587) out. test_sim
   `test_out_of_boss_room`.
+  **One-way teleporters** (since 2026-11-08; `Mover.one_way`, `pathfind.fires`): a `harness/data/teleporters.json`
+  seed with `dirs` (the step directions it fires on) and/or `z` (the heights of the step's landing it fires at) is no
+  wall. The map planner crosses it on a step that doesn't fire, and steps onto it the way it fires only when the walk
+  aims at that tile (`aim`, an `--enter-via` / `--leave-via` / a step back). The crawl's floor
+  (`crawl.floor_from_map`) takes it in the same way, and so do `on_our_floor`'s reach plans and the walk's "through
+  the teleporter" ending (`Mover.step_fires`). The seed's rule stands over the store's row for its tile, so a stray
+  step that fired and was learnt no longer walls it. Walk memory without a map has no heights: one-way tiles stay walls
+  there. Shadowspire Cathedral's strips: level 1's (5132-5133, 2653) fires on a step S, SE or SW; level 2's (5276-5277,
+  2641) only at its floor's height (-30..0), not from the stair over it. Each strip's landing is a 2-tile pocket whose
+  way off crosses the other strip. Before, a known tile was a wall to every walk, so only one tile per strip was seeded,
+  and a learnt twin closed that landing for every later run of the store (2 of 32 simulated level 2 runs: "no route
+  from (5277, 2641)"). With all four seeded as walls, the crawl found a 2-tile floor at level 2's landing and crashed.
+  test_sim `test_ssc_strip_routes` (every strip tile in the store: off each landing, onto each strip only aimed).
 - **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
   fight spot the runner plans the route back to `--spot` and leaves below
   `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that

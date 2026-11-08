@@ -35,7 +35,7 @@ re-dispatch, until the user changes them. None: level 1 (the user's pick, 2026-1
    | The user says | Level | Arguments | State (simulator 2026-11-08, AlaFlambe and Bussin, 30 min from home) |
    |---|---|---|---|
    | level 1, nothing | SSC 1 | `--leave-gate 5145 2480 --leave-gate 5176 2489 --leave-gate 5157 2647` | The default. 0 of 32 runs with a death, 145k gp a game hour. Against the user's visits per hour: kills 155 vs 105, damage on Logan 1,068 vs 1,217. **3-4 of 32 runs left a pet in SSC** at the time-up leave: "attacked N tiles from it; through it now" with the pets 4-10 tiles back, then "PETS LEFT BEHIND (gate)". It happened at all three gates. Out by the easiest of its three gates (two golden, one crimson), all of whose menus listed Totem live. Never run live. |
-   | level 2 | SSC 2 | the go-home run only: `--enter-via 5132 2653 --fight-via 5132 2653 --leave-via 5277 2641 --leave-gate 5157 2647` | **Refuse it: runner work first.** 15 of 32 runs with a death, 26 with a pet death. The stoneshapers' spawns probably overstate this [INFERENCE: 5 x the user's encounter rate]. The runner treats teleporter tiles as two-way, but the strips are one-way. A stray step onto the twin strip tile fires, is learnt into the store as a wall, and closes that landing for every later run (2 of 32). Offer level 1, or the runner work (docs/SIM.md "Shadowspire Cathedral", "Open"). |
+   | level 2 | SSC 2 | the go-home run only: `--enter-via 5132 2653 --fight-via 5132 2653 --leave-via 5277 2641 --leave-gate 5157 2647` | **Refuse it: too deadly.** 66 of 96 simulated runs had a death and 90 a pet death (2026-11-08, after the one-way strips fix). The stoneshapers' spawns probably overstate this [INFERENCE: 5 x the user's encounter rate]. The strips themselves are handled: the runner's one-way teleporters cross each strip the way it doesn't fire, with no stray teleport and no strip failure in the batches. Offer level 1. Or offer the runner work: measure the stoneshapers in a short supervised live visit, or tactics for level 2 (docs/SIM.md "Shadowspire Cathedral", "Open"). |
    | level 3, level 4, the east wing, a boss | none | none | Not in the scenario (never hunted; the east wing visit was a guild boss fight). Refuse it. |
 
 2. **A runner setting** ("no songs", "stop after 50 kills", "don't provoke", "never pull the winged hulks"): the flag
@@ -131,9 +131,9 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
 - **Watch for** red players on level 1. Logan died there by hand on 2026-10-31 (5130, 2614) to two reds, with a mud
   gargoyle rooting him. The runner's red leave ("LEAVING ... by the gold moongate") is its own: nothing to fix. Also
   watch for a pet left behind at the time-up leave (above): `pet_left_behind` is urgent, and fetching the pet is the
-  user's job. And watch for Logan on level 2 (x 5241-5359) during a level 1 run: a stray step south onto the strip
-  (5133, 2653), which is not in `teleporters.json` (never seen in 64 simulated runs). Have the Seer `ctl stop` that
-  run (the run is now somewhere wrong, §5 step 8) and start level 2's go-home run at once.
+  user's job. And watch for Logan on level 2 (x 5241-5359) during a level 1 run. The strip (5132-5133, 2653) is a
+  one-way teleporter the runner never steps onto southward unless aimed, so this should not happen. Have the Seer
+  `ctl stop` that run (the run is now somewhere wrong, §5 step 8) and start level 2's go-home run at once.
 - **Never** `ctl wait` for Logan: it advances the Seer's shared cursors (`overseer_juncture_cursor`,
   `overseer_chat_cursor`) and the Seer misses those events. Never `ctl act`, `ctl run` or `ctl stop` while the
   Seer runs: have the Seer do it. Never fight by hand.

@@ -627,6 +627,7 @@ class Mover:
         self.teleports = 0
         self._teleporters = {}       # facet -> {(x, y)} known teleporter tiles (seeds + store + session)
         self._tele_to = {}           # facet -> {(x, y): (to_facet, x, y, z)} where each one puts us
+        self._one_way = {}           # facet -> {(x, y): (dirs, (z0, z1))} the seeds' one-way ones (pathfind.fires)
         self._back_to = None         # ((x, y), facet) a step back aims for: a teleport there on the way is the way back
         self.gate_gumps_closed = 0
         self.step_mark = 0           # len(link.events) when the last walk went out
@@ -824,13 +825,41 @@ class Mover:
         facet = 0 if facet is None else facet
         s = self._teleporters.get(facet)
         if s is None:
-            to = {tuple(t["from"]): tuple(t["to"]) for t in teleporter_seeds() if t["facet"] == facet}
+            seeds = [t for t in teleporter_seeds() if t["facet"] == facet]
+            to = {tuple(t["from"]): tuple(t["to"]) for t in seeds}
             src = self._source
             if hasattr(src, "teleporters"):
                 to.update({tuple(k): tuple(v) for k, v in src.teleporters(facet).items()})
             self._tele_to[facet] = to
+            # a seed's `dirs` / `z` say it fires one way only; the store's rows (learnt by a step that fired) don't
+            # carry that, so the seed's rule stands for its tile
+            self._one_way[facet] = {tuple(t["from"]): (set(t["dirs"]) if t.get("dirs") is not None else None,
+                                                       tuple(t["z"]) if t.get("z") is not None else None)
+                                    for t in seeds if t.get("dirs") is not None or t.get("z") is not None}
             s = self._teleporters[facet] = set(to)
         return s
+
+    def one_way(self, facet) -> dict:
+        """The known one-way teleporter tiles on facet: {(x, y): (dirs, (z0, z1))} (pathfind.fires). A walk crosses
+        one the way it doesn't fire; only a walk aimed at it steps onto it the way it fires."""
+        self.teleporter_tiles(facet)
+        return self._one_way[0 if facet is None else facet]
+
+    def teleporter_walls(self, facet) -> set:
+        """The known teleporter tiles no walk crosses: all but the one-way ones (Mover.plan passes those to the
+        planner as one-way)."""
+        return self.teleporter_tiles(facet) - set(self.one_way(facet))
+
+    def step_fires(self, facet, tile, d: int, z) -> bool:
+        """Whether a step in direction `d` onto `tile`, landing at `z` (None: not known), would teleport us, as far as
+        we know: a one-way tile by its rule (an unknown height: it may), any other known teleporter always."""
+        tile = tuple(tile)
+        if tile not in self.teleporter_tiles(facet):
+            return False
+        rule = self.one_way(facet).get(tile)
+        if rule is None:
+            return True
+        return pathfind.fires(rule, d, z) if z is not None else (rule[0] is None or d in rule[0])
 
     def step_back(self, before, before_facet, label) -> bool:
         """After a teleport the walk didn't aim at: a known teleporter within STEP_BACK_R of where it put us
@@ -1156,7 +1185,9 @@ class Mover:
         self.mem = self.mem_for(facet)
         # never walk over a known teleporter tile by accident (only onto one as the goal)
         goal_tile = getattr(goal, "center", None) if getattr(goal, "radius", None) == 0 else None
-        hard = hard | (self.teleporter_tiles(facet) - {goal_tile}) | self.walled
+        # one-way teleporters (Shadowspire's strips) go to the map planner as such: crossed the way they don't fire
+        one_way = self.one_way(facet)
+        hard = hard | (self.teleporter_walls(facet) - {goal_tile}) | self.walled
         fields = self.fields(st)
         if not through_fields:
             hard |= {(it["x"], it["y"]) for it in fields.values()}
@@ -1170,7 +1201,8 @@ class Mover:
             path = pathfind.plan(walk, start, goal,
                                  blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
                                  tick=lambda: self.guard(self.link.state()), max_expand=expand,
-                                 turn_cost=TURN_COST, facing=facing, fall_cost=FALL_COST)
+                                 turn_cost=TURN_COST, facing=facing, fall_cost=FALL_COST,
+                                 one_way=one_way, aim=goal_tile)
             if path is None and self.denied_t:
                 # live 2026-10-17 11:12:45: one step south refused at a one-tile passage (a player stepped onto it),
                 # kept as a wall, and no route anywhere for minutes; the map says those steps go: try them again
@@ -1181,12 +1213,15 @@ class Mover:
                 path = pathfind.plan(walk, start, goal,
                                      blocked_moves=self.denied, occupied=hard, cost_scale=cost, max_steps=max_steps,
                                      tick=lambda: self.guard(self.link.state()), max_expand=expand,
-                                     turn_cost=TURN_COST, facing=facing, fall_cost=FALL_COST)
+                                     turn_cost=TURN_COST, facing=facing, fall_cost=FALL_COST,
+                                     one_way=one_way, aim=goal_tile)
             if path is None:
                 return None, walk
             self.plan_z = {(x, y): z for x, y, z in path}
             return [(x, y) for x, y, _ in path], walk
-        path = nav.plan(self.mem, cur, goal, extra_blocked=hard, cost_scale=cost, turn_cost=TURN_COST, facing=facing)
+        # walk memory has no heights or step rules: a one-way teleporter is a wall there, as any other
+        path = nav.plan(self.mem, cur, goal, extra_blocked=hard | (set(one_way) - {goal_tile}), cost_scale=cost,
+                        turn_cost=TURN_COST, facing=facing)
         if path is None:
             return None, None
         self.plan_z = {}
@@ -1381,8 +1416,8 @@ class Mover:
                 if urgent:
                     run = stamina_ok(st)
                 self.pace(run, st)
-                tele_known = nxt in self.teleporter_tiles(st["world"]["self"].get("map"))
                 zp, zn = route_z.get(tuple(cur)), route_z.get(tuple(nxt))
+                tele_known = self.step_fires(st["world"]["self"].get("map"), nxt, d, zn)
                 drop = zp - zn if zp is not None and zn is not None else 0
                 if drop > pathfind.FALL_DROP_Z:
                     # before the step: its hits arrive with the step's outcome, and the guard reads them in step()

@@ -3289,15 +3289,22 @@ flowchart LR
   runs died, 9 of them on level 1's walk to the strip (hunt_s 0), and 14 leaves failed "the step in direction 5 moved
   without a teleport" (the walk to (5277, 2641) came on level 2's floor from the north). Level 2's strip as a height
   rule and the fought leg in gave the table above.
+- **The runner's one-way teleporters** (2026-11-08, docs/HUNT_LOOP.md "One-way teleporters"): all four strip tiles are
+  now `teleporters.json` seeds with the scenario's `dirs` / `z`. The planner crosses a strip the way it doesn't fire
+  and steps onto it the way it does only when aimed at it; the crawl's floor and `HuntLoop.onto` do the same. Level 2,
+  96 runs each, before -> after (runs with a death / with a pet death / deaths a game hour / banked gp a game hour):
+  43 -> 66 / 65 -> 90 / 1.28 -> 1.65 / 106,288 -> 96,775.
+  - Before, 30 of 96 runs ended on the strips: 15 "crawl: max() iterable argument is empty" at level 2's landing (a
+    stray's learnt twin walled it in the career's store), 5 "the step in direction N moved without a teleport", 3 "no
+    route". With the fix, none, and no stray teleport in 32 logged runs. In 3 of those 32 the walk beside level 2's
+    strip ended on the landing over it and `onto` took the aimed route ("is one-way and the step from (..) wouldn't
+    fire"), each through.
+  - So the "after" runs spend their full time on level 2, where the deaths are: more runs with a death, and more
+    deaths a game hour [INFERENCE: mostly that; the rest is within the batches' spread]. Level 1, 96 runs: no death,
+    95 "done", 1 "not going back in: AlaFlambe is not with us".
 
 **Open on Shadowspire Cathedral:**
 
-- **The runner's teleporter tiles are 2-D and two-way** (`agent_link.Mover.teleporter_tiles`: a wall to every walk).
-  `teleporters.json` holds only the strip tile each way takes, (5132, 2653) and (5277, 2641), so each landing keeps its
-  way off. A stray step onto the other one ((5133, 2653) from the north on level 1, (5276, 2641) from level 2's floor)
-  fires live as here, is learnt into the store and closes that landing for every later run of the store; `step_back`
-  can't undo it (the way back fires only the other way). 2 of 32 level 2 runs. The runner needs one-way (or
-  height-bound) teleporters, and a leave or entry step onto a strip from its firing side.
 - The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).
 - Level 2's danger rests on the stoneshapers: their encounter rate (spawns from one evening's first sightings, default
   respawns) and the far ticks' rule are not measured well; the live team on level 2 was never AlaFlambe and Bussin

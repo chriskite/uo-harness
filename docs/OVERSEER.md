@@ -747,11 +747,12 @@ Paste this (or point the session at this section) to start an overseer.
 >        listed Totem when the user took them by hand.
 >      - **Shadowspire level 2**: no hunt. `--enter-rune "SSC Inside" --enter-via 5132 2653 --fight-via 5132 2653
 >        --leave-via 5277 2641 --leave-gate 5157 2647` is for the go-home run only: up level 2's strip from its floor
->        and across level 1 to the crimson gate. A level 2 hunt: tell the parent (runner work first: the strips fire one
->        way, the runner's teleporter tiles are two-way).
+>        and across level 1 to the crimson gate. A level 2 hunt: tell the parent (too deadly in the simulator). The
+>        strips are one-way teleporters to the runner (since 2026-11-08). "<label>: the teleporter at 5277,2641 is
+>        one-way and the step from (x, y, z) wouldn't fire; by a route onto it the way it does" is its own correction.
 >    The runner has never hunted Shadowspire live. In the simulator (docs/SIM.md "Shadowspire Cathedral"), with
->    AlaFlambe and Bussin, runs with a death were 0 of 32 on level 1 (3-4 of 32 left a pet behind at the time-up leave)
->    and 15 of 32 on level 2. Logan died by hand on level 1 on 2026-10-31 to two red players.
+>    AlaFlambe and Bussin, runs with a death were 0 of 96 on level 1 (3-4 of 32 left a pet behind at the time-up leave)
+>    and 66 of 96 on level 2. Logan died by hand on level 1 on 2026-10-31 to two red players.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:

@@ -393,9 +393,25 @@ class Walk:
         return nx, ny, nz
 
 
+def fires(rule, d: int, z: int) -> bool:
+    """Whether a one-way teleporter fires on a step in direction `d` that lands at height `z`. `rule` is (dirs, (z0,
+    z1)) from harness/data/teleporters.json: the step directions it fires on and the landing heights it fires at; None
+    on either side means any. Shadowspire Cathedral's strips (docs/SIM.md "Shadowspire Cathedral"): level 1's fires on a
+    step S, SE or SW only, level 2's from its floor only, not from the stair over it."""
+    dirs, zr = rule
+    return (dirs is None or d in dirs) and (zr is None or zr[0] <= z <= zr[1])
+
+
+def one_way_ok(rule, d: int, z: int, aimed: bool) -> bool:
+    """A step onto a one-way teleporter tile: allowed when it fires and the walk aims at the teleporter (`aimed`), or
+    when it doesn't fire and the walk only crosses the tile (each strip's landing is a pocket whose only way off
+    crosses the other strip the way it doesn't fire)."""
+    return fires(rule, d, z) == aimed
+
+
 def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=None,
          max_expand: int = MAX_EXPAND, max_steps: int | None = None, tick=None, tick_every: int = TICK_EVERY,
-         turn_cost: float = 0.0, facing: int | None = None, fall_cost: float = 0.0):
+         turn_cost: float = 0.0, facing: int | None = None, fall_cost: float = 0.0, one_way=None, aim=None):
     """A* over (x, y, z): the cheapest route from start (x, y, z) to the first
     tile satisfying goal_fn((x, y)) (and goal_fn.z_ok(z) when the goal has one:
     a tile below or above the target, e.g. a cave under a tree, isn't the
@@ -414,7 +430,9 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
     exact search found 5 / 3 / 13 / 8 (and no turn cost 44 / 23 / 46 / 49), at the plain
     search's expansions; the exact one took 7x more in a cave field (86831 vs 11820,
     past MAX_EXPAND: a false "no route"). `fall_cost`: steps a step down more than FALL_DROP_Z
-    costs on top (Outlands' fall damage), so a route takes a way down when there is one."""
+    costs on top (Outlands' fall damage), so a route takes a way down when there is one. `one_way`: {(x, y): rule} of
+    one-way teleporter tiles (`fires`): a step onto one only when it fires and the tile is `aim` (the walk's teleporter
+    goal), or when it doesn't fire and it isn't."""
     start = (int(start[0]), int(start[1]), int(start[2]))
     turns = turn_cost > 0
     h = getattr(goal_fn, "heuristic", None) or (lambda t: 0)
@@ -453,6 +471,8 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
                 continue
             nxt = walk.can_walk(x, y, z, d)
             if nxt is None or nxt in closed or nxt[:2] in occ:
+                continue
+            if one_way and nxt[:2] in one_way and not one_way_ok(one_way[nxt[:2]], d, nxt[2], nxt[:2] == aim):
                 continue
             if max_steps is not None and n + h(nxt[:2]) > max_steps:
                 continue
