@@ -739,6 +739,19 @@ Paste this (or point the session at this section) to start an overseer.
 >    Bussin, runs with a death were 0 of 32 on level 1, 0 of 32 on level 2 and 2 of 48 on level 3, both to a silicite's
 >    Silica Shards, which killed Logan by hand there on 2026-10-31. Start a Cavernam level 3 run only when the parent
 >    passes the user's go for it.
+>    - **Shadowspire Cathedral** (since 2026-11-08; the parent's `ssc-shift` skill): `--enter-rune "SSC Inside"`. The
+>      tome's "SSC Inside" row lands inside on level 1 at (5144, 2480), a tile west of its golden gate 0x40035E71.
+>      - **Shadowspire level 1** (the default): `--enter-rune "SSC Inside" --leave-gate 5145 2480 --leave-gate 5176
+>        2489 --leave-gate 5157 2647`, no `--enter-via`. Out by the easiest of level 1's three gates: the golden
+>        0x40035E71 (5145, 2480) and 0x40035E70 (5176, 2489), and the crimson 0x40035E72 (5157, 2647). All three menus
+>        listed Totem when the user took them by hand.
+>      - **Shadowspire level 2**: no hunt. `--enter-rune "SSC Inside" --enter-via 5132 2653 --fight-via 5132 2653
+>        --leave-via 5277 2641 --leave-gate 5157 2647` is for the go-home run only: up level 2's strip from its floor
+>        and across level 1 to the crimson gate. A level 2 hunt: tell the parent (runner work first: the strips fire one
+>        way, the runner's teleporter tiles are two-way).
+>    The runner has never hunted Shadowspire live. In the simulator (docs/SIM.md "Shadowspire Cathedral"), with
+>    AlaFlambe and Bussin, runs with a death were 0 of 32 on level 1 (3-4 of 32 left a pet behind at the time-up leave)
+>    and 15 of 32 on level 2. Logan died by hand on level 1 on 2026-10-31 to two red players.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
@@ -746,8 +759,10 @@ Paste this (or point the session at this section) to start an overseer.
 >    y 549-599; Tidal Tomb level 1 x 6608-6738,
 >    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221; the Ossuary's level 1 x 5785-5935, y 1270-1381, level 2
 >    x 5581-5689, y 1225-1363, level 3 x 5527-5739, y 945-1156, level 4 x 4825-5000, y 1744-2073; Cavernam's level 1
->    x 5895-6108, y 498-675, level 2 x 5886-6055, y 743-837, level 3 x 5915-6075, y 898-1152): the go-home run with the
->    command of the level he is on (Ossuary level 4: tell the parent, no command), then the shift's command from home.
+>    x 5895-6108, y 498-675, level 2 x 5886-6055, y 743-837, level 3 x 5915-6075, y 898-1152; Shadowspire's level 1
+>    x 5097-5195, y 2462-2660, level 2 x 5241-5359, y 2416-2644): the go-home run with the command of the level he is on
+>    (Ossuary level 4, Shadowspire's east wing x 5400-5540, y 2400-2540, or its grounds: tell the parent, no command),
+>    then the shift's command from home.
 >    The runner never changes level on its own during a hunt: the crawl's
 >    "zones" are depth bands of the one floor, and only a leave, an escape or `--leave-via` crosses a teleporter.
 >    What it does, so the log reads right:

@@ -1,0 +1,1248 @@
+{
+ "name": "ssc",
+ "description": "Shadowspire Cathedral (SSC) levels 1 and 2 as Logan Wolf went through them, played by the user in captures 20261024_102346, 20261024_225113 (2026-10-24/25), 20261031_132152 (10-31) and 20261103_101743 (11-03): seven visits, each by the tome row 'SSC Inside' to level 1's arrival (5144, 2480, 39) beside its golden moongate 0x40035E71 (visit 7 by the DTF house's dungeon moongate, (5138, 2484, 40)), level 1 or down its south strip (5132-5133, 2653) to level 2 (5276-5277, 2640, 33), out by a moongate to Totem (crimson 0x40035E72 (5157, 2647) five times, golden 0x40035E70 (5176, 2489) and 0x40035E71 (5145, 2480) once each) and the tome home. Dead once on level 1 to two red players (2026-10-31 14:24:50). Levels by a map flood fill (localmap._flood from each arrival; all of Logan's steps there walk on the map): level 1 x 5097-5195, y 2462-2660 (4,476 tiles; 2,504 s there), level 2 x 5241-5359, y 2416-2644 (11,548; 2,498 s). Level 2's surface exit (5309, 2638) and the east wing (boss and silver-gate rooms, visit 7) are out of the scenario. Pets: GirthyEarthy and a tidal mantis (visit 1), GirthyEarthy, fireminion and a searing imp (visits 2-4), NightmareA, NightmareB and a searing imp (visit 5), AlaFlambe and Bussin (visits 6-7): run.py --team phoenix_incubus for the last",
+ "facet": 0,
+ "evidence": {
+  "kb": "ssc_kb.json",
+  "observed": "ssc_observed.json"
+ },
+ "calibration": {
+  "facet": 0,
+  "boxes": [[5092, 2457, 5200, 2665], [5236, 2411, 5364, 2649]],
+  "tags": ["20261024_102346", "20261024_225113", "20261031_132152", "20261103_101743"],
+  "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5); the east wing (x 5415-5530) and the grounds outside lie outside both. Captures: the user's seven visits (description)"
+ },
+ "inherit": {
+  "from": "mausoleum",
+  "keys": ["player", "tamer", "loadout", "bard", "vet", "potions", "defaults"],
+  "note": "Logan Wolf's own blocks and the engine defaults: the Mausoleum's, as the other scenarios' (the same character, kit and tome; run.py --team phoenix_incubus for AlaFlambe and Bussin, his team on 10-31 and 11-03); a dict here updates the base's (player.start, defaults, bard.capture_d)"
+ },
+ "player": {
+  "start": [5144, 2480, 39],
+  "start_note": "level 1's arrival by the tome row 'SSC Inside' (2026-10-24 20:22:22, 20:38:52, 22:22:48, 22:53:28, 10-25 11:02:37, 11:19:24, 10-31 14:21:23, 14:27:06): --at-hunt starts here"
+ },
+ "defaults": {
+  "pets_first": [],
+  "pets_first_note": "no type here is known to go for the pets first"
+ },
+ "bard": {
+  "capture_d": {
+   "discord": {
+    "corrupted hornbeast": 51.5,
+    "crimson gargoyle": 58.5,
+    "gargan flamekin": 54.5,
+    "gargan scorcher": 59.5,
+    "gargan stonekin": -100.0,
+    "gargan stoneshaper": 43.0,
+    "golden gargoyle": 26.0,
+    "horned devil": 43.0,
+    "iron gargoyle": -100.0,
+    "mud gargoyle": 59.0,
+    "spectral bishop": 43.0,
+    "spectral footman": 46.5,
+    "spectral knight": 58.0,
+    "spectral warrior": 79.5,
+    "stone familiar": 46.5,
+    "volcanic familiar": 68.0
+   }
+  },
+  "note": "capture_d: the maximum-likelihood d (bard_scan.fit_d) of the user's Discordances here, types with 3+ answers, at the E each song printed (17.7 %: E 118; 17.1 %: E 113; 2026-10-24/25, 122 answers); the 10-31 and 11-03 captures printed no song before their answers and are left out; no +25 for a barded target; -100: every answer a success. Peacemaking and Provocation: the median and provoke_d"
+ },
+ "recall": {
+  "tome": 1145745907,
+  "rows": [
+   {
+    "name": "Home",
+    "at": [4134, 1429, 6]
+   },
+   {
+    "name": "SSC Inside",
+    "at": [5144, 2480, 39]
+   }
+  ],
+  "pet_range": 3,
+  "note": "Logan's 'A Rune Tome' (0x444AB1F3) row 'SSC Inside' (row 9, gump button 109; its rune gump 2026-11-03 22:40:30 '(5144, 2480)'; the rune libraries' 'SSC Inside' (5144, 2480)) lands inside on level 1 at (5144, 2480, 39) (8 of 8 recalls in), a tile west of the golden moongate 0x40035E71"
+ },
+ "dungeon": {
+  "name": "Shadowspire Cathedral",
+  "facet": 0,
+  "boxes": [[5092, 2457, 5200, 2665], [5236, 2411, 5364, 2649]],
+  "gold_gates": [[5145, 2480], [5176, 2489]],
+  "recall_r": 2,
+  "note": "the user's dungeon rule (2026-10-13): recall only near a gold moongate. Gold gates: the hue-2822 0x40035E71 (5145, 2480) beside the arrival (the landing 1 off: a recall out is allowed there) and 0x40035E70 (5176, 2489) on level 1; level 2 has none. Logan never recalled from inside (every leave a moongate to Totem, then the tome home) [INFERENCE: the rule holds here as at the Mausoleum]. Boxes: the calibration region; the east wing and the grounds outside lie outside them (a recall there isn't refused by the rule)"
+ },
+ "area": [5097, 2462, 5195, 2660],
+ "area_note": "level 1's box (map flood fill), the scenario's default level. Level 2: --level 2 (its box x 5241-5359, y 2416-2644)",
+ "teleporters": [
+  {
+   "from": [5132, 2653],
+   "to": [5276, 2640, 33],
+   "dirs": [3, 4, 5]
+  },
+  {
+   "from": [5133, 2653],
+   "to": [5277, 2640, 33],
+   "dirs": [3, 4, 5]
+  },
+  {
+   "from": [5276, 2641],
+   "to": [5132, 2654, 36],
+   "z": [-30, 0]
+  },
+  {
+   "from": [5277, 2641],
+   "to": [5133, 2654, 36],
+   "z": [-30, 0]
+  },
+  {
+   "from": [5309, 2638],
+   "to": [3393, 816, -23]
+  },
+  {
+   "from": [3394, 817],
+   "to": [5310, 2640, -25]
+  }
+ ],
+ "teleporters_note": "captures, each the tile the step before the jump went for ('from'): level 1's south strip S from (5132-5133, 2652) to level 2's landing (5276-5277, 2640, 33), the column kept (x + 144, y - 13): 10-24 20:23:03, 20:23:14 (SW from (5133, 2652)), 22:40:41 (SW), 22:40:48, 22:54:37, 10-25 11:05:01, 11-03 22:02:32; level 2's strip N (once NE) from its floor at (5276-5277, 2642) back to (5132-5133, 2654, 36): 10-24 20:32:12, 22:40:46, 22:52:06, 23:04:36, 10-25 11:18:39, 11-03 22:22:31; once after standing 2.1 s on (5276, 2641) (10-24 20:23:05) [INFERENCE: a turn there]. **One way only.** Each arrival is a 2-tile pocket whose only way out crosses the other strip's row, and the step off it never fired. Level 1: N from (5132-5133, 2654) onto the strip 6 of 6 times and W along it (10-24 22:39:13, two steps) walked on; S and SW onto it fired: `dirs` [3, 4, 5] (SE [INFERENCE]). Level 2: its landing (z 33) is the top of a stair that spirals down to the floor (-25) under it; S off the landing onto (5276-5277, 2641) is the stair (z 28) and walked on 6 of 6 times, N and NE onto it from the floor fired 6 of 6: `z` [-30, 0], the floor [INFERENCE: a teleporter fires only for a mobile at its height (RunUO's OnMoveOver z check); a step onto it on the floor from the north, never seen, fires here too]. Level 2's surface exit (5309, 2638) put Logan outside at (3393, 816, -23) (11-03 22:02:43, a step S from (5309, 2637); the SSC grounds, the 'SSC West Entrance' rune (3353, 762)); N from (3394, 818) onto (3394, 817) put him back at (5310, 2640, -25) (22:22:00). In harness/data/teleporters.json: all but (5133, 2653) and (5276, 2641), each pocket's way out (a known teleporter tile is a wall to the runner's walks: the four together close both arrivals; docs/SIM.md 'Shadowspire Cathedral')",
+ "gates": [
+  {
+   "name": "golden moongate",
+   "serial": 1073962609,
+   "at": [5145, 2480, 39],
+   "hue": 2822,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3884, 2901, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  },
+  {
+   "name": "golden moongate",
+   "serial": 1073962608,
+   "at": [5176, 2489, 39],
+   "hue": 2822,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3880, 2884, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  },
+  {
+   "name": "crimson moongate",
+   "serial": 1073962610,
+   "at": [5157, 2647, 39],
+   "hue": 2820,
+   "destinations": [
+    {
+     "name": "Anchor's Rest"
+    },
+    {
+     "name": "Andaria"
+    },
+    {
+     "name": "Cambria"
+    },
+    {
+     "name": "Horseshoe Bay"
+    },
+    {
+     "name": "Outpost"
+    },
+    {
+     "name": "Prevalia"
+    },
+    {
+     "name": "Terran"
+    },
+    {
+     "name": "Totem",
+     "at": [3855, 2901, -40]
+    },
+    {
+     "name": "Corpse Creek"
+    }
+   ]
+  }
+ ],
+ "gates_note": "the moongates seen (S2C 0x1A/0xF3, graphic 0xF6C): golden (hue 2822) 0x40035E71 (5145, 2480, 39) beside the arrival and 0x40035E70 (5176, 2489, 39), crimson (hue 2820) 0x40035E72 (5157, 2647, 39), 25 tiles east of the strip down, all on level 1. Their menu (0xE0E675B8, e.g. 2026-11-03 22:22:40) listed the 'Moongate Destinations' rows of the other scenarios; Totem put Logan at (3884, 2901, -40) from 0x40035E71 (10-31 14:36:33), (3880, 2884, -40) from 0x40035E70 (10-24 20:43:00), and from 0x40035E72 (3880, 2884) 20:32:19, (3855, 2901) 22:52:14 and 10-25 11:18:47, (3846, 2876) 23:05:11, (3839, 2901, -19) 11:20:08, (3867, 2900) 11-03 22:22:40. No gate on level 2 (hue-0 0xF6C there are other players' Gate Travel, 0x64xxxxxx, gone at once). A hue-2825 gate 0x40035E78 (5128, 2622, 39) showed only while Logan was a ghost (10-31 14:24:50); he took it to Totem (3855, 2901) at 14:25:10, its menu with three more rows [INFERENCE: the ghosts' gate, as Cavernam's 0x4000210D]: not a leave gate, left out",
+ "runner": {
+  "enter_via": [],
+  "leave_gates": [[5145, 2480], [5176, 2489], [5157, 2647]],
+  "gate_dest": "Totem",
+  "heal_in_place": true,
+  "levels": [
+   {
+    "name": "1",
+    "default": true,
+    "note": "the scenario's: in by the recall row onto level 1 (no teleporter), out by the easiest of its three moongates (both golden, the crimson)"
+   },
+   {
+    "name": "2",
+    "area": [5241, 2416, 5359, 2644],
+    "start": [5276, 2640, 33],
+    "enter_via": [[5132, 2653]],
+    "fight_via": [[5132, 2653]],
+    "leave_gates": [[5157, 2647]],
+    "leave_via": [[5277, 2641]],
+    "note": "down level 1's south strip (5132, 2653) as Logan went 5 of 5 times, the leg across level 1 fought through (`fight_via`: walked, 10 of 32 runs died on it in the simulator); out up level 2's strip (5277, 2641) from its floor and across to level 1's crimson gate (5157, 2647), 25 tiles east of the landing below the strip, as he left 5 of 5 times (Tidal Tomb level 3's way: leave_via, then a leave gate on the level above)",
+    "trip": {
+     "note": "Logan Wolf's visits on level 2 (visits 1, 3, 4, 5 and 7, the user playing): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan; vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there (corpses others killed included). Per hour on the level beside the sim's (run.py --level 2 --compare)",
+     "hunt_s": 2498.1,
+     "kills": 78,
+     "player_damage": 943,
+     "vet_uses": 130,
+     "potions": 21,
+     "discord_ok": 61,
+     "discord_fail": 29,
+     "peace_ok": 26,
+     "peace_fail": 14,
+     "provoke": 13,
+     "gold": 81489
+    }
+   }
+  ],
+  "note": "run.py's defaults: recall by the 'SSC Inside' row to level 1 beside its golden gate, the hunt on level 1, out by the easiest of level 1's three moongates to Totem, then the recall home. Level 2: `levels` (run.py --level 2)"
+ },
+ "spawns": [
+  {
+   "key": "winged hulk",
+   "at": [5129, 2611, 40],
+   "note": "level 1: first seen 10-24 20:22:50 (5129, 2611) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "winged hulk",
+   "at": [5160, 2641, 40],
+   "note": "level 1: first seen 10-24 20:32:14 (5160, 2641) at 18 tiles, 5 first sightings within 5"
+  },
+  {
+   "key": "frost mephit",
+   "at": [5115, 2484, 40],
+   "note": "level 1: first seen 10-24 20:39:00 (5115, 2484) at 15 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5130, 2554, 40],
+   "note": "level 1: first seen 10-24 20:39:14 (5130, 2554) at 18 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5136, 2637, 42],
+   "note": "level 1: first seen 10-24 20:39:48 (5136, 2637) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5143, 2654, 40],
+   "note": "level 1: first seen 10-24 20:40:00 (5143, 2654) at 16 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5162, 2638, 40],
+   "note": "level 1: first seen 10-24 20:40:19 (5162, 2638) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "poison mephit",
+   "at": [5162, 2621, 40],
+   "note": "level 1: first seen 10-24 20:41:02 (5162, 2621) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5163, 2614, 40],
+   "note": "level 1: first seen 10-24 20:41:06 (5163, 2614) at 14 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5163, 2589, 40],
+   "note": "level 1: first seen 10-24 20:41:43 (5163, 2589) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "fire mephit",
+   "at": [5160, 2559, 40],
+   "note": "level 1: first seen 10-24 20:42:21 (5160, 2559) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5164, 2559, 39],
+   "note": "level 1: first seen 10-24 20:42:21 (5164, 2559) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "iron gargoyle",
+   "at": [5158, 2553, 40],
+   "note": "level 1: first seen 10-24 20:42:22 (5158, 2553) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "winged hulk",
+   "at": [5186, 2536, 40],
+   "note": "level 1: first seen 10-24 22:23:06 (5186, 2536) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5162, 2586, 40],
+   "note": "level 1: first seen 10-24 22:23:34 (5162, 2586) at 10 tiles"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5154, 2654, 40],
+   "note": "level 1: first seen 10-24 22:24:47 (5154, 2654) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5132, 2587, 40],
+   "note": "level 1: first seen 10-24 22:25:08 (5132, 2587) at 18 tiles"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5134, 2575, 40],
+   "note": "level 1: first seen 10-24 22:25:11 (5134, 2575) at 18 tiles"
+  },
+  {
+   "key": "blood mephit",
+   "at": [5133, 2567, 40],
+   "note": "level 1: first seen 10-24 22:25:45 (5133, 2567) at 15 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5129, 2632, 40],
+   "note": "level 1: first seen 10-24 22:27:56 (5129, 2632) at 18 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5128, 2596, 39],
+   "note": "level 1: first seen 10-24 22:28:28 (5128, 2596) at 18 tiles"
+  },
+  {
+   "key": "poison mephit",
+   "at": [5130, 2530, 40],
+   "note": "level 1: first seen 10-24 22:28:41 (5130, 2530) at 18 tiles"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5135, 2517, 39],
+   "note": "level 1: first seen 10-24 22:28:46 (5135, 2517) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "winged hulk",
+   "at": [5115, 2537, 40],
+   "note": "level 1: first seen 10-24 22:28:48 (5115, 2537) at 17 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5132, 2465, 40],
+   "note": "level 1: first seen 10-24 22:29:33 (5132, 2465) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "fire mephit",
+   "at": [5131, 2474, 40],
+   "note": "level 1: first seen 10-24 22:30:08 (5131, 2474) at 6 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "eldritch mephit",
+   "at": [5134, 2514, 40],
+   "note": "level 1: first seen 10-24 22:30:42 (5134, 2514) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "iron gargoyle",
+   "at": [5122, 2534, 40],
+   "note": "level 1: first seen 10-24 22:30:46 (5122, 2534) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "blood mephit",
+   "at": [5105, 2535, 40],
+   "note": "level 1: first seen 10-24 22:31:38 (5105, 2535) at 18 tiles"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5105, 2538, 40],
+   "note": "level 1: first seen 10-24 22:31:38 (5105, 2538) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5128, 2570, 39],
+   "note": "level 1: first seen 10-24 22:32:25 (5128, 2570) at 18 tiles"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5157, 2588, 39],
+   "note": "level 1: first seen 10-24 22:34:20 (5157, 2588) at 18 tiles"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5167, 2532, 39],
+   "note": "level 1: first seen 10-24 22:35:03 (5167, 2532) at 18 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5131, 2617, 40],
+   "note": "level 1: first seen 10-24 22:36:30 (5131, 2617) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5136, 2647, 42],
+   "note": "level 1: first seen 10-24 22:37:01 (5136, 2647) at 18 tiles"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5134, 2651, 39],
+   "note": "level 1: first seen 10-24 22:37:02 (5134, 2651) at 18 tiles"
+  },
+  {
+   "key": "iron gargoyle",
+   "at": [5163, 2643, 40],
+   "note": "level 1: first seen 10-24 22:37:44 (5163, 2643) at 11 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5148, 2654, 40],
+   "note": "level 1: first seen 10-24 22:38:49 (5148, 2654) at 15 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5131, 2475, 40],
+   "note": "level 1: first seen 10-24 22:39:48 (5131, 2475) at 18 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5129, 2469, 40],
+   "note": "level 1: first seen 10-24 22:39:53 (5129, 2469) at 14 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5121, 2483, 40],
+   "note": "level 1: first seen 10-24 22:39:53 (5121, 2483) at 15 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "fire mephit",
+   "at": [5160, 2565, 40],
+   "note": "level 1: first seen 10-24 22:40:10 (5160, 2565) at 18 tiles"
+  },
+  {
+   "key": "earth mephit",
+   "at": [5161, 2609, 40],
+   "note": "level 1: first seen 10-25 11:04:00 (5161, 2609) at 11 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5159, 2582, 40],
+   "note": "level 1: first seen 10-25 11:19:48 (5159, 2582) at 5 tiles"
+  },
+  {
+   "key": "winged hulk",
+   "at": [5161, 2473, 40],
+   "note": "level 1: first seen 10-31 14:21:23 (5161, 2473) at 17 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "eldritch mephit",
+   "at": [5128, 2511, 39],
+   "note": "level 1: first seen 10-31 14:22:42 (5128, 2511) at 18 tiles"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5131, 2589, 40],
+   "note": "level 1: first seen 10-31 14:23:54 (5131, 2589) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5134, 2597, 40],
+   "note": "level 1: first seen 10-31 14:23:56 (5134, 2597) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5130, 2616, 40],
+   "note": "level 1: first seen 10-31 14:24:14 (5130, 2616) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5133, 2634, 40],
+   "note": "level 1: first seen 10-31 14:24:49 (5133, 2634) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5184, 2535, 40],
+   "note": "level 1: first seen 10-31 14:27:31 (5184, 2535) at 17 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5161, 2524, 40],
+   "note": "level 1: first seen 10-31 14:27:45 (5161, 2524) at 18 tiles"
+  },
+  {
+   "key": "eldritch mephit",
+   "at": [5161, 2515, 40],
+   "note": "level 1: first seen 10-31 14:28:03 (5161, 2515) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5160, 2486, 40],
+   "note": "level 1: first seen 10-31 14:30:06 (5160, 2486) at 18 tiles"
+  },
+  {
+   "key": "earth mephit",
+   "at": [5163, 2470, 40],
+   "note": "level 1: first seen 10-31 14:30:07 (5163, 2470) at 18 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5134, 2540, 40],
+   "note": "level 1: first seen 10-31 14:32:47 (5134, 2540) at 18 tiles"
+  },
+  {
+   "key": "poison mephit",
+   "at": [5102, 2537, 40],
+   "note": "level 1: first seen 10-31 14:32:55 (5102, 2537) at 18 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5135, 2471, 39],
+   "note": "level 1: first seen 10-31 14:33:12 (5135, 2471) at 18 tiles"
+  },
+  {
+   "key": "iron gargoyle",
+   "at": [5180, 2534, 40],
+   "note": "level 1: first seen 10-31 14:34:02 (5180, 2534) at 18 tiles"
+  },
+  {
+   "key": "gargan stonekin",
+   "at": [5160, 2505, 40],
+   "note": "level 1: first seen 10-31 14:35:47 (5160, 2505) at 5 tiles"
+  },
+  {
+   "key": "winged hulk",
+   "at": [5120, 2485, 40],
+   "note": "level 1: first seen 10-31 14:36:12 (5120, 2485) at 18 tiles"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5128, 2610, 39],
+   "note": "level 1: first seen 11-03 22:01:48 (5128, 2610) at 18 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5130, 2637, 40],
+   "note": "level 1: first seen 11-03 22:01:54 (5130, 2637) at 18 tiles"
+  },
+  {
+   "key": "gargan flamekin",
+   "at": [5132, 2652, 39],
+   "note": "level 1: first seen 11-03 22:22:31 (5132, 2652) at 2 tiles"
+  },
+  {
+   "key": "crimson gargoyle",
+   "at": [5142, 2652, 40],
+   "note": "level 1: first seen 11-03 22:22:31 (5142, 2652) at 9 tiles"
+  },
+  {
+   "key": "mud gargoyle",
+   "at": [5148, 2651, 39],
+   "note": "level 1: first seen 11-03 22:22:31 (5148, 2651) at 15 tiles"
+  },
+  {
+   "key": "golden gargoyle",
+   "at": [5156, 2638, 42],
+   "note": "level 1: first seen 11-03 22:22:34 (5156, 2638) at 18 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5279, 2622, -23],
+   "note": "level 2: first seen 10-24 20:23:14 (5279, 2622) at 18 tiles"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5302, 2636, -25],
+   "note": "level 2: first seen 10-24 20:23:19 (5302, 2636) at 18 tiles"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5303, 2636, -25],
+   "note": "level 2: first seen 10-24 20:23:19 (5303, 2636) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5287, 2610, -25],
+   "note": "level 2: first seen 10-24 20:24:08 (5287, 2610) at 18 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5284, 2609, -25],
+   "note": "level 2: first seen 10-24 20:24:08 (5284, 2609) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral pontiff",
+   "at": [5284, 2608, -25],
+   "note": "level 2: first seen 10-24 20:24:09 (5284, 2608) at 18 tiles"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5296, 2601, -25],
+   "note": "level 2: first seen 10-24 20:24:20 (5296, 2601) at 18 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5274, 2585, -22],
+   "note": "level 2: first seen 10-24 20:25:18 (5274, 2585) at 18 tiles, 6 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5291, 2569, -25],
+   "note": "level 2: first seen 10-24 20:25:23 (5291, 2569) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5289, 2567, -25],
+   "note": "level 2: first seen 10-24 20:25:23 (5289, 2567) at 18 tiles"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5285, 2565, -25],
+   "note": "level 2: first seen 10-24 20:25:33 (5285, 2565) at 18 tiles"
+  },
+  {
+   "key": "spectral knight",
+   "at": [5306, 2562, -22],
+   "note": "level 2: first seen 10-24 20:25:33 (5306, 2562) at 18 tiles"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5301, 2589, -23],
+   "note": "level 2: first seen 10-24 20:25:51 (5301, 2589) at 18 tiles"
+  },
+  {
+   "key": "spectral footman",
+   "at": [5287, 2587, -25],
+   "note": "level 2: first seen 10-24 20:26:23 (5287, 2587) at 14 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral footman",
+   "at": [5296, 2564, -25],
+   "note": "level 2: first seen 10-24 20:26:23 (5296, 2564) at 9 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5305, 2567, -22],
+   "note": "level 2: first seen 10-24 20:26:23 (5305, 2567) at 11 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "corrupted hornbeast",
+   "at": [5302, 2552, -23],
+   "note": "level 2: first seen 10-24 20:26:36 (5302, 2552) at 18 tiles"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5307, 2601, -22],
+   "note": "level 2: first seen 10-24 20:27:15 (5307, 2601) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "spectral priest",
+   "at": [5282, 2614, -25],
+   "note": "level 2: first seen 10-24 20:27:28 (5282, 2614) at 15 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5304, 2616, -22],
+   "note": "level 2: first seen 10-24 20:28:36 (5304, 2616) at 18 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5290, 2572, -25],
+   "note": "level 2: first seen 10-24 20:29:26 (5290, 2572) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5290, 2585, -25],
+   "note": "level 2: first seen 10-24 20:29:39 (5290, 2585) at 2 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5277, 2584, -22],
+   "note": "level 2: first seen 10-24 20:29:39 (5277, 2584) at 15 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5275, 2614, -22],
+   "note": "level 2: first seen 10-24 20:29:41 (5275, 2614) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5275, 2602, -25],
+   "note": "level 2: first seen 10-24 20:30:47 (5275, 2602) at 17 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral priest",
+   "at": [5293, 2586, -25],
+   "note": "level 2: first seen 10-24 20:31:52 (5293, 2586) at 5 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5291, 2634, -25],
+   "note": "level 2: first seen 10-24 20:32:01 (5291, 2634) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "spectral priest",
+   "at": [5297, 2623, -25],
+   "note": "level 2: first seen 10-24 20:32:04 (5297, 2623) at 18 tiles"
+  },
+  {
+   "key": "spectral footman",
+   "at": [5284, 2627, -25],
+   "note": "level 2: first seen 10-24 22:40:41 (5284, 2627) at 13 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5275, 2626, -22],
+   "note": "level 2: first seen 10-24 22:40:41 (5275, 2626) at 14 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5292, 2615, -25],
+   "note": "level 2: first seen 10-24 22:40:57 (5292, 2615) at 18 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5306, 2622, -22],
+   "note": "level 2: first seen 10-24 22:40:59 (5306, 2622) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5304, 2610, -22],
+   "note": "level 2: first seen 10-24 22:41:19 (5304, 2610) at 18 tiles"
+  },
+  {
+   "key": "spectral priest",
+   "at": [5306, 2599, -22],
+   "note": "level 2: first seen 10-24 22:41:23 (5306, 2599) at 18 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5305, 2597, -22],
+   "note": "level 2: first seen 10-24 22:42:03 (5305, 2597) at 11 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5304, 2624, -22],
+   "note": "level 2: first seen 10-24 22:42:03 (5304, 2624) at 16 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5292, 2589, -25],
+   "note": "level 2: first seen 10-24 22:42:06 (5292, 2589) at 18 tiles"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5307, 2586, -22],
+   "note": "level 2: first seen 10-24 22:42:19 (5307, 2586) at 18 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5304, 2567, -22],
+   "note": "level 2: first seen 10-24 22:43:17 (5304, 2567) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5307, 2573, -22],
+   "note": "level 2: first seen 10-24 22:44:19 (5307, 2573) at 18 tiles"
+  },
+  {
+   "key": "spectral bishop",
+   "at": [5271, 2541, -25],
+   "note": "level 2: first seen 10-24 22:45:08 (5271, 2541) at 18 tiles"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5296, 2533, -25],
+   "note": "level 2: first seen 10-24 22:45:10 (5296, 2533) at 18 tiles"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5291, 2539, -25],
+   "note": "level 2: first seen 10-24 22:45:22 (5291, 2539) at 10 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5277, 2555, -22],
+   "note": "level 2: first seen 10-24 22:45:22 (5277, 2555) at 8 tiles, 5 first sightings within 5"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5260, 2521, -22],
+   "note": "level 2: first seen 10-24 22:46:23 (5260, 2521) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5265, 2520, -22],
+   "note": "level 2: first seen 10-24 22:46:24 (5265, 2520) at 18 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5256, 2520, -22],
+   "note": "level 2: first seen 10-24 22:46:24 (5256, 2520) at 18 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "horned devil",
+   "at": [5261, 2531, -25],
+   "note": "level 2: first seen 10-24 22:46:27 (5261, 2531) at 10 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "spectral footman",
+   "at": [5282, 2544, -25],
+   "note": "level 2: first seen 10-24 22:46:27 (5282, 2544) at 13 tiles, 5 first sightings within 5"
+  },
+  {
+   "key": "spectral knight",
+   "at": [5276, 2532, -25],
+   "note": "level 2: first seen 10-24 22:46:27 (5276, 2532) at 9 tiles, 4 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5285, 2522, -25],
+   "note": "level 2: first seen 10-24 22:46:28 (5285, 2522) at 18 tiles"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5298, 2572, -25],
+   "note": "level 2: first seen 10-24 22:47:04 (5298, 2572) at 18 tiles"
+  },
+  {
+   "key": "spectral priest",
+   "at": [5283, 2567, -25],
+   "note": "level 2: first seen 10-24 22:47:38 (5283, 2567) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5311, 2520, -22],
+   "note": "level 2: first seen 10-24 22:48:13 (5311, 2520) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5323, 2516, -23],
+   "note": "level 2: first seen 10-24 22:48:15 (5323, 2516) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "horned devil",
+   "at": [5321, 2536, -25],
+   "note": "level 2: first seen 10-24 22:48:30 (5321, 2536) at 18 tiles"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5328, 2518, -22],
+   "note": "level 2: first seen 10-24 22:48:52 (5328, 2518) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "corrupted hornbeast",
+   "at": [5328, 2540, -25],
+   "note": "level 2: first seen 10-24 22:48:52 (5328, 2540) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5330, 2520, -22],
+   "note": "level 2: first seen 10-24 22:48:52 (5330, 2520) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5276, 2556, -22],
+   "note": "level 2: first seen 10-24 22:49:55 (5276, 2556) at 13 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5276, 2610, -22],
+   "note": "level 2: first seen 10-24 22:50:17 (5276, 2610) at 18 tiles"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5303, 2553, -22],
+   "note": "level 2: first seen 10-24 22:50:32 (5303, 2553) at 18 tiles"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5277, 2507, -22],
+   "note": "level 2: first seen 10-24 22:50:47 (5277, 2507) at 9 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5276, 2514, -22],
+   "note": "level 2: first seen 10-24 22:51:14 (5276, 2514) at 7 tiles"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5275, 2593, -23],
+   "note": "level 2: first seen 10-24 22:51:43 (5275, 2593) at 15 tiles"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5269, 2536, -25],
+   "note": "level 2: first seen 10-24 22:55:05 (5269, 2536) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral footman",
+   "at": [5309, 2538, -25],
+   "note": "level 2: first seen 10-24 22:55:19 (5309, 2538) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5291, 2510, -25],
+   "note": "level 2: first seen 10-24 22:56:29 (5291, 2510) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral bishop",
+   "at": [5322, 2536, -25],
+   "note": "level 2: first seen 10-24 22:56:51 (5322, 2536) at 18 tiles"
+  },
+  {
+   "key": "horned devil",
+   "at": [5328, 2534, -25],
+   "note": "level 2: first seen 10-24 22:56:54 (5328, 2534) at 18 tiles"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5308, 2534, -25],
+   "note": "level 2: first seen 10-24 22:58:25 (5308, 2534) at 13 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral knight",
+   "at": [5305, 2531, -25],
+   "note": "level 2: first seen 10-24 22:58:25 (5305, 2531) at 16 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5306, 2519, -22],
+   "note": "level 2: first seen 10-24 22:59:30 (5306, 2519) at 16 tiles"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5306, 2553, -22],
+   "note": "level 2: first seen 10-24 22:59:36 (5306, 2553) at 18 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "spectral bishop",
+   "at": [5298, 2543, -25],
+   "note": "level 2: first seen 10-24 23:00:30 (5298, 2543) at 14 tiles, 3 first sightings within 5"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5306, 2513, -22],
+   "note": "level 2: first seen 10-24 23:01:21 (5306, 2513) at 18 tiles"
+  },
+  {
+   "key": "spectral bishop",
+   "at": [5261, 2531, -25],
+   "note": "level 2: first seen 10-24 23:02:40 (5261, 2531) at 6 tiles, 2 first sightings within 5"
+  },
+  {
+   "key": "corrupted hornbeast",
+   "at": [5246, 2529, -25],
+   "note": "level 2: first seen 10-24 23:02:41 (5246, 2529) at 18 tiles"
+  },
+  {
+   "key": "spectral footman",
+   "at": [5288, 2581, -25],
+   "note": "level 2: first seen 10-24 23:04:15 (5288, 2581) at 18 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5284, 2594, -25],
+   "note": "level 2: first seen 10-25 11:05:25 (5284, 2594) at 18 tiles"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5272, 2501, -22],
+   "note": "level 2: first seen 10-25 11:07:26 (5272, 2501) at 18 tiles"
+  },
+  {
+   "key": "spectral knight",
+   "at": [5290, 2502, -25],
+   "note": "level 2: first seen 10-25 11:08:17 (5290, 2502) at 18 tiles"
+  },
+  {
+   "key": "spectral knight",
+   "at": [5315, 2529, -25],
+   "note": "level 2: first seen 10-25 11:08:24 (5315, 2529) at 18 tiles"
+  },
+  {
+   "key": "gargan flameshaper",
+   "at": [5288, 2557, -25],
+   "note": "level 2: first seen 10-25 11:09:23 (5288, 2557) at 18 tiles"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5304, 2593, -22],
+   "note": "level 2: first seen 10-25 11:10:18 (5304, 2593) at 17 tiles"
+  },
+  {
+   "key": "gargan scorcher",
+   "at": [5302, 2537, -25],
+   "note": "level 2: first seen 10-25 11:12:51 (5302, 2537) at 18 tiles"
+  },
+  {
+   "key": "volcanic familiar",
+   "at": [5277, 2510, -22],
+   "note": "level 2: first seen 10-25 11:13:33 (5277, 2510) at 18 tiles"
+  },
+  {
+   "key": "horned devil",
+   "at": [5298, 2510, -25],
+   "note": "level 2: first seen 10-25 11:13:58 (5298, 2510) at 18 tiles"
+  },
+  {
+   "key": "horned devil",
+   "at": [5287, 2513, -25],
+   "note": "level 2: first seen 10-25 11:14:26 (5287, 2513) at 18 tiles"
+  },
+  {
+   "key": "stone familiar",
+   "at": [5296, 2634, -25],
+   "note": "level 2: first seen 10-25 11:17:46 (5296, 2634) at 18 tiles"
+  },
+  {
+   "key": "corrupted hornbeast",
+   "at": [5299, 2642, -25],
+   "note": "level 2: first seen 11-03 22:22:00 (5299, 2642) at 11 tiles"
+  },
+  {
+   "key": "spectral warrior",
+   "at": [5300, 2642, -25],
+   "note": "level 2: first seen 11-03 22:22:00 (5300, 2642) at 10 tiles"
+  },
+  {
+   "key": "gargan stoneshaper",
+   "at": [5289, 2631, -25],
+   "note": "level 2: first seen 11-03 22:22:01 (5289, 2631) at 18 tiles"
+  },
+  {
+   "key": "spectral priest",
+   "at": [5287, 2624, -25],
+   "note": "level 2: first seen 11-03 22:22:04 (5287, 2624) at 18 tiles"
+  }
+ ],
+ "spawn_note": "one spawn per cluster of a type's first sightings in the seven visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; types without a wiki row at Shadowspire Cathedral left out: players' summons and pets, 'daemon', 'black widow', unnamed bodies): level 1 67, level 2 94. The tiles within 18 of where Logan stood are 100 % of level 1's floor, 67 % of level 2's, so level 2's far side has none. Busy with other players: many first sightings came after another player's fight",
+ "melee_observed": {
+  "golden gargoyle": {
+   "melee": [12, 26, 16],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*gold dust*' windows and the stoneshapers' ticks: 10-21 as seen, median 13.0 (n=18), song-corrected here; the capture's swing numbers (9-21, period 0.40 s) mix in its spray's ticks"
+  },
+  "iron gargoyle": {
+   "melee": [12, 23, 15],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*iron shards*' windows and the stoneshapers' ticks: 10-19 as seen, median 12.0 (n=12), song-corrected here; the capture's swing numbers (5-17, period 0.36 s) mix in its spray's ticks"
+  },
+  "mud gargoyle": {
+   "melee": [11, 26, 14],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*mud spray*' windows and the stoneshapers' ticks: 9-21 as seen, median 11.5 (n=10), song-corrected here; the capture's swing numbers (7-21, period 0.38 s) mix in its spray's ticks"
+  },
+  "gargan stoneshaper": {
+   "melee": [19, 47, 29],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*shapes stone*' windows and the stoneshapers' ticks: 16-39 as seen, median 23.5 (n=12), song-corrected here; the capture's swing numbers (12-48, period 0.46 s) mix in its cast's ticks"
+  },
+  "horned devil": {
+   "melee": [35, 49, 44],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*devil strike*' windows and the stoneshapers' ticks: 29-40 as seen, median 36.5 (n=6), song-corrected here; the capture's swing numbers (30-279) mix in its devil strike's 93s"
+  },
+  "gargan scorcher": {
+   "melee": [21, 33, 21],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*detonates*' windows and the stoneshapers' ticks: 17-27 as seen, median 17.0 (n=44), song-corrected here; the capture's swing numbers (17-98) mix in its detonation"
+  },
+  "spectral knight": {
+   "melee": [24, 47, 40],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*parries spell*' windows and the stoneshapers' ticks: 20-39 as seen, median 33 (n=105), song-corrected here; the capture's swing numbers (19-108, period 0.67 s) mix in the parried spells' numbers"
+  },
+  "stone familiar": {
+   "melee": [19, 47, 34],
+   "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*slams earth*' windows and the stoneshapers' ticks: 16-39 as seen, median 28 (n=43), song-corrected here; the capture's swing numbers (16-112) mix in its slams"
+  }
+ },
+ "specials": {
+  "mud gargoyle": [
+   {
+    "kind": "burst",
+    "id": "mud_spray",
+    "text": "*mud spray*",
+    "action": 13,
+    "first_s": [1.0, 4.0],
+    "every_s": 15.7,
+    "delay_s": 0.61,
+    "repeat": 10,
+    "repeat_s": 0.137,
+    "center": "target",
+    "reach": 12,
+    "radius": 0,
+    "damage_pet": [4, 6, 5],
+    "damage_player": [4, 7, 7],
+    "mud": {
+     "graphic": 4650,
+     "hue": 2752,
+     "radius": 2,
+     "lifetime_s": [15.0, 16.1],
+     "chance": 0.5,
+     "hold_s": 1.0,
+     "text": "Your feet sink in mud!"
+    },
+    "note": "'*mud spray*' with its animation 13 (n=16); 0.59-0.75 s later the first of 10 numbers 0.137 s apart (the last 1.75-1.98 s after) on one of us only, its target, at 1-12 tiles: pets 7 sprays (totals 39-41), Logan 1 (51, at 3-8 tiles as he walked). Every 15.7 s (n=6). Ticks as seen under the Song of Discordance (17.7 %): pets 3-5 (median 4, n=60), Logan 3-6 (n=10); song-corrected here. first_s [INFERENCE: not measured, a few seconds into its fight]. The mud: each tick drops a puddle (0x122A-0x122F, hue 2752) on a tile within 2 of the victim (126 puddles seen, gone 15.0-16.1 s later, earlier deletes being out of view); a step of Logan's onto one gave 'Your feet sink in mud!' 8 of 16 times (chance 0.5), 'You are no longer entangled.' 1.0 s later (8 of 8); every mud line was on a step onto a puddle. On the pets: not seen [INFERENCE: not modelled]"
+   }
+  ],
+  "golden gargoyle": [
+   {
+    "kind": "burst",
+    "id": "gold_dust",
+    "text": "*gold dust*",
+    "first_s": [1.0, 4.0],
+    "every_s": 15.4,
+    "delay_s": 0.61,
+    "repeat": 10,
+    "repeat_s": 0.137,
+    "center": "target",
+    "reach": 12,
+    "radius": 0,
+    "damage_pet": [5, 10, 7],
+    "damage_player": [5, 9, 6],
+    "note": "'*gold dust*' with its animation 13 (n=14); 0.59-0.75 s later the first of 10 numbers 0.137 s apart (the last 1.75-1.98 s after) on one of us only, its target, at 1-12 tiles: pets 8 sprays (totals 48-77), Logan 3 (49-53, at 9-12 tiles). Every 15.4 s (n=3). Ticks as seen under the Song of Discordance (17.7 %): pets 4-8 (median 6, n=80), Logan 4-7 (median 5, n=21); song-corrected here. first_s [INFERENCE: not measured, a few seconds into its fight]"
+   }
+  ],
+  "iron gargoyle": [
+   {
+    "kind": "burst",
+    "id": "iron_shards",
+    "text": "*iron shards*",
+    "first_s": [1.0, 4.0],
+    "every_s": 15.4,
+    "delay_s": 0.61,
+    "repeat": 10,
+    "repeat_s": 0.137,
+    "center": "target",
+    "reach": 12,
+    "radius": 0,
+    "damage_pet": [5, 9, 6],
+    "damage_player": [5, 9, 6],
+    "note": "'*iron shards*' with its animation 13 (n=10); 0.59-0.75 s later the first of 10 numbers 0.137 s apart (the last 1.75-1.98 s after) on one of us only, its target, at 1-12 tiles: pets 7 sprays (totals 43-65), never Logan. Every 15.4 s (n=4). Ticks as seen under the Song of Discordance (17.7 %): pets 4-7 (median 5, n=70); song-corrected here. first_s [INFERENCE: not measured, a few seconds into its fight]; damage_player [INFERENCE: as the pets']"
+   }
+  ],
+  "gargan scorcher": [
+   {
+    "kind": "burst",
+    "id": "detonate",
+    "text": "*detonates*",
+    "action": 5,
+    "first_s": [1.0, 4.0],
+    "every_s": 21.2,
+    "delay_s": 0.47,
+    "center": "target",
+    "reach": 3,
+    "radius": 1,
+    "damage_pet": [46, 79, 62],
+    "damage_player": [39, 66, 48],
+    "note": "'*detonates*' with its animation 5 (n=27, levels 1 and 2), 0.44-0.57 s later (median 0.47) one number on each pet within 1-3 of it (52) and on Logan 8 times: 6 of 8 within 1 of a pet it hit, spared 14 of 15 at 2-8 from them: round its target (a pet at 1-3 from it), radius 1, reach 3 [INFERENCE: no hit on a pet farther]. As seen under the Song of Discordance: pets 38-65 (median 51), Logan 32-54 (median 39.5); song-corrected here. Every 18.7-37.3 s (median 21.2, n=17), so no TARGET_AREA zone (every_s over 15)"
+   }
+  ],
+  "gargan stoneshaper": [
+   {
+    "kind": "burst",
+    "id": "shapes_stone",
+    "text": "*shapes stone*",
+    "action": 17,
+    "first_s": [1.0, 4.0],
+    "every_s": 7.8,
+    "delay_s": 1.38,
+    "repeat": 4,
+    "repeat_s": 0.45,
+    "center": "target",
+    "reach": 12,
+    "radius": 1,
+    "damage_pet": [11, 24, 18],
+    "damage_player": [7, 24, 12],
+    "note": "'*shapes stone*' with its animation 17 (n=56, level 2), every 7.5-8.0 s (median 7.8, n=39); 1.27-1.41 s later (median 1.38) 4 numbers 0.45 s apart on each pet beside its target (106 ticks on pets at 1 from it, 135 farther, at 2-16). As seen under the Song of Discordance: pets 9-20 (median 15, n=241); song-corrected here. Always on a pet (`target` pet): Logan was never hit within 2 of it, his 26 ticks came at 3-9 tiles",
+    "target": "pet"
+   },
+   {
+    "kind": "burst",
+    "id": "shapes_stone_far",
+    "first_s": [1.0, 4.0],
+    "every_s": 7.8,
+    "delay_s": 1.38,
+    "repeat": 4,
+    "repeat_s": 0.45,
+    "radius": 9,
+    "chance": 0.2,
+    "damage_pet": null,
+    "damage_player": [7, 24, 12],
+    "note": "the same cast's ticks on Logan away from the pets: with Logan within 9 of a stoneshaper (30 casts) 24 ticks landed on him at 3-9 tiles (1-6 from the pets it hit), 0.8 a cast: chance 0.2 a tick. Logan 6-20 as seen (median 10, n=26), song-corrected. Two bursts of one cast [INFERENCE: what picks its far victims is unknown: neither its own nor its target's distance tells]"
+   }
+  ],
+  "horned devil": [
+   {
+    "kind": "burst",
+    "id": "devil_strike",
+    "text": "*devil strike*",
+    "action": 6,
+    "first_s": [1.0, 4.0],
+    "every_s": 8.6,
+    "delay_s": 0.64,
+    "radius": 1,
+    "damage_pet": [93, 100, 93],
+    "damage_player": [65, 70, 65],
+    "song_pets": false,
+    "note": "'*devil strike*' (n=13, level 2) with animation 6 0.24 s after, every 7.6-13.0 s (median 8.6, n=9); 0.63-0.66 s after the emote one number on each pet within 1 of it: 93 on 3 pets at once 3 times, 93 alone 3 times, 100 once, 40-53 once (n=17): a fixed number, so song_pets false [INFERENCE]. Logan never stood within 1: damage_player [INFERENCE: 0.7 of the pets', as Cavernam's charoite crush]"
+   }
+  ],
+  "note": "Song-corrected by the Song of Discordance share his songs printed then (17.7 % at E 118, 2026-10-24; none printed in the 10-31 and 11-03 captures). Not modelled: the winged hulk's '*intimidates*' (n=13, every 15.3-16.3 s; animation 5; 'The creature intimidates you, reducing your accuracy.' and '*intimidated*' over Logan and over players at 4-8 tiles, no number with it: an accuracy cut, and Logan doesn't swing [INFERENCE: harmless to the --pets runner]; no World kind for an accuracy debuff); the crimson gargoyle's '*crimson harvest*' (n=16: a fireball volley (effect 0x36D4, hue 2838) onto its target's tiles and fire columns there; 3 numbers 9-11 on the pets in 16); the horned devil's '*absorbs power*' (n=114, a 16 on a pet now and then: unmeasured); the spectral knight's '*parries spell*' (n=85: 6-8 on the pet whose spell it parried, as the Ossuary's lion warrior, no reflect kind); the spectral footman's '*throws axe*' (n=60: 7-29 on a pet 0.3-1.9 s later, too scattered to time); the spectral warrior's '*blade wind*' (n=37, 4 hits on us in 37); the stone and volcanic familiars' '*slams earth*' / '*slams ground*' (n=51, 37: their numbers mix with the stoneshapers' ticks beside them); the corrupted hornbeast's '*growls*' (n=16)"
+ },
+ "upscale_note": "no upscale block: a normal week in each capture. Every type killed in view took at most its wiki hits in numbers (max 1.00 x: 7,001 for 7,000, 12,001 for 12,000, 4,001 for 4,000; 10-24, 10-25, 10-31) and its corpse held 1.01-1.03 x its wiki gold value (median by capture: 1.03 on 10-24, 1.01 on 10-25, 1.01 on 10-31; 100 corpses), against Cavernam's Challenger week's 1.5 x hits and 1.6 x gold and the Ossuary's Sanctuary week's 0.65 x gold. 11-03 had no corpse gold lifted (80 s on the levels). So neither a Challenger (upscaled) nor a Sanctuary dungeon those weeks",
+ "reds_note": "no `reds` block (run.py --reds refused here): 2026-10-31 14:24:45-50 the red players Richard Wagner and Albert Wagner (body 400, 'X is attacking you!', Corp Por casts, an earth elemental of notoriety 6 beside them) killed Logan on level 1 at (5128-5131, 2613-2616) beside a mud gargoyle whose mud rooted him three times (14:24:47-49); his last numbers 9, 41, 24, 34, 15 in 4 s; murder reports 14:24:54-56. 3 reds and 22 players in view that visit; a guild 'Reds SSC1' warning after. The Mausoleum's reds model (sim/reds.py) is fitted to Maus captures [INFERENCE: not measured here]",
+ "trip": {
+  "note": "Logan Wolf's visits on level 1 (the user playing, all seven visits, 2026-10-24 to 11-03; four teams, see description): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan; vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there (corpses others killed included). Per hour on the level beside the sim's (run.py --compare). Includes 10-31 14:21-14:25 (dead to two reds)",
+  "hunt_s": 2503.5,
+  "kills": 73,
+  "player_damage": 846,
+  "vet_uses": 72,
+  "potions": 13,
+  "discord_ok": 46,
+  "discord_fail": 27,
+  "peace_ok": 17,
+  "peace_fail": 9,
+  "provoke": 7,
+  "gold": 60222
+ }
+}

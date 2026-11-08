@@ -897,14 +897,14 @@ class World:
                     # to 19 tiles, 17:37:13.63 Botan); the client model would keep it at its last tile to 24
                     self.send(P.delete(s))
         for s, it in self.items.items():
-            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx", "bubble", "wall"):
+            if it.get("kind") in ("corpse", "gate", "fire", "eerie", "eerie_fx", "bubble", "wall", "mud"):
                 near = cheb((it["x"], it["y"]), self.player.pos) <= VIEW
                 if near and s not in self.viewing_items:
                     self.viewing_items.add(s)
                     if it["kind"] == "eerie" and not it.get("seen"):
                         it["seen"] = True
                         self.count("eerie_seen")
-                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx", "bubble", "wall"):
+                    if it["kind"] in ("gate", "fire", "eerie", "eerie_fx", "bubble", "wall", "mud"):
                         self.send(P.ground_item(s, it["graphic"], 1, it["x"], it["y"], it["z"], hue=it.get("hue", 0)))
                     else:
                         self.send(P.ground_item(s, combat.CORPSE_GRAPHIC, it["body"], it["x"], it["y"], it["z"]),
@@ -1332,7 +1332,7 @@ class World:
         for s, it in list(self.items.items()):
             if it.get("kind") == "corpse" and t - it["t"] > CORPSE_DECAY_S:
                 self._remove_corpse(s)
-            elif it.get("kind") in ("fire", "bubble", "wall") and t >= it["until"]:
+            elif it.get("kind") in ("fire", "bubble", "wall", "mud") and t >= it["until"]:
                 del self.items[s]
                 if s in self.viewing_items:
                     self.viewing_items.discard(s)
@@ -2222,6 +2222,34 @@ class World:
             self.send(P.ground_item(s, sp["graphic"], 1, x, y, z, hue=sp["hue"]))
         self.count("bubbles", "thrown")
 
+    def _mud_drop(self, o: Mob, md: dict):
+        """One puddle of a mud gargoyle's spray (Shadowspire Cathedral, docs/NOTES.md "Shadowspire Cathedral: seven visits
+        by hand"): a ground item (`graphic`, `hue`) on a standable tile within `radius` of victim `o`, gone `lifetime_s`
+        later; Logan stepping onto it is rooted (_mud_step)."""
+        rng, r = self.rng, md["radius"]
+        for _ in range(8):
+            x, y = o.x + rng.randint(-r, r), o.y + rng.randint(-r, r)
+            z = self.stand_z(x, y, o.z)
+            if abs(z - o.z) <= 10 and any(self.walk.can_walk(x, y, z, k) for k in range(8)):
+                s = self._item_serial()
+                self.items[s] = {"kind": "mud", "graphic": md["graphic"], "hue": md["hue"], "x": x, "y": y, "z": z,
+                                 "until": self.t + rng.uniform(*md["lifetime_s"]), "sp": md}
+                if cheb((x, y), self.player.pos) <= VIEW:
+                    self.viewing_items.add(s)
+                    self.send(P.ground_item(s, md["graphic"], 1, x, y, z, hue=md["hue"]))
+                self.count("mud", "puddles")
+                return
+
+    def _mud_step(self):
+        """Logan stepped onto a mud puddle: Entangle for its `hold_s` with its `text`, at its `chance` a step (live 8 of
+        16 steps onto one)."""
+        pl = self.player
+        md = next((it["sp"] for it in self.items.values() if it.get("kind") == "mud" and (it["x"], it["y"]) == pl.pos[:2]),
+                  None)
+        if md is not None and self.rng.random() < md["chance"]:
+            self._root(pl, md["hold_s"], md["text"])
+            self.count("mud", "entangled")
+
     def _bubble_pop(self, it: dict):
         """A bubble pops: each of us within `radius` of it not hit by a bubble in the last `immune_s` (live: none of 50
         within 2.5 s of a hit) takes `damage_player` / `damage_pet` with `chance`[distance]."""
@@ -2656,7 +2684,8 @@ class World:
         Logan (a debuff or bleed only, or its numbers already in the type's swings: the biolumen shellpod's barrage on a
         pet beside it); `numbers` of them on each victim (the shellpod's barrage: two on Logan).
         A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`); a `disease` one (`_disease`, the anubite's
-        blight); a `root` one (`_root`, the ossuarian hunters' net: no step for `hold_s`). A `debuff`, a stack of
+        blight); a `root` one (`_root`, the ossuarian hunters' net: no step for `hold_s`); a `mud` one (`_mud_drop`, the
+        mud gargoyle's spray: a puddle near each victim that may root Logan when he steps into it). A `debuff`, a stack of
         `per_stack` for `duration_s` on each victim: "backlash" a fizzle chance (`_fizzles`), "festering" a heal cut
         (`heal`), "glowmark" extra threat drawn (`hurt`), "susceptible" more damage taken from the `from` types (`hurt`;
         each stack's time refreshed by the next, the combustive zoas' scorch)."""
@@ -2697,6 +2726,8 @@ class World:
                 self._disease(o, sp["disease"])
             if sp.get("root"):
                 self._root(o, sp["root"]["hold_s"], sp["root"].get("text"), sp["root"].get("emote"))
+            if sp.get("mud"):
+                self._mud_drop(o, sp["mud"])
             if db:
                 stack = [self.t + db["duration_s"], db["per_stack"]]
                 if db["kind"] == "backlash":
@@ -3250,7 +3281,13 @@ class World:
         if self.penalty:
             self.penalty -= 1
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
-        tp = next((tp for tp in self.sc.get("teleporters", []) if tuple(tp["from"][:2]) == (pl.x, pl.y)), None)
+        self._mud_step()
+        # `dirs`: the step directions it fires on, `z`: the heights of the step's landing it fires at (Shadowspire
+        # Cathedral's strips fire one way only: level 1's on a step south, level 2's from its floor, not from the stair
+        # over it; docs/SIM.md "Shadowspire Cathedral"); neither: every step onto it
+        tp = next((tp for tp in self.sc.get("teleporters", []) if tuple(tp["from"][:2]) == (pl.x, pl.y)
+                   and ("dirs" not in tp or d in tp["dirs"]) and ("z" not in tp or tp["z"][0] <= pl.z <= tp["z"][1])),
+                  None)
         if tp is not None:
             self.reds.player_teleported((pl.x, pl.y))
             self._move_party(tp["to"], follow_r=VIEW)

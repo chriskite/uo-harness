@@ -1,4 +1,4 @@
-# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary, Cavernam
+# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary, Cavernam, Shadowspire Cathedral
 
 An offline game world for the hunt runner (user request 2026-10-13: "train our combat runner in the
 emulated game world ... run tests much faster"). It is not an Outlands server: it is the one dungeon
@@ -7,9 +7,10 @@ pets and mechanics the `--pets` runner meets there, each number calibrated from 
 wiki. The runner under test is the unmodified `loop_hunt.HuntLoop` (`tamer.Team`), on virtual time:
 a 30-minute hunt takes 16-24 s of CPU on a loaded desktop (75-115× real time; "Speed" below), and a batch spreads its careers over
 `--jobs` processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
-Logan's first visit there, since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below), and
-since 2026-10-31 a fourth, **Cavernam** (`--scenario cavernam`, "Cavernam" below); everything below that names no
-dungeon is the Mausoleum's.
+Logan's first visit there, since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below),
+since 2026-10-31 a fourth, **Cavernam** (`--scenario cavernam`, "Cavernam" below), and since 2026-11-08 a fifth,
+**Shadowspire Cathedral** (`--scenario ssc`, "Shadowspire Cathedral" below); everything below that names no dungeon is
+the Mausoleum's.
 
 ```mermaid
 flowchart LR
@@ -65,6 +66,8 @@ python harness/sim/run.py --scenario ossuary --level 2                  # ... it
 python harness/sim/run.py --scenario cavernam --runs 24 --team phoenix_incubus   # Cavernam's level 3 ("Cavernam" below)
 python harness/sim/run.py --scenario cavernam --level 2                 # ... its level 2
 python harness/sim/run.py --scenario cavernam --level 1                 # ... its level 1 (the recall's level: no teleporter)
+python harness/sim/run.py --scenario ssc --runs 32 --team phoenix_incubus   # Shadowspire Cathedral's level 1 ("Shadowspire Cathedral" below)
+python harness/sim/run.py --scenario ssc --level 2                      # ... its level 2 (down level 1's strip, out up level 2's)
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
 python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
@@ -3198,6 +3201,108 @@ word"; level 1 with `--no-enter-via`):
 - Other players (21 seen, no reds) are not measured: `--others` and `--reds` are refused here.
 - Level 4 was never visited; the levels' unseen parts have no spawns.
 - The upscale holds for a Challenger week only; its factors on spell damage weren't measured.
+
+## Shadowspire Cathedral (2026-11-08)
+
+User 2026-11-08: an `ssc-shift` skill for Logan's hunts in Shadowspire Cathedral, the simulator scenario first. The
+fifth scenario, `harness/data/sim/ssc.json`, is built from his seven visits by hand (captures `20261024_102346`,
+`20261024_225113`, `20261031_132152`, `20261103_101743`; docs/NOTES.md "Shadowspire Cathedral: seven visits by hand,
+dead on level 1 to two reds" has the facts). Levels 1 and 2 only; the east wing and the grounds are out. Every number
+carries its evidence in the scenario's notes.
+
+```mermaid
+flowchart LR
+  Home -- "tome row 'SSC Inside'" --> L1["level 1 (5144, 2480): the default hunt<br/>golden gates (5145, 2480), (5176, 2489)<br/>crimson gate (5157, 2647)"]
+  L1 -- "south strip (5132-5133, 2653), a step S" --> L2["level 2 landing (5276-5277, 2640)"]
+  L2 -- "strip (5276-5277, 2641), a step from the floor" --> P["level 1 below its strip (5132-5133, 2654)"]
+  P --> L1
+  L2 -. "surface exit (5309, 2638): a wall" .-> Out["the grounds (3393, 816)"]
+  L1 -- "a moongate: the runner's leave" --> Totem
+  Totem -- recall --> Home
+```
+
+**What was built:**
+
+- **Two levels by a map flood fill**, a box each: level 1 x 5097-5195, y 2462-2660 (the default, `area`), level 2
+  x 5241-5359, y 2416-2644 (`levels`, `--level 2`). The tome row lands inside on level 1 a tile from its golden gate:
+  no `--enter-via` and no `--no-enter-via` for level 1. 2 golden and 1 crimson moongate, all on level 1.
+- **One-way teleporters** (new, `World._walk`): a scenario teleporter's `dirs` (the step directions it fires on) and
+  `z` (the heights of the step's landing it fires at). Level 1's strip fires on a step S, SW or SE; level 2's on a step
+  onto it at its floor (z -30..0), not on the stair from its landing that crosses the same tiles. Each landing is a
+  2-tile pocket whose only way off crosses the other strip, so a two-way strip would never let the runner off it.
+  The surface exit and its way back in are plain teleporters.
+- **Mud puddles** (new: a burst's `mud` rider, `World._mud_drop` / `_mud_step`): each tick of the mud gargoyle's spray
+  drops a puddle within 2 of its victim for 15.0-16.1 s; Logan's step onto one roots him 1.0 s at chance 0.5 ("Your
+  feet sink in mud!"). Not on the pets (not seen).
+- **161 spawns** from the first sightings (level 1 67, level 2 94). Level 1's floor is all within 18 of where Logan
+  stood, level 2's 67 %.
+- **`ssc_kb.json`** (`kb_scan.py --location "Shadowspire Cathedral"`): 40 creatures, no hand additions (every type
+  killed has a row; the spectral bishop's melee reads [1205, 30], unused for a mage).
+- **`ssc_observed.json`** (`calibrate.py --scenario ssc`): 48 creature types. `melee_observed` replaces 8 types'
+  swings that mix in their specials' ticks (the three sprayers, the stoneshaper, the horned devil, the scorcher, the
+  spectral knight, the stone familiar).
+- **No `upscale`:** a normal week in every capture (hits at most the wiki's, corpse gold 1.01-1.03 x): SSC was neither
+  the Challenger nor the Sanctuary dungeon those weeks (`upscale_note`).
+- **Barding:** `bard.capture_d` for 16 types with 3+ Discordances (E 118 and 113, 2026-10-24/25).
+- **Live trips** (`trip`, and level 2's own): level 1 2,504 s, 73 kills, 846 on Logan, 60,222 gp lifted; level 2
+  2,498 s, 78 kills, 943 on Logan, 81,489 gp; four teams between them (GirthyEarthy, Nightmares, AlaFlambe and Bussin).
+- **No `reds` block** (`reds_note`): the 10-31 death to two reds is recorded, not modelled; `--reds` and `--others` are
+  refused here.
+
+**Specials** (scenario `specials`; song-corrected, the Mausoleum audit's rule):
+
+- **The mud, golden and iron gargoyles' sprays:** `burst` `center` target, radius 0, reach 12, `repeat` 10 0.137 s
+  apart from 0.61 s, every 15.4-15.7 s; the mud one with its puddles.
+- **The gargan scorcher's detonation:** round its target (radius 1, reach 3) 0.47 s after `*detonates*`, every 21.2 s.
+- **The gargan stoneshaper's shaped stone:** 4 ticks 0.45 s apart from 1.38 s every 7.8 s on the pets beside the pet
+  it targets (`target` pet, radius 1: a `TARGET_AREA` of (12, 2), test_sim `test_area_hitters`), and a second burst for
+  its ticks on Logan at 3-9 tiles (radius 9, chance 0.2 a tick, no pet number: what picks those victims is unknown).
+- **The horned devil's devil strike:** 93-100 on each pet within 1, every 8.6 s (`song_pets` false: a fixed number;
+  `AREA_R` 2).
+- **Not modelled** (`specials.note`): the winged hulk's intimidate (an accuracy cut, no number: no kind), the crimson
+  gargoyle's harvest, the devil's absorbs power, the knight's parried spells, the footman's axe, the warrior's blade
+  wind, the familiars' slams, the hornbeast's growl.
+
+**Runs for a shift**: the live team (`--team phoenix_incubus`), `--prior` the live store, 30 game minutes from home,
+`-- --vet-range 5 --crawl-learn-s 180`; level 1 as the scenario's default, level 2 `--level 2` (in by `--enter-via 5132
+2653 --fight-via 5132 2653`, out by `--leave-via 5277 2641 --leave-gate 5157 2647`):
+
+| level | runs | runs with a death | runs with a pet death | kills an hour on it | damage on Logan an hour | banked gp a game hour |
+|---|---|---|---|---|---|---|
+| 1 | 32 | 0 | 0 | 155 | 1,068 | 145,117 |
+| 2 | 32 | **15** | 26 | 360 | 5,825 | 135,877 |
+
+- **Level 1** ended "done" 32 of 32, out by a golden gate. Against Logan's visits (per hour on the level): kills 155
+  against 105, damage on Logan 1,068 against 1,217, vet supplies 103 against 104, heal potions 15 against 19. 4 runs'
+  last gate left AlaFlambe or Bussin 4-8 tiles behind (the time-up leave).
+- **Level 2's deaths** (each run's `death_causes`, the last 15 s): 12 on level 2, 9 of them led by the stoneshapers'
+  ticks (100-222), the rest stone familiars and spectral warriors; 1 on level 1's fought leg in (5135, 2653: golden
+  gargoyle, scorcher, flamekin), 2 at level 1's crimson gate on the way out (5158, 2648: iron and mud gargoyles,
+  stonekin). 14 runs ended "done" (out by the crimson gate), 2 "to the teleporter at 5132,2653: no route from (5277,
+  2641)" (below), 1 "Bussin is not with us".
+- **Level 2 against Logan's visits:** kills 360 against 112, damage on Logan 5,825 against 1,359, vet 548 against 187,
+  potions 108 against 30. The simulated team meets and kills 3-5 x the user's stoneshapers an hour (49 against 10
+  killed), with 12 of its spawns round the landing; per stoneshaper killed the damage on Logan is about 2 x live. Without
+  the stoneshaper's far burst (32 runs): 15 runs with a death, 3,394 on Logan an hour.
+- **How level 2 got there:** with all four strip tiles in `teleporters.json` the crawl crashed at level 2's landing
+  ("crawl: max() iterable argument is empty": a 2-tile floor); with direction-only strips and no `--fight-via`, 16 of 32
+  runs died, 9 of them on level 1's walk to the strip (hunt_s 0), and 14 leaves failed "the step in direction 5 moved
+  without a teleport" (the walk to (5277, 2641) came on level 2's floor from the north). Level 2's strip as a height
+  rule and the fought leg in gave the table above.
+
+**Open on Shadowspire Cathedral:**
+
+- **The runner's teleporter tiles are 2-D and two-way** (`agent_link.Mover.teleporter_tiles`: a wall to every walk).
+  `teleporters.json` holds only the strip tile each way takes, (5132, 2653) and (5277, 2641), so each landing keeps its
+  way off. A stray step onto the other one ((5133, 2653) from the north on level 1, (5276, 2641) from level 2's floor)
+  fires live as here, is learnt into the store and closes that landing for every later run of the store; `step_back`
+  can't undo it (the way back fires only the other way). 2 of 32 level 2 runs. The runner needs one-way (or
+  height-bound) teleporters, and a leave or entry step onto a strip from its firing side.
+- The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).
+- Level 2's danger rests on the stoneshapers: their encounter rate (spawns from one evening's first sightings, default
+  respawns) and the far ticks' rule are not measured well; the live team on level 2 was never AlaFlambe and Bussin
+  (43 s on 11-03).
+- Other players (58, 64, 22, 4 seen) and reds (3 and 3) are not measured.
 
 ## Player armor (2026-10-24)
 

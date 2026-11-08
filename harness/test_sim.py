@@ -7766,18 +7766,20 @@ def test_area_hitters():
                                              "drowned buccaneer", "corpsebride", "oozing noughtilus", "reanimated daemon",
                                              "giant astral zoa", "giant combustive zoa", "combustive zoa",
                                              "biolumen shellpod", "ossuarian deathbringer", "phantasm", "hierarch",
-                                             "mummy")}
+                                             "mummy", "horned devil", "gargan stoneshaper", "gargan scorcher")}
     want = {"razorfin": 3, "voidfin": 3, "greater razorfin": 3, "tidal sea serpent": 4, "drowned buccaneer": 2,
             "corpsebride": 3, "oozing noughtilus": 3, "reanimated daemon": 6, "giant astral zoa": None,
             "giant combustive zoa": None, "combustive zoa": None, "biolumen shellpod": None,
-            "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None, "mummy": 2}
+            "ossuarian deathbringer": 5, "phantasm": None, "hierarch": None, "mummy": 2, "horned devil": 2,
+            "gargan stoneshaper": None, "gargan scorcher": None}
     check("as the rule says", got == want, str({k: v for k, v in got.items() if v != want[k]}))
     want = {"astral zoa": (11, 4), "giant astral zoa": (11, 4), "combustive zoa": (12, 4), "giant combustive zoa": (12, 4),
-            "drowned mariner": (11, 2), "soulcatcher": (11, 2), "white wyrmling": (8, 3)}
+            "drowned mariner": (11, 2), "soulcatcher": (11, 2), "white wyrmling": (8, 3), "gargan stoneshaper": (12, 2)}
     check("...the zoas' spell and scorch round the pet they target, the shooters' hits on everyone within 1 of theirs, "
-          "Cavernam's white wyrmling's chilling hit (every 14.5 s); nothing else (not a shellpod's barrage, radius 0; not "
-          "the zoas' lightning, one every 22-87 s; not the silicite's shards or the frigid archfiend's hit, every 15.9 and "
-          "15.3 s)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
+          "Cavernam's white wyrmling's chilling hit (every 14.5 s), Shadowspire's stoneshaper's ticks round its pet (every "
+          "7.8 s); nothing else (not a shellpod's barrage, radius 0; not the zoas' lightning, one every 22-87 s; not the "
+          "silicite's shards or the frigid archfiend's hit, every 15.9 and 15.3 s; not the gargan scorcher's detonation, "
+          "every 21.2 s; not the stoneshaper's far ticks, radius 9)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
 
 
 def test_shy_by_ai():
@@ -8599,6 +8601,121 @@ def test_cavernam_hunt():
           f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']}")
 
 
+SSC_L1 = (5144, 2480)         # Shadowspire Cathedral: level 1's arrival by the tome's 'SSC Inside' row (the hunting level)
+
+
+def ssc_world(start, spawns=(), seed=1, z=39, team="phoenix_incubus"):
+    from sim import pets
+    sc = load("ssc")
+    pets.select(sc, team)
+    sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
+    sc["player"]["start"] = [start[0], start[1], z]
+    return World(sc, seed=seed)
+
+
+def _step(w, d):
+    """Logan walks one step in direction d (a turn first when he faces elsewhere, as the client sends it)."""
+    for _ in range(2):
+        if w.player.d == d:
+            break
+        w.c2s(bytes([0x02, d, 0, 0, 0, 0, 0]))
+    w.c2s(bytes([0x02, d, 1, 0, 0, 0, 0]))
+
+
+def test_ssc_recall_rule():
+    print("== Shadowspire Cathedral's recall rule: at the tome's 'SSC Inside' landing (a tile from level 1's golden gate) "
+          "and beside its second golden gate; refused elsewhere on levels 1 and 2; allowed outside ==")
+    import escape
+    check("a recall at the landing (5144, 2480) is allowed", escape.recall_forbidden((*SSC_L1, 39), 0) is None)
+    check("...beside the golden gate (5176, 2489) too", escape.recall_forbidden((5176, 2491, 39), 0) is None)
+    why = escape.recall_forbidden((5130, 2600, 39), 0)
+    check("...on level 1 away from them refused", why is not None and "Shadowspire" in why, str(why))
+    check("...beside level 1's crimson gate (5157, 2647) refused", escape.recall_forbidden((5157, 2646, 39), 0) is not None)
+    check("...on level 2 refused", escape.recall_forbidden((5300, 2600, -25), 0) is not None)
+    check("...outside on the grounds allowed (3393, 816)", escape.recall_forbidden((3393, 816, -23), 0) is None)
+
+
+def test_ssc_strips():
+    print("== Shadowspire's strips fire one way: south onto level 1's into level 2's landing, north from level 2's floor "
+          "onto its strip back up; the step off each landing across the other strip doesn't ==")
+    w = ssc_world((5132, 2652))
+    _step(w, 4)
+    check("a step S onto (5132, 2653) puts Logan on level 2's landing (5276, 2640)", w.player.pos[:2] == (5276, 2640),
+          str(w.player.pos))
+    _step(w, 4)
+    check("...a step S off it onto (5276, 2641), the stair down, keeps him on level 2", w.player.pos[:2] == (5276, 2641),
+          str(w.player.pos))
+    w = ssc_world((5277, 2642), z=-25)
+    _step(w, 0)
+    check("a step N from level 2's floor onto (5277, 2641) puts him below level 1's strip (5133, 2654)",
+          w.player.pos[:2] == (5133, 2654), str(w.player.pos))
+    _step(w, 0)
+    check("...a step N off that landing onto (5133, 2653) keeps him on level 1", w.player.pos[:2] == (5133, 2653),
+          str(w.player.pos))
+
+
+def test_ssc_mud_spray():
+    print("== a mud gargoyle's spray: '*mud spray*', then 10 numbers 0.137 s apart from 0.61 s on its target alone, a mud "
+          "puddle within 2 of it each; Logan's step onto a puddle roots him (the next step refused) ==")
+    x, y = SSC_L1
+    w = ssc_world(SSC_L1, [{"key": "mud gargoyle", "at": [x + 5, y + 4, 39]}])
+    hurts, said = _log_hurts(w), _log_overhead(w)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+    bus = next(p for p in w.pets() if p.name == "Bussin")
+    _hold_on(w, m, ala)
+    m.spec = {**m.spec, "step_s": 1e9}
+    for p, at in ((ala, (x + 4, y + 4)), (bus, (x + 4, y + 3))):
+        p.mode = "stay"
+        w._teleport(p, (*at, 39))
+        p.hits = p.hits_max = 100000
+    w.player.hits = w.player.hits_max = 100000
+    cue = None
+    while cue is None and w.t < 6.0:
+        w.run_until(w.t + 0.1)
+        cue = next((t for t, s, text in said if s == m.serial and text == "*mud spray*"), None)
+    m.spec = {**m.spec, "specials": []}                  # one spray alone
+    w.run_until((cue or 0.0) + 3.0)
+    ticks = [(t, v) for t, v, k, _ in hurts if k == "burst"]
+    check("10 numbers on AlaFlambe alone, 0.137 s apart from 0.61 s after the emote",
+          cue is not None and len(ticks) == 10 and all(v is ala for _, v in ticks)
+          and all(abs(t - (cue + 0.61 + 0.137 * i)) < 0.11 for i, (t, _) in enumerate(ticks)),
+          f"cue {cue} ticks {[(t, v.name) for t, v in ticks]}")
+    mud = [it for it in w.items.values() if it.get("kind") == "mud"]
+    check("...10 puddles, each within 2 of her", len(mud) == 10 and all(sim_cheb((it["x"], it["y"]), ala.pos) <= 2
+                                                                        for it in mud), str(len(mud)))
+    import nav
+    pud = mud[0]
+    pud["sp"] = {**pud["sp"], "chance": 1.0}
+    tile = (pud["x"], pud["y"])
+    for d in range(8):                                   # a tile beside it whose step d lands on it
+        nx, ny = nav.step(tile, (d + 4) % 8)
+        nz = w.stand_z(nx, ny, pud["z"])
+        to = w.walk.can_walk(nx, ny, nz, d)
+        if to is not None and to[:2] == tile and not any(o.pos[:2] == tile for o in w.mobs.values() if o.alive):
+            break
+    w._teleport(w.player, (nx, ny, nz))
+    _step(w, d)
+    held = w.player.pos[:2] == tile and w.player.rooted_until > w.t
+    _step(w, (d + 4) % 8)
+    check("...Logan stepping onto one is rooted: his next step refused", held and w.player.pos[:2] == tile,
+          f"held {held} at {tile} now {w.player.pos}")
+
+
+def test_ssc_hunt():
+    print("== Shadowspire hunts from home: level 1 in by the 'SSC Inside' row, out by a moongate to Totem and home; level 2 "
+          "down level 1's strip, out up level 2's from its floor and across level 1 to the crimson gate ==")
+    from sim import run as simrun
+    for level, minutes in ((None, 10), ("2", 20)):      # level 2's fought leg across level 1 takes 6-8 minutes
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            r = simrun.run_once(1, [], scenario="ssc", minutes=minutes, team="phoenix_incubus", dungeon_level=level)
+        gates = [e.get("gate") for e in r["leave_events"] if e.get("ok")]
+        check(f"level {level or 1}: done, kills there, the gold banked at home, out by a moongate",
+              r["outcome"] == "done" and r["kills"] > 0 and r["gold_banked"] > 0 and r["hunt_s"] > 120 and gates,
+              f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']} gates {gates}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -8671,7 +8788,8 @@ def main():
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
-              test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt):
+              test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
+              test_ssc_recall_rule, test_ssc_strips, test_ssc_mud_spray, test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

@@ -1,0 +1,1455 @@
+{
+ "creatures": {
+  "angelic stonework": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 141.5,
+   "gold_value": 1415,
+   "hits": 12000,
+   "knowledge_ids": [
+    10610,
+    15699
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an angelic stonework",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "blood mephit": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.6,
+   "gold_value": 777,
+   "hits": 4000,
+   "knowledge_ids": [
+    10522,
+    10598,
+    14486,
+    15700
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a blood mephit",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14486; that the wild creature uses it is [INFERENCE]] Spellflaying (Passive): Has a 15% chance on spellcast to inflict (DamageMax * 1.0) bleed damage over 15 seconds."
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "corpse flower": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 143.3,
+   "gold_value": 1434,
+   "hits": 9000,
+   "knowledge_ids": [
+    10806,
+    15702
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a corpse flower",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 120
+  },
+  "corrupted hornbeast": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 121.6,
+   "gold_value": 1216,
+   "hits": 8000,
+   "knowledge_ids": [
+    10522,
+    10647,
+    14475,
+    14477,
+    15703
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a corrupted hornbeast",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14477; that the wild creature uses it is [INFERENCE]] Corruption Blast (Cooldown): Fires a projectile at a location up to 6 tiles away, hitting up to 3 targets within 1 tile. Inflicts (DamageMax * 0.33) disease damage every 5 seconds for 20 seconds, with the first target hit taking +33% damage.",
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Enrage (Passive): Has a 15% chance on melee attack to increase melee damage by 20% for 30 seconds (cannot stack)."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 105
+  },
+  "crimson gargoyle": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 114.0,
+   "gold_value": 1141,
+   "hits": 7000,
+   "knowledge_ids": [
+    10645,
+    15706
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a crimson gargoyle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 110
+  },
+  "daemonic stonework": {
+   "ai": "meleemage",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 225.6,
+   "gold_value": 2256,
+   "hits": 16000,
+   "knowledge_ids": [
+    10618,
+    15707
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a daemonic stonework",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 130
+  },
+  "deathcap": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 149.7,
+   "gold_value": 1497,
+   "hits": 10000,
+   "knowledge_ids": [
+    10778,
+    15708
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a deathcap",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.6,
+   "wrestling": 100
+  },
+  "deathvines": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 108.5,
+   "gold_value": 1085,
+   "hits": 12000,
+   "knowledge_ids": [
+    10798,
+    15709
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a deathvines",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 100
+  },
+  "earth mephit": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.6,
+   "gold_value": 777,
+   "hits": 4000,
+   "knowledge_ids": [
+    10522,
+    10602,
+    14474,
+    15710
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an earth mephit",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14474; that the wild creature uses it is [INFERENCE]] Spellcrush (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 0.50) damage that ignores half of target's armor and applies a pierce effect of (Control Slots * 10) for 15 seconds"
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "eldritch mephit": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.6,
+   "gold_value": 777,
+   "hits": 4000,
+   "knowledge_ids": [
+    10522,
+    10605,
+    14476,
+    15713
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an eldritch mephit",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14476; that the wild creature uses it is [INFERENCE]] Spellbreak (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 0.5) damage that ignores half of target's armor and applies a hex effect of (Control Slots * 15) for 15 seconds"
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "fire mephit": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.6,
+   "gold_value": 777,
+   "hits": 4000,
+   "knowledge_ids": [
+    10523,
+    10611,
+    14470,
+    15716
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a fire mephit",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14470; that the wild creature uses it is [INFERENCE]] Spellburn (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 1.0) damage that ignores half of target's armor"
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "frost mephit": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.6,
+   "gold_value": 777,
+   "hits": 4000,
+   "knowledge_ids": [
+    10523,
+    10617,
+    14467,
+    15718
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a frost mephit",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14467; that the wild creature uses it is [INFERENCE]] Spellchill (Passive): Has a 15% chance on spellcast to inflict an additional (DamageMax * 0.75) damage that ignores half of target's armor and applies a chill effect of (Control Slots * 2%) for 60 seconds (stacks up to 20%)"
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "gargan flamekin": {
+   "ai": "ranged",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 79.2,
+   "gold_value": 793,
+   "hits": 5000,
+   "knowledge_ids": [
+    10745,
+    15721
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargan flamekin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 110
+  },
+  "gargan flameshaper": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 179.9,
+   "gold_value": 1800,
+   "hits": 12000,
+   "knowledge_ids": [
+    10736,
+    15722
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    55,
+    65
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargan flameshaper",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 120
+  },
+  "gargan scorcher": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 177.2,
+   "gold_value": 1772,
+   "hits": 8000,
+   "knowledge_ids": [
+    10744,
+    15723
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargan scorcher",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 2.0,
+   "wrestling": 110
+  },
+  "gargan stonekin": {
+   "ai": "ranged",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 71.8,
+   "gold_value": 718,
+   "hits": 5000,
+   "knowledge_ids": [
+    10737,
+    15724
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargan stonekin",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 110
+  },
+  "gargan stoneshaper": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 165.5,
+   "gold_value": 1656,
+   "hits": 12000,
+   "knowledge_ids": [
+    10770,
+    15725
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargan stoneshaper",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "gargoyle archon": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 712.5,
+   "gold_value": 50000,
+   "hits": 100000,
+   "knowledge_ids": [
+    10648,
+    16352
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargoyle archon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.8,
+   "wrestling": 100
+  },
+  "gargoyle primogen": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 1611.0,
+   "gold_value": 100000,
+   "hits": 200000,
+   "knowledge_ids": [
+    10624,
+    16353
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 125,
+   "magic_resist": 150,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gargoyle primogen",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 110
+  },
+  "golden gargoyle": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 125.4,
+   "gold_value": 1254,
+   "hits": 7000,
+   "knowledge_ids": [
+    10646,
+    15726
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a golden gargoyle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 110
+  },
+  "gravebug": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 151.0,
+   "gold_value": 1511,
+   "hits": 9000,
+   "knowledge_ids": [
+    10523,
+    10800,
+    14471,
+    14480,
+    15727
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a gravebug",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14480; that the wild creature uses it is [INFERENCE]] Devour (Cooldown): Can consume nearby corpses to heal 10% of maximum health",
+    "[tamed-version follower ability, knowledge #14471; that the wild creature uses it is [INFERENCE]] Disease (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 0.5) disease damage every 5 seconds for 20 seconds."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.6,
+   "wrestling": 100
+  },
+  "horned devil": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": 45,
+   "difficulty": 167.5,
+   "gold_value": 1675,
+   "hits": 10000,
+   "knowledge_ids": [
+    10628,
+    15729
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 100,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [],
+   "name": "a horned devil",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 130
+  },
+  "iron gargoyle": {
+   "ai": "meleemage",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 97.0,
+   "gold_value": 970,
+   "hits": 7000,
+   "knowledge_ids": [
+    10626,
+    15730
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an iron gargoyle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 90
+  },
+  "marble gargoyle": {
+   "ai": "meleemage",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 161.1,
+   "gold_value": 1612,
+   "hits": 12000,
+   "knowledge_ids": [
+    10413,
+    10611
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a marble gargoyle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "marble minotaur": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 134.0,
+   "gold_value": 1340,
+   "hits": 6000,
+   "knowledge_ids": [
+    10414,
+    10604
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a marble minotaur",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.7,
+   "wrestling": 110
+  },
+  "mud gargoyle": {
+   "ai": "meleemage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 109.6,
+   "gold_value": 1097,
+   "hits": 7000,
+   "knowledge_ids": [
+    10622,
+    15734
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a mud gargoyle",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 110
+  },
+  "poison mephit": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 77.8,
+   "gold_value": 779,
+   "hits": 4000,
+   "knowledge_ids": [
+    10523,
+    10611,
+    14470,
+    15735
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a poison mephit",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14470; that the wild creature uses it is [INFERENCE]] Spellvenom (Passive): Has a 10% chance on spellcast to apply Greater Poison. Inflicts (DamageMax * 0.5) damage if target already has greater poison or above. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds."
+   ],
+   "speed": "Fast",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 90
+  },
+  "soldier's widow": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 147.2,
+   "gold_value": 1472,
+   "hits": 8000,
+   "knowledge_ids": [
+    10824,
+    15738
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a soldier's widow",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "spectral bard": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 164.3,
+   "gold_value": 1643,
+   "hits": 10000,
+   "knowledge_ids": [
+    10842,
+    15739
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral bard",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.05,
+   "wrestling": 110
+  },
+  "spectral bishop": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 164.5,
+   "gold_value": 1646,
+   "hits": 8000,
+   "knowledge_ids": [
+    10846,
+    15740
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    1205,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral bishop",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "spectral footman": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 133.1,
+   "gold_value": 1332,
+   "hits": 10000,
+   "knowledge_ids": [
+    10832,
+    15741
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral footman",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 120
+  },
+  "spectral knight": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 174.4,
+   "gold_value": 1744,
+   "hits": 12000,
+   "knowledge_ids": [
+    10845,
+    15742
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral knight",
+   "parry": 100,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 120
+  },
+  "spectral lancer": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 94.8,
+   "gold_value": 948,
+   "hits": 12000,
+   "knowledge_ids": [
+    10843,
+    15743
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral lancer",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 120
+  },
+  "spectral marksman": {
+   "ai": "ranged",
+   "armor": 0,
+   "attack_speed": 45,
+   "difficulty": 97.2,
+   "gold_value": 973,
+   "hits": 10000,
+   "knowledge_ids": [
+    10831,
+    15744
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [],
+   "name": "a spectral marksman",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 120
+  },
+  "spectral pontiff": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 187.8,
+   "gold_value": 1878,
+   "hits": 10000,
+   "knowledge_ids": [
+    10818,
+    15745
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral pontiff",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 110
+  },
+  "spectral priest": {
+   "ai": "mage",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 147.8,
+   "gold_value": 1479,
+   "hits": 8000,
+   "knowledge_ids": [
+    10842,
+    15746
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": 125,
+   "magic_resist": 150,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral priest",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "spectral warrior": {
+   "ai": "melee",
+   "armor": 0,
+   "attack_speed": null,
+   "difficulty": 144.7,
+   "gold_value": 1448,
+   "hits": 10000,
+   "knowledge_ids": [
+    10846,
+    15747
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a spectral warrior",
+   "parry": 75,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Undead",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "stone familiar": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 131.9,
+   "gold_value": 1320,
+   "hits": 10000,
+   "knowledge_ids": [
+    10617,
+    15748
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a stone familiar",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 100
+  },
+  "volcanic familiar": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 134.0,
+   "gold_value": 1341,
+   "hits": 10000,
+   "knowledge_ids": [
+    10656,
+    15749
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a volcanic familiar",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 110
+  },
+  "winged hulk": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "difficulty": 118.6,
+   "gold_value": 1187,
+   "hits": 8000,
+   "knowledge_ids": [
+    10628,
+    15750
+   ],
+   "location": "Shadowspire Cathedral",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    55,
+    65
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a winged hulk",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 100
+  }
+ },
+ "mechanics": {},
+ "source": "harness/sim/kb_scan.py --location 'Shadowspire Cathedral' (wiki rows of the memory store)"
+}

@@ -7201,6 +7201,78 @@ Logan with GraveRobber and AlaFlambe (not the simulator's Bussin), the level 2 c
   Fixed: both end at once in recall mode under that request (test_sim `test_after_trip_stop_at_home_waits`, failing
   before: 600 s and 13 s).
 
+## Shadowspire Cathedral: seven visits by hand, dead on level 1 to two reds (2026-10-24 to 11-03, four captures)
+
+The user played Logan Wolf through SSC (Shadowspire Cathedral) seven times; the evidence behind the simulator's `ssc`
+scenario (docs/SIM.md "Shadowspire Cathedral"). Decoded with `replay.timed_packets` -> `WorldRuntime` and
+`calibrate.Session` (region: levels 1 and 2); the scratch passes are not in the repo.
+
+| # | capture | in SSC | levels | out | pets |
+|---|---|---|---|---|---|
+| 1 | 20261024_102346 | 10-24 20:22:22-20:32:19 | L1 41 s, down 20:23:03, up again 20:23:05, down 20:23:14, L2 538 s | L2's strip up, crimson gate -> Totem (3880, 2884) | GirthyEarthy, a tidal mantis |
+| 2 | 20261024_102346 | 20:38:52-20:43:00 | L1 248 s | golden gate 0x40035E70 -> Totem (3880, 2884) | GirthyEarthy, fireminion, a searing imp |
+| 3 | 20261024_102346 + _225113 (split 22:51:08/22:51:14) | 22:22:48-22:52:14 | L1 1,072 s, L2 22:40:48-22:52:06 | crimson -> (3855, 2901) | the same |
+| 4 | 20261024_225113 | 22:53:28-23:05:11 | L1 69 s, L2 22:54:37-23:04:36, L1 34 s | crimson -> (3846, 2876) | the same |
+| 5 | 20261024_225113 | 10-25 11:02:37-11:18:47, 11:19:24-11:20:08 | L1 144 s, L2 11:05:01-11:18:39; home 11:18:51, back by the row 11:19:24 and straight across level 1 to the crimson gate | crimson -> (3855, 2901), then (3839, 2901, -19) | NightmareA, NightmareB, a searing imp |
+| 6 | 20261031_132152 | 10-31 14:21:23-14:25:10, 14:27:06-14:36:33 | L1 only; dead 14:24:50 | as a ghost the hue-2825 gate 0x40035E78 -> (3855, 2901); then golden 0x40035E71 -> (3884, 2901) | AlaFlambe, Bussin |
+| 7 | 20261103_101743 | 11-03 22:01:24-22:02:43, 22:22:00-22:22:40 | L1 69 s, L2 11 s, out by its surface exit; the east wing (a guild boss fight); back in by the exit's twin | crimson -> (3867, 2900) | AlaFlambe, Bussin |
+
+- **In:** the tome 0x444AB1F3's row "SSC Inside" (row 9, button 109; its rune gump 11-03 22:40:30 reads (5144, 2480))
+  lands inside on level 1 at **(5144, 2480, 39)**, a tile west of the golden gate 0x40035E71 (5145, 2480): a recall
+  out is allowed there by the gold-gate rule. Visit 7 came by the DTF house's dungeon moongate to (5138, 2484, 40).
+  Never a recall out from inside: every leave was a moongate to Totem, then the tome home.
+- **Time on the levels** (each level's flood-fill floor, gaps under 30 s): level 1 2,504 s, level 2 2,498 s; 13 min
+  more in the east wing (visit 7 only, out of the scenario). AR 122-148 (130 on 10-31).
+- **Levels by a map flood fill** (`localmap._flood` from each arrival): level 1 x 5097-5195, y 2462-2660 (4,476
+  tiles), level 2 x 5241-5359, y 2416-2644 (11,548). Every step of Logan's on them walks on the map, save the surface
+  exit tile.
+- **The strips fire one way.** Level 1's south strip (5132-5133, 2653) put him on level 2's landing (5276-5277, 2640,
+  33) on a step S (5) or SW (2) from y 2652, the column kept (x + 144, y - 13); level 2's strip (5276-5277, 2641) put
+  him below level 1's at (5132-5133, 2654, 36) on a step N (5) or NE (1) from its floor. Each landing is a 2-tile
+  pocket whose only way off crosses the other strip's row, and that step never fired: N off level 1's pocket 6 of 6,
+  S off level 2's landing (the top of a stair spiralling down to the floor at -25; the step lands on the stair at z 28)
+  6 of 6; two steps W along level 1's strip (10-24 22:39:13) walked on too. Once (10-24 20:23:05) he stood 2.1 s on
+  (5276, 2641) after stepping S onto it and was sent up [INFERENCE: a turn north]. Level 1's is a direction rule
+  (same height both ways); level 2's fits a height rule as well (the floor fires, the stair over it doesn't)
+  [INFERENCE: RunUO teleporters fire only for a mobile at their height].
+- **Level 2's surface exit** (5309, 2638): a step S from (5309, 2637) put him outside at (3393, 816, -23) (the SSC
+  grounds; the "SSC West Entrance" rune (3353, 762)), and N from (3394, 818) onto (3394, 817) back in at (5310, 2640,
+  -25). The east wing is entered from outside at (3434, 749) -> (5436, 2472, -23); its hue-2825 gates 0x40035EDA and
+  0x40035EDB shuttle between its rooms.
+- **Gates** (all on level 1; their menu 0xE0E675B8 the usual 'Moongate Destinations' towns): golden (hue 2822)
+  0x40035E71 (5145, 2480, 39) and 0x40035E70 (5176, 2489, 39), crimson (hue 2820) 0x40035E72 (5157, 2647, 39), 25 tiles
+  east of the strip down. Totem landings: (3884, 2901), (3880, 2884), and from the crimson one (3880, 2884), (3855,
+  2901) twice, (3846, 2876), (3839, 2901, -19), (3867, 2900). Level 2 has no gate (the hue-0 0xF6C there are other
+  players' Gate Travel). The hue-2825 0x40035E78 (5128, 2622) showed only while he was a ghost (the ghosts' gate).
+- **A normal week each time:** every type killed in view took at most its wiki hits (7,001 for 7,000; 12,001 for
+  12,000) and its corpse held 1.01-1.03 x its wiki gold (median by capture; 100 corpses), not Cavernam's Challenger
+  1.5 x / 1.6 x nor the Ossuary's Sanctuary 0.65 x gold. 11-03 lifted no corpse gold.
+- **Dead on level 1, 10-31 14:24:45-50**, at (5128-5131, 2613-2616), to the red players Richard Wagner and Albert
+  Wagner (body 400; "X is attacking you!", Corp Por, an earth elemental of notoriety 6 beside them) with a mud gargoyle
+  on him: its puddles rooted him three times at 14:24:47-49 ("Your feet sink in mud!"), his last numbers 9, 41, 24,
+  34, 15 in 4 s; murder reports 14:24:54-56. Three reds and 22 players seen that visit.
+- **Specials** (numbers as seen under his 17.7 % Song of Discordance):
+  - the **mud, golden and iron gargoyles' sprays** ('*mud spray*', '*gold dust*', '*iron shards*'): 10 numbers 0.137 s
+    apart from 0.61 s on one of us only, its target at 1-12 tiles (4-8 each; 39-77 a spray), every 15.4-15.7 s. Each
+    mud tick drops a puddle (0x122A-0x122F, hue 2752) within 2 of the victim for 15-16 s; a step of Logan's onto one
+    gave "Your feet sink in mud!" 8 of 16 times and "You are no longer entangled." 1.0 s later;
+  - the **gargan scorcher's '*detonates*'**: 0.47 s later 38-65 on the pets within 1-3 of it and 32-54 on Logan when
+    within 1 of a pet it hit (6 of 8), every 21.2 s;
+  - the **gargan stoneshaper's '*shapes stone*'**: every 7.8 s, from 1.38 s 4 ticks 0.45 s apart, 9-20 on the pets
+    beside its target; Logan 6-20 at 3-9 tiles (24 ticks in 30 casts with him within 9), never within 2;
+  - the **horned devil's '*devil strike*'**: 0.64 s later 93 (once 100) on each pet within 1 of it, every 8.6 s;
+  - the **winged hulk's '*intimidates*'** ("The creature intimidates you, reducing your accuracy.", '*intimidated*'
+    over Logan and players at 4-8 tiles): no number; an accuracy cut;
+  - unmeasured: the crimson gargoyle's '*crimson harvest*' (a fireball volley and fire columns on its target's tiles),
+    the horned devil's '*absorbs power*', the spectral knight's '*parries spell*', the footman's '*throws axe*', the
+    warrior's '*blade wind*', the familiars' slams, the hornbeast's '*growls*'.
+- **Calibration hazards in `ssc_observed.json`:** the three gargoyles' and the stoneshaper's swings (periods
+  0.36-0.46 s) are their ticks, the horned devil's its 93s, the scorcher's its detonation, the knight's the parried
+  spells', the stone familiar's its slams: the scenario's `melee_observed` replaces them (their swings with no special
+  near).
+- 58, 64, 22 and 4 other players seen in the four captures; very busy (warning ravens after murders, a guild's 'Reds
+  SSC1' notice after the 10-31 death).
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

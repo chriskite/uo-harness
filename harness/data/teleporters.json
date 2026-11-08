@@ -134,6 +134,14 @@
     {"facet": 0, "from": [5717, 1296], "to": [0, 5716, 1271, 0],
      "note": "Ossuary's mini-boss rooms east of level 2, south room -> north room (20261106_180112 21:21:00, a step N from (5717, 1297))"},
     {"facet": 0, "from": [5717, 1271], "to": [0, 5718, 1296, 0],
-     "note": "Ossuary's mini-boss rooms east of level 2, north room -> south room (20261106_180112 21:23:01, a step S from (5717, 1270))"}
+     "note": "Ossuary's mini-boss rooms east of level 2, north room -> south room (20261106_180112 21:23:01, a step S from (5717, 1270))"},
+    {"facet": 0, "from": [5132, 2653], "to": [0, 5276, 2640, 33],
+     "note": "Shadowspire Cathedral level 1's south strip -> level 2's landing (20261024_102346 20:23:03, 22:40:48, 20261024_225113 22:54:37, 20261103_101743 22:02:32, a step S from (5132, 2652); 20261024_102346 20:23:14 and 22:40:41 SW from (5133, 2652)); it fires on a step south only. Its twin (5133, 2653) -> (5277, 2640) isn't seeded: the way off level 1's landing below the strip (5132-5133, 2654) crosses it north (docs/SIM.md 'Shadowspire Cathedral')"},
+    {"facet": 0, "from": [5277, 2641], "to": [0, 5133, 2654, 36],
+     "note": "Shadowspire Cathedral level 2's strip -> level 1 (20261024_102346 20:32:12 NE, 20261024_225113 22:52:06, 23:04:36, 11:18:39, 20261103_101743 22:22:31 N, from (5276-5277, 2642) on the floor); it fires from the floor only, not from the stair over it. Its twin (5276, 2641) -> (5132, 2654) isn't seeded: the stair off level 2's landing (5276-5277, 2640) crosses it (docs/SIM.md 'Shadowspire Cathedral')"},
+    {"facet": 0, "from": [5309, 2638], "to": [0, 3393, 816, -23],
+     "note": "Shadowspire Cathedral level 2's surface exit -> the grounds outside (20261103_101743 22:02:43, a step S from (5309, 2637)); never a way of the hunt runner's"},
+    {"facet": 0, "from": [3394, 817], "to": [0, 5310, 2640, -25],
+     "note": "Shadowspire Cathedral's grounds -> level 2 by its surface exit (20261103_101743 22:22:00, a step N from (3394, 818))"}
   ]
 }

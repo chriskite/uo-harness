@@ -3841,6 +3841,39 @@ calamities' shot (-27); Logan died 12 s later, 20 tiles from the pets (docs/NOTE
   `test_to_pet_into_caster_shot`.
 - *Caveat:* the simulated teams seldom bring a pet low under those casters; the live LayMore isn't modelled.
 
+## Shadowspire Cathedral in the simulator; an ssc-shift skill (user 2026-11-08)
+
+User: "Make a skill for running Shadowspire Cathedral (SSC) hunts similar to the existing Maus and Oss skills". There
+was no scenario, so asked: the scenario first, then the skill, with level 1 as the shift's default. The scenario is
+built from his seven hand visits of 2026-10-24 to 11-03 (docs/SIM.md "Shadowspire Cathedral", docs/NOTES.md
+"Shadowspire Cathedral: seven visits by hand, dead on level 1 to two reds"). Decisions:
+
+- *The Cavernam way* (inherit from the Mausoleum, a box per level, first-sighting spawns, kb_scan, `calibrate`), with
+  levels 1 and 2 only. The east wing (the boss and silver-gate rooms) and the grounds are out: one guild boss fight
+  there, not hunting ground.
+- *Two engine additions*:
+  - one-way teleporters (`dirs`, `z`): each strip's landing is a 2-tile pocket whose way off crosses the other strip;
+  - the mud gargoyle's puddles (a 1 s root at 0.5): Logan's death to two reds on 10-31 was in them.
+- *No `upscale`*: a normal week in every capture (hits at most the wiki's, gold 1.01-1.03 x).
+- *Level commands*:
+  - level 1 out by the easiest of its three gates (two golden, one crimson), no `--enter-via`;
+  - level 2 down the strip with the leg across level 1 fought (`--fight-via`: without it, 9 of 32 died there), out up
+    the strip from its floor to level 1's crimson gate.
+- *The skill's default is level 1* (the user's pick; 0 of 32 simulated runs with a death, 145k gp a game hour).
+- *Level 2 is refused* until runner work, for two reasons:
+  - 15 of 32 runs with a death [INFERENCE: overstated by the stoneshapers, 5 x the user's rate];
+  - the runner's teleporter tiles are 2-D and two-way (`Mover.teleporter_tiles`). A stray step onto a strip's
+    unseeded twin fires, is learnt into the store as a wall, and closes a landing for every later run.
+
+  Its command is kept for the go-home run only.
+- *`teleporters.json` holds one tile per strip* ((5132, 2653) and (5277, 2641)) plus the surface exit as a wall.
+  Seeding all four crashed the crawl on the 2-tile landing ("max() iterable argument is empty").
+- *Not fixed, open*: the time-up leave's "attacked N tiles from it; through it now" took Logan through a gate with
+  the pets 4-10 back in 3-4 of 32 level 1 runs, leaving them in SSC (`pet_left_behind`). It happened at all three
+  gates. This is the runner's general gate rule, not SSC's own; it waits on live evidence.
+- *Live side effect*: `tamer._area_r` / `_target_area` read every scenario's specials, so the live runner now keeps
+  2 off a horned devil and 2 off each pet within 12 of an awake gargan stoneshaper. Both types are only in SSC's files.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
