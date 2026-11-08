@@ -7096,13 +7096,23 @@ runs above (Debuffy and LayMore, AR 130); scratch passes over `calibrate.Session
   skeletal dragons died in the south room. The three tiles are in `harness/data/teleporters.json`. As a seed, (5670,
   1225) keeps the level 2 crawl's walks off it; the runner's 1.7 h came within 4 tiles of it and never stepped on it.
 
-## The Ossuary: the second live shift, level 2 (2026-11-07 from 22:40, hunt-20261107-224027-f81b)
+## The Ossuary: the second live shift, level 2 (2026-11-07 22:40 - 11-08 01:04, two runs)
 
 Logan with Borealish 0x000E68B5 and Debuffy 0x001A309A (the user's pick this time), the level 2 command of
-docs/OVERSEER.md §5, the Seers SeerLoganWolf then SeerLoganWolf2 (skill `ossuary-shift`).
-- **The first 63 min:** two leaves by the crimson gate to Totem by the return rule (22:47:20 "42191 gp carried (gold
-  6631, items 35560 ...) >= V* 28056"; 23:19:09 36,260 >= 30,467), drop-offs of 45,349 and 38,792 gp carried, 121 kills
-  (4 lost), Logan never under 88, no death, both pets out and back in every visit (no "not going back in").
+docs/OVERSEER.md §5, the Seers SeerLoganWolf then SeerLoganWolf2 (skill `ossuary-shift`). The user ended it in chat at
+~01:03.
+- **Take:** hunt-20261107-224027-f81b (22:40:27-00:27:06, 4 visits): 211 kills (5 lost), 90,337 gold; ended by the
+  Seer's `--after-trip` for the scheduled break due 00:34. hunt-20261108-003233-7aff (00:32:33-01:03:49, 1 visit): 61
+  kills (3 lost), 24,537 gold. Together 115k gold in 2 h 15 min of runs, ~51k gold an hour in the Sanctuary week
+  (2026-11-06's 43k). Both `exit 0` at home; no Logan death, no juncture but the break's.
+- **Out:** five leaves by the crimson gate to Totem, three by the return rule (22:47:20 "42191 gp carried (gold 6631,
+  items 35560 ...) >= V* 28056"; 23:19:09 36,260 >= 30,467; 23:56:07 35,087 >= 34,154), two by `--after-trip` (00:24:14,
+  01:03:14). Both pets out and back in every visit (no "not going back in").
+- **Borealish died once** (00:11:55), to lich magi near (5670, 1314): vetted at 48 % (00:11:35), walked 11 steps and
+  vetted at 28 % (00:11:46), 8 % at 00:11:52 ("going in" again, 9 steps), dead 3 s later; "Borealish is alive again
+  (40%)" at 00:12:01 by the vet supplies, 92 % by 00:12:14. No `pet_down` juncture (as for LayMore on 2026-11-06), so
+  the Seer's `ctl wait` didn't show it. Every pet death of the two live shifts was to lich magi on level 2's south half
+  and was brought back by the vet supplies within 6 s.
 - **The Seer handed over without a stop** (23:43): SeerLoganWolf had used 141 of its ~200 requests in 63 min; asked
   to yield without `ctl stop`, it did, and SeerLoganWolf2 took over the running run (docs/OVERSEER.md §6 step 4). No
   trip lost, unlike 2026-11-06's `--after-trip` stop at the budget.
@@ -7110,8 +7120,9 @@ docs/OVERSEER.md §5, the Seers SeerLoganWolf then SeerLoganWolf2 (skill `ossuar
   reach from the lich magus's shot, not a disease shooter: going in" and at once "... is only in reach 5 from the awake
   lich magus, out of its sight 13 off here (80% or more); staying out of it". Two rules of `Team.to_pet`: de7a929's
   shot rule let the walk go, then `TO_PET_CASTER_AT` (2026-10-25) held it, as meant (the pet at 80 % or more). Only the
-  log was wrong: the "going in" line is now written when the walk goes (test_sim `test_to_pet_into_caster_shot`, the
-  90 % case, fails before).
+  log was wrong: the "going in" line is now written when the walk goes (4d5906b; test_sim `test_to_pet_into_caster_shot`,
+  the 90 % case, fails before). Live in the second run: "Borealish (81%) is only in reach 4 from the awake lich magus,
+  out of its sight 13 off here (80% or more); staying out of it" alone (00:40:41), "going in" only at 79 % and 61 %.
 
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 
