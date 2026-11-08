@@ -5757,6 +5757,17 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
       on y 513, on the zone's rim. The A* way to each of 8 sampled stands beyond passes within 7 tiles of the mage, at
       (2525-2526, 527, z 50). The escape had fired at 8 tiles, so the end was right: the old choice would have walked
       back past it.
+  - **A stash lift refused right after the smelt (live 2026-11-07 18:19:52, mining-20261107-172756-cdaa, capture
+    20261107_102544).** At the forge_1524_2698 forge the smelt's double-click got cliloc 501988 at 18:19:52.442.
+    The stash's lift of the 452 ingots went out 0.38 s later (52.824). The server answered cliloc 500119 "You must
+    wait to perform another action." and 0x27 05, then re-sent the stack in the pack (0x25). The runner sent its drop
+    anyway (53.534, for an item it wasn't holding), saw nothing reach the pouch in 3 s and logged "stash: 452 of …
+    not seen in the trapped pouch; leaving it". The next stack's lift 4 s later was taken. The loose ingots went into
+    the stockpile at home, so nothing was lost; while loose they were exposed to a thief. Fixed: `LumberLoop.stash`
+    (shared with lumber) checks the link's events for `lift_reject` after the drag pause. On a refusal it sends no
+    drop and lifts again after `STASH_RETRY_S` (0.6 s), up to `STASH_LIFT_TRIES` (3). Log: "stash: the lift of N of
+    0x… was refused (clilocs [500119]); trying again in 0.6 s" (on the last try, "leaving it"). test_mining
+    `test_stash_lift_refused`.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

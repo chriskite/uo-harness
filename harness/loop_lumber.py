@@ -246,6 +246,11 @@ USES_LABEL = re.compile(r"\((\d+) uses remaining\)")
 LOGS = tuple(range(0x1BDD, 0x1BE3))
 BOARDS = (0x1BD7,)
 DROP_AUTO = 0x7FFFFFFF        # client drop-into-container auto-position (demo)
+# A stash lift the server refuses (0x27; live 2026-11-07 18:19:52, mining-20261107-172756-cdaa: 0.38 s after the forge's
+# smelt double-click, cliloc 500119 "You must wait to perform another action.", the 452 ingots left loose in the pack)
+# is sent again after STASH_RETRY_S, up to STASH_LIFT_TRIES lifts; no drop follows a refused lift
+STASH_LIFT_TRIES = 3
+STASH_RETRY_S = 0.6
 ESCAPE_MARGIN = 2             # an escape ends this many tiles beyond the monster's reach (flee radius or spell range)
 # Hits lost within this long of a walk's step down a ledge (Mover.fell: more than pathfind.FALL_DROP_Z), with no swing,
 # spell or damage packet, are the fall's (user 2026-11-02: "That is indeed fall damage"; live at forge_1173_2397 twice:
@@ -4152,8 +4157,21 @@ class LumberLoop:
             before = self.held(self.link.last or st, p, graphics)
             self.human.wait("use")
             self.ledger.expect(("moving", serial, p))
-            self.link.act(actions.lift(serial, amount))
-            self.human.wait("drag")
+            for attempt in range(1, STASH_LIFT_TRIES + 1):
+                mark = len(self.link.events)
+                self.link.act(actions.lift(serial, amount))
+                self.human.wait("drag")
+                self.link.state()                   # no guard check mid-drag; the 0x27 comes ~0.04 s after the lift
+                if not any(e.get("ev") == "lift_reject" for e in self.link.events[mark:]):
+                    break
+                heard = [e.get("cliloc") for e in self.link.events[mark:] if e.get("ev") == "cliloc"]
+                last = attempt == STASH_LIFT_TRIES
+                log(f"stash: the lift of {amount} of 0x{serial:08X} was refused (clilocs {heard}); "
+                    + ("leaving it" if last else f"trying again in {STASH_RETRY_S:g} s"))
+                if not last:
+                    time.sleep(STASH_RETRY_S)
+            else:
+                continue
             self.link.act(actions.drop(serial, DROP_AUTO, DROP_AUTO, 0, 0, p))
             if self.wait_for(lambda s: self.held(s, p, graphics) >= before + amount, 3.0) is None:
                 log(f"stash: {amount} of 0x{serial:08X} not seen in the trapped pouch 0x{p:08X}; leaving it")

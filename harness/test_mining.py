@@ -617,6 +617,49 @@ def test_field_forge_route_cap():
           caps == [372, 234, None], caps)
 
 
+def test_stash_lift_refused():
+    print("a stash lift the server refuses is sent again, no drop after a refused lift; refused every time: left loose")
+    # live 2026-11-07 18:19:52 (mining-20261107-172756-cdaa): the lift of 452 ingots 0.38 s after the smelt's double-click
+    # got cliloc 500119 and 0x27 05; the drop went out anyway and the stack stayed loose in the pack
+    import actions
+    import loop_lumber
+    pouch, ingots = 0x4E530EBD, 0x4E80E520
+
+    def run(refusals):
+        sent, held = [], [0]
+        link = SimpleNamespace(events=[], last={})
+
+        def act(pkt):
+            sent.append(pkt[0])
+            if pkt == actions.lift(ingots, 452) and refusals[0] > 0:
+                refusals[0] -= 1
+                link.events += [{"ev": "cliloc", "cliloc": 500119}, {"ev": "lift_reject", "reason": 5}]
+            elif pkt[0] == 0x08:
+                held[0] += 452
+        link.act, link.state = act, lambda: {}
+        loop = object.__new__(MineLoop)
+        loop.link, loop.stats = link, {}
+        loop.human = SimpleNamespace(wait=lambda kind: None)
+        loop.ledger = SimpleNamespace(expect=lambda *a: None)
+        loop.state = lambda: {}
+        loop.in_pack = lambda st, graphics, top=False: [(ingots, {"amount": 452})]
+        loop.log_pouch = lambda st: pouch
+        loop.open_for = lambda *a: None
+        loop.held = lambda st, p, graphics: held[0]
+        loop.wait_for = lambda pred, timeout: {} if pred({}) else None
+        return loop.stash(), sent
+    saved = loop_lumber.log, loop_lumber.STASH_RETRY_S
+    loop_lumber.log, loop_lumber.STASH_RETRY_S = (lambda s: None), 0.0
+    try:
+        once = run([1])
+        always = run([9])
+    finally:
+        loop_lumber.log, loop_lumber.STASH_RETRY_S = saved
+    check("refused once: lifted again, then dropped into the pouch", once == (452, [0x07, 0x07, 0x08]), once)
+    check("refused every time: STASH_LIFT_TRIES lifts, no drop, nothing moved",
+          always == (0, [0x07] * loop_lumber.STASH_LIFT_TRIES), always)
+
+
 def test_far_stand_scored_by_steps():
     print("a pick beyond the 80-tile flood is scored again by the whole flood's walking steps")
     # live 2026-11-06 14:47:27 (mining-20261106-143925-85da, forge_2551_665): a stand 81 tiles but ~280 steps off
@@ -946,7 +989,7 @@ def main():
               test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
               test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
-              test_last_pickaxe_worn_out, test_far_stand_scored_by_steps):
+              test_last_pickaxe_worn_out, test_stash_lift_refused, test_far_stand_scored_by_steps):
         t()
     print()
     if FAILURES:
