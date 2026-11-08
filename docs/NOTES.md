@@ -5768,6 +5768,16 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     drop and lifts again after `STASH_RETRY_S` (0.6 s), up to `STASH_LIFT_TRIES` (3). Log: "stash: the lift of N of
     0x… was refused (clilocs [500119]); trying again in 0.6 s" (on the last try, "leaving it"). test_mining
     `test_stash_lift_refused`.
+  - **Forge walks that circle: two cases, no change (2026-11-07 16:41 forge_2497_708; 2026-11-08 14:28 forge_1524_2698,
+    mining-20261108-142055-94c2).** With the pack full, a field-forge walk was re-planned again and again as creatures
+    moved ("danger ahead changed" ×5, an object on a step ×2). On 11-08 the routes went 271 → 133 → 110 steps, then
+    308 → 402 → 379 round the far side: a creature by the approach from (1557, 2641), about 57 tiles from the forge.
+    The walk went back up to (1504, 2519), one tile from where it began, and the Mover's guard stopped it ("going
+    round in circles (stood on (1504, 2519) 3 times in 399 steps)", 44 s). The leg ended, the ore went home and was
+    smelted at the house forge (576 ingots). The cap (STAND_ROUTE_MIN + STAND_DETOUR × the walking steps from the
+    start) allowed the 402-step replan. Counting steps already walked against it would have stopped the walk ~20 s
+    sooner, with the same outcome. Most of the cost is the leg end (a recall pair and the walk-in lockout), not the
+    walk. Seen 2 times in about 30 runs over the two days, so not changed. Worth doing if it recurs often.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
