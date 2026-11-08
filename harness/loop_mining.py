@@ -650,10 +650,20 @@ class MineLoop(loop_lumber.LumberLoop):
         # doesn't reach it) is given up at once (WalkFailed: the leg ends, the ore goes home; live 2026-11-04 23:30:58,
         # mining-20261104-232153-a8e3: an 831-step route from a field stand 181 walking steps off the forge at
         # forge_2551_665 went round in circles; 15:00 and 17:56 the same at forge_1173_2397 / forge_1383_1146)
+        # After an escape the field forge must be reached by a way out of every escaped creature's zone (clear_steps,
+        # as next_stand's stands): else the leg ends at once and the ore goes home (live 2026-11-08 12:27:49-12:28:17,
+        # mining-20261108-122035-886c at forge_2426_413: each walk to the forge went back past one air dragon, 3 escapes
+        # in 21 s, then the recall home)
         cap = None
         if not home and self.home_forge is not None:
             steps = self.walk_steps(st, whole=True)
+            zones = self.escape_zones(st)
+            if steps is not None and zones:
+                steps = self.clear_steps(st, self._steps[1], zones)
             near = [v for (tx, ty), v in (steps or {}).items() if cheb((tx, ty), (fx, fy)) <= sm["forge_range"]]
+            if zones and steps is not None and not near:
+                raise WalkFailed(f"to the forge: every way passes an escaped creature "
+                                 f"({', '.join(f'{r} tiles round {c}' for c, r in zones)})")
             cap = STAND_ROUTE_MIN + STAND_DETOUR * (min(near) if near else cheb(self.link.pos(st), (fx, fy)))
         self.mover.walk_to(lambda: (fx, fy), sm["forge_range"], "to the forge", max_route=cap)
         self.doing("smelt", f"Smelting {ore0} ore at {where}", (fx, fy))
@@ -806,6 +816,12 @@ class MineLoop(loop_lumber.LumberLoop):
         self._clear = (key, box, out)
         return out
 
+    def escape_zones(self, st) -> list:
+        """danger_zones sorted, less any we stand in (that one is the escape's business): the walls of
+        clear_steps."""
+        here = tuple(self.link.pos(st)[:2])
+        return sorted((c, r) for c, r in self.danger_zones() if cheb(here, c) > r)
+
     def avail(self, stand) -> list:
         """The stand's blocks with ore as far as we know: not ruled out (no_harvest), not dry this leg,
         not depleted within --regrow-min."""
@@ -837,7 +853,7 @@ class MineLoop(loop_lumber.LumberLoop):
         st = self.link.state()
         here = tuple(self.link.pos(st)[:2])
         seen = [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
-        zones = sorted((c, r) for c, r in self.danger_zones() if cheb(here, c) > r)
+        zones = self.escape_zones(st)
         past = set()
 
         def pick(far, box, clear):

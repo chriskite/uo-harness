@@ -2242,6 +2242,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   past one; ending at N ore". On the live map at (1302, 1125) with a 10-tile zone the clear flood took 0.05 s and the
   west stands came out at 114-118 clear steps (22-24 plain), or not at all. test_mining
   `test_next_stand_away_from_escaped`.
+  **The field forge too** (2026-11-08). Live mining-20261108-122035-886c 12:27:49-12:28:17 at forge_2426_413: with
+  the pack full, each walk to the forge went back past one air dragon at (2458, 431). That was 3 escapes in 21 s,
+  then "out of reach" and the recall home. With a house forge, `smelt` now checks the forge's tiles in the clear
+  flood (`escape_zones`, `clear_steps`) and caps the walk by the clear way's steps. When the clear flood doesn't reach
+  the forge, the walk isn't tried: WalkFailed "to the forge: every way passes an escaped creature (…)" ends the leg,
+  and the ore goes home as for an unreachable forge. Without a house forge the walk goes on as before. On the map
+  from (2437, 445, 19) with a 10-14-tile zone round the dragon, the forge was 64 plain steps away and not reachable
+  clear, so the leg would have ended after the first dragon escape. test_mining `test_field_forge_route_cap`.
 - *A creature-blocked leg cools its spot like a dry one* (2026-11-07). forge_1951_1523's leg ended creature-blocked
   at 14:37:45: the ore left was all inside a sand crab's zone, and the rest was dug out. The planner set no cooldown,
   so it picked the spot again at 14:52:28 (mining-20261107-145228-c8a2). That leg ended blocked at 0 ore in 37 s,

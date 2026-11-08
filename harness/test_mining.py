@@ -606,6 +606,10 @@ def test_field_forge_route_cap():
         if 0x19B9 in graphics else []
     loop.doing = lambda *a: None
     loop.mover = SimpleNamespace(walk_to=walk_to)
+    zones, clear = [[]], [{}]
+    loop.escape_zones = lambda st: zones[0]
+    loop.clear_steps = lambda st, box, z: clear[0]
+    loop._steps = (None, None, None)
     for home, steps in (({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, flood[0]),
                         ({"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}, None), ({}, flood[0])):
         loop.home, flood[0] = home, steps
@@ -615,6 +619,24 @@ def test_field_forge_route_cap():
             pass
     check("house forge: 10 + 2 x its 181 walking steps = 372 (no map: x its 112 tiles = 234); none: no cap",
           caps == [372, 234, None], caps)
+    # live 2026-11-08 12:27:49-12:28:17 (mining-20261108-122035-886c, forge_2426_413): each walk to the forge went back
+    # past one air dragon, 3 escapes in 21 s
+    house = {"forge": {"serial": "0x00000099", "pos": [3574, 3250, 0]}}
+    loop.home, flood[0], zones[0] = house, {(2551, 667): 181}, [((2555, 640), 14)]
+    caps.clear()
+    try:
+        loop.smelt("weight")
+        why = None
+    except WalkFailed as e:
+        why = str(e)
+    clear[0] = {(2551, 667): 230}                           # a way round its zone, 230 steps
+    try:
+        loop.smelt("weight")
+    except WalkFailed:
+        pass
+    check("after an escape: no way to the forge out of the creature's zone: the leg's WalkFailed, no walk; "
+          "a way round: capped by its 230 steps (470)",
+          why is not None and "every way passes an escaped creature" in why and caps == [470], (why, caps))
 
 
 def test_stash_lift_refused():
