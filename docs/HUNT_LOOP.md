@@ -1530,9 +1530,10 @@ moongate, and never near a red one).
     red was out of view before the flight's first look, NOTES "Dead from two reds on the gate's way"), and are
     danger zones on the Mover (`red:<serial>`, 6 tiles: the routes bend round them). Every 6 steps the way
     to the gate is looked at again, and at once when one not known before comes into view; when it comes within
-    10 of one of them nearer than we stand (`passes_hostile`; one out of view: 5 tiles more for every second since,
-    as far as he could have run), the flight runs away from them first (`flee_tile`: of the tiles the walk reaches
-    within 24, the farthest from the nearest of them up to 22, 2+ farther than here; no teleporter tile), waits from
+    10 of one of them nearer than we stand and he can cut it off (`passes_hostile`, `cut_step`, below; one out of
+    view: 5 tiles more for every second since, as far as he could have run), the flight runs away from them first
+    (`flee_tile`: of the tiles the walk reaches within 24, the farthest from the nearest of them up to 22, 2+ farther
+    than here; no teleporter tile), waits from
     22+ off, and only cornered, or after 60 s of it, goes to the gate past them as far round them as the way allows
     ("to the moongate: no way round …"). A rope lands only farther from every one of them than we stand (off the
     route when the route goes their way: the walkable tile within 9 farthest from them; none: no rope), and its
@@ -1544,14 +1545,22 @@ moongate, and never near a red one).
     as far as the zones bend the route: "… and every way from here does (a dead end): past them at once". No rope
     on such a leg: a rope lands only farther from them, back into the dead end. Once past them the way no longer
     passes them, and the flight goes on as above. Simulator `sim/fight2001.py`: 24 of 24 dead before, 0 after.
-    **First to a near gate: through it** (`gate_dash`, since 2026-11-09; live 12:57:11 on Shadowspire level 1 the
-    rope landed Logan 6 steps from the crimson gate with the red 8 from it; "the way to (5157, 2647) passes them" turned
-    the flight to the golden gate 167 steps north, the red ran and teleported after him, dead 21 s later 80 steps on,
-    NOTES "Shadowspire Cathedral: dead to a red on the flight"). A gate whose route onto it is within `GATE_DASH_R` (8)
-    steps, with no hostile player nearer the gate than that (out of view: 5 tiles a second nearer, as above), doesn't
-    count as passing them: `pick_gate` takes it ("6 steps, first there (Lord Crafty Pants 8 from it)"), and the flight
-    goes for it with no other gate, no leg away and no rope: "to the moongate: 6 steps from it, Lord Crafty Pants 6
-    tiles from it: first there, through it now".
+    **The race: the gate they can't cut off** (since 2026-11-09; live 12:57:11 on Shadowspire level 1 the rope landed
+    Logan 6 steps from the crimson gate with the red 8 from it; "the way to (5157, 2647) passes them" turned the flight
+    to the golden gate 167 steps north, the red ran and teleported after him, dead 21 s later 80 steps on, NOTES
+    "Shadowspire Cathedral: dead to a red on the flight"). For each tile of a gate's way (to beside it), can a hostile
+    player be within 1 of it (`RED_REACH_R`: a hit, a hamstring, his body across a corridor) before we step there
+    (`cut_step`)? His steps there: the fewer of running (a tile for each of ours) and a Teleport or rope (10 tiles for
+    a 1 s stand: 5 of our steps), then 1.2 tiles a step (`RED_CHASE_K`: the 12:57 chase, 46 tiles in 8.9 s against
+    Logan's 37 in 8.6 s, two Teleports of 10 and 9). A way's `exposed` steps are those from the first he can cut off to
+    beside the gate, less the 3 the gate's double-click and menu take (`GATE_USE_STEPS`: one arriving that late is on us
+    there whichever gate). `pick_gate` (and the walk in's gold gate, `gold_gate_way`) takes the fewest exposed steps,
+    then one that doesn't pass them, then the cheapest: "(6 steps; (5145, 2480) 171 cut off 160 before it, (5176,
+    2489) 168 cut off 157 before it)". The flight switches only to a gate with fewer exposed steps ("the way to … is cut
+    off N steps before it; to the one at … instead"). A way toward them that they can't cut off goes on ("to the
+    moongate: 6 steps, there before … can cut it off"): no leg away, and a rope only along the route; the legs away
+    and the off-route rope stay for a way they can cut off. Until 76cc388 a fixed 8 steps from the gate (the planned
+    walk's `GATE_DASH_R`) stood in for the race (user: "seems arbitrary").
     **No route: out of their sight meanwhile** (since 2026-10-30; live 23:43:31-36 a red's Wall of Stone sealed the
     east wing's only corridor west and the flight stood 4.7 s "looking again (n of 6)" 1-3 tiles from three casters,
     NOTES "Walled in the east wing"). When the way to the gate has no route, the flight never waits where they see

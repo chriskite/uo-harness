@@ -1567,11 +1567,13 @@ def leave_gates():
         check("the walk's danger counts: a danger zone on the east way -> south (45 steps) instead",
               way is not None and way["gate"] == GATE_S and "danger" in pick, pick)
         del loop.mover.danger["test"]
-        red = {0x1234: (225, 200)}                               # a red on the east way
+        red = {0x1234: (225, 200)}                               # a red on the east way, 25 from us
         way, pick = loop.pick_gate(st, red)
-        check("a red on the east way: the south gate, whose way passes none",
-              way is not None and way["gate"] == GATE_S and way["passes"] is None and f"{GATE_E} 30 past them" in pick,
-              pick)
+        # the race (2026-11-09): a red who chases cuts the south way off 17 steps on (5 for a Teleport, then 1.2 tiles a
+        # step); the west way runs from him and is through before he can: before the race the south gate ("passes none")
+        check("a red on the east way: the west gate, the way he can't cut off (the south one he can, 25 steps before it)",
+              way is not None and way["gate"] == GATE_W and way["passes"] is None and way["exposed"] == 0
+              and f"{GATE_E} 30 past them" in pick and f"{GATE_S} 45 cut off" in pick, pick)
         near_e = (229, 200)
         tile = (170, 200)                                        # a flee tile west, the red east of us
         spots = {0x1234: (210, 200)}

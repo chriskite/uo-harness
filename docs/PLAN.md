@@ -3921,15 +3921,23 @@ gargoyles, etc. It looks like its occasionally trying to 'All Patrol' but the pe
 - Not done: keeping the pets ahead of Logan on the crawl's walk toward a monster in view (the gargoyles' wakes found him a
   tile ahead of them); the shy rules cover the four kinds that hit from range.
 
-## A red flight goes through a near gate it gets to first (Logan dead on Shadowspire level 1, live 2026-11-09 12:57)
+## A red flight takes the gate they can't cut off (Logan dead on Shadowspire level 1, live 2026-11-09 12:57)
 
 The flight turned from the crimson gate 6 steps off (the red 8 from it) to a golden gate 167 steps away and the red
-caught him on the way (docs/NOTES.md "Shadowspire Cathedral: dead to a red on the flight"). Decided: `HuntLoop.gate_dash`
-(docs/HUNT_LOOP.md "First to a near gate"): a gate within `GATE_DASH_R` steps that no hostile player is nearer to
-doesn't count as passing them, in `pick_gate` and in `flee_out` (no other gate, no leg away, no rope). A tie goes to
-the gate: both close on it at a step a tile, and a long chase from a red who runs as fast and teleports is worse.
-Evidence: test_sim `test_ssc_red_gate_dash` (fails before). Mausoleum with reds, 48 runs a side: runs with a death 5 ->
-5 (4 -> 4 to reds), gold an hour 156,859 -> 156,614: no change there [INFERENCE: few flights end that near a gate].
+caught him on the way (docs/NOTES.md "Shadowspire Cathedral: dead to a red on the flight"). First fix (76cc388): a gate
+within `GATE_DASH_R` (8) steps that no red was nearer to; the user: "'8 steps of a gate' seems arbitrary, is there a
+better solution?". Decided (user: "Yes sounds great"): race each gate's way against them (docs/HUNT_LOOP.md "The race:
+the gate they can't cut off"; `cut_step`, `exposed`): a tile is cut off when a red can be within 1 of it before we
+step there, his pace from the live chase (running a tile a step, a Teleport 10 tiles for 5 steps, 1.2 tiles a step
+beyond), less the 3 steps the gate's own use takes. The fewest exposed steps first, in `pick_gate`, `gold_gate_way`
+and the flight's switch; "passes them" (toward one within 10) only counts when he can cut it off, and only then the
+legs away and the off-route rope. Why not "never toward them": spells reach 10-12 whatever the way, and a red
+chasing stays on us (12:57: 2-9 tiles behind for 167 steps), so the fewest steps under him is the safest way.
+Evidence: test_sim `test_ssc_red_race` (the 12:57:11 layout; before 76cc388 it turned to the far gate). Against 76cc388
+in the simulator: Mausoleum with reds, 96 runs a side, runs with a death 14 -> 11 (to reds 11 -> 8), gold an hour
+158,985 -> 160,540 [INFERENCE: within the noise of 96 runs]; the red-death replays, 24 seeds each, unchanged:
+fight1156 18 -> 18 dead, fight2001 0 -> 0, fight2203 0 -> 0, fight2343 15 -> 15, fight1853 0 -> 0 (home 23 -> 21: the
+later walk in's "to the teleporter at 5522,637: no route onto it", seen before the change too).
 
 ## Risks
 

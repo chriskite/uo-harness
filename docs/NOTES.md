@@ -7348,9 +7348,11 @@ script):
   80 steps on. Pets 100/100 beside him; 17,261 gp carried lost.
 - **Cause:** the flight left a gate it would have reached first (6 steps against his 8) for one 167 steps off with
   him behind. A red runs as fast and teleports: a long chase was always going to end with him in reach.
-- **Fixed** (`HuntLoop.gate_dash`, docs/HUNT_LOOP.md "First to a near gate"): a gate within `GATE_DASH_R` steps that
-  no hostile player is nearer to doesn't count as passing them. Test: test_sim `test_ssc_red_gate_dash` (the 12:57:11
-  layout and his route; before: "to the one at (5176, 2489) instead").
+- **Fixed** (76cc388, then the race, docs/HUNT_LOOP.md "The race: the gate they can't cut off"): 76cc388 took a gate
+  within `GATE_DASH_R` (8) steps that no hostile player was nearer to; the user: "seems arbitrary". Since then each
+  way is raced against them tile by tile (`cut_step`: running a tile a step, a Teleport of 10 tiles for 5 steps, 1.2
+  tiles a step beyond, the chase above) and the gate with the fewest steps they can cut off is taken. Test: test_sim
+  `test_ssc_red_race` (the 12:57:11 layout and his route; before 76cc388: "to the one at (5176, 2489) instead").
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 

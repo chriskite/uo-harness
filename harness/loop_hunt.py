@@ -250,6 +250,16 @@ RED_RECENT_S = 20.0           # a hostile player out of view still counts where 
 RED_ZONE_R = 6                # ...the Mover's danger zone round each: the flight's routes bend round them
 RED_PASS_R = SPELL_RANGE      # a route to the gate that comes this close to one, nearer than we stand, passes it...
 RED_RUN_TPS = 5               # ...and as many more tiles a second it has been out of view (running: a step every 0.2 s)
+# ...when he can also cut it off: be within RED_REACH_R of one of its tiles before we step there (cut_step). His pace
+# against ours, live 2026-11-09 12:57:17.4-26.3 (Shadowspire level 1, Lord Crafty Pants after Logan, the capture's
+# replay): 46 tiles in 8.9 s, Logan 37 in 8.6 s, running and two Teleports (10 and 9 tiles)
+RED_REACH_R = 1               # on us or across the way (a melee hit, a hamstring, his body in a corridor)
+RED_CHASE_K = 1.2             # his tiles for each of our steps over a chase past one jump
+RED_JUMP_R = 10               # ...or one Teleport / rope this far (live 9 jumps of 7-10 on Maus 3; 9 and 10 at 12:57)
+RED_JUMP_STEPS = 5            # ...for its ~1.0 s stand: 5 of our steps (a step 0.2 s)
+GATE_USE_STEPS = 3            # beside the gate, its double-click and menu (~0.6 s: live 12:23:55 the flight's arrival and
+#                               Totem in the same second; the simulator's 0.7 s): one on the way this few steps before
+#                               we're beside it is on us there anyway, whichever gate
 FLEE_FAR_R = 22               # a flee tile this far from every hostile player is far enough (past the 18-tile view)
 FLEE_SEARCH_R = 24            # flee tiles: those the walk rules reach within this square (localmap.steps)...
 FLEE_DETOUR = 2               # ...in at most this many times their distance in steps (not round a wall to another room)
@@ -2291,35 +2301,43 @@ class HuntLoop:
 
     def passes_hostile(self, path, spots: dict, here):
         """The serial of a hostile player the route `path` passes (comes within RED_PASS_R of, nearer than we
-        stand now), else None. One out of view since `age` s may be anywhere it could have run meanwhile: RED_RUN_TPS
-        tiles a second more (live 17:37:10.9-13.3 I Make Bodies walked 9 tiles out of view, onto the gate's way)."""
+        stand now) and that can cut it off there (cut_step: be on one of its tiles before we are), else None. One out of
+        view since `age` s may be anywhere it could have run meanwhile: RED_RUN_TPS tiles a second more (live
+        17:37:10.9-13.3 I Make Bodies walked 9 tiles out of view, onto the gate's way). The cut-off since 2026-11-09:
+        before, a route toward one counted whoever got there first (live 12:57:11, Shadowspire level 1: the rope landed
+        Logan 6 steps from the crimson gate with the red Lord Crafty Pants 8 from it; "the way to (5157, 2647) passes
+        them" sent the flight to the golden gate 167 steps north, and the red ran and teleported after him: dead 21 s
+        later, 80 steps on)."""
         now = time.monotonic()
         for s, xy in spots.items():
-            r = RED_PASS_R + int((now - self.hostile_seen.get(s, (xy, now))[1]) * RED_RUN_TPS)
-            if path and len(path) > 1 and min(cheb(t, xy) for t in path[1:]) < min(cheb(here, xy), r):
+            age = now - self.hostile_seen.get(s, (xy, now))[1]
+            r = RED_PASS_R + int(age * RED_RUN_TPS)
+            if path and len(path) > 1 and min(cheb(t, xy) for t in path[1:]) < min(cheb(here, xy), r) \
+                    and self.cut_step(path, xy, age) is not None:
                 return s
         return None
 
-    def gate_dash(self, gate, steps: int, spots: dict):
-        """A flight's dash for the gate (flee_out, pick_gate): our route onto it `steps` within GATE_DASH_R, and no
-        hostile player nearer the gate than that (one out of view since `age` s nearer by RED_RUN_TPS tiles a second,
-        as passes_hostile has it): we get there no later than they do, so its way doesn't count as passing them. Then
-        no other gate, no leg away, no rope: through it now. Live 2026-11-09 12:57:11 (hunt-20261109-124026-c8e9,
-        Shadowspire level 1): the rope landed Logan 6 steps from the crimson gate with the red Lord Crafty Pants 8 from
-        it; "the way to (5157, 2647) passes them" sent the flight to the golden gate 167 steps north, the red ran and
-        teleported after him, dead 21 s later 80 steps on. -> (our steps, the nearest one's name, his tiles from the
-        gate), or None."""
-        if steps > GATE_DASH_R or not spots:
-            return None
-        now, best = time.monotonic(), None
+    @staticmethod
+    def cut_step(path, xy, age: float = 0.0) -> int | None:
+        """The first step of the route `path` (path[0] where we stand) that a hostile player at `xy`, out of view for
+        `age` s, can be within RED_REACH_R of before we step there, else None: his steps there the fewer of running (a
+        tile for each of our steps: both 0.2 s) and a Teleport or rope (RED_JUMP_R tiles for RED_JUMP_STEPS), then
+        RED_CHASE_K tiles a step beyond it (a chase's pace with more of them, live 12:57:17-26)."""
+        ahead = age * RED_RUN_TPS
+        for i, t in enumerate(path[1:], 1):
+            d = max(0.0, cheb(t, xy) - RED_REACH_R - ahead)
+            if min(d, RED_JUMP_STEPS + max(0.0, d - RED_JUMP_R) / RED_CHASE_K) < i:
+                return i
+        return None
+
+    def exposed(self, path, spots: dict) -> int:
+        """Steps of the route `path` (to beside a gate) from the first any of `spots` can cut off (cut_step) to its end,
+        less the GATE_USE_STEPS one coming that late is on us beside the gate anyway; 0 when none can sooner."""
+        now, cuts = time.monotonic(), []
         for s, xy in spots.items():
-            seen = self.hostile_seen.get(s, (xy, now, f"0x{s:X}"))
-            d = cheb(xy, gate) - int((now - seen[1]) * RED_RUN_TPS)
-            if d < steps:
-                return None
-            if best is None or d < best[2]:
-                best = (steps, seen[2], d)
-        return best
+            if (i := self.cut_step(path, xy, now - self.hostile_seen.get(s, (xy, now))[1])) is not None:
+                cuts.append(i)
+        return max(0, len(path) - min(cuts) - GATE_USE_STEPS) if cuts else 0
 
     def flee_tile(self, st, spots: dict, failed=()):
         """The tile to run to from `spots`: of those the walk rules reach within FLEE_SEARCH_R in at most
@@ -2415,14 +2433,16 @@ class HuntLoop:
         on = self.mover.fields_on(path, fields) if path else []
         return on[0][1] if on else None
 
-    def rope_jump(self, goal, spots: dict | None = None) -> bool:
+    def rope_jump(self, goal, spots: dict | None = None, off_route: bool = True) -> bool:
         """One Adventurer's Rope jump toward `goal` (Logan's escapes: '[Rope', then the ground target;
         jumps of 7-10 tiles, an 11-tile target refused): the farthest tile of the route there within ROPE_R
         that is in sight, 4 or more tiles off, its z walked along the route (a ledge's z beside it would
         strand us). From hostile players (`spots`, hostile_spots) only a landing farther from every one of them
-        than we stand: none on the route, the one of the tiles we could walk to within ROPE_R farthest from the
-        nearest of them (live 2026-10-21 10:35:06: the route to the gate ran past two reds and the rope landed
-        Logan beside one of them). The cursor answered with Esc when a player turned on us meanwhile (player_calm;
+        than we stand: none on the route, with `off_route` the one of the tiles we could walk to within ROPE_R farthest
+        from the nearest of them (live 2026-10-21 10:35:06: the route to the gate ran past two reds and the rope landed
+        Logan beside one of them; flee_out passes `off_route` only when they can cut the way off: in the 2026-11-09
+        race test a rope off the route jumped away from a gate 6 steps off and left its way theirs to cut off). The
+        cursor answered with Esc when a player turned on us meanwhile (player_calm;
         live 10:35:06.07 "Ticket Tongje is attacking you!" between the cursor and our target). True when we
         landed. Knowledge #13325: a Teleport by the spell's rules, 5 s cooldown from the use; followers on Follow
         come along (#5141)."""
@@ -2474,7 +2494,7 @@ class HuntLoop:
             # along the way only, the least seen first: ranking every tile in reach "out of their sight first" landed
             # Logan back in the dead end and behind them (sim/fight2001.py: 7 of 24 dead that way, 0 without ranged ropes)
             best = min(enumerate(on_route), default=(0, None), key=lambda it: (seen_by(it[1]), -it[0]))[1]
-        elif best is None and spots:
+        elif best is None and spots and off_route:
             steps = localmap.steps(walk, pos, radius=ROPE_R)
             cands = [(t[0], t[1], los.surface_z(walk, t[0], t[1], pos[2])) for t, n in steps.items()
                      if n <= FLEE_DETOUR * cheb(pos, t)]
@@ -2547,8 +2567,8 @@ class HuntLoop:
         """Each --leave-gate's way from where we stand (none `skip`ped, none whose menu lacked --gate-dest), in the order
         given: {gate, path (None: no route), near (the tile beside it the walk goes to; None standing on it), steps,
         danger (way_danger, in steps), cost (steps + danger), field (a route only through a spell field), passes (a
-        hostile player of `spots` it passes, passes_hostile, else None; None too when we'd get there first: dash,
-        gate_dash)}."""
+        hostile player of `spots` it passes and can cut it off at, passes_hostile, else None), exposed (its steps from
+        the first any of them can cut off, exposed: 0 when none can)}."""
         here = tuple(self.pos(st)[:2])
         view, out = None, []
         for g in self.leave_gates:
@@ -2564,11 +2584,11 @@ class HuntLoop:
             if view is None:
                 view = self.team.view(st) if self.team is not None else aggro.View(self, st)
             danger = self.way_danger(path, view)
-            passes = self.passes_hostile(path, spots, here) if spots else None
-            dash = self.gate_dash(g, len(path) - 1, spots) if passes is not None else None
+            way = path[:-1] if len(path) >= 2 else path     # to beside it: the step onto it takes us through
             out.append({"gate": g, "path": path, "near": tuple(path[-2]) if len(path) >= 2 else None,
                         "steps": len(path) - 1, "danger": danger, "cost": len(path) - 1 + danger, "field": field,
-                        "passes": None if dash is not None else passes, "dash": dash})
+                        "passes": self.passes_hostile(way, spots, here) if spots else None,
+                        "exposed": self.exposed(way, spots) if spots else 0})
         return out
 
     def way_danger(self, path, view) -> float:
@@ -2590,9 +2610,10 @@ class HuntLoop:
     def pick_gate(self, st, spots: dict | None = None, skip=()) -> tuple[dict | None, str]:
         """The easiest of several --leave-gate from where we stand (gate_ways; user 2026-10-31: "if its time to leave it
         could leave by the easiest gate to get to"): first one whose way passes none of `spots` (the hostile players a
-        flight runs from), then one not only through a spell field, then the least cost (route steps plus the walk's
-        danger). -> (its way, or None when none has a route; the choice for the log, 'the easiest of 3 (34 steps;
-        (6652, 2095) 96, (6642, 2062) 71)')."""
+        flight runs from), then the fewest steps of it any of them can cut off (exposed; since 2026-11-09: a red who
+        chases is on the long way before the end, live 12:57 on Shadowspire level 1), then one not only through a spell
+        field, then the least cost (route steps plus the walk's danger). -> (its way, or None when none has a route; the
+        choice for the log, 'the easiest of 3 (34 steps; (6652, 2095) 96, (6642, 2062) 71 cut off 40 before it)')."""
         ways = self.gate_ways(st, spots, skip)
         go = [w for w in ways if w["path"]]
 
@@ -2601,19 +2622,21 @@ class HuntLoop:
                 return "no route"
             return (f"{w['steps']}{unit}" + (f" +{w['danger']:g} danger" if w["danger"] else "")
                     + (" past them" if w["passes"] is not None else "")
-                    + (f", first there ({w['dash'][1]} {w['dash'][2]} from it)" if w.get("dash") else "")
+                    + (f" cut off {w['exposed']} before it" if w.get("exposed") else "")
                     + (" through a field" if w["field"] else ""))
         if not go:
             return None, f"no route to any of {len(ways)} ({', '.join(str(w['gate']) for w in ways)})"
-        best = min(go, key=lambda w: (w["passes"] is not None, w["field"], w["cost"]))
+        best = min(go, key=lambda w: (w["exposed"], w["passes"] is not None, w["field"], w["cost"]))
         others = ", ".join(f"{w['gate']} {said(w)}" for w in ways if w is not best)
         return best, f"the easiest of {len(ways)} ({said(best, ' steps')}" + (f"; {others})" if others else ")")
 
     def gate_choice(self, st):
         """flee_out's `choose` with several --leave-gate: (gate, the tile beside it, its way clear of the hostile
-        players) of pick_gate's choice from them, else None."""
-        w, _ = self.pick_gate(st, self.hostile_spots(st))
-        return None if w is None or w["near"] is None else (w["gate"], w["near"], w["passes"] is None)
+        players, the steps of its way to beside it they can cut off: exposed) of pick_gate's choice from them, else
+        None."""
+        spots = self.hostile_spots(st)
+        w, _ = self.pick_gate(st, spots)
+        return None if w is None or w["near"] is None else (w["gate"], w["near"], w["passes"] is None, w["exposed"])
 
     def red_on_way(self, st, known: set) -> str | None:
         """A planned or hurt walk's stop to the leave gate with several --leave-gate: a hostile player we didn't know of
@@ -2959,7 +2982,7 @@ class HuntLoop:
         --leave-gate): a dead end only when the way to every one of them passes them (dead_end's `others`).
         -> (gate, beside it) of the gate the flight ended at."""
         t_end = time.monotonic() + FLEE_MAX_S
-        leg = {"start": 0, "known": set(), "past": False, "dash": False}
+        leg = {"start": 0, "known": set(), "past": False}
         said, failed, blocked = [None], set(), set()     # blocked: gates whose walk failed (refused steps)
 
         def stop(s):
@@ -2967,7 +2990,7 @@ class HuntLoop:
                 return "through the gate"
             spots = self.hostile_spots(s)
             self.hostile_zones(spots)
-            if not leg["dash"] and (not leg["past"] or self.ranged_fight(s)) and self.rope_worth(s):
+            if (not leg["past"] or self.ranged_fight(s)) and self.rope_worth(s):
                 return "a rope is worth it"
             if spots.keys() - leg["known"]:
                 return "a hostile player in view"
@@ -2986,26 +3009,27 @@ class HuntLoop:
                     return gate, near
                 spots = self.hostile_spots(st)
                 self.hostile_zones(spots)
-                dash = None
-                if spots:
+                if spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
-                    dash = self.gate_dash(gate, len(path), spots) if path else None     # beside it, then onto it
-                leg["dash"] = dash is not None
-                if dash is not None:
-                    say(f"to the moongate: {dash[0]} steps from it, {dash[1]} {dash[2]} tiles from it: first there, "
-                        f"through it now")
-                elif spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate and alt[2]:
-                    path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
-                    if self.passes_hostile(path, spots, here) is not None:
-                        say(f"to the moongate: the way to {gate} passes them; to the one at {alt[0]} instead")
+                    passes = self.passes_hostile(path, spots, here) is not None
+                    cut = self.exposed(path, spots) if path else 0
+                    if (alt[3], not alt[2]) < (cut, passes):     # fewer steps of it a red can cut off (exposed)
+                        why = f"is cut off {cut} steps before it" if cut else "passes them"
+                        say(f"to the moongate: the way to {gate} {why}; to the one at {alt[0]} instead"
+                            + (f" (cut off {alt[3]} before it)" if alt[3] else ""))
                         gate, near = alt[0], alt[1]
                 goal, label = near, "to the moongate"
                 leg["past"] = False
                 shelter, cover = cover, None
-                if spots and dash is None:
+                off_route = False                 # a rope off the route only when it's cut off (rope_jump)
+                if spots:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     s = self.passes_hostile(path, spots, here)
-                    if s is not None:
+                    if s is not None and self.exposed(path, spots) == 0:
+                        say(f"to the moongate: {len(path) - 1} steps, there before "
+                            f"{self.hostile_seen[s][2] if s in self.hostile_seen else f'0x{s:X}'} can cut it off")
+                    elif s is not None:
+                        off_route = True
                         xy, fleeing = spots[s], time.monotonic() < t_end
                         who = self.hostile_seen[s][2] if s in self.hostile_seen else f"0x{s:X}"
                         tile = self.flee_tile(st, spots, failed) if fleeing else None
@@ -3032,8 +3056,8 @@ class HuntLoop:
                                 f"far as the way allows")
                     elif shelter is not None and path is None:
                         goal, label = shelter
-                if dash is None and (not leg["past"] or self.ranged_fight(st)) and self.rope_worth(st) \
-                        and self.rope_jump(goal, spots):
+                if (not leg["past"] or self.ranged_fight(st)) and self.rope_worth(st) \
+                        and self.rope_jump(goal, spots, off_route=off_route):
                     continue
                 leg["start"], leg["known"] = self.mover.steps, set(spots)
                 try:
@@ -3498,9 +3522,10 @@ class HuntLoop:
         self.walk_in_red = f"{why}, on the walk in"
 
     def gold_gate_way(self, st, quiet: bool = False):
-        """(gate, the tile beside it to run to, its way clear) of the gold moongate of the dungeon we stand in within
-        GOLD_GATE_STEPS route steps (escape.gold_gates): one whose way passes no hostile player (passes_hostile)
-        first, then the nearest; None without one. `quiet`: no log line (flee_out's look at every leg)."""
+        """(gate, the tile beside it to run to, its way clear, the steps of it a hostile player can cut off: exposed) of
+        the gold moongate of the dungeon we stand in within GOLD_GATE_STEPS route steps (escape.gold_gates): one whose
+        way passes no hostile player (passes_hostile) first, then the fewest steps they can cut off, then the nearest;
+        None without one. `quiet`: no log line (flee_out's look at every leg)."""
         here = tuple(self.pos(st)[:2])
         gates, _ = escape_mod.gold_gates(here, st["world"]["self"].get("map"))
         spots, best, seen = self.hostile_spots(st), None, []
@@ -3510,13 +3535,15 @@ class HuntLoop:
                 seen.append(f"{g} {'no route' if not path else f'{len(path) - 1} steps'}")
                 continue
             passes = self.passes_hostile(path, spots, here)
-            seen.append(f"{g} {len(path) - 1} steps" + (" past them" if passes is not None else ""))
-            key = (passes is not None, len(path))
+            exposed = self.exposed(path, spots) if spots else 0
+            seen.append(f"{g} {len(path) - 1} steps" + (" past them" if passes is not None else "")
+                        + (f" cut off {exposed} before it" if exposed else ""))
+            key = (passes is not None, exposed, len(path))
             if best is None or key < best[0]:
                 best = (key, g, tuple(path[-1]))
         if gates and not quiet:
             log(f"walk in: gold moongates from {here}: {'; '.join(seen)}")
-        return None if best is None else (best[1], best[2], not best[0][0])
+        return None if best is None else (best[1], best[2], not best[0][0], best[0][1])
 
     def walk_in_leave(self, why, gate, near):
         """From a hostile player on the walk in's first level: "All Follow Me" (no wait), the flight to beside the

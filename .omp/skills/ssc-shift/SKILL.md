@@ -130,9 +130,10 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
   - a hue-2825 moongate at (5128, 2622) shows only to a ghost (the ghosts' gate).
 - **Watch for** red players on level 1. Logan died there by hand on 2026-10-31 (5130, 2614) to two reds, with a mud
   gargoyle rooting him, and on the runner's flight on 2026-11-09 12:57 to Lord Crafty Pants ([G.G], who came back
-  after a 12:23 leave from him): the flight left a gate 6 steps off for one 167 off (fixed: "first there, through it
-  now"; docs/NOTES.md "Shadowspire Cathedral: dead to a red on the flight"). A flight that turns to a far gate with the
-  red near ("… passes them; to the one at … instead") or chases on far is an issue. The runner's red leave itself
+  after a 12:23 leave from him): the flight left a gate 6 steps off for one 167 off (fixed: the gate the reds can't cut
+  off, "the easiest of 3 (6 steps; … cut off 160 before it …)"; docs/NOTES.md "Shadowspire Cathedral: dead to a red on
+  the flight"). A flight that turns to a far gate with the red near ("… to the one at … instead") or chases on far is
+  an issue. The runner's red leave itself
   ("LEAVING ... by the moongate") is its own: nothing to fix. Also
   watch for a pet left behind at the time-up leave (above): `pet_left_behind` is urgent, and fetching the pet is the
   user's job. And watch for Logan on level 2 (x 5241-5359) during a level 1 run. The strip (5132-5133, 2653) is a

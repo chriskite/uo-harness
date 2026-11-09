@@ -3148,8 +3148,9 @@ def test_ssc_rope():
           first and 4 <= d <= 10 and rope["amount"] == n0 - 1, f"{start} -> {w.player.pos}, ropes {n0} -> {rope['amount']}")
 
 
-def test_ssc_red_gate_dash():
-    print("== a red 8 from the crimson gate, Logan 6 from it (Shadowspire level 1): through it, not to a far gate ==")
+def test_ssc_red_race():
+    print("== a red 8 from the crimson gate, Logan 6 from it (Shadowspire level 1): he can't cut that way off, he can the "
+          "167 steps to a golden gate: through the crimson one ==")
     # live 2026-11-09 12:57:11.8 (hunt-20261109-124026-c8e9): the rope landed Logan at (5163, 2646), 6 steps from the
     # crimson gate (5157, 2647); Lord Crafty Pants at (5149, 2651), running east along y 2651 after him, 8 from it. "the
     # way to (5157, 2647) passes them; to the one at (5176, 2489) instead": 167 steps north, dead at (5164, 2560) 21 s
@@ -8952,7 +8953,7 @@ def main():
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
               test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_patrol_named,
-              test_ssc_rope, test_ssc_red_gate_dash, test_ssc_hunt):
+              test_ssc_rope, test_ssc_red_race, test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
