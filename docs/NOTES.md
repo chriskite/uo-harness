@@ -7353,6 +7353,11 @@ script):
   way is raced against them tile by tile (`cut_step`: running a tile a step, a Teleport of 10 tiles for 5 steps, 1.2
   tiles a step beyond, the chase above) and the gate with the fewest steps they can cut off is taken. Test: test_sim
   `test_ssc_red_race` (the 12:57:11 layout and his route; before 76cc388: "to the one at (5176, 2489) instead").
+- **First live use, 17:18:55 (hunt-20261109-171616-ca0e, on ac00da2):** "LEAVING by the moongate: red player 0x8c6823
+  in view at 18 tiles"; "the easiest of 3 (27 steps; (5145, 2480) 151 past them cut off 140 before it, (5176, 2489)
+  148 past them cut off 137 before it)": the crimson gate. A rope 9 tiles along the way (17 -> 26 tiles from him),
+  beside the gate at 17:19:01, Totem at 17:19:02, home 17:19:05: 7 s from the leave to Totem. User: "It was a clean
+  looking red escape".
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
