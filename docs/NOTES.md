@@ -7326,6 +7326,32 @@ patrol". Two causes:
 - Simulator numbers before/after: docs/SIM.md "Shadowspire Cathedral". The fix reaches the Seer at its next
   `ctl run`.
 
+## Shadowspire Cathedral: dead to a red on the flight (2026-11-09 12:57:32, hunt-20261109-124026-c8e9)
+
+The second run of the shift, the first on 98168c0 (patrols and the gargoyles fixed: 9 patrols out, none refused, 18
+hits lost in 13 kills). The red Lord Crafty Pants ([G.G], body 400, two earth elementals and a flamehound summoned),
+the same as the 12:23 leave. Task log and the capture's replay (session_20261109_113055, `WorldRuntime`, a throwaway
+script):
+
+- **12:57:03** "LEAVING by the moongate: red player Lord Crafty Pants in view at 18 tiles", Logan at (5134, 2644), the
+  red at (5132, 2626) running south down x 5132; "the easiest of 3 (36 steps; (5145, 2480) 167 past them, (5176, 2489)
+  187 past them)": the crimson gate (5157, 2647). Rope to (5133, 2650) (16 -> 22 tiles from him), the walk east along
+  y 2651-2658; the red followed down x 5132 and east along y 2651, 0.2 s a step.
+- **12:57:11.8** the second rope landed Logan at (5163, 2646): 6 steps from the gate; the red at (5149, 2651), 8 from
+  it. "to the moongate: the way to (5157, 2647) passes them; to the one at (5176, 2489) instead": the route 167 steps
+  north up x 5164. `passes_hostile`: the way to the gate comes within 10 of him, nearer than the 14 we stood.
+- **12:57:13-32** the red cast (In Vas Por, In Sanct Grav), jumped to (5162, 2641) and ran north after him on x 5162,
+  Rel Por (teleports) to 2-9 tiles behind. Through the gargoyles', mephits' and stonekins' reach on the way ("crawl:
+  keeping out of the reach of the awake …" four times), "rope: no landing in reach in sight" six times (the corridor's
+  block floor 0x65BE names no landing since 98168c0, and none farther from him). Hits 100 -> 75 (bleed, a heal potion
+  to 100), 77, 57, 37, 11 ("An explosion potion has stuck to you!"), a heal refused (500119), dead at (5164, 2560),
+  80 steps on. Pets 100/100 beside him; 17,261 gp carried lost.
+- **Cause:** the flight left a gate it would have reached first (6 steps against his 8) for one 167 steps off with
+  him behind. A red runs as fast and teleports: a long chase was always going to end with him in reach.
+- **Fixed** (`HuntLoop.gate_dash`, docs/HUNT_LOOP.md "First to a near gate"): a gate within `GATE_DASH_R` steps that
+  no hostile player is nearer to doesn't count as passing them. Test: test_sim `test_ssc_red_gate_dash` (the 12:57:11
+  layout and his route; before: "to the one at (5176, 2489) instead").
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

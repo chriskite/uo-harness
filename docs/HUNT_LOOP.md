@@ -1544,6 +1544,14 @@ moongate, and never near a red one).
     as far as the zones bend the route: "… and every way from here does (a dead end): past them at once". No rope
     on such a leg: a rope lands only farther from them, back into the dead end. Once past them the way no longer
     passes them, and the flight goes on as above. Simulator `sim/fight2001.py`: 24 of 24 dead before, 0 after.
+    **First to a near gate: through it** (`gate_dash`, since 2026-11-09; live 12:57:11 on Shadowspire level 1 the
+    rope landed Logan 6 steps from the crimson gate with the red 8 from it; "the way to (5157, 2647) passes them" turned
+    the flight to the golden gate 167 steps north, the red ran and teleported after him, dead 21 s later 80 steps on,
+    NOTES "Shadowspire Cathedral: dead to a red on the flight"). A gate whose route onto it is within `GATE_DASH_R` (8)
+    steps, with no hostile player nearer the gate than that (out of view: 5 tiles a second nearer, as above), doesn't
+    count as passing them: `pick_gate` takes it ("6 steps, first there (Lord Crafty Pants 8 from it)"), and the flight
+    goes for it with no other gate, no leg away and no rope: "to the moongate: 6 steps from it, Lord Crafty Pants 6
+    tiles from it: first there, through it now".
     **No route: out of their sight meanwhile** (since 2026-10-30; live 23:43:31-36 a red's Wall of Stone sealed the
     east wing's only corridor west and the flight stood 4.7 s "looking again (n of 6)" 1-3 tiles from three casters,
     NOTES "Walled in the east wing"). When the way to the gate has no route, the flight never waits where they see

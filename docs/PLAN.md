@@ -3921,6 +3921,16 @@ gargoyles, etc. It looks like its occasionally trying to 'All Patrol' but the pe
 - Not done: keeping the pets ahead of Logan on the crawl's walk toward a monster in view (the gargoyles' wakes found him a
   tile ahead of them); the shy rules cover the four kinds that hit from range.
 
+## A red flight goes through a near gate it gets to first (Logan dead on Shadowspire level 1, live 2026-11-09 12:57)
+
+The flight turned from the crimson gate 6 steps off (the red 8 from it) to a golden gate 167 steps away and the red
+caught him on the way (docs/NOTES.md "Shadowspire Cathedral: dead to a red on the flight"). Decided: `HuntLoop.gate_dash`
+(docs/HUNT_LOOP.md "First to a near gate"): a gate within `GATE_DASH_R` steps that no hostile player is nearer to
+doesn't count as passing them, in `pick_gate` and in `flee_out` (no other gate, no leg away, no rope). A tie goes to
+the gate: both close on it at a step a tile, and a long chase from a red who runs as fast and teleports is worse.
+Evidence: test_sim `test_ssc_red_gate_dash` (fails before). Mausoleum with reds, 48 runs a side: runs with a death 5 ->
+5 (4 -> 4 to reds), gold an hour 156,859 -> 156,614: no change there [INFERENCE: few flights end that near a gate].
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -3148,6 +3148,41 @@ def test_ssc_rope():
           first and 4 <= d <= 10 and rope["amount"] == n0 - 1, f"{start} -> {w.player.pos}, ropes {n0} -> {rope['amount']}")
 
 
+def test_ssc_red_gate_dash():
+    print("== a red 8 from the crimson gate, Logan 6 from it (Shadowspire level 1): through it, not to a far gate ==")
+    # live 2026-11-09 12:57:11.8 (hunt-20261109-124026-c8e9): the rope landed Logan at (5163, 2646), 6 steps from the
+    # crimson gate (5157, 2647); Lord Crafty Pants at (5149, 2651), running east along y 2651 after him, 8 from it. "the
+    # way to (5157, 2647) passes them; to the one at (5176, 2489) instead": 167 steps north, dead at (5164, 2560) 21 s
+    # later (the capture's replay)
+    from agent_link import Abort
+    from sim import pets
+    sc = load("ssc")
+    pets.select(sc, "phoenix_incubus")
+    sc["spawns"] = []
+    sc["reds"] = {**(load().get("reds") or {}), "enabled": False}       # the Mausoleum's kits; no arrivals
+    sc["player"]["start"] = [5163, 2646, 40]
+    w = World(sc, seed=1)
+    for p, d in zip(w.pets(), ((1, 0), (1, 1))):
+        p.x, p.y = 5163 + d[0], 2646 + d[1]
+    loop, clock, store, patched = red_loop(w)
+    w.add_red(5149, 2651, name="Lord Crafty Pants", route=[(x, 2651, 0.2) for x in range(5150, 5159)])
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            try:
+                res = loop.leave_by_gate("urgent")
+            except Abort as e:
+                res = {"ok": False, "error": str(e)}
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = [ln for ln in out.getvalue().splitlines() if "moongate" in ln]
+    check("out by the crimson gate 6 steps off, first there; no turn to a far gate (before: 'passes them; to the one at "
+          "(5176, 2489) instead')", res.get("ok") and tuple(res.get("gate") or ()) == (5157, 2647)
+          and not any("instead" in ln for ln in lines),
+          f"{res.get('ok')} {res.get('error')} gate {res.get('gate')} deaths {w.metrics['deaths']} | " + " | ".join(lines[:4]))
+
+
 def test_ledge_attacker():
     print("== on the walk in, a monster on a ledge 25 above hitting a pet: no target, the walk goes on ==")
     # live 2026-10-19 19:34:43-35:50 (hunt-20261019-192245-e3d7): an insane reanimator at (5507, 660, 30) over
@@ -8917,7 +8952,7 @@ def main():
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
               test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_patrol_named,
-              test_ssc_hunt):
+              test_ssc_rope, test_ssc_red_gate_dash, test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

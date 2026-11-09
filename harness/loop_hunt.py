@@ -2300,6 +2300,27 @@ class HuntLoop:
                 return s
         return None
 
+    def gate_dash(self, gate, steps: int, spots: dict):
+        """A flight's dash for the gate (flee_out, pick_gate): our route onto it `steps` within GATE_DASH_R, and no
+        hostile player nearer the gate than that (one out of view since `age` s nearer by RED_RUN_TPS tiles a second,
+        as passes_hostile has it): we get there no later than they do, so its way doesn't count as passing them. Then
+        no other gate, no leg away, no rope: through it now. Live 2026-11-09 12:57:11 (hunt-20261109-124026-c8e9,
+        Shadowspire level 1): the rope landed Logan 6 steps from the crimson gate with the red Lord Crafty Pants 8 from
+        it; "the way to (5157, 2647) passes them" sent the flight to the golden gate 167 steps north, the red ran and
+        teleported after him, dead 21 s later 80 steps on. -> (our steps, the nearest one's name, his tiles from the
+        gate), or None."""
+        if steps > GATE_DASH_R or not spots:
+            return None
+        now, best = time.monotonic(), None
+        for s, xy in spots.items():
+            seen = self.hostile_seen.get(s, (xy, now, f"0x{s:X}"))
+            d = cheb(xy, gate) - int((now - seen[1]) * RED_RUN_TPS)
+            if d < steps:
+                return None
+            if best is None or d < best[2]:
+                best = (steps, seen[2], d)
+        return best
+
     def flee_tile(self, st, spots: dict, failed=()):
         """The tile to run to from `spots`: of those the walk rules reach within FLEE_SEARCH_R in at most
         FLEE_DETOUR times their distance (no mobile on it, no known teleporter, not `failed`: walks there that
@@ -2526,7 +2547,8 @@ class HuntLoop:
         """Each --leave-gate's way from where we stand (none `skip`ped, none whose menu lacked --gate-dest), in the order
         given: {gate, path (None: no route), near (the tile beside it the walk goes to; None standing on it), steps,
         danger (way_danger, in steps), cost (steps + danger), field (a route only through a spell field), passes (a
-        hostile player of `spots` it passes, passes_hostile, else None)}."""
+        hostile player of `spots` it passes, passes_hostile, else None; None too when we'd get there first: dash,
+        gate_dash)}."""
         here = tuple(self.pos(st)[:2])
         view, out = None, []
         for g in self.leave_gates:
@@ -2542,9 +2564,11 @@ class HuntLoop:
             if view is None:
                 view = self.team.view(st) if self.team is not None else aggro.View(self, st)
             danger = self.way_danger(path, view)
+            passes = self.passes_hostile(path, spots, here) if spots else None
+            dash = self.gate_dash(g, len(path) - 1, spots) if passes is not None else None
             out.append({"gate": g, "path": path, "near": tuple(path[-2]) if len(path) >= 2 else None,
                         "steps": len(path) - 1, "danger": danger, "cost": len(path) - 1 + danger, "field": field,
-                        "passes": self.passes_hostile(path, spots, here) if spots else None})
+                        "passes": None if dash is not None else passes, "dash": dash})
         return out
 
     def way_danger(self, path, view) -> float:
@@ -2576,7 +2600,9 @@ class HuntLoop:
             if not w["path"]:
                 return "no route"
             return (f"{w['steps']}{unit}" + (f" +{w['danger']:g} danger" if w["danger"] else "")
-                    + (" past them" if w["passes"] is not None else "") + (" through a field" if w["field"] else ""))
+                    + (" past them" if w["passes"] is not None else "")
+                    + (f", first there ({w['dash'][1]} {w['dash'][2]} from it)" if w.get("dash") else "")
+                    + (" through a field" if w["field"] else ""))
         if not go:
             return None, f"no route to any of {len(ways)} ({', '.join(str(w['gate']) for w in ways)})"
         best = min(go, key=lambda w: (w["passes"] is not None, w["field"], w["cost"]))
@@ -2933,7 +2959,7 @@ class HuntLoop:
         --leave-gate): a dead end only when the way to every one of them passes them (dead_end's `others`).
         -> (gate, beside it) of the gate the flight ended at."""
         t_end = time.monotonic() + FLEE_MAX_S
-        leg = {"start": 0, "known": set(), "past": False}
+        leg = {"start": 0, "known": set(), "past": False, "dash": False}
         said, failed, blocked = [None], set(), set()     # blocked: gates whose walk failed (refused steps)
 
         def stop(s):
@@ -2941,7 +2967,7 @@ class HuntLoop:
                 return "through the gate"
             spots = self.hostile_spots(s)
             self.hostile_zones(spots)
-            if (not leg["past"] or self.ranged_fight(s)) and self.rope_worth(s):
+            if not leg["dash"] and (not leg["past"] or self.ranged_fight(s)) and self.rope_worth(s):
                 return "a rope is worth it"
             if spots.keys() - leg["known"]:
                 return "a hostile player in view"
@@ -2960,7 +2986,15 @@ class HuntLoop:
                     return gate, near
                 spots = self.hostile_spots(st)
                 self.hostile_zones(spots)
-                if spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate and alt[2]:
+                dash = None
+                if spots:
+                    path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
+                    dash = self.gate_dash(gate, len(path), spots) if path else None     # beside it, then onto it
+                leg["dash"] = dash is not None
+                if dash is not None:
+                    say(f"to the moongate: {dash[0]} steps from it, {dash[1]} {dash[2]} tiles from it: first there, "
+                        f"through it now")
+                elif spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate and alt[2]:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     if self.passes_hostile(path, spots, here) is not None:
                         say(f"to the moongate: the way to {gate} passes them; to the one at {alt[0]} instead")
@@ -2968,7 +3002,7 @@ class HuntLoop:
                 goal, label = near, "to the moongate"
                 leg["past"] = False
                 shelter, cover = cover, None
-                if spots:
+                if spots and dash is None:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     s = self.passes_hostile(path, spots, here)
                     if s is not None:
@@ -2998,7 +3032,8 @@ class HuntLoop:
                                 f"far as the way allows")
                     elif shelter is not None and path is None:
                         goal, label = shelter
-                if (not leg["past"] or self.ranged_fight(st)) and self.rope_worth(st) and self.rope_jump(goal, spots):
+                if dash is None and (not leg["past"] or self.ranged_fight(st)) and self.rope_worth(st) \
+                        and self.rope_jump(goal, spots):
                     continue
                 leg["start"], leg["known"] = self.mover.steps, set(spots)
                 try:
