@@ -4,7 +4,8 @@
   "harvest": {
     "use_tool": "stock double-click on the equipped pickaxe; no cursor",
     "attempt_seconds": 1.0,
-    "success_clilocs": [503044, 1007072, 1007073, 1007074, 1007075, 1007076, 1007077, 1007078, 1007079, 1007080],
+    "success_clilocs": [503044, 1007072, 1007073, 1007074, 1007075, 1007076, 1007077, 1007078, 1007079, 1007080, 1095400],
+    "success_source": "503044 and 1007072-1007080 stock Cliloc.enu; 1095400 'You dig some avarite ore and put it in your backpack.' (Outlands' own metal; live 2026-11-08 21:26:30-57, mining-20261108-212058-e379 at forge_2426_413 stand 2494,494: six avarite digs read 'no recognised outcome', the run aborted on the 4th in a row)",
     "fail_clilocs": [503043, 501869],
     "double_text": "Harvest double yield/loot triggered.",
     "nothing_near_texts": ["You do not see any harvestable resources nearby."],

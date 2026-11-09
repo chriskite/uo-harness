@@ -5250,7 +5250,11 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
   some <iron..valorite> ore and put it in your backpack.", 503044 generic dig, 503043 / 501869 "You loosen some
   rocks but fail to find any useable ore.", 503040 / 501866 "There is no metal here to mine.", 501862 / 503036
   "You can't mine there.", 501864 "You can't mine while riding or flying." (Outlands allows mounted mining, k1713),
-  501988 smelt success. Outlands sent the lumber success as plain text, not a cliloc, so match both.
+  501988 smelt success. Outlands sent the lumber success as plain text, not a cliloc, so match both. **Outlands' own
+  metal has its own success cliloc: 1095400 "You dig some avarite ore and put it in your backpack."** It was missing
+  from mining.json `success_clilocs` until 2026-11-08: at forge_2426_413 stand 2494,494, 21:26:30-57
+  (mining-20261108-212058-e379), six avarite digs read "no recognised outcome" and the run aborted on the 4th in a
+  row. The cliloc table holds no other "You dig some …" line beyond 503044 and 1007072-1007080.
 - **Its weight/smelt logic:** stop below 30 stones free (`diffweight <= 30`); ore (graphic 6585 = 0x19B9) moved in
   30s onto a friendly pack horse/llama (body 291/292) until its label reads ~[1960+/2000; smelt by double-clicking
   each ore stack within 2 tiles of a forge (`findtype "forge"` or 0x0FB1), on the pack animal too; with no forge

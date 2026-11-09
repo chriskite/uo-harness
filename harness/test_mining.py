@@ -49,6 +49,9 @@ def test_outcome():
     double = "Harvest double yield/loot triggered."
     check("double yield, then 1007072: two ore", out([speech(double), cl(1007072)]) == ("success", 2))
     check("1007072 alone: one ore", out([cl(1007072)]) == ("success", 1))
+    # live 2026-11-08 21:26:30-57 (mining-20261108-212058-e379): six avarite digs read "no recognised outcome", the run
+    # aborted on the 4th in a row
+    check("1095400 'You dig some avarite ore': one ore", out([cl(1095400)]) == ("success", 1))
     check("503043 'You loosen some rocks': a fail", out([cl(503043)]) == ("fail", 0))
     check("500119 'You must wait': busy", out([cl(500119)]) == ("busy", 0))
     check("the travel lockout with its seconds",
