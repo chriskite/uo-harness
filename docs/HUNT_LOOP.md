@@ -928,7 +928,10 @@ what comes.
 data from difficulty 60 up, plus the shadowguard: on the Mausoleum the purger, the blightmare, the master and insane
 reanimators, the banshee, the shadow minion, the calamity, the fleshweaver and the muddled vampire hunter; on Tidal
 Tomb the drowned mariner and buccaneer, the soulcatcher and every zoa (user: they are "conceptually similar to the
-ranger attackers and casters in Mausoleum 3"; docs/SIM.md "Level 2's shooters"). User 2026-10-26: "I keep the pets
+ranger attackers and casters in Mausoleum 3"; docs/SIM.md "Level 2's shooters"); since 2026-11-09 Shadowspire's mud,
+golden, iron and crimson gargoyles, meleemages whose spray reaches 12 (user: "we keep taking the first shot to the face
+from crimson gargoyles, iron gargoyles"; docs/NOTES.md "Shadowspire Cathedral: the first live run"). User 2026-10-26: "I
+keep the pets
 between me and mobs so mobs
 aggro on the pets ... I avoid being sighted by hostiles"; his fight of the reanimator's room with "All Patrol" from out
 of sight against two deaths there where they saw Logan first, docs/NOTES.md "How the user plays the casters and
@@ -1129,8 +1132,14 @@ not in aggro range"; the demo in docs/NOTES.md "All Patrol"; since 2026-10-21 at
 monster: untried live). Nothing fighting, nothing on us, both pets within vet range, and the purger (within 14)
 not seeing us before the pets: the runner says "All Patrol" (his Razor macro's bytes, hue 0x0239) and clicks a tile
 1-3 from it (3 since 2026-10-25, the demo's spot), within 11 of us and in our sight (los.Sight, as the server's 500237
-check), with no other monster within 4 of it nor seeing where we'd stand to vet the pets there. It stands; once the
-purger is awake with a pet on it,
+check), with no other monster within 4 of it nor seeing where we'd stand to vet the pets there. The click names the
+tile as the client names a click on it (`tamer.ground_target`, the songs' rule): the land (graphic 0) where the land is
+the floor, else the flat floor static on top (its graphic and z); a tile with neither is no spot (Shadowspire's
+corridor block 0x65BE, whose top is the floor, isn't named: in the simulator naming it cost gold and a death). Until
+2026-11-09 it was always graphic 0, which the server reads as the land at its own height: on Shadowspire level 1 (land
+0x244 at -75
+under the floor at 37-40) all seven patrols of the first live run came back "cannot be seen" (docs/NOTES.md
+"Shadowspire Cathedral: the first live run"). It stands; once the purger is awake with a pet on it,
 "All Guard Me" (they fight on: live), at once if something comes onto us, and after 10 s without it (the purger then
 passed over for 60 s). A pass-over of the fight (`HuntLoop.skip`: "it can't see us", pinned, blocked on the way)
 doesn't stop it; only its own refusal or timeout does (`patrol_failed`; live 2026-10-25 15:52:21-29 the "can't see
@@ -1503,7 +1512,9 @@ moongate, and never near a red one).
     rope cast to resolve"): no player's "… is attacking you!" and no damage on us with a red within 12, in the
     last 3 s (`ROPE_CALM_S`); otherwise run. `[Rope` (0x03 speech, as Logan's client sends it), the farthest
     route tile within 9 in sight with no mobile on it (live jumps 7-10, an 11-tile target refused), its z walked
-    along the route; a refusal ("That location is blocked.") ends the wait at once; 5 s cooldown. No bard skill
+    along the route, named as the client names a click on it (`tamer.ground_at`, as the 'All Patrol' spot; until
+    2026-11-09 graphic 0, and on Shadowspire level 1 all four ropes of the red leave came back 500237); a refusal
+    ("That location is blocked.") ends the wait at once; 5 s cooldown. No bard skill
     on that walk (`pk_flight`). Logan fled reds this way three times (docs/NOTES.md "Logan Wolf's Mausoleum
     runs of 2026-10-14"); live 2026-10-17 13:40 the rope and a Peacemaking stood him 3 s under a red's
     Explosions (NOTES "Inn-room runs").

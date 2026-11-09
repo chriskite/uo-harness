@@ -2430,10 +2430,13 @@ class HuntLoop:
         def ok(t) -> bool:
             # from melee ones: no landing nearer to one than we stand unless it stays out of his spell range (a route
             # round them at a distance is clear; until 2026-11-02 the rope then found no landing on it and jumped back
-            # into the dead end: test_sim test_red_out_of_view with the turn-aware planner)
+            # into the dead end: test_sim test_red_out_of_view with the turn-aware planner); a landing a click names
+            # (tamer.ground_at: the floor static over the land, as the client names it; live 2026-11-09 12:23:33-53 four
+            # ropes at graphic 0 on Shadowspire level 1, its land at -75 under the floor, each refused 500237)
             return cheb(pos, t) >= 4 and sight.point_blocked(eye, t) is None and t[:2] not in occupied \
                 and t[:2] not in self.rope_refused and t[:2] not in tele \
-                and (ranged or all(cheb(t, xy) > min(cheb(pos, xy), RED_PASS_R) for xy in spots.values()))
+                and (ranged or all(cheb(t, xy) > min(cheb(pos, xy), RED_PASS_R) for xy in spots.values())) \
+                and tamer.ground_at(walk, *t[:3]) is not None
         best, cur, on_route = None, pos, []
         for t in path[1:] if path else ():
             if cheb(pos, t) > ROPE_R:
@@ -2493,7 +2496,8 @@ class HuntLoop:
             self.cancel(cur)
             log("rope: a player turned on us before the target went out: cursor cancelled (Esc), running on")
             return False
-        self.link.act(actions.target_xyz(cur["cursor_id"], best[0], best[1], best[2], 0, cur.get("cursor_type") or 0))
+        gz, graphic = tamer.ground_at(walk, *best[:3])
+        self.link.act(actions.target_xyz(cur["cursor_id"], best[0], best[1], gz, graphic, cur.get("cursor_type") or 0))
         mark = len(self.link.events)
         landed = self.link.wait(lambda s: cheb(s["movement"]["pos"], best) <= 1
                                 or any(e.get("ev") == "cliloc" and e.get("cliloc") in ROPE_REFUSED

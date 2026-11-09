@@ -170,9 +170,14 @@ def melee(kind: str) -> bool:
 # matter [INFERENCE]), plus SHY_EXTRA (the shadowguard: a meleemage that casts from its spot, on the user's list).
 # On the Mausoleum that keeps the old seven and adds the calamity (it cast at Logan from 13), the fleshweaver and the
 # muddled vampire hunter; on Tidal Tomb the drowned mariner and buccaneer, the soulcatcher and every zoa.
+# Shadowspire's four spraying gargoyles since 2026-11-09 (meleemages whose spray reaches 12; user after the first live
+# run: "we keep taking the first shot to the face from crimson gargoyles, iron gargoyles"; its capture: 6 of 7 gargoyle
+# wakes took Logan first, Logan alone at 10 with the pets a tile behind; docs/NOTES.md "Shadowspire Cathedral: the
+# first live run"). Simulator, level 1, 48 runs a side: damage on Logan an hour 1,368 -> 886, the gargoyles' 737 -> 349,
+# runs with a death 2 -> 0.
 SHY_AI = frozenset(("mage", "ranged"))
 SHY_MIN_DIFFICULTY = 60.0
-SHY_EXTRA = frozenset(("shadowguard",))
+SHY_EXTRA = frozenset(("shadowguard", "mud gargoyle", "golden gargoyle", "iron gargoyle", "crimson gargoyle"))
 
 
 def shy(kind: str) -> bool:

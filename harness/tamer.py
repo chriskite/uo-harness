@@ -711,6 +711,41 @@ def resolve(world: dict, pos, wanted, known) -> tuple[dict, str]:
     return {**near, **seen}, how or "none"
 
 
+def ground_target(walk, tx, ty, top, objs) -> tuple | None:
+    """How the client names a click on surface `top` (a pathfind object of `objs`, walk.objects(tx, ty)) -> (z, graphic)
+    for a 0x6C ground answer, or None when no click names it. The server resolves graphic 0 to the land at its own
+    height (RunUO LandTarget): where the land is the floor, the land (graphic 0; live: every Mausoleum song so); where a
+    floor stands over the land (the invalid land 0x244, or valid land under a raised floor), the land is under it and
+    out of sight: 500237 "Target cannot be seen." (live 2026-10-26 21:52-21:54 Tidal Tomb level 1's songs, land 0x244
+    at -100 under the floor statics; 2026-10-27 01:04-01:05 its ledge, land at 19 under the stone 0x71E and the floor
+    0x51E at 24; 2026-11-09 12:02-12:10 Shadowspire level 1's 'All Patrol' clicks, land 0x244 at -75 under the floor
+    statics at 37-40, seven of seven refused). There the flat floor static (height 0) on top at that height, the one a
+    click names; a block under it (stone 0x71E/0x71F, height 5) isn't (live 22:08:16-38 three songs named the stone under
+    the pavers: no answer; the user's 7 named flat floors), and a tile with something taller on it gives None. A block
+    whose top is the floor (Shadowspire's corridors: 0x65BE at 37, height 5, top 39) isn't named either: untried live,
+    and in the simulator naming it (2026-11-09, level 1, 48 runs) cost 7 % gold, a death and two moongate timeouts
+    against flat floors only."""
+    tz = top[3]
+    cell = walk.m.land(tx, ty)
+    if top[4][0] in ("flat", "land") and cell is not None and cell[0] not in los.INVALID_LAND:
+        return tz, 0
+    on = {(s.graphic, s.z) for s in walk.m.statics(tx, ty) or ()}
+    flat = [o for o in objs if o[3] == tz and o[1] == 0 and o[4][0] == "item" and (o[4][1], o[0]) in on]
+    if not flat or any(p[0] >= tz and p[1] > 0 and p[2] & pathfind.POF_IMPASSABLE_OR_SURFACE for p in objs):
+        return None
+    o = flat[-1]
+    return o[0], o[4][1]
+
+
+def ground_at(walk, x, y, z) -> tuple | None:
+    """ground_target for the walkable surface at height `z` on (x, y) (a walk's or new_z's tile): (z, graphic), or None
+    when there is none or no click names it. The 'All Patrol' spot and the rope's landing (live 2026-11-09 12:23:33-53,
+    Shadowspire level 1's red leave: four ropes at graphic 0, each "no jump (cliloc 500237)")."""
+    objs = walk.objects(x, y)
+    top = [o for o in objs if o[2] & pathfind.POF_SURFACE and o[3] == z]
+    return ground_target(walk, x, y, top[-1], objs) if top else None
+
+
 class ClearOf:
     """Goal predicate for the Mover: at least its own distance from every tile of an area_zone
     ({(x, y): r}); admissible heuristic as nav.beyond's."""
@@ -2149,7 +2184,7 @@ class Team:
             self.patrol_note(near[0], cheb(near[0]["pos"], v.pos), why, now)
             return False
         self.patrol_why.pop(best[0]["serial"], None)
-        m, (tx, ty, tz) = best
+        m, (tx, ty, tz, tg) = best
         s = m["serial"]
         h.doing("pets", f"Sending the pets to patrol by the {m['kind']}", (tx, ty), s)
         mark = len(h.link.events)
@@ -2163,7 +2198,7 @@ class Team:
         if not h.cursor_still(h.state(), cur):
             log("'All Patrol': the cursor went away")
             return True
-        h.link.act(actions.target_xyz(cur["cursor_id"], tx, ty, tz, 0, cur.get("cursor_type") or 0))
+        h.link.act(actions.target_xyz(cur["cursor_id"], tx, ty, tz, tg, cur.get("cursor_type") or 0))
         h.wait_for(lambda _: any(e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS
                                  for e in h.link.events[mark:]), 0.6)
         if any(e.get("ev") == "cliloc" and e.get("cliloc") in NO_LOS_CLILOCS for e in h.link.events[mark:]):
@@ -2208,16 +2243,22 @@ class Team:
     def patrol_spot(self, v, m, origin=None, spots=None) -> tuple | None:
         """Where to send the pets for idle monster `m` from `origin` (default where we stand): one of `spots`
         (patrol_spots) within PATROL_MAX_R of `origin` and in sight from it (eye to the ground: the server answers a
-        tile out of it with 500237 "Target cannot be seen."; los.Sight agreed on all 8 of the demo's clicks). The
-        nearest to `m`, then to `origin`. (x, y, z) or None."""
+        tile out of it with 500237 "Target cannot be seen."; los.Sight agreed on all 8 of the demo's clicks), named as
+        the client names a click on it (ground_target: the floor static where the floor stands over the land; until
+        2026-11-09 always graphic 0, the land, and every 'All Patrol' on Shadowspire level 1, land 0x244 at -75 under its
+        floor statics at 37-40, came back 500237). The nearest to `m`, then to `origin`. (x, y, z, graphic) or None."""
         x, y, z = origin if origin is not None else v.pos
         mx, my = m["pos"][:2]
         for t in sorted(spots if spots is not None else self.patrol_spots(v, m),
                         key=lambda t: (cheb(t, (mx, my)), cheb(t, (x, y)))):
             if cheb(t, (x, y)) > PATROL_MAX_R:
                 continue
-            if v.sight is None or v.sight.point_blocked((x, y, z + los.EYE), t) is None:
-                return t
+            if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), t) is not None:
+                continue
+            if v.walk is None:
+                return (*t, 0)
+            if (named := ground_at(v.walk, *t)) is not None:
+                return t[0], t[1], *named
         return None
 
     def sees_fight(self, v, o, spot) -> bool:
@@ -4254,12 +4295,11 @@ class Team:
     def song_spot(self, st):
         """The ground to sing at -> (x, y, z, graphic), or None: the nearest tile 1-SONG_SPOT_R off (never our own) with a
         floor surface within SONG_SPOT_DZ of our z, in our sight (los.Sight, eye to that surface), named as the client
-        names a click on it: the floor static (its graphic and its own z), else the land (graphic 0). A target, not a
-        step: a teleporter tile is fine. The server resolves graphic 0 to the land at its own height (RunUO
-        LandTarget): where the floor is statics over the invalid land 0x244 (Tidal Tomb, z -100) that is under the floor,
-        out of sight. Live 2026-10-26 21:52-21:54 every song at a tile beside Logan with graphic 0 there got 500237
-        "Target cannot be seen."; the user's songs named the floor static (0x8C62 at -18, 0x50B1 at -16: 7 of 7
-        played), 1-4 tiles off. No map: our own tile's land, as before."""
+        names a click on it (ground_target): the floor static (its graphic and its own z), else the land (graphic 0). A
+        target, not a step: a teleporter tile is fine. Live 2026-10-26 21:52-21:54 every song at a tile beside Logan with
+        graphic 0 on Tidal Tomb's floor over the land got 500237 "Target cannot be seen."; the user's songs named the
+        floor static (0x8C62 at -18, 0x50B1 at -16: 7 of 7 played), 1-4 tiles off. No map: our own tile's land, as
+        before."""
         h = self.h
         walk = h.mover.walk_map(st)
         if walk is None:
@@ -4267,7 +4307,6 @@ class Team:
             return x, y, z, 0
         v = self.view(st)
         x, y, z = v.pos
-        statics = walk.m.statics
         ring = sorted(((x + dx, y + dy) for dx in range(-SONG_SPOT_R, SONG_SPOT_R + 1)
                        for dy in range(-SONG_SPOT_R, SONG_SPOT_R + 1) if dx or dy), key=lambda t: (cheb(t, (x, y)), t))
         for tx, ty in ring:
@@ -4276,24 +4315,10 @@ class Team:
             if not stand:
                 continue
             top = min(stand, key=lambda o: abs(o[3] - z))
-            tz = top[3]
-            if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), (tx, ty, tz)) is not None:
+            if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), (tx, ty, top[3])) is not None:
                 continue
-            cell = walk.m.land(tx, ty)
-            if top[4][0] in ("flat", "land") and cell is not None and cell[0] not in los.INVALID_LAND:
-                return tx, ty, tz, 0                     # the land (live: every Mausoleum song so)
-            # a floor over the land (the invalid land 0x244, or valid land under a raised floor: live 2026-10-27
-            # 01:04-01:05 Tidal Tomb level 1's ledge, land at z 19 under the stone 0x71E and the floor 0x51E at 24, four
-            # songs at graphic 0 "cannot be seen"): the flat floor static (height 0) on top at that height, the one a
-            # click names; a block under it (stone 0x71E/0x71F, height 5) isn't (live 22:08:16-38 three songs named the
-            # stone under the pavers: no answer; the user's 7 named flat floors), and a tile with something taller on it
-            # is skipped
-            on = {(s.graphic, s.z) for s in statics(tx, ty) or ()}
-            flat = [o for o in objs if o[3] == tz and o[1] == 0 and o[4][0] == "item" and (o[4][1], o[0]) in on]
-            if not flat or any(p[0] >= tz and p[1] > 0 and p[2] & pathfind.POF_IMPASSABLE_OR_SURFACE for p in objs):
-                continue
-            o = flat[-1]
-            return tx, ty, o[0], o[4][1]
+            if (named := ground_target(walk, tx, ty, top, objs)) is not None:
+                return tx, ty, *named
         return None
 
     def song_left(self, st, sid: int, now: float) -> float:

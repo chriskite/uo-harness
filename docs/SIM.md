@@ -3303,6 +3303,25 @@ flowchart LR
     deaths a game hour [INFERENCE: mostly that; the rest is within the batches' spread]. Level 1, 96 runs: no death,
     95 "done", 1 "not going back in: AlaFlambe is not with us".
 
+**'All Patrol' named, the spraying gargoyles shy** (2026-11-09, after the first live run; docs/NOTES.md "Shadowspire
+Cathedral: the first live run"): the simulator already answered a graphic-0 patrol on level 1 as the server did
+(`World._ground_point`: the land 0x244 at -75, out of sight), so its runs had the live bug. Level 1, 48 runs a side,
+the shift's batch command (seeds as `run.py`'s default):
+
+| runner | runs with a death | runs with a pet death | runs leaving a pet | kills an hour | damage on Logan an hour | the gargoyles' share | banked gp a game hour | patrols out / refused |
+|---|---|---|---|---|---|---|---|---|
+| before (618402a) | 0 | 0 | 5 | 155 | 1,107 | 554 | 145,999 | 8 / 1,152 |
+| 'All Patrol' named | 2 | 1 | 2 | 177 | 1,368 | 737 | 163,183 | 765 / 0 |
+| named + the 4 gargoyles shy | **0** | **0** | **0** | 162 | **886** | **349** | 150,488 | 1,484 / 0 |
+
+- The patrol alone sent the pets off more and the gargoyles (not shy then) found Logan more: both deaths were gargoyles
+  with flamekin and a scorcher, one at the crimson gate on the way out (5136, 2646), one at (5126, 2611) [INFERENCE: the
+  pets away on a patrol]. With the gargoyles shy the step-in, back-off and patrol put the pets first on them too.
+- The rope's landing named the same way (and the simulator's rope answer by `_ground_point`) leaves the batch
+  unchanged to the run (no reds in these batches, so no rope). Naming the corridors' block 0x65BE too: 1 run with a
+  death, 2 "recall home failed (moongate: overall timeout)", 139,428 gp an hour, 29 patrols refused: dropped.
+- test_sim `test_ssc_patrol_named` (fails before: 0 patrols, 2 refused), `test_ssc_rope` (fails on graphic 0).
+
 **Open on Shadowspire Cathedral:**
 
 - The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).

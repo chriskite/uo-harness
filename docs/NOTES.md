@@ -7287,6 +7287,45 @@ scenario (docs/SIM.md "Shadowspire Cathedral"). Decoded with `replay.timed_packe
 - 58, 64, 22 and 4 other players seen in the four captures; very busy (warning ravens after murders, a guild's 'Reds
   SSC1' notice after the 10-31 death).
 
+## Shadowspire Cathedral: the first live run (2026-11-09 12:01, hunt-20261109-120117-0eb1)
+
+Logan with Borealish 0x000E68B5 (body 1503) and AlaFlambe 0x0026EF56, level 1, the ssc-shift skill's command. The
+first trip went in by the "SSC Inside" row and left by the crimson gate at 12:16:29 (26,240 gp carried, V*), back in
+for the second; no death, Logan 100/100 at each glance. User at ~12:15: "The SSC runner seems to be doing a bad job of
+getting ranged mobs to aggro our pets and not Logan... we keep taking the first shot to the face from crimson
+gargoyles, iron gargoyles, etc. It looks like its occasionally trying to 'All Patrol' but the pets don't actually
+patrol". Two causes:
+
+- **Every 'All Patrol' refused.** 12:02-12:10, seven of seven: `said "All Patrol"`, then "'All Patrol' to (5118,
+  2482): cannot be seen; not trying the frost mephit again for 60 s" (and at stonekins, a blood mephit). The click
+  went out at graphic 0, and the server reads graphic 0 as the land at its own height (the Tidal Tomb songs' finding,
+  "Tidal Tomb: the oxygen leg's back-off loop"). Level 1's land is the invalid 0x244 at z -75 under statics 0x750
+  (35) and a floor at 37-40: 0x4B91/0x4B92 (flat, z 40) or 0x65BE (height 5, top 39). From Logan's eye the land is out
+  of sight. The songs had named the floor static since 2026-10-27 (`Team.song_spot`); the patrol never did. Fixed:
+  `tamer.ground_target` names both (docs/PLAN.md). A 0x65BE tile (the corridors: no flat floor on it) is no spot,
+  as the songs' rule has it. Naming the block too (0x65BE at 37) was tried in the simulator and dropped: level 1, 48
+  runs, against flat floors only, gold an hour -7 %, a death and two moongate timeouts, and a Mausoleum career test
+  (`test_career_junctures`) left a pet behind [INFERENCE: whether the server would take it is untried live].
+- **The rope too (the Seer, 12:23:32-58):** the red leave from Lord Crafty Pants (14 tiles) walked 62 steps to the
+  crimson gate under mud-spray ticks (99 -> 54), both pets along, home 12:23:58. All four ropes "no jump (cliloc
+  500237)" (12:23:33, :39, :45, :53, "rope to (5131, 2618) (9 tiles …)"): the same graphic 0. Fixed with the patrol
+  (`HuntLoop.rope_jump` lands only where `tamer.ground_at` names the tile). The simulator's rope answer took the stand
+  point and missed it; it now takes the answer's ground point (`World._rope_target` -> `_ground_point`), and test_sim
+  `test_ssc_rope` fails on graphic 0.
+- Logan's hits_max read 89 after the flight (status [84, 89]) [INFERENCE: a stat loss to a special or the
+  intimidation; not followed up].
+- **The gargoyles take Logan first.** `sim/wake_scan.py` on capture 20261109_113055 with level 1's box and the
+  gargoyles counted as shy (a throwaway driver): 13 wakes with positions, 7 with an act on one of us before 12:13.
+  Logan took the first act 6 times (iron gargoyle 3, crimson 2, mud 1: numbers 5-19 over him), AlaFlambe once (an iron
+  gargoyle at 6, all three of us in its sight). Each Logan case: he stood at 10 from it, in its sight and range, with
+  both pets a tile behind him at 11 ("Logan seen first" 7 of 7); 5 of 7 then switched to a pet within 2.6-5.3 s. The
+  runner's log there: "crawl: crimson gargoyle 0x003A2819 in view at 16 tiles: patrolling toward it", "holding here:
+  crimson gargoyle in sight at 10 tiles: letting it come". They are meleemages (wiki), so not `aggro.shy`: no
+  step-in, no back-off, no patrol, only the hold that lets them come. Fixed: the four spraying gargoyles are shy
+  (`aggro.SHY_EXTRA`).
+- Simulator numbers before/after: docs/SIM.md "Shadowspire Cathedral". The fix reaches the Seer at its next
+  `ctl run`.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

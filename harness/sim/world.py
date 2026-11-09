@@ -4026,7 +4026,12 @@ class World:
         if not self.walk.objects(x, y) or self._occupied(x, y):
             self.send(P.cliloc(501942))
             return
-        if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), (x, y, z)) is not None:
+        # the point the answer names (_ground_point: graphic 0 the land at its own height; live 2026-11-09 12:23:33-53
+        # four ropes at graphic 0 on Shadowspire level 1, its land at -75 under the floor, each 500237)
+        point = self._ground_point(f)
+        if point is None:
+            return
+        if self.sight.point_blocked((pl.x, pl.y, pl.z + los.EYE), point) is not None:
             self.send(P.cliloc(500237))
             return
         it = self.items[pend["item"]]

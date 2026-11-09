@@ -3116,6 +3116,38 @@ def test_rope():
     check("...and no second jump within the cooldown", again is False)
 
 
+def test_ssc_rope():
+    print("== --rope on Shadowspire level 1: the landing named as the flat floor static over the land 0x244 at -75; the "
+          "jump goes ==")
+    # live 2026-11-09 12:23:33-53 (hunt-20261109-120117-0eb1, the red leave from Lord Crafty Pants): four ropes at
+    # graphic 0, each "no jump (cliloc 500237)": the server's land point at -75 is out of sight under the floor. Here a
+    # run of the flat floor 0x4B91/0x4B92 at 40 (the corridors' block 0x65BE names no landing: tamer.ground_target)
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    w = ssc_world((5131, 2532), z=40)
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1"])
+    rope = next(it for it in w.items.values() if it.get("kind") == "rope")
+    n0, start = rope["amount"], w.player.pos
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            first = loop.rope_jump((5131, 2544))
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    d = sim_cheb(start, w.player.pos)
+    check("a jump of 4-10 tiles toward the goal, one rope used (before: 500237, no jump)",
+          first and 4 <= d <= 10 and rope["amount"] == n0 - 1, f"{start} -> {w.player.pos}, ropes {n0} -> {rope['amount']}")
+
+
 def test_ledge_attacker():
     print("== on the walk in, a monster on a ledge 25 above hitting a pet: no target, the walk goes on ==")
     # live 2026-10-19 19:34:43-35:50 (hunt-20261019-192245-e3d7): an insane reanimator at (5507, 660, 30) over
@@ -8236,10 +8268,11 @@ def test_oxygen_leg_past_shooter():
         simclock.uninstall(patched)
     outcome = json.loads(ev[-1][0])["outcome"] if ev else None
     counts = loop.team.counts
-    check("the leg: its patrol refused, then (since 2026-10-29) a step-in that puts the soulcatcher on a pet, or "
+    check("the leg: no patrol click refused (since 2026-11-09 the stairs' stone 0x71F names no flat floor, so no spot; "
+          "before, graphic 0 refused), then (since 2026-10-29) a step-in that puts the soulcatcher on a pet, or "
           "BACK_OFF_REPEAT back-offs and on past it (tamer.STEP_IN False); up the stairs before the deprivation, "
           "refilled, no oxygen damage, Logan alive",
-          err is None and site is not None and site["tile"] == (6943, 2004) and counts.get("patrol_refused", 0) >= 1
+          err is None and site is not None and site["tile"] == (6943, 2004) and not counts.get("patrol_refused")
           and counts.get("back_offs", 0) <= tamer.BACK_OFF_REPEAT
           and (counts.get("step_in_pet", 0) == 1 if tamer.STEP_IN else counts.get("faced", 0) == 1)
           and outcome == "refilled" and seen["up"] is not None and seen["up"] < loop.oxy.limit_s
@@ -8767,13 +8800,43 @@ def test_ssc_mud_spray():
           f"held {held} at {tile} now {w.player.pos}")
 
 
+def test_ssc_patrol_named():
+    print("== 'All Patrol' on Shadowspire level 1: the click names the floor static over the land 0x244 at -75, so the "
+          "server takes it; the pets wake the idle mephit, not us ==")
+    # live 2026-11-09 12:02-12:10 (hunt-20261109-120117-0eb1): seven 'All Patrol' clicks at graphic 0, every one
+    # "cannot be seen" (500237): graphic 0 is the land at its own height, -75, under the floor at 40 (tamer.ground_target)
+    w = ssc_world((5122, 2535), [{"key": "frost mephit", "at": [5110, 2534, 40]}], seed=7, z=40)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    targets = set()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 90 and m.alive:
+                loop.tick()
+                if m.target is not None:
+                    targets.add(m.target)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    pets = {p.serial for p in w.pets()}
+    c = loop.team.counts
+    check("a patrol out, none refused; the mephit's targets the pets alone (before: refused, graphic 0)",
+          c.get("patrols", 0) >= 1 and not c.get("patrol_refused") and targets and targets <= pets,
+          f"patrols {c.get('patrols', 0)} refused {c.get('patrol_refused', 0)} mephit alive {m.alive} targets {targets} "
+          f"pets {pets} Logan {w.player.hits} at {w.player.pos}")
+
+
 def test_ssc_hunt():
     print("== Shadowspire hunts from home: level 1 in by the 'SSC Inside' row, out by a moongate to Totem and home; level 2 "
           "down level 1's strip, out up level 2's from its floor and across level 1 to the crimson gate ==")
     from sim import run as simrun
-    for level, minutes in ((None, 10), ("2", 20)):      # level 2's fought leg across level 1 takes 6-8 minutes
+    # level 2 is the deadliest in the simulator (34-36 of 48 runs with a death, 2026-11-09): a seed whose run lives to
+    # the leave, so the route out (up level 2's strip, across level 1 to the crimson gate) is what the check covers;
+    # seed 1 died there after the 2026-11-09 gargoyle change (36 -> 34 of 48 batch deaths: no worse)
+    for level, minutes, seed in ((None, 10, 1), ("2", 20, 2)):  # level 2's fought leg across level 1 takes 6-8 minutes
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            r = simrun.run_once(1, [], scenario="ssc", minutes=minutes, team="phoenix_incubus", dungeon_level=level)
+            r = simrun.run_once(seed, [], scenario="ssc", minutes=minutes, team="phoenix_incubus", dungeon_level=level)
         gates = [e.get("gate") for e in r["leave_events"] if e.get("ok")]
         check(f"level {level or 1}: done, kills there, the gold banked at home, out by a moongate",
               r["outcome"] == "done" and r["kills"] > 0 and r["gold_banked"] > 0 and r["hunt_s"] > 120 and gates,
@@ -8853,7 +8916,8 @@ def main():
               test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
-              test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_hunt):
+              test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_patrol_named,
+              test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

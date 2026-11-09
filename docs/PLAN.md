@@ -3903,6 +3903,24 @@ wall, closing that landing for every later run.
     1.28 -> 1.65 an hour [INFERENCE: mostly the full time on level 2 that those runs now get]. Level 1, 96 runs: no
     death.
 
+## 'All Patrol' named as the client names the floor; Shadowspire's spraying gargoyles shy (user 2026-11-09)
+
+User, during the first live Shadowspire run: "we keep taking the first shot to the face from crimson gargoyles, iron
+gargoyles, etc. It looks like its occasionally trying to 'All Patrol' but the pets don't actually patrol" (docs/NOTES.md
+"Shadowspire Cathedral: the first live run"). Decisions:
+
+- *'All Patrol' clicks and rope landings name the tile as the songs' do* (`tamer.ground_target` / `ground_at`, shared
+  with `Team.song_spot` and `HuntLoop.rope_jump`): the flat floor static on top where the floor stands over the land,
+  else the land. Graphic 0 everywhere was the bug; every patrol and every rope on level 1 was refused. A tile with
+  neither is no spot. Naming a block whose top is the floor (the corridors' 0x65BE) too was tried in the simulator and
+  dropped (gold -7 %, a death, two moongate timeouts in 48 runs; docs/NOTES.md).
+- *The mud, golden, iron and crimson gargoyles are shy* (`aggro.SHY_EXTRA`, as the shadowguard): their spray reaches 12,
+  so the step-in, back-off and patrol rules put the pets first. Alone, the patrol fix gave more damage on Logan (the
+  gargoyles' 554 -> 737 an hour, 2 runs with a death in 48); with both, 886 an hour against 1,107 before, no death, gold
+  +3 % (docs/SIM.md "Shadowspire Cathedral").
+- Not done: keeping the pets ahead of Logan on the crawl's walk toward a monster in view (the gargoyles' wakes found him a
+  tile ahead of them); the shy rules cover the four kinds that hit from range.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
