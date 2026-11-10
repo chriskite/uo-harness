@@ -699,9 +699,12 @@ Paste this (or point the session at this section) to start an overseer.
 >    Tidal Tomb's level 3 has never been run live by the runner; level 2 has (user 2026-10-29). Its oxygen rule
 >    (docs/HUNT_LOOP.md "Oxygen") fights to a refill before 732 s under water: on level 3 the nearest Recovery Dolphin,
 >    on level 2 the arrival stairs, a step up to level 1 at (6717-6719, 1984) and straight back down (intent "oxygen:
->    ...", a few seconds on level 1: not Logan on another level). In the simulator runs with a death were 4 of 24
->    (level 2) and 5 of 24 (level 3) against Maus 3's 4 of 96 (docs/SIM.md "Level 2's bedrocks"). Start a level 3 run
->    only when the parent passes the user's go for it; level 2 needs none.
+>    ...", a few seconds on level 1: not Logan on another level). A leave under water short of air ends its fought walk
+>    (since 2026-11-10): "to the moongate: short of oxygen (N s under water, M steps to go); stopping short", then the
+>    plain walk out, no corpse looted: expected. Deprivation lines ("You suffer minor oxygen deprivation.") with the run
+>    still fighting or looting away from the gate are an issue for the parent. In the simulator runs with a death were 4
+>    of 24 (level 2) and 5 of 24 (level 3) against Maus 3's 4 of 96 (docs/SIM.md "Level 2's bedrocks"). Start a level 3
+>    run only when the parent passes the user's go for it; level 2 needs none.
 >    - **The Ossuary** (since 2026-10-31; the parent's `ossuary-shift` skill): `--enter-rune Ossuary` with the
 >      level's teleporters and gate below. The tome's "Ossuary" row lands **outside** at (1213, 2816); the first
 >      `--enter-via` is the entrance 8 tiles west of it, then level 1's west end, then level 2's south end.

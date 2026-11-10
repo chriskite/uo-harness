@@ -2882,6 +2882,23 @@ Move" buff for its ticks, `World._feed_step` -> `_root`); before, its ticks came
   2 -> 2, identical.
 - **Test:** `test_tele_dash_blocked` (the layout: "no dash: the way there passes the ...", then the stand).
 
+### Tidal Tomb: the leave short of air (2026-11-10)
+
+Live 10:44-10:49 the planned leave on level 2 fought for 2.5 min from ~531 s under water and the walk on looted while
+deprived (docs/NOTES.md "Tidal Tomb level 2: deprived on the leave"; the rule in docs/HUNT_LOOP.md "Oxygen", "The leave
+under water"). Runner only.
+
+- **Batch** (level 2, `--runs 32 --jobs 12 --careers 4 --others --prior` the main store; before = f6243e3):
+
+  | | runs with a death | deprivation on Logan | on the pets | runs deprived | banked an hour |
+  |---|---|---|---|---|---|
+  | before | 5 | 7,036 | 79,452 | 18 | 158.9k |
+  | after | 5 | 6,283 | 73,331 | 16 | 164.9k |
+
+- The simulator counts level 1 as dry, so its level 2 visits start the clock ~90 s later than live (NOTES above): live
+  leaves come nearer the deprivation than these runs'.
+- **Test:** `test_leave_short_of_air`.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

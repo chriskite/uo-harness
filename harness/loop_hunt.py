@@ -226,11 +226,15 @@ GATE_AWAKE_COST = 20         # ...an awake one this many (it comes on: the pets'
 # fleeing a red it sure seems like we should just fight as normal to the gate. We die so often when the runner 'walks
 # out'."; docs/NOTES.md "Ensnared on the walk out"): the whole walk to the tile beside the gate is a fought leg
 # (walk_in_fought: what's in reach pulled and killed, the shy ones' first sight backed off from, the pets sent first and
-# healed and with us before each advance), up to GATE_FOUGHT_S, never while deprived of oxygen; a leave rule that isn't
-# a planned one (a hostile player, our hits, a pet) ends it and that leave goes on as it would anyway (the flight, the
-# run); after GATE_FOUGHT_S or under water, the plain walk with its stops. From 2026-11-01 only the last 30 route steps
-# were fought (Tidal Tomb level 2's gate pocket, docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
+# healed and with us before each advance), up to GATE_FOUGHT_S, never while short of oxygen (leave_air); a leave rule
+# that isn't a planned one (a hostile player, our hits, a pet) ends it and that leave goes on as it would anyway (the
+# flight, the run); after GATE_FOUGHT_S or short of oxygen, the plain walk with its stops. From 2026-11-01 only the last
+# 30 route steps were fought (Tidal Tomb level 2's gate pocket, docs/NOTES.md "Tidal Tomb level 2: the gate pocket's
+# crossfire")
 GATE_FOUGHT_S = 600.0         # 0: no fought leg (the plain walk)
+LEAVE_OXY_MARGIN_S = 60.0     # under water the fought leg ends once the gate's route at OXY_STEP_S a step would end
+#                              less than this before the deprivation (live 2026-11-10 10:44:06-10:47:16: from 531 s
+#                              under water 2.5 min of fighting and 148-step detours, the deprivation 66 steps short)
 FLOOR_DETOUR = 4              # a target in reach: a walk to beside it at most this many steps longer than the beeline...
 FLOOR_Z_TOL = 10              # ...ending within this of its surface z (live: a vampire on a ledge 20 above, 11 steps round)
 LOOT_WEIGHT_MARGIN = 10       # stones kept free below the weight limit: overloaded, we can't run (live 475/450), and
@@ -473,6 +477,8 @@ class HuntLoop:
         self.oxy_plan_t = -1e9
         self.oxy_retry_t = -1e9                  # no refill leg before this (a failed one)
         self.oxy_why = None                      # why the last refill leg stopped short (oxygen_bail)
+        self.leave_air_plan = (-1e9, None)       # leave_air: when the gate's route was last planned, and its steps
+        self.leave_short_air = None              # why this leave's fought leg ended for the air: no looting on the way
         self.escape_tried = False                # escape_home ran: an error after it ends the run where it stands
         self.halt = None                         # why an error ends the run without the escape (a death, a restriction)
         self.rope_next = 0.0                     # --rope: the next rope jump not before
@@ -2890,6 +2896,7 @@ class HuntLoop:
                     "dest": self.args.gate_dest}
         finally:
             self.walking_out = self.pk_flight = self.left_level = self.walk_out_fought = False
+            self.leave_short_air = None
 
     def leave_fought(self, gate, near, severity: str, through) -> tuple[str, bool]:
         """A planned leave's way to `near` (beside the gate) fought as the hunt fights (walk_in_fought: the pets on guard,
@@ -2897,21 +2904,22 @@ class HuntLoop:
         and with us before each advance, the loot). User 2026-11-03, after the 23:33 death on Maus 3's walk out (the plain
         walk took Logan, the pets on follow behind him, 3-4 tiles past an idle shadowguard; it woke on him and ensnared
         him twice; docs/NOTES.md "Ensnared on the walk out"): "If we're not fleeing a red it sure seems like we should
-        just fight as normal to the gate. We die so often when the runner 'walks out'." Stops short under water while
-        deprived of oxygen, after GATE_FOUGHT_S, or on a leave rule that isn't a planned one (leave_reason: a hostile
+        just fight as normal to the gate. We die so often when the runner 'walks out'." Stops short under water when
+        short of oxygen (leave_air), after GATE_FOUGHT_S, or on a leave rule that isn't a planned one (leave_reason: a hostile
         player, our hits, a pet): the walk on is that leave's. Attacked or hit within GATE_DASH_R of the gate: through it
         now (live 2026-10-17 19:04:15, user: "We were at the gate and Logan just stood there dying instead of going
         through"). `through(st)`: leave_by_one_gate's jump watch, read on every step (a gate gone through on the way ends
         the leg; its last tile kept current). -> (the severity the rest of the walk goes on with, the dash through the
         gate)."""
         t_end = time.monotonic() + GATE_FOUGHT_S
+        self.leave_air_plan = (-1e9, None)
         out = {"to": None, "dash": False}
 
         def bail(s):
             if through(s):
                 return "through the gate"
-            if self.oxygen_floor() is not None:
-                return "deprived of oxygen"
+            if (why := self.leave_air(s, near)) is not None:
+                return why
             if time.monotonic() > t_end:
                 return f"{GATE_FOUGHT_S:.0f} s of fighting"
             if (reason := self.leave_reason(s)) is not None and reason[1] not in PLANNED:
@@ -2931,6 +2939,32 @@ class HuntLoop:
         self.count("leaves_fought_switched")
         log(f"to the moongate: {why}; the rest of the way as {'a flight' if severity == 'urgent' else 'that leave'}")
         return severity, False
+
+    def leave_air(self, st, near) -> str | None:
+        """leave_fought's reason to stop short for the air under water (user 2026-11-10, live 10:44-10:49 on Tidal Tomb's
+        level 2: "Logan has oxygen deprivation and needs to leave but the runner is still hunting"): deprived, or the
+        route to `near` (planned again every OXY_PLAN_S) at a fought leg's pace, OXY_STEP_S a step, ending less than
+        LEAVE_OXY_MARGIN_S before the deprivation. Kept in leave_short_air: the rest of the walk out loots nothing
+        (_walk_in_fight)."""
+        if self.oxy is None:
+            return None
+        now = time.monotonic()
+        el = self.oxy.elapsed(now)
+        if el is None:
+            return None
+        why = None
+        if self.oxy.deprived(now):
+            why = "deprived of oxygen"
+        else:
+            if now - self.leave_air_plan[0] >= OXY_PLAN_S:
+                path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
+                self.leave_air_plan = (now, len(path) - 1 if path else None)
+            steps = self.leave_air_plan[1]
+            if steps is not None and el >= self.oxy.limit_s - LEAVE_OXY_MARGIN_S - steps * OXY_STEP_S:
+                why = f"short of oxygen ({el:.0f} s under water, {steps} steps to go)"
+        if why is not None:
+            self.leave_short_air = why
+        return why
 
     def leave_up(self, severity: str):
         """--leave-via: the leave gate a level or more above the hunt's (Tidal Tomb's level 3, its crimson gate on level
@@ -4411,7 +4445,8 @@ class HuntLoop:
                 continue
             if not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S \
                     and not (way == "out" and self.coming(st)):
-                if (c := self.loot_next()) is not None:
+                # short of oxygen on the way out: the corpses stay (user 2026-11-10: "needs to leave")
+                if not (way == "out" and self.leave_short_air) and (c := self.loot_next()) is not None:
                     self.loot(c)
                     continue
                 break

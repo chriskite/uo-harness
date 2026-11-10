@@ -1681,6 +1681,13 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
     (refill kind, tile, seconds under at the start, route steps, monsters near it, seconds, outcome, hits).
 - **Healing while deprived** (`heal_at_now`, `Team.heal_at`): `--heal-at` and `--pet-heal-at` go no higher than the
   deprivation's floor (66 %): the drain takes back every hit healed above it, a potion's 25-45 in 30-50 s.
+- **The leave under water** (`leave_air`, user 2026-11-10: "Logan has oxygen deprivation and needs to leave but the
+  runner is still hunting"): a planned leave's fought leg to the gate (leave_fought) ends once the gate's route (planned
+  again every `OXY_PLAN_S`) at `OXY_STEP_S` a step would end less than `LEAVE_OXY_MARGIN_S` 60 s before the deprivation,
+  or at the deprivation: "to the moongate: short of oxygen (N s under water, M steps to go); stopping short". The rest is
+  the plain walk with its stops; its fights on the way loot no corpse. Live 2026-11-10 visit 3's leave began at ~531 s
+  under water, 66 steps from the gate, and fought for 2.5 min with 148-step detours; the deprivation hit 3 min in
+  (docs/NOTES.md "Tidal Tomb level 2: deprived on the leave").
 - **Not covered:** the fought walk in across level 2 to level 3 (11-20 game minutes in the simulator) has no refill
   leg of its own; it ends 11 tiles from the arrival's dolphin, which refills on the first leg there.
 - **Simulator** (docs/SIM.md "Oxygen: the refill legs"; 48 runs a side, one tree): level 3, Logan's deprivation

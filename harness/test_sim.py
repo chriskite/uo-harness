@@ -6366,6 +6366,37 @@ def test_leave_fought_shadowguard():
                                                                                 f"fails {fails}")
 
 
+def test_leave_short_of_air():
+    print("== Tidal Tomb level 2 (live 2026-11-10 10:44:06-10:49:48): a planned leave 650 s under water, 62 steps from the "
+          "crimson gate past a combustive zoa, a drowned mariner and a giant pincer crab: the fought leg ends at once, "
+          "short of oxygen; through the gate with no deprivation and no corpse looted, seeds 1-4 ==")
+    # live: "LEAVING by the moongate at (6913, 2071)" at ~531 s under water, then 2.5 min of fighting and 148-step detours
+    # (the fought leg stopped only when deprived), the go-home run's walk out deprived and still looting. Before: each seed
+    # fought and looted 3 corpses, 98-108 s, the deprivation's hits 15-25 on Logan
+    spawns = ({"key": "combustive zoa", "at": [6887, 2067, -100]}, {"key": "drowned mariner", "at": [6900, 2068, -100]},
+              {"key": "giant pincer crab", "at": [6905, 2062, -100]})
+    rows = []
+    for seed in range(1, 5):
+        w = tidal_world((6850, 2071), spawns, seed=seed, z=-10)
+        w.under_s = 650.0
+        hurts = _log_hurts(w)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                loop, link, clock, store, patched = _oxygen_loop(
+                    w, ["--leave-gate", "6913", "2071", "--leave-gate", "6897", "1992"])
+                clock.sleep(7.0)                    # one 'Oxygen' gump at least: the clock read off it
+                res = loop.leave_by_gate("return")
+                store.close()
+        finally:
+            simclock.uninstall(patched)
+        oxy = sum(n for _, v, k, n in hurts if k == "oxygen" and v is w.player)
+        loots = sum(1 for ln in buf.getvalue().splitlines() if " looted " in ln)
+        rows.append((seed, bool(res.get("ok")), oxy, loots, w.player.alive))
+    check("through the gate alive in each, no deprivation's hit on Logan, no corpse looted",
+          all(ok and oxy == 0 and loots == 0 and alive for _, ok, oxy, loots, alive in rows),
+          f"(seed, through, oxygen hits, loots, alive) {rows}")
+
 
 def test_tidal_voidfin_dive():
     print("== Tidal Tomb: a voidfin's dive: 0.5 s after its spin under (0x1D) ~2.9 s, the pets holding; up 1-2 from its "
@@ -8933,7 +8964,8 @@ def main():
               test_cast_then_flight, test_cast_lost_out_of_range, test_cast_not_interrupted, test_trace_roundtrip,
               test_trace_no_side_effects, test_scenario_inherit, test_chain_links, test_tidal_oxygen, test_tidal_dolphin,
               test_tidal_ooze_and_brood, test_tidal_dig, test_tidal_leave_coming, test_tidal_pinch,
-              test_tidal_leave_crab, test_tidal_leave_pocket, test_leave_fought_shadowguard, test_tidal_voidfin_dive,
+              test_tidal_leave_crab, test_tidal_leave_pocket, test_leave_fought_shadowguard, test_leave_short_of_air,
+              test_tidal_voidfin_dive,
               test_tidal_large_swing,
               test_tidal_scorch, test_scorch_telegraph, test_scorch_stand_off, test_standoff_war_sight,
               test_scorch_windup_step,

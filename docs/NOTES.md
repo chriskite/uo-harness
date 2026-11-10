@@ -8807,6 +8807,29 @@ message: 'Barding break avoided for a razorfin')", an urgent `server_restriction
 (6864, 2053) at 100/100 (the Seer's go-home run at once, hunt-20261110-104638-ca6a). Fix: `razor(?![a-z]|-sharp)`, no
 "razor" running on into a longer word. test_sim `test_tidal_specials5`'s guard check takes the line (fails before).
 
+## Tidal Tomb level 2: deprived on the leave (live 2026-11-10 10:44:06-10:49:48, hunt-20261110-101641-8ad9, -104638-ca6a)
+
+User ~10:50: "Logan has oxygen deprivation and needs to leave but the runner is still hunting". Same visit as above.
+The store's 'Oxygen' gumps (0xEC5F8754) and system lines:
+- **The clock ran from the recall in, level 1 too.** Each visit's gump came full at the recall onto level 1 (10:17:23,
+  10:24:40, 10:35:15) and its second bar fell a step every ~30 s from then on, the ~92 s walk across level 1 included
+  (28135 at 10:35:15, 28131 at 10:36:46 still on level 1). The runner's `oxygen.Clock` (and the simulator) count level 1
+  as dry and start at level 2's arrival; the next gump moves the runner's clock to the bars' middle, so it was off by
+  <= 15 s. [INFERENCE: level 1 counts as under water after a recall; the hop up from level 2 refilled live on 10-24 and
+  10-29, so arriving by the teleporter may refill.] The simulator's level 2 runs get those ~90 s of air for free.
+- **The leave.** 10:44:06 "LEAVING by the moongate at (6913, 2071): taking the loot home ... 66 steps" at ~531 s under
+  water. The fought leg (leave_fought) bailed only once deprived. Its routes: 66, 30, 148, 112, 89, 148, 65, 56, 128, 112
+  steps (the back-offs from a combustive zoa, a drowned mariner, a soulcatcher, each "keeping out of sight ... for 60 s",
+  turned the way round); 2 kills, a loot; at 10:46:30 it stood at (6864, 2053), 60 route steps off: 6 nearer in 2.4 min.
+- **The go-home run** (10:46:38) fought the same leg; 10:47:16 "You are now experiencing minor oxygen deprivation!",
+  10:47:22 "to the moongate: deprived of oxygen; stopping short"; the plain walk's fights ("attacked on the way out; the
+  pets guard") killed 5 and looted 3 corpses (10:47:50-55, 10:49:32-45) on 62 steps; through the gate 10:49:48, 25
+  "You suffer minor oxygen deprivation." lines.
+- **Fix** (docs/HUNT_LOOP.md "Oxygen", "The leave under water"): `leave_air` ends the fought leg once the gate's route at
+  `OXY_STEP_S` 3 s a step ends less than `LEAVE_OXY_MARGIN_S` 60 s before the deprivation; the walk on loots nothing.
+  test_sim `test_leave_short_of_air` (the live trio round the gate pocket at 650 s under: before, 98-108 s, 3 corpses
+  looted, 15-25 deprivation hits on Logan in each of 4 seeds; after, 22-34 s, none).
+
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
 Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's
