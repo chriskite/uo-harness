@@ -7705,8 +7705,10 @@ def test_tidal_specials5():
           all(len(p.bleed_stacks) == 1 and p.bleed_stacks[0][2] == 18 for p in pets) and not w.player.bleed_stacks
           and not nums, f"{[(p.name, p.bleed_stacks) for p in pets]} {nums}")
     from errand_bank import gating
-    check("the runners' restriction guard: not the razorfin's 'Razor-sharp fins cause you to bleed!', still 'Razor'",
-          not gating("Razor-sharp fins cause you to bleed!") and gating("The use of Razor is not allowed here."))
+    check("the runners' restriction guard: not the razorfin's 'Razor-sharp fins cause you to bleed!' nor 'Barding "
+          "break avoided for a razorfin', still 'Razor'",
+          not gating("Razor-sharp fins cause you to bleed!") and not gating("Barding break avoided for a razorfin")
+          and gating("The use of Razor is not allowed here.") and gating("Razor's use is restricted."))
 
 
 def pet_rules_heal_mult(p):

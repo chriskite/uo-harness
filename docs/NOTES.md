@@ -8796,6 +8796,17 @@ verbatim. Started at the DTF guild landing (4134, 1429): §5 step 2's recall hom
 - **No line of the changes since 11-02 misfired here**: no 500237 refusal, no stray one-way teleporter line, no disease
   shooter hold (none met). A player fighting nearby once: his monster left alone.
 
+## Tidal Tomb level 2: "Barding break avoided for a razorfin" read as a restriction (live 2026-11-10 10:46:30, hunt-20261110-101641-8ad9)
+
+Level 2 shift, pets Clicquot 0x000DF914 and Borealish 0x000E68B5, the level 2 command of OVERSEER §5. Visits 1-3
+home with 33k, 30k, 28k gp, no death. Visit 3's leave ("taking the loot home: 32168 gp carried ... >= V* 27553") began
+to the moongate with the pets on a razorfin; 10:46:25 "Peacemaking on a razorfin: success", then the server's system
+line "Barding break avoided for a razorfin" [INFERENCE: a hit on the calmed monster that didn't break the peace].
+`errand_bank.GATING`'s `razor(?!-sharp)` matched "razorfin": "ABORTED: recall home failed (moongate: server restriction
+message: 'Barding break avoided for a razorfin')", an urgent `server_restriction` juncture, Logan alive on level 2 at
+(6864, 2053) at 100/100 (the Seer's go-home run at once, hunt-20261110-104638-ca6a). Fix: `razor(?![a-z]|-sharp)`, no
+"razor" running on into a longer word. test_sim `test_tidal_specials5`'s guard check takes the line (fails before).
+
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
 Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's
