@@ -8783,6 +8783,19 @@ Capture 20261102_121104 replayed (scratch scripts):
   (lowest under 50 7 -> 16: the stand is longer). A dash round them found a way in 1 of 24. Level 2 (192 one-run
   careers) runs with a death 13 -> 14, Maus 3 (96) 2 -> 2: it seldom comes up.
 
+## Tidal Tomb level 1 shift 2026-11-09 20:05-22:50 (hunt-20261109-200553-b564, -220403-ccad)
+
+The first Tidal Tomb runs since 2026-11-02, on the runner as of d1efb72 (the 11-02..11-09 changes all first run live on
+Maus 3, the Ossuary or SSC). Pets Clicquot 0x000DF914 and Borealish 0x000E68B5; the level 1 command of OVERSEER §5,
+verbatim. Started at the DTF guild landing (4134, 1429): §5 step 2's recall home first, then the drop-off.
+- **Totals**: 9 visits, 680 kills, ~218k gold banked; lost_kills 0-3 a visit. No death, no pet_down or
+  pet_left_behind, no task_failed, no red; Logan never off level 1. One stop --after-trip for the 21:58 break, the
+  last at the user's word.
+- **Leaves**: every one by a golden gate, the easiest of the three ((6685, 2064) and (6642, 2062) both chosen), Totem
+  on each menu, the tome home.
+- **No line of the changes since 11-02 misfired here**: no 500237 refusal, no stray one-way teleporter line, no disease
+  shooter hold (none met). A player fighting nearby once: his monster left alone.
+
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
 Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's
