@@ -8840,7 +8840,7 @@ reports): hunt-20261110-101641-8ad9 (3 visits, ~91k gp, the razorfin abort above
 gp carried), -105030-eba8 (15.2k), -105934-f0fb (3 visits, 83 kills, 71.5k), -113049-013d (6 visits, 172 kills, ~252k
 banked by 6 drop-offs), -124826-a7cc (61 kills, 64.3k; one leave on a red player, BabyFace Punishr, 12:53:40).
 - No death, no pet down or left behind. Every leave by one of the two crimson gates to Totem.
-- 9b2682f's "short of oxygen" leave fired 4 times live (11:10:51 536 s, 12:28:25 514 s, 13:14:01 528 s under water,
+- 9b2682f's "short of oxygen" leave fired 3 times live (11:10:51 536 s, 12:28:26 514 s, 13:14:01 528 s under water,
   47-64 steps to go); no deprivation line seen after it. Stair refills at 160-207 s legs.
 - **The shelf ran dry.** Level 2 used ~4 heal potions and ~35 vet supplies a visit. At 12:48 the storage resupply
   answered "nothing" with nothing flagged missing and the Seer read the pack as at loadout; it held 20 heal potions and
