@@ -7358,6 +7358,10 @@ script):
   148 past them cut off 137 before it)": the crimson gate. A rope 9 tiles along the way (17 -> 26 tiles from him),
   beside the gate at 17:19:01, Totem at 17:19:02, home 17:19:05: 7 s from the leave to Totem. User: "It was a clean
   looking red escape".
+- **The rest of the shift on 98168c0 + ac00da2** (hunt-20261109-171616-ca0e 17:16-18:42, -184359-087b 18:44-19:25,
+  ended at the user's word): 119 kills, ~119k gold, 11 leaves (2 from reds, both through the gate within 10 s of
+  the leave), no death, no pet left behind; no 'All Patrol' or rope refused; one 'All Kill … cannot be seen' in each
+  run (the existing rule, no repeat).
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
