@@ -8829,6 +8829,9 @@ The store's 'Oxygen' gumps (0xEC5F8754) and system lines:
   `OXY_STEP_S` 3 s a step ends less than `LEAVE_OXY_MARGIN_S` 60 s before the deprivation; the walk on loots nothing.
   test_sim `test_leave_short_of_air` (the live trio round the gate pocket at 650 s under: before, 98-108 s, 3 corpses
   looted, 15-25 deprivation hits on Logan in each of 4 seeds; after, 22-34 s, none).
+- **Live on the fix** (hunt-20261110-105934-f0fb, 10:59-11:29, 3 visits, 83 kills, 71,489 gp, no death): visit 1's leave
+  "to the moongate: short of oxygen (536 s under water, 47 steps to go); stopping short", through the gate, no
+  deprivation line; visit 2 a stairs refill ("refilled after 207 s"); no deprivation line in the run (the Seer's report).
 
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
