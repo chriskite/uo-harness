@@ -4679,6 +4679,63 @@ def test_tele_dash_blocked():
           "no dash: the way there passes the" in first and "attacked on the way in; the pets guard" in out, first)
 
 
+def test_tele_occupied():
+    print("== a bottomfeeder idle on level 1's teleporter (6718, 1984), Logan beside it below full stamina: the shove at "
+          "full (a stamina potion), else the pets at it and the step again; never 'no teleport after 3 steps' ==")
+    # live 2026-11-10 23:01:08.83 (hunt-20261110-224149-29c6): the step refused at 24/25 with a bottomfeeder on the tile,
+    # "no teleport after 3 steps", the escape's two more tries of it while it gripped and fed on him, dead 23:01:23.6
+    # (docs/NOTES.md "Tidal Tomb: dead at the teleporter down, gripped"); sim/fight2301.py replays it over seeds
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import pets as simpets
+    from sim import run as simrun
+
+    def run(potions):
+        sc = load("tidal_tomb")
+        simpets.select(sc, "phoenix_incubus", None)
+        sc["spawns"] = [{"key": "bottomfeeder", "at": [6718, 1984, -24], "respawn_s": [9999, 9999]}]
+        sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
+        sc["player"]["start"] = [6719, 1983, -19]
+        if not potions:
+            sc["loadout"]["items"] = [it for it in sc["loadout"]["items"] if it.get("kind") != "refresh_potion"]
+        w = World(sc, seed=1)
+        pl = w.player
+        pl.stam = pl.stam_max - 1
+        w.stam_next = 1e18 if not potions else None     # no regen: only a fight frees the step
+        for p in w.pets():
+            p.x, p.y, p.z = 6718, 1983, -18
+        link, clock = link_for(w)
+        db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+        args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, ["--vet-range", "5"], 10, at_hunt=True)
+                                                 + ["--memory", db, "--seed", "1", "--human", "off"])
+        patched = simclock.install(clock)
+        store = memory.Memory(db)
+        buf, err = io.StringIO(), None
+        try:
+            with contextlib.redirect_stdout(buf):
+                loop = loop_hunt.HuntLoop(link, store, args)
+                loop.team.setup(loop.state())
+                try:
+                    loop.walk_in_legs([(6718, 1984)])
+                except Exception as e:  # noqa: BLE001
+                    err = e
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        return err, buf.getvalue(), pl.x > 6738, w
+
+    err, out, through, w = run(True)
+    check("a stamina potion and the step again: through it, a shove (before: 'no teleport after 3 steps')",
+          err is None and through and "again at full (a shove)" in out and w.metrics["refresh_potions"] >= 1,
+          f"{err} {[ln for ln in out.splitlines() if 'teleport' in ln][-3:]}")
+    err, out, through, w = run(False)
+    check("no potion, no regen: the pets at what's on it, then the step again, through it",
+          err is None and through and "the pets at it, then the step again" in out
+          and "the teleporter's tile (6718, 1984) is free" in out,
+          f"{err} {[ln for ln in out.splitlines() if 'teleport' in ln][-3:]}")
+
+
 def walk_in_red(start, place, tiles):
     """A --pets runner from `start` on the walk in, a red placed by `place(w)` (None until it places one) as the world
     ticks; walk_in(tiles). -> (exception or None, the runner's log, world, loop)."""
@@ -8950,7 +9007,7 @@ def main():
               test_pull_budget, test_hold_first_sight, test_unseen_target_passed_over, test_ledge_target_not_picked,
               test_never_aggro_walk_out, test_crawl_seeks_in_view, test_rope,
               test_rest_hurt_pet, test_after_trip_stop_at_home_waits, test_walk_in, test_walk_in_fetch_pet,
-              test_wait_pets_attacked, test_tele_dash, test_tele_dash_blocked,
+              test_wait_pets_attacked, test_tele_dash, test_tele_dash_blocked, test_tele_occupied,
               test_walk_in_red_first_level,
               test_walk_in_red_second_level, test_escape_after_walk_in_error, test_go_home, test_go_home_tidal_level3,
               test_tidal_gate_no_dest,

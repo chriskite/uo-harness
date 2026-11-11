@@ -291,6 +291,13 @@ LOOT_REFUSED = re.compile(r"players cannot commit aggressive actions|you may not
 POLL_S = 0.4
 TELEPORT_TRIES = 3            # turn, step (+ one retry) onto a teleporter
 TELEPORT_WAIT_S = 1.0         # a confirmed step onto a teleporter: the move follows within this
+# A teleporter step refused with a mobile on its tile is no fault of the teleporter (live 2026-11-10 23:01:08.83,
+# hunt-20261110-224149-29c6: a bottomfeeder on Tidal Tomb's (6718, 1984), Logan at 24/25 stamina; a shove needs full,
+# docs/SIM.md "Shoving and stamina"); HuntLoop.teleport, onto
+TELE_SHOVES = 2               # ... below full stamina: a stamina potion, else the regen, and the step again (a shove)
+TELE_STAM_WAIT_S = 2.5        # ... no potion: wait this long for full stamina (a point back every 2.04 s)
+TELE_CLEAR_FIGHTS = 2         # ... still refused with a monster on it: the pets at it until the tile is free
+#                               (walk_in_fight's `clear`), then the step again; this many fights
 ONE_WAY_MOVES = 120           # onto a one-way teleporter from the wrong side or height: the aimed walk's moves (onto)
 WALK_IN_PETS_S = 20.0         # --enter-via: after 'All Follow Me', how much longer to wait for the pets (a teleporter, a lag)
 # A leave that isn't to survive (PLANNED: the time, the loot home, a walk's trouble; or one for a pet's sake with Logan
@@ -425,6 +432,15 @@ class WalkInFled(Exception):
     def __init__(self, why: str):
         super().__init__(why)
         self.why = why
+
+
+class TeleporterOccupied(Abort):
+    """The step onto a teleporter refused with a mobile (`serial`) on its tile (HuntLoop.teleport): not the teleporter's
+    fault, a fight for the tile (onto)."""
+
+    def __init__(self, why: str, serial: int):
+        super().__init__(why)
+        self.serial = serial
 
 
 def key_of(serial: int) -> str:
@@ -2082,8 +2098,17 @@ class HuntLoop:
     def teleport(self, d, what):
         """Step in direction d onto a teleporter (a turn first if not facing it). Some
         deny the step and then move you (the NPD exit, live 2026-09-30), others may
-        confirm it and move you right after."""
-        for _ in range(TELEPORT_TRIES):
+        confirm it and move you right after. A step refused with a mobile on the tile (on_tile) is not the
+        teleporter: below full stamina (a shove needs it) a stamina potion, else up to TELE_STAM_WAIT_S for the regen,
+        and the step again, TELE_SHOVES times; then TeleporterOccupied (onto fights for the tile). Live 2026-11-10
+        23:01:08.83 (hunt-20261110-224149-29c6): a bottomfeeder on Tidal Tomb's (6718, 1984) and Logan at 24/25; "no
+        teleport after 3 steps", and the escape's two more tries of it, while it gripped and fed on him (docs/NOTES.md
+        "Tidal Tomb: dead at the teleporter down, gripped"). A hold (a grip, a net) with nothing on the tile: waited
+        out, the step again."""
+        tries = shoves = holds = 0
+        while tries < TELEPORT_TRIES:
+            here = tuple(self.pos(self.link.state())[:2])
+            on_it = self.on_tile(self.link.state(), nav.step(here, d))
             self.mover.pace(True)
             out = self.mover.step(d, run=True)
             if out == "moved":
@@ -2095,9 +2120,65 @@ class HuntLoop:
                 return
             if out == "moved":
                 raise Abort(f"{what}: the step in direction {d} moved without a teleport")
+            st = self.link.state()
+            if out == "blocked" and on_it is not None:
+                serial, name = on_it
+                me = st["world"]["self"]
+                stam, top = me.get("stam"), me.get("stam_max")
+                if shoves < TELE_SHOVES and stam is not None and top and not self.mover.held(st):
+                    shoves += 1                  # at full by now (the regen since the step), or a potion, or the wait
+                    if stam >= top or self.refresh_potion() or self.link.wait(
+                            lambda s: (s["world"]["self"].get("stam") or 0) >= top, TELE_STAM_WAIT_S) is not None:
+                        log(f"{what}: the step refused with {name} on it at stamina {stam}/{top}; again at full "
+                            f"(a shove)")
+                        continue
+                raise TeleporterOccupied(f"{what}: the step onto it refused with {name} 0x{serial:08X} on it (stamina "
+                                         f"{me.get('stam')}/{top})", serial)
+            if out == "blocked" and holds < TELEPORT_TRIES and self.mover.held(st):
+                holds += 1
+                self.mover.wait_held(what)
+                continue
+            tries += 1
         raise Abort(f"{what}: no teleport after {TELEPORT_TRIES} steps in direction {d}")
 
+    def on_tile(self, st, tile) -> tuple[int, str] | None:
+        """(serial, name) of a live mobile standing on `tile`, not us and not our pets (they never block our step:
+        docs/SIM.md "Shoving and stamina"), else None."""
+        me, labels = self.me(st), st["world"].get("labels") or {}
+        ours = set(self.team.roster) if self.team is not None else set()
+        for key, m in st["world"]["mobiles"].items():
+            s = serial_of(key)
+            if s != me and s not in ours and not m.get("dead") and m.get("x") is not None \
+                    and (m["x"], m["y"]) == tuple(tile[:2]):
+                return s, labels.get(key) or m.get("name") or key
+        return None
+
     def onto(self, tile, label: str):
+        """The step from beside the teleporter `tile` onto it (_onto). Refused with a monster on its tile
+        (TeleporterOccupied): the pets at it until the tile is free (walk_in_fight's `clear`: potions, vet supplies,
+        the stand-off meanwhile), back beside it and the step again, TELE_CLEAR_FIGHTS times; not with a hostile
+        player in view (a red's flight stands for no fight) nor without pets, and not for a player or another's pet on
+        it."""
+        for n in range(TELE_CLEAR_FIGHTS + 1):
+            try:
+                self._onto(tile, label)
+                return
+            except TeleporterOccupied as e:
+                st = self.state()
+                mob, _ = self.live_target(st, e.serial)
+                label_of = (st["world"].get("labels") or {}).get(key_of(e.serial))
+                if n == TELE_CLEAR_FIGHTS or self.team is None or mob is None or mob.get("pet") \
+                        or threats.identify(mob, label_of)[0] != "monster" or self.player_threat(st):
+                    raise
+                log(f"{e}; the pets at it, then the step again")
+                self.walk_in_fight(label, clear=tuple(tile[:2]))
+                path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
+                near = tuple(path[-2]) if path and len(path) >= 2 else None
+                if near is None:
+                    raise Abort(f"{label}: no route onto it")
+                self.mover.walk_to(lambda: near, 0, label, urgent=True)
+
+    def _onto(self, tile, label: str):
         """The step from beside the teleporter `tile` onto it (teleport). A one-way one (Mover.one_way: Shadowspire's
         strips) whose step from here wouldn't fire (the walk beside it ended at another height: level 2's landing is
         over its floor, the strip under its stair): a walk aimed at it instead, which the planner ends by its firing
@@ -3725,7 +3806,10 @@ class HuntLoop:
 
     def escape_home(self, why: str) -> dict:
         """Out of a dungeon that allows no recall where we stand, and the recall home (on_error, --go-home): the way out
-        the level has (escape_once), looked for again from where a failed one left us, ESCAPE_TRIES ways at most. The
+        the level has (escape_once), looked for again from where a failed one left us, ESCAPE_TRIES ways at most;
+        between them, with something on us or a hold on us (and pets, no hostile player in view), the walk-in fight
+        first (walk_in_fight) instead of the wait (live 2026-11-10 23:01:15-21: 5 s stood gripped and fed on by a
+        bottomfeeder and hit by a flying manta between two tries of the same teleporter step, dead at the third). The
         threat checks off (fleeing) and the overall timeout too (escaping); a red on the way: the flights of the leaves
         (flee_out). An `escape` job event. -> the recall's result with `way`, `from`, `ways` (each try) and
         `escape_s`; `ok` False with `failure` when we are still inside."""
@@ -3741,8 +3825,21 @@ class HuntLoop:
             self.disengage("ended")
             for n in range(ESCAPE_TRIES):
                 if n:
-                    log(f"escape: looking for the way out again in {ESCAPE_RETRY_S:g} s (try {n + 1} of {ESCAPE_TRIES})")
-                    time.sleep(ESCAPE_RETRY_S)
+                    try:
+                        st = self.state()
+                        if self.team is not None and (self.attackers(st) or self.mover.held(st)) \
+                                and not self.player_threat(st):
+                            log(f"escape: attacked; fighting before looking for the way out again (try {n + 1} of "
+                                f"{ESCAPE_TRIES})")
+                            self.walk_in_fight("escape", way="out")
+                        else:
+                            log(f"escape: looking for the way out again in {ESCAPE_RETRY_S:g} s (try {n + 1} of "
+                                f"{ESCAPE_TRIES})")
+                            time.sleep(ESCAPE_RETRY_S)
+                    except Abort as e:                   # a death meanwhile (died): this try's failure
+                        res = {"ok": False, "failure": str(e)}
+                        ways.append({"way": None, "ok": False, "failure": str(e)})
+                        break
                 way, res = self.escape_once()
                 ways.append({"way": way, "ok": res["ok"], "failure": res.get("failure")})
                 if res["ok"] or self.halt is not None:
@@ -4401,7 +4498,7 @@ class HuntLoop:
         except (WalkFailed, Abort) as e:
             log(f"{label}: to {p['name']}: {e}")
 
-    def walk_in_fight(self, label, way: str = "in", coming: str | None = None):
+    def walk_in_fight(self, label, way: str = "in", coming: str | None = None, clear=None):
         """Attacked on the way in (or out, `way`, a planned walk to the gate): 'All Guard Me' and the fight
         tick's order until nothing attacks us and no hit came for WALK_IN_CALM_S (up to WALK_IN_FIGHT_S): out
         of an area hit, a potion below --heal-at, the team's care (vet supplies, retreat, off the tank), the
@@ -4411,15 +4508,20 @@ class HuntLoop:
         stop, HuntLoop.coming): no attack yet, a monster in war mode coming at us; on the way out the stand goes on while
         one comes (live 2026-10-28 22:53:04-09: the walk out went 3 steps up a lowtide scavenger's way, the pets on
         follow behind Logan; dead 12.7 s later). drink_on_the_run stays out of it (walk_fighting): its potion and vet
-        supplies came before this order's retreat (live 22:53:17.6-21.1)."""
+        supplies came before this order's retreat (live 22:53:17.6-21.1). `clear` (onto: a teleporter's (x, y) whose
+        step a monster on it refused): what stands on it is the target, and the fight ends once the tile is free,
+        whatever else is on us (the step through it leaves them behind)."""
         self.walk_fighting = True
         try:
-            self._walk_in_fight(label, way, coming)
+            self._walk_in_fight(label, way, coming, clear)
         finally:
             self.walk_fighting = False
 
-    def _walk_in_fight(self, label, way: str, coming: str | None):
-        log(f"{label}: {f'{coming} coming' if coming else 'attacked'} on the way {way}; the pets guard")
+    def _walk_in_fight(self, label, way: str, coming: str | None, clear=None):
+        if clear is not None:
+            log(f"{label}: something on the teleporter's tile {clear}; the pets guard and take it")
+        else:
+            log(f"{label}: {f'{coming} coming' if coming else 'attacked'} on the way {way}; the pets guard")
         self.doing("enter" if way == "in" else "leave", f"{'Something coming' if coming else 'Attacked'} on the way "
                                                         f"{way}: the pets take it")
         self.team.guard_t = -1e9
@@ -4427,6 +4529,10 @@ class HuntLoop:
         end = time.monotonic() + WALK_IN_FIGHT_S
         while time.monotonic() < end:
             st = self.state()
+            on_it = self.on_tile(st, clear) if clear is not None else None
+            if clear is not None and on_it is None:
+                log(f"{label}: the teleporter's tile {clear} is free")
+                break
             self.walk_hurt(st)
             attackers = self.attackers(st)
             me = st["world"]["self"]
@@ -4439,11 +4545,12 @@ class HuntLoop:
                 continue
             if self.team.care(st):
                 continue
-            target = self.pick_target(st, pull=False)
+            target = on_it[0] if on_it is not None and self.live_target(st, on_it[0])[0] is not None \
+                else self.pick_target(st, pull=False)
             if target is not None:
                 self.fight(target)
                 continue
-            if not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S \
+            if clear is None and not attackers and time.monotonic() - self.walk_hurt_t > WALK_IN_CALM_S \
                     and not (way == "out" and self.coming(st)):
                 # short of oxygen on the way out: the corpses stay (user 2026-11-10: "needs to leave")
                 if not (way == "out" and self.leave_short_air) and (c := self.loot_next()) is not None:

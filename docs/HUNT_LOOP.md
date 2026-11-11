@@ -1335,6 +1335,21 @@ moongate, and never near a red one).
     and the stand (`walk_in_fight`) instead. **Held on the dash** (`Mover.held`: a grip, a net): the dash ends, "<label>:
     held on the dash; the pets take what's on us", the stand, then the walk on. sim/fight1627.py replays the live
     layout; test_sim `test_tele_dash_blocked`.
+  - **A monster on the teleporter's tile** (since 2026-11-10; `HuntLoop.teleport`, `onto`; live 23:01:08.83,
+    hunt-20261110-224149-29c6: a bottomfeeder stood idle on Tidal Tomb's (6718, 1984), the step onto it was refused at
+    24/25 stamina, "no teleport after 3 steps" sent the run into the escape, whose two more tries of the same step it
+    stood through gripped and fed on, dead at 23:01:23.6; docs/NOTES.md "Tidal Tomb: dead at the teleporter down,
+    gripped"). A step onto a teleporter refused with a mobile on its tile (not ours: our pets never block) is no
+    teleporter fault. Below full stamina (a shove needs full: "Shoving and stamina" in docs/SIM.md) a stamina potion,
+    else up to `TELE_STAM_WAIT_S` 2.5 s for the regen, and the step again ("the teleporter at x,y: the step refused with
+    a bottomfeeder on it at stamina 24/25; again at full (a shove)"), `TELE_SHOVES` 2 times. Still refused
+    (`TeleporterOccupied`) with a monster on it: the stand (`walk_in_fight` with the tile as `clear`: what stands on it
+    is the target, potions, vet supplies and the stand-off meanwhile) until the tile is free ("… is free"), whatever
+    else is on us, then back beside it and the step again, `TELE_CLEAR_FIGHTS` 2 such fights. Every caller of the step
+    takes it: the walk in's legs, the escape's and a red's rush (`walk_in_rush`), the leave up, the oxygen hop. No
+    fight with a hostile player in view, without pets, or for a player or another's pet on the tile: the error as
+    before. A hold with nothing on the tile: waited out, the step again (not a try). sim/fight2301.py replays the live
+    layout; test_sim `test_tele_occupied`.
   - Before each step onto a teleporter (not after a dash), every pet within 3 tiles of it, else the waits above.
     A caution: on "All Follow Me" pets come through with us while in view (user 2026-10-20, Outlands), not only
     from within 3 tiles. `--songs`: a song due before each leg.
@@ -1973,7 +1988,11 @@ while Logan is alive inside a dungeon where recall is forbidden (`escape.recall_
 given now gets him home first, and the run still exits 1:
 - `ERROR inside the dungeon at (x, y, z): <error>; escaping home`
 - `escape: …` names the way out it takes (below); a way that fails is looked for again from where it left him,
-  `ESCAPE_TRIES` 3 ways at most, `ESCAPE_RETRY_S` 5 s apart (`escape: <way>: <why>`).
+  `ESCAPE_TRIES` 3 ways at most, `ESCAPE_RETRY_S` 5 s apart (`escape: <way>: <why>`). **Attacked between tries**
+  (since 2026-11-10; something on us by `attackers()` or a hold on us, pets, no hostile player in view): the walk-in
+  fight (`walk_in_fight`, "escape: attacked; fighting before looking for the way out again") instead of the 5 s wait.
+  Live 23:01:15-21 (hunt-20261110-224149-29c6) Logan stood the 5 s gripped and fed on by a bottomfeeder and hit by a
+  flying manta between two tries of the same teleporter step, and died in the third.
 - Home: `recalled home to …`, the bank and the drop-off as after a leave, `escaped home after: <error> (by <way>)`,
   then `ABORTED: <error> (escaped home by <way>)`, the line the wrapper's task_failed quotes. An `escape` juncture
   (severity attention) and an `escape` job event.

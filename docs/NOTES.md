@@ -8880,6 +8880,47 @@ banked by 6 drop-offs), -124826-a7cc (61 kills, 64.3k; one leave on a red player
   not going in": his only instrument was an "exceedingly melodious hurdy-gurdy" 0x5B26F971, graphic 0x4E28, in bag
   0x5B26C6E3, neither in `tamer.INSTRUMENT_GRAPHICS` nor `INSTRUMENT_NAME` (both now; test_sim `test_instrument`).
 
+## Tidal Tomb: dead at the teleporter down, gripped (live 2026-11-10 23:01:25, hunt-20261110-224149-29c6)
+
+Level 2 shift, visit 3's walk in across level 1 (pets Clicquot 0x000DF914, Borealish 0x000E68B5): "to the teleporter at
+6718,1984: arrived at (6719, 1983)" 23:01:08, "no teleport after 3 steps in direction 5; escaping home" 23:01:10, the
+escape's walk_in_rush tried the same step at 23:01:13-15 and 23:01:22, "escape failed: died (mob)". No fight: no target,
+no 'All Kill', the pets on 'All Follow Me' throughout. Capture 20261110_202925 replayed through `WorldRuntime`, the
+store's events:
+- **What refused the step: a bottomfeeder standing on the teleporter.** 0x00476502 (notoriety 3, flags 0: idle, not
+  hidden, no submerge) walked from (6716, 1981) onto (6718, 1984, -24) at 23:01:05.98 and stood there to the end. Logan
+  stood beside it at (6719, 1983, -19) from 08.275 at **24/25 stamina** (0xA3 25 -> 24 at 08.075 with the step before);
+  08.52 the turn (confirm, moved false), 08.77 and 09.37 `walk_deny`: a step into a monster's tile below full stamina,
+  as "Shoving and stamina" (docs/SIM.md) has it. Every later step at 13.47, 14.08, 14.68 (24/25: the hits kept taking
+  the point back) and 22.81 (held) was denied too. Logan carried 5 Total Refresh potions; none was drunk.
+- **It woke on him 1.0 s after he stood beside it**: 09.27 war mode, notoriety 4, a swing -12; 09.72 '*feeds*' with
+  "The creature grips you and begins to feed!" and the "Unable to Move" buff (icon 20), -8/-8/-10/-9 every 0.5 s to
+  "You are no longer entangled." at 12.74; swings -13 (15.38), -16 (18.71); the second grip 20.09 (10.4 s later), its
+  ticks -10/-8/-9/-8 to 23.23; dead 23.52 (server), the runner's read 23:01:25.
+- **0x004770C4 is a flying manta** (body 2470, notoriety 4, war mode from 23:01:02.97 as Logan passed it 3 off at
+  (6701, 1994)): it followed him, (6715, 1981) at 12.0, onto the pets' tile (6718, 1983) by 13.4. Its animation action
+  4 is an **area hit**: 12.70 Logan -22 at 2 tiles, Borealish -16, Clicquot -20 at 1, all at that instant; 20.20 -28
+  / -16 / -19 again (7.5 s later); its action 5 is its plain swing on Logan (-17 15.99, -12 19.40, -3 23.52). Three
+  captures (20261101_215540, 20261109_113055, this one): 195 such animations, 105 with a number on one of ours, 7.66 s
+  apart on one manta (p10-p90 7.52-7.89, n 101); of ours within 2 tiles of it in those 105, 211 of 216 hit; 19-29 on
+  Logan (n 9), 5-29 on the pets (median 19, n 202). The simulator had no such hit (now a `burst`, `sweep`, in
+  data/sim/tidal_tomb.json). The lowtide scavenger 0x004729F8 14 tiles off only '*scavenges*' (on itself) and never
+  hit anyone.
+- **Damage**: 193 on Logan from 09.27 to 23.52, the bottomfeeder ~111 (swings and 8 feed ticks) and the manta ~82; one
+  heal potion (53 -> 88 at 12.50) and one finished vet channel (+39 at 18.25) in the escape, a second channel (22.40)
+  cut by the death.
+- **Why attackers were []**: the Seer's threat window is `ctl status`'s `attackers` (`ctl.attackers`), which lists only
+  mobiles with an S2C 0x2F swing at us; Outlands never sends 0x2F (threats.py), so a melee monster on us never shows
+  there. The runner's own `attackers()` adds a war-mode monster beside us while we take damage, but `teleport`'s three
+  steps and the escape's 5 s wait never read it [INFERENCE: both monsters qualified from 13.4]; its death juncture says
+  attackers [] (cause "mob" from the damage) because the server deleted both monsters with the death packet
+  (0x1D at 23.522) before the runner's read at 25.7.
+- **Fix** (docs/HUNT_LOOP.md "A monster on the teleporter's tile", "Attacked between tries"): a teleporter step refused
+  with a mobile on the tile is no teleporter fault: below full stamina a stamina potion (else the regen) and the step
+  again, the shove; still refused, the pets at what stands on it (`walk_in_fight`'s `clear`) until the tile is free,
+  then the step again; the escape fights between tries when attacked instead of waiting. sim/fight2301.py (the live
+  layout, 24 seeds; docs/SIM.md "Tidal Tomb: the bottomfeeder on the teleporter"): deaths 13 -> 0.
+
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
 Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's
