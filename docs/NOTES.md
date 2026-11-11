@@ -5782,6 +5782,11 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     start) allowed the 402-step replan. Counting steps already walked against it would have stopped the walk ~20 s
     sooner, with the same outcome. Most of the cost is the leg end (a recall pair and the walk-in lockout), not the
     walk. Seen 2 times in about 30 runs over the two days, so not changed. Worth doing if it recurs often.
+    A third time on 2026-11-11 15:45:37 (mining-20261111-153749-d675, forge_1524_2698): "the forge can't be reached
+    (to the forge: going round in circles (stood on (1526, 2645) 3 times in 324 steps)); ending the leg at 291 ore". The
+    ore went home and was smelted at the house forge (582 ingots). Since f0564fc the spot then rests 60 min ("forge cut
+    off"). The same field had two stand walks circle at 15:05:54 and 15:06:07 (mining-20261111-142815-0eaa). That is 1
+    circled forge walk in 7 runs over 2026-11-10/11 (the other 2 cut-offs were creature zones), so still not changed.
   - **A forge cut off by creatures set no cooldown (live 2026-11-10, mining-20261110-175224-31a4 →
     mining-20261110-180344-c370, forge_2426_413).** Leg 3 of the first run: a weight smelt's walk to the forge met an air
     elemental (escape 2/8) after a cougar earlier; at 18:03:20 "the forge can't be reached (to the forge: every way
