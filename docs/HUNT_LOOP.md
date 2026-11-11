@@ -692,7 +692,10 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    supplies: a `low_supplies`
    juncture (item `veterinary supplies`). Resting outside waits for every pet to reach
    `--pet-heal-at`, by the supplies or, with none, by natural regeneration; past `--rest-timeout`
-   the run stops rather than go back in with a hurt pet (that pet's leave rule would fire on arrival).
+   the run stops rather than go back in with a hurt pet (that pet's leave rule would fire on arrival). The same rest
+   comes before the first recall in when a run starts with a pet below `--pet-heal-at` (since 2026-11-10, live 22:39
+   after a death: Clicquot 13 %, Borealish 17 % at home, and the Seer has no way to vet them; past `--rest-timeout`:
+   "ABORTED: the pets aren't healed after 900 s of rest: not going in").
 5. **Self care**: heal potions double-clicked where they sit in the pack, no bag opened, as the user's
    Razor "Drink Heal Potion" hotkey does (2026-10-15; ANTICHEAT.md "Exception: potions ... like Razor"); the retreat above (live 21:27:50 a bleed took Logan from 72
    to 35 hits in 2 s; he ran 18 tiles while drinking and the pets held the mob). The retreat goes to

@@ -5232,6 +5232,10 @@ class HuntLoop:
                 entered = self.ready_to_go_back(e.why, "urgent") and self.enter_by_recall()
             st = self.state()
         elif self.args.enter_recall is not None and not self.at_hunt(st):
+            if self.team is not None and self.args.rest_to > 0 and not self.team.rested(st) and not self.rest():
+                # started at home with hurt pets (live 2026-11-10 22:39, after a death: Clicquot 13 %, Borealish 17 %,
+                # below --pet-leave-at): the rest between visits first (rest: the vet supplies to --pet-heal-at)
+                raise Abort(f"the pets aren't healed after {self.args.rest_timeout:.0f} s of rest: not going in")
             entered = self.enter_by_recall()
             st = self.state()
         elif self.args.enter and not self.at_hunt(st):
