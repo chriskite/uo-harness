@@ -8874,6 +8874,11 @@ banked by 6 drop-offs), -124826-a7cc (61 kills, 64.3k; one leave on a red player
   answered "nothing" with nothing flagged missing and the Seer read the pack as at loadout; it held 20 heal potions and
   97 vet supplies (loadout 45 / 140). At 13:2x the shelf answered "Unable to resupply: no items available." with 3 / 17
   left; the user ended the shift there.
+- **Evening (22:23-)**: Logan dead fleeing reds at 22:33:39 (hunt-20261110-222345-a69a; its own section by the red
+  flight's fix). After it, 22:39 the pets at home 13 % / 17 % with no way for the Seer to vet them (the runner now
+  rests before the first recall in, 893680c); 22:40:39 hunt-20261110-224012-d524 "ABORTED: no instrument in the pack:
+  not going in": his only instrument was an "exceedingly melodious hurdy-gurdy" 0x5B26F971, graphic 0x4E28, in bag
+  0x5B26C6E3, neither in `tamer.INSTRUMENT_GRAPHICS` nor `INSTRUMENT_NAME` (both now; test_sim `test_instrument`).
 
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 

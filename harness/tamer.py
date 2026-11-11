@@ -114,11 +114,13 @@ CLILOC_INSTRUMENT_BROKE = 502079  # "You broke your instrument trying to play it
 # status 2026-10-25), the bamboo flute 0x2805 ("supremely melodious bamboo flute", status 2026-10-25 17:29), the shawm
 # 0x4E2E ("supremely melodious shawm", user 2026-10-26 18:43: "the shawm is an instrument"; the run at 18:41 refused to
 # go in with it as his only one), the vielle 0x4E30 ("durable exceedingly melodious Vielle" 0x4404D491, the run at
-# 2026-10-31 14:41:43 refused to go in with it as his only one). Outlands has more instrument art than these:
-# Team.instrument takes an item by its name (INSTRUMENT_NAME) as well ("drums" plural, the sackbut of 2026-10-24 too)
-INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E, 0x4E2A, 0x2805, 0x4E2E, 0x4E30)
-INSTRUMENT_NAME = re.compile(r"\b(lute|harp|drums?|tambourine|psaltery|flute|bagpipes?|shawm|sackbut|vielle)\b",
-                             re.I)
+# 2026-10-31 14:41:43 refused to go in with it as his only one), the hurdy-gurdy 0x4E28 ("exceedingly melodious
+# hurdy-gurdy" 0x5B26F971, the run at 2026-11-10 22:40:39 refused to go in with it as his only one). Outlands has more
+# instrument art than these: Team.instrument takes an item by its name (INSTRUMENT_NAME) as well ("drums" plural, the
+# sackbut of 2026-10-24 too)
+INSTRUMENT_GRAPHICS = (0x0EB3, 0x0EB4, 0x0EB2, 0x0EB1, 0x0E9C, 0x0E9D, 0x0E9E, 0x4E2A, 0x2805, 0x4E2E, 0x4E30, 0x4E28)
+INSTRUMENT_NAME = re.compile(r"\b(lute|harp|drums?|tambourine|psaltery|flute|bagpipes?|shawm|sackbut|vielle|"
+                             r"hurdy-gurdy)\b", re.I)
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 BARD_RANGE = 10               # [INFERENCE] successes seen at 1-9 tiles
 SKILL_GAP_S = 5.0             # wiki Peacemaking; live: 5.0 s from the target answer for every skill, ok or fail
