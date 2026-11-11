@@ -894,5 +894,6 @@ class Reds:
     # ------------------------------------------------------------ summaries
     def summary(self) -> dict:
         """The run's red numbers: what run.py aggregates against the live ones (docs/SIM.md "Red players")."""
-        return {**self.m, "sightings": [{**sg, "group": gid, "size": g["size"]} for gid, g in self.groups.items()
-                                        for sg in g["sightings"]]}
+        return {**self.m, "hunt_level": self.cfg.get("hunt_level"),
+                "sightings": [{**sg, "group": gid, "size": g["size"]} for gid, g in self.groups.items()
+                              for sg in g["sightings"]]}

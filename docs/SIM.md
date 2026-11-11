@@ -89,6 +89,7 @@ python harness/sim/fight2343.py 1-24 [--log] [--trace DIR] [--harness DIR]      
 python harness/sim/fight1031.py 1157|1149|1123 1-24 [--log] [--harness DIR]   # Maus 3 2026-10-31: the death's approach (the consort lurking at her spot), the retreat, the wails (docs/NOTES.md "Maus 3 near-deaths")
 python harness/sim/fight1805.py [1805|1804] 1-24 [--log] [--harness DIR]   # Tidal Tomb level 2 2026-10-31 18:05: dead between two zoas, a shellpod on him (docs/NOTES.md "Tidal Tomb level 2: dead between two zoas")
 python harness/sim/fight1136.py [1136|1507] 1-24 [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Tidal Tomb level 2's walk out through the gate pocket, 2026-11-01 11:36 / 10-31 15:07 (docs/NOTES.md "Tidal Tomb level 2: the gate pocket's crossfire")
+python harness/sim/fight2233.py 1-24 [--chase] [--log] [--trace DIR] [--harness DIR] [--set M.N=V]   # Tidal Tomb level 2 2026-11-10 22:33: the flight from two reds, the stand among the monsters (docs/NOTES.md "Tidal Tomb level 2: dead fleeing reds")
 python harness/sim/fight2321.py 1-48 [--stam 24] [--no-hit-stam] [--log] [--harness DIR] [--set M.N=V] [-- runner args]   # Maus 2's walk-in fight 2026-11-03 23:20:59: the cover onto an abomination's tile, 47 -> 8 (docs/NOTES.md "A cover onto an abomination")
 python harness/sim/fight2333.py 1-96 [--log] [--trace DIR] [--harness DIR]   # Maus 3's walk out 2026-11-03 23:32:37: an idle shadowguard by the way, ensnared twice, dead (docs/NOTES.md "Ensnared on the walk out")
 python harness/sim/fight2136.py 1-24 [--live-box] [--log] [--harness DIR]   # Maus 3's mini-boss room 2026-11-04 21:36:25: --go-home from (5242, 587) under a custodian stand-in, IDLE_S 120 s after an abort (docs/NOTES.md "Dead in Maus 3's mini-boss room after a double step back")
@@ -101,6 +102,8 @@ python harness/sim/fight0038.py 1-200 [--log] [--trace DIR] [--harness DIR]   # 
 python harness/sim/run.py --runs 98 --jobs 16 --careers 14 --seed 17 --reds --others --eerie --prior <main checkout>/harness/data/harness.db \
     -- --vet-range 5 --crawl-learn-s 180
 python harness/sim/red_scan.py <capture tag> ...                       # the live reds' evidence from the captures
+python harness/sim/run.py --scenario tidal_tomb --level 2 --runs 96 --reds 1.2 --others --prior <store> \
+    -- --vet-range 5 --crawl-learn-s 180                               # Tidal Tomb level 2 with reds, at Maus 3's arrival rate (a stress test; "Tidal Tomb: dead fleeing reds")
 ```
 
 - Defaults added to the runner's arguments: `--pets --leave-recall <tome> --enter-recall <tome>
@@ -898,6 +901,11 @@ knows where we are, walking a live red's own tiles first when given a route.
   and never die here [INFERENCE: one of ~50 live appearances died]; reds and our pets leave each other be (live).
 - `run.py` reports `reds` in `all:` (the live comparisons below) and the scenario's `places` share of our time
   (`place_share`: `east_wing`, `gate_arrival`).
+- **Other dungeons** (since 2026-11-10): Tidal Tomb's `reds` inherits the Mausoleum's block (`inherit`: kits, groups,
+  Tracking, pace, jumps) with its own `levels`, fight level `l2`, walk-in level `l1`, `entry` level 2's landing (6943,
+  2004) and `arrive_per_h` 0.12 (live 2 groups in 11.3 h of the runner on level 2; "Tidal Tomb: dead fleeing reds").
+  `--reds RATE` sets the groups arriving an hour for a batch (a stress test of the flight); the summary's level
+  numbers are the scenario's `hunt_level`'s. The other scenarios have no `reds` yet (`--reds` refuses them).
 
 **Against the live numbers** (196 runs, seeds 17 and 115 x 98, 30 min, `--reds --others --eerie --prior <the live
 store> -- --vet-range 5 --crawl-learn-s 180`; live: the runner era on Maus 3, 11.22 h, 20 groups):
@@ -2898,6 +2906,49 @@ under water"). Runner only.
 - The simulator counts level 1 as dry, so its level 2 visits start the clock ~90 s later than live (NOTES above): live
   leaves come nearer the deprivation than these runs'.
 - **Test:** `test_leave_short_of_air`.
+
+### Tidal Tomb: dead fleeing reds (2026-11-10)
+
+Live 22:33:39 Logan died on level 2 fleeing two reds; most of the 338 damage was level 2's monsters, 13 s of it on a
+stand "22+ tiles from them here, looking again" while the reds were out of view (docs/NOTES.md "Tidal Tomb level 2: dead
+fleeing reds"; the rule in docs/HUNT_LOOP.md "Out of view: a way clear of where they were last seen").
+
+- **The world:** Tidal Tomb had no `reds`; it has now (inherited from the Mausoleum's, its own levels, fight level 2,
+  `entry` level 2's landing, `arrive_per_h` 0.12 from the live runner's 2 groups in 11.3 h; "Red players"), and
+  `run.py --reds RATE` sets another rate. Without the levels a red placed by `World.add_red` on Tidal Tomb never tracked
+  us (`Reds._know` needs our level) and walked to the Mausoleum's `entry`.
+- **The replay** (`sim/fight2233.py`, seeds 1-24; the live layout, the reds' live steps and their 16 s by Petal's body,
+  the runner REACT_S 0.65 s after the first sight as live; before = cec1fe8):
+
+  | runner | deaths | lowest under 30 | damage on Logan (monsters / reds) | standing hurt, no red within 12 | out by | walk s (median) |
+  |---|---|---|---|---|---|---|
+  | before | 10 | 16 | 4,547 (3,695 / 848) | 87.7 s | north 4, south 10 | 49 |
+  | **after** | **0** | **1** | **993 (993 / 0)** | 9.9 s | north 24 | 24 |
+  | before, `--chase` | 12 | 18 | 3,548 (1,581 / 1,967) | 0 | north 6, south 6 | 27 |
+  | after, `--chase` | 12 | 17 | 3,463 (1,498 / 1,965) | 0 | north 7, south 5 | 27 |
+
+  Before, every seed's flight went away south as live and stood 12-16 s (the voidfin or the scourgeon on him in most),
+  then the reds came back and chased it through the monsters (by source the voidfin 2,287, Silent Assassin 594, the astral
+  zoa 419, the combustive zoa 336). After, the stand's first look takes the north gate's east way across the level's
+  middle. `--chase` (not live: the reds come at once) is a straight chase by two mages; the rule doesn't change it.
+  Tried and dropped: no stand when hurt there, on past them instead (4 of 24 dead).
+- **Batches** (`--runs 96 --reds 1.2 --others --prior` the main store `-- --vet-range 5 --crawl-learn-s 180`; level 2 at
+  1.2 groups an hour, Maus 3's rate, 1.8 groups in view an hour on the level as Maus 3's live 1.78; Maus 3 `--seed 17
+  --reds --others --eerie`):
+
+  | batch | runner | runs with a death | red deaths | banked an hour | net of death downtime |
+  |---|---|---|---|---|---|
+  | level 2, seeds 1-96 | before | 24 | 8 | 127.7k | 106.4k |
+  | level 2, seeds 1-96 | after | 25 | 8 | 125.0k | 103.4k |
+  | level 2, seeds 97-192 | before | 15 | 5 | 130.0k | 116.2k |
+  | level 2, seeds 97-192 | after | 14 | 5 | 130.9k | 117.8k |
+  | Maus 3, seeds 17-112 | before | 13 | 8 | 112.5k | 101.3k |
+  | Maus 3, seeds 17-112 | after | 13 | 8 | 112.6k | 101.3k |
+
+  Within the noise of a block: the batches' red deaths are other flights (8 and 5 before and after); the stand with
+  them out of view is rare there [INFERENCE: a batch's reds come at us from Tracking, rarely stop out of view as the
+  live two did over Petal]. No regression on Maus 3.
+- **Test:** `test_tidal_red_unseen` (seeds 1-3 of the replay: dead in all 3 before).
 
 ## The Ossuary (2026-10-28)
 

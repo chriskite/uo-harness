@@ -1561,6 +1561,24 @@ moongate, and never near a red one).
     moongate: 6 steps, there before … can cut it off"): no leg away, and a rope only along the route; the legs away
     and the off-route rope stay for a way they can cut off. Until 76cc388 a fixed 8 steps from the gate (the planned
     walk's `GATE_DASH_R`) stood in for the race (user: "seems arbitrary").
+    **Out of view: a way clear of where they were last seen, not a stand** (since 2026-11-10; live 22:33:09-22 on Tidal
+    Tomb level 2 the flight stood 13 s at (6852, 2012) "22+ tiles from them here, looking again" while the two reds,
+    out of view 29 tiles north, killed a blue; a scourgeon on Logan the whole stand, 100 -> 46, its Pressure released
+    on him 30 s later; Silent Assassin came back and chased him through the level's monsters, dead at 22:33:39, NOTES
+    "Tidal Tomb level 2: dead fleeing reds"). One out of view counts RED_RUN_TPS tiles a second nearer, so a few seconds
+    after they leave the view every way to every gate passes them and the hold above waits until they're forgotten
+    (RED_RECENT_S) or back. Now, at that hold (far enough, the way passing them) with all of them out of view (last seen
+    over `RED_UNSEEN_S` 1 s ago), the flight takes the easiest way to any leave gate (several `--leave-gate`; the walk
+    in's gold gate alone) that passes none of them where they were last seen (`last_seen_way`: `passes_hostile` not aged;
+    route steps plus `way_danger`, as `pick_gate`): "to the moongate: the way passes Silent Assassin at (6848, 1981), out
+    of view; on, its way clear of where they were last seen" (or "to the one at (x, y) instead"). It keeps that gate,
+    with no gate choice or leg away, while they stay out of view; one back in view and the flight looks again as above.
+    No such way: the stand as before. Simulator `sim/fight2233.py` (the live layout and the reds' live steps): 10 of 24
+    dead before (a 12-16 s stand in each, then the chase), 0 of 24 after (the north gate by its east way across the
+    level's middle, 24 s; damage on Logan 4,547 -> 993); with the reds coming at once instead (`--chase`, not live) 12
+    and 12 of 24 (a straight chase in view). Level 2 batches with reds at Maus 3's rate (2 x 96 runs) and Maus 3's (96):
+    runs with a death 24/15/13 -> 25/14/13, red deaths 8/5/8 -> 8/5/8 (docs/SIM.md "Tidal Tomb: dead fleeing reds").
+    test_sim `test_tidal_red_unseen`.
     **No route: out of their sight meanwhile** (since 2026-10-30; live 23:43:31-36 a red's Wall of Stone sealed the
     east wing's only corridor west and the flight stood 4.7 s "looking again (n of 6)" 1-3 tiles from three casters,
     NOTES "Walled in the east wing"). When the way to the gate has no route, the flight never waits where they see

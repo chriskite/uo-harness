@@ -272,6 +272,7 @@ FLEE_LEG_STEPS = 6            # steps of a flight's leg before the way to the ga
 FLEE_MAX_S = 60.0             # flee legs this long at most; then to the gate past them, round them as the zones allow
 FLEE_HOLD_S = 0.5             # far enough and the way still passes them: a look again after this
 FLEE_LEGS_MAX = 200           # legs, ropes and looks of a flight at most (flee_out)
+RED_UNSEEN_S = 1.0            # a hostile player last seen longer ago than this is out of view (note_hostiles, every check)
 FLEE_NEAR_FAILS = 6           # failed walks toward the gate a flight tries again from (refused steps expire) before it ends
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
@@ -2305,23 +2306,49 @@ class HuntLoop:
                 mv.danger[k] = (xy, RED_ZONE_R)
                 mv.replan_requested = True
 
-    def passes_hostile(self, path, spots: dict, here):
+    def passes_hostile(self, path, spots: dict, here, aged: bool = True):
         """The serial of a hostile player the route `path` passes (comes within RED_PASS_R of, nearer than we
         stand now) and that can cut it off there (cut_step: be on one of its tiles before we are), else None. One out of
         view since `age` s may be anywhere it could have run meanwhile: RED_RUN_TPS tiles a second more (live
-        17:37:10.9-13.3 I Make Bodies walked 9 tiles out of view, onto the gate's way). The cut-off since 2026-11-09:
+        17:37:10.9-13.3 I Make Bodies walked 9 tiles out of view, onto the gate's way); not `aged`: where it was last
+        seen (last_seen_way). The cut-off since 2026-11-09:
         before, a route toward one counted whoever got there first (live 12:57:11, Shadowspire level 1: the rope landed
         Logan 6 steps from the crimson gate with the red Lord Crafty Pants 8 from it; "the way to (5157, 2647) passes
         them" sent the flight to the golden gate 167 steps north, and the red ran and teleported after him: dead 21 s
         later, 80 steps on)."""
         now = time.monotonic()
         for s, xy in spots.items():
-            age = now - self.hostile_seen.get(s, (xy, now))[1]
+            age = now - self.hostile_seen.get(s, (xy, now))[1] if aged else 0.0
             r = RED_PASS_R + int(age * RED_RUN_TPS)
             if path and len(path) > 1 and min(cheb(t, xy) for t in path[1:]) < min(cheb(here, xy), r) \
                     and self.cut_step(path, xy, age) is not None:
                 return s
         return None
+
+    def out_of_view(self, spots: dict) -> bool:
+        """Every hostile player of `spots` out of view: last seen (note_hostiles, on every check) over RED_UNSEEN_S
+        ago."""
+        now = time.monotonic()
+        return bool(spots) and all(now - self.hostile_seen.get(s, (None, now))[1] > RED_UNSEEN_S for s in spots)
+
+    def last_seen_way(self, st, spots: dict, gates):
+        """(gate, the tile beside it) of the easiest of `gates` (route steps plus the walk's danger, way_danger, as
+        pick_gate weighs them) whose way passes none of `spots` where they were last seen (passes_hostile with no run
+        since: a red out of view could be anywhere RED_RUN_TPS takes him, so every way passes him a few seconds on);
+        None when each way does. The flight's hold far from them (flee_out) takes it while they're out of view."""
+        here, view, best = tuple(self.pos(st)[:2]), None, None
+        for g in gates:
+            if g in self.gate_no_dest:
+                continue
+            path, _ = self.mover.plan(st, nav.within(g, 0), mobiles=False)
+            if not path or len(path) < 2 or self.passes_hostile(path[:-1], spots, here, aged=False) is not None:
+                continue
+            if view is None:
+                view = self.team.view(st) if self.team is not None else aggro.View(self, st)
+            cost = len(path) - 1 + self.way_danger(path, view)
+            if best is None or cost < best[0]:
+                best = (cost, g, tuple(path[-2]))
+        return None if best is None else best[1:]
 
     @staticmethod
     def cut_step(path, xy, age: float = 0.0) -> int | None:
@@ -3001,7 +3028,9 @@ class HuntLoop:
         danger zones on the Mover (hostile_zones: the routes bend round them), a look at the way every
         FLEE_LEG_STEPS while any is known (hostile_spots), and at once when one we didn't know of comes into view.
         When the route passes one (passes_hostile), a leg away from them first (flee_tile), from far enough a look
-        again after FLEE_HOLD_S, and only cornered, or after FLEE_MAX_S of it, the way past them as the zones bend
+        again after FLEE_HOLD_S (with all of them out of view, instead the easiest way to any gate clear of where they
+        were last seen, last_seen_way, kept while they stay unseen: live 2026-11-10 22:33:09 the stand among level 2's
+        monsters), and only cornered, or after FLEE_MAX_S of it, the way past them as the zones bend
         it. A rope jump whenever one is worth it, never landing nearer them (rope_jump). Live 2026-10-21 10:35:05-13
         the only way from Maus 3's east wing ran up the corridor two reds came down: the rope landed Logan beside
         one and the walk went on past them; 17:37:13-22 the red of the leave was out of view at the flight's start
@@ -3035,6 +3064,7 @@ class HuntLoop:
                 said[0] = line
                 log(line)
         near_fails, cover = 0, None
+        unseen = [None]     # (gate, beside it) taken by a way clear of where they were last seen, while they're unseen
         try:
             for _ in range(FLEE_LEGS_MAX):
                 st = self.link.state()
@@ -3043,7 +3073,10 @@ class HuntLoop:
                     return gate, near
                 spots = self.hostile_spots(st)
                 self.hostile_zones(spots)
-                if spots and choose is not None and (alt := choose(st)) is not None and alt[0] != gate:
+                if unseen[0] is not None and (unseen[0][0] != gate or not self.out_of_view(spots)):
+                    unseen[0] = None
+                if spots and unseen[0] is None and choose is not None and (alt := choose(st)) is not None \
+                        and alt[0] != gate:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     passes = self.passes_hostile(path, spots, here) is not None
                     cut = self.exposed(path, spots) if path else 0
@@ -3056,7 +3089,7 @@ class HuntLoop:
                 leg["past"] = False
                 shelter, cover = cover, None
                 off_route = False                 # a rope off the route only when it's cut off (rope_jump)
-                if spots:
+                if spots and unseen[0] is None:
                     path, _ = self.mover.plan(st, nav.within(near, 0), mobiles=False)
                     s = self.passes_hostile(path, spots, here)
                     if s is not None and self.exposed(path, spots) == 0:
@@ -3080,10 +3113,22 @@ class HuntLoop:
                             say(f"to the moongate: the way passes {who} at {xy} ({cheb(here, xy)} tiles off): away "
                                 f"from them first, toward {tile}")
                         elif fleeing and min(cheb(here, p) for p in spots.values()) >= FLEE_FAR_R:
-                            say(f"to the moongate: the way passes {who} at {xy}; {FLEE_FAR_R}+ tiles from them here, "
-                                f"looking again")
-                            time.sleep(FLEE_HOLD_S)
-                            continue
+                            # far from them, and they're out of view: a way clear of where they were last seen, not
+                            # a stand (live 2026-11-10 22:33:09-22 on Tidal Tomb level 2: 13 s "looking again" at
+                            # (6852, 2012), a scourgeon on him 100 -> 46 and its Pressure, until Silent Assassin came
+                            # back and chased him into the gate pocket, dead; their run since makes every way pass
+                            # them a few seconds on, so the stand lasted till they came)
+                            alt = self.last_seen_way(st, spots, gates or (gate,)) if self.out_of_view(spots) else None
+                            if alt is None:
+                                say(f"to the moongate: the way passes {who} at {xy}; {FLEE_FAR_R}+ tiles from them "
+                                    f"here, looking again")
+                                time.sleep(FLEE_HOLD_S)
+                                continue
+                            say(f"to the moongate: the way passes {who} at {xy}, out of view; "
+                                + (f"to the one at {alt[0]} instead" if alt[0] != gate else "on")
+                                + ", its way clear of where they were last seen")
+                            gate, near = unseen[0] = alt
+                            goal, off_route = near, False
                         else:
                             say(f"to the moongate: no way round {who} at {xy} ({cheb(here, xy)} tiles off) "
                                 f"{'left' if fleeing else f'after {FLEE_MAX_S:.0f} s'}: past them, round them as "

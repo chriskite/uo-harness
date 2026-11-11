@@ -8875,6 +8875,53 @@ banked by 6 drop-offs), -124826-a7cc (61 kills, 64.3k; one leave on a red player
   97 vet supplies (loadout 45 / 140). At 13:2x the shelf answered "Unable to resupply: no items available." with 3 / 17
   left; the user ended the shift there.
 
+## Tidal Tomb level 2: dead fleeing reds (live 2026-11-10 22:33:39, hunt-20261110-222345-a69a)
+
+Visit 1 of a level 2 run, the level 2 command of OVERSEER §5 (`--leave-gate 6913 2071 --leave-gate 6897 1992`), pets
+Clicquot 0x000DF914 and Borealish 0x000E68B5, the runner as of cec1fe8. Task log lines 552-606; the store's events
+(session 263); capture session_20261110_202925 replayed (`replay.timed_packets` + `WorldRuntime`, a scratch pass:
+every mobile's 0x77/0x20 tiles, Logan's hits, the 0x1A walls).
+- **The reds.** Two notoriety-6 players came into view (the user saw three): Silent Assassin 0x0050108B (5247115; the
+  leave's "red player 0x50108b") at 22:32:59.55 at (6844, 1975), 18 tiles NW of Logan at (6856, 1993), and Vowxin Retp
+  0x00B5C73F at 22:33:02.75 at (6844, 1971). Both came down the ramp (6844-6846, 1971-1981) to (6853, 1983), where
+  Silent Assassin killed Petal, a blue ("Corp Por" 22:33:01.88, her death 22:33:04.30 at (6854, 1983)), and stood out
+  of Logan's view 22:33:06-22:33:21.77 (Vowxin Retp to 22:33:23.26). Then Silent Assassin ran and Teleported after him
+  ((6851, 2002) 23.57 -> (6851, 2010) 24.66 -> (6850, 2020) 25.23) and stayed 4-6 tiles behind him to the end: "In Sanct
+  Ylem" 25.89 and 30.09 (three walls of stone at (6860-6862, 2057) in view at 34.86), "Corp Por" 35.38, Logan -16 at
+  35.97: the reds' only damage on him.
+- **The flight** (task log): "to the moongate at (6897, 1992): the easiest of 2 (50 steps +20 danger cut off 41 before
+  it; (6913, 2071) 121 +30 danger cut off 54 before it)"; "the way passes Silent Assassin at (6846, 1977) (10 tiles off):
+  away from them first" south; a rope to (6857, 1998); then from 22:33:09 to 22:33:22 **a stand at (6852, 2012)**: "the
+  way passes Vowxin Retp at (6850, 1982); 22+ tiles from them here, looking again" (and Silent Assassin at (6853,
+  1983)), with the reds 29-30 tiles off and out of view. A scourgeon 0x00474DA6 at (6850, 2008), 2 tiles off his way
+  south, went to war on him at 22:33:07.83 and stood beside him the whole stand: -14, -19 and -26 with "Powerful jaws
+  snap shut with incredible force! (pressure buildup)" on him and both pets, -22, -19, -18, -22; 140 there, two potions
+  and two vet channels +117, 100 -> 46 at the lowest (22:33:19.16), the pets on 'All Follow Me' beside him. Silent
+  Assassin came back in view and the flight ran on: a rope to (6843, 2021) 3 tiles from an idle toxic zoa, an astral
+  zoa's area hit on the pets (-29 on him, 22:33:29.34), a rope to (6858, 2042) beside a lighthouse shellpod ("You have
+  been marked (aggro increased)", Glowmark, 22:33:31.14; -20, -17), then "the way to (6897, 1992) is cut off 130 steps
+  before it; to the one at (6913, 2071) instead (cut off 57 before it)" (22:33:32), south-east into the gate pocket: a
+  frenzyfin ("*frenzies*" 35.97; -16, -15 with the pets -18..-25), the two Pressure stacks of the stand released 30.1 s
+  after the first (-10, -10 at 38.93, "Pressure released!"), -22, a razorfin's bleed (-25, "Razor-sharp fins cause you
+  to bleed!"): dead at (6872, 2066) at 22:33:39.79. From the leave to the death 338 damage on him in 18 hits, 16 of it
+  a red's (5 %); heals +232.
+- **Why** (the simulator's replay, `sim/fight2233.py`: the live layout, the reds' live steps and their stand by Petal's
+  body; docs/SIM.md "Tidal Tomb: dead fleeing reds"): the stand. The flight's hold ("far enough and the way still passes
+  them: a look again", `flee_out`) waits until the way stops passing them; but a red out of view counts RED_RUN_TPS 5
+  tiles a second nearer (`passes_hostile`, `cut_step`), so a few seconds after they leave the view every way to every
+  gate passes them, and the hold lasts until they're forgotten (RED_RECENT_S 20 s) or come back. Live it lasted 13 s
+  among level 2's monsters with the pets on follow; in the replay 12-16 s (a voidfin or the scourgeon on him in most
+  seeds), then the reds back on him and the rest of the flight through the monsters: 10 of 24 dead, 87.7 s standing hurt
+  by a monster with no red within 12, damage on Logan 4,547 (monsters 3,695, reds 848), as live mostly monsters. The
+  gate switch at 22:33:32 and the ropes beside idle monsters came after the stand, with Silent Assassin 5 tiles behind:
+  [INFERENCE] by then no choice was safe. From the stand tile the north gate has a second way, east across the level's
+  middle (51 steps from (6852, 2020), 25+ tiles from where the reds were last seen), which the out-of-view count made
+  "pass" them too.
+- **The rule** (docs/HUNT_LOOP.md "Out of view: a way clear of where they were last seen"): at the hold, with all of
+  them out of view, the easiest way to any leave gate that passes none of them where they were last seen is taken at
+  once, and kept while they stay out of view. Replay 0 of 24 dead (the east way to the north gate in all 24, 24 s), test
+  `test_tidal_red_unseen` (fails before).
+
 ## The tome's gump lost to a world save (live 2026-11-01 23:20:26-33, hunt-20261101-222057-09cc)
 
 Tidal Tomb level 1, home after visit 2, the recall in: "ABORTED: recall to Tidal Tomb Inside failed: unusable the book's

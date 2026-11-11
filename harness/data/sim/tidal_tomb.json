@@ -26,9 +26,19 @@
    "bard",
    "vet",
    "potions",
-   "defaults"
+   "defaults",
+   "reds"
   ],
-  "note": "Logan Wolf's own blocks (hits, stamina, his tamer block: pets GraveRobber and AlaFlambe by default, pack, bard skill and song numbers, vet supplies, potions) and the engine defaults: the Mausoleum's, as he brought the same pets and kit (capture: same pet serials, same skills); a dict here updates the base's (player.start, defaults.pets_first, bard's Tidal Tomb numbers). The level 3 numbers measured on other pets carry their `ref` (refs_note)"
+  "note": "Logan Wolf's own blocks (hits, stamina, his tamer block: pets GraveRobber and AlaFlambe by default, pack, bard skill and song numbers, vet supplies, potions) and the engine defaults: the Mausoleum's, as he brought the same pets and kit (capture: same pet serials, same skills); a dict here updates the base's (player.start, defaults.pets_first, bard's Tidal Tomb numbers). The level 3 numbers measured on other pets carry their `ref` (refs_note). `reds`: the Mausoleum's red players (kits, groups, Tracking, pace, jumps), this dungeon's levels and rate over them (reds.note)"
+ },
+ "reds": {
+  "levels": {"l1": [6600, 1925, 6760, 2140], "l2": [6815, 1907, 6969, 2100], "l3": [7047, 1906, 7257, 2223],
+             "marinerbane": [7350, 1936, 7427, 1981]},
+  "hunt_level": "l2",
+  "walkin_levels": ["l1"],
+  "entry": [6943, 2004, -38],
+  "arrive_per_h": 0.12,
+  "note": "red players on Tidal Tomb (run.py --reds; added 2026-11-10 after the 22:33:39 death fleeing three reds on level 2, docs/NOTES.md 'Tidal Tomb level 2: dead fleeing reds'): the Mausoleum's model and numbers (inherit) with this dungeon's levels (the runner levels' areas; level 1 the scenario's area and the recall row), the fight level 2 (both live red leaves here were on it), ; groups recall in by level 1's gold gates (the Mausoleum's rule: magic travel lands only there) and go down by the teleporter (6718, 1984) as the walk in, to `entry`, its level 2 landing (6943, 2004). Rate: the store's runner visits on level 2 since 2026-10-28, 65 visits, 11.3 h, had 2 red leaves (12:53:45 BabyFace Punishr, 22:32:59 Silent Assassin and Vowxin Retp, 2026-11-10): 0.18 groups an hour in view against Maus 3's 1.78 from arrive_per_h 1.2, so 1.2 x 0.18 / 1.78 = 0.12. run.py --reds-per-h sets another rate for a batch (a stress test of the flight)"
  },
  "refs_note": "a creature entry measured on or after 2026-10-24 20:38 (the Random, then the Nightmare/Fire bestiary loadouts) names in `ref` the pet its numbers came from, the first its note names, with its loadout and level as they were then (tamer/logan_wolf.json anchors.loadouts; the Guide views): NightmareA/B -> NightmareB at 14 with Nightmare/Fire as of 2026-10-25 11:02 (before its 11:44 rebuild); GirthyEarthy at 11 and the searing imp at 10 with Random as of 2026-10-24. Another pet takes them x its armor or magic resist and damage resistance over that pet's (sim/pets.taken_factor); the rest stand for the default, the gravebug (defaults.pet_ref)",
  "player": {
