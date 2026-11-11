@@ -8880,6 +8880,21 @@ banked by 6 drop-offs), -124826-a7cc (61 kills, 64.3k; one leave on a red player
   not going in": his only instrument was an "exceedingly melodious hurdy-gurdy" 0x5B26F971, graphic 0x4E28, in bag
   0x5B26C6E3, neither in `tamer.INSTRUMENT_GRAPHICS` nor `INSTRUMENT_NAME` (both now; test_sim `test_instrument`).
 
+## Tidal Tomb level 2 shift 2026-11-11 10:17-12:35 (SeerLoganWolf5, 6)
+
+The first runs on 893680c, a12cb22, 4ae328f and bf32ddc; pets Clicquot and Borealish, the level 2 command verbatim.
+- hunt-20261111-101705-ec03 (10:17-11:50): 7 visits, 205 kills, ~227k gold, no death, no red; every leave by a crimson
+  gate; "short of oxygen" leaves and 4 stair refills, no deprivation line. A soulcatcher cover hold at the arrival
+  10:44:41-10:47:31 (~52 "holding here ... soulcatcher" lines, hits 97-100) ended when other players killed it.
+  "leaving Clicquot 0x000DF914 to a decaying dragon (an ally is fighting it)" at 10:57:55 (our pets and a player named
+  by the ally-fight check; cosmetic, 667aa7e).
+- hunt-20261111-115245-3686 (11:52-12:35): 2 visits, both left on the red Marshall- in view at 18 tiles (12:06:05,
+  12:24:53), no damage; 12:24:59 "every way from here does (a dead end): past them at once", through. Then 12:35:08 the
+  house repair bench "out of charges (use any repair kit on the bench ...)": "ABORTED: ... not going in (--no-repair to
+  go without)"; the user ended the shift there.
+- Not yet seen live: 4ae328f's way clear of reds out of view; bf32ddc's occupied teleporter (every step onto (6718, 1984)
+  went through).
+
 ## Tidal Tomb level 2: dead fleeing reds (live 2026-11-10 22:33:39, hunt-20261110-222345-a69a)
 
 Visit 1 of a level 2 run, the level 2 command of OVERSEER §5 (`--leave-gate 6913 2071 --leave-gate 6897 1992`), pets
