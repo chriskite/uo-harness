@@ -2269,6 +2269,12 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   flag: the in-reach rule or the stall rule) out for `REGROW_MIN` (60 min, when the dug blocks come back): `why_not`
   "creature-blocked N min ago". It doesn't count as sent home, so the hazard rates are unchanged. test_mining
   `test_plan`.
+- *A leg ended with its forge cut off cools its spot too* (2026-11-10, docs/NOTES.md "A forge cut off by creatures set no
+  cooldown"). `mining_opt.trip_obs` reads the leg row's `forge_unreachable` (the weight smelt's walk to the field forge
+  failed: creatures round it, or the near ground dug out and the route over the cap) as `forge_cut`, and `plan` keeps
+  the spot out for `REGROW_MIN` like a dry or creature-blocked leg: `why_not` "forge cut off N min ago". Either cause
+  holds for the next hour (creatures linger; dug blocks regrow in REGROW_MIN). The runner itself still sends the ore home
+  with no hop (a full pack). It doesn't count as sent home, so the hazard rates are unchanged. test_mining `test_plan`.
 - *A stand beyond the walking flood gets a route cap from its walking steps* (2026-11-04 23:17:57-23:19:51,
   mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
   tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round

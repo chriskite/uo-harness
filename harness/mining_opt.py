@@ -16,7 +16,7 @@ Model (deliberately small: the lumber planner's machinery without its trip-size 
   - choice: Thompson sampling (one posterior draw per eligible spot; the best draw wins), or the
     greedy posterior-mean pick with `exploit` (the runner's hop between spots).
 Eligible: active, not in a lumber_opt no-go area, a landing known, no threat there within
-lumber_opt.COOLDOWN_S and not run dry or ended creature-blocked within REGROW_MIN.
+lumber_opt.COOLDOWN_S and not run dry, ended creature-blocked or ended with its forge cut off within REGROW_MIN.
 """
 import copy
 import math
@@ -101,7 +101,7 @@ def trip_obs(row: dict, deaths=()) -> dict | None:
                               or bool((row.get("creature") or {}).get("recalled")))
     return {"spot": row.get("spot"), "t0": t0, "t1": t1, "ore": row.get("ore", 0) or 0, "field_h": field_h,
             "died": died, "sent_home": sent_home, "dry": bool(row.get("dry")),
-            "blocked": bool(row.get("creature_blocked"))}
+            "blocked": bool(row.get("creature_blocked")), "forge_cut": bool(row.get("forge_unreachable"))}
 
 
 def _gamma_draw(rng, shape: float, rate: float) -> float:
@@ -150,11 +150,17 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
         elif last is not None and (last["sent_home"] or last["died"]) and now - last["t1"] < lumber_opt.COOLDOWN_S:
             why = f"threat {round((now - last['t1']) / 60)} min ago"
             ready_in = lumber_opt.COOLDOWN_S - (now - last["t1"])
-        elif last is not None and (last["dry"] or last["blocked"]) and now - last["t1"] < REGROW_MIN * 60:
+        elif (last is not None and (last["dry"] or last["blocked"] or last["forge_cut"])
+              and now - last["t1"] < REGROW_MIN * 60):
             # creature-blocked: the ore left was in a creature's reach and the rest dug out; the dug blocks come back in
             # REGROW_MIN (live 2026-11-07: forge_1951_1523 blocked at 14:37:45 by a sand crab, planned again at 14:52:28
-            # with no cooldown, the leg ended blocked at 0 ore in 37 s, a recall pair for nothing)
-            why = f"{'dry' if last['dry'] else 'creature-blocked'} {round((now - last['t1']) / 60)} min ago"
+            # with no cooldown, the leg ended blocked at 0 ore in 37 s, a recall pair for nothing). Forge cut off: the
+            # leg ended because the walk to the spot's forge failed (creatures round it, or the near ground dug out and
+            # the forge too far from the stands left); live 2026-11-10 18:03:20 (mining-20261110-175224-31a4):
+            # forge_2426_413's forge cut off by a cougar and an air elemental, planned again at 18:03:44 and its leg
+            # spent 7 min in 4 escapes (cougar, wolf, garou, bullvore) before it ended creature-blocked
+            kind = "dry" if last["dry"] else "creature-blocked" if last["blocked"] else "forge cut off"
+            why = f"{kind} {round((now - last['t1']) / 60)} min ago"
             ready_in = REGROW_MIN * 60 - (now - last["t1"])
         h_d = haz["died"][0] / haz["died"][1]
         h_s = haz["sent_home"][0] / haz["sent_home"][1]

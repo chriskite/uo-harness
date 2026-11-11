@@ -112,6 +112,15 @@ def test_plan():
     check("a creature-blocked leg 15 min ago keeps the spot out for the regrowth (45 min left); 70 min ago it's back",
           b["crab"]["why_not"] == "creature-blocked 15 min ago" and b["crab"]["ready_in_min"] == 45
           and b["old"]["eligible"], (b["crab"]["why_not"], b["crab"]["ready_in_min"], b["old"]["why_not"]))
+    # live 2026-11-10 18:03:20 (mining-20261110-175224-31a4): forge_2426_413's leg ended with its forge cut off by a
+    # cougar and an air elemental (stored, not creature-blocked), was planned again 21 s later and its next leg spent
+    # 7 min in 4 escapes before it ended creature-blocked
+    cut = trip("crab", 49, ago_min=10)
+    cut["forge_unreachable"] = "to the forge: every way passes an escaped creature (23 tiles round (2432, 449))"
+    c = {r["id"]: r for r in mining_opt.plan(crab, [cut], NOW, random.Random(1), {sid: LANDING for sid in crab})["spots"]}
+    check("a leg ended with its forge cut off 10 min ago keeps the spot out for the regrowth (50 min left)",
+          c["crab"]["why_not"] == "forge cut off 10 min ago" and c["crab"]["ready_in_min"] == 50,
+          (c["crab"]["why_not"], c["crab"]["ready_in_min"]))
     check("every row carries its hazards: deaths/h, sent home/h, P(death) over one run",
           all({"deaths_per_h", "sent_home_per_h", "p_death_stint"} <= r.keys() for r in out["spots"]), out["spots"])
     check("a spot with a sent-home leg is above the pooled sent-home rate",

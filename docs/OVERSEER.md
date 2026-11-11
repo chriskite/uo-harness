@@ -576,8 +576,9 @@ Paste this (or point the session at this section) to start an overseer.
 > leg aborts home ("no pickaxe worn, …"): tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
 > `task_done`: the leg ends at home in the house, the ingots into the stockpile.
 > **Every spot cooling down** (`ok: false`, `retry_in_min` set): each spot is kept out for 30 min after a threat
-> sent Dan home from it (a tracked red included), and 60 min after it ran dry or a leg there ended creature-blocked
-> (every stand left in a creature's reach; since 2026-11-07, `why_not` "creature-blocked N min ago"). `spots[].ready_in_min` says when
+> sent Dan home from it (a tracked red included), and 60 min after it ran dry, a leg there ended creature-blocked
+> (every stand left in a creature's reach; since 2026-11-07, `why_not` "creature-blocked N min ago") or ended with its
+> forge cut off (the full pack's walk to the forge failed; since 2026-11-10, "forge cut off N min ago"). `spots[].ready_in_min` says when
 > each comes back. Dan waits at home: `ctl wait --timeout <retry_in_min × 60>`, then plan again. Ask
 > the user before activating a candidate spot to fill the gap.
 >

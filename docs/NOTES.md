@@ -5782,6 +5782,15 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     start) allowed the 402-step replan. Counting steps already walked against it would have stopped the walk ~20 s
     sooner, with the same outcome. Most of the cost is the leg end (a recall pair and the walk-in lockout), not the
     walk. Seen 2 times in about 30 runs over the two days, so not changed. Worth doing if it recurs often.
+  - **A forge cut off by creatures set no cooldown (live 2026-11-10, mining-20261110-175224-31a4 →
+    mining-20261110-180344-c370, forge_2426_413).** Leg 3 of the first run: a weight smelt's walk to the forge met an air
+    elemental (escape 2/8) after a cougar earlier; at 18:03:20 "the forge can't be reached (to the forge: every way
+    passes an escaped creature (23 tiles round (2432, 449), 14 tiles round (2480, 473))); ending the leg at 49 ore: the
+    ore goes home", and the leg row was `outcome: stored`, `forge_unreachable` set, `creature_blocked` not. The planner
+    knew only `dry`/`creature_blocked`, so at 18:03:44 it picked forge_2426_413 again: 7 min and 4 escapes (cougar,
+    wolf, garou, arctic bullvore) for 288 ore before that leg ended creature-blocked and hopped. Fixed in the planner
+    (PLAN "A leg ended with its forge cut off cools its spot too"); the runner's own handling (the ore goes home, no
+    hop) is unchanged.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 
