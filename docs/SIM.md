@@ -94,6 +94,7 @@ python harness/sim/fight2321.py 1-48 [--stam 24] [--no-hit-stam] [--log] [--harn
 python harness/sim/fight2333.py 1-96 [--log] [--trace DIR] [--harness DIR]   # Maus 3's walk out 2026-11-03 23:32:37: an idle shadowguard by the way, ensnared twice, dead (docs/NOTES.md "Ensnared on the walk out")
 python harness/sim/fight2136.py 1-24 [--live-box] [--log] [--harness DIR]   # Maus 3's mini-boss room 2026-11-04 21:36:25: --go-home from (5242, 587) under a custodian stand-in, IDLE_S 120 s after an abort (docs/NOTES.md "Dead in Maus 3's mini-boss room after a double step back")
 python harness/sim/fight2337.py 1-96 [--late] [--alt nocover|potion] [--no-save] [--log] [--harness DIR] [--set tamer.COVER_NEAR_PETS=False]   # Maus 2's walk in 2026-11-05 23:37: a cover walk stalled by a world save (SaveLink: the server frozen 4.24 s, the proxy's 3 s rejection), then covers 20 off the pets (docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)")
+python harness/sim/fight2301.py 1-24 [--no-refresh] [--no-hit-stam] [--log] [--harness DIR]   # Tidal Tomb level 1 2026-11-10 23:01: a bottomfeeder on the teleporter down refuses the step, the escape tries it again gripped (docs/NOTES.md "Tidal Tomb: dead at the teleporter down, gripped")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -2949,6 +2950,45 @@ fleeing reds"; the rule in docs/HUNT_LOOP.md "Out of view: a way clear of where 
   them out of view is rare there [INFERENCE: a batch's reds come at us from Tracking, rarely stop out of view as the
   live two did over Petal]. No regression on Maus 3.
 - **Test:** `test_tidal_red_unseen` (seeds 1-3 of the replay: dead in all 3 before).
+
+### Tidal Tomb: the bottomfeeder on the teleporter (2026-11-10)
+
+Live 23:01:25 Logan died on level 1 beside its teleporter down: a bottomfeeder stood on (6718, 1984), the step onto it
+was refused at 24/25 stamina, and the escape tried the same step twice more while it gripped him (docs/NOTES.md "Tidal
+Tomb: dead at the teleporter down, gripped"; the rule in docs/HUNT_LOOP.md "A monster on the teleporter's tile",
+"Attacked between tries").
+
+- **The world**: the flying manta's area hit (its animation action 4: a number on each of ours within 2 tiles, every
+  7.66 s; 211 of 216 within 2 hit in three captures) is a `burst` (`sweep`) in data/sim/tidal_tomb.json; before, it
+  had only its plain swing. The shove rule (a step into a monster's tile below full stamina refused) was already there
+  and is what refused the live step.
+- **The replay** (`sim/fight2301.py`: the live layout at 23:01:05, the bottomfeeder idle on the tile until Logan stood
+  beside it 1.0 s, its two live grips, the manta on him, 24/25 stamina at the tile, a hit at full stamina taking a
+  point as live; seeds 1-24; a failed escape leaves him standing 30 s with no runner):
+
+  | runner | stamina potions | deaths | through to level 2 | "no teleport" error | left by a failed escape | lowest hits (median) | damage on Logan |
+  |---|---|---|---|---|---|---|---|
+  | before (a12cb22) | 15 | 13 (1 in the escape, 12 after it) | 11 | 24 | 12 | 0 | 4,513 |
+  | after | 15 | **0** | 24 | 0 | 0 | 100 | 0 |
+  | after | none (the fight for the tile) | **0** | 24 | 0 | 0 | 55 | 1,833 |
+
+  With the potions the drink and the shove go through before the bottomfeeder wakes; without them the pets kill it or
+  draw it off the tile and the step follows.
+- **Batches** (`--seed 17 --others --prior` the main store; before = a12cb22's runner on this simulator):
+
+  | | runs | deaths (runs with a death) | banked an hour | "no teleport" aborts |
+  |---|---|---|---|---|
+  | level 2, before (`--runs 96 --careers 8`) | 96 | 17 | 153.0k | 0 |
+  | level 2, after | 96 | 11 | 156.6k | 0 |
+  | level 1, before (`--runs 48 --careers 4`) | 48 | 1 | 126.7k | 0 |
+  | level 1, after | 48 | 1 | 126.7k | 0 |
+
+  No death on level 1's walk in on either side and no "no teleport" abort (one run each aborted waiting for the pets at
+  6718,1984): the bottomfeeder on the tile is rare in the batches. Level 1 is identical run for run; level 2's runs
+  diverge and its 17 -> 11 is within the noise of 96 runs [INFERENCE: what changed there (a hold waited out at a
+  teleporter, a shove, the escape's fight) isn't in the summaries].
+- **Test:** `test_tele_occupied` (a potion and the shove; no potion and no regen, the pets at it, through; before: "no
+  teleport after 3 steps in direction 5").
 
 ## The Ossuary (2026-10-28)
 

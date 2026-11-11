@@ -1295,6 +1295,18 @@
     "note": "capture 20261026_183552 (level 1, 2026-10-26 20:30-20:45, GraveRobber and AlaFlambe): 14 '*takes large swing*' from 5 scavengers in fights, each 7.6-8.0 s after its last (median 7.86, n=9), the first 0.9-4.6 s after it went to war mode; 0.5 s later a 14-21 on its target (median 18, n=12, all GraveRobber; twice also a 21 / 23 on AlaFlambe at that instant [INFERENCE: beside it, not modelled]); capture 20261024_102346's 16 put 15-25 on its other pets. A pincer crab '*emerges*' beside it at the hit's instant on 22 of the 26 swings with fewer than 2 of its own crabs up (13 of 13 then; 9 of 13 today), on none of the 4 with 2 up: chance 0.85, at most 2 [INFERENCE: up at once, as the nest crab's brood; a lifetime cap of 2 fits as well]. Its '*scavenges*' (15 today) came every ~10 s while idle (14 of 15) with no damage and no crab: an idle emote, not modelled. Its reach (docs/NOTES.md 'Tidal Tomb: dead on level 1 on the way out', 239 swings that landed on one of us in the six captures 20261024_102346-20261028_182147): everyone within 1 of the tile it faces, its target's (radius): 306 of 314 of us there hit, 0 of 137 elsewhere within 3 (behind it, 2 to its side, 2 ahead on a diagonal). Logan 20-33 there (damage_player, median 27, n 9); live 2026-10-28 22:53:10.34 and 18.82 Logan -33 / -27 with both pets beside him -21..-24"
    }
   ],
+  "flying manta": [
+   {
+    "kind": "burst",
+    "id": "sweep",
+    "first_s": [0.4, 7.7],
+    "every_s": 7.66,
+    "radius": 2,
+    "damage_player": [19, 29, 23],
+    "damage_pet": [5, 29, 19],
+    "note": "its area hit (docs/NOTES.md 'Tidal Tomb: dead at the teleporter down, gripped'): its animation action 4 (its plain swing is action 5, one number) and at that instant a number on each of ours near it; captures 20261101_215540, 20261109_113055 and 20261110_202925 replayed: 195 such animations, 105 with a number on one of ours, 7.66 s apart on one manta (median, p10-p90 7.52-7.89, n 101); of ours within 2 tiles of it in those 105, 211 of 216 hit (at 3: 9 of 49, at 4: 24 of 40 [INFERENCE: its position a step stale, or a reach past 2 on some]); on Logan 19-29 (median 23, n 9), on the pets 5-29 (median 19, n 202, Clicquot and Borealish: the default pet_ref's numbers here [INFERENCE]). Live 2026-11-10 23:01:12.70 and 20.20 Logan 22 and 28 at 2 and 1 tiles with both pets beside him. first_s: one live onset, 0.43 s after its war mode (23:01:02.97 -> 03.40, nobody within 2) [INFERENCE: up to a cycle]. Its melee numbers (the kb's) may already hold some of these [INFERENCE]"
+   }
+  ],
   "frenzyfin": [
    {
     "kind": "ooze",
