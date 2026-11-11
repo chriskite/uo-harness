@@ -2923,6 +2923,19 @@ Tomb: dead at the teleporter down, gripped"; the rule in docs/HUNT_LOOP.md "A mo
 
   With the potions the drink and the shove go through before the bottomfeeder wakes; without them the pets kill it or
   draw it off the tile and the step follows.
+- **Batches** (`--seed 17 --others --prior` the main store; before = a12cb22's runner on this simulator):
+
+  | | runs | deaths (runs with a death) | banked an hour | "no teleport" aborts |
+  |---|---|---|---|---|
+  | level 2, before (`--runs 96 --careers 8`) | 96 | 17 | 153.0k | 0 |
+  | level 2, after | 96 | 11 | 156.6k | 0 |
+  | level 1, before (`--runs 48 --careers 4`) | 48 | 1 | 126.7k | 0 |
+  | level 1, after | 48 | 1 | 126.7k | 0 |
+
+  No death on level 1's walk in on either side and no "no teleport" abort (one run each aborted waiting for the pets at
+  6718,1984): the bottomfeeder on the tile is rare in the batches. Level 1 is identical run for run; level 2's runs
+  diverge and its 17 -> 11 is within the noise of 96 runs [INFERENCE: what changed there (a hold waited out at a
+  teleporter, a shove, the escape's fight) isn't in the summaries].
 - **Test:** `test_tele_occupied` (a potion and the shove; no potion and no regen, the pets at it, through; before: "no
   teleport after 3 steps in direction 5").
 
