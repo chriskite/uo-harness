@@ -978,7 +978,10 @@ class HuntLoop:
                 continue
             if self.skip.get(s, 0) > mono and s not in attacking:
                 continue
-            if (who := self.ally_fight(st, mob)) is not None:
+            # only what we could attack: our own pets, players and allies' pets aren't targets anyway (live 2026-11-11
+            # 10:57:55 "leaving Clicquot 0x000DF914 to a decaying dragon (an ally is fighting it)": a guildmate's
+            # dragon fighting beside our pets)
+            if combat.attackable(world, key)[0] and (who := self.ally_fight(st, mob)) is not None:
                 self.ally_seen(s, mob, who)     # its corpse is theirs whoever ends up killing it (loot)
                 if s not in attacking:
                     continue                    # an ally's fight: never our target (the tick drops an engaged one)
