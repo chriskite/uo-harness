@@ -164,6 +164,17 @@ def test_staff():
           speaker(w, said(VENDOR, "Hail")) is None)
     check("a speaker not on screen is a hint (hidden staff speak without a body)",
           staff_hints(speaker(w, said(0x00001234, "hm"))) == ["not on screen (hidden or out of view)"])
+    # live 2026-11-10 20:12:39 (mining-20261110-200529-985e): the Time Quest Hub NPC "Lazric of Grere's Fighters"
+    # (notoriety 1, no player flag) spoke in view; the server deleted him 25 s later, before the runner's scan
+    gone = {**w, "mobiles": {}, "labels": {"0x0000B383": "Lazric of Grere's Fighters"},
+            "last_seen": {"0x0000B383": {"graphic": 0x190, "notoriety": 1, "flags": 0, "name": "Lazric",
+                                         "why": "delete", "facet": 0, "t": 1000.0}}}
+    lazric = {**said(0x0000B383, "Every man dies. Not every man really lives.", name="Lazric", hue=852), "body": 0x190}
+    check("an NPC the client dropped after it spoke is no speaker (judged by its last_seen record)",
+          speaker(gone, lazric) is None)
+    gone["last_seen"]["0x0000B383"]["flags"] = 0x20
+    check("a player the client dropped (a GM going hidden is deleted from view) still counts as not on screen",
+          staff_hints(speaker(gone, lazric)) == ["not on screen (hidden or out of view)"])
     os.environ[alerts.QUIET_ENV] = "1"
     m = Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
     check("nothing open: no alarm", alerts.staff_alarm_due(m, now=1000.0) is False)

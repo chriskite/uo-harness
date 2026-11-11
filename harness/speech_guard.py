@@ -167,6 +167,13 @@ def speaker(world: dict, ev: dict) -> dict | None:
         body = ev.get("body")
         if (body is not None and body not in threats.HUMAN_BODIES) or _SPAWN_NAME.match(info["name"] or ""):
             return None
+        # one the client had and dropped since (world last_seen: left the view, deleted, died) is judged as it was
+        # (live 2026-11-10 20:12:39, mining-20261110-200529-985e: the Time Quest Hub NPC "Lazric of Grere's Fighters"
+        # spoke in view, the server deleted him 25 s later and the runner's scan 6 s after that raised the staff
+        # alarm); a character seen before still counts as not on screen (a GM going hidden is deleted from view)
+        gone = (world.get("last_seen") or {}).get(key)
+        if gone is not None and not is_character(gone, label):
+            return None
         info["evidence"] = ["not on screen (hidden or out of view)"]
     else:
         body, noto, flags = mob.get("graphic"), mob.get("notoriety"), mob.get("flags") or 0

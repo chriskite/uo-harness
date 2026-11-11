@@ -5791,6 +5791,25 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     wolf, garou, arctic bullvore) for 288 ore before that leg ended creature-blocked and hopped. Fixed in the planner
     (PLAN "A leg ended with its forge cut off cools its spot too"); the runner's own handling (the ore goes home, no
     hop) is unchanged.
+  - **A false staff alarm on a Time Quest Hub NPC (live 2026-11-10, mining-20261110-200529-985e, capture
+    session_20261110_175019).** At 20:12:39.255 "Lazric of Grere's Fighters" (0x0000B383, body 0x190, notoriety 1, flags
+    0, an innocent company NPC like Roan and Delric) said "Every man dies. Not every man really lives." in view. The
+    server deleted him (0x1D) at 20:13:04.2. The runner's speech scan came at 20:13:10, 31 s after the line (it was
+    busy). With no mobile to look at, `speech_guard.speaker` called it "not on screen (hidden or out of view)", a staff
+    hint, so it raised `gm_suspected` and the staff alarm and held the leg until the Seer acked it. Replayed:
+    `speaker()` on that event with the world at 20:13:10 gave the not-on-screen speaker before the fix and None after.
+    Fix: a speaker gone from `mobiles` is judged by its world `last_seen` record (left the view, deleted, died). An NPC
+    or creature there is no speaker. A character there still counts as not on screen, because a GM going hidden is
+    deleted from view. test_speech_guard `test_staff`.
+  - **Escapes from a guildmate's pets at the guild-house landing (live 2026-11-10 20:27:40 and 20:27:55,
+    mining-20261110-202729-c70e).** Right after each recall in by "DTF Loot Chest", Cutie (0x002A4DE5, body 58) and
+    GoodDream (0x0047D57C, body 204) were in view at 7 tiles. Both were notoriety 2 and flags 0x40 (war mode) in
+    their first 0x20. Their "(bonded)" line came 67 ms later (0xAE). The landing's threat check fell in that gap and
+    judged them aggressive by war mode. Each time this triggered "ESCAPE n/8 … backing away from Cutie, GoodDream",
+    a 45-step, 10 s walk out of the house to (4124, 1454). The Seer stopped the run after trip 1 (stop
+    --after-trip). Fix: `threats._aggressive` treats a creature at notoriety 2 (ALLY_NOTORIETY) like a pet: not
+    aggressive unless it swings or casts at us. Only an ally's pet shows green [INFERENCE: RunUO, as for the
+    owner's notoriety on pets]. test_threats `test_pets`.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

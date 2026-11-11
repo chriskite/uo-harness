@@ -246,6 +246,14 @@ def test_pets():
     red_pet = [mob(phoenix, 6, 0, body=832, noto=6, flags=0x40, pet="bonded")]
     a = assess(state(red_pet, labels=labels), **kw)
     eq("a murderer's pet (notoriety 6) -> flee", one(a, phoenix).action, "flee")
+    # live 2026-11-10 20:27:40/55 (mining-20261110-202729-c70e): a guildmate's bonded pets at the DTF guild-house
+    # landing, notoriety 2 and war mode in their first 0x20, the "(bonded)" line ~70 ms later; escaped from in between
+    cutie = [mob(0x002A4DE5, 5, 1, body=58, noto=2, flags=0x40)]
+    a = assess(state(cutie), **kw, params=Params(aggressive_bodies=frozenset({58})))
+    eq("a war-mode creature at notoriety 2 (an ally's pet before its pet line) -> not hostile, ignore",
+       (one(a, 0x002A4DE5).hostile, one(a, 0x002A4DE5).action), (False, "ignore"))
+    a = assess(state(cutie, swings={0x002A4DE5: (ME, NOW - 1.0)}), **kw)
+    eq("... swinging at us -> flee", one(a, 0x002A4DE5).action, "flee")
 
 
 def test_damage():

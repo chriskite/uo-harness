@@ -95,7 +95,12 @@ comes, in order, from (_aggressive):
   2. a pet (Mobile.pet: the server's "(tame)" / "(bonded)" / "(summoned)" line
      under its click label): aggressive only with notoriety 6
      (`aggressive_notoriety`; a pet's notoriety is its owner's [INFERENCE:
-     RunUO]), else not, war mode and body notwithstanding
+     RunUO]), else not, war mode and body notwithstanding. Notoriety 2 (green,
+     ALLY_NOTORIETY) on a creature is the same: only a guildmate's or ally's pet
+     shows it, and it comes in the mobile's first packet, ~70 ms before the pet
+     line (live 2026-11-10 20:27:40/55, mining-20261110-202729-c70e: the bonded
+     war-mode pets Cutie and GoodDream at the DTF guild-house landing, escaped
+     from twice in that gap, 45 steps out of the house each time)
   3. war-mode flag 0x40 (EntityFlags.cs:18), unless the body is in
      `passive_bodies` or the label in `passive_names`
   4. `passive_bodies`/`passive_names`, then `aggressive_bodies`, notoriety 6,
@@ -589,6 +594,8 @@ def _aggressive(mob, text, params: Params, at_us: bool = False, how: str = "swin
     body, noto, flags = mob.get("graphic"), mob.get("notoriety"), mob.get("flags") or 0
     if at_us:
         return True, f"{how} at us"
+    if noto == ALLY_NOTORIETY:
+        return False, "allied (notoriety 2: a guildmate's pet)" + (", war mode" if flags & FLAG_WARMODE else "")
     pet = mob.get("pet")
     if pet:
         if noto in params.aggressive_notoriety:
