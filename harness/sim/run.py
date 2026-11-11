@@ -119,7 +119,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     teleporters), else a fresh one (with `prior`'s hunt history: seed_prior). `others`: other players on the
     level (the scenario's `others`, off by default so earlier batches stay comparable); `eerie`: the Field of
     Souls' eerie corpses (the scenario's `eerie`, off by default too); `reds`: red players (the scenario's `reds`, off
-    by default). `epoch`: the game time it starts at. `trace`: record the run's trace (sim/trace.py) to this path.
+    by default; a number: groups arriving an hour instead of its `arrive_per_h`). `epoch`: the game time it starts at.
+    `trace`: record the run's trace (sim/trace.py) to this path.
     `area`: the hunting level's box (x0, y0, x1, y1) for the per-hour numbers instead of the scenario's. `armor`:
     {aspect_tier, ar} over the scenario's `player.armor` (--aspect-tier: the suit's Command tier, so its AR and the
     pets' follower damage, speed and resistance; "off": no aspect active; --armor: the AR itself). `instrument`: the
@@ -160,6 +161,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             if flag not in sc:
                 raise ValueError(f"--{flag}: scenario {scenario} has no `{flag}` block")
             sc[flag]["enabled"] = True
+    if reds is not True and reds:
+        sc["reds"]["arrive_per_h"] = float(reds)   # --reds RATE: groups an hour instead of the scenario's
     for k, v in (armor or {}).items():
         if v is not None:
             (sc["player"]["armor"]["suit"] if k == "aspect_tier" else sc["player"]["armor"])[k] = \
@@ -364,8 +367,9 @@ def arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--eerie", action="store_true",
                     help="the Field of Souls' eerie corpses on the level, empty soul jars in the pack (the scenario's "
                          "`eerie`; off by default)")
-    ap.add_argument("--reds", action="store_true",
-                    help="red players (player killers): the scenario's `reds`, off by default (docs/SIM.md 'Red players')")
+    ap.add_argument("--reds", nargs="?", const=True, default=False, type=float, metavar="RATE",
+                    help="red players (player killers): the scenario's `reds`, off by default (docs/SIM.md 'Red "
+                         "players'); RATE: groups arriving an hour instead of the scenario's arrive_per_h (a stress test)")
     ap.add_argument("--death-downtime-min", type=float, default=None,
                     help="game minutes a death costs beyond the run (resurrection, resupply, the restart) in "
                          "banked_per_h_net; default: the scenario's reds.death_downtime_s")
@@ -600,7 +604,7 @@ def reds_summary(ok: list[dict]) -> dict:
     rs = [(r, r["reds"]) for r in ok if r.get("reds")]
     level_h = sum(x["level_s"] for _, x in rs) / 3600 or 1e-9
     walk_h = sum(x["walkin_s"] for _, x in rs) / 3600 or 1e-9
-    hunt = ("maus3",)
+    hunt = {x.get("hunt_level") or "maus3" for _, x in rs}     # the scenario's fight level (reds.hunt_level)
     sights = [(r, sg) for r, x in rs for sg in x["sightings"]]
     lv = [(r, sg) for r, sg in sights if sg["level"] in hunt]
     wk = [(r, sg) for r, sg in sights if sg["level"] not in hunt and sg["level"] is not None]

@@ -3184,6 +3184,27 @@ def test_ssc_red_race():
           f"{res.get('ok')} {res.get('error')} gate {res.get('gate')} deaths {w.metrics['deaths']} | " + " | ".join(lines[:4]))
 
 
+def test_tidal_red_unseen():
+    print("== Tidal Tomb level 2, two reds out of view by a blue they killed: the flight far from them goes on by a way "
+          "clear of where they were last seen, no stand among the monsters; alive and through a gate, seeds 1-3 ==")
+    # live 2026-11-10 22:33:09-22 (hunt-20261110-222345-a69a): "the way passes Vowxin Retp at (6850, 1982); 22+ tiles
+    # from them here, looking again" 13 s at (6852, 2012), a scourgeon on him 100 -> 46 and its Pressure; Silent Assassin
+    # back on him at 22:33:21.8, the rest of the flight through level 2's monsters, dead at 22:33:39 (docs/NOTES.md "Tidal
+    # Tomb level 2: dead fleeing reds"). sim/fight2233.py, the live layout and the reds' live steps: seeds 1-3 dead before,
+    # each after a 14-16 s stand (10 of 24 dead)
+    from sim import fight2233
+    rows = []
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        for seed in (1, 2, 3):
+            rows.append(fight2233.one(seed))
+    stood = [sum("looking again" in ln for ln in r["log"]) for r in rows]
+    on = [any("out of view; " in ln and "clear of where they were last seen" in ln for ln in r["log"]) for r in rows]
+    check("each through a gate alive, by a way clear of their last tiles, no 'looking again' stand (before: dead in all "
+          "3 after 'looking again')", all(r["gate"] and not r["dead"] for r in rows) and not any(stood) and all(on),
+          " | ".join(f"seed {r['seed']}: dead {r['dead']} gate {r['gate']} low {r['low']} looks {n} by {r['by']}"
+                     for r, n in zip(rows, stood)))
+
+
 def test_ledge_attacker():
     print("== on the walk in, a monster on a ledge 25 above hitting a pet: no target, the walk goes on ==")
     # live 2026-10-19 19:34:43-35:50 (hunt-20261019-192245-e3d7): an insane reanimator at (5507, 660, 30) over
@@ -8925,7 +8946,7 @@ def main():
               test_gate_after_vet,
               test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_kill_tile_spot, test_bard_skip_logged,
               test_bard_other_on_pets, test_bard_provoke, test_rope_sight, test_red_flight,
-              test_red_out_of_view, test_red_walled,
+              test_red_out_of_view, test_red_walled, test_tidal_red_unseen,
               test_rope_cancel_attacked, test_rope_combat_cooldown, test_rope_ranged, test_red_caster_sight,
               test_red_hamstring, test_red_breaks_recall, test_red_follows_teleporter, test_gold_banked,
               test_ledge_attacker,
