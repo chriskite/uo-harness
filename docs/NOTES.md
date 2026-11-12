@@ -9715,11 +9715,21 @@ three-visit stretch of the 31 before; gold and kills are inside the spread.
 - **The dip loses heals live.** 19 dips; the 11 of 1-2 steps all healed, 5 of the 8 of 3-8 steps arrived with "vet
   supplies: too far from every pet at the finish" (10:39:59 3 steps planned 0.1 s after the finish was due; 10:49:23
   8 steps planned 1.6 s before it, arrived 2 s later; 11:02:05 6 steps, 1.5 s; 11:05:52 4 steps, 1.2 s; 11:08:53 6
-  steps, 0.7 s). A live walk takes its planning and ~0.25 s a step, not the simulator's 0.2 s a step with no wait,
-  and the pets move meanwhile. 4 more finishes were lost to a stand-off out of the wider zone ("beyond the vet
-  supplies' reach of the pets") while a channel for a pet above the dip's threshold ran. Not fixed here: the dip's
-  start wants the walk's real time (`STEP_IN_MARGIN_S` for the planning and the live step pace), a tile no farther
-  than that allows, and no channel begun that the stand-off will walk away from.
+  steps, 0.7 s). The step pace is not the cause (an earlier reading here, "~0.25 s a step", came from the log's
+  one-second stamps and was wrong). The capture's own walk requests (4,117 of the agent's 0x02 in the run, all with
+  the run flag, 8 denies): 201 ms after a request that moved (median; p10-p90 200-202, n 2,731), 214 ms after one that
+  only turned (208-225, n 989), the server's confirm 46 ms after the request. What the dip misses: (1) the turns. A
+  request in a new direction only turns; 23 % of the requests in walks of 4+ were turns, so a tile moved cost 0.28 s,
+  and the dip budgets its tiles at 0.2 s each with no turn (`pass_plan` counts them, `dip` doesn't). (2) Its start.
+  Each lost dip set out with less time than its own budget: 0.7-1.6 s left for walks of 7-12 requests (1.4-2.5 s); in
+  all five the requests ran on 0.2-0.5 s past the finish line's text. The tick was busy when the start was due (a
+  "shallower" walk, a potion, 'All Guard Me', the dip before it), and the dip then goes late rather than not at all.
+  (3) The channel: 5.16 s from "You begin" to its end line (median; p5-p95 5.03-5.28, n 185), but 4.88 s the shortest
+  (10:49:19.53-24.41, the 8-step dip's), under `VET_CHANNEL_S` 5.0. 4 more finishes were lost to a stand-off out of
+  the wider zone ("beyond the vet supplies' reach of the pets") while a channel for a pet above the dip's threshold
+  ran. Not fixed here: the dip's budget wants the walk's requests (turns too), its start before anything else is
+  begun, no walk that can't arrive (stay in reach instead), and no channel begun that the stand-off will walk away
+  from.
 - **The pet deaths were one fight** (10:48:21-10:50:21, 5 deaths and resurrections). A front put a lighthouse shellpod
   on Clicquot; both pets then ran 12-17 tiles from Logan into a combustive, an astral and a toxic zoa, two shellpods, a
   crab and a soulcatcher. Clicquot went 61 % -> 44 -> 29 -> 20 -> dead through four channels 7 s apart, each finished
