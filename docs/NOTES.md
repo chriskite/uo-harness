@@ -9727,9 +9727,28 @@ three-visit stretch of the 31 before; gold and kills are inside the spread.
   (3) The channel: 5.16 s from "You begin" to its end line (median; p5-p95 5.03-5.28, n 185), but 4.88 s the shortest
   (10:49:19.53-24.41, the 8-step dip's), under `VET_CHANNEL_S` 5.0. 4 more finishes were lost to a stand-off out of
   the wider zone ("beyond the vet supplies' reach of the pets") while a channel for a pet above the dip's threshold
-  ran. Not fixed here: the dip's budget wants the walk's requests (turns too), its start before anything else is
-  begun, no walk that can't arrive (stay in reach instead), and no channel begun that the stand-off will walk away
-  from.
+  ran.
+  - **Fixed the same day** (`Team.dip`, `walk_requests`, `stand_off`; docs/HUNT_LOOP.md "The dip", "Its clock").
+    The dip's first request went out 0.07 s (median of the 19; 0.16 at most) after the time its log line names,
+    reckoned from the begin line: no start-up to speak of. Its 2-step dips, each with a turn, stood on their tile
+    4.86-4.91 s after the begin line, 0.13 s before the shortest of their own channels (5.04 s): they arrived by luck.
+    Now the walk is timed by the requests of the route the Mover plans, turns counted, at 0.21 s each plus 0.15 s,
+    against a channel of 4.85 s on our clock: a 2-step dip with a turn sets out 1.2 s before that and stands 0.4 s
+    before it. A walk that can't arrive gives way to the most hurt pet's tile when that one can. Mid-channel the
+    stand-off walks (out of the zone, or "shallower") only where the steps there and the way back into reach of
+    the dip's pets, at 0.28 s a tile, end before the step in is due. On its tile already, the dip holds instead of
+    logging a walk of no steps every tick.
+  - Its test: `test_zoa_dip` with every channel 4.88 s (a 6-step dip with two turns): 21 of 24 channels lost and
+    AlaFlambe under 5 % before, none lost after. The simulator's own channels are 5.0-5.3 s and its pets stand, so
+    its batches never had the fault (dips that lost their finish: 4.7 % before, 2.3 % after, seeds 2001-2144) and
+    show only that the earlier step in costs nothing: level 2, 576 runs a side (seeds 1, 145, 2001, 3001 x 144) on
+    f46fada, monster damage on Logan 497 -> 502 an hour, banked 170,272 -> 171,783, runs with a death 42 -> 42, pet
+    deaths 267 -> 264.
+  - Not done: the step in for a channel begun for a pet above the dip's threshold before the zoa's zone was there
+    (the 4 finishes above). Tried (`vet_for`, the pet below 97 %): 288 runs, 550 an hour on Logan against 509
+    without it, pet deaths 128 against 136 [INFERENCE: inside the batches' spread]; left out.
+  - Not covered by any of this: the pets running on while the channel runs. The dip's tile is 5 from where they
+    stand when it sets out.
 - **The pet deaths were one fight** (10:48:21-10:50:21, 5 deaths and resurrections). A front put a lighthouse shellpod
   on Clicquot; both pets then ran 12-17 tiles from Logan into a combustive, an astral and a toxic zoa, two shellpods, a
   crab and a soulcatcher. Clicquot went 61 % -> 44 -> 29 -> 20 -> dead through four channels 7 s apart, each finished

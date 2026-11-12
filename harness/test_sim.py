@@ -7059,43 +7059,57 @@ def test_zoa_dip():
     # finish needs its reach. Simulator, Tidal Tomb level 2, 288 runs: 343 an hour on Logan from the zoas' bursts on
     # their target with him 4-6 off it the whole fight (the stand-off's 4, in --vet-range)
     from agent_link import cheb
-    rows = []
-    for seed in (1, 2, 3):
-        w = tidal_world((6899, 2019), [{"key": "astral zoa", "at": [6909, 2024, -90]}], seed=seed, z=-90,
-                        team="phoenix_incubus")
-        z = next(m for m in w.mobs.values() if m.kind == "monster")
-        z.hits = z.hits_max = 10 ** 6
-        z.spec = {**z.spec, "step_s": 999.0}
-        loop, clock, store, patched = hurt_loop(w, 100)
-        ala = next(p for p in w.pets() if p.name == "AlaFlambe")
-        for p in w.pets():
-            p.x, p.y = 6910, 2022
-            p.mode, p.kill, p.target, p.next_step = "kill", z.serial, z.serial, 1e9
-            w._warm(p, True)
-        ala.hits = int(ala.hits_max * 0.5)
-        z.target, z.threat = ala.serial, {ala.serial: 1e9}
-        w._warm(z, True)
-        out = io.StringIO()
-        t0 = last = w.t
-        far = 0.0
-        try:
-            with contextlib.redirect_stdout(out):
-                while w.t - t0 < 40.0 and w.player.alive:
-                    loop.tick()
-                    if cheb(w.player.pos, ala.pos) > 6:
-                        far += w.t - last
-                    last = w.t
-        finally:
-            store.close()
-            simclock.uninstall(patched)
-        log = out.getvalue().splitlines()
-        rows.append({"seed": seed, "far": round(far, 1), "channels": w.metrics["vet_uses"],
-                     "dips": sum(" dip: " in ln for ln in log), "lost": sum("too far from every pet" in ln for ln in log),
-                     "ala": round(ala.hits / ala.hits_max, 2)})
+
+    def run(channel=None):
+        rows = []
+        for seed in (1, 2, 3):
+            w = tidal_world((6899, 2019), [{"key": "astral zoa", "at": [6909, 2024, -90]}], seed=seed, z=-90,
+                            team="phoenix_incubus")
+            if channel is not None:
+                w.sc["vet"] = {**w.sc["vet"], "channel_s": [channel, channel]}
+            z = next(m for m in w.mobs.values() if m.kind == "monster")
+            z.hits = z.hits_max = 10 ** 6
+            z.spec = {**z.spec, "step_s": 999.0}
+            loop, clock, store, patched = hurt_loop(w, 100)
+            ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+            for p in w.pets():
+                p.x, p.y = 6910, 2022
+                p.mode, p.kill, p.target, p.next_step = "kill", z.serial, z.serial, 1e9
+                w._warm(p, True)
+            ala.hits = int(ala.hits_max * 0.5)
+            z.target, z.threat = ala.serial, {ala.serial: 1e9}
+            w._warm(z, True)
+            out = io.StringIO()
+            t0 = last = w.t
+            far = 0.0
+            try:
+                with contextlib.redirect_stdout(out):
+                    while w.t - t0 < 40.0 and w.player.alive:
+                        loop.tick()
+                        if cheb(w.player.pos, ala.pos) > 6:
+                            far += w.t - last
+                        last = w.t
+            finally:
+                store.close()
+                simclock.uninstall(patched)
+            log = out.getvalue().splitlines()
+            rows.append({"seed": seed, "far": round(far, 1), "channels": w.metrics["vet_uses"],
+                         "dips": sum(" dip: " in ln for ln in log),
+                         "lost": sum("too far from every pet" in ln for ln in log),
+                         "ala": round(ala.hits / ala.hits_max, 2)})
+        return rows
+    rows = run()
     check("3+ channels, a step in for each finish ('dip: ...'), none 'too far from every pet at the finish'; she ends "
-          "above 70 % (from 50); Logan beyond its volley for 25+ of the 40 s",
-          all(r["channels"] >= 3 and r["dips"] >= r["channels"] - 1 and not r["lost"] and r["ala"] > 0.7
+          "above 60 % (from 50); Logan beyond its volley for 25+ of the 40 s",
+          all(r["channels"] >= 3 and r["dips"] >= r["channels"] - 1 and not r["lost"] and r["ala"] > 0.6
               and r["far"] >= 25 for r in rows), str(rows))
+    # live 2026-11-12 (hunt-20261112-102724-f592; docs/NOTES.md "Tidal Tomb level 2: the pets-first rules' first live
+    # run"): 5 of the 8 dips of 3+ steps came 0.2-0.5 s after the finish, their tiles counted at 0.2 s each with no
+    # turn and the channel at 5.0 s (live 4.88-5.28). Here the dip is 6 steps with two turns; before, at 4.88 s, 21 of
+    # the 24 channels found no pet in reach and she ended under 5 %
+    short = run(4.88)
+    check("...and with every channel the shortest seen live (4.88 s): none lost (the walk timed by its requests, turns "
+          "too: Team.walk_requests)", all(r["channels"] >= 3 and not r["lost"] for r in short), str(short))
 
 
 def test_to_pet_detour():

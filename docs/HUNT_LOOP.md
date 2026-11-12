@@ -1700,11 +1700,26 @@ moongate, and never near a red one).
     the pets in its reach are a zone of 7 (`TARGET_AREA_FAR`: its volley), wider than `--vet-range`. A pet there is
     vetted from `--standoff-vet-at`. The channel begins in reach; the stand-off then takes Logan out of the zone when
     a clear tile is near enough to be back in time (`DIP_OUT_STEPS`), else to the least deep tile in reach; he is on
-    the dip's tile `DIP_LEAD_S` before the channel's shortest finish (5.0 s) and holds there for it. No loot walk
-    while such a channel runs. Log: "dip: (x, y), K step(s), N from <pet> (T s before the channel's finish)". The vet
+    the dip's tile `DIP_LEAD_S` before the channel's shortest finish and holds there for it. No loot walk
+    while such a channel runs. The vet
     tile (`vet_tile`) and the dip's take the least depth in that zone: 5 off the target is out of the lightning.
     Where every clear tile is in an idle monster's eyes, the stand-off takes the least deep tile out of them
     (`shallow_tile`: "stand-off: no clear tile out of the idle monsters' eyes; to ...") instead of staying.
+    - **Its clock** (since 2026-11-12, after the first live run: 5 of the 8 dips of 3+ steps came 0.2-0.5 s after the
+      finish; docs/NOTES.md "Tidal Tomb level 2: the pets-first rules' first live run"). The channel's shortest is
+      4.85 s on our clock (`VET_CHANNEL_S`; live 4.88-5.28 s between its two lines). The walk in is timed by the
+      requests of the route the Mover plans (`Team.walk_requests`: a step each and a turn before each step in a new
+      direction, 0.21 s a request, `DIP_REQ_S`) plus its start (`DIP_START_S` 0.15 s: live 0.07, 0.16 at most). A
+      walk that would arrive after the finish gives way to the most hurt pet's tile when that one arrives in time;
+      when neither does, he goes to the nearer one all the same (the next channel begins there) and the visit counts
+      `dips_late`.
+    - **Mid-channel the stand-off walks only where the dip still comes in time**: the steps there and the way back
+      into reach of the dip's pets at 0.28 s a tile (`DIP_TILE_S`: the live pace with its turns), for the tile out of
+      the zone and for the "shallower" tile alike.
+    - A channel begun for a pet above `--standoff-vet-at` before a zoa's zone was there is still left to finish out
+      of reach: stepping in for those too was tried (2026-11-12) and cost Logan 41 an hour more in the simulator with
+      as many pet deaths.
+    - Log: "dip: (x, y), K step(s), a walk of W s, N from <pet> (T s before the channel's finish)".
   - Not built, each tried in the simulator and dropped: keeping off a melee monster that is on him (the pets never
     get it off him as he runs), 'All Kill' at a monster that woke on him before its first swing, standing behind the
     pets from every monster in war mode.

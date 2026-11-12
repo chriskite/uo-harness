@@ -307,7 +307,17 @@ DIP = True
 TARGET_AREA_FAR = _target_area(far=True)
 DIP_OUT_STEPS = 4             # out of that reach between a channel's begin and its finish when a clear tile is this near
 DIP_OUT_MARGIN_S = 0.6        # ...and the steps out and back leave this long before the step in is due
-VET_CHANNEL_S = 5.0           # a channel's shortest (measured 5.0-5.3 s)
+# The dip's clock, from the first live run (docs/NOTES.md "Tidal Tomb level 2: the pets-first rules' first live run",
+# 2026-11-12: 5 of the 8 dips of 3+ steps came after the finish): 185 channels ran 4.88-5.28 s from "You begin" to
+# their end line (median 5.16, p5 5.03); a walk request took 201 ms when it moved and 214 ms when it only turned (a
+# request in a new direction turns first: 23 % of the requests in walks of 4+, 0.28 s a tile moved); the dip's first
+# request went out 0.07 s (median of 19, 0.16 at most) after the time its log line names, reckoned from the begin line:
+# the reply's read and the walk's plan together. Its 2-step dips, a turn in each, stood on their tile 4.86-4.91 s after
+# the begin line, 0.13 s before the shortest of their channels
+VET_CHANNEL_S = 4.85          # a channel's shortest, on our clock
+DIP_REQ_S = 0.21              # a walk request of the dip's planned route, a step or a turn (walk_requests)
+DIP_TILE_S = 0.28             # ...a tile moved where the route isn't planned yet (stand_off's steps out and back)
+DIP_START_S = 0.15            # the walk's start: its plan and the first request
 DIP_LEAD_S = 0.4              # on the dip's tile this long before the channel's shortest finish
 DIP_WAIT_S = 1.5              # ...and nothing else begun this long before the step in (a bard skill's answer takes ~1 s)
 DIP_STEPS = 8                 # the dip's tile within this many steps
@@ -873,6 +883,8 @@ class Team:
         self.dip_from = None              # ((x, y), monotonic) where the last dip stepped in from: back there after it
         self.cover_stayed = None          # the shooters the last "staying by them" was for (logged once each)
         self.dip_finish = 0.0             # the running dip channel's shortest finish (monotonic)
+        self.dip_reach = []               # the (x, y) of the pets the running dip steps in for (stand_off's way back)
+        self.dip_req = None               # ((our tile, the dip's tile), walk requests there): walk_requests' last plan
         self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
         self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
@@ -3281,13 +3293,21 @@ class Team:
                 and self.vet(st):
             return True                   # one to heal in the supplies' reach, deep in an area hit's: its channel begun
             #                               here (the last one's finish found us here), then out for the wait (dip)
-        out = None                        # a channel runs for the dip: out only to a clear tile DIP_OUT_STEPS near
+        out, fits = None, None            # a channel runs for the dip: out only to a clear tile DIP_OUT_STEPS near
         if self.dipping:
             v = self.view(st)
             steps = self.tiles_within(v, DIP_OUT_STEPS) if v.walk is not None else {}
-            # only those we can go out to and come back from for the finish
-            left = self.dip_finish - now - DIP_LEAD_S - DIP_OUT_MARGIN_S
-            out = {t[:2] for t, k in steps.items() if 2 * k * STEP_IN_STEP_S <= left}
+            # only where the walk there and the way back into the supplies' reach of the dip's pets end before its
+            # step in is due, a tile moved at DIP_TILE_S (live 2026-11-12 10:49:19-25: two such walks of 4 steps took
+            # Logan 8 steps from the dip's tile with 1.6 s to the finish)
+            left = self.dip_finish - now - DIP_LEAD_S - DIP_START_S - DIP_OUT_MARGIN_S
+            reach, vr = list(self.dip_reach), self.a.vet_range
+
+            def in_time(t, k, there_and_back: bool = False) -> bool:
+                way = max([cheb(t, p) - vr for p in reach] + [k if there_and_back else 0])
+                return (k + way) * DIP_TILE_S <= left
+            fits = in_time
+            out = {t[:2] for t, k in steps.items() if fits(t, k, True)}
         back = self.dip_from
         if back is not None and now - back[1] <= DIP_BACK_S and not (sprayed or scorched) and ClearOf(zone)(back[0]) \
                 and back[0] not in self.fire_tiles(st):
@@ -3302,7 +3322,7 @@ class Team:
             # 2 s and more, "stand-off: every clear tile is nearer an idle monster ...; staying"), the least deep tile
             # no idle monster would take us on; mid-channel within the supplies' reach of the pets it is for
             near = [(p["x"], p["y"]) for p in heal if p["dist"] <= self.a.vet_range] if self.dipping else None
-            to = self.shallow_tile(st, zone, near)
+            to = self.shallow_tile(st, zone, near, fits)
             shallow = to is not None
             if shallow:
                 self.count("standoff_shallow")
@@ -3318,7 +3338,8 @@ class Team:
             # zoa's target is out of its astral spell and lightning)
             near = [(p["x"], p["y"]) for p in heal if p["dist"] <= self.a.vet_range]
             to = self.vet_tile(st, near, DIP_OUT_STEPS) if near else None
-            if to is None or self.zone_depth(zone, to) >= self.zone_depth(zone, pos):
+            if to is None or self.zone_depth(zone, to) >= self.zone_depth(zone, pos) \
+                    or not fits(to, steps.get(tuple(to), DIP_OUT_STEPS)):
                 return False
             self.standoff_t = now
             label = "shallower in an area hit's reach"
@@ -3357,11 +3378,12 @@ class Team:
             log(f"stand-off cut short: {e}")
         return True
 
-    def shallow_tile(self, st, zone: dict, reach: list | None = None):
+    def shallow_tile(self, st, zone: dict, reach: list | None = None, fits=None):
         """stand_off's tile where none within STANDOFF_MOVES is clear of `zone` (or none an idle monster wouldn't see
         us on first): the least deep in it (zone_depth) that no idle monster would take us on (aggro.View.first_on_us)
-        and no --never-aggro one sees, out of fire, shallower than here, within --vet-range of every tile of `reach`;
-        the fewest steps among those. None: none shallower."""
+        and no --never-aggro one sees, out of fire, shallower than here, within --vet-range of every tile of `reach`,
+        and (mid-channel) one that `fits`(tile, steps): the dip's step in still comes in time from it; the fewest steps
+        among those. None: none shallower."""
         v = self.view(st)
         if v.walk is None:
             return None
@@ -3371,7 +3393,7 @@ class Team:
         for t, k in self.tiles_within(v, STANDOFF_MOVES).items():
             d = self.zone_depth(zone, t)
             if k == 0 or d >= here or t[:2] in fire or v.never_near(t) or v.first_on_us(t, margin=1) \
-                    or any(cheb(t, p) > self.a.vet_range for p in reach or ()):
+                    or any(cheb(t, p) > self.a.vet_range for p in reach or ()) or (fits is not None and not fits(t, k)):
                 continue
             if best_c is None or (d, k) < best_c:
                 best, best_c = t, (d, k)
@@ -3387,26 +3409,51 @@ class Team:
         such a hit's reach."""
         return any(r - cheb(at, c) > self.a.vet_range for c, r in dz.items())
 
+    def walk_requests(self, st, tile) -> int | None:
+        """The walk requests of the route the Mover plans to `tile` from here: a step each, and a turn before each step
+        in a new direction, the first from our facing (a request in a new direction only turns: live 2026-11-12, 989 of
+        the run's 4,117 requests). None: no route within 2 x DIP_STEPS. Kept while we stand (the dip's wait)."""
+        pos = st["movement"]["pos"]
+        here = (pos[0], pos[1], pos[3] & 7 if len(pos) > 3 and pos[3] is not None else None)
+        if self.dip_req is None or self.dip_req[0] != here:
+            self.dip_req = (here, {})
+        known, to = self.dip_req[1], tuple(tile[:2])
+        if to not in known:
+            path, _ = self.h.mover.plan(st, nav.within(to, 0), max_steps=2 * DIP_STEPS)
+            n = None
+            if path:
+                n, face = 0, here[2]
+                for a, b in zip(path, path[1:]):
+                    d = nav.direction(a, b)
+                    n, face = n + 1 + (d != face), d
+            known[to] = n
+        return known[to]
+
     def dip(self, st) -> bool:
         """A vet channel of ours running with a hurt pet in an area hit's reach wider than --vet-range (area_zone: the
         zoas' volley 7 round the pet it targets): on the dip's tile DIP_LEAD_S before the channel's shortest finish
         (VET_CHANNEL_S after its begin), and held there till the finish; stand_off takes us out again after. The tile:
         within --vet-range of every such pet (else of the most hurt), the least deep in the hits that come often
         (area_zone without the rare ones: 5 off a zoa's target is out of its astral spell and lightning), the fewest
-        steps. Nothing else is begun DIP_WAIT_S before the step in (True: the tick held). `dipping`: such a channel
-        runs (HuntLoop.combat_step loots after it)."""
+        steps. The walk there is timed by its planned route's requests, the turns too (walk_requests, DIP_REQ_S) and its
+        start (DIP_START_S); one that would come after the finish gives way to the most hurt pet's tile when that one
+        comes in time (live 2026-11-12: 5 of the 8 dips of 3+ steps came 0.2-0.5 s late, their tiles counted at 0.2 s
+        each). Nothing else is begun DIP_WAIT_S before the step in (True: the tick held). `dipping`: such a channel
+        runs (HuntLoop.combat_step loots after it); `dip_reach`: the pets it is for."""
         h, now = self.h, time.monotonic()
-        self.dipping = False
+        self.dipping, self.dip_reach = False, []
         if now >= self.vet_busy_until or now - self.vet_t > VET_BUSY_S:
             return False                  # no channel of ours running
         dz = self.dip_zone(st)
         # those the channel is for: dead, poisoned, or below their threshold (heal_at) with DIP_OVER to spare for what
-        # healed them meanwhile (a channel for us, or for a pet out of the reach, takes no step in)
+        # healed them meanwhile (a channel for us, or for a pet out of the reach, takes no step in; nor one begun for a
+        # pet above that threshold before a zoa's reach was there: the step in for those, tried 2026-11-12, cost Logan 41
+        # an hour more in the simulator, 288 runs, with as many pet deaths)
         wide = [p for p in self.pets(st) if p.get("x") is not None and self.wide((p["x"], p["y"]), dz)
                 and (p["dead"] or p["frac"] < self.heal_at(p, (), dz=dz) + DIP_OVER or p["poisoned"])]
         if not wide:
             return False
-        self.dipping = True
+        self.dipping, self.dip_reach = True, [(p["x"], p["y"]) for p in wide]
         finish = self.dip_finish = self.vet_t + VET_CHANNEL_S
         if all(p["dist"] <= self.a.vet_range for p in wide):
             if finish - now > DIP_LEAD_S + DIP_WAIT_S:
@@ -3419,37 +3466,52 @@ class Team:
             return False
         often, fire = self.area_zone(st, far=True), self.fire_tiles(st)
         tiles = self.tiles_within(v, DIP_STEPS)
-        best = None
-        for reach in ([(p["x"], p["y"]) for p in wide], [min(((p["frac"], (p["x"], p["y"])) for p in wide))[1]]):
+        hurt = min(wide, key=lambda p: p["frac"])
+        cands = []                        # (tile, steps, depth, the pets it reaches, its walk in seconds)
+        for pets in (wide, [hurt]):
+            best = None
             for t, k in tiles.items():
-                if t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in reach):
+                if t[:2] in fire or any(cheb(t, (p["x"], p["y"])) > self.a.vet_range for p in pets):
                     continue
                 c = (self.zone_depth(often, t), k)
                 if best is None or c < best[0]:
                     best = (c, t, k)
-            if best is not None:
-                break
-        if best is None:
+            if best is not None and not any(best[1] == c[0] for c in cands):
+                (depth, k), tile = best[0], best[1]
+                req = self.walk_requests(st, tile)
+                cands.append((tile, k, depth, pets, DIP_START_S + (req if req is not None else 2 * k) * DIP_REQ_S))
+        if not cands:
             if self.dip_none != self.vet_t:
                 self.dip_none = self.vet_t
                 self.count("dip_none")
                 log(f"dip: no tile within {DIP_STEPS} steps in the vet supplies' reach of {wide[0]['name']} "
                     f"({wide[0]['dist']} off); the channel finishes without it")
             return False
-        (depth, k), tile, _ = best
-        go = finish - DIP_LEAD_S - k * STEP_IN_STEP_S
+        # the first that arrives before the finish; none does: the sooner there (the next channel begins from it)
+        tile, k, depth, pets, walk_s = next((c for c in cands if now + c[4] <= finish), min(cands, key=lambda c: c[4]))
+        if k == 0:
+            # on it already (the most hurt pet's, the other out of reach): held as in their reach above, no walk of no
+            # steps a tick (simulator, 288 runs: 66 "dip: ..., 0 step(s)" lines, 431 with the earlier step in)
+            if finish - now > DIP_LEAD_S + DIP_WAIT_S:
+                return False
+            h.doing("vet", f"In reach of {pets[0]['name']} for the vet supplies' finish")
+            time.sleep(0.1)
+            return True
+        go = finish - DIP_LEAD_S - walk_s
         if now < go - DIP_WAIT_S:
             return False
         if now < go:
-            h.doing("vet", f"Waiting to step in for the vet supplies' finish on {wide[0]['name']}", tile[:2])
+            h.doing("vet", f"Waiting to step in for the vet supplies' finish on {pets[0]['name']}", tile[:2])
             time.sleep(min(0.1, go - now))
             return True
         label = "in for the vet supplies' finish"
         self.count("dips")
-        log(f"dip: {tile[:2]}, {k} step(s), {max(cheb(tile, (p['x'], p['y'])) for p in wide)} from "
-            f"{', '.join(p['name'] for p in wide)} ({finish - now:.1f} s before the channel's finish"
+        if now + walk_s > finish:
+            self.count("dips_late")
+        log(f"dip: {tile[:2]}, {k} step(s), a walk of {walk_s:.1f} s, {max(cheb(tile, (p['x'], p['y'])) for p in pets)} "
+            f"from {', '.join(p['name'] for p in pets)} ({finish - now:.1f} s before the channel's finish"
             + (f", {depth} into an area hit's reach" if depth else "") + ")")
-        h.doing("vet", f"Stepping in for the vet supplies' finish on {wide[0]['name']}", tile[:2])
+        h.doing("vet", f"Stepping in for the vet supplies' finish on {pets[0]['name']}", tile[:2])
         self.dip_from = (tuple(v.pos[:2]), now)
         try:
             h.mover.walk_to(lambda: tile[:2], 0, label, urgent=True, max_moves=2 * DIP_STEPS, max_route=2 * DIP_STEPS,
