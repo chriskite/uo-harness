@@ -275,7 +275,7 @@ AREA_FAR = _area_far()
 TARGET_AREA_EVERY_S = 15.0
 
 
-def _target_area() -> dict:
+def _target_area(far: bool = False) -> dict:
     out = {}
 
     def add(kind, reach, radius):
@@ -285,15 +285,34 @@ def _target_area() -> dict:
         for kind, sps in (sc.get("specials") or {}).items():
             for sp in sps if isinstance(sps, list) else ():
                 if sp["kind"] == "burst" and sp.get("center") == "target" and (sp.get("radius") or 0) >= 1 \
-                        and sp.get("every_s", 0.0) <= TARGET_AREA_EVERY_S:
+                        and (far or sp.get("every_s", 0.0) <= TARGET_AREA_EVERY_S):
                     add(kind, sp["reach"], sp["radius"])
         for kind, ro in (sc.get("ranged_observed") or {}).items():
-            if (ro.get("area_r") or 0) >= 1 and ro.get("every_s", 0.0) <= TARGET_AREA_EVERY_S:
+            if (ro.get("area_r") or 0) >= 1 and (far or ro.get("every_s", 0.0) <= TARGET_AREA_EVERY_S):
                 add(kind, ro["range"], ro["area_r"])
     return out
 
 
 TARGET_AREA = _target_area()   # {kind: (reach, tiles to keep from each pet within that reach of it)}
+# The dip (Team.dip; user 2026-10-26: "you can walk up to the injured pet right as a vet supply tick is about to land,
+# you don't have to hang out next to a reanimated demon very long"): the vet supplies heal who is within --vet-range of
+# us at the channel's finish, wherever we stood or stepped during it (docs/NOTES.md "Vet channels and steps": 126 of 128
+# live channels with steps in them healed). So where an area hit's reach round a pet is wider than --vet-range we stand
+# out of all of it, begin the channel from there, step into --vet-range for its finish and out again.
+# TARGET_AREA_FAR: TARGET_AREA with every such hit, the rare ones too (the zoas' lightning within 4 of its target and
+# volley within 6: keep 7): the zone we stand out of with the dip. Without it that zone cost more than it saved (above:
+# we stood in it to vet all the same). Simulator, Tidal Tomb level 2, 144 runs, before: 297 an hour on Logan from the
+# zoas' hits on a pet, 163 of it 4 tiles from that pet (the lightning's and the volley's reach, TARGET_AREA's keep).
+DIP = True
+TARGET_AREA_FAR = _target_area(far=True)
+DIP_OUT_STEPS = 4             # out of that reach between a channel's begin and its finish when a clear tile is this near
+DIP_OUT_MARGIN_S = 0.6        # ...and the steps out and back leave this long before the step in is due
+VET_CHANNEL_S = 5.0           # a channel's shortest (measured 5.0-5.3 s)
+DIP_LEAD_S = 0.4              # on the dip's tile this long before the channel's shortest finish
+DIP_WAIT_S = 1.5              # ...and nothing else begun this long before the step in (a bard skill's answer takes ~1 s)
+DIP_STEPS = 8                 # the dip's tile within this many steps
+DIP_BACK_S = 10.0             # after the finish back to the tile we stepped in from, when it is still clear, this long after
+DIP_OVER = 0.1                # the dip steps in for a pet this far above its vet threshold too (healed since the begin)
 # A shy monster fighting the pets whose shots go at us this rarely or less (a scenario `ranged_observed` `at_player_p`,
 # measured) doesn't shoot us: the shot rules (shy_on_us: the cover, to_pet's hold, the spacing's and the vet tile's
 # shot) leave it out while a live pet of ours in war mode stands nearer it than we do. Live 2026-10-31 18:04:36-18:05:03
@@ -465,6 +484,37 @@ PASS = False
 PASS_WALK = 12                # (8 left none from test_walk_in_fought's back-off tiles; 12 plans in ~0.02 s)
 PASS_ROUNDS = 3               # the walks to a pass's onset at one monster, then the whole plan goes as planned
 PASS_SETTLE_S = 2.0           # the pets' closing up before the pass is planned again, at most
+# The pets in front (Team.front, front_stop; user 2026-11-11: "position the pets between him and the mob so that when it
+# aggros 2s after seeing us, it attacks the pets and not him"): the step-in's walk for every idle monster that comes on,
+# not only the shy ones. A walk stops a step before such a monster's range and sight (or we find ourselves in it), walks
+# in until the trailing pets are in its range and sight and back past them (pass_plan `comes`), and holds there till
+# it has taken a pet (step_in_watch).
+FRONT = True
+FRONT_WALK = 8                # the walk in and back: this many steps and turns at most
+FRONT_TRIES = 2               # walks at one monster with no kill between, then the hold as before
+FRONT_AHEAD_S = 2.0           # front_stop's monster is planned for within this long of the stop
+FRONT_SETTLE_S = 1.0          # ...after the pets closed up to within a tile of us, at most this long
+FRONT_SIGHT_MARGIN = 1        # Logan counts as in its eyes this far beyond its aggro range (the simulator: within it)
+FRONT_PATROL = True           # no such walk: the pets sent to it ('All Patrol', patrol_pull), out of its eyes first (duck)
+FRONT_PACK = True             # ...at one of a pack: the others may see the walk, within --pull-budget, the pets first
+#                               in each one's eyes at its end (pass_plan `pack`)
+# Out of an idle monster's eyes while the pets are busy (Team.duck): front's rule where the pets can't be put in front
+DUCK = True
+DUCK_STEPS = 4                # a tile out of it within this many steps
+DUCK_S = 1.0                  # at most this often
+# The step-in's hold apart from the pets (Team.apart): at a monster whose hit lands on everyone beside its target
+APART = True
+APART_SETTLE_S = 0.6          # 'All Stay' once the pets closed up on us, or this long into the hold
+APART_STEPS = 3               # the tile apart from them within this many steps
+# bard_others: no skill at a monster on the pets that hasn't been hurt lately (engaged) unless it is on us. Our skill
+# at one no pet has hurt yet puts it on us (user 2026-10-12: an aggressive act of ours puts the mob on us; the first
+# trip: of 14 monsters our act reached after the pets had damaged them none hit Logan, of 7 it reached first, 3 did;
+# the simulator's World._act). Simulator, Tidal Tomb level 2, 144 runs: 128 an hour on Logan from monsters that turned
+# to him on such an act ("Discordance at voidfin ...: on the pets, not the target", then the voidfin on him, -107)
+BARD_OTHERS_HURT = True
+# ...and a hit on one of a provoked pair of ours is its partner's, not the pets' (Team.hurt_watch, pets_hurt)
+BARD_PAIR_HURT = True
+PAIR_LINGER_S = 2.0           # ...until this long after the provocation's end
 HOLD_S = 5.0                  # hold this long for an idle monster that sees us (live 16:12 run 2026-10-17: 11 of 13 within
                               # 10 tiles woke in 0.5-3.5 s; captures: a 10-tile crossing to war mode in 1.4-2.6 s, median
                               # 2.2, n=188, docs/SIM.md; 10 s until 2026-10-24: one that never woke cost the full 10 s)
@@ -818,7 +868,11 @@ class Team:
         self.pull_why = None
         self.reposition_t = -1e9
         self.cover_t = -1e9               # the last cover (out of an awake purger's or blightmare's shot)
+        self.dipping = False              # a vet channel runs for a pet in a reach wider than --vet-range (dip)
+        self.dip_none = None              # the channel (its begin) the last "no tile" of the dip was logged for
+        self.dip_from = None              # ((x, y), monotonic) where the last dip stepped in from: back there after it
         self.cover_stayed = None          # the shooters the last "staying by them" was for (logged once each)
+        self.dip_finish = 0.0             # the running dip channel's shortest finish (monotonic)
         self.back_off_t = -1e9            # the last back_off (out from before a shy ranged monster)
         self.kept_off = {}                # serial -> monotonic: a purger back_off stepped away from, not sought until
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
@@ -831,6 +885,13 @@ class Team:
         self.stepin = None                # the step-in held (step_back -> step_in_watch): serial, kind, tile, t, pet
         self.stepped = {}                 # serial -> (step-ins at it with no kill between, the run's kills then)
         self.step_none = {}               # serial -> why no step-back tile, logged once a change (step_note)
+        self.fronted = {}                 # serial -> (walks in and back at it with no kill between, the run's kills then)
+        self.front_for = None             # (serial, monotonic) of the monster front_stop stopped a walk for (front)
+        self.front_wait = {}              # serial -> monotonic since front waits for the pets to close up before it
+        self.duck_t = -1e9                # the last duck (out of an idle monster's range and sight in a fight)
+        self.duck_none = None             # the monster the last "no tile out of it" was logged for
+        self.pet_hurt = set()             # the monsters a pet of ours has hurt, as far as we can tell (hurt_watch)
+        self.hurt_seen = {}               # serial -> the HuntLoop.hurt_t hurt_watch last read for it
         self.patrol_why = {}              # serial -> (why no patrol at it, monotonic): patrol_pull's log, once a change
         self.bard_step_t = -1e9           # the last bard_step (a step to see a bard target)
         self.step_why = None              # bard_step's last refusal: (key, text) for no_bard, None for its own timer
@@ -996,10 +1057,13 @@ class Team:
                 self.effects.pop(s, None)
                 self.bard_said.pop(s, None)
                 self.attack_t.pop(s, None)
+                self.pet_hurt.discard(s)
+                self.hurt_seen.pop(s, None)
                 if (seen := self.stealth_at.pop(s, None)) is not None:
                     self.stealth_dead(seen[0], seen[1], now)
         self.ev_upto = len(evs)
         self.spray_watch(st)
+        self.hurt_watch(st, now)
         self.free_pets(st, now)
         for s in [s for s, (t, _) in self.blinks.items() if now - t > BLINK_S]:
             del self.blinks[s]
@@ -1134,6 +1198,33 @@ class Team:
         return m is not None and m.get("x") is not None and any(
             not p["dead"] and cheb((p["x"], p["y"]), (m["x"], m["y"])) <= PET_REACH for p in self.pets(st))
 
+    def pets_hurt(self, st, serial: int) -> bool:
+        """engaged, and a hit on `serial` was the pets' as far as we can tell (hurt_watch): our skill at one no pet has
+        hurt is the first act at it and brings it on us (BARD_OTHERS_HURT)."""
+        if not BARD_PAIR_HURT:
+            return self.engaged(st, serial)
+        self.hurt_watch(st, time.monotonic())
+        return serial in self.pet_hurt and self.engaged(st, serial)
+
+    def hurt_watch(self, st, now: float):
+        """Which monsters the pets have hurt (pet_hurt): a hit on one with a live pet within PET_REACH while it is in no
+        provoked pair of ours. The two of a pair hurt each other, so the victim of our provocation read as engaged with
+        no pet's hit on it, and the Discordance at it ("on the pets, not the target") put it on us when the pair ended
+        (the simulator's World._act; Tidal Tomb level 2, 144 runs with front and duck: 6 such Discordances an hour, 70
+        an hour on Logan from the monsters they turned)."""
+        mobiles = st["world"]["mobiles"]
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        for s, t in self.h.hurt_t.items():
+            if self.hurt_seen.get(s) == t or s in self.roster:
+                continue
+            self.hurt_seen[s] = t
+            fx = self.effects.get(s) or {}
+            if s in self.pet_hurt or (fx.get("onto") is not None and fx.get("calm", 0) + PAIR_LINGER_S > now):
+                continue
+            m = mobiles.get(f"0x{s:08X}")
+            if m is not None and m.get("x") is not None and any(cheb(p, (m["x"], m["y"])) <= PET_REACH for p in pets):
+                self.pet_hurt.add(s)
+
     def pet_attackers(self, st) -> set[int]:
         """Monsters fighting our pets: in war mode within PET_NEAR of a pet that took damage lately."""
         import threats
@@ -1175,6 +1266,14 @@ class Team:
             if player or o.get("pet"):
                 best = (d, labels.get(key) or o.get("name") or f"0x{s:08X}")
         return best[1] if best else None
+
+    def our_fight(self, st, v) -> bool:
+        """A fight of ours is on: a monster in war mode on us or the pets, or within reach (aggro.View.engaged) and not
+        on someone else's side (elsewhere: another player's fight beside us is none of ours; front and duck go by this)."""
+        mobiles = st["world"]["mobiles"]
+        return any(m["serial"] in v.attacking
+                   or self.elsewhere(st, mobiles.get(f"0x{m['serial']:08X}") or {"flags": aggro.WAR}) is None
+                   for m in v.engaged())
 
     def others(self, st, serial: int) -> list[int]:
         """Other monsters in the fight within BARD_RANGE, nearest first: attacking us or the pets."""
@@ -1391,7 +1490,8 @@ class Team:
     # ------------------------------------------------------------ care: retreat, vet, guard
     def care(self, st) -> bool:
         """One care action, True when something was done: "All Follow Me" after
-        a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, vet supplies on us
+        a pet's death (its ghost stays near for the vet supplies), step out of fire, retreat, out of an awake shy
+        monster's shot (cover) and of an idle monster's eyes (duck), vet supplies on us
         when we are below --heal-at, keep off the tank, vet supplies, guard (also once an 'All Kill' target is
         dropped: kill_order_over), "All Kill" at a monster one pet fights alone (lone_fight), walk to a hurt pet or a
         ghost, a better tile for line of sight, a barding song.
@@ -1409,9 +1509,74 @@ class Team:
         low = me.get("hits") is not None and self.h.frac(me) < self.h.heal_at_now()
         calm = not self.view(st).engaged()
         return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
-            or self.area_peace(st) or self.retreat(st) or self.cover(st) or (low and self.vet(st, calm=calm)) \
+            or self.area_peace(st) or self.retreat(st) or self.cover(st) or self.duck(st) \
+            or (low and self.vet(st, calm=calm)) \
             or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
             or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+
+    def duck(self, st, force: bool = False) -> bool:
+        """Out of an idle monster's eyes while the pets can't be put in front of us (front: nothing fighting, the pets
+        with us on guard): a fight on, something on us, the pets sent off ('All Patrol', 'All Kill') or apart. An idle
+        monster with us in its range and sight and no pet nearer (aggro.View.first_on_us) takes us about 2 s on; the
+        pets, busy, don't come between. Step (up to DUCK_STEPS, at most every DUCK_S, mid-channel too: its wake costs
+        more than a channel's reach) to the nearest tile no idle monster would take us on (first_on_us with a tile's
+        margin), out of area hits, fire and every awake shy monster's shot, within --vet-range of the live pets near
+        where one is. Its clock stops when none of us is in its range and sight (the simulator's World._think), so it
+        stays idle for the next fight's front. None: False (the rest of care). Simulator, Tidal Tomb level 2, 144 runs:
+        of the damage by monsters that woke on Logan, 93 an hour woke while "The pets are fighting ...", 57 with the
+        pets on 'All Patrol', 70 at a hold (front's). `force`: front's, with the pets by us and no walk in and back."""
+        if not DUCK:
+            return False
+        h, now = self.h, time.monotonic()
+        if now - self.duck_t < DUCK_S and not force:
+            return False
+        v = self.view(st)
+        if v.walk is None:
+            return False
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        calm = not self.our_fight(st, v) and not h.attackers(st) and self.patrol is None and self.kill_order is None \
+            and len(pets) == len(self.roster) and all(p["dist"] <= self.a.vet_range for p in pets)
+        if calm and not force:
+            return False                  # front's (and back_off's, the hold's)
+        first = v.first_on_us(v.pos, margin=0)
+        if not first:
+            return False
+        self.duck_t = now
+        zone, fire = self.area_zone(st), self.fire_tiles(st)
+        clear = ClearOf(zone)
+        shy = self.shy_on_us(st, v)
+        keep = [(p["x"], p["y"]) for p in pets if p["dist"] <= self.a.vet_range + 2]
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, DUCK_STEPS).items():
+            if k == 0 or t[:2] in fire or not clear(t) or v.never_near(t) or v.first_on_us(t, margin=1) \
+                    or (shy and self.shot_at(v, shy, t)):
+                continue
+            c = (any(cheb(t, p) > self.a.vet_range for p in keep), k, round(v.stand_score(t)))
+            if best_c is None or c < best_c:
+                best, best_c = t, c
+        m = min(first, key=lambda m: cheb(m["pos"], v.pos))
+        what = (f"the idle {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]} has us in its range and sight, "
+                f"{cheb(m['pos'], v.pos)} off, no pet nearer")
+        if best is None:
+            if self.duck_none != m["serial"]:
+                self.duck_none = m["serial"]
+                self.count("duck_none")
+                log(f"duck: {what}; no tile behind the pets within {DUCK_STEPS} steps")
+            return False
+        self.duck_none = None
+        label = "behind the pets"
+        self.count("ducks")
+        log(f"duck: {what}; to {best[:2]}, {best_c[1]} step(s)"
+            + (", beyond the vet supplies' reach of the pets" if best_c[0] else ""))
+        h.doing("reposition", f"Out of the idle {m['kind']}'s sight to {best[0]},{best[1]}", best[:2], m["serial"])
+        try:
+            h.mover.walk_to(lambda: best[:2], 0, label, urgent=True, max_moves=2 * DUCK_STEPS, max_route=2 * DUCK_STEPS,
+                            mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"duck: {e}")
+        return True
 
     def cover(self, st) -> bool:
         """An awake corpse purger or blightmare (aggro.shy) that sees us within its reach: walk (up to COVER_STEPS) to
@@ -1600,7 +1765,7 @@ class Team:
                 why = None
         else:
             self.never_last = None
-        why = why or self.spray_stop(st) or self.hold_reason(st)
+        why = why or self.spray_stop(st) or self.hold_reason(st) or self.front_stop(st)
         if why and why != self.pull_why:
             self.count("pull_holds")
             log(f"holding here: {why}")
@@ -1817,7 +1982,8 @@ class Team:
                     best, best_k = (t, path, name, gap if seen else None), key
         return best
 
-    def pass_plan(self, st, v, m, pets, live: bool):
+    def pass_plan(self, st, v, m, pets, live: bool, steps: int = PASS_WALK, face: int = -1, allow=frozenset(),
+                  comes: bool = False, pack: float | None = None):
         """The pass's walk by idle shy monster `m` (pass_by) from where we stand, the pets (`pets`: [(name, (x, y))])
         followed step by step (follow) and closing up at its end (trail): (tile, path, pet name, gap or None out of its
         sight, onset), or None. Up to PASS_WALK steps and turns (turns, tiles_within; not into an area hit's zone, fire,
@@ -1826,12 +1992,43 @@ class Team:
         each onset Logan's steps in its sight within STEP_IN_SIGHT with no pet in it STEP_IN_GAP nearer (exposed) end
         within the step-in's budget (step_budget). The end: a pet in its range and sight within STEP_IN_PET_MARGIN, Logan
         not exposed. `onset`: the path's index of the onset its end's clock runs from (0: now or the first step).
-        Out of its sight first, then the fewest steps and turns, then the widest gap."""
+        Out of its sight first, then the fewest steps and turns, then the widest gap.
+        The front's walk (front) is the same plan at a monster that comes on (`comes`): up to `steps`, our facing `face`
+        known (a first step that way costs no turn), other idle monsters that see us here already (`allow`, serials) no
+        bar, nor (`pack`, a weight: the pull budget left for them) the others that come on and see the walk, each with
+        a pet as near as us in its range and sight at the end (a pack wakes on the pets together: 4 shade wolves 2
+        tiles apart, no walk at any one of them otherwise); its budget the type's own wake floor (step_budget `kind`);
+        exposed there within its aggro range plus
+        FRONT_SIGHT_MARGIN with no pet in its range and sight STEP_IN_GAP nearer and as near by tiles (it takes the
+        nearest of us in its range: the simulator's Chebyshev, a pet on a tie)."""
         zone, fire = self.charge_zone(st), self.fire_tiles(st)
         mp, r = m["pos"], m["r"]
-        ok = {t for t in self.tiles_within(v, PASS_WALK)
-              if not (t[:2] in zone or t[:2] in fire or v.never_near(t)
-                      or any(o["serial"] != m["serial"] for o in v.wakes(t, margin=0)))}
+        far = r + FRONT_SIGHT_MARGIN if comes else STEP_IN_SIGHT
+        wakes_c = {}
+
+        def others(t) -> list:
+            # the other idle monsters that would wake to us on `t`, less those that see us here already
+            if t not in wakes_c:
+                wakes_c[t] = [o for o in v.wakes(t, margin=0) if o["serial"] != m["serial"] and o["serial"] not in allow]
+            return wakes_c[t]
+
+        def packed(o) -> bool:
+            return pack is not None and not o["shy"] and not o["never"]
+        ok = {t for t in self.tiles_within(v, steps)
+              if not (t[:2] in zone or t[:2] in fire or v.never_near(t) or (comes and v.stealth_closed(t[:2]))
+                      or any(not packed(o) for o in others(t)))}
+
+        def pack_ok(path, fin) -> bool:
+            # those of the pack the walk wakes: within the budget, and at its end none has us nearer than every pet
+            woken = {o["serial"]: o for t in path for o in others(t)}
+            if not woken:
+                return True
+            if sum(o["weight"] for o in woken.values()) > pack + 1e-6:
+                return False
+            n = path[-1]
+            return not any(v.sees(o, n, o["r"] + FRONT_SIGHT_MARGIN)
+                           and not any(cheb(o["pos"], q) <= cheb(o["pos"], n) and v.sees(o, q, o["r"]) for q in fin)
+                           for o in woken.values())
         seen_c = {}
 
         def sees(t, rr):
@@ -1843,20 +2040,26 @@ class Team:
         def on(t, at):
             return sees(t, r) or any(sees(q, r) for q in at)
 
+        def nearer(t, d, q):
+            # pet tile `q` the nearer to it than `t` (`d` off): STEP_IN_GAP Euclidean, and for one that comes on in its
+            # range and no farther by tiles
+            return d - aggro.eucl(mp, q) >= STEP_IN_GAP and sees(q, r if comes else STEP_IN_SIGHT) \
+                and (not comes or cheb(mp, q) <= cheb(mp, t))
+
         def exposed(t, at):
             d = aggro.eucl(mp, t)
-            return d <= STEP_IN_SIGHT and sees(t, STEP_IN_SIGHT) \
-                and not any(d - aggro.eucl(mp, q) >= STEP_IN_GAP and sees(q, STEP_IN_SIGHT) for q in at)
+            return (comes or d <= STEP_IN_SIGHT) and sees(t, far) and not any(nearer(t, d, q) for q in at)
 
-        budget = self.step_budget(time.monotonic())
+        kind = m["kind"] if comes else None
+        budget = self.step_budget(time.monotonic(), kind)
         at0 = tuple(p for _, p in pets)
         # a state: tile, the pets, the cost by which Logan's exposure ends (None: its clock stopped), our facing, the
         # cost so far (steps and turns), the onset's index, the path
-        dl0 = self.step_budget(getattr(self.h.mover, "sent_at", None) or time.monotonic()) if live else None
-        frontier = [(v.pos, at0, dl0, -1, 0, 0, [])]
+        dl0 = self.step_budget(getattr(self.h.mover, "sent_at", None) or time.monotonic(), kind) if live else None
+        frontier = [(v.pos, at0, dl0, face, 0, 0, [])]
         done = {}
         best, best_k = None, None
-        for _ in range(PASS_WALK):
+        for _ in range(steps):
             nxt = []
             for t, at, dl, face, c, on_i, path in frontier:
                 for d in range(8):
@@ -1864,7 +2067,7 @@ class Team:
                     if n is None or n not in ok:
                         continue
                     nc = c + 1 + (d != face)
-                    if nc > PASS_WALK:
+                    if nc > steps:
                         continue
                     nat = tuple(follow(list(at), n))
                     ndl, non = dl, on_i
@@ -1876,7 +2079,7 @@ class Team:
                     if exp and ndl is not None and nc > ndl:
                         continue
                     key = (n, nat, None if ndl is None else ndl - nc, d)
-                    if done.get(key, PASS_WALK + 1) <= nc:
+                    if done.get(key, steps + 1) <= nc:
                         continue
                     done[key] = nc
                     np = path + [n]
@@ -1884,15 +2087,15 @@ class Team:
                     if exp and ndl is not None:
                         continue
                     fin = [trail(o, n) for o in nat]          # the pets closed up while we hold there
-                    if exposed(n, fin):
+                    if exposed(n, fin) or (pack is not None and not pack_ok(np, fin)):
                         continue
                     dl_n = aggro.eucl(mp, n)
-                    seen = dl_n <= STEP_IN_SIGHT and sees(n, STEP_IN_SIGHT)
+                    seen = (comes or dl_n <= STEP_IN_SIGHT) and sees(n, far)
                     for (name, _), q in zip(pets, fin):
                         if not sees(q, r - STEP_IN_PET_MARGIN):
                             continue
                         gap = dl_n - aggro.eucl(mp, q)
-                        if seen and gap < STEP_IN_GAP:
+                        if seen and not nearer(n, dl_n, q):
                             continue
                         k = (seen, nc, -gap)
                         if best_k is None or k < best_k:
@@ -1958,10 +2161,132 @@ class Team:
             f"({why}); going on past it with the pets on guard")
         return False
 
-    def step_budget(self, since: float) -> int:
+    def step_budget(self, since: float, kind: str | None = None) -> int:
         """Steps (and turns) we may take after the onset at `since` (monotonic) before the monster can wake:
-        WAKE_FLOOR_S less STEP_IN_MARGIN_S and the time since, at STEP_IN_STEP_S each."""
-        return max(0, int((WAKE_FLOOR_S - STEP_IN_MARGIN_S - (time.monotonic() - since)) / STEP_IN_STEP_S + 1e-9))
+        WAKE_FLOOR_S (`kind`: that type's own floor where its dungeon's is measured, aggro.wake_floor) less
+        STEP_IN_MARGIN_S and the time since, at STEP_IN_STEP_S each."""
+        floor = max(WAKE_FLOOR_S, aggro.wake_floor(kind) or 0.0) if kind else WAKE_FLOOR_S
+        return max(0, int((floor - STEP_IN_MARGIN_S - (time.monotonic() - since)) / STEP_IN_STEP_S + 1e-9))
+
+    # ------------------------------------------------------------ the pets in front (FRONT)
+    def front_out(self, m) -> bool:
+        """FRONT_TRIES walks in and back at `m` with no kill since the first: no more (the walk on, the hold as before)."""
+        n, k = self.fronted.get(m["serial"], (0, -1))
+        return k == self.kills() and n >= FRONT_TRIES
+
+    def front_stop(self, st) -> str | None:
+        """A walk's stop (pull_check) a step before an idle monster that comes on (not shy: back_off's) would have us
+        in its range and sight with no pet as near: the walk's next route tile (Mover.route) is in it, this one isn't,
+        and the pets a step behind us (follow) wouldn't be in it nearer. -> "... ahead ...: the pets first", the monster
+        kept for front, which plans the walk in and back from here, before its clock starts. Nothing fighting."""
+        if not FRONT or self.stepin is not None or self.patrol is not None or self.kill_order is not None:
+            return None
+        route = getattr(self.h.mover, "route", None)
+        v = self.view(st)
+        if not route or v.walk is None or self.our_fight(st, v) or self.h.attackers(st):
+            return None
+        here = tuple(v.pos[:2])
+        try:
+            nxt = route[route.index(here) + 1]
+        except (ValueError, IndexError):
+            return None
+        pets = follow(list(v.pets), nxt)
+        for m in sorted(v.wakes(nxt, margin=0), key=lambda m: cheb(m["pos"], nxt)):
+            d = cheb(m["pos"], nxt)
+            if m["shy"] or self.front_out(m) or v.sees(m, v.pos, m["r"]) \
+                    or any(cheb(m["pos"], p) < d and v.sees(m, p, m["r"]) for p in pets):
+                continue
+            self.front_for = (m["serial"], time.monotonic())
+            return f"{m['kind'] or 'a monster'} ahead at {d} tiles: the pets first"
+        return None
+
+    def front(self, st) -> bool:
+        """The pets first in the eyes of an idle monster that comes on (user 2026-11-11: "He frequently stands between
+        the pets and a mob when it aggros so he takes damage, when he should instead be positioning the pets between
+        him and the mob so that when it aggros 2s after seeing us, it attacks the pets and not him"). The simulator,
+        Tidal Tomb level 2, 144 runs: 1,994 of 9,804 wakes took Logan first; in 1,184 of them no pet was in the
+        monster's sight (he stopped on the first tile it sees, "letting it come", the pets a tile behind and out of
+        it), in 651 he was the nearer (docs/NOTES.md "Tidal Tomb level 2: the pets first at every wake"). With nothing
+        fighting and the pets with us on guard: the monster front_stop stopped the walk for (its clock not yet on), or
+        one that has us in its range and sight now with no pet nearer (its clock on from our last step). pass_plan's
+        walk (`comes`): in until the pets trailing us are in its range and sight, then back past them, our steps in its
+        eyes within its wake's floor (step_budget). Before its onset the pets are let close up first (FRONT_SETTLE_S).
+        Then the walk, and step_in_watch's hold on its end tile till it has taken a pet. No walk at it alone: the
+        same with the others of its pack let see the walk, inside --pull-budget (FRONT_PACK); else 'All Patrol' at it
+        (patrol_pull), or out of its eyes first when its clock is on us (duck: FRONT_PATROL); FRONT_TRIES at one with
+        no kill since, then the hold as before (hold_reason, pull_spot). True when we stepped or waited."""
+        if not FRONT or self.stepin is not None or self.passing is not None:
+            return False
+        h, now = self.h, time.monotonic()
+        v = self.view(st)
+        if v.walk is None or self.our_fight(st, v) or h.attackers(st) or self.patrol is not None \
+                or self.kill_order is not None:
+            return False
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        if len(pets) < len(self.roster) or any(p["dist"] > self.a.vet_range for p in pets):
+            return False
+        seen = [m for m in v.first_on_us(v.pos, margin=0) if not m["shy"] and not self.front_out(m)]
+        ahead, self.front_for = self.front_for, None
+        m, live = (min(seen, key=lambda m: cheb(m["pos"], v.pos)), True) if seen else (None, False)
+        if m is None and ahead is not None and now - ahead[1] <= FRONT_AHEAD_S:
+            m = next((o for o in v.mobs if o["serial"] == ahead[0] and not o["war"] and not self.front_out(o)), None)
+        if m is None:
+            return False
+        name = f"the {m['kind']} 0x{m['serial']:08X}"
+        if not live:
+            if self.guard_needed and self.guard():
+                self.front_for = (m["serial"], time.monotonic())
+                return True               # 'All Guard Me' first: the pets fight what takes them
+            since = self.front_wait.setdefault(m["serial"], now)
+            if any(p["dist"] > 1 for p in pets) and now - since < FRONT_SETTLE_S:
+                h.doing("hold", f"Letting the pets close up before the {m['kind']}", v.pos[:2], m["serial"])
+                self.front_for = (m["serial"], now)
+                time.sleep(0.2)
+                return True
+        self.front_wait.pop(m["serial"], None)
+        kills = self.kills()
+        n, k = self.fronted.get(m["serial"], (0, kills))
+        self.fronted[m["serial"]] = ((n if k == kills else 0) + 1, kills)
+        pos = st["movement"]["pos"]
+        face = pos[3] & 7 if len(pos) > 3 and pos[3] is not None else -1
+        allow = frozenset(o["serial"] for o in v.wakes(v.pos, margin=0))
+        at = [(p["name"], (p["x"], p["y"])) for p in pets]
+        plan = self.pass_plan(st, v, m, at, live, steps=FRONT_WALK, face=face, allow=allow, comes=True)
+        packed = False
+        if plan is None and FRONT_PACK:
+            # one of a pack: the others that come on may see the walk too, within the pull budget, the pets first in
+            # each one's eyes at its end
+            budget = self.a.pull_budget if self.a.pull_budget > 0 else 1e9
+            plan = self.pass_plan(st, v, m, at, live, steps=FRONT_WALK, face=face, allow=allow, comes=True,
+                                  pack=budget - m["weight"])
+            packed = plan is not None
+        if plan is None:
+            self.count("front_none")
+            log(f"no front at {name} at {m['pos'][:2]} ({'its clock on us' if live else 'ahead'}): no walk within "
+                f"{FRONT_WALK} steps that leaves a pet the nearest in its range and sight")
+            if not FRONT_PATROL:
+                return False
+            # the pets sent to it instead ('All Patrol': patrol_pull's rules and spot); in its eyes already, out of
+            # them first (duck's tile), its clock stopped
+            if live:
+                return self.duck(st, force=True)
+            if self.patrol_pull(st, m["serial"], any_kind=True):
+                self.count("front_patrols")
+                return True
+            return False
+        tile, path, pet, gap, on = plan
+        self.count("fronts_live" if live else "fronts_ahead")
+        if packed:
+            self.count("fronts_pack")
+        log(f"front at {name} at {m['pos'][:2]} ({'its clock on us' if live else 'ahead'}, {cheb(m['pos'], v.pos)} off): "
+            f"{len(path)} steps to {tile[:2]}"
+            + (f", out of its sight, {pet} in it" if gap is None else f", {pet} nearer by {gap:.1f}")
+            + (", the others that see the walk with a pet as near" if packed else ""))
+        h.doing("hold", f"Stepping in and back to {tile[0]},{tile[1]}: {pet} first in the {m['kind']}'s sight",
+                tile[:2], m["serial"])
+        self.stepin = {"serial": m["serial"], "kind": m["kind"], "tile": tile[:2], "t": time.monotonic(), "pet": pet}
+        self.step_tiles(path, None)
+        return True
 
     def step_note(self, m, why: str):
         """Log why no step-in at `m` (step_back, step_in), once a change of reason; a missing step-back tile counted
@@ -2091,8 +2416,8 @@ class Team:
     def step_in_watch(self, st) -> bool:
         """After a step-in: hold on the step-back tile until its first act lands (a hit on a pet or on us since; a miss
         lands on nobody, so its war flag alone doesn't end it), something else comes on us, it is gone, or
-        STEP_IN_WAIT_S. Out of an area hit's zone first (stand_off comes before this in the tick). True while it
-        holds the tick."""
+        STEP_IN_WAIT_S. Out of an area hit's zone first (stand_off comes before this in the tick). One whose hit lands
+        on everyone beside its target (TARGET_AREA): apart from the pets first (apart). True while it holds the tick."""
         s = self.stepin
         if s is None:
             return False
@@ -2103,34 +2428,89 @@ class Team:
         me = h.me(st)
         if mob is None or mob.get("x") is None or s["serial"] in h.dead:
             log(f"step-in: {name} gone after {dt:.1f} s")
-            self.stepin = None
-            return False
+            return self.step_in_end()
         if h.hurt_t.get(me, -1e9) > s["t"]:
             log(f"step-in: {name} on us after {dt:.1f} s")
             self.count("step_in_logan")
-            self.stepin = None
-            return False
+            return self.step_in_end()
         hurt = [p["name"] for p in self.pets(st) if h.hurt_t.get(p["serial"], -1e9) > s["t"]]
         if hurt and (mob.get("flags") or 0) & aggro.WAR:
             log(f"step-in: {name} took {hurt[0]} {dt:.1f} s after the step-in")
             self.count("step_in_pet")
-            self.stepin = None
-            return False
+            return self.step_in_end()
         if any(serial_of(a["serial"]) != s["serial"] for a in h.attackers(st)):
             log(f"step-in: something else on us; the hold for {name} ends")
-            self.stepin = None
-            return False
+            return self.step_in_end()
         if dt > STEP_IN_WAIT_S:
             log(f"step-in: {name} {'in war mode' if (mob.get('flags') or 0) & aggro.WAR else 'still idle'} after "
                 f"{dt:.0f} s with no act; the hold ends")
             self.count("step_in_timeouts")
-            self.stepin = None
-            return False
+            return self.step_in_end()
+        if s.get("apart") and (mob.get("flags") or 0) & aggro.WAR and not s.get("guarded"):
+            s["guarded"], self.guard_t = True, -1e9     # awake: the pets told to stay (apart) back on guard
+            return self.guard()
+        if APART and not (mob.get("flags") or 0) & aggro.WAR and self.apart(st, s):
+            return True
         h.doing("hold", f"Holding at {s['tile'][0]},{s['tile'][1]}: {name} to take {s['pet']}", s["tile"], s["serial"])
         time.sleep(0.2)
         return True
 
-    def patrol_pull(self, st, serial: int | None = None) -> bool:
+    def step_in_end(self) -> bool:
+        """The step-in's hold over: the pets told to stay for it (apart) back on guard at once. False."""
+        s, self.stepin = self.stepin, None
+        if s is not None and s.get("apart") and not s.get("guarded"):
+            self.guard_needed, self.guard_t = True, -1e9
+        return False
+
+    def apart(self, st, s) -> bool:
+        """The step-in's hold at a monster whose hit lands on everyone within a tile or more of its target
+        (TARGET_AREA: the drowned mariner's shot, the soulcatcher's spell): the pets on guard keep within a tile of us,
+        so its first hit on the one it takes lands on us too. Once they have closed up (or APART_SETTLE_S after the
+        step): 'All Stay', then to the nearest tile within APART_STEPS that far from each of them, out of its sight and
+        every idle monster's eyes; 'All Guard Me' when the hold ends (step_in_end). Simulator, Tidal Tomb level 2, 144
+        runs: 79 an hour on Logan from the mariners' and soulcatchers' hits on a pet beside him, 15 of it in this hold.
+        True when it said or stepped."""
+        keep = (TARGET_AREA.get(s["kind"]) or (0, 0))[1]
+        if keep < 2 or s.get("apart") == "done":
+            return False
+        h, now = self.h, time.monotonic()
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        if s.get("apart") is None:
+            since = s.setdefault("held_t", now)
+            if any(p["dist"] > 1 for p in pets) and now - since < APART_SETTLE_S:
+                return False
+            s["apart"] = "stay"
+            return self.say("all stay")
+        s["apart"] = "done"
+        v = self.view(st)
+        m = next((o for o in v.mobs if o["serial"] == s["serial"]), None)
+        if v.walk is None or m is None:
+            return False
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        at = [(p["x"], p["y"]) for p in pets]
+        best = None
+        for t, k in self.tiles_within(v, APART_STEPS).items():
+            if any(cheb(t, p) < keep for p in at) or t[:2] in zone or t[:2] in fire or v.never_near(t) \
+                    or v.sees(m, t, STEP_IN_SIGHT) or v.first_on_us(t, margin=1):
+                continue
+            if best is None or k < best[1]:
+                best = (t, k)
+        if best is None or best[1] == 0:
+            return False
+        tile, k = best
+        log(f"step-in: {keep}+ from the pets for the {s['kind']}'s hit on the one it takes: to {tile[:2]}, {k} step(s)")
+        label = "apart from the pets"
+        try:
+            h.mover.walk_to(lambda: tile[:2], 0, label, urgent=True, max_moves=2 * APART_STEPS, max_route=2 * APART_STEPS,
+                            mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"step-in: {e}")
+        s["tile"] = tile[:2]
+        return True
+
+    def patrol_pull(self, st, serial: int | None = None, any_kind: bool = False) -> bool:
         """--patrol-pull: "All Patrol" at a ground tile beside an idle corpse purger (aggro.shy) within PATROL_R, so
         the pets wake it and its barrage goes to them (user 2026-10-18: "We can send our pets to a spot away from us,
         e.g. to within aggro distance of a purger, while we're not in aggro range"; live demo 17:55-18:00, docs/NOTES.md
@@ -2141,7 +2521,7 @@ class Team:
         (patrol_note). A pass-over (HuntLoop.skip: it can't see us, pinned, blocked on the way) doesn't stop it: those
         are about fighting or approaching it, and a refused or timed-out patrol has patrol_failed (live 2026-10-25
         15:52:21-29: passed over for "it can't see us", then 4 tiles off and backed off from, never patrolled at; 11 of
-        11 such back-offs 10-22..25)."""
+        11 such back-offs 10-22..25). `any_kind`: at `serial` whatever its kind (front's, with no walk in and back)."""
         if not getattr(self.a, "patrol_pull", False) or self.patrol is not None:
             return False
         h, now = self.h, time.monotonic()
@@ -2149,7 +2529,7 @@ class Team:
         if v.walk is None:
             return False
         near = [m for m in sorted(v.mobs, key=lambda m: cheb(m["pos"], v.pos))
-                if m["shy"] and not m["war"] and (serial is None or m["serial"] == serial)
+                if (m["shy"] or any_kind) and not m["war"] and (serial is None or m["serial"] == serial)
                 and cheb(m["pos"], v.pos) <= PATROL_R]
         if not near:
             return False
@@ -2160,6 +2540,10 @@ class Team:
             why = "something is on us"
         elif self.shy_first(v, v.pos):
             why = "it would see us before the pets"
+        elif FRONT and (first := [o for o in v.first_on_us(v.pos, margin=1) if not o["shy"]]):
+            # the pets away on patrol guard nobody: an idle monster with us in its range and sight takes us alone
+            # (simulator, Tidal Tomb level 2: 48 an hour on Logan from wakes while "The pets are patrolling to ...")
+            why = f"an idle {first[0]['kind']} has us in its range and sight here"
         else:
             pets = [p for p in self.pets(st) if not p["dead"]]
             far = [p for p in pets if p["dist"] > self.a.vet_range]
@@ -2544,18 +2928,19 @@ class Team:
         ours = self.h.frac(me)
         return all(ours <= p["frac"] for p in self.pets(st) if not p["dead"] and p["dist"] <= self.a.vet_range)
 
-    def area_zone(self, st) -> dict:
+    def area_zone(self, st, far: bool = False) -> dict:
         """{(x, y): tiles to keep from it}: every monster in war mode in view whose hit lands on everyone
         near it (a charger: CHARGE_SAFE_R; AREA_R's), and each live pet beside one (the one it fights:
         a Charge lands next to it); each live pet within the reach of one whose hit lands on its target and everyone near
-        that one (target_zone); each tile of an awake sprayer's frontal cone (spray_tiles) at 1; each tile a scorch wound
-        up onto (scorch_tiles) at SCORCH_R + 1."""
+        that one (target_zone; `far`: with its rare hits too where their reach is wider than --vet-range, the zone
+        stand_off keeps us out of between the dip's steps in); each tile of an awake sprayer's frontal cone
+        (spray_tiles) at 1; each tile a scorch wound up onto (scorch_tiles) at SCORCH_R + 1."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
         pets = [p for p in self.pets(st) if not p["dead"]]
         zone = dict.fromkeys(self.spray_tiles(st), 1)
-        for t, r in self.target_zone(st).items():
+        for t, r in self.target_zone(st, far).items():
             zone[t] = max(zone.get(t, 0), r)
         for key, mob in world["mobiles"].items():
             s = serial_of(key)
@@ -2590,14 +2975,15 @@ class Team:
                     or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
                 continue
             kind = type_key(labels.get(key) or mob.get("name"))
-            if kind in self.chargers or kind in AREA_R or kind in TARGET_AREA:
+            if kind in self.chargers or kind in AREA_R or kind in TARGET_AREA or (DIP and kind in TARGET_AREA_FAR):
                 out.add(s)
         return out
 
-    def target_zone(self, st) -> dict:
+    def target_zone(self, st, far: bool = False) -> dict:
         """{(x, y): tiles to keep from it}: each live pet within the reach of a monster in war mode in view whose hit
         lands on its target, one of us, and on everyone within its radius of that one (TARGET_AREA: the zoas' scorch and
-        astral spell, always on a pet), at radius + 1. Logged once a monster."""
+        astral spell, always on a pet), at radius + 1. `far`: TARGET_AREA_FAR's for a type whose widest such hit reaches
+        beyond --vet-range (the zoas' volley: 7), the dip's zone. Logged once a monster."""
         import threats
         world = st["world"]
         labels = world.get("labels") or {}
@@ -2609,7 +2995,10 @@ class Team:
                     or not (mob.get("flags") or 0) & threats.FLAG_WARMODE:
                 continue
             kind = type_key(labels.get(key) or mob.get("name"))
-            if (ta := TARGET_AREA.get(kind)) is None:
+            ta = TARGET_AREA.get(kind)
+            if far and (wide := TARGET_AREA_FAR.get(kind)) is not None and wide[1] > self.a.vet_range:
+                ta = wide
+            if ta is None:
                 continue
             c = (mob["x"], mob["y"])
             near = [p for p in pets if cheb(p, c) <= ta[0]]
@@ -2811,16 +3200,19 @@ class Team:
         """The tiles of area_zone: where an area hit lands; no tile to step to."""
         return set(self.area_zone(st))
 
-    def heal_at(self, p: dict, zone: set, calm: bool = False) -> float:
+    def heal_at(self, p: dict, zone, calm: bool = False, dz: dict | None = None) -> float:
         """The hits share below which pet `p` gets the vet supplies: --pet-heal-at, but only
         --standoff-vet-at for a pet a charger fights while our supplies don't reach CHARGE_SAFE_R
-        (stepping in to heal it puts us in the Charge's reach: user 2026-10-13). --vet-range 3+ (the
-        Healer's Codex 'Without Borders') heals it from outside. `calm` (no fight on): CALM_HEAL_AT at most. Deprived of
-        oxygen (HuntLoop.oxygen_floor): never above its floor, which the drain takes every pet back down to."""
+        (stepping in to heal it puts us in the Charge's reach: user 2026-10-13), or one deep in a dip's zone (`dz`,
+        dip_zone; wide: a zoa's target, its volley's 7 against --vet-range 5): we stand out of it and step in for a
+        channel's finish (dip), the fewer the better. --vet-range 3+ (the Healer's Codex 'Without Borders') heals the
+        charger's from outside. `calm` (no fight on): CALM_HEAL_AT at most. Deprived of oxygen
+        (HuntLoop.oxygen_floor): never above its floor, which the drain takes every pet back down to."""
         at = self.a.pet_heal_at
         if (floor := self.h.oxygen_floor()) is not None:
             at = min(at, floor)
-        if self.a.vet_range < CHARGE_SAFE_R and (p["x"], p["y"]) in zone:
+        tile = (p["x"], p["y"])
+        if (self.a.vet_range < CHARGE_SAFE_R and tile in zone) or (dz and self.wide(tile, dz)):
             at = min(at, self.a.standoff_vet_at)
         return min(at, CALM_HEAL_AT) if calm else at
 
@@ -2846,17 +3238,26 @@ class Team:
         pos = h.pos(st)
         sprayed, scorched = self.spray_due(st, pos), self.scorch_due(pos)
         landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or sprayed or scorched
+        if DIP and not landing and self.dip(st):
+            return True                   # a channel running for a pet in a reach wider than the supplies': in for its finish
         if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:
             return False
-        zone = self.area_zone(st)
+        zone = self.area_zone(st, far=DIP)     # with the reach the dip stands out of (the zoas' volley round its target)
         if not zone or all(cheb(pos, t) >= r for t, r in zone.items()):
             return False
+        dz = self.dip_zone(st)
         heal = [p for p in self.pets(st) if not p["dead"] and (p["x"], p["y"]) in zone
-                and (p["frac"] < self.heal_at(p, set(zone)) or p["poisoned"])]
-        if not landing and self.a.vet_range < max(zone.values()) and heal \
+                and (p["frac"] < self.heal_at(p, set(zone), dz=dz) or p["poisoned"])]
+        # the stay to heal: those in a reach the dip isn't for (a charger's, the reanimated daemon's), as before it
+        stay = [p for p in heal if not self.wide((p["x"], p["y"]), dz)]
+        old = self.area_zone(st) if dz else zone
+        if stay and not landing and self.a.vet_range < max(old.values(), default=0) \
                 and healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
             # step in (or stay) to heal the tank: with --vet-range SPACING_R + 1 or more, to the vet tile to_pet walks to
-            # (vet_tile), never mid-channel (a step shortens its reach to 1); else stay as before
+            # (vet_tile), never mid-channel (a step shortens its reach to 1); else stay as before. One in a dip's zone
+            # instead: its channel begun in the supplies' reach (below), left for the wait, stepped back into for its
+            # finish (dip)
+            heal = stay
             if self.a.vet_range < SPACING_R + 1 or now < self.vet_busy_until:
                 return False
             to = self.vet_tile(st, [(p["x"], p["y"]) for p in heal], STANDOFF_MOVES)
@@ -2875,12 +3276,68 @@ class Team:
                     raise
                 log(f"{label}: {e}")
             return True
-        to, stay = self.standoff_tile(st, zone, sprayed, scorched)
-        if stay:
+        if DIP and not landing and not self.dipping and now >= self.vet_busy_until \
+                and any(self.wide((p["x"], p["y"]), dz) and p["dist"] <= self.a.vet_range for p in heal) \
+                and self.vet(st):
+            return True                   # one to heal in the supplies' reach, deep in an area hit's: its channel begun
+            #                               here (the last one's finish found us here), then out for the wait (dip)
+        out = None                        # a channel runs for the dip: out only to a clear tile DIP_OUT_STEPS near
+        if self.dipping:
+            v = self.view(st)
+            steps = self.tiles_within(v, DIP_OUT_STEPS) if v.walk is not None else {}
+            # only those we can go out to and come back from for the finish
+            left = self.dip_finish - now - DIP_LEAD_S - DIP_OUT_MARGIN_S
+            out = {t[:2] for t, k in steps.items() if 2 * k * STEP_IN_STEP_S <= left}
+        back = self.dip_from
+        if back is not None and now - back[1] <= DIP_BACK_S and not (sprayed or scorched) and ClearOf(zone)(back[0]) \
+                and back[0] not in self.fire_tiles(st):
+            to, stay = back[0], None      # after a dip: back where we stood for it, out of the reach
+        else:
+            to, stay = self.standoff_tile(st, zone, sprayed, scorched)
+        self.dip_from = None
+        shallow = False
+        if stay and dz and not (sprayed or scorched):
+            # every clear tile is in an idle monster's eyes: not the stand deep in a zoa's reach either (simulator,
+            # Tidal Tomb level 2, 144 runs: 28 an hour on Logan from zoas' bursts on a pet he stood 3 or less from for
+            # 2 s and more, "stand-off: every clear tile is nearer an idle monster ...; staying"), the least deep tile
+            # no idle monster would take us on; mid-channel within the supplies' reach of the pets it is for
+            near = [(p["x"], p["y"]) for p in heal if p["dist"] <= self.a.vet_range] if self.dipping else None
+            to = self.shallow_tile(st, zone, near)
+            shallow = to is not None
+            if shallow:
+                self.count("standoff_shallow")
+                log(f"stand-off: no clear tile out of the idle monsters' eyes; to {to[:2]}, "
+                    f"{self.zone_depth(zone, to)} into an area hit's reach (here {self.zone_depth(zone, pos)})")
+        if stay and not shallow:
             if stay != self.standoff_stay:
                 log(f"stand-off: {stay}")
             self.standoff_stay = stay
             return False
+        if out is not None and not shallow and (to is None or tuple(to[:2]) not in out):
+            # none that near: through the channel in the supplies' reach, on its least deep tile (vet_tile: 5 off a
+            # zoa's target is out of its astral spell and lightning)
+            near = [(p["x"], p["y"]) for p in heal if p["dist"] <= self.a.vet_range]
+            to = self.vet_tile(st, near, DIP_OUT_STEPS) if near else None
+            if to is None or self.zone_depth(zone, to) >= self.zone_depth(zone, pos):
+                return False
+            self.standoff_t = now
+            label = "shallower in an area hit's reach"
+            h.doing("standoff", f"Stepping to {to[0]},{to[1]}: the edge of the vet supplies' reach", to[:2])
+            try:
+                h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * DIP_OUT_STEPS,
+                                max_route=2 * DIP_OUT_STEPS, mobile_wait=0)
+            except Abort as e:
+                if not str(e).startswith(label):
+                    raise
+                log(f"{label}: {e}")
+            return True
+        if to is None and dz and not (sprayed or scorched):
+            # no clear tile in reach of a zone wider than the supplies' reach: the least deep one that no idle monster
+            # would take us on, not a blind walk out of it (simulator, Tidal Tomb level 2, 144 runs: with the walk to
+            # any clear tile within 12 steps, 139 -> 216 an hour on Logan from monsters that woke on him)
+            to = self.shallow_tile(st, zone)
+            if to is None:
+                return False
         self.standoff_stay = None
         self.standoff_t = now
         label = "out of charge reach"
@@ -2898,6 +3355,109 @@ class Team:
             if not str(e).startswith(label):
                 raise
             log(f"stand-off cut short: {e}")
+        return True
+
+    def shallow_tile(self, st, zone: dict, reach: list | None = None):
+        """stand_off's tile where none within STANDOFF_MOVES is clear of `zone` (or none an idle monster wouldn't see
+        us on first): the least deep in it (zone_depth) that no idle monster would take us on (aggro.View.first_on_us)
+        and no --never-aggro one sees, out of fire, shallower than here, within --vet-range of every tile of `reach`;
+        the fewest steps among those. None: none shallower."""
+        v = self.view(st)
+        if v.walk is None:
+            return None
+        fire = self.fire_tiles(st)
+        here = self.zone_depth(zone, v.pos)
+        best, best_c = None, None
+        for t, k in self.tiles_within(v, STANDOFF_MOVES).items():
+            d = self.zone_depth(zone, t)
+            if k == 0 or d >= here or t[:2] in fire or v.never_near(t) or v.first_on_us(t, margin=1) \
+                    or any(cheb(t, p) > self.a.vet_range for p in reach or ()):
+                continue
+            if best_c is None or (d, k) < best_c:
+                best, best_c = t, (d, k)
+        return best
+
+    def dip_zone(self, st) -> dict:
+        """{(x, y): tiles to keep from it}: target_zone's far entries wider than --vet-range (a zoa's target and the pets
+        within its reach, its volley's 7): the zone the dip is for. {} with DIP off."""
+        return {t: r for t, r in self.target_zone(st, far=True).items() if r > self.a.vet_range} if DIP else {}
+
+    def wide(self, at, dz: dict) -> bool:
+        """No tile within --vet-range of a pet on `at` is clear of `dz` (dip_zone): `at` is deeper than --vet-range in
+        such a hit's reach."""
+        return any(r - cheb(at, c) > self.a.vet_range for c, r in dz.items())
+
+    def dip(self, st) -> bool:
+        """A vet channel of ours running with a hurt pet in an area hit's reach wider than --vet-range (area_zone: the
+        zoas' volley 7 round the pet it targets): on the dip's tile DIP_LEAD_S before the channel's shortest finish
+        (VET_CHANNEL_S after its begin), and held there till the finish; stand_off takes us out again after. The tile:
+        within --vet-range of every such pet (else of the most hurt), the least deep in the hits that come often
+        (area_zone without the rare ones: 5 off a zoa's target is out of its astral spell and lightning), the fewest
+        steps. Nothing else is begun DIP_WAIT_S before the step in (True: the tick held). `dipping`: such a channel
+        runs (HuntLoop.combat_step loots after it)."""
+        h, now = self.h, time.monotonic()
+        self.dipping = False
+        if now >= self.vet_busy_until or now - self.vet_t > VET_BUSY_S:
+            return False                  # no channel of ours running
+        dz = self.dip_zone(st)
+        # those the channel is for: dead, poisoned, or below their threshold (heal_at) with DIP_OVER to spare for what
+        # healed them meanwhile (a channel for us, or for a pet out of the reach, takes no step in)
+        wide = [p for p in self.pets(st) if p.get("x") is not None and self.wide((p["x"], p["y"]), dz)
+                and (p["dead"] or p["frac"] < self.heal_at(p, (), dz=dz) + DIP_OVER or p["poisoned"])]
+        if not wide:
+            return False
+        self.dipping = True
+        finish = self.dip_finish = self.vet_t + VET_CHANNEL_S
+        if all(p["dist"] <= self.a.vet_range for p in wide):
+            if finish - now > DIP_LEAD_S + DIP_WAIT_S:
+                return False              # in their reach long before the finish: out of it meanwhile (stand_off)
+            h.doing("vet", f"In reach of {wide[0]['name']} for the vet supplies' finish")
+            time.sleep(0.1)
+            return True
+        v = self.view(st)
+        if v.walk is None:
+            return False
+        often, fire = self.area_zone(st, far=True), self.fire_tiles(st)
+        tiles = self.tiles_within(v, DIP_STEPS)
+        best = None
+        for reach in ([(p["x"], p["y"]) for p in wide], [min(((p["frac"], (p["x"], p["y"])) for p in wide))[1]]):
+            for t, k in tiles.items():
+                if t[:2] in fire or any(cheb(t, p) > self.a.vet_range for p in reach):
+                    continue
+                c = (self.zone_depth(often, t), k)
+                if best is None or c < best[0]:
+                    best = (c, t, k)
+            if best is not None:
+                break
+        if best is None:
+            if self.dip_none != self.vet_t:
+                self.dip_none = self.vet_t
+                self.count("dip_none")
+                log(f"dip: no tile within {DIP_STEPS} steps in the vet supplies' reach of {wide[0]['name']} "
+                    f"({wide[0]['dist']} off); the channel finishes without it")
+            return False
+        (depth, k), tile, _ = best
+        go = finish - DIP_LEAD_S - k * STEP_IN_STEP_S
+        if now < go - DIP_WAIT_S:
+            return False
+        if now < go:
+            h.doing("vet", f"Waiting to step in for the vet supplies' finish on {wide[0]['name']}", tile[:2])
+            time.sleep(min(0.1, go - now))
+            return True
+        label = "in for the vet supplies' finish"
+        self.count("dips")
+        log(f"dip: {tile[:2]}, {k} step(s), {max(cheb(tile, (p['x'], p['y'])) for p in wide)} from "
+            f"{', '.join(p['name'] for p in wide)} ({finish - now:.1f} s before the channel's finish"
+            + (f", {depth} into an area hit's reach" if depth else "") + ")")
+        h.doing("vet", f"Stepping in for the vet supplies' finish on {wide[0]['name']}", tile[:2])
+        self.dip_from = (tuple(v.pos[:2]), now)
+        try:
+            h.mover.walk_to(lambda: tile[:2], 0, label, urgent=True, max_moves=2 * DIP_STEPS, max_route=2 * DIP_STEPS,
+                            mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"dip: {e}")
         return True
 
     def standoff_tile(self, st, zone: dict, spray: str | None = None, scorch: tuple | None = None):
@@ -2984,7 +3544,8 @@ class Team:
         Borders healing codex perk lets us heal from 5 tiles away" (live 09:53:52-56 to_pet walked to 1 of the gravebug,
         beside the reanimated daemon at (5241, 675): its bone burst -41 a second later). Shared by to_pet and
         stand_off's step in to heal the tank."""
-        return self._reach_tile(st, reach, self.a.vet_range, steps, margin=1, spaced=True, clear=False)
+        # the depth with the dip's zone (`far`): 5 off a zoa's target and the pets by it, not the 4 its lightning reaches
+        return self._reach_tile(st, reach, self.a.vet_range, steps, margin=1, spaced=True, clear=False, far=DIP)
 
     def loot_tile(self, st, spot) -> tuple:
         """Where to loot the corpse at `spot` from while an area hitter or an awake shy monster (a corpse purger or a
@@ -3119,7 +3680,7 @@ class Team:
                 mv.danger.pop(k, None)
 
     def _reach_tile(self, st, reach: list, r: int, steps: int, margin: int, spaced: bool, clear: bool,
-                    unshot: bool = False, per_tile: bool = False):
+                    unshot: bool = False, per_tile: bool = False, far: bool = False):
         """vet_tile's and loot_tile's chooser: a tile within `steps` steps and `r` of every tile in `reach`, out of fire;
         `spaced`: SPACING_R from every live pet and monster in war mode; `clear`: clear of every area hit; `unshot`: out
         of every awake shy monster's shot (shot_at). Ranked by the depth in an area hit's reach, the awake shy monsters
@@ -3128,7 +3689,7 @@ class Team:
         v = self.view(st)
         if v.walk is None:
             return None
-        zone, fire = self.area_zone(st), self.fire_tiles(st)
+        zone, fire = self.area_zone(st, far), self.fire_tiles(st)
         # `per_tile` (the loot tile): the pets-side exemption judged from each tile, not from where we stand (live
         # 2026-10-31 19:14:46, hunt-20261031-184304-5745: 13 off a combustive zoa with the pets 12 off it, a tile 3
         # from it counted out of its shot; the loot walk there left the pets, docs/NOTES.md "Tidal Tomb level 2: dead
@@ -3218,12 +3779,12 @@ class Team:
 
     def vet_needed(self, st, pets, us_below: float | None = None, calm: bool = False) -> str | None:
         me = st["world"]["self"]
-        zone = self.charge_zone(st)
+        zone, dz = self.charge_zone(st), self.dip_zone(st)
         ghosts = [p for p in pets if p["dead"] and p["dist"] <= self.a.vet_range]
         if ghosts:
             return f"{ghosts[0]['name']} is dead (a channel resurrects it)"
         hurt = [p for p in pets if not p["dead"] and p["dist"] <= self.a.vet_range
-                and (p["frac"] < self.heal_at(p, zone, calm) or p["poisoned"])]
+                and (p["frac"] < self.heal_at(p, zone, calm, dz) or p["poisoned"])]
         if hurt:
             p = min(hurt, key=lambda p: p["frac"])
             return f"{p['name']} at {p['frac']:.0%}" + (" (poisoned)" if p["poisoned"] else "")
@@ -3295,10 +3856,10 @@ class Team:
         if now < self.vet_busy_until or now - self.walk_pet_t < WALK_TO_PET_S \
                 or not healing.in_pack(st["world"], h.me(st), VET_SUPPLIES_GRAPHIC):
             return False
-        zone = self.charge_zone(st)
+        zone, dz = self.charge_zone(st), self.dip_zone(st)
         busy = bool(h.attackers(st))
         far = [p for p in self.pets(st) if p["dist"] > self.a.vet_range and p["dist"] <= combat.VIEW_RANGE
-               and (p["dead"] or ((p["frac"] < self.heal_at(p, zone, calm) or p["poisoned"])
+               and (p["dead"] or ((p["frac"] < self.heal_at(p, zone, calm, dz) or p["poisoned"])
                                   and (not busy or (self.a.heal_in_place and p["frac"] < self.a.pet_leave_at))))]
         if not far:
             return False
@@ -3626,6 +4187,8 @@ class Team:
         if not engaged:
             if not on_us and self.back_off(st):
                 return                    # a purger would see us before the pets: back behind them first
+            if not on_us and self.front(st):
+                return                    # one that comes on would take us first: in and back behind the pets
             shy_idle = aggro.shy(type_key(mob.get("name"))) and not (mob.get("flags") or 0) & aggro.WAR
             if not on_us and not shy_idle and cheb(h.pos(st), (mob["x"], mob["y"])) > APPROACH_R \
                     and not self.hold_reason(st):
@@ -3648,7 +4211,7 @@ class Team:
             h.doing("wait", f"Pets on guard; waiting for {name} to come on", (mob["x"], mob["y"]), serial)
             time.sleep(0.4)
             return
-        if self.bard(st, serial, mob):
+        if (on_us or self.pets_hurt(st, serial)) and self.bard(st, serial, mob):
             return
         h.doing("fight", f"The pets are fighting {name}", (mob["x"], mob["y"]), serial)
         time.sleep(0.4)
@@ -3807,8 +4370,12 @@ class Team:
         if now >= self.calm_ready:
             if self.a.provoke:
                 others = [s for s in self.others(st, serial) if self.provokable(st, s, now)]
-                if len(others) > 1 or (others and self.bard_sees(st, serial)):
-                    return self.use(SKILL_PROVO, others[0], others[1] if len(others) > 1 else serial)
+                # the one incited takes our act: on us already, or hurt lately (BARD_OTHERS_HURT: one on the pets that
+                # nothing has hurt turns to us when its provocation ends); its victim needs neither
+                mine = {serial_of(a["serial"]) for a in self.h.attackers(st)}
+                first = next((s for s in others if not BARD_OTHERS_HURT or s in mine or self.pets_hurt(st, s)), None)
+                if first is not None and (len(others) > 1 or self.bard_sees(st, serial)):
+                    return self.use(SKILL_PROVO, first, next((s for s in others if s != first), serial))
             if self.a.peace and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
                     and (SKILL_PEACE, kind) not in self.beyond:
                 return self.use(SKILL_PEACE, serial)
@@ -3843,7 +4410,10 @@ class Team:
             if mob is None:
                 continue
             kind, fx = type_key(mob.get("name")), self.effects.get(s, {})
-            if fx.get("los", 0) > now or (aggro.shy(kind) and s not in on_us and not self.engaged(st, s)):
+            if fx.get("los", 0) > now or ((aggro.shy(kind) or BARD_OTHERS_HURT) and s not in on_us
+                                          and not self.pets_hurt(st, s)):
+                # one on the pets that nothing has hurt yet: our skill is the first act at it and puts it on us (the
+                # shy ones' rule for every kind: BARD_OTHERS_HURT)
                 continue
             if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
                 sid = SKILL_DISCORD
@@ -3890,7 +4460,11 @@ class Team:
         if PROVOKE_FIRST == "sprayers":
             first = next((s for s in pool if type_key((mobiles.get(f"0x{s:08X}") or {}).get("name")) in SPRAY_R), None)
         else:
-            first = pool[0]
+            # the incited one takes our act: the target (the pets fight it), else one on us or hurt lately
+            # (BARD_OTHERS_HURT, as bard_target's later provocation)
+            mine = {serial_of(a["serial"]) for a in self.h.attackers(st)}
+            first = next((s for s in pool if s == serial or not BARD_OTHERS_HURT or s in mine or self.pets_hurt(st, s)),
+                         None)
         if first is None or at(first) is None:
             return None
         rest = [s for s in pool if s != first and at(s) is not None]

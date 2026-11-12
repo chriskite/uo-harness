@@ -1668,6 +1668,44 @@ moongate, and never near a red one).
 - **`--crawl-avoid X0 Y0 X1 Y1`** (repeat): no waypoint in the box, and its tiles cost routes
   `DANGER_COST_X` (they keep out where they can). For the Mausoleum, `5170 690 5188 718` is the
   nightstalker room Logan never went into (user 2026-10-13: stay out for now).
+- **The pets first at every wake** (since 2026-11-12; user 2026-11-11: "position the pets between him and the mob so
+  that when it aggros 2s after seeing us, it attacks the pets and not him"; evidence, numbers and what was tried and
+  dropped: docs/NOTES.md "Tidal Tomb level 2: the pets first at every wake"). An idle monster wakes about 2 s after one
+  of us is in its aggro range and sight, onto the nearest of us in them. Each rule has a switch in `tamer.py`.
+  - **In front** (`Team.front`, `front_stop`; `FRONT`). With nothing fighting and the pets with us on guard, a walk
+    (the patrol, an approach, a fought leg, the walk to a corpse) stops a step before a monster that comes on would
+    have Logan in its range and sight with no pet as near. Then one walk: in until the pets trailing him are in its
+    range and sight, back past them, his steps in its eyes within the type's wake floor (`aggro.wake_floor`), and the
+    hold there until it has taken a pet (`step_in_watch`). It is the shy monsters' step-in (`step_in`, `pass_plan`)
+    for every kind. Log: "... ahead at N tiles: the pets first", "front at the ... (ahead, N off): K steps to (x, y),
+    out of its sight, <pet> in it". No such walk ("no front at ..."): the others of a pack may see it too inside
+    `--pull-budget`, each with a pet as near at its end (`FRONT_PACK`); else 'All Patrol' at it, out of its eyes first
+    when its clock is on him (`FRONT_PATROL`); after `FRONT_TRIES` (2) at one monster with no kill, the hold as before.
+  - **Out of its eyes** (`Team.duck`; `DUCK`). With a fight on, something on us, or the pets sent off or apart, an
+    idle monster that has Logan in its range and sight with no pet nearer gets a step (up to 4, at most once a
+    second, mid-channel too) to the nearest tile no idle monster would take him on, in `--vet-range` of the pets where
+    one is. Its clock stops, and it is still idle for the next fight's front. Log: "duck: the idle ... has us in its
+    range and sight, N off, no pet nearer; to (x, y), K step(s)". 'All Patrol' is not sent while one has him so.
+  - **Apart in the hold** (`Team.apart`; `APART`). Holding for a monster whose hit lands on everyone beside its target
+    (`TARGET_AREA`: the drowned mariner, the soulcatcher): 'All Stay' once the pets have closed up, a tile 2+ from
+    them out of its sight within 3 steps, 'All Guard Me' the moment it is in war mode or the hold ends.
+  - **Skills only where a pet's hit is known** (`BARD_OTHERS_HURT`, `BARD_PAIR_HURT`; `Team.pets_hurt`,
+    `hurt_watch`). A skill of ours at a monster no pet has hurt is the first act at it and brings it on us. So
+    `bard_others`, a provocation's incited monster and the skills at the target go only at one that is on us or that
+    was hurt with a pet in reach while in no provoked pair of ours: the two of a pair hurt each other, and the victim
+    of our provocation used to read as "on the pets".
+  - **The dip** (`Team.dip`; `DIP`; the user's tactic, docs/NOTES.md "Vet channels and steps"). A zoa's target and
+    the pets in its reach are a zone of 7 (`TARGET_AREA_FAR`: its volley), wider than `--vet-range`. A pet there is
+    vetted from `--standoff-vet-at`. The channel begins in reach; the stand-off then takes Logan out of the zone when
+    a clear tile is near enough to be back in time (`DIP_OUT_STEPS`), else to the least deep tile in reach; he is on
+    the dip's tile `DIP_LEAD_S` before the channel's shortest finish (5.0 s) and holds there for it. No loot walk
+    while such a channel runs. Log: "dip: (x, y), K step(s), N from <pet> (T s before the channel's finish)". The vet
+    tile (`vet_tile`) and the dip's take the least depth in that zone: 5 off the target is out of the lightning.
+    Where every clear tile is in an idle monster's eyes, the stand-off takes the least deep tile out of them
+    (`shallow_tile`: "stand-off: no clear tile out of the idle monsters' eyes; to ...") instead of staying.
+  - Not built, each tried in the simulator and dropped: keeping off a melee monster that is on him (the pets never
+    get it off him as he runs), 'All Kill' at a monster that woke on him before its first swing, standing behind the
+    pets from every monster in war mode.
 
 **Not built**: claiming or stabling the pets, a corpse run of our own, and Herding (Logan double-clicked
 his shepherd's crook once). Never run live yet; run in the Mausoleum simulator (docs/SIM.md) since

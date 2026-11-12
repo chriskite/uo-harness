@@ -9519,6 +9519,162 @@ the last 15 s' damage):
 Maus 3 deaths 13 -> 11 of 392, gold +0.6 / +3.1 %: the merge rule (no more than 13, gold within ~2 %) held. Tidal Tomb
 has no purger or blightmare: as the first try. The 23:37 replay as above (no disease shooter in it).
 
+## Tidal Tomb level 2: the pets first at every wake (simulator, 2026-11-11..12)
+
+User 2026-11-11: Logan "frequently stands between the pets and a mob when it aggros so he takes damage, when he should
+instead be positioning the pets between him and the mob so that when it aggros 2s after seeing us, it attacks the pets
+and not him", and "has some bad positioning near the giant pincer crab near the gate, where he stands right where it
+will aggro on him". The goal he set: half the monster damage on Logan in the level 2 simulator without less gold banked
+an hour (docs/PLAN.md "The pets first at every wake"). All of this is the simulator; nothing here was run live.
+
+**The measure.** `python harness/sim/run.py --scenario tidal_tomb --level 2 --runs 144 --seed S --team phoenix_incubus
+--json -- --vet-range 5 --crawl-learn-s 180`, S = 1 and 145 (288 runs a side). Monster damage an hour = (the sum of
+`player_damage_taken` - the sum of `player_damage_by.oxygen`) / (the sum of `sim_s` / 3600). The simulator is
+deterministic: a second batch of a46a0be's runner gave the same rows.
+
+**Where the damage came from** (a46a0be, seeds 1-144; `World.hurt` and `World._think` wrapped from outside by a
+throwaway script, not in the repo, so each hit on Logan carries what the monster was doing and why it was on him):
+
+- About 45 % was collateral: a monster on a pet hitting Logan beside it. The zoas' bursts on their target were ~300 an
+  hour of it (the astral spell reaches 3 round its target, the lightning 4, the volley 6; the stand-off kept Logan 4
+  off the pets, inside `--vet-range 5`). Then the voidfin's spin, the mariner's and soulcatcher's hit on those within 1
+  of their target, the bedrock's spray.
+- About 27 % came from monsters that woke on Logan: 1,994 of 9,804 wakes took him first. In 1,184 of those no pet was
+  in the monster's sight (the walk stopped on the first tile the monster sees, "Holding: ... in sight: letting it
+  come", the pets a tile behind and out of its sight), in 651 he was the nearer. The gate crab is this case: idle at
+  (6917, 2063), out of sight from the east until (6920, 2064), 3 tiles off.
+- About 10 % and more came from monsters a bard skill of ours turned to him: `World._act` puts 400 threat on Logan for
+  an act at a monster no pet has hurt yet (its docstring: on the first trip, of 7 monsters our act reached first, 3
+  hit Logan; of 14 it reached after the pets, none).
+
+**What the simulator does that these rules lean on** (`harness/sim/world.py`; each is fitted to live numbers, see
+docs/SIM.md):
+
+- An idle monster wakes 1.9-2.55 s (Tidal Tomb's `defaults.wake_s`) after one of us is in its aggro range and sight,
+  onto the nearest of us in them by tiles, a pet on a tie; a guarding tank a little farther can draw it
+  (`defaults.tank_draw`). A shy one takes the nearest in its sight within 14 by Euclidean distance, a coin's toss
+  within a tile (`NEAR_TIE`). Its clock stops when none of us is in its range and sight.
+- Pets on guard keep the target they have while it is on one of us; 'All Kill' moves them, and is an act (400 threat
+  on Logan when no pet has hurt the target).
+- A melee monster swings the tick it stands beside its target.
+- `RETARGET_P`: a monster on a pet turns to Logan, 5 % a think (0.5 s), while he is strictly nearer it than that pet
+  and in its sight.
+- The vet supplies heal the pets within 5 of Logan at the channel's finish (5.0-5.3 s after its begin); his steps
+  meanwhile cost nothing ("Vet channels and steps" above).
+
+**The rules that stayed** (all in `harness/tamer.py`, each behind a module constant; docs/HUNT_LOOP.md "The pets first
+at every wake"). The damage figures are monster damage on Logan an hour on two development blocks kept apart from the
+measure's seeds (seeds 2001-2144 and 3001-3144, 288 runs; a46a0be: 1,192), each row with the rows above it:
+
+| step | rules | damage / h | banked / h | runs with a death | pet deaths |
+|---|---|---|---|---|---|
+| a46a0be | | 1,192 | 152,858 | 49 | 176 |
+| 1 | `front`, `duck`, the bard rule (`BARD_OTHERS_HURT`), `dip` | 708 | 168,977 | 17 | 202 |
+| 2 | the vet and dip tiles ranked by the dip's zone; the steps out between a channel's begin and finish timed by the tile | 679 | 165,460 | 18 | 226 |
+| 3 | `apart` ('All Stay' in the step-in's hold) | 661 | 162,684 | 23 | 205 |
+| 4 | the stand-off's shallow tile, `FRONT_PATROL`, `FRONT_PACK` | 668 | 161,386 | 20 | 257 |
+| 5 | a provoked pair's hits are not the pets' (`BARD_PAIR_HURT`) | 617 | 159,933 | 22 | 242 |
+
+Two blocks of 144 runs differ by about 35 an hour from the draw alone (step 3 and step 4 are within that; they are
+kept for the cases they fix, below). Wakes that took Logan first: 28.2 an hour (21 % of the wakes) -> 6.8 (5 %).
+Discordances that put threat on him: 6.0 an hour -> 0.3. By source, steps 0 -> 5: the zoas' bursts on a pet 343 -> 171,
+melee from monsters that woke on him 169 -> 59, melee from monsters an act of ours turned 136 -> 26.
+
+- **`Team.front`, `front_stop`** (the user's rule). A walk stops a step before an idle monster that comes on would
+  have Logan in its range and sight with no pet as near. Then the step-in's walk (`pass_plan` with `comes`): in until
+  the trailing pets are in its range and sight, back past them, his steps in its eyes inside the type's wake floor
+  (`aggro.wake_floor`: Tidal Tomb's 1.9 s), and the hold there until it has taken a pet (`step_in_watch`). The gate
+  crab (`sim/fightcrab.py`, the level's own layout at seed 1002's 10:13 and 22:40, seeds 1-24): before, on Logan 24 of
+  24 at 2 tiles, 546 on him, 6 pinches; after, on a pet 24 of 24, none.
+- **`Team.duck`**. With a fight on, the pets sent off or something on us, `front` can't put the pets in front; an idle
+  monster with Logan in its range and sight and no pet nearer gets a step out of its eyes instead (its clock stops).
+  `patrol_pull` refuses while such a monster has him exposed: the pets away on patrol guard nobody.
+- **`BARD_OTHERS_HURT`, `BARD_PAIR_HURT`** (not positioning: which monster a skill goes at). `bard_others` and a
+  provocation's incited monster only where a pet's hit is known, or the monster is on us already. "Known" was "hurt
+  lately with a pet in reach" (`engaged`); the two monsters of a pair we provoked hurt each other, so the victim read
+  as engaged with no pet's hit on it, and "Discordance at ...: on the pets, not the target" put it on Logan when the
+  pair ended. `Team.hurt_watch` counts a hit as the pets' only while the monster is in no provoked pair of ours.
+- **`Team.dip`** (the user's own tactic, "Vet channels and steps"). A zoa's target and the pets in its reach are a zone
+  of 7 (`TARGET_AREA_FAR`: the volley), wider than `--vet-range`. The channel begins in reach, Logan steps out of the
+  zone when a clear tile is near enough to be back for the finish, and is on the dip's tile 0.4 s before the
+  channel's shortest finish. A pet in such a zone is vetted from `--standoff-vet-at` (0.7), as the tank in a
+  charger's reach is. The vet and dip tiles take the least depth in that zone (5 off the target is out of the
+  lightning). Where every clear tile is in an idle monster's eyes the stand-off takes the least deep tile out of them
+  instead of "staying" 2-3 off the target (28 an hour were bursts he stood in so for 2 s and more).
+- **`Team.apart`**. In the step-in's hold at a mariner or soulcatcher: 'All Stay' once the pets have closed up, 2+
+  tiles from them out of its sight, 'All Guard Me' when it is awake. Its first hit on the pet it takes no longer lands
+  on Logan beside that pet.
+- **`FRONT_PACK`, `FRONT_PATROL`**. With no walk at one monster alone, `pass_plan` may let the others that come on see
+  the walk too, inside `--pull-budget`, each with a pet as near as Logan at its end (never used on level 2 in 288
+  runs; it is what a static hunt beside a pack needs: `test_essence_sim`'s four shade wolves behind a wall, which the
+  loot walk used to wake on Logan by accident). Else 'All Patrol' at it (0.4 an hour), out of its eyes first when its
+  clock is on him.
+
+**Tried and dropped** (same development blocks unless said):
+
+- The zoas' zone at 5 or 7 with no dip (`TARGET_AREA` alone): 1,175 and 1,211 against 1,114 on the first block. Logan
+  stood in it to vet all the same, or the heals were lost.
+- `--never-aggro` for the zoas: 1,122, runs with a death 17 -> 27.
+- Behind the pets from a melee monster in war mode within 4 with no pet between ("coming"): 691 -> 742, runs with a
+  death 6 -> 20, pet deaths 108 -> 148; 3,210 such steps in 144 runs.
+- Keeping 5 off a melee monster that is on him (a kite): a replay with the pets busy on another monster, 8 seeds: 224
+  on Logan standing (one swing, then the runner's 'All Kill' takes it off him in 2 s) against 1,133 running (the pets
+  never get it off him).
+- 'All Kill' at once at a monster that woke with Logan first in its eyes, before its first swing: 622 -> 688 and 701
+  -> 716. The tank draws some of those wakes, and the 'All Kill' at one no pet has hurt puts 400 threat on him.
+- Ranking a fight's tiles by "no monster in war mode has Logan nearer than every pet" (for `RETARGET_P`): 638 -> 741
+  on the first block.
+- The step-in's budget for shy monsters by the type's own wake floor (`SHY_KIND_FLOOR`, left off): not measured apart.
+
+**The measure, a46a0be against the change** (seeds 1-144 / 145-288):
+
+| | a46a0be | change |
+|---|---|---|
+| monster damage on Logan / h | 1,252 / 1,218 (1,235) | 604 / 568 (586): 0.48 and 0.47 of it, 0.47 together |
+| gold banked / h | 158,343 / 163,145 (160,730) | 154,225 / 166,771 (160,500): 0.999 |
+| runs with a death | 17 / 18 | 13 / 7 |
+| pet deaths | 92 / 116 | 124 / 94 |
+| kills / h | 162.1 / 163.6 | 157.4 / 157.9 |
+| oxygen damage on Logan / h | 379 / 477 | 518 / 416 |
+| the astral zoas' / h | 287 / 262 | 98 / 110 |
+| the voidfins' / h | 147 / 152 | 91 / 86 |
+
+One evaluation on these seeds, taken after the development blocks said 0.52; nothing was tuned on them. The first
+block run again on the committed code gave the same rows.
+
+**The other levels**, 96 runs a side (`--scenario tidal_tomb --team phoenix_incubus --runs 96 --json -- --vet-range 5
+--crawl-learn-s 180`; Maus 3 `--runs 96 --seed 17 --careers 14 --others --eerie --prior` a copy of the main store
+taken 2026-11-12 `-- --vet-range 5 --crawl-learn-s 180`):
+
+| | runs with a death | monster damage on Logan / h | banked / h | pet deaths | kills / h |
+|---|---|---|---|---|---|
+| Tidal Tomb level 1, a46a0be | 1 | 468 | 131,789 | 0 | 368.6 |
+| Tidal Tomb level 1, change | 0 | 242 | 127,944 (0.971) | 0 | 354.1 |
+| Maus 3, a46a0be | 4 | 1,240 | 139,824 | 0 | 129.1 |
+| Maus 3, change | 4 | 1,003 | 136,958 (0.980) | 0 | 125.6 |
+
+**What it costs, and what is left.** Gold on the two other levels is 2-3 % lower and kills an hour 3-4 % lower on all
+three: the walks in and back and the holds take time. Pet deaths did not fall, and on the development blocks they
+rose (176 -> 242): Logan stands farther from the fight and a pet in a zoa's reach is vetted from 70 %, not 95 %. Of
+202 pet deaths at step 1, 120 came with Logan out of the supplies' reach of that pet, 90 of them 6-9 tiles off.
+Oxygen damage on Logan went up on one block and down on the other (427 -> 467 together). What is left on Logan (step
+5, an hour): the zoas' bursts 171, wakes on him 144 (spread over every activity; 13 % of the mariners' and
+soulcatchers' wakes still take him, some with him 1-2 tiles from it [INFERENCE: a respawn beside the party]), the
+voidfins' spin 48, the bedrock's spray 41, turnings to the nearer of us (`RETARGET_P` and the shy ones') about 48,
+the mariners' hit beside a pet 37.
+
+**Tests** (harness/test_sim.py): `test_front_gate_crab` (`sim/fightcrab.py` seeds 1-3 both ways), `test_duck`,
+`test_zoa_dip`, `test_bard_other_on_pets` (the unhurt one and the provoked pair's victim: no skill),
+`test_approach_short_of_consort` (the soul takes a pet with `front`), `test_essence_sim` (now with `--pull-budget 6`:
+its pack of four is worth 3.7, over the default budget of 3, and the loot walk no longer steps into their sight ahead
+of the pets). `python -m pytest test_loop_hunt.py` can't run on this computer (no pytest in the 3.13 install);
+`python test_loop_hunt.py` runs it. Its "Discordance at W1 first ..." check counts wall-clock time and failed on both
+a46a0be and the change while 28 simulator workers ran beside it, and passes on an idle machine.
+
+**Not live.** The rules read only what the client sees (war flags, tiles, sight), but the wake's 1.9 s floor, the
+pets' one-tile follow and 'All Stay' in a hold are the simulator's; the first live level 2 shift should be watched for
+a front walk that ends with the monster on Logan ("step-in: ... on us") and for pets left on 'All Stay'.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

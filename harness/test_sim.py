@@ -2211,7 +2211,9 @@ def test_essence_sim():
     import loop_hunt
     w = world_with([{"key": "shade wolf", "at": [5262 + 2 * i, 652, 0]} for i in range(5)], seed=7)
     w.essence = {"charges": 40.0, "per_kill": 5.0}        # the scenario's player.essence
-    loop, clock, store, patched = hurt_loop(w, 100, extra=("--armor-aspect",))
+    # the four left behind the wall are a pack worth more than the default --pull-budget 3: the loot walk no longer
+    # steps into their sight ahead of the pets (Team.front_stop), so a budget that lets front take them together
+    loop, clock, store, patched = hurt_loop(w, 100, extra=("--armor-aspect", "--pull-budget", "6"))
     buf, err = io.StringIO(), None
     try:
         with contextlib.redirect_stdout(buf):
@@ -2648,7 +2650,7 @@ def test_bard_other_on_pets():
     # no skill at either (discord and peace went only at the target). Here mid vet channel: every tile that sees the
     # target is out of --vet-range of AlaFlambe; the second soul on Bussin is in sight of the pocket
     out = {}
-    for vet in (True, False):
+    for vet, hurt in ((True, True), (False, True), (True, False), (True, "pair")):
         w, loop, clock, store, patched, (a, b) = pocket_loop(
             [{"key": "bound soul", "at": [5267, 653, 0]}, {"key": "bound soul", "at": [5261, 660, 0]}],
             [("AlaFlambe", (5267, 652)), ("Bussin", (5260, 660))])
@@ -2660,23 +2662,40 @@ def test_bard_other_on_pets():
                 seen = (loop.team.bard_sees(st, a.serial), loop.team.bard_sees(st, b.serial))
                 if vet:
                     loop.team.vet_busy_until = tamer.time.monotonic() + 5.0
+                if not hurt:
+                    loop.hurt_t.pop(b.serial, None)     # nothing has hurt the other yet
+                elif hurt == "pair":                    # ...or only the one we provoked onto it
+                    loop.team.effects[b.serial] = {"calm": tamer.time.monotonic() + 30.0, "onto": a.serial}
                 went = loop.team.bard(st, a.serial, st["world"]["mobiles"][f"0x{a.serial:08X}"])
         finally:
             store.close()
             simclock.uninstall(patched)
-        out[vet] = (seen, went, a.barded, b.barded, b.discord_until > w.t or loop.team.counts.get("discord_fail", 0),
-                    loop.team.counts.get("bard_other", 0),
-                    [ln.split(" ", 1)[1] for ln in log.getvalue().splitlines() if "bard at" in ln or "on the pets" in ln])
-    seen, went, a_b, b_b, disc, other, lines = out[True]
+        out[vet, hurt] = (seen, went, a.barded, b.barded,
+                          b.discord_until > w.t or loop.team.counts.get("discord_fail", 0),
+                          loop.team.counts.get("bard_other", 0),
+                          [ln.split(" ", 1)[1] for ln in log.getvalue().splitlines()
+                           if "bard at" in ln or "on the pets" in ln])
+    seen, went, a_b, b_b, disc, other, lines = out[True, True]
     check("mid-channel: the target unseen with no step (logged), Discordance at the other",
           seen == (False, True) and went and not a_b and b_b and disc and other == 1
           and lines == [f"no bard at bound soul 0x{a.serial:08X}: the tiles within 4 steps that see it are out of "
                         f"--vet-range 5 of a pet",
                         f"Discordance at bound soul 0x{b.serial:08X}: on the pets, not the target (bound soul "
-                        f"0x{a.serial:08X})"], str(out[True]))
-    seen, went, a_b, b_b, disc, other, lines = out[False]
+                        f"0x{a.serial:08X})"], str(out[True, True]))
+    seen, went, a_b, b_b, disc, other, lines = out[False, True]
     check("...the step open: the target keeps priority (the step and a skill at it, none for the other alone)",
-          went and a_b and other == 0, str(out[False]))
+          went and a_b and other == 0, str(out[False, True]))
+    # simulator, Tidal Tomb level 2, 144 runs: 128 an hour on Logan from monsters our skill turned to him ("Discordance
+    # at voidfin ...: on the pets, not the target", the first act at it ours: World._act)
+    seen, went, a_b, b_b, disc, other, lines = out[True, False]
+    check("...the other not hurt by anything yet (tamer.BARD_OTHERS_HURT): no skill at it, ours would be the first act "
+          "at it and bring it on us", not b_b and other == 0, str(out[True, False]))
+    # simulator, Tidal Tomb level 2, 144 runs with the rule above: 6 Discordances an hour at the victim of our own
+    # provocation ("Provocation on a giant pincer crab: success", then "Discordance at lighthouse shellpod ...: on the
+    # pets, not the target"), 70 an hour on Logan from those monsters once their pair ended
+    seen, went, a_b, b_b, disc, other, lines = out[True, "pair"]
+    check("...the other hurt only as one of a pair we provoked (tamer.BARD_PAIR_HURT): its partner's hits are not the "
+          "pets'; no skill at it", not b_b and other == 0, str(out[True, "pair"]))
 
 
 def test_purger_back_off():
@@ -7033,6 +7052,52 @@ def test_zoa_on_pets_vet():
           f"{[ln for ln in log.splitlines() if 'hurt pet' in ln or 'cover' in ln][:3]}")
 
 
+def test_zoa_dip():
+    print("== the same layout for 40 s: out of the zoa's volley (7 off its target) between a vet channel's begin and its "
+          "finish, in --vet-range for the finish (Team.dip); every channel heals, seeds 1-3 ==")
+    # user (docs/NOTES.md "Vet channels and steps"): the channel begins in reach, the steps between are free, the
+    # finish needs its reach. Simulator, Tidal Tomb level 2, 288 runs: 343 an hour on Logan from the zoas' bursts on
+    # their target with him 4-6 off it the whole fight (the stand-off's 4, in --vet-range)
+    from agent_link import cheb
+    rows = []
+    for seed in (1, 2, 3):
+        w = tidal_world((6899, 2019), [{"key": "astral zoa", "at": [6909, 2024, -90]}], seed=seed, z=-90,
+                        team="phoenix_incubus")
+        z = next(m for m in w.mobs.values() if m.kind == "monster")
+        z.hits = z.hits_max = 10 ** 6
+        z.spec = {**z.spec, "step_s": 999.0}
+        loop, clock, store, patched = hurt_loop(w, 100)
+        ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+        for p in w.pets():
+            p.x, p.y = 6910, 2022
+            p.mode, p.kill, p.target, p.next_step = "kill", z.serial, z.serial, 1e9
+            w._warm(p, True)
+        ala.hits = int(ala.hits_max * 0.5)
+        z.target, z.threat = ala.serial, {ala.serial: 1e9}
+        w._warm(z, True)
+        out = io.StringIO()
+        t0 = last = w.t
+        far = 0.0
+        try:
+            with contextlib.redirect_stdout(out):
+                while w.t - t0 < 40.0 and w.player.alive:
+                    loop.tick()
+                    if cheb(w.player.pos, ala.pos) > 6:
+                        far += w.t - last
+                    last = w.t
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        log = out.getvalue().splitlines()
+        rows.append({"seed": seed, "far": round(far, 1), "channels": w.metrics["vet_uses"],
+                     "dips": sum(" dip: " in ln for ln in log), "lost": sum("too far from every pet" in ln for ln in log),
+                     "ala": round(ala.hits / ala.hits_max, 2)})
+    check("3+ channels, a step in for each finish ('dip: ...'), none 'too far from every pet at the finish'; she ends "
+          "above 70 % (from 50); Logan beyond its volley for 25+ of the 40 s",
+          all(r["channels"] >= 3 and r["dips"] >= r["channels"] - 1 and not r["lost"] and r["ala"] > 0.7
+              and r["far"] >= 25 for r in rows), str(rows))
+
+
 def test_to_pet_detour():
     print("== the walk to a hurt pet refuses a detour: a route longer than twice her distance + TO_PET_DETOUR_STEPS "
           "isn't walked ==")
@@ -8116,34 +8181,46 @@ def test_approach_short_of_consort():
     # live 2026-10-31 11:57:15.94-16.99 "toward a target" (a forgotten soul at 8) walked Logan to (5245, 635), 2 from the
     # consort's spot (5243, 633), 3 ahead of the pets; the hidden consort came out and bit -46 with a bleed, then -39:
     # dead. Before: the approach to 6 of the soul, the spot passed within 1-2, bitten (sim/fight1031.py 1157 19 of 24)
-    w, mob = consort_layout(seed=1)
-    loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5245, 638), (5245, 638)))
-    bites, near, out = [], [99], io.StringIO()
-    orig, world_tick = w.hurt, clock.on_advance
+    # Since 2026-11-11 the pets go first at the soul (Team.front: the walk in and back, never into the closed area), so
+    # the approach's own stop is its fallback: checked with FRONT off, then the layout as the runner plays it now
+    def run(front):
+        w, mob = consort_layout(seed=1)
+        loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5245, 638), (5245, 638)))
+        bites, near, out = [], [99], io.StringIO()
+        orig, world_tick = w.hurt, clock.on_advance
 
-    def hurt(victim, amount, by, kind="melee", *a, **kw):
-        if victim is w.player and by is not None and by.key == "vampiric consort":
-            bites.append(round(w.t, 2))
-        return orig(victim, amount, by, kind, *a, **kw)
-    w.hurt = hurt
+        def hurt(victim, amount, by, kind="melee", *a, **kw):
+            if victim is w.player and by is not None and by.key == "vampiric consort":
+                bites.append(round(w.t, 2))
+            return orig(victim, amount, by, kind, *a, **kw)
+        w.hurt = hurt
 
-    def watch(now):
-        world_tick(now)
-        near[0] = min(near[0], sim_cheb(w.player.pos, (5243, 633)))
-    clock.on_advance = watch
-    try:
-        with contextlib.redirect_stdout(out):
-            t_end = w.t + 10.0
-            while w.t < t_end and not w.player.ghost:
-                loop.tick()
-    finally:
-        clock.on_advance = world_tick
-        store.close()
-        simclock.uninstall(patched)
-    stop = [ln for ln in out.getvalue().splitlines() if "toward a target: stopping at" in ln]
+        def watch(now):
+            world_tick(now)
+            near[0] = min(near[0], sim_cheb(w.player.pos, (5243, 633)))
+        clock.on_advance = watch
+        was, tamer.FRONT = tamer.FRONT, front
+        try:
+            with contextlib.redirect_stdout(out):
+                t_end = w.t + 10.0
+                while w.t < t_end and not w.player.ghost:
+                    loop.tick()
+        finally:
+            tamer.FRONT = was
+            clock.on_advance = world_tick
+            store.close()
+            simclock.uninstall(patched)
+        return bites, near[0], out.getvalue().splitlines()
+    bites, near, log_ = run(False)
+    stop = [ln for ln in log_ if "toward a target: stopping at" in ln]
     check("'toward a target: stopping at ...' the consort's spot; never within 3 of it, no bite in 10 s (before: within "
           "2, bitten 1.5 s in)", stop and "is 3 from the vampiric consort's spawn spot (5243, 633) with no pet beside us"
-          in stop[0] and near[0] >= 4 and not bites, f"stops {stop[:1]}, nearest {near[0]}, bites {bites}")
+          in stop[0] and near >= 4 and not bites, f"stops {stop[:1]}, nearest {near}, bites {bites}")
+    bites, near, log_ = run(True)
+    took = [ln for ln in log_ if "step-in: the forgotten soul" in ln and " took " in ln]
+    check("...with the pets in front (Team.front): the soul takes a pet, Logan never within 3 of the spot, no bite",
+          bool(took) and near >= 4 and not bites,
+          f"took {took[:1]}, nearest {near}, bites {bites}, {[ln for ln in log_ if 'front' in ln][:2]}")
 
 
 def test_consort_spot_open_after_death():
@@ -8487,6 +8564,81 @@ def test_step_in_fallback():
           and who != w.player.serial,
           f"counts {dict((k, v) for k, v in counts.items() if 'step' in k or 'back' in k)} Logan {w.player.hits} | "
           + " | ".join(x for x in out.splitlines() if "step" in x or "back" in x)[-400:])
+
+
+def test_front_gate_crab():
+    print("== the pets in front (Team.front): the giant pincer crab by level 2's south gate, out of sight from the east "
+          "until 3 tiles off with the pets a tile behind: in and back, it takes a pet, Logan untouched; seeds 1-3 ==")
+    # user 2026-11-11: Logan "has some bad positioning near the giant pincer crab near the gate, where he stands right
+    # where it will aggro on him"; simulator, level 2 seed 1002 at 10:13 and 22:40: "Holding: giant pincer crab in
+    # sight at 3 tiles: letting it come" at (6920, 2064), the pets at (6921, 2063) out of its sight, and it woke on
+    # him (sim/fightcrab.py: 24 of 24 seeds before, 546 on him, 6 pinches)
+    from sim import fightcrab
+
+    def run(front):
+        was, tamer.FRONT = tamer.FRONT, front
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                return [fightcrab.one(seed) for seed in (1, 2, 3)]
+        finally:
+            tamer.FRONT = was
+    rows = run(True)
+    said = [any("front at the giant pincer crab" in ln for ln in r["log"]) for r in rows]
+    check("'front at the giant pincer crab ...'; it takes a pet each time, none of its hits or pinches on Logan, dead",
+          all(said) and all(r["first"] not in (None, "Logan") and not r["crab"] and not r["pinches"] and r["crab_dead"]
+                            for r in rows),
+          " | ".join(f"seed {r['seed']}: first {r['first']} at {r['logan_d']} crab {r['crab']} dead {r['crab_dead']}"
+                     for r in rows))
+    before = run(False)
+    check("...with tamer.FRONT off the hold as before: it takes Logan 2-3 tiles off",
+          all(r["first"] == "Logan" and r["logan_d"] <= 3 for r in before),
+          " | ".join(f"seed {r['seed']}: first {r['first']} at {r['logan_d']} crab {r['crab']}" for r in before))
+
+
+def test_duck():
+    print("== a fight on, an idle ironscale grouper 8 off with us in its range and sight, the pets 15 off it: out of its "
+          "eyes (Team.duck); it stays idle, seeds 1, 3, 4 ==")
+    # simulator, Tidal Tomb level 2, 144 runs: 93 an hour on Logan from monsters that woke on him while "The pets are
+    # fighting ...": the hold and the back-off act only with nothing fighting
+    def run(duck):
+        rows = []
+        was, tamer.DUCK = tamer.DUCK, duck
+        try:
+            for seed in (1, 3, 4):
+                w = tidal_world((6899, 2019), [{"key": "ocean bedrock", "at": [6909, 2019, -90]},
+                                               {"key": "ironscale grouper", "at": [6891, 2019, -90]}],
+                                seed=seed, z=-90, team="phoenix_incubus")
+                a = next(m for m in w.mobs.values() if m.kind == "monster" and m.key == "ocean bedrock")
+                b = next(m for m in w.mobs.values() if m.kind == "monster" and m.key == "ironscale grouper")
+                a.hits = a.hits_max = 10 ** 6
+                a.spec = {**a.spec, "specials": [], "step_s": 999.0}
+                loop, clock, store, patched = hurt_loop(w, 100)
+                for p, xy in zip(w.pets(), ((6906, 2019), (6906, 2020))):
+                    p.x, p.y = xy
+                    p.target = a.serial
+                    w._warm(p, True)
+                a.target, a.threat = w.pets()[0].serial, {w.pets()[0].serial: 1e6}
+                w._warm(a, True)
+                out = io.StringIO()
+                t0, first = w.t, None
+                try:
+                    with contextlib.redirect_stdout(out):
+                        while w.t - t0 < 12.0 and w.player.alive:
+                            loop.tick()
+                            if first is None and b.target is not None:
+                                first = "Logan" if b.target == w.player.serial else "a pet"
+                finally:
+                    store.close()
+                    simclock.uninstall(patched)
+                rows.append({"seed": seed, "first": first, "ducks": sum(" duck: " in ln for ln in out.getvalue().splitlines())})
+        finally:
+            tamer.DUCK = was
+        return rows
+    rows = run(True)
+    check("'duck: the idle ironscale grouper ... has us in its range and sight, 8 off, no pet nearer'; it takes no one "
+          "in 12 s", all(r["ducks"] >= 1 and r["first"] is None for r in rows), str(rows))
+    before = run(False)
+    check("...with tamer.DUCK off it wakes on Logan", all(r["first"] == "Logan" for r in before), str(before))
 
 
 def test_oxygen_dolphin():
@@ -9048,7 +9200,7 @@ def main():
               test_tidal_scorch, test_scorch_telegraph, test_scorch_stand_off, test_standoff_war_sight,
               test_scorch_windup_step,
               test_potion_after_vet, test_patrol_refused_hold,
-              test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet,
+              test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet, test_zoa_dip,
               test_loot_tile_zoa_per_tile, test_to_pet_detour, test_rejoin_detour, test_shooter_hits,
               test_shooter_stand_off, test_loose_on_us,
               test_tidal_bedrock_spray, test_spray_stand_off,
@@ -9058,7 +9210,7 @@ def main():
               test_area_hitters, test_shy_by_ai, test_backspawn_on_arrival, test_retreat_by_the_pets, test_wail_far_reach,
               test_consort_lurk, test_approach_short_of_consort, test_consort_spot_open_after_death,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_step_in,
-              test_step_in_fallback, test_oxygen_dolphin,
+              test_step_in_fallback, test_front_gate_crab, test_duck, test_oxygen_dolphin,
               test_tidal_hunt,
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,

@@ -2990,6 +2990,35 @@ Tomb: dead at the teleporter down, gripped"; the rule in docs/HUNT_LOOP.md "A mo
 - **Test:** `test_tele_occupied` (a potion and the shove; no potion and no regen, the pets at it, through; before: "no
   teleport after 3 steps in direction 5").
 
+### Tidal Tomb: the pets first at every wake (2026-11-12)
+
+User 2026-11-11: Logan stands between the pets and a monster when it wakes, and by the south gate's giant pincer crab
+"right where it will aggro on him". Runner only (`harness/tamer.py`; the rules in docs/HUNT_LOOP.md "The pets first at
+every wake"; where the damage came from, the steps, and what was tried and dropped in docs/NOTES.md "Tidal Tomb level 2:
+the pets first at every wake"). The simulator and its scenarios are as at a46a0be.
+
+- **The replay** (`sim/fightcrab.py`: level 2's own layout at seed 1002's 10:13 and 22:40, no live capture; Logan at
+  (6927, 2057) on a fought walk to the gate's waypoint (6914, 2060), the crab idle at (6917, 2063), in sight only from
+  (6920, 2064), 3 tiles off; seeds 1-24): `--set tamer.FRONT=False` the crab woke on Logan 24 of 24, 2 tiles off, 546
+  on him, 6 pinches; with the rule on a pet 24 of 24, nothing on him.
+- **Level 2 batches** (`--scenario tidal_tomb --level 2 --runs 144 --seed 1|145 --team phoenix_incubus --json --
+  --vet-range 5 --crawl-learn-s 180`, 288 runs a side; monster damage = `player_damage_taken` less
+  `player_damage_by.oxygen`):
+
+  | runner | monster damage on Logan / h (by block) | banked / h | runs with a death | pet deaths | kills / h |
+  |---|---|---|---|---|---|
+  | a46a0be | 1,235 (1,252, 1,218) | 160,730 | 35 (17, 18) | 208 | 162.8 |
+  | **the change** | 586 (604, 568) | 160,500 | 20 (13, 7) | 218 | 157.6 |
+
+- **Level 1** (`--runs 96`, the same flags): runs with a death 1 -> 0, monster damage on Logan 468 -> 242 an hour,
+  banked 131,789 -> 127,944. **Maus 3** (`--runs 96 --seed 17 --careers 14 --others --eerie --prior` a copy of the main
+  store): 4 -> 4, 1,240 -> 1,003, banked 139,824 -> 136,958, no pet death on either side.
+- **Tests:** `test_front_gate_crab`, `test_duck`, `test_zoa_dip`, `test_bard_other_on_pets` (two more cases),
+  `test_approach_short_of_consort` (with `front`), `test_essence_sim` (`--pull-budget 6`).
+- **A batch's noise**: two blocks of 144 level 2 runs of one runner differ by about 35 an hour in this number
+  (development seeds 2001-2144 and 3001-3144: 1,114 and 1,271 for a46a0be). A rule worth under ~50 an hour needs both
+  blocks, or a hit-by-hit breakdown of what it was meant to remove.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

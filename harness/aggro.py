@@ -50,6 +50,7 @@ AGGRO_MAX = 13                # --never-aggro sight is kept beyond this (the far
 SCENARIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sim")
 _RANGES = None
 _REACH = None
+_WAKE_FLOOR = None
 
 
 def scenarios() -> list[dict]:
@@ -83,6 +84,30 @@ def melee_reach(kind: str) -> int:
         _REACH = {k: int(v["reach"]) for sc in scenarios() for k, v in (sc.get("melee_observed") or {}).items()
                   if isinstance(v, dict) and v.get("reach")}
     return _REACH.get(kind, 1)
+
+
+def wake_floor(kind: str | None) -> float | None:
+    """The shortest time from one of us coming into an idle monster's range and sight to its war flag, for a type of a
+    dungeon whose own wakes are measured: its scenario's `defaults.wake_s` low end (Tidal Tomb 1.9 s: 48 live wakes,
+    p5 1.97; the Mausoleum 1.6), else None. A scenario without its own takes the one it inherits from."""
+    global _WAKE_FLOOR
+    if _WAKE_FLOOR is None:
+        scs = {sc.get("name"): sc for sc in scenarios()}
+        _WAKE_FLOOR = {}
+        for sc in scs.values():
+            src = sc
+            while not (src.get("defaults") or {}).get("wake_s") and (src.get("inherit") or {}).get("from") in scs \
+                    and "defaults" in ((src.get("inherit") or {}).get("keys") or ()):
+                src = scs[src["inherit"]["from"]]
+            lo = ((src.get("defaults") or {}).get("wake_s") or [None])[0]
+            if lo is None:
+                continue
+            kinds = {s.get("key") for s in sc.get("spawns") or ()} | set(sc.get("aggro_observed") or ()) \
+                | set(sc.get("melee_observed") or ())
+            for k in kinds:
+                if isinstance(k, str):
+                    _WAKE_FLOOR[k] = min(float(lo), _WAKE_FLOOR.get(k, 1e9))
+    return _WAKE_FLOOR.get(kind)
 
 
 WAKE_MARGIN = 2               # the next steps, and the pets a tile or two behind us

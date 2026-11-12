@@ -1672,8 +1672,9 @@ class HuntLoop:
             # off (sim seeds 18-22), and after a refused shove one walked 119 steps away from the pets through two
             # rooms and died there (sim 2026-10-21, seed 1019)
             bound = 2 * cheb(self.pos(st), goal) + LOOT_DETOUR_STEPS
-            # a sprayer's wind-up with us in its cone ends the walk (Team.spray_stop): out of it first, the corpse after
-            stop = self.team.spray_stop if self.team is not None else None
+            # a sprayer's wind-up with us in its cone ends the walk (Team.spray_stop): out of it first, the corpse after;
+            # so does a step into an idle monster's range and sight ahead of the pets (Team.front_stop: the pets first)
+            stop = (lambda s: self.team.spray_stop(s) or self.team.front_stop(s)) if self.team is not None else None
             try:
                 try:
                     with self.team.around_areas(st) if self.team is not None else contextlib.nullcontext() as round_:
@@ -1689,8 +1690,9 @@ class HuntLoop:
                 log(f"corpse of {name} at {spot}: {e}; leaving it")   # e.g. on a ledge (sim: 21 runs ended here)
                 return
             if why:
-                # kept queued for the wave (Team.spray_stop: we stood in or beside its cone), then the walk again
-                log(f"to the corpse: stopped ({why}); looting it after the wave")
+                # kept queued for the wave (Team.spray_stop: we stood in or beside its cone) or the monster ahead
+                # (Team.front_stop), then the walk again
+                log(f"to the corpse: stopped ({why}); looting it after")
                 self.looted.discard(c["corpse"])
                 c["defer_until"] = time.monotonic() + tamer.SPRAY_WARN_S
                 self.corpses.insert(0, c)
@@ -5314,7 +5316,7 @@ class HuntLoop:
         if not attackers and (eerie := self.soul_corpse(st, walk=self.engaged is None)) is not None:
             self.fill_soul_jar(*eerie)     # before looting: other players race us to an eerie corpse
             return True
-        if not attackers and (c := self.loot_next()) is not None:
+        if not attackers and not (self.team is not None and self.team.dipping) and (c := self.loot_next()) is not None:
             self.loot(c)
             return True
         if self.team is not None and self.team.patrol_watch(st):
@@ -5335,6 +5337,8 @@ class HuntLoop:
             self.human.wait("hotkey")
         if self.team is not None and self.team.back_off(st):
             return True                   # a corpse purger would see us before the pets: back behind them
+        if self.team is not None and self.team.front(st):
+            return True                   # one that comes on would take us first: in and back behind the pets
         if self.team is not None and not winding and self.team.patrol_pull(st):
             return True                   # an idle purger in reach: the pets sent to wake it ("All Patrol")
         if self.team is not None and (why := self.team.hold_reason(st)):

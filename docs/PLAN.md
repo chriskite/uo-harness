@@ -3957,6 +3957,43 @@ in the simulator: Mausoleum with reds, 96 runs a side, runs with a death 14 -> 1
 fight1156 18 -> 18 dead, fight2001 0 -> 0, fight2203 0 -> 0, fight2343 15 -> 15, fight1853 0 -> 0 (home 23 -> 21: the
 later walk in's "to the teleporter at 5522,637: no route onto it", seen before the change too).
 
+## The pets first at every wake (user goal 2026-11-11: half the monster damage on Logan on Tidal Tomb level 2)
+
+User: Logan "frequently stands between the pets and a mob when it aggros so he takes damage, when he should instead be
+positioning the pets between him and the mob so that when it aggros 2s after seeing us, it attacks the pets and not
+him", and stands by level 2's gate crab "right where it will aggro on him". The goal: in the level 2 simulator (288
+runs, seeds 1 and 145, the live flags) the monster damage on Logan an hour at half of a46a0be's or less, each block of
+144 at 0.60 or less, gold banked an hour at 0.97 or more, no more than 5 more runs with a death, level 1 and Maus 3 no
+worse by the same gold and death bounds, at most 16 evaluations on those seeds. Met at the first: 0.47 (0.48, 0.47),
+gold 0.999, runs with a death 35 -> 20; level 1 gold 0.971, Maus 3 0.980 (docs/NOTES.md "Tidal Tomb level 2: the pets
+first at every wake", docs/SIM.md "Tidal Tomb: the pets first at every wake"). Decisions:
+
+- *Measure before a rule.* The damage was broken down hit by hit first (`World.hurt` and `World._think` wrapped from
+  outside, throwaway): 45 % collateral beside a pet, 27 % from monsters that woke on Logan, 10 %+ from monsters a bard
+  skill of ours turned. Each rule was aimed at one of those and checked against its own row.
+- *Development seeds apart from the goal's.* Rules were tried on seeds 2001-2144 and 3001-3144; the goal's seeds were
+  run once, at the end. Two blocks of one runner differ by ~35 an hour, so a rule worth less than that was judged on
+  288 runs and on the row it was meant to move.
+- *The pets in front, for every monster that comes on* (`Team.front`): the shy monsters' step-in walk (in until the
+  trailing pets are in its eyes, back past them, inside the wake's floor), not a new mechanism. Where the pets can't
+  be put in front (a fight on), out of the idle monster's eyes instead (`Team.duck`): its clock stops.
+- *The dip for the zoas* (`Team.dip`): the user's own way with the vet supplies (begin in reach, step out, back for the
+  finish). A wider zone without it was worse than none (Logan stood in it to vet, or the heals were lost), and
+  avoiding the zoas cost deaths.
+- *Two rules are not positioning and are in because the damage they remove is ours to cause*: no bard skill at a
+  monster no pet has hurt (`BARD_OTHERS_HURT`), and a provoked pair's hits on each other don't count as the pets'
+  (`BARD_PAIR_HURT`). Together about 105 of the 575 an hour saved on the development seeds (53 on one block when the
+  first went in, 51 on both for the second). Each has its own switch.
+- *Not built, measured worse*: running from a melee monster that is on him (the pets never pull it off), 'All Kill'
+  at a monster the moment it wakes on him (400 threat for the act; the tank had drawn some of them), standing behind
+  the pets from every monster in war mode, a step behind the pets from each melee monster coming on.
+- *Accepted costs*: kills an hour 3-4 % lower on all three levels, gold 2-3 % lower on level 1 and Maus 3 (inside the
+  goal's 3 %), pet deaths not lower (208 -> 218 on the goal's seeds, 176 -> 242 on the development seeds: Logan
+  stands farther off and vets a pet in a zoa's reach from 70 %).
+- *Open*: nothing here has run live. The zoas' bursts are still the largest source (171 an hour on the development
+  seeds), then wakes on Logan spread over every activity; the pet deaths want their own look (120 of 202 with Logan
+  6+ tiles from the pet).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
