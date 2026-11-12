@@ -9769,6 +9769,35 @@ there's a recovery dolphin and could have just gotten oxygen there".
   under it from 427 up. Now a gold pile with no room sets `gold_no_room` and `return_reason` leaves ("taking the loot
   home: no room for gold (435/450 stones)") until we are lighter. test_loop_hunt `gold_no_room`.
 
+## Tidal Tomb level 2: dead to an unseen voidfin (live 2026-11-12 12:10:19, hunt-20261112-113211-43aa)
+
+Run 3 of the level 2 shift on f46fada, visit 3 (visits 1-2 banked 45,252 + 49,098 gp; 7,496 lost with the corpse).
+Pets Clicquot and Borealish, both alive after (79-94 %). Capture session_20261112_101715 replayed
+(`replay.timed_packets` + `WorldRuntime`, scratch scripts not kept):
+
+- 12:10:04 "cover: the soulcatcher shoots us here; to (6875, 2023), 5 steps": Logan 6 tiles from the pets, who were on
+  a giant pincer crab (6869, 2016) at 40 %, the soulcatcher (6865, 2012) awake. 12:10:04.20 a voidfin 0x00546412 in
+  view and gone (0x1D) at once: a dive.
+- 12:10:09.73 up at (6875, 2021), 2 from Logan, war flag, -23 on him (its strike as it comes up; on Logan 3 of 201
+  strikes before, "the voidfin's dive"). 10.59 potion 77 -> 100. 11.25 -35 (its spin), 11.47 dove. 12.52 vet supplies
+  on us at 65 (the potion's cooldown). World save 13.92-17.29. 17.47 up at (6878, 2024), 2 from Logan at (6876, 2024),
+  -35; the pets 7-8 off. 18.90 "area peace (a voidfin on us at 30/100 hits)", its "*looks calmed*" at 19.34; 19.39 its
+  spin, -32 on Logan and -44 on Borealish (beside him by then): dead. The vet channel's finish never came.
+- **The runner never saw it as on us.** No 0x2F from a voidfin (none in 506 stretches before); attackers() takes a
+  war-mode monster as on us while we take damage only within 1, and it struck from 2 and was under between. Never a
+  target, never the pets' 'All Kill'; "stand-off ... beyond the vet supplies' reach of the pets" twice between
+  (6875, 2023) and (6876, 2024).
+- **The simulator** (`harness/sim/fight1210.py`, the live tiles at 12:10:05, the three monsters awake, team
+  phoenix_incubus, 45 s): seeds 1-24 no death, 6,972 on Logan (6,946 the voidfin's), lowest 28; the voidfin dead in
+  none. The same pattern: it is picked ("a voidfin ... on us and the pets on ...: it is the target now", 'All Kill'),
+  dives, "'All Kill' target ... gone: ... 'All Guard Me' due", the pets back on the crab, and over again.
+- **Tried, not kept:** (1) its strike reach (2, the dive's `strike_r`) in attackers() and pick_target's "beside": 7,130
+  on Logan, 1 death (no better). (2) Logan to within 2 of a live pet while a voidfin had hit him within 8 s (before
+  the stand-off): 15 deaths of 24, the crab's reach and pinch by the pets. [INFERENCE: what would help is the pets'
+  'All Kill' kept on a diver through its dives (the server's own pets may keep it; not measured live) and Logan's
+  cover tile chosen within the pets' guard reach, but neither is built or measured.] The tree carried another
+  session's uncommitted tamer.py work during these batches.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
