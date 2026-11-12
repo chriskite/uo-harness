@@ -1626,6 +1626,40 @@ def weight_guard():
           f"lifts {len(lifts)} opened {[hex(o) for o in opened]} gold {loop.totals['gold']}")
 
 
+def gold_no_room():
+    print("\n== a gold pile with no room in the pack short of LOOT_WEIGHT_MARGIN: left, and the leave fires ==")
+    # live 2026-11-12 11:10-11:12 (hunt-20261112-102724-f592): 435/450, "no room for gold coin (~14 stones); leaving
+    # it" on four corpses running, no leave: the pack-full rule waited for 440
+    import loop_hunt
+    from agent_link import Link
+    for name in ("wait", "pos", "open_containers"):
+        setattr(RightsLink, name, getattr(Link, name))
+    db = os.path.join(tempfile.mkdtemp(), "harness.db")
+    store = memory.Memory(db)
+    link = RightsLink()
+    link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 100, BACKPACK))
+    mob, g, _, noto = RIGHTS[GOOD_C]
+    link.feed(mob_pkt(mob, SPOT[0], SPOT[1] - 1), ground_item(GOOD_C, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 1),
+              display_death(mob, GOOD_C), delete(mob), corpse_flags(GOOD_C, mob, noto=noto),
+              contained(g, combat.GOLD_GRAPHIC, 1600, GOOD_C))
+    me = link.rt.state.self
+    me.weight, me.stats["weight_max"] = 435, 450
+    args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db, "--leave-recall", "0x1"])
+    loop = loop_hunt.HuntLoop(link, store, args)
+    before = loop.return_reason(loop.state())
+    loop.corpses.append({"mob": mob, "name": "a mongbat", "x": SPOT[0], "y": SPOT[1] - 1, "t": time.monotonic()})
+    while loop.corpses:
+        loop.loot(loop.corpses[0])
+    after = loop.return_reason(loop.state())
+    me.weight = 120                                      # home: the drop-off
+    home = loop.return_reason(loop.state())
+    store.close()
+    lifts = [p for p in link.sent if p[0] == 0x07]
+    check("435/450: no leave before; 1600 gold (~16 stones) not lifted; then 'no room for gold'; none at 120/450",
+          before is None and lifts == [] and after is not None and "no room for gold" in after[0] and home is None,
+          f"before {before} lifts {len(lifts)} after {after} home {home}")
+
+
 class HeavyLink(RightsLink):
     """Gold dropped on the ground leaves the pack's pile and the weight (gold ~0.01 a stone, combat.GOLD_WEIGHT_PER)."""
 
@@ -2229,6 +2263,7 @@ if __name__ == "__main__":
             rights()
             soul_corpse()
             weight_guard()
+            gold_no_room()
             ally_courtesy()
             empty_corpses()
             overweight_drop()

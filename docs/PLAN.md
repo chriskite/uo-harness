@@ -3994,6 +3994,22 @@ first at every wake", docs/SIM.md "Tidal Tomb: the pets first at every wake"). D
   seeds), then wakes on Logan spread over every activity; the pet deaths want their own look (120 of 202 with Logan
   6+ tiles from the pet).
 
+## Oxygen: every refill is in reach; level 2's north strip down to level 3's dolphin (user 2026-11-12)
+
+Live hunt-20261112-102724-f592 the crawl hunted level 2's NW corner with no refill leg (docs/NOTES.md "Tidal Tomb
+level 2: deprived in the NW corner"); the user: "Logan was right next to a transition to level 3 where there's a
+recovery dolphin and could have just gotten oxygen there".
+
+- *Decided*: the strip (6884, 1929) down to level 3's arrival dolphin and straight back up is a level 2 refill (a hop
+  with a `dolphin` in the scenario's `oxygen.hops`), and the easiest refill is taken however far: a far one's leg is
+  due from `OXY_MIN_S` (300 s). A late refill ends the deprivation; none never does.
+- *Rejected*: keeping the 104-step cap (the 2026-10-28 reason, legs to the west strip arriving too late and through its
+  shooters, is the west strip's `skip`, still there); holding the crawl inside a refill's reach (it would give up level
+  2's deep zones, which the crawl found worth hunting).
+- *Simulator* (docs/SIM.md "Tidal Tomb: a far refill"): runs deprived 78 -> 30 of 96, deprivation on Logan 126,766 ->
+  4,741, runs with a death 12 -> 10, banked an hour +11 %.
+- *Also*: a gold pile with no room in the pack sends the visit home (`gold_no_room`; live the same run at 435/450).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

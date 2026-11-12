@@ -699,8 +699,11 @@ Paste this (or point the session at this section) to start an overseer.
 >      fought, to the crimson gate 0x4003D7B9 at (6897, 1992).
 >    Tidal Tomb's level 3 has never been run live by the runner; level 2 has (user 2026-10-29). Its oxygen rule
 >    (docs/HUNT_LOOP.md "Oxygen") fights to a refill before 732 s under water: on level 3 the nearest Recovery Dolphin,
->    on level 2 the arrival stairs, a step up to level 1 at (6717-6719, 1984) and straight back down (intent "oxygen:
->    ...", a few seconds on level 1: not Logan on another level). A leave under water short of air ends its fought walk
+>    on level 2 the easier of the arrival stairs, a step up to level 1 at (6717-6719, 1984) and straight back down,
+>    and (since 2026-11-12, the user's word) the north strip (6884, 1929) down to level 3's arrival, the dolphin's
+>    refill there and straight back up (intent "oxygen: ...", "oxygen: to the teleporter down to the dolphin at
+>    6884,1929"; a few seconds on level 1, or up to ~30 s by level 3's arrival: not Logan on another level). A refill
+>    farther than a leg walks in time still gets one from 300 s under. A leave under water short of air ends its fought walk
 >    (since 2026-11-10): "to the moongate: short of oxygen (N s under water, M steps to go); stopping short", then the
 >    plain walk out, no corpse looted: expected. Deprivation lines ("You suffer minor oxygen deprivation.") with the run
 >    still fighting or looting away from the gate are an issue for the parent. In the simulator runs with a death were 4

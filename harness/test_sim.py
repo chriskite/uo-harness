@@ -8339,7 +8339,7 @@ def test_oxygen_hop():
           "back down, no deprivation; not before ==")
     import json
     w = tidal_world((6850, 2071), z=-10)    # 38 route steps from the west strip's teleporter up
-    w.under_s = 400.0                       # 400 s under: the gump says so; no leg yet (it goes from 732 - 120 - leg)
+    w.under_s = 250.0                       # 250 s under: the gump says so; no leg before OXY_MIN_S (300 s)
     hurts = _log_hurts(w)
     dry = []
     try:
@@ -8370,9 +8370,9 @@ def test_oxygen_hop():
             store.close()
     finally:
         simclock.uninstall(patched)
-    check("the clock follows the gump to within a bar's step (30.1 s) of the world's time under; no leg at 400 s",
-          early_el is not None and abs(early_el - 407) <= 33 and early_due is None and el is not None
-          and abs(el - 647) <= 33, f"clock {early_el} at 407, {el} at 647; due early {early_due}")
+    check("the clock follows the gump to within a bar's step (30.1 s) of the world's time under; no leg at 257 s",
+          early_el is not None and abs(early_el - 257) <= 33 and early_due is None and el is not None
+          and abs(el - 647) <= 33, f"clock {early_el} at 257, {el} at 647; due early {early_due}")
     check("the west strip's hop, marked `skip` in the scenario, is no refill", (6834, 2079) not in skipped, str(skipped))
     outcome = json.loads(ev[-1][0])["outcome"] if ev else None
     pets_near = all(sim_cheb(p.pos, w.player.pos) <= 3 for p in w.pets())
@@ -8422,6 +8422,58 @@ def test_oxygen_stairs():
 
 SOUL_L2 = (6942, 2023, -110)  # live 2026-10-29 18:13:23 (hunt-20261029-180419-d505): the idle soulcatcher 0x000B2A2F...
 BACKED_L2 = (6951, 2037)      # ...and the tile Logan backed off to from its sight 17 of 18 times, the pets beside him
+
+
+def test_oxygen_far():
+    print("== oxygen on level 2 in the crawl's NW corner (live 2026-11-12 hunt-20261112-102724-f592: no leg, deprived; "
+          "user: 'Logan was right next to a transition to level 3 where there's a recovery dolphin'): the north strip "
+          "down to level 3's arrival dolphin, refilled, back up with the pets; without it, the stairs ~170 route steps "
+          "off, more than a leg walks before the deprivation, are due from 300 s all the same ==")
+    import json
+    w = tidal_world((6836, 1915), z=-121)
+    w.under_s = 640.0
+    hurts = _log_hurts(w)
+    lv3 = []
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            loop, link, clock, store, patched = _oxygen_loop(w)
+            run_until = clock.on_advance
+
+            def watch(now):
+                run_until(now)
+                if w.player.x > 7000:
+                    lv3.append(w.player.pos)
+            clock.on_advance = watch
+            clock.sleep(7.0)
+            st = loop.state()
+            site = loop.oxygen_due(st)
+            if site is not None:
+                loop.oxygen_leg(st, site)
+            ev = store.con.execute("SELECT data FROM job_events WHERE kind='oxygen'").fetchall()
+            store.close()
+    finally:
+        simclock.uninstall(patched)
+    w2 = tidal_world((6836, 1915), z=-121)
+    w2.under_s = 320.0
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop2, _, clock2, store2, patched = _oxygen_loop(w2)
+            loop2.oxy.ox["hops"] = [h for h in loop2.oxy.ox["hops"] if not h.get("dolphin")]
+            clock2.sleep(7.0)
+            far = loop2.oxygen_due(loop2.state())
+            store2.close()
+    finally:
+        simclock.uninstall(patched)
+    outcome = json.loads(ev[-1][0])["outcome"] if ev else None
+    pets_near = all(sim_cheb(p.pos, (6884, 1929)) <= 12 for p in w.pets())
+    check("the north strip's leg: down to level 3, the dolphin's refill, back up on level 2 with both pets, no deprivation",
+          site is not None and site["tile"] == (6884, 1929) and outcome == "refilled" and lv3
+          and not any(k == "oxygen" for _, _, k, _ in hurts) and pets_near,
+          f"site {site and site['tile']} outcome {outcome} lv3 {len(lv3)} pets {[p.pos for p in w.pets()]} | "
+          + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
+    check("without the strip: the stairs' leg is due at ~334 s though it is longer than a leg walks in time",
+          far is not None and far["tile"] == (6943, 2004) and far["steps"] > 104,
+          f"site {far and (far['tile'], far['steps'])}")
 
 
 def test_oxygen_leg_past_shooter():
@@ -9209,7 +9261,8 @@ def main():
               test_tidal_recall_rule, test_tidal_backlash, test_tidal_pressure, test_tidal_specials5, test_avoid_backlash,
               test_area_hitters, test_shy_by_ai, test_backspawn_on_arrival, test_retreat_by_the_pets, test_wail_far_reach,
               test_consort_lurk, test_approach_short_of_consort, test_consort_spot_open_after_death,
-              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_leg_past_shooter, test_step_in,
+              test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_far, test_oxygen_leg_past_shooter,
+              test_step_in,
               test_step_in_fallback, test_front_gate_crab, test_duck, test_oxygen_dolphin,
               test_tidal_hunt,
               test_ossuary_recall_rule,

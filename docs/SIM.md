@@ -2254,6 +2254,28 @@ docs/HUNT_LOOP.md "Pets", a leg that must arrive).
   pets' 26,719 -> 18,788, banked an hour 116,864 -> 108,869 (29 of 48 runs with a death on both sides); 45 times on
   past a shy monster, all on the fought walks.
 
+### Tidal Tomb: a far refill, and level 2's north strip to level 3's dolphin (2026-11-12)
+
+Live hunt-20261112-102724-f592 the crawl hunted level 2's NW corner ~170 route steps from the stairs and no oxygen leg
+went out (a refill beyond 104 steps was out of reach); the user: Logan "could have just gotten oxygen" at the strip down
+to level 3's dolphin (docs/NOTES.md "Tidal Tomb level 2: deprived in the NW corner"). The fix: no reach cap, and the
+strip (6884, 1929) a refill (`oxygen.hops` with a `dolphin`). Level 2, 96 runs a side, seed 1, `--minutes 60 --others
+--prior <the main store> --json -- --vet-range 5 --crawl-learn-s 180`, the default team; before = 428a1ea:
+
+| | before | after |
+|---|---|---|
+| runs deprived | 78 | 30 |
+| deprivation damage on Logan | 126,766 | 4,741 |
+| ...on the pets | 1,517,184 | 54,229 |
+| runs with a death | 12 | 10 |
+| pet deaths | 20 | 3 |
+| banked an hour | 160,948 | 179,036 |
+| legs (stairs / strip) | 312 / 0 | 287 / 239 |
+| refilled legs ending past 732 s | 42 | 32 |
+
+No death on level 3. Tests: `test_oxygen_far` (the strip's leg from (6836, 1915), refilled, back up with the pets; the
+stairs' leg due at ~334 s without the strip).
+
 ### The shy monsters' wake, and the step-in (2026-10-29)
 
 The measurement (docs/NOTES.md "Shooters' and casters' first target"), then the user's tactic as a runner rule.

@@ -9743,6 +9743,32 @@ three-visit stretch of the 31 before; gold and kills are inside the spread.
   [INFERENCE: with fewer hits and potions the visits also run longer, median 9.4 -> 12.8 min on the level; the
   simulator's oxygen damage rose with these rules on the development seeds too, 359 -> 515 an hour.]
 
+## Tidal Tomb level 2: deprived in the NW corner, and gold left at 435/450 (live 2026-11-12 11:12, hunt-20261112-102724-f592)
+
+User chat 8783 at 11:12: "Logan is oxygen deprived", then "Logan was right next to a transition to level 3 where
+there's a recovery dolphin and could have just gotten oxygen there".
+
+- **No leg.** Visit 1's leg fired at 10:35:33 ("oxygen: to the teleporter up at 6943,2004: 314 s under water; 102
+  route steps", refilled 85 s later). Visits 2 and 3 have no "oxygen:" line: the crawl hunted zones 6-7 in level 2's
+  NW corner, ~170 route steps from the arrival stairs, and `oxygen_site` dropped every refill farther than a leg could
+  walk before the deprivation from `OXY_MIN_S` ((732 - 120 - 300) / 3.0 = 104 steps). Visit 2 left at 10:55:58
+  "deprived of oxygen; stopping short"; visit 3 was ~12.8 min under at (6833, 1911) when the Seer stopped it.
+- **The fix** (docs/HUNT_LOOP.md "Oxygen"): (1) no reach cap: a far refill's leg is due from `OXY_MIN_S`; (2) the
+  scenario's `oxygen.hops` gains level 2's north strip (6884, 1929) down to level 3's arrival (7162, 2221) with its
+  `dolphin` (7164, 2210): `oxygen_hop` waits for that dolphin's refill (`oxygen_dolphin`) and steps back up by the
+  arrival tile, whatever came of the wait. Log: "oxygen: to the teleporter down to the dolphin at 6884,1929: ...".
+  `test_sim` `test_oxygen_far` (fails before: no site); `test_oxygen_hop`'s "no leg yet" check moved from 400 s to
+  250 s (below `OXY_MIN_S`: at 400 s a far refill's leg is now due).
+- **Simulator** (level 2, 96 runs a side, seed 1, 60 min, `--others --prior` the main store, `-- --vet-range 5
+  --crawl-learn-s 180`; before = 428a1ea's runner in a worktree): deprived runs 78 -> 30, deprivation damage on Logan
+  126,766 -> 4,741 and on the pets 1,517,184 -> 54,229, runs with a death 12 -> 10 (none on level 3), pet deaths 20 ->
+  3, banked an hour 160,948 -> 179,036. Legs 312 -> 526: the strip's 221 refilled, 15 stopped short, 3 failed; the
+  stairs' 276, 8, 3. Refilled legs ending past 732 s 42 -> 32.
+- **Gold left at 435/450.** 11:10:29-11:12:11 four corpses: "weight 435/450: no room for gold coin (~14 stones);
+  leaving it", "+0 gold". The pack-full leave fires at `LOOT_WEIGHT_MARGIN` (440) and a 14-stone pile never fits
+  under it from 427 up. Now a gold pile with no room sets `gold_no_room` and `return_reason` leaves ("taking the loot
+  home: no room for gold (435/450 stones)") until we are lighter. test_loop_hunt `gold_no_room`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

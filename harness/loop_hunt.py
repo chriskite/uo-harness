@@ -351,11 +351,11 @@ WALK_FOUGHT_S = 1200.0        # --fight-via: a fought leg not at its teleporter 
 # once our time under reaches the deprivation (732 s) - OXY_MARGIN_S - the leg's estimate: its route steps x OXY_STEP_S.
 # The leg is a fought one (walk_in_fought), never a leave's walk: the walk across level 2 killed every simulated level 3
 # run before --fight-via (2026-10-26). "Easiest": route steps + OXY_MOB_STEPS for each monster in view within OXY_MOB_R
-# of the route. A refill whose leg can't end before the deprivation even from OXY_MIN_S is out of reach: no leg to it
-# (simulator 2026-10-28, level 2's crawl from its arrival: legs of ~160 steps across level 2 to the west strip took
-# ~7 min and came too late to spare the deprivation). Level 2's west strip is no refill at all (its `skip` in the
-# scenario: runs with a death 12 -> 19 of 48 with it); its arrival stairs are (2026-10-29: deprived runs 36 -> 4 of 48,
-# deaths 14 -> 11; docs/SIM.md "Oxygen: the refill legs").
+# of the route. A refill farther than a leg can walk before the deprivation from OXY_MIN_S gets its leg from OXY_MIN_S
+# (2026-11-12; it was out of reach, no leg at all, and live the crawl hunted level 2's NW corner ~170 steps from the
+# stairs, deprived). Level 2's west strip is no refill at all (its `skip` in the scenario: runs with a death 12 -> 19 of
+# 48 with it); its arrival stairs are (2026-10-29: deprived runs 36 -> 4 of 48, deaths 14 -> 11; docs/SIM.md "Oxygen:
+# the refill legs"), and its north strip down to level 3's arrival dolphin (user 2026-11-12).
 OXY_MIN_S = 300.0             # no refill leg before this long under water
 OXY_MARGIN_S = 120.0          # the leg's estimate is to end this long before the deprivation
 OXY_STEP_S = 3.0              # seconds a route step of a fought leg (simulator 2026-10-28, 119 legs: median 2.2, 75th 3.0)
@@ -526,6 +526,7 @@ class HuntLoop:
         self.corpse_of = {}          # dead mobile serial -> its corpse serial (0xDEAD)
         self.lost_alive = {}         # serial -> (last-seen mob dict, monotonic time): engaged, then gone alive (0x1D)
         self.overweight = False      # the last loot stopped at the weight limit: no more looting until it drops
+        self.gold_no_room = None     # our weight when a gold pile had no room in the pack: full for the loot (return_reason)
         self.loot_keep = tuple(w.lower() for w in (args.loot_keep or ()))
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
         self.looted = set()          # corpse serials handled (looted or refused)
@@ -1746,6 +1747,8 @@ class HuntLoop:
                     f"(~{combat.item_weight(it):.0f} stones); leaving it")
                 if it.get("graphic") == combat.GOLD_GRAPHIC or me["weight"] >= wmax - LOOT_WEIGHT_MARGIN:
                     self.overweight = True
+                    if it.get("graphic") == combat.GOLD_GRAPHIC:
+                        self.gold_no_room = me["weight"]
                     break
                 continue
             s, graphic = serial_of(k), it.get("graphic")
@@ -3465,14 +3468,19 @@ class HuntLoop:
 
     def return_reason(self, st):
         """(why, "return") when the carried value reaches V* (hunt_return: r, h and the trip from this place's visits,
-        --return-at auto) or --return-at N gold, or the pack is within LOOT_WEIGHT_MARGIN of full; else None. Only
-        between fights (tick)."""
+        --return-at auto) or --return-at N gold, or the pack is within LOOT_WEIGHT_MARGIN of full, or a gold pile had no
+        room in it (gold_no_room, until we are lighter); else None. Only between fights (tick)."""
         if self.args.leave_recall is None or self.args.return_at == "off":
             return None
         me = st["world"]["self"]
-        wmax = weight_max(me)
-        if wmax and (me.get("weight") or 0) >= wmax - LOOT_WEIGHT_MARGIN:
+        wmax, w = weight_max(me), me.get("weight") or 0
+        if self.gold_no_room is not None and w < self.gold_no_room:
+            self.gold_no_room = None      # lighter since (the drop-off)
+        if wmax and w >= wmax - LOOT_WEIGHT_MARGIN:
             return f"taking the loot home: the pack is full ({me.get('weight')}/{wmax} stones)", "return"
+        if wmax and self.gold_no_room is not None:
+            # live 2026-11-12 11:10-11:12 (hunt-20261112-102724-f592): 435/450, every corpse's gold left behind
+            return f"taking the loot home: no room for gold ({w}/{wmax} stones)", "return"
         c = hunt_return.carried(st, self.prices)
         m = self.return_model or {}
         target = m.get("v_star") if self.args.return_at == "auto" else int(self.args.return_at)
@@ -4696,8 +4704,10 @@ class HuntLoop:
         """The easiest refill in our underwater box (oxygen.sites): a hop's teleporter up (the route onto it, `near` the
         tile its step goes from) or a dolphin (the route to within oxygen.DOLPHIN_STAND_R of it), by route steps plus
         OXY_MOB_STEPS for each attackable monster in view within OXY_MOB_R of a route tile: the ground to fight across,
-        not the distance (user 2026-10-28). None when no refill there has a route that its leg can walk before the
-        deprivation from OXY_MIN_S on (`reach` route steps)."""
+        not the distance (user 2026-10-28). None when no refill there has a route. One farther than a leg can walk
+        before the deprivation counts too (its leg is due from OXY_MIN_S): until 2026-11-12 it was out of reach, and
+        the crawl on Tidal Tomb's level 2 hunted ~170 steps from the arrival stairs with no leg at all (live
+        hunt-20261112-102724-f592 visits 2 and 3, deprived; user: "Logan is oxygen deprived")."""
         pos = tuple(self.pos(st)[:2])
         box = oxygen.box_of(self.oxy.ox, pos, st["world"]["self"].get("map") or 0)
         if box is None:
@@ -4706,7 +4716,6 @@ class HuntLoop:
         mobs = [(m["x"], m["y"]) for k, m in world["mobiles"].items()
                 if m.get("x") is not None and combat.attackable(world, k)[0]]
         best = None
-        reach = int((self.oxy.limit_s - OXY_MARGIN_S - OXY_MIN_S) / OXY_STEP_S)
         for s in oxygen.sites(self.oxy.ox):
             if s["box"] != box:
                 continue
@@ -4714,8 +4723,8 @@ class HuntLoop:
             if s["kind"] == "dolphin" and cheb(pos, s["tile"]) <= r:
                 path = [pos]
             else:
-                path, _ = self.mover.plan(st, nav.within(s["tile"], r), mobiles=False, max_steps=reach)
-                if not path or (s["kind"] == "hop" and len(path) < 2) or len(path) - 1 > reach:
+                path, _ = self.mover.plan(st, nav.within(s["tile"], r), mobiles=False)
+                if not path or (s["kind"] == "hop" and len(path) < 2):
                     continue
             n = sum(1 for m in mobs if any(cheb(m, p) <= OXY_MOB_R for p in path))
             site = {**s, "near": tuple(path[-2] if s["kind"] == "hop" else path[-1]), "steps": len(path) - 1,
@@ -4762,7 +4771,8 @@ class HuntLoop:
         site = self.oxygen_site(st) or site
         el = self.oxy.elapsed(t0) or 0.0
         refills = self.oxy.refills
-        what = "the teleporter up" if site["kind"] == "hop" else "the dolphin"
+        what = ("the teleporter down to the dolphin" if site.get("dolphin") else "the teleporter up") \
+            if site["kind"] == "hop" else "the dolphin"
         label = f"oxygen: to {what} at {site['tile'][0]},{site['tile'][1]}"
         log(f"{label}: {el:.0f} s under water; {site['steps']} route steps, {site['mobs']} monsters in view near it")
         self.count("oxygen_legs")
@@ -4794,17 +4804,25 @@ class HuntLoop:
 
     def oxygen_hop(self, label, site):
         """Up the hop's teleporter to dry ground with the pets, OXY_DRY_S there, back down by its `back` teleporter
-        (live 2026-10-24 11:13:31-39: up from level 2's west strip, down again 8 s later, the gump full)."""
+        (live 2026-10-24 11:13:31-39: up from level 2's west strip, down again 8 s later, the gump full). A hop with a
+        `dolphin` (level 2's north strip down to level 3's arrival; user 2026-11-12) waits there for that dolphin's
+        refill (oxygen_dolphin) instead, and takes the way back whatever came of it: the hunt's floor and its leave
+        gates are this side."""
         self.onto_teleporter(label, site["tile"])
-        st = self.state()                                # the clock sees dry ground
+        st = self.state()                                # the clock sees where we landed (dry ground: a refill)
         if self.team is not None:
-            self.team.landed(st, "oxygen up")
-        self.doing("oxygen", "A breath on dry ground", site["back"])
-        time.sleep(OXY_DRY_S)
-        self.onto_teleporter(label, site["back"])
-        st = self.state()
-        if self.team is not None:
-            self.team.landed(st, "oxygen down")
+            self.team.landed(st, "oxygen over")
+        try:
+            if site.get("dolphin"):
+                self.oxygen_dolphin(label, {**site, "tile": site["dolphin"]})
+            else:
+                self.doing("oxygen", "A breath on dry ground", site["back"])
+                time.sleep(OXY_DRY_S)
+        finally:
+            self.onto_teleporter(f"{label}: back", site["back"])
+            st = self.state()
+            if self.team is not None:
+                self.team.landed(st, "oxygen back")
 
     def onto_teleporter(self, label, tile):
         """From near it onto the teleporter `tile` with the pets beside it (walk_in_legs' last steps). Standing on it

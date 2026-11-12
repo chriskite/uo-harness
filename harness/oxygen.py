@@ -55,11 +55,14 @@ def bars(layout: str) -> tuple[int | None, int | None]:
 
 
 def sites(ox: dict) -> list[dict]:
-    """The refills: {kind "hop"|"dolphin", tile, back (a hop's way down), box}. A hop's `tile` is the teleporter up. A
-    hop with a `skip` (its reason) is none: the runner never goes for it."""
-    out = [{"kind": "hop", "tile": tuple(h["via"][:2]), "back": tuple(h["back"][:2]), "box": box_of(ox, h["via"])}
+    """The refills: {kind "hop"|"dolphin", tile, back (a hop's way back), dolphin, box}. A hop's `tile` is the teleporter
+    to its refill: dry ground, or (with `dolphin`, its tile) another underwater box where that dolphin refills us before
+    the way back (level 2's north strip down to level 3's arrival dolphin; user 2026-11-12). A hop with a `skip` (its
+    reason) is none: the runner never goes for it."""
+    out = [{"kind": "hop", "tile": tuple(h["via"][:2]), "back": tuple(h["back"][:2]),
+            "dolphin": tuple(h["dolphin"][:2]) if h.get("dolphin") else None, "box": box_of(ox, h["via"])}
            for h in ox.get("hops", ()) if not h.get("skip")]
-    out += [{"kind": "dolphin", "tile": tuple(d["at"][:2]), "back": None, "box": box_of(ox, d["at"])}
+    out += [{"kind": "dolphin", "tile": tuple(d["at"][:2]), "back": None, "dolphin": None, "box": box_of(ox, d["at"])}
             for d in ox.get("dolphins", ())]
     return out
 

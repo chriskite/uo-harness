@@ -379,7 +379,9 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   on the level, a death (reds or monsters, `h` a minute) loses all of it, a round trip costs `T` minutes; the cost
   per gold banked, rT/V + hV/(2r), is least at **V\* = r·sqrt(2T/h)**. A visit leaves once what it added reaches
   V\* (the value carried at the visit's start is a load a drop-off didn't take: it doesn't count), or when the pack
-  is within `LOOT_WEIGHT_MARGIN` of full. Only between fights: nothing on us, nothing engaged, no corpse to loot.
+  is within `LOOT_WEIGHT_MARGIN` of full, or a gold pile had no room in it (`gold_no_room`, until we are lighter:
+  "taking the loot home: no room for gold (w/max stones)"; live 2026-11-12 at 435/450 every pile of ~14 stones was
+  left on its corpse, the leave waiting for 440). Only between fights: nothing on us, nothing engaged, no corpse to loot.
   The leave is planned (severity `return`: no `threat` juncture, the walk to the gate at a normal pace with the
   pets following and waited for, the crawl doesn't mark the place) and the run goes back in.
 - **The inputs**, from the store at each visit's start, this character's within 120 tiles of the spot since the first
@@ -1727,16 +1729,21 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
   - The deprivation's warning line sets it to 726 s, its hit line to 732 s at least.
   - Replayed through the clock, the live stream of 2026-10-24 put the first hit at 733 s (live 732).
 - **The refills** (`oxygen.sites`, from data/sim/tidal_tomb.json's `oxygen` block, as `tamer.py` reads the
-  Mausoleum's spawn spots): each dolphin, and each `hops` entry without a `skip` (a teleporter up to dry ground and the
-  one back down). Only those in our own underwater box count: a level 2 hunt never goes for a level 3 dolphin.
+  Mausoleum's spawn spots): each dolphin, and each `hops` entry without a `skip` (a teleporter to dry ground, or with a
+  `dolphin` to another underwater box by a dolphin, and the one back). Only those whose teleporter or dolphin lies in
+  our own underwater box count: a level 2 hunt never walks to a level 3 dolphin, but takes the strip down to one.
   - Level 2: **the arrival stairs** ((6943, 2004) up, a step N from (x, 2005); (6718, 1984) down, a step S from
-    (x, 1983); walked by the user 2026-10-29). Its west strip ((6834, 2079) up, (6609, 2060) down) carries a `skip`: in
-    the simulator its legs ran into the strip's arrival, where the shooters are, and cost deaths without sparing the
-    deprivation (below). Deleting the `skip` takes it again.
+    (x, 1983); walked by the user 2026-10-29). **The north strip** ((6884, 1929) down to level 3's arrival (7162, 2221),
+    the dolphin 11 N of it at (7164, 2210), back up by the arrival tile; user 2026-11-12: "Logan was right next to a
+    transition to level 3 where there's a recovery dolphin and could have just gotten oxygen there"). Its west strip
+    ((6834, 2079) up, (6609, 2060) down) carries a `skip`: in the simulator its legs ran into the strip's arrival,
+    where the shooters are, and cost deaths without sparing the deprivation (below). Deleting the `skip` takes it again.
 - **The easiest** (`oxygen_site`): the map route to each (onto a hop's teleporter, to within 9 of a dolphin:
   `DOLPHIN_STAND_R`, live 90 of 96 refills at 7-9 tiles), its steps plus `OXY_MOB_STEPS` 25 for each attackable
-  monster in view within `OXY_MOB_R` 6 of a route tile. A refill the leg can't reach before the deprivation, even
-  starting at `OXY_MIN_S` (more than (732 - 120 - 300) / `OXY_STEP_S` = 104 route steps), is out of reach.
+  monster in view within `OXY_MOB_R` 6 of a route tile. A refill farther than a leg can walk before the deprivation
+  ((732 - 120 - 300) / `OXY_STEP_S` = 104 route steps) is taken too, its leg due from `OXY_MIN_S`. Until 2026-11-12 it
+  was out of reach: live hunt-20261112-102724-f592 the crawl hunted level 2's NW corner, ~170 steps from the stairs,
+  with no leg at all, deprived on two visits (docs/NOTES.md "Tidal Tomb level 2: deprived in the NW corner").
 - **When** (`oxygen_due`, in the tick after the fighting, the vet and the blink hold, before the patrol): from
   `OXY_MIN_S` 300 s under, once our time reaches 732 - `OXY_MARGIN_S` 120 - the route steps x `OXY_STEP_S` 3.0 (the
   simulator's fought legs: median 2.2 s a step, 75th percentile 3.0). Routes are planned again every `OXY_PLAN_S` 15 s.
@@ -1748,7 +1755,8 @@ to" (docs/PLAN.md "Oxygen"). Off with `--no-oxygen`.
   rule under "Pets"; live 2026-10-29 18:13-18:14 the leg to the stairs went back and forth at a soulcatcher 19 south
   of them 18 times, 470 -> 560 s under water).
   - A hop (`oxygen_hop`): onto the teleporter with the pets beside it (`onto_teleporter`), `OXY_DRY_S` 2 s on dry
-    ground, a step off the landing tile (itself the teleporter down) and back onto it.
+    ground (with a `dolphin`: `oxygen_dolphin`'s wait for that dolphin's refill instead), a step off the landing tile
+    (itself the teleporter back) and back onto it, whatever came of the wait.
   - A dolphin (`oxygen_dolphin`): the tick's fighting until its refill line, `OXY_DOLPHIN_WAIT_S` 12 s; none, to
     within 4 and the same wait again.
   - A failed leg (an Abort) hunts on and tries again after `OXY_RETRY_S` 120 s. Every leg leaves an `oxygen` job event
