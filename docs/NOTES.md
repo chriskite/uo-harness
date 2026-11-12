@@ -9816,6 +9816,23 @@ Pets Clicquot and Borealish, both alive after (79-94 %). Capture session_2026111
   'All Kill' kept on a diver through its dives (the server's own pets may keep it; not measured live) and Logan's
   cover tile chosen within the pets' guard reach, but neither is built or measured.] The tree carried another
   session's uncommitted tamer.py work during these batches.
+- **The user's play, built and measured, not merged** (branch `voidfin-diver`, fb690d6). User 2026-11-12: "1) Move so
+  the pets are closer to the voidfin and say 'All Guard Me' 2) Peacemaking on the voidfin 3) Kite it", and "when the
+  pets are guarding ... and it stealths they return to Logan and then the voidfin will pop out of stealth and do that
+  spin attack on them ... also hit Logan if he's standing right next to the pets". Built: attackers() counts a diver in
+  war mode within its strike reach (2) while we take damage (`DIVE_REACH`); `Team.diver` holds it as on us 8 s through
+  its dives, Peacemaking on it while it is on us this tick, else (more than 4 off every pet) to a tile 3-4 off a pet out
+  of area hits, fire and every awake monster's strike reach, 'All Guard Me'; there no stand-off walks him off.
+  - sim/fight1210.py, 24 seeds: the voidfin's damage on Logan 7,026 -> 4,523, deaths 1 -> 0, lowest hits 0 -> 16. The
+    peace is the gain: the walk without it 7,327, 1 death. The voidfin is killed in none either way (45 s).
+  - Level 2, 96 runs, seed 1 / seed 97, `--others --prior` the main store, before = the branch with `--set
+    tamer.DIVER=False --set loop_hunt.DIVE_REACH=False`: runs with a death 10 -> 12 / 4 -> 8, the voidfin's damage on
+    Logan 8,646 -> 9,944 / 9,813 -> 10,680, banked an hour 182.4k -> 178.8k / 189.7k -> 182.2k. Peace alone (no walk,
+    no hold), seed 1: 17 deaths, 9,899, 172.6k. The rule fired rarely (94 peaces, 46 walks in 96 runs), yet both blocks
+    went the same way. [INFERENCE: the 2-tile `DIVE_REACH` also counts a voidfin fighting a pet beside Logan as on him,
+    and attackers() feeds the leave, retreat, target and jam rules: a wider change than the rule itself.] Not merged;
+    next would be telling its hit on Logan from its hit on a pet (the strike lands as it comes up, the spin with its
+    0x90A) before counting it as on us.
 
 ## Network observations
 
