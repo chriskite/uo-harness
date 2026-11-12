@@ -1691,6 +1691,18 @@ moongate, and never near a red one).
   - **Apart in the hold** (`Team.apart`; `APART`). Holding for a monster whose hit lands on everyone beside its target
     (`TARGET_AREA`: the drowned mariner, the soulcatcher): 'All Stay' once the pets have closed up, a tile 2+ from
     them out of its sight within 3 steps, 'All Guard Me' the moment it is in war mode or the hold ends.
+  - **A diver on us** (`Team.diver`, `diver_on_us`, `diver_near`; `DIVER`, `DIVER_HOLD`; loop_hunt `DIVE_REACH`; since
+    2026-11-12, the user's play after Logan's death to a voidfin, docs/NOTES.md "Tidal Tomb level 2: dead to an unseen
+    voidfin"). A voidfin sends no 0x2F and strikes and spins from 2 tiles, under ~2.9 s of every ~7.8: `attackers`
+    counts a diver (`aggro.divers`, a `dive` special) in war mode within its strike reach (`aggro.strike_reach`, 2)
+    while we take damage, and the rule holds it as on us for `DIVER_HOLD_S` 8 s through its dives. Then, before the
+    stand-off: Peacemaking on it while it is up ("diver: a voidfin 0x... on us; Peacemaking on it"); else, more than
+    `DIVER_FAR_R` 4 from every live pet, to the nearest tile within `DIVER_NEAR_R` 4 of one and `DIVER_OFF_R` 3+ off
+    each (out of its spin on them: user, "it will pop out of stealth and do that spin attack on them ... also hit Logan
+    if he's standing right next to the pets"), out of area hits, fire and every awake monster's strike reach, 8 steps
+    at most, and 'All Guard Me' ("toward the pets from the diver: ..."); there (`diver_near`) no stand-off walks him
+    away again. Simulator `sim/fight1210.py` (the live layout, 24 seeds): its damage on Logan 7,026 -> 4,523, deaths
+    1 -> 0; level 2 batches in docs/SIM.md "Tidal Tomb: a voidfin on Logan".
   - **Skills only where a pet's hit is known** (`BARD_OTHERS_HURT`, `BARD_PAIR_HURT`; `Team.pets_hurt`,
     `hurt_watch`). A skill of ours at a monster no pet has hurt is the first act at it and brings it on us. So
     `bard_others`, a provocation's incited monster and the skills at the target go only at one that is on us or that

@@ -12,10 +12,12 @@ or Borealish) on 'All Guard Me'. The runner's tick for SECS.
 
     python harness/sim/fight1210.py [SEEDS] [--log] [--set MODULE.NAME=VALUE] [--harness DIR]
 
-Per seed: Logan dead, his damage by source, the voidfin's, whether the voidfin died, his lowest hits. f46fada
-(with another session's uncommitted tamer.py dip work in the tree), seeds 1-24: no death, 6,972 on Logan (the voidfin 6,946), lowest 28, the voidfin never dead in 45 s: the
-pets' 'All Kill' at it ends at each dive. Tried and dropped 2026-11-12 (docs/NOTES.md): its strike reach (2) in
-attackers(), no change; Logan to within 2 of the pets while a diver is on him, 15 deaths of 24 (the crab's reach).
+Per seed: Logan dead, his damage by source, the voidfin's, whether the voidfin died, his lowest hits. --set
+tamer.DIVER=False --set loop_hunt.DIVE_REACH=False is the runner before the diver rule (the user's play 2026-11-12:
+Peacemaking on it, toward the pets with 'All Guard Me', held there; docs/NOTES.md "Tidal Tomb level 2: dead to an unseen
+voidfin"); seeds 1-24 (the tree with another session's uncommitted tamer.py work): 7,130 on Logan (the voidfin 7,026),
+1 death, lowest 0; with it 4,585 (4,523), none, lowest 16. The voidfin dies in none of either in 45 s.
+harness/test_sim.py test_voidfin_on_us runs seeds 1-3 both ways.
 """
 import ast
 import contextlib

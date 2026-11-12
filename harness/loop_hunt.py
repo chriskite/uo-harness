@@ -210,6 +210,7 @@ RANGED_REACH = 13            # ...a ranged one (aggro.ranged): the purger's barr
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOOSE_R = 1                  # a monster this close attacking us that the pets aren't fighting becomes the target (pick_target)
+DIVE_REACH = True             # attackers: a diver (aggro.divers) in war mode within its strike reach while we take damage
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 GATE_CLICK_TRIES = 3          # the gate's double-click again after 500119 (an item use just before it)...
@@ -926,12 +927,16 @@ class HuntLoop:
         if hurt is not None and time.monotonic() - hurt <= SWING_RECENT_S:
             for key, mob in world["mobiles"].items():
                 s = serial_of(key)
+                kind = aggro.type_key(labels.get(key) or mob.get("name"))
+                # a diver (the voidfin) strikes and spins from 2, no 0x2F (live 2026-11-12 12:10:09-19, Logan dead;
+                # docs/NOTES.md "Tidal Tomb level 2: dead to an unseen voidfin")
+                reach = aggro.strike_reach(kind) if DIVE_REACH and kind in aggro.divers() else 1
                 if s != me and mob.get("x") is not None and (mob.get("flags") or 0) & threats.FLAG_WARMODE \
-                        and cheb(pos, (mob["x"], mob["y"])) <= 1 and not mob.get("pet") \
+                        and cheb(pos, (mob["x"], mob["y"])) <= reach and not mob.get("pet") \
                         and mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY \
                         and threats.identify(mob, labels.get(key))[0] == "monster":
                     # a pet (ours or anyone's) in war mode beside us is fighting for someone, not at us
-                    found.setdefault(s, ("war mode, adjacent while we take damage", time.monotonic() - hurt))
+                    found.setdefault(s, ("war mode, in its strike reach while we take damage", time.monotonic() - hurt))
             if not found:
                 # nothing swinging at us or beside us: a caster in war mode in its spell reach is (live
                 # 20261015_171928 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never a swing), and a

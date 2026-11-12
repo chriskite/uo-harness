@@ -512,6 +512,24 @@ FRONT_PACK = True             # ...at one of a pack: the others may see the walk
 DUCK = True
 DUCK_STEPS = 4                # a tile out of it within this many steps
 DUCK_S = 1.0                  # at most this often
+# A monster that dives (aggro.divers: the voidfin) on us: under 2.9 s of every ~7.8 s, it comes up 1-2 tiles off its
+# target with a strike and spins there (radius 2); live 2026-11-12 12:10:04-19 (hunt-20261112-113211-43aa) one on Logan
+# 6 tiles off the pets, -23 -35 -35 -32, dead (docs/NOTES.md "Tidal Tomb level 2: dead to an unseen voidfin"). The
+# user's play (2026-11-12): "Peacemaking on the voidfin", and "Move so the pets are closer to the voidfin and say 'All
+# Guard Me'", not beside them: "when the pets are guarding ... and it stealths they return to Logan and then the
+# voidfin will pop out of stealth and do that spin attack on them ... also hit Logan if he's standing right next to the
+# pets". Team.diver: while one hit us within DIVER_HOLD_S, Peacemaking on it when it is up, else (more than
+# DIVER_FAR_R off every live pet) a tile DIVER_NEAR_R from a pet, DIVER_OFF_R+ off each, out of area hits, fire and
+# every awake monster's strike reach, then 'All Guard Me'.
+DIVER = True
+DIVER_HOLD_S = 8.0            # a dive cycle (7.8 s): the diver stays "on us" this long after it was last in our attackers
+DIVER_FAR_R = 4               # farther than this from every live pet: toward them
+DIVER_NEAR_R = 4              # ...to within this of one
+DIVER_OFF_R = 3               # ...and this far off each (out of a spin on them, radius 2)
+DIVER_STEPS = 8
+DIVER_S = 1.0                 # a walk at most this often
+DIVER_PEACE = True            # Peacemaking on it while it is on us
+DIVER_HOLD = True             # by the pets (diver_near) with a diver on us: no stand-off (its spin follows us anyway)
 # The step-in's hold apart from the pets (Team.apart): at a monster whose hit lands on everyone beside its target
 APART = True
 APART_SETTLE_S = 0.6          # 'All Stay' once the pets closed up on us, or this long into the hold
@@ -901,6 +919,8 @@ class Team:
         self.front_for = None             # (serial, monotonic) of the monster front_stop stopped a walk for (front)
         self.front_wait = {}              # serial -> monotonic since front waits for the pets to close up before it
         self.duck_t = -1e9                # the last duck (out of an idle monster's range and sight in a fight)
+        self.diver_t, self.diver_serial = -1e9, None   # the last diver in our attackers (diver_on_us)
+        self.diver_walk_t = -1e9          # the last walk toward the pets from it
         self.duck_none = None             # the monster the last "no tile out of it" was logged for
         self.pet_hurt = set()             # the monsters a pet of ours has hurt, as far as we can tell (hurt_watch)
         self.hurt_seen = {}               # serial -> the HuntLoop.hurt_t hurt_watch last read for it
@@ -1525,6 +1545,85 @@ class Team:
             or (low and self.vet(st, calm=calm)) \
             or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
             or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+
+    def diver_on_us(self, st) -> tuple | None:
+        """(serial, name) of a diving monster on us (an attacker of a kind in aggro.divers) seen within DIVER_HOLD_S: it
+        is under about as often as up, so the last sighting holds through its dives."""
+        now = time.monotonic()
+        for a in self.h.attackers(st):
+            if type_key(a["name"]) in aggro.divers():
+                self.diver_t, self.diver_serial = now, (serial_of(a["serial"]), a["name"] or "a diver")
+        return self.diver_serial if now - self.diver_t <= DIVER_HOLD_S else None
+
+    def diver(self, st) -> bool:
+        """The user's play at a diver on us (DIVER): Peacemaking on it while it is up and the skill is due (bard_target's
+        rules for peace: its own calm, a barding break, beyond our skill, in our sight); else, farther than DIVER_FAR_R
+        from every live pet, to the nearest tile within DIVER_NEAR_R of one and DIVER_OFF_R or more off each, out of area
+        hits, fire and every awake monster's strike reach (aggro.strike_reach), DIVER_STEPS at most, and 'All Guard Me'.
+        True when it acted."""
+        if not DIVER:
+            return False
+        on = self.diver_on_us(st)
+        if on is None:
+            return False
+        serial, name = on
+        h, now = self.h, time.monotonic()
+        mob, _ = h.live_target(st, serial, BARD_RANGE)
+        if DIVER_PEACE and mob is not None and self.a.peace and not self.no_instrument and now >= self.skill_ready \
+                and now >= self.calm_ready and now - self.diver_t < 0.5:
+            # only while it is on us this tick (held through a dive it may be on a pet: our act would turn it to us)
+            fx = self.effects.setdefault(serial, {})
+            if fx.get("calm", 0) <= now and fx.get("immune", 0) <= now and fx.get("los", 0) <= now \
+                    and (SKILL_PEACE, type_key(name)) not in self.beyond and self.bard_sees(st, serial):
+                log(f"diver: {name} 0x{serial:08X} on us; Peacemaking on it")
+                self.count("diver_peace")
+                return self.use(SKILL_PEACE, serial)
+        if now - self.diver_walk_t < DIVER_S:
+            return False
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        pos = h.pos(st)
+        if not pets or min(cheb(pos, p) for p in pets) <= DIVER_FAR_R:
+            return False
+        v = self.view(st)
+        if v.walk is None:
+            return False
+        self.diver_walk_t = now
+        clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)
+        reach = [(m["pos"][:2], aggro.strike_reach(m["kind"])) for m in v.mobs if m["war"]]
+        best = None
+        for t, k in self.tiles_within(v, DIVER_STEPS).items():
+            near = min(cheb(t, p) for p in pets)
+            if k == 0 or near > DIVER_NEAR_R or near < DIVER_OFF_R or t[:2] in fire or not clear(t) \
+                    or any(cheb(t, c) <= r for c, r in reach):
+                continue
+            if best is None or k < best[1]:
+                best = (t, k)
+        if best is None:
+            return False
+        label = "toward the pets from the diver"
+        self.count("diver_walks")
+        log(f"{label}: {name} 0x{serial:08X} on us; to {best[0][:2]}, {best[1]} step(s), "
+            f"{min(cheb(best[0], p) for p in pets)} from the pets")
+        h.doing("pets", f"Toward the pets: {name} on us", best[0][:2])
+        try:
+            h.mover.walk_to(lambda: best[0][:2], 0, label, urgent=True, max_moves=2 * DIVER_STEPS,
+                            max_route=2 * DIVER_STEPS, mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"{label}: {e}")
+        self.guard_needed, self.guard_t = True, -1e9
+        return True
+
+    def diver_near(self, st, pos) -> bool:
+        """`pos` will do with a diver on us (the stand-off's hold, DIVER_HOLD): within DIVER_FAR_R of a live pet, out of
+        fire and of every other awake monster's strike reach."""
+        pets = [(p["x"], p["y"]) for p in self.pets(st) if not p["dead"]]
+        if not pets or min(cheb(pos, p) for p in pets) > DIVER_FAR_R or tuple(pos[:2]) in self.fire_tiles(st):
+            return False
+        v = self.view(st)
+        return not any(m["war"] and m["kind"] not in aggro.divers() and cheb(pos, m["pos"]) <= aggro.strike_reach(m["kind"])
+                       for m in v.mobs)
 
     def duck(self, st, force: bool = False) -> bool:
         """Out of an idle monster's eyes while the pets can't be put in front of us (front: nothing fighting, the pets
@@ -3250,6 +3349,10 @@ class Team:
         pos = h.pos(st)
         sprayed, scorched = self.spray_due(st, pos), self.scorch_due(pos)
         landing = any(cheb(pos, t) < r for t, r in self.blink_tiles(st).items()) or sprayed or scorched
+        if not landing and self.diver(st):
+            return True                   # a diver on us: peace on it, or toward the pets (before the stand-off's walk)
+        if DIVER_HOLD and not landing and self.diver_on_us(st) is not None and self.diver_near(st, pos):
+            return False                  # its spin follows us: no stand-off from it away from the pets
         if DIP and not landing and self.dip(st):
             return True                   # a channel running for a pet in a reach wider than the supplies': in for its finish
         if now - self.standoff_t < STANDOFF_REPEAT_S and not landing:

@@ -86,6 +86,35 @@ def melee_reach(kind: str) -> int:
     return _REACH.get(kind, 1)
 
 
+_STRIKE = None
+
+
+def _strike() -> dict:
+    """{kind: its `dive` special's strike_r} over every scenario."""
+    global _STRIKE
+    if _STRIKE is None:
+        _STRIKE = {}
+        for sc in scenarios():
+            for k, specs in (sc.get("specials") or {}).items():
+                for s in specs if isinstance(specs, list) else ():
+                    if isinstance(s, dict) and s.get("kind") == "dive" and s.get("strike_r"):
+                        _STRIKE[k] = max(int(s["strike_r"]), _STRIKE.get(k, 0))
+    return _STRIKE
+
+
+def divers() -> frozenset:
+    """The kinds that dive out of view in a fight (a `dive` special: the voidfin)."""
+    return frozenset(_strike())
+
+
+def strike_reach(kind: str) -> int:
+    """Tiles from which a monster of `kind` hits the one it is on: melee_reach, or a `dive` special's `strike_r` when
+    larger (the voidfin comes up 1-2 tiles off its target with a strike and spins there, no 0x2F: live 2026-11-12
+    12:10:09-19 one on Logan from 2 tiles, -23 -35 -35 -32, dead; docs/NOTES.md "Tidal Tomb level 2: dead to an
+    unseen voidfin")."""
+    return max(melee_reach(kind), _strike().get(kind, 0))
+
+
 def wake_floor(kind: str | None) -> float | None:
     """The shortest time from one of us coming into an idle monster's range and sight to its war flag, for a type of a
     dungeon whose own wakes are measured: its scenario's `defaults.wake_s` low end (Tidal Tomb 1.9 s: 48 live wakes,

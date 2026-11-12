@@ -8661,6 +8661,30 @@ def test_front_gate_crab():
           " | ".join(f"seed {r['seed']}: first {r['first']} at {r['logan_d']} crab {r['crab']}" for r in before))
 
 
+def test_voidfin_on_us():
+    print("== a voidfin on Logan 6 off the pets (live 2026-11-12 12:10, dead): Peacemaking on it, toward the pets, held "
+          "there; less of its damage on him than without, seeds 1-3 ==")
+    # sim/fight1210.py: the live tiles at 12:10:05; the user's play: "Move so the pets are closer to the voidfin and say
+    # 'All Guard Me'", "Peacemaking on the voidfin"
+    import loop_hunt
+    from sim import fight1210
+
+    def run(on):
+        was = tamer.DIVER, loop_hunt.DIVE_REACH
+        tamer.DIVER = loop_hunt.DIVE_REACH = on
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                return [fight1210.one(seed) for seed in (1, 2, 3)]
+        finally:
+            tamer.DIVER, loop_hunt.DIVE_REACH = was
+    rows, before = run(True), run(False)
+    said = [any("toward the pets from the diver" in ln or "diver: a voidfin" in ln for ln in r["log"]) for r in rows]
+    check("the diver rule acts each time; no death; the voidfin's damage on Logan lower in each seed than without it",
+          all(said) and not any(r["dead"] for r in rows) and all(a["voidfin"] < b["voidfin"] for a, b in zip(rows, before)),
+          " | ".join(f"seed {a['seed']}: {b['voidfin']} -> {a['voidfin']} low {a['low']} said {s}"
+                     for a, b, s in zip(rows, before, said)))
+
+
 def test_duck():
     print("== a fight on, an idle ironscale grouper 8 off with us in its range and sight, the pets 15 off it: out of its "
           "eyes (Team.duck); it stays idle, seeds 1, 3, 4 ==")
@@ -9277,7 +9301,7 @@ def main():
               test_consort_lurk, test_approach_short_of_consort, test_consort_spot_open_after_death,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_far, test_oxygen_leg_past_shooter,
               test_step_in,
-              test_step_in_fallback, test_front_gate_crab, test_duck, test_oxygen_dolphin,
+              test_step_in_fallback, test_front_gate_crab, test_duck, test_voidfin_on_us, test_oxygen_dolphin,
               test_tidal_hunt,
               test_ossuary_recall_rule,
               test_ossuary_delayed_bursts,
