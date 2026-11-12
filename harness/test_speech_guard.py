@@ -175,6 +175,21 @@ def test_staff():
     gone["last_seen"]["0x0000B383"]["flags"] = 0x20
     check("a player the client dropped (a GM going hidden is deleted from view) still counts as not on screen",
           staff_hints(speaker(gone, lazric)) == ["not on screen (hidden or out of view)"])
+    # live 2026-11-11 22:31:07 (mining-20261111-222430-cd52): Lady Glitter Goon said "All Kill" during Dan's recall
+    # away; the client pruned her for range at the landing 1.5 s later, before the runner's scan
+    goon = {**w, "mobiles": {}, "labels": {"0x00007ECA": "Lady Glitter Goon"},
+            "last_seen": {"0x00007ECA": {"graphic": 0x191, "notoriety": 1, "flags": 0x20, "name": "Glitter Goon",
+                                         "why": "range", "facet": 0, "t": 1009.2}}}
+    g = SpeechGuard(now=lambda: 1012.0)
+    g.scan(goon, [], [])
+    kill = {**said(0x00007ECA, "All Kill", name="Glitter Goon"), "body": 0x191}
+    check("a player's pet command, then pruned for range as we recalled away: in view when said, so no hint "
+          "and no hold", g.scan(goon, [kill], [1007.7]) == [])
+    check("... a line of hers is judged on screen (the player flag), not as not on screen",
+          speaker(goon, said(0x00007ECA, "hi", name="Glitter Goon"), 1007.7)["evidence"] == ["player flag 0x20"])
+    check("... pruned before the line was said: still not on screen",
+          staff_hints(speaker(goon, said(0x00007ECA, "hi", name="Glitter Goon"), 1010.0))
+          == ["not on screen (hidden or out of view)"])
     os.environ[alerts.QUIET_ENV] = "1"
     m = Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
     check("nothing open: no alarm", alerts.staff_alarm_due(m, now=1000.0) is False)

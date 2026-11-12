@@ -5819,6 +5819,19 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     --after-trip). Fix: `threats._aggressive` treats a creature at notoriety 2 (ALLY_NOTORIETY) like a pet: not
     aggressive unless it swings or casts at us. Only an ally's pet shows green [INFERENCE: RunUO, as for the
     owner's notoriety on pets]. test_threats `test_pets`.
+  - **A false staff alarm on a pet command said during our recall (live 2026-11-11 22:31, mining-20261111-222430-cd52,
+    capture session_20261111_215326).** At forge_2426_413, Lady Glitter Goon (0x00007ECA, blue, player flag, "[Officer,
+    1CE]", mounted, with bonded pets) came within 2 tiles twice. The runner stepped away at 22:31:03 and recalled home
+    at 22:31:06 ("suspected thief … closed to 2 tiles again"). She said "All Kill" at 22:31:02.2 and again at
+    22:31:07.7, during the recall cast. The first was skipped as a pet command. The client pruned her for range at the
+    landing at 22:31:09.2, so at the runner's scan (22:31:12) the second line had no mobile behind it. `speaker()`
+    then called her "not on screen (hidden or out of view)", a staff hint, which also overrides the pet-command rule.
+    The result was `gm_suspected` 3068 and a 34 s hold until the Seer acked it. Replayed: the old code gave the
+    not-on-screen speaker; the new one gives her on screen (player flag) and `scan` holds nothing. Fix: a speaker in
+    `last_seen` with `why` "range" or "facet" whose prune came at or after the line's envelope time was in view when
+    it spoke, so it is judged by that record. A line said after the prune, and a server delete (a GM going hidden),
+    still count as not on screen. test_speech_guard `test_staff`. [INFERENCE] Two "All Kill" lines while she stood
+    next to Dan look like an attempt to set her pets on him. The recall beat it; no hit was seen.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

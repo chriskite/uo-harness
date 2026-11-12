@@ -2279,7 +2279,9 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   Time Quest Hub NPC"). `speech_guard.speaker`: an NPC or creature the client dropped after it spoke (the scan can
   come tens of seconds after the line) is no speaker. Only a speaker the client never had, or a character it had,
   stays "not on screen", a staff hint. A GM going hidden is deleted from view, so the character case keeps the alarm.
-  test_speech_guard `test_staff`.
+  test_speech_guard `test_staff`. Since 2026-11-11 (docs/NOTES.md "A false staff alarm on a pet command said during our
+  recall"), a speaker pruned for range (or facet) at or after its line's time, because we moved or recalled off, was
+  in view when it spoke and is judged by its record, not as "not on screen".
 - *A green creature is an ally's pet, never aggressive by itself* (2026-11-10, docs/NOTES.md "Escapes from a
   guildmate's pets at the guild-house landing"). `threats._aggressive` returns not aggressive for notoriety 2 unless
   the creature swings or casts at us. The notoriety comes in the mobile's first packet, the "(bonded)" line ~70 ms
