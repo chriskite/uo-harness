@@ -118,6 +118,32 @@ def test_goal_in_reach_or_hostile_player():
     check("walking as a ghost (to a healer): creatures don't stop or divert it", msg == "arrived", msg)
 
 
+class WallWalk:
+    """A pathfind.Walk stand-in: open ground but a wall along x == 13 (a house wall between a creature and the goal)."""
+    STEPS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
+
+    def can_walk(self, x, y, z, d):
+        dx, dy = self.STEPS[d]
+        return None if x + dx == 13 else (x + dx, y + dy, z)
+
+
+def test_goal_behind_a_wall():
+    print("== the goal within a creature's radius but behind a wall it can't walk round within it: walked; "
+          "open ground: stopped ==")
+    # live 2026-11-11 21:21 (act dropoff): a reaper at (3570, 3256, 0) outside Logan's house wall, 5 tiles from the
+    # landing (3575, 3251) inside: "the goal ... is inside the reach of a reaper"; it can't walk there
+    orig = travel_guard.TravelGuard.creature_walk
+    try:
+        travel_guard.TravelGuard.creature_walk = lambda self, st, at: WallWalk()
+        msg, _ = walk(World((20, 0), [dict(HARPY, x=10, y=0, z=0)]), (16, 0))
+        check("a wall between: arrived", msg == "arrived", msg)
+        travel_guard.TravelGuard.creature_walk = lambda self, st, at: None
+        msg, _ = walk(World((20, 0), [dict(HARPY, x=10, y=0, z=0)]), (16, 0))
+        check("no map to judge by: stopped as before", "inside the reach of a harpy" in msg, msg)
+    finally:
+        travel_guard.TravelGuard.creature_walk = orig
+
+
 def test_remembered():
     print("== sightings are remembered: the next walk avoids the area with nothing in view ==")
     mem = Memory(os.path.join(tempfile.mkdtemp(), "h.db"))
@@ -184,6 +210,7 @@ def test_own_pet_teaches_nothing():
 def main():
     test_routes_around_a_harpy()
     test_goal_in_reach_or_hostile_player()
+    test_goal_behind_a_wall()
     test_not_a_threat_to_us()
     test_remembered()
     test_learned_from_hits()

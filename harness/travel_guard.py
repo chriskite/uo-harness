@@ -225,7 +225,42 @@ class TravelGuard:
             g = tuple(self.goal())
             me = threats.self_pos(st)
             for key, (c, r) in self.mover.danger.items():
-                if cheb(g, c) <= r and (me is None or cheb(g, c) < cheb(me, c)):
+                if cheb(g, c) <= r and (me is None or cheb(g, c) < cheb(me, c)) and self._walks_to(st, key, g, r):
                     m = next((t for t in a.threats if t.serial == key), None)
                     raise Abort(f"the goal {g} is inside the reach of {m.name if m else f'0x{key:08X}'} "
                                 f"at {c}; stopped walking")
+
+    def creature_walk(self, st, at):
+        """pathfind.Walk on our facet as a creature standing at `at` (x, y, z) walks it: the doors of every house it
+        isn't shut in locked (Walkers.get `inside`); None without map data."""
+        if not getattr(self.mover, "use_map", False):
+            return None
+        import pathfind
+        items = (st.get("world") or {}).get("items") or {}
+        return self.mover.walkers.get(((st.get("world") or {}).get("self") or {}).get("map"),
+                                      pathfind.ground_items(items.values()), inside=tuple(at))
+
+    def _walks_to(self, st, key, goal, r) -> bool:
+        """The creature `key` reaches within 1 of `goal` by at most `r` walking steps (a wall or a house between
+        them isn't its reach: live 2026-11-11 21:21 a reaper at (3570, 3256) outside Logan's house wall, 5 from the
+        landing inside, stopped `act dropoff`). True when it can't be judged (no map, no z)."""
+        m = ((st.get("world") or {}).get("mobiles") or {}).get(f"0x{key:08X}") or {}
+        if m.get("x") is None or m.get("z") is None:
+            return True
+        start = (m["x"], m["y"], m["z"])
+        walk = self.creature_walk(st, start)
+        if walk is None:
+            return True
+        seen, frontier = {start}, [start]
+        for _ in range(r):
+            nxt = []
+            for x, y, z in frontier:
+                if cheb((x, y), goal) <= 1:
+                    return True
+                for d in range(8):
+                    n = walk.can_walk(x, y, z, d)
+                    if n is not None and n not in seen:
+                        seen.add(n)
+                        nxt.append(n)
+            frontier = nxt
+        return any(cheb(t[:2], goal) <= 1 for t in frontier)
