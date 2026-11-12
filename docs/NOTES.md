@@ -9675,6 +9675,64 @@ a46a0be and the change while 28 simulator workers ran beside it, and passes on a
 pets' one-tile follow and 'All Stay' in a hold are the simulator's; the first live level 2 shift should be watched for
 a front walk that ends with the monster on Logan ("step-in: ... on us") and for pets left on 'All Stay'.
 
+## Tidal Tomb level 2: the pets-first rules' first live run (2026-11-12 10:27-11:16, hunt-20261112-102724-f592)
+
+The first live level 2 run on 428a1ea: Logan with Clicquot 0x000DF914 and Borealish 0x000E68B5, the shift's command
+(`--vet-range 5 --crawl-learn-s 180 --enter-via 6718 1984 --leave-gate 6913 2071 --leave-gate 6897 1992`), 3 visits,
+0.68 h on the level, 123 kills, no death of Logan's. Capture session_20261112_101715. Compared with every level 2
+visit of the same pets and command on the runner before it: 31 visits, 4.71 h, 2026-11-10 and 11-11 (9 task logs).
+Both sides read the same way by throwaway scripts (not in the repo): the visit rows of the task logs, and the captures
+replayed through `WorldRuntime` (every overhead "-N" on Logan and the pets; a "-N" of 5 or less within 0.7 s of an
+"oxygen deprivation" line is oxygen; each monster's first war flag in view with Logan's and the pets' distance from it
+then). The captures carry no 0x2F swing from a monster in these 5.4 h, so whom a monster took is not read; "Logan
+nearer" below is geometry at the flag, a proxy.
+
+| per hour on the level | before (31 visits) | after (3 visits) | before, any 3 visits in a row (5-95 %) |
+|---|---|---|---|
+| damage on Logan, all | 1,404 | 883 | 727-2,525 |
+| ...from monsters | 1,358 | 458 (11 hits in 41 min) | 727-2,525 (lowest 399) |
+| ...oxygen deprivation | 46 | 425 | 0-366 |
+| the runner's hits lost | 1,313 | 861 | 727-2,084 |
+| heal potions | 31.9 | 11.7 | 24-46 (lowest 14) |
+| a monster's first war flag with Logan nearer it than every pet | 52.7 (39 % of 134.5) | 19.1 (14 % of 136.4) | 40-67 (lowest 38) |
+| damage on the pets | 33,862 | 46,407 | 27,937-40,200 |
+| pet deaths | 0.4 (2) | 7.3 (5, one fight) | 0-5 |
+| vet channels with no pet in reach at the finish | 7.9 (4.1 % of the channels) | 19.1 (7.0 %) | |
+| kills | 117.9 | 124.6 | 109-131 |
+| gold looted | 154,279 | 147,185 | 142,054-169,428 |
+
+Three visits are a small sample: only the monster damage, the potions and the "Logan nearer" count fall below every
+three-visit stretch of the 31 before; gold and kills are inside the spread.
+
+- **The front works live.** 39 walks in and back: 34 ended "step-in: ... took Clicquot" (2.2-10.1 s after), 1 "on us
+  after 2.4 s" (a lighthouse shellpod at 11:11:32; the second walk 2 s later put it on Clicquot), 3 holds ran out
+  (10-11 s, the monster still idle or no act), 1 monster gone. "holding here: ... in sight ...: letting it come": 5
+  in the run against 92 and 136 in the two longest runs before. The gate crab: 10:32:51 "front at the giant pincer crab
+  at (6912, 2059) (ahead, 8 off): 3 steps to (6921, 2065), out of its sight, Clicquot in it", took Clicquot 9.5 s
+  later; no hit on Logan there. Giant pincer crabs' first war flag with Logan the nearer: 34 before, 0 after.
+- **'All Stay' once** (10:46:56, a soulcatcher: it took Borealish 6.0 s after the step-in, "All Guard Me" followed).
+  No pet was left on it.
+- **The dip loses heals live.** 19 dips; the 11 of 1-2 steps all healed, 5 of the 8 of 3-8 steps arrived with "vet
+  supplies: too far from every pet at the finish" (10:39:59 3 steps planned 0.1 s after the finish was due; 10:49:23
+  8 steps planned 1.6 s before it, arrived 2 s later; 11:02:05 6 steps, 1.5 s; 11:05:52 4 steps, 1.2 s; 11:08:53 6
+  steps, 0.7 s). A live walk takes its planning and ~0.25 s a step, not the simulator's 0.2 s a step with no wait,
+  and the pets move meanwhile. 4 more finishes were lost to a stand-off out of the wider zone ("beyond the vet
+  supplies' reach of the pets") while a channel for a pet above the dip's threshold ran. Not fixed here: the dip's
+  start wants the walk's real time (`STEP_IN_MARGIN_S` for the planning and the live step pace), a tile no farther
+  than that allows, and no channel begun that the stand-off will walk away from.
+- **The pet deaths were one fight** (10:48:21-10:50:21, 5 deaths and resurrections). A front put a lighthouse shellpod
+  on Clicquot; both pets then ran 12-17 tiles from Logan into a combustive, an astral and a toxic zoa, two shellpods, a
+  crab and a soulcatcher. Clicquot went 61 % -> 44 -> 29 -> 20 -> dead through four channels 7 s apart, each finished
+  in reach from a 2-step dip; Logan walked 8 steps to a corpse while its ghost followed (10:49:14); the 8-step dip's
+  lost finish at 10:49:25 came 5 s before Borealish died. [INFERENCE: the rules didn't start that fight; the lost
+  finish and the vet from 70 % in a zoa's zone took heals out of it. The simulator said pet deaths would not fall.]
+- **Oxygen took most of the gain back.** Deprivation ticks: 43 in 4.71 h before (1 visit of 31), 58 in 0.68 h after
+  (visits 2 and 3, to the end of each). The crawl hunted zones 6-7 for 27 % of its time (3 % before; all three
+  visits had 7 zones unlocked, 2 of the 31 before had) and no refill leg went out there. That rule is the oxygen
+  leg's, fixed apart from this (the leg to a refill beyond a leg's reach; level 2's north strip to level 3's dolphin).
+  [INFERENCE: with fewer hits and potions the visits also run longer, median 9.4 -> 12.8 min on the level; the
+  simulator's oxygen damage rose with these rules on the development seeds too, 359 -> 515 an hour.]
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
