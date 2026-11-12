@@ -8903,6 +8903,11 @@ The first runs on 893680c, a12cb22, 4ae328f and bf32ddc; pets Clicquot and Borea
   go without)"; the user ended the shift there.
 - Not yet seen live: 4ae328f's way clear of reds out of view; bf32ddc's occupied teleporter (every step onto (6718, 1984)
   went through).
+- **Evening (21:20-)**: 21:21 `act dropoff` from (3577, 3254) refused: "walking to the home landing (3575, 3251): the
+  goal is inside the reach of a reaper at (3570, 3256); stopped walking". The reaper 0x004D193A (z 0, static) stood
+  outside the house wall; `travel_guard`'s goal rule judged reach by distance alone. Now a creature must walk to within 1
+  of the goal in its radius's steps (the map, house doors locked to it): 109f07d, test_travel_guard
+  `test_goal_behind_a_wall`. The Seer's workaround: `act goto 3575 3251 --no-guard`, then the drop-off.
 
 ## Tidal Tomb level 2: dead fleeing reds (live 2026-11-10 22:33:39, hunt-20261110-222345-a69a)
 
