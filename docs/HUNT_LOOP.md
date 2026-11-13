@@ -1336,7 +1336,11 @@ moongate, and never near a red one).
     (`HuntLoop.dash_blocker`): "<label>: attacked N steps from it; no dash: the way there passes the <kind> at (x, y)",
     and the stand (`walk_in_fight`) instead. **Held on the dash** (`Mover.held`: a grip, a net): the dash ends, "<label>:
     held on the dash; the pets take what's on us", the stand, then the walk on. sim/fight1627.py replays the live
-    layout; test_sim `test_tele_dash_blocked`.
+    layout; test_sim `test_tele_dash_blocked`. **Tidal Tomb level 2's walk in is fought** (`--fight-via 6718 1984` in
+    its command since 2026-11-13; live 16:19:15 the route to the teleporter went through seven idle monsters by it, the
+    dash's end beside an idle bottomfeeder that gripped Logan, 85 -> 0 in 1.2 s: neither rule above stops for idle
+    ones). sim/fight1619.py, the live layout, 24 seeds: deaths 23 walked, 23 with idle monsters blocking the dash too,
+    24 with `LEAD_IN`, 3 fought (docs/SIM.md "Tidal Tomb: the crowd at the teleporter down").
   - **A monster on the teleporter's tile** (since 2026-11-10; `HuntLoop.teleport`, `onto`; live 23:01:08.83,
     hunt-20261110-224149-29c6: a bottomfeeder stood idle on Tidal Tomb's (6718, 1984), the step onto it was refused at
     24/25 stamina, "no teleport after 3 steps" sent the run into the escape, whose two more tries of the same step it

@@ -95,6 +95,7 @@ python harness/sim/fight2333.py 1-96 [--log] [--trace DIR] [--harness DIR]   # M
 python harness/sim/fight2136.py 1-24 [--live-box] [--log] [--harness DIR]   # Maus 3's mini-boss room 2026-11-04 21:36:25: --go-home from (5242, 587) under a custodian stand-in, IDLE_S 120 s after an abort (docs/NOTES.md "Dead in Maus 3's mini-boss room after a double step back")
 python harness/sim/fight2337.py 1-96 [--late] [--alt nocover|potion] [--no-save] [--log] [--harness DIR] [--set tamer.COVER_NEAR_PETS=False]   # Maus 2's walk in 2026-11-05 23:37: a cover walk stalled by a world save (SaveLink: the server frozen 4.24 s, the proxy's 3 s rejection), then covers 20 off the pets (docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)")
 python harness/sim/fight2301.py 1-24 [--no-refresh] [--no-hit-stam] [--log] [--harness DIR]   # Tidal Tomb level 1 2026-11-10 23:01: a bottomfeeder on the teleporter down refuses the step, the escape tries it again gripped (docs/NOTES.md "Tidal Tomb: dead at the teleporter down, gripped")
+python harness/sim/fight1619.py 1-24 [--seconds S] [--no-refresh] [--no-hit-stam] [--log] [--harness DIR] [-- runner args]   # Tidal Tomb level 1 2026-11-13 16:19: the walk to the teleporter down through seven idle monsters by it, the dash into the bottomfeeder's grip (docs/NOTES.md "Tidal Tomb: dead at the teleporter down among its crowd")
 python harness/sim/soul_scan.py --logs <main checkout>/logs --since 20260101 --out <dir> [--summary]   # the forgotten soul, shadowguard and countess in the captures
 python harness/sim/stealth_scan.py --logs <main checkout>/logs --out <dir> [--summary]   # the stealthers' emergences and bites against their known spawn spots, the consort's bleed
 python harness/sim/fight2330.py 1,2,...,96 [--log] [--trace DIR] [--harness DIR]   # the 2026-10-23 23:30 blightmare death, the pets off guard
@@ -3011,6 +3012,38 @@ Tomb: dead at the teleporter down, gripped"; the rule in docs/HUNT_LOOP.md "A mo
   teleporter, a shove, the escape's fight) isn't in the summaries].
 - **Test:** `test_tele_occupied` (a potion and the shove; no potion and no regen, the pets at it, through; before: "no
   teleport after 3 steps in direction 5").
+
+### Tidal Tomb: the crowd at the teleporter down (2026-11-13)
+
+Live 16:19:15 Logan died beside level 1's teleporter down (6718, 1984) on a level 2 walk in: seven idle monsters by it,
+the route through them, the dash into a bottomfeeder's grip (docs/NOTES.md "Tidal Tomb: dead at the teleporter down
+among its crowd"). Fix: level 2's command fights the leg (`--fight-via 6718 1984`; the scenario's level 2 `fight_via`).
+
+- **The replay** (`sim/fight1619.py`: the live layout at 16:19:10, all idle, each woken once Logan stood within 3 of it
+  0.7 s (live the first manta at 3, the crab at 1, the bottomfeeder 0.7 s beside him with its grip; the scavenger 4-6
+  off never), the bottomfeeder's grips every 10.4 s beside him, 22/25 stamina at the teleporter; team phoenix_incubus,
+  the default pet_ref [INFERENCE: Clicquot and Borealish live]; seeds 1-24):
+
+  | runner | deaths | through to level 2 | kills | time (median) | lowest hits under 50 | damage on Logan |
+  |---|---|---|---|---|---|---|
+  | walked (today's) | 23 | 1 | 3 | 7.9 s | 24 | 3,067 |
+  | walked, `LEAD_IN` True (the pets first) | 24 | 0 | 6 | 16.3 s | 24 | 3,296 |
+  | walked, idle monsters block the dash too (a trial `dash_blocker`) | 23 | 1 | 59 | 32.5 s | 24 | 4,050 |
+  | **fought** (`-- --fight-via 6718 1984`, `--seconds 900`) | **3** | 21 | 119 | 136.6 s | 13 | 3,469 |
+
+  The stand in the crowd (the dash blocked) dies as the dash does: all seven on him at once. The fought leg pulls them
+  a few at a time (front, step-in, stand-off); its 3 deaths came 77-81 s in, "toward a target" walks into the crab and
+  the pincer crab with the manta's area hit on him.
+- **Level 2 batches** (`--scenario tidal_tomb --level 2 --runs 96 --careers 8 --jobs 14 --seed 17 --others --prior` the
+  main store; ~30 game min a run):
+
+  | level 2 | runs with a death | runs with a pet death | damage on Logan / h | kills / h | banked / h | gold lost | runs deprived of oxygen |
+  |---|---|---|---|---|---|---|---|
+  | walked | 4 | 2 | 499 | 154.0 | 175.6k | 163.8k | 13 |
+  | fought | 2 | 1 | 473 | 171.5 | 175.4k | 89.7k | 18 |
+
+  Within a batch's noise at 96 runs (the crowd at the teleporter is rare in them), and no cost: the fought leg's level 1
+  kills make up its time.
 
 ### Tidal Tomb: the pets first at every wake (2026-11-12)
 

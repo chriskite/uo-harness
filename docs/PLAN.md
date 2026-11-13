@@ -4019,6 +4019,18 @@ recovery dolphin and could have just gotten oxygen there".
   4,741, runs with a death 12 -> 10, banked an hour +11 %.
 - *Also*: a gold pile with no room in the pack sends the visit home (`gold_no_room`; live the same run at 435/450).
 
+## Tidal Tomb level 2's walk in is fought (Logan dead at the teleporter down, live 2026-11-13 16:19)
+
+Live hunt-20261113-152016-9a90: the walk across level 1 went through seven idle monsters by the teleporter (6718, 1984)
+and the dash ended beside an idle bottomfeeder, whose grip held Logan while the crowd killed him (docs/NOTES.md "Tidal
+Tomb: dead at the teleporter down among its crowd"); the third death there.
+
+- *Decided*: level 2's command adds `--fight-via 6718 1984` (OVERSEER §5; the simulator's level 2 `fight_via`): the leg
+  is fought as level 3's crossing of level 2 already is. sim/fight1619.py: deaths 23 -> 3 of 24; level 2 batches (96
+  runs) runs with a death 4 -> 2, banked/h unchanged.
+- *Rejected*: idle monsters blocking the dash (a stand in the crowd: 23 of 24 dead), `LEAD_IN` (24 of 24): both still
+  meet the crowd at once.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

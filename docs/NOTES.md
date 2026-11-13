@@ -9850,6 +9850,33 @@ Pets Clicquot and Borealish, both alive after (79-94 %). Capture session_2026111
     next would be telling its hit on Logan from its hit on a pet (the strike lands as it comes up, the spin with its
     0x90A) before counting it as on us.
 
+## Tidal Tomb: dead at the teleporter down among its crowd (live 2026-11-13 16:19:15, hunt-20261113-152016-9a90)
+
+Level 2 shift (SeerLoganWolf3), pets Clicquot 0x000DF914 and Borealish 0x000E68B5, the level 2 command of OVERSEER §5 as
+of afe137f. Visits 1-4 clean (23 kills on visit 4, 43,871 gp home at 16:18). The walk in for visit 5, across level 1 to
+(6718, 1984). Capture 20261113_151733 replayed (`replay.timed_packets`, scratch scripts):
+- **16:19:09.5-10.5, all idle** (notoriety 3, no war flag) in view of the route: a bottomfeeder on the teleporter tile
+  (6718, 1984, -24), then (6719, 1982-1984); a flying manta beside it (6719, 1984); a flying manta (6710, 1979); a
+  dungeon-nest crab (6717, 1979); a pincer crab (6712, 1978); a lowtide scavenger at 70 % (6709, 1976); an oozing
+  noughtilus (6701, 1982). The route went up from (6709, 1988) through (6711, 1981), (6713, 1979), (6715, 1979): among
+  them, the pets on follow 1-2 behind.
+- **12.08** the first manta in war mode, 3 off; **12.41-45** its area hit: -19, -19 on the pets and -30 on Logan at once
+  (the burst in data/sim/tidal_tomb.json), -16 next: 54. "attacked 5 steps from it; through it now" (the dash: no monster
+  in war mode by the way, `dash_blocker` counts only those); a potion 54 -> 85 at 13.33.
+- **14.17** at (6718, 1982), the tile before the teleporter, the bottomfeeder and the second manta beside him, both
+  idle; "shove into (6719, 1983) denied (stamina 22/25)". **14.43** -13; **14.88** the bottomfeeder's war flag,
+  '*feeds*', "The creature grips you and begins to feed!", buff 20; "drank for stamina to shove", "held on the dash;
+  the pets take what's on us", 'All Guard Me', a stand-off held in place. -11, -28, -23 (the pets -17/-20, -19/-22 at
+  the same instants: the manta's area hit again), -11: dead at 15.63, 1.2 s from 85. The pets died later beside the
+  ghost.
+- **The third death at this teleporter** (2026-11-02 16:28, the dash among a bottomfeeder and crabs; 2026-11-10 23:01,
+  the bottomfeeder on the tile). The same run was held on the dash there at 16:07:35 too and lived.
+- **Fix** (runner unchanged): level 2's command fights the leg, `--fight-via 6718 1984` (walk_in_fought, the crawl's
+  pulls and the pets first, as level 3's crossing of level 2). sim/fight1619.py replays this layout: deaths 23 -> 3 of
+  24; letting the pets go first on the walk (`LEAD_IN`) 24, idle monsters blocking the dash (a trial) 23: the stand in
+  the crowd dies as the dash does. Level 2 batches 96 runs: runs with a death 4 -> 2, banked/h equal (docs/SIM.md
+  "Tidal Tomb: the crowd at the teleporter down").
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

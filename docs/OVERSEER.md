@@ -689,8 +689,11 @@ Paste this (or point the session at this section) to start an overseer.
 >    - **Tidal Tomb level 1**: `--enter-rune "Tidal Tomb Inside" --leave-gate 6652 2095 --leave-gate 6642 2062
 >      --leave-gate 6685 2064`, the command above (the default for Tidal Tomb): out by the easiest of its three golden
 >      gates.
->    - **Tidal Tomb level 2**: `--enter-rune "Tidal Tomb Inside" --enter-via 6718 1984 --leave-gate 6913 2071
->      --leave-gate 6897 1992`. The walk across level 1 to its teleporter, the crawl from level 2's arrival (6943, 2004),
+>    - **Tidal Tomb level 2**: `--enter-rune "Tidal Tomb Inside" --enter-via 6718 1984 --fight-via 6718 1984
+>      --leave-gate 6913 2071 --leave-gate 6897 1992`. The walk across level 1 to its teleporter fought through (since
+>      2026-11-13: "to the teleporter at 6718,1984: fought through"; live 16:19:15 Logan died beside it, walked into
+>      seven idle monsters there and the dash into a bottomfeeder's grip; docs/NOTES.md "Tidal Tomb: dead at the
+>      teleporter down among its crowd"), the crawl from level 2's arrival (6943, 2004),
 >      out by the easier of its two crimson gates: 0x4003D7B8 at (6913, 2071) (Logan took it to Totem live 2026-10-24),
 >      in the gate pocket's crossfire, or 0x4003D7B9 at (6897, 1992), level 3's way out (since 2026-11-01; docs/SIM.md
 >      "Tidal Tomb: the gate pocket's crossfire"). "LEAVING by the moongate at (x, y): ...; the easiest of 2 (...)" names
