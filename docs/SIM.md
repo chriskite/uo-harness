@@ -3026,10 +3026,10 @@ among its crowd"). Fix: level 2's command fights the leg (`--fight-via 6718 1984
 
   | runner | deaths | through to level 2 | kills | time (median) | lowest hits under 50 | damage on Logan |
   |---|---|---|---|---|---|---|
-  | walked (today's) | 23 | 1 | 3 | 7.9 s | 24 | 3,067 |
+  | walked (level 2 before 0f612e0: `-- --enter-via 6718 1984`, which drops the level's `--fight-via`) | 23 | 1 | 3 | 7.9 s | 24 | 3,067 |
   | walked, `LEAD_IN` True (the pets first) | 24 | 0 | 6 | 16.3 s | 24 | 3,296 |
   | walked, idle monsters block the dash too (a trial `dash_blocker`) | 23 | 1 | 59 | 32.5 s | 24 | 4,050 |
-  | **fought** (`-- --fight-via 6718 1984`, `--seconds 900`) | **3** | 21 | 119 | 136.6 s | 13 | 3,469 |
+  | **fought** (the level's own now, `--seconds 900`) | **3** | 21 | 119 | 136.6 s | 13 | 3,469 |
 
   The stand in the crowd (the dash blocked) dies as the dash does: all seven on him at once. The fought leg pulls them
   a few at a time (front, step-in, stand-off); its 3 deaths came 77-81 s in, "toward a target" walks into the crab and

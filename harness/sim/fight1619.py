@@ -15,6 +15,8 @@ grip with its war flag; the scavenger, 4-6 off, never), so here they wake only t
 "attacked 5 steps from it; through it now" at 54 hits, a potion to 85, the shove onto the teleporter denied at 22/25
 stamina, the dash's stand beside the bottomfeeder and the second manta: gripped, -13 -11 -28 -23 -11, dead 0.8 s after
 the grip, both pets dead after.
+The level 2 runner's ways are the scenario's (select_level), its --fight-via 6718 1984 since 2026-11-13: the walk before
+it is `-- --enter-via 6718 1984` (a given way in drops the level's --fight-via).
 SEEDS: "1-24" or "1,5,9" (default 1). A row per seed and a summary: deaths, through the teleporter (on level 2), the
 runs with the error, Logan's lowest hits, the damage on him by source.
 `--harness DIR`: run another checkout's harness (a before/after pair on the same script).
