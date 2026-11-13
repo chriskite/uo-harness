@@ -2287,6 +2287,13 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   the creature swings or casts at us. The notoriety comes in the mobile's first packet, the "(bonded)" line ~70 ms
   later, so the pet rule alone missed the landing's first check. Shared by every runner (threats.assess).
   test_threats `test_pets`.
+- *A trip ends at home before the daily cap* (2026-11-12, docs/NOTES.md "The daily cap closed the gate mid-leg and
+  stranded Dan"). `LumberLoop.check_gate` (shared by the lumber and mining runners) reads the gate's
+  `daily_remaining_s` each tick. At or below `CAP_MARGIN_S` (600 s of active time) it sets `cap_near`, and `ending` says
+  "daily cap near": the leg stops digging, no hop, home, smelt, store, and the run ends at home, as for a break. Logs
+  "daily cap near (N min of agent time left): ending the trip at home" and "daily cap near: … after trip N; the run
+  ends here, at home". The margin covers the leg's end, the recall pair and the store, ~2 min live. test_mining
+  `test_daily_cap_near`.
 - *A stand beyond the walking flood gets a route cap from its walking steps* (2026-11-04 23:17:57-23:19:51,
   mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
   tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round

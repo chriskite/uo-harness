@@ -144,6 +144,11 @@ import moongate  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
+# the agent gate's daily budget left (gate daily_remaining_s, active time) at or below which the trip winds down and
+# goes home like a break: the gate refuses every action at 0, the recall home too (live 2026-11-08 22:46:40,
+# mining-20261108-224015-2660: "recall home after the abort: action 0x06 refused: ERR daily agent budget exhausted",
+# Dan left at forge_2426_413). The leg's end, the recall pair and the store at home take ~2 min of active time
+CAP_MARGIN_S = 600.0
 # An Outlands faction waypost marker's click label (live: "FACTION WP 17" at witcher_66, 6 sightings;
 # "1Frozen Ruin Waypost", 17; wiki.uooutlands.com/Factions "Wayposts")
 WAYPOST = re.compile(r"Waypost$|^FACTION WP \d+$", re.IGNORECASE)
@@ -506,6 +511,7 @@ class LumberLoop:
     POUCHED = LOGS + BOARDS         # a pouch holding these is the live one (log_pouch)
     CARRIED = {"logs": LOGS, "boards": BOARDS}   # the theft event's and trip row's carried counts
     HOME_DONE = "boards stored"     # what a finished trip did at home (run's log lines)
+    cap_near = False                # the gate's daily budget is down to CAP_MARGIN_S (check_gate sets it)
 
     def __init__(self, link: Link, memory: Memory, know: dict, args, base: dict | None = None):
         self.link = link
@@ -703,6 +709,10 @@ class LumberLoop:
             left = gate.get("break_starts_in_s")
             log("break due" + (f" (it starts in {left:.0f} s)" if left is not None else "")
                 + ": ending the trip at home")
+        left = gate.get("daily_remaining_s")
+        if left is not None and left <= CAP_MARGIN_S and not self.cap_near:
+            self.cap_near = True
+            log(f"daily cap near ({left / 60:.0f} min of agent time left): ending the trip at home")
         if self.task_id and not self.finish_requested and time.monotonic() - self._finish_checked >= FINISH_CHECK_S:
             self._finish_checked = time.monotonic()
             if task_wrap.finish_requested(self.memory, self.task_id):
@@ -712,9 +722,11 @@ class LumberLoop:
     @property
     def ending(self) -> str | None:
         """Why this trip winds down early and the run ends at home after it: "break due" (the
-        agent gate) or "stop requested" (ctl stop --after-trip); None to carry on. Either way: stop
-        harvesting, home, convert, store, exit 0 (docs/LUMBER_LOOP.md §13)."""
-        return "break due" if self.break_due else "stop requested" if self.finish_requested else None
+        agent gate), "stop requested" (ctl stop --after-trip) or "daily cap near" (the gate's daily budget down to
+        CAP_MARGIN_S); None to carry on. Either way: stop harvesting, home, convert, store, exit 0
+        (docs/LUMBER_LOOP.md §13)."""
+        return ("break due" if self.break_due else "stop requested" if self.finish_requested
+                else "daily cap near" if self.cap_near else None)
 
     # ------------------------------------------------------------ watchful waits
     def look(self, st=None):
@@ -5275,6 +5287,10 @@ class LumberLoop:
             if self.finish_requested:
                 log(f"stop requested: {self.HOME_DONE} after trip {n}; the run ends here, at home")
                 self.doing("done", f"Stop requested: {self.HOME_DONE} after trip {n}; waiting at home")
+                return
+            if self.cap_near:
+                log(f"daily cap near: {self.HOME_DONE} after trip {n}; the run ends here, at home")
+                self.doing("done", f"Daily cap near: {self.HOME_DONE} after trip {n}; waiting at home")
                 return
             if hopped and n < self.args.trips:
                 # the trip moved on to other spots: the run's own trips no longer fit; the overseer plans afresh

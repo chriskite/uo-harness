@@ -574,7 +574,9 @@ Paste this (or point the session at this section) to start an overseer.
 > up to 2 carried from the house chest; with none carried and none in the chest it posts `low_supplies`
 > (item `pickaxe`) and makes no trip, and when the last one wears out mid-leg it posts the same `low_supplies` and the
 > leg aborts home ("no pickaxe worn, …"): tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
-> `task_done`: the leg ends at home in the house, the ingots into the stockpile.
+> `task_done`: the leg ends at home in the house, the ingots into the stockpile. **The daily cap** (since 2026-11-12):
+> with 10 min of the gate's daily budget left the run ends its trip at home by itself ("daily cap near …"), so a run
+> may be started late in the day; once it ends there, start no new one and end the shift.
 > **Every spot cooling down** (`ok: false`, `retry_in_min` set): each spot is kept out for 30 min after a threat
 > sent Dan home from it (a tracked red included), and 60 min after it ran dry, a leg there ended creature-blocked
 > (every stand left in a creature's reach; since 2026-11-07, `why_not` "creature-blocked N min ago") or ended with its

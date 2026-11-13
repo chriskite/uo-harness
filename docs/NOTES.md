@@ -5832,6 +5832,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     it spoke, so it is judged by that record. A line said after the prune, and a server delete (a GM going hidden),
     still count as not on screen. test_speech_guard `test_staff`. [INFERENCE] Two "All Kill" lines while she stood
     next to Dan look like an attempt to set her pets on him. The recall beat it; no hit was seen.
+  - **The daily cap closed the gate mid-leg and stranded Dan (live 2026-11-08 22:46:40, mining-20261108-224015-2660).**
+    The agent gate's 10 h budget ran out while Dan dug at forge_2426_413 ("stopping at once: agent gate closed (daily
+    agent budget exhausted (10 h); reopens at local midnight)"). The runner aborted and tried to recall home first, but
+    the gate refuses every action at 0, the recall included ("recall home after the abort: action 0x06 refused: ERR
+    daily agent budget exhausted"). The run ended in the field, carrying ore. Nothing ended a trip before the cap; the
+    Seers did it by hand with `stop --after-trip` (SeerOutlandDan14 flagged it on 2026-11-12). Fix: PLAN "A trip ends
+    at home before the daily cap".
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

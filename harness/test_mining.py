@@ -474,6 +474,26 @@ def field_loop(here=(1, 1, 0)):
     return loop
 
 
+def test_daily_cap_near():
+    print("the gate's daily budget nearly used: the trip ends at home like a break, no digging")
+    # live 2026-11-08 22:46:40 (mining-20261108-224015-2660): the budget ran out mid-leg, the gate refused the recall
+    # home ("action 0x06 refused: ERR daily agent budget exhausted") and Dan was left at forge_2426_413
+    import loop_lumber
+    loop = field_loop()
+    loop.task_id = None
+    loop.check_gate({"gate": {"daily_remaining_s": loop_lumber.CAP_MARGIN_S + 60}})
+    check("10+ min of budget left: carry on", loop.ending is None, loop.ending)
+    loop.check_gate({"gate": {}})
+    check("no budget figure: carry on", loop.ending is None, loop.ending)
+    loop.check_gate({"gate": {"daily_remaining_s": loop_lumber.CAP_MARGIN_S - 60}})
+    check("within CAP_MARGIN_S: the trip winds down", loop.ending == "daily cap near", loop.ending)
+    dug = []
+    loop.dig_stand = lambda stand, tally: dug.append(stand)
+    got = loop.harvest_trip()
+    check("... and the leg digs nothing (home, store, the run ends)", got == 0 and dug == [], (got, dug))
+    check("... with no hop after it", loop.ended_early() is None, loop.ended_early())
+
+
 def test_forge_unreachable():
     print("the field forge out of reach with a full pack: the leg ends and the ore goes home, no abort")
     import loop_mining
@@ -1041,7 +1061,8 @@ def main():
               test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
               test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
-              test_last_pickaxe_worn_out, test_stash_lift_refused, test_far_stand_scored_by_steps):
+              test_last_pickaxe_worn_out, test_stash_lift_refused, test_far_stand_scored_by_steps,
+              test_daily_cap_near):
         t()
     print()
     if FAILURES:
