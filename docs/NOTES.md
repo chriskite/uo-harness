@@ -5832,6 +5832,15 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     it spoke, so it is judged by that record. A line said after the prune, and a server delete (a GM going hidden),
     still count as not on screen. test_speech_guard `test_staff`. [INFERENCE] Two "All Kill" lines while she stood
     next to Dan look like an attempt to set her pets on him. The recall beat it; no hit was seen.
+  - **A false staff alarm on a player's Hike emote (live 2026-11-12 21:04:01, mining-20261112-210357-b8fc, capture
+    session_20261112_123328).** Zie (0x0028928B, blue, player flag) stood 16 tiles from Dan's house landing as a run
+    started. He used the Hike (Camping): "*hiking to destination*" in hue 946, every 2 s from 21:03:57. The server
+    deleted him (0x1D) at 21:04:02.7, 1 s after his last line, as the hike sent him away. At the runner's scan
+    (21:04:05) the line had no mobile behind it, so `speaker()` gave "not on screen", a staff hint. That hint beats the
+    shard-line rule, which would otherwise skip the emote. The result was `gm_suspected` 3207 and the staff alarm.
+    Replayed: the new code's `scan` holds nothing. Fix: the 2026-11-11 range/facet rule now covers a server delete too.
+    A speaker deleted at or after its line's time was in view when it spoke. One deleted before its line (a GM gone
+    hidden) still counts as not on screen. test_speech_guard `test_staff`.
   - **The daily cap closed the gate mid-leg and stranded Dan (live 2026-11-08 22:46:40, mining-20261108-224015-2660).**
     The agent gate's 10 h budget ran out while Dan dug at forge_2426_413 ("stopping at once: agent gate closed (daily
     agent budget exhausted (10 h); reopens at local midnight)"). The runner aborted and tried to recall home first, but

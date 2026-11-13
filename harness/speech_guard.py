@@ -159,11 +159,14 @@ def speaker(world: dict, ev: dict, t: float | None = None) -> dict | None:
     key = f"0x{s:08X}"
     mob = world["mobiles"].get(key)
     gone = (world.get("last_seen") or {}).get(key)
-    if (mob is None and gone is not None and t is not None and gone.get("why") in ("range", "facet")
+    if (mob is None and gone is not None and t is not None and gone.get("why") in ("range", "facet", "delete")
             and (gone.get("t") or 0) >= t):
-        # in view when it spoke: the client dropped it afterwards because we moved off (live 2026-11-11 22:31:07,
+        # in view when it spoke: the client dropped it afterwards, because we moved off (live 2026-11-11 22:31:07,
         # mining-20261111-222430-cd52: a player's "All Kill" during our recall away, pruned at the landing 1.5 s
-        # later, read as "not on screen" and so a staff hint that also beat the pet-command rule); judged as it was
+        # later, read as "not on screen" and so a staff hint that also beat the pet-command rule) or the server deleted
+        # it (live 2026-11-12 21:04:01, mining-20261112-210357-b8fc: a blue player's Hike emote "*hiking to
+        # destination*" by Dan's house, deleted 1 s later as the hike sent him away; a staff alarm). Judged as it was:
+        # one deleted before its line (a GM gone hidden) still counts as not on screen
         mob = gone
     label = (world.get("labels") or {}).get(key)
     info = {"serial": key, "name": ev.get("name") or None, "label": label, "text": text,
@@ -177,7 +180,7 @@ def speaker(world: dict, ev: dict, t: float | None = None) -> dict | None:
         # one the client had and dropped since (world last_seen: left the view, deleted, died) is judged as it was
         # (live 2026-11-10 20:12:39, mining-20261110-200529-985e: the Time Quest Hub NPC "Lazric of Grere's Fighters"
         # spoke in view, the server deleted him 25 s later and the runner's scan 6 s after that raised the staff
-        # alarm); a character seen before still counts as not on screen (a GM going hidden is deleted from view)
+        # alarm); a character seen before still counts as not on screen (a GM gone hidden is deleted from view)
         if gone is not None and not is_character(gone, label):
             return None
         info["evidence"] = ["not on screen (hidden or out of view)"]

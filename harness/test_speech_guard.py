@@ -190,6 +190,19 @@ def test_staff():
     check("... pruned before the line was said: still not on screen",
           staff_hints(speaker(goon, said(0x00007ECA, "hi", name="Glitter Goon"), 1010.0))
           == ["not on screen (hidden or out of view)"])
+    # live 2026-11-12 21:04:01 (mining-20261112-210357-b8fc): Zie, a blue player 16 tiles from Dan's house, used the
+    # Hike ("*hiking to destination*" in hue 946 every 2 s), and the server deleted him 1 s after the last line
+    zie = {**w, "mobiles": {}, "labels": {"0x0028928B": "Zie"},
+           "last_seen": {"0x0028928B": {"graphic": 0x190, "notoriety": 1, "flags": 0x20, "name": "Zie",
+                                        "why": "delete", "facet": 0, "t": 1042.7}}}
+    g = SpeechGuard(now=lambda: 1046.0)
+    g.scan(zie, [], [])
+    hike = {**said(0x0028928B, "*hiking to destination*", name="Zie", hue=946), "body": 0x190}
+    check("a player's Hike emote, then deleted by the server as the hike sent him away: in view when said, a shard "
+          "line, no hold", g.scan(zie, [hike], [1041.7]) == [])
+    check("... deleted before a line he said (a GM gone hidden): still not on screen",
+          staff_hints(speaker(zie, said(0x0028928B, "hi", name="Zie"), 1043.0))
+          == ["not on screen (hidden or out of view)"])
     os.environ[alerts.QUIET_ENV] = "1"
     m = Memory(os.path.join(tempfile.mkdtemp(), "harness.db"))
     check("nothing open: no alarm", alerts.staff_alarm_due(m, now=1000.0) is False)

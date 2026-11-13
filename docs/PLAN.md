@@ -2281,7 +2281,9 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   stays "not on screen", a staff hint. A GM going hidden is deleted from view, so the character case keeps the alarm.
   test_speech_guard `test_staff`. Since 2026-11-11 (docs/NOTES.md "A false staff alarm on a pet command said during our
   recall"), a speaker pruned for range (or facet) at or after its line's time, because we moved or recalled off, was
-  in view when it spoke and is judged by its record, not as "not on screen".
+  in view when it spoke and is judged by its record, not as "not on screen". Since 2026-11-12 (docs/NOTES.md "A false
+  staff alarm on a player's Hike emote") the same holds for a server delete after the line. A speaker deleted before
+  its line (a GM gone hidden) still counts as not on screen.
 - *A green creature is an ally's pet, never aggressive by itself* (2026-11-10, docs/NOTES.md "Escapes from a
   guildmate's pets at the guild-house landing"). `threats._aggressive` returns not aggressive for notoriety 2 unless
   the creature swings or casts at us. The notoriety comes in the mobile's first packet, the "(bonded)" line ~70 ms
