@@ -4031,6 +4031,17 @@ Tomb: dead at the teleporter down among its crowd"); the third death there.
 - *Rejected*: idle monsters blocking the dash (a stand in the crowd: 23 of 24 dead), `LEAD_IN` (24 of 24): both still
   meet the crowd at once.
 
+## The pets back on guard before anything else after a resurrection (Logan dead on Tidal Tomb level 2, live 2026-11-13 18:26)
+
+Live hunt-20261113-164941-3212: Clicquot raised at 18:26:14 while the pets were on the ghost's 'All Follow Me'; 'All
+Guard Me' waited in Team.care behind stand-offs, a potion, the step off the tank and a vet channel for 10 s, the pets
+glued to Logan in an astral zoa's and a razorfin's area hits; dead with both pets (docs/NOTES.md "Tidal Tomb level 2:
+dead with the pets on follow after a resurrection").
+
+- *Decided*: `Team.unfollow` first in the fight tick (combat_step, care_step): no ghost left and the last command the
+  ghost's 'All Follow Me', 'All Guard Me' at once, past GUARD_REPEAT_S. One command, ~no time; every other step after it.
+- *Rejected*: moving the guard up inside Team.care only (the stand-off comes before care in combat_step).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

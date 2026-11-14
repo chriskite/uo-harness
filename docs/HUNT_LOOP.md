@@ -877,7 +877,13 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
      Logan had begun finished 2.0 s later with "You are able to resurrect your follower.", 31 % hits,
      no gump; knowledge #11547: 80 Veterinary). At its death: "All Follow Me" (the ghost follows), the
      vet supplies for a ghost within `--vet-range`, a walk to one beyond it, no crawl walk meanwhile;
-     back alive: "All Guard Me".
+     back alive: "All Guard Me" **at once, before any step** (`Team.unfollow`, first in `combat_step` and
+     `care_step` after the weapon, since 2026-11-13: "no pet's ghost left to follow us: 'All Guard Me' before
+     anything else"). On follow the pets neither fight nor keep off us, so every stand-off, step off the tank or
+     walk to a hurt pet brings them beside us into the area hits of what fights them. Live 18:26:14-24
+     (hunt-20261113-164941-3212, Tidal Tomb level 2) the guard waited in care behind six such acts, the pets 1 off
+     Logan, an astral zoa's volley and backlash and a razorfin's bleed on all three: dead with both pets (docs/NOTES.md
+     "Tidal Tomb level 2: dead with the pets on follow after a resurrection"). test_sim `test_unfollow_after_res`.
 8. **Kills**: the engaged target, and any mob the pets fought (in war mode next to a pet that was
    hurt, or engaged) that dies within 60 s; their corpses are looted like the mage's. A target that
    leaves the view alive (0x1D without the 0xAF of a death) is no kill: a shade wolf's stealth

@@ -5302,6 +5302,8 @@ class HuntLoop:
         min, test_sim `test_armor`'s run): with the whole combat_step a held time-up leave took up the apparition the
         crawl had passed over, and Logan died in 6 s; the leave as before walked out alive."""
         me = st["world"]["self"]
+        if self.team.unfollow(st):
+            return True
         if not self.team.potion_first(st) and self.team.stand_off(st):
             return True
         if self.cure(st):
@@ -5312,7 +5314,8 @@ class HuntLoop:
         return self.team.care(st)
 
     def combat_step(self, st, attackers, winding: bool) -> bool:
-        """The tick's fighting, in its order: the weapon back in hand, out of an area hit, a cure, a heal, the pets' care,
+        """The tick's fighting, in its order: the weapon back in hand, the pets off a ghost's 'All Follow Me' (unfollow),
+        out of an area hit, a cure, a heal, the pets' care,
         unstuck, an eerie corpse, the loot, the pets on 'All Patrol', the step-in's hold, a target and its fight, then
         (nothing to fight) the step-in or back-off from a shy monster's first sight, 'All Patrol' at one, the hold for one
         that sees us. True when it did something (one decision). Shared by the tick and a fought leg of the walk in
@@ -5320,6 +5323,8 @@ class HuntLoop:
         me = st["world"]["self"]
         if self.rearm(st):
             return True
+        if self.team is not None and self.team.unfollow(st):
+            return True                   # before any step: on follow the pets come into the area hits with us
         if self.team is not None and not self.team.potion_first(st) and self.team.stand_off(st):
             return True                   # out of an area hit first, unless a potion is ready: it goes at once
         if self.cure(st):

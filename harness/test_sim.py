@@ -569,6 +569,51 @@ def test_pet_res():
           f"follow {said} ghost {gb.ghost} hits {gb.hits:.0f} leaves {[l for l in leaves if l][:2]}")
 
 
+def test_unfollow_after_res():
+    print("== a pet raised from its ghost: 'All Guard Me' within a tick of it, before any step or vet channel ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    from sim import run as simrun
+    # live 2026-11-13 18:26:14-24 (Tidal Tomb level 2): after Clicquot's res the pets stayed on the ghost's 'All Follow
+    # Me' through a stand-off, a potion, two steps and a vet channel, glued to Logan in an astral zoa's and a razorfin's
+    # area hits, dead with both pets (docs/NOTES.md "Tidal Tomb level 2: dead with the pets on follow after a
+    # resurrection"). Here the raised pet is hurt, so the vet channel came first and 'All Guard Me' only after it.
+    w = world_with([], seed=7)
+    gb = next(p for p in w.pets() if p.name == "GraveRobber")
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    store = memory.Memory(db)
+    guards, follows, raised = None, 0, False
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            loop.team.setup(loop.state())
+            loop.team.guard_needed, loop.team.guard_t = False, loop_hunt.time.monotonic()   # guarding, as live
+            mark = w.metrics["follow_commands"]
+            w.die(gb, None)
+            for _ in range(60):
+                clock.advance(0.5)
+                st = loop.state()
+                loop.combat_step(st, loop.attackers(st), False)
+                if not gb.ghost:
+                    raised = True
+                    break
+            follows = w.metrics["follow_commands"] - mark
+            clock.advance(0.5)                    # the raise seen in the tick that saw it, or the next
+            st = loop.state()
+            loop.combat_step(st, loop.attackers(st), False)
+            guards = w.metrics["guard_commands"]
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("the ghost followed and was raised; 'All Guard Me' within a tick of it",
+          follows >= 1 and raised and guards == 1, f"follow {follows} raised {raised} 'All Guard Me' by then {guards}")
+
+
 def test_retreat_sight():
     print("== backing off: to a tile no idle monster sees; an apparition: stand off it and its pet ==")
     import tempfile
@@ -9214,7 +9259,7 @@ def main():
         return 0
     for t in (test_clock, test_geometry, test_shove, test_aggro, test_aggro_rules, test_shy_wake, test_bard_and_vet, test_specials,
               test_hunt,
-              test_standoff, test_fire, test_pet_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
+              test_standoff, test_fire, test_pet_res, test_unfollow_after_res, test_retreat_sight, test_spacing, test_no_spacing_after_fight,
               test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_out_of_boss_room, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_leave_pet_out_of_view, test_gate_dash,

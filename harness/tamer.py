@@ -914,6 +914,8 @@ class Team:
         self.dead_since = {}             # pet serial -> monotonic time its ghost was first seen
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
+        self.on_follow = False           # our last pet command was "All Follow Me" (say)
+        self.ghost_followed = False      # ...said for a ghost (ghost_follow): unfollow once none is left
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
         self.backspawn_pending = []      # [(spot, kind, facet)] collected, not yet within BACKSPAWN_SEED_R
         self.spot_dead = {}              # (x, y) of a STEALTH_CLOSED spawn spot -> monotonic end of its respawn (spot_live)
@@ -1341,6 +1343,7 @@ class Team:
         self.h.human.wait("hotkey")       # a Razor "Say" hotkey (humanize SCRIPT_MEDIAN)
         self.h.link.act(command(text))
         self.count("commands")
+        self.on_follow = text.lower() == "all follow me"
         log(f'said "{COMMANDS[text.lower()]}"')
         return True
 
@@ -1725,7 +1728,30 @@ class Team:
 
     def ghost_follow(self) -> bool:
         self.follow_needed = False
+        self.ghost_followed = True
         return self.say("all follow me")
+
+    def unfollow(self, st) -> bool:
+        """The pets still on ghost_follow's 'All Follow Me' with no ghost left (resurrected, or its body gone): 'All
+        Guard Me' at once, ahead of the stand-off and every other step (HuntLoop.combat_step, care_step). On follow they
+        neither fight nor keep off us: each step we take brings them beside us, into the area hits of what fights them.
+        Live 2026-11-13 18:26:09-24 (hunt-20261113-164941-3212, Tidal Tomb level 2): Clicquot raised at 18:26:14, then
+        a stand-off, a potion, the step off the tank, a stand-off, a vet channel and a step shallower, with 'All Guard Me'
+        behind them in care; the pets glued 1 off Logan the whole 10 s, an astral zoa's volley and backlash and a
+        razorfin's bleed on all three at once, 100 -> 0 and both pets dead (docs/NOTES.md "Tidal Tomb level 2: dead with
+        the pets on follow after a resurrection")."""
+        if not self.ghost_followed:
+            return False
+        self.update(st)
+        if not self.on_follow:
+            self.ghost_followed = False   # another command came since (guard, kill, patrol)
+            return False
+        if self.dead_since:
+            return False
+        self.ghost_followed = False
+        log("no pet's ghost left to follow us: 'All Guard Me' before anything else")
+        self.guard_t = -1e9
+        return self.guard()
 
     # ------------------------------------------------------------ aggro (aggro.py)
     def view(self, st) -> aggro.View:

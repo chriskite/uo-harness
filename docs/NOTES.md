@@ -9877,6 +9877,31 @@ of afe137f. Visits 1-4 clean (23 kills on visit 4, 43,871 gp home at 16:18). The
   the crowd dies as the dash does. Level 2 batches 96 runs: runs with a death 4 -> 2, banked/h equal (docs/SIM.md
   "Tidal Tomb: the crowd at the teleporter down").
 
+## Tidal Tomb level 2: dead with the pets on follow after a resurrection (live 2026-11-13 18:26:24, hunt-20261113-164941-3212)
+
+Level 2 shift (SeerLoganWolf4), pets Clicquot and Borealish, the fought walk in (cd5f193) working: every crossing of
+level 1 "fought through" and on. Visit 6, 12 kills, in the gate pocket round (6920-6926, 2049-2062). Capture
+20261113_151733 replayed:
+- **18:25:39** 'All Guard Me' at an astral zoa (6923, 2043) the pets were on, a soulcatcher and a passed-over razorfin by
+  it. Stand-offs, vet channels and a dip until **18:26:09** "Clicquot is dead: its ghost follows us", 'All Follow Me'.
+- **18:26:13.85** the channel's finish: "You are able to resurrect your follower.", Clicquot +152 (26 %). From then to the
+  death no pet command: "stand-off to (6921, 2061)", "heal potion: 53 -> 93", "keeping off the tank", "stand-off to
+  (6920, 2058)", "vet supplies: Clicquot at 11%", "shallower in an area hit's reach". The pets stayed 1 off Logan on
+  every step (no war flag), the razorfin 2-4 off them in war mode, the zoa 6-11 off (2-8 % hits).
+- **15.39** -47 Logan, -44, -54 the pets at once (the zoa's volley on a pet, Logan within 3 of it); **18.18** "Razor-sharp
+  fins cause you to bleed!" -21, -63, -65; **19.43** "Astral backlash impacts your ability to concentrate while
+  casting!" -56, -89, -90: 93 -> 17; **21.19** -11 (the bleed); "LEAVING by the moongate: hits 6/100 below 50%" at
+  18:26:22 (heal_coming held it at 17); -8 at 24.27, dead; both pets dead 0.1-0.4 s after.
+- **Cause**: the resurrection's 'All Guard Me' (guard_needed) is in Team.care after the stand-off (combat_step's first
+  step), the heal, the step off the tank and the vet channel; one of those took every tick for 10 s, and on 'All Follow
+  Me' the pets neither fought nor kept off Logan. In all hunt logs: 27 resurrections, the guard 0-13 s after (median
+  3 s), this one never.
+- **Fix** (`Team.unfollow`, first in combat_step and care_step after the weapon): the pets still on the ghost's 'All
+  Follow Me' with no ghost left: "no pet's ghost left to follow us: 'All Guard Me' before anything else". test_sim
+  `test_unfollow_after_res` (fails before). Level 2, 96 runs a side on the same prior: runs with a death 2 -> 2, pet
+  deaths 1 -> 1, damage on Logan 473 -> 464 an hour, banked/h 175.4k -> 175.3k: one pet death in the batch, so it
+  seldom fires there [INFERENCE: the simulator's pets on Clicquot and Borealish's numbers die less than live ones].
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
