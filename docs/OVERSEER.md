@@ -572,8 +572,9 @@ Paste this (or point the session at this section) to start an overseer.
 > line), so its spots take another landing, and tell the user; disable a spot (`ctl mining spot set <id> --status
 > disabled --reason …`) only when its monsters are at the spot itself. Pickaxes wear out (live: one after ~500–1000 digs). Before each trip at home the runner tops
 > up to 2 carried from the house chest; with none carried and none in the chest it posts `low_supplies`
-> (item `pickaxe`) and makes no trip, and when the last one wears out mid-leg it posts the same `low_supplies` and the
-> leg aborts home ("no pickaxe worn, …"): tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
+> (item `pickaxe`) and makes no trip. When the last one wears out mid-leg the leg ends ("the last pickaxe wore out …") and
+> the hop home takes more from the chest (since 2026-11-14); only with none there either does it post the same
+> `low_supplies` and end the trip at home: tell the user. **Ending a mining shift:** `ctl stop --after-trip` and wait for its
 > `task_done`: the leg ends at home in the house, the ingots into the stockpile. **The daily cap** (since 2026-11-12):
 > with 10 min of the gate's daily budget left the run ends its trip at home by itself ("daily cap near …"), so a run
 > may be started late in the day; once it ends there, start no new one and end the shift.

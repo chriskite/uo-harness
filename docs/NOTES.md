@@ -5848,6 +5848,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     daily agent budget exhausted"). The run ended in the field, carrying ore. Nothing ended a trip before the cap; the
     Seers did it by hand with `stop --after-trip` (SeerOutlandDan14 flagged it on 2026-11-12). Fix: PLAN "A trip ends
     at home before the daily cap".
+  - **Both pickaxes wore out in one trip with more in the house chest (live 2026-11-14 00:51:41-00:59:07,
+    mining-20261114-004130-004b).** The trip started with 2 pickaxes carried, so the start's top-up took none. One wore
+    out at 00:51:41 at forge_3537_1948. The hop home at 00:55:00 ("the area ran dry at 583 ore") took none from the
+    chest, because the top-up ran only at a trip's start. The last one wore out at 00:59:07 at forge_1951_1523, and the
+    leg aborted home with `low_supplies` ("no pickaxe worn, in the backpack or in a bag in it"). The Seer read that as
+    "none in the chest" and held the shift for the user, who found pickaxes in the chest already. Fix: PLAN "The last
+    pickaxe wearing out ends the leg; a hop tops up".
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

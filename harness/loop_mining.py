@@ -55,9 +55,10 @@ import stationary  # noqa: E402
 import stockpile as stockpile_mod  # noqa: E402
 
 PICKAXES = (0x0E85, 0x0E86)
-# Pickaxes a trip starts with, topped up from the house chest (hatchets_ready). Live 2026-10-20 each wore out in the
-# hand mid-leg: 0x4C982C26 after ~530 digs (11:20:45), 0x4D057279 after ~1000 (12:18:24); with none left the leg
-# aborted home
+# Pickaxes a trip starts with, topped up from the house chest (hatchets_ready) and again at home before a hop (try_hop).
+# Live 2026-10-20 each wore out in the hand mid-leg: 0x4C982C26 after ~530 digs (11:20:45), 0x4D057279 after ~1000
+# (12:18:24); live 2026-11-14 00:51:41 and 00:59:07 (mining-20261114-004130-004b) both of a trip's two wore out within
+# ~1400 ore while the house chest held more
 PICKAXES_CARRY = 2
 ORE = (0x19B7, 0x19B8, 0x19B9, 0x19BA)
 INGOTS = (0x1BF2,)
@@ -136,6 +137,11 @@ def add_to(stats: dict, key: str, counts: dict):
         tot[k] = tot.get(k, 0) + n
 
 
+class PickaxesOut(Exception):
+    """The last pickaxe carried wore out mid-leg (pickaxe_in_hand): the leg ends early, and a hop home takes more from
+    the house chest (try_hop)."""
+
+
 class MineLoop(loop_lumber.LumberLoop):
     JOB = "mining"
     SKILL = "Mining"
@@ -191,15 +197,18 @@ class MineLoop(loop_lumber.LumberLoop):
                                            "how": "put pickaxes into the house chest, or a provisioner sells a "
                                                   "Pickaxe (25 gp): ctl act buy <provisioner serial> pickaxe"})
 
+    def pickaxes_topped_up(self) -> list:
+        """At home: PICKAXES_CARRY pickaxes worn or carried, the house chest's taken when short
+        (pickaxes_from_chest). Returns the serials taken; the caller counts what we carry."""
+        n = len(self.pickaxes(self.state()))
+        return self.pickaxes_from_chest(PICKAXES_CARRY - n) if n < PICKAXES_CARRY else []
+
     def hatchets_ready(self, at_home: bool):
         """Before a trip: PICKAXES_CARRY pickaxes worn or carried. Short and at home, the house
-        chest's pickaxes come into the pack (pickaxes_from_chest). None at all: a `low_supplies` juncture and
+        chest's pickaxes come into the pack (pickaxes_topped_up). None at all: a `low_supplies` juncture and
         no trip. The trip row's `pickaxes`."""
+        taken = self.pickaxes_topped_up() if at_home else []
         n = len(self.pickaxes(self.state()))
-        taken = []
-        if n < PICKAXES_CARRY and at_home:
-            taken = self.pickaxes_from_chest(PICKAXES_CARRY - n)
-            n = len(self.pickaxes(self.state()))
         if n == 0:
             self.no_pickaxe("No pickaxe carried or in the house chest: no trip")
             raise Abort("no pickaxe carried or in the house chest: no trip")
@@ -264,15 +273,16 @@ class MineLoop(loop_lumber.LumberLoop):
     def pickaxe_in_hand(self, st) -> int:
         """The pickaxe in hand; a packed one is double-clicked into the hand first (the server
         equips it, live 20261019_200350), the bags on the way opened like a player. None left (the last one wore out
-        mid-leg): the `low_supplies` juncture, as at a trip's start (live 2026-11-05 14:19, mining-20261105-133044-ff72:
-        both pickaxes wore out after ~2200 ore and the run aborted with none), then Abort."""
+        mid-leg): PickaxesOut, the leg ends and a hop home takes more from the house chest (try_hop); with none there
+        either, the `low_supplies` juncture (live 2026-11-05 14:19, mining-20261105-133044-ff72, and 2026-11-14 00:59:07,
+        mining-20261114-004130-004b: the run aborted "no pickaxe worn …" with pickaxes in the house chest)."""
         me = self.self_serial(st)
         for key, it in st["world"]["items"].items():
             if it.get("graphic") in PICKAXES and it.get("container") is not None \
                     and serial_of(it["container"]) == me and it.get("layer") in (None, LAYER_ONE_HANDED):
                 return serial_of(key)
         if not self.pickaxes(st):
-            self.no_pickaxe("The last pickaxe wore out: the leg ends, no new trip without more")
+            raise PickaxesOut("the last pickaxe wore out")
         p = self.hatchet(st)
         log(f"pickaxe 0x{p:08X} isn't in hand: equipping it")
         closed = containers_to_open(st["world"], p)
@@ -417,6 +427,8 @@ class MineLoop(loop_lumber.LumberLoop):
             return f"every stand left was within a creature's reach at {ore} ore"
         if self.stats.get("unworkable"):
             return f"the spot is unworkable ({self.stats['unworkable']})"
+        if self.stats.get("pickaxes_out"):
+            return f"the last pickaxe wore out at {ore} ore"
         return None
 
     def unworkable(self):
@@ -453,6 +465,16 @@ class MineLoop(loop_lumber.LumberLoop):
             log(f"no hop ({reason}): {why_not}")
             return None
         self.settle_at_home()
+        taken = self.pickaxes_topped_up()
+        if taken:
+            log(f"pickaxes: {len(taken)} from the house chest before going on ({', '.join(taken)})")
+        if not self.pickaxes(self.link.state()):
+            why_not = "no pickaxe carried or in the house chest"
+            self.no_pickaxe("No pickaxe carried or in the house chest: no hop, the trip ends at home")
+            self.memory.job_event(self.JOB, "hop", {"trip": self.trip_n, "from": here, "reason": reason,
+                                                    "why_not": why_not}, **self._where(st))
+            log(f"no hop ({reason}): {why_not}")
+            return None
         mode, self.mode = self.mode, "salvage"
         try:
             st = self.link.state()
@@ -999,6 +1021,10 @@ class MineLoop(loop_lumber.LumberLoop):
                     self.escape(e)
                 except KeepAway as e:
                     self.keep_away(e)
+                except PickaxesOut as e:
+                    self.stats["pickaxes_out"] = True
+                    log(f"{e}: ending the leg at {tally['ore']} ore (more from the house chest on the way)")
+                    break
             # leaving the spot, a break or stop request too; with a home forge the ore is smelted at home
             if self.home_forge is None and unreachable is None and self.smeltable_ore(self.state()) > 0:
                 try:

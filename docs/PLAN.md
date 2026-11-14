@@ -2296,6 +2296,13 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   "daily cap near (N min of agent time left): ending the trip at home" and "daily cap near: … after trip N; the run
   ends here, at home". The margin covers the leg's end, the recall pair and the store, ~2 min live. test_mining
   `test_daily_cap_near`.
+- *The last pickaxe wearing out ends the leg; a hop tops up* (2026-11-14, docs/NOTES.md "Both pickaxes wore out in one
+  trip with more in the house chest"). `pickaxe_in_hand` raises `PickaxesOut` when none is worn or carried, and
+  `harvest_trip` ends the leg there (stats `pickaxes_out`; `ended_early` "the last pickaxe wore out at N ore"). The
+  hop's way home (`try_hop`) tops up to `PICKAXES_CARRY` from the house chest (`pickaxes_topped_up`, shared with the
+  trip start) before planning, logging "pickaxes: N from the house chest before going on (…)". Only with none carried
+  and none in the chest does it post `low_supplies` (item pickaxe), with no hop, and the trip end at home storing.
+  test_mining `test_last_pickaxe_worn_out`.
 - *A stand beyond the walking flood gets a route cap from its walking steps* (2026-11-04 23:17:57-23:19:51,
   mining-20261104-231210-dd9f at forge_2551_665, a multi-level ruin: once the near stands were dug out, stands 81-83
   tiles off, past `STAND_FLOOD` (80), had no cap; their routes ran 424-623 steps round creatures, two walks went round

@@ -759,23 +759,51 @@ def test_far_stand_scored_by_steps():
 
 
 def test_last_pickaxe_worn_out():
-    print("the last pickaxe wears out mid-leg: a low_supplies juncture (item pickaxe), then the abort")
-    # live 2026-11-05 14:19 (mining-20261105-133044-ff72): both pickaxes wore out after ~2200 ore; the run aborted
-    # "no pickaxe worn, in the backpack or in a bag in it" with no low_supplies, the juncture the Seer acts on
-    from agent_link import Abort
-    posted = []
+    print("the last pickaxe wears out mid-leg: the leg ends early (a hop home takes more from the house chest); none "
+          "there either: low_supplies and no hop")
+    # live 2026-11-05 14:19 (mining-20261105-133044-ff72) and 2026-11-14 00:59:07 (mining-20261114-004130-004b): both
+    # pickaxes wore out mid-leg and the run aborted "no pickaxe worn, in the backpack or in a bag in it", the second
+    # time with more pickaxes in the house chest
+    import loop_mining
     loop = object.__new__(MineLoop)
-    loop.JOB, loop.trip_n = "mining", 1
     loop.self_serial = lambda st: 0x14683F
     loop.pickaxes = lambda st: []
-    loop.memory = SimpleNamespace(juncture=lambda job, kind, summary, sev, data: posted.append((kind, data["item"])))
     try:
         loop.pickaxe_in_hand({"world": {"items": {}}})
         out = None
-    except Abort as e:
+    except loop_mining.PickaxesOut as e:
         out = str(e)
-    check("low_supplies for the pickaxe, then Abort", posted == [("low_supplies", "pickaxe")]
-          and out == "no pickaxe worn, in the backpack or in a bag in it", (posted, out))
+    check("none left in hand or pack: PickaxesOut", out == "the last pickaxe wore out", out)
+    saved = loop_mining.log
+    loop_mining.log = lambda s: None
+    try:
+        leg = field_loop()
+        leg.next_stand = lambda stands: stands[0]
+        leg.dig_stand = lambda stand, tally: (_ for _ in ()).throw(loop_mining.PickaxesOut("the last pickaxe wore out"))
+        got = leg.harvest_trip()
+    finally:
+        loop_mining.log = saved
+    check("the leg ends early, no abort, and asks for a hop", got == 0 and leg.ended_early()
+          == "the last pickaxe wore out at 0 ore", (got, leg.ended_early()))
+    posted, events = [], []
+    hop = object.__new__(MineLoop)
+    hop.JOB, hop.trip_n, hop.k = "mining", 1, {"spot": {"id": "forge_3537_1948"}}
+    hop.link = SimpleNamespace(state=lambda: {})
+    hop.hop_blocked = lambda st: None
+    hop.settle_at_home = lambda: None
+    hop._where = lambda st: {}
+    hop.memory = SimpleNamespace(juncture=lambda job, kind, summary, sev, data: posted.append((kind, data["item"])),
+                                 job_event=lambda job, kind, data, **kw: events.append(data.get("why_not")))
+    hop.pickaxes_topped_up = lambda: []
+    hop.pickaxes = lambda st: []
+    loop_mining.log = lambda s: None
+    try:
+        none = hop.try_hop("the last pickaxe wore out at 0 ore", None, recall=False)
+    finally:
+        loop_mining.log = saved
+    check("home with none carried and none in the chest: low_supplies (pickaxe), no hop",
+          none is None and posted == [("low_supplies", "pickaxe")]
+          and events == ["no pickaxe carried or in the house chest"], (none, posted, events))
 
 
 def test_teleported_away():
