@@ -1201,6 +1201,14 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   or at once if something attacks us ("after 'All Follow Me': the pets with us; 'All Guard Me' due"). Live
   21:40:56-21:41:30 the patrol, the reposition out of the daemon's reach and the walk back went round seven times in 45 s.
   Simulator (120 runs): repeat walks back 618 -> 175, no deaths added.
+  **Pets locked on a monster a floor above or below them** (since 2026-11-15, docs/NOTES.md "The Ossuary: the third
+  live shift"). A pet in war mode within 2 of a war-mode monster is fighting it only on its floor (`HuntLoop.pet_reaches`:
+  the map surfaces under the pet and the monster within `FLOOR_Z_TOL` 10). On a wall top 20 above a black cat, the
+  pets struck nothing for 6.5 min while "SlipAndSlide is fighting" held the patrol. `Team.unlock`, in the care step
+  after the guard: a pet locked on such monsters only, on one tile for 8 s (`LOCKED_S`), gets "All Follow Me" ("<pet> at
+  (x, y, z) stands locked on <monster> at (x, y, z), a floor below it, for N s: 'All Follow Me'"). "All Guard Me"
+  after any "All Follow Me" now waits until the pets are within 3 **and on our floor** (`Team.on_our_floor`), or 10 s.
+  test_sim `test_pets_locked_off_floor` (fails before).
   **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
   fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
   near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they

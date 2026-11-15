@@ -3241,6 +3241,25 @@ The simulated Ossuary team (AlaFlambe and Bussin) rarely gets hurt enough for th
 off, LayMore (body 293), isn't modelled. "not going back in: <pet> is not with us" ended 11 -> 12 Ossuary runs and
 8 -> 11 Maus 3 runs.
 
+### Pets locked on a monster a floor below them (2026-11-15)
+
+The live stall and its fix are in docs/NOTES.md "The Ossuary: the third live shift" and docs/HUNT_LOOP.md "Pets locked on a
+monster a floor above or below them". test_sim `test_pets_locked_off_floor` replays the layout on the Ossuary's map: the
+pets on the wall top (5627, 1284, 0), a black cat at (5627, 1283, -20), the pets held in war mode until a command.
+Before the fix: no 'All Follow Me' in 60 s, the pets still on the wall top, and Logan held. After: 'All Follow Me' 9 s in,
+then the pets walk down the ramp and follow the patrol.
+The batch: base 5462e61 (a worktree) against the change, run at once, the live store as `--prior`, `--scenario ossuary
+--runs 16 --team phoenix_incubus --area 5581 1225 5689 1363 -- --vet-range 5 --crawl-learn-s 180 --enter-via 1205 2816
+--enter-via 5786 1327 --leave-gate 5672 1277`:
+
+| | runs | runs with a death | runs with a pet death | kills / h | banked / game h | runs with a pet left behind |
+|---|---|---|---|---|---|---|
+| level 2, base | 16 | 0 | 1 | 179.6 | 96,552 | 8 |
+| level 2, change | 16 | 0 | 1 | 180.6 | 96,106 | 9 |
+
+13 of the 16 seeds gave the same numbers on both sides. The simulator has no pet that walks onto a ledge by itself, so
+the batch only shows the change costs nothing elsewhere.
+
 ### Level 2 walked whole by the runner (2026-11-07)
 
 User 2026-11-07: "Last night the hunt runner did several runs of Ossuary 2. Use the session captures to flesh out Oss

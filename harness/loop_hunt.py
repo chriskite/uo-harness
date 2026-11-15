@@ -778,33 +778,64 @@ class HuntLoop:
 
     def pets_busy(self, st) -> str | None:
         """A live pet fighting: a monster on a pet (Team.pet_attackers: in war mode beside a pet hurt lately),
-        or a pet in war mode within PET_BUSY_R of a monster in war mode, not one on another player or his pets
-        (Team.elsewhere) that no pet of ours swings at: live 2026-10-24 19:01:21-19:02:07 "GraveRobber is fighting"
-        stopped the patrol beside a purger on Gix's boreal faerie wyrm, nine times; guarding pets keep war mode on.
-        Not one on a ledge or floor the pets can't reach (on_our_floor): live 2026-10-19 19:34-19:35 an insane
-        reanimator at z 30 hit GraveRobber at z 5 below it."""
+        or a pet in war mode within PET_BUSY_R of a monster in war mode (war_foes) on the pet's floor (pet_reaches),
+        not one on another player or his pets (Team.elsewhere) that no pet of ours swings at: live 2026-10-24
+        19:01:21-19:02:07 "GraveRobber is fighting" stopped the patrol beside a purger on Gix's boreal faerie wyrm,
+        nine times; guarding pets keep war mode on. Not one on a ledge or floor the pets can't reach (on_our_floor):
+        live 2026-10-19 19:34-19:35 an insane reanimator at z 30 hit GraveRobber at z 5 below it. A pet a floor above
+        or below the monster isn't fighting it (pets_locked): live 2026-11-15 14:19:29-14:26 (hunt-20261115-131045-6072,
+        Ossuary level 2) the three pets stood on a wall top at (5627, 1284, 0), 1 tile and 20 z off a black cat at
+        (5627, 1283, -20), war mode on, no hit either way; "SlipAndSlide is fighting" held the patrol 6.5 min."""
         if self.team is None:
             return None
-        world = st["world"]
 
         def reach(s) -> bool:
-            m = world["mobiles"].get(f"0x{s:08X}")
+            m = st["world"]["mobiles"].get(f"0x{s:08X}")
             return m is not None and m.get("x") is not None and self.on_our_floor(st, s, m)
         if any(reach(s) for s in self.team.pet_attackers(st)):
             return "the pets are fighting"
+        foes = self.war_foes(st)
+        for p in self.team.pets(st):
+            if not p["dead"] and p["war"] and any(cheb((p["x"], p["y"]), (m["x"], m["y"])) <= PET_BUSY_R
+                                                  and self.pet_reaches(st, p, m) for m in foes):
+                return f"{p['name']} is fighting"
+        return None
+
+    def war_foes(self, st) -> list[dict]:
+        """The monsters in war mode in reach of us (on_our_floor) that may be fighting our pets: not one on another
+        player or his pets (Team.elsewhere) that no pet of ours swings at (pets_busy)."""
+        world = st["world"]
         now = time.time()
         ours = {serial_of(sw["defender"]) for a, sw in (world.get("swings") or {}).items()
                 if serial_of(a) in self.team.roster and sw.get("defender") is not None
                 and now - (sw.get("t") or 0) <= SWING_RECENT_S}
-        foes = [(m["x"], m["y"]) for k, m in world["mobiles"].items()
+        return [m for k, m in world["mobiles"].items()
                 if m.get("x") is not None and not m.get("pet") and serial_of(k) not in self.team.roster
                 and serial_of(k) not in self.dead and (m.get("flags") or 0) & threats.FLAG_WARMODE
-                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY and reach(serial_of(k))
+                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY and self.on_our_floor(st, serial_of(k), m)
                 and (serial_of(k) in ours or self.team.elsewhere(st, m) is None)]
+
+    def pet_reaches(self, st, pet: dict, mob: dict) -> bool:
+        """`pet` (a Team.pets row) on `mob`'s floor: the map surface under the pet (nearest its z) within FLOOR_Z_TOL
+        of the one under `mob`. True without map data or a z."""
+        walk = self.mover.walk_map(st)
+        if walk is None or pet.get("z") is None:
+            return True
+        return abs(los.surface_z(walk, pet["x"], pet["y"], pet["z"])
+                   - los.surface_z(walk, mob["x"], mob["y"], mob.get("z") or 0)) <= FLOOR_Z_TOL
+
+    def pets_locked(self, st) -> list[tuple[dict, dict]]:
+        """[(pet, monster)]: a live pet in war mode within PET_BUSY_R of monsters in war mode (war_foes), all of them a
+        floor above or below it (pet_reaches): locked on one it can't reach (pets_busy; Team.unlock calls it off)."""
+        if self.team is None:
+            return []
+        foes = self.war_foes(st)
+        out = []
         for p in self.team.pets(st):
-            if not p["dead"] and p["war"] and any(cheb((p["x"], p["y"]), f) <= PET_BUSY_R for f in foes):
-                return f"{p['name']} is fighting"
-        return None
+            near = [m for m in foes if cheb((p["x"], p["y"]), (m["x"], m["y"])) <= PET_BUSY_R]
+            if not p["dead"] and p["war"] and near and not any(self.pet_reaches(st, p, m) for m in near):
+                out.append((p, near[0]))
+        return out
 
     def track(self, st):
         """Hits lost (the visit's, the engagement's, the crawl zone's) and, crawling, the

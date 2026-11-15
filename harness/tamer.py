@@ -177,6 +177,7 @@ COMMAND_R = 12
 # 'All Guard Me' doesn't call them off; seven walks back in 34 s between the patrol and the reposition)
 STUCK_REJOIN_S = 30.0
 STUCK_FOLLOW_S = 10.0         # ...then no walk back while they come, and 'All Guard Me' once with us or after this long
+LOCKED_S = 8.0               # a pet locked on a monster a floor above or below it this long on one tile: 'All Follow Me' (unlock)
 FALLBACK_R = 4                # run until this far from every attacker...
 FALLBACK_MOVES = 10           # ...at most this many steps...
 FALLBACK_S = 4.0              # ...or this long, stopping as soon as every pet is within FOLLOW_R
@@ -925,8 +926,9 @@ class Team:
         self.sighted = set()             # mobiles already looked at for a first sighting
         self.held_pets = {}              # countess copy serial -> [pet serial, monotonic of its '*transfixed*', seen]
         self.rejoin_at = {}              # pet serial -> ((x, y), monotonic) at our last walk back (rejoin)
-        self.follow_until = 0.0          # 'All Follow Me' at pets stuck off a fight (rejoin): no walk back till then
+        self.follow_until = 0.0          # 'All Follow Me' at pets stuck off a fight (rejoin, unlock): no walk back till then
         self.follow_called = False       # ...and 'All Guard Me' due once they are with us or it is over (care)
+        self.locked_at = {}              # pet serial -> ((x, y, z), monotonic) since it stands locked off a monster's floor
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -1021,7 +1023,8 @@ class Team:
             if not m.get("dead"):
                 self.seen_at[s] = (m["x"], m["y"])
             out.append({"serial": s, "name": name, "frac": self.h.frac(m), "dist": cheb(pos, (m["x"], m["y"])),
-                        "dead": bool(m.get("dead")), "x": m["x"], "y": m["y"], "war": bool((m.get("flags") or 0) & aggro.WAR),
+                        "dead": bool(m.get("dead")), "x": m["x"], "y": m["y"], "z": m.get("z"),
+                        "war": bool((m.get("flags") or 0) & aggro.WAR),
                         "poisoned": bool(m.get("poisoned")) or now - self.poisoned_t.get(s, -1e9) < POISON_S})
         return out
 
@@ -1514,9 +1517,11 @@ class Team:
         self.update(st)
         if self.kill_order_over(st):
             self.guard_needed = True
-        if self.follow_called and (self.together(st) or time.monotonic() >= self.follow_until or self.h.attackers(st)):
+        if self.follow_called and ((self.together(st) and self.on_our_floor(st)) or time.monotonic() >= self.follow_until
+                                   or self.h.attackers(st)):
             # on 'All Follow Me' they guard no more (knowledge #2073); not before they're with us: guarding, they
-            # went back to the fight they stood locked on [INFERENCE: 'All Guard Me' doesn't call them off live]
+            # went back to the fight they stood locked on [INFERENCE: 'All Guard Me' doesn't call them off live]; with
+            # us is on our floor too (a pet on the wall top 3 off us, live 2026-11-15 14:19, is not)
             log(f"after 'All Follow Me': {'the pets with us' if self.together(st) else 'not all with us'}; "
                 f"'All Guard Me' due")
             self.follow_called, self.guard_needed = False, True
@@ -1527,7 +1532,43 @@ class Team:
             or self.area_peace(st) or self.retreat(st) or self.cover(st) or self.duck(st) \
             or (low and self.vet(st, calm=calm)) \
             or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
-            or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+            or self.unlock(st) or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+
+    def on_our_floor(self, st) -> bool:
+        """Every live pet in view on our floor (HuntLoop.pet_reaches with us for the monster)."""
+        pos = self.h.pos(st)
+        me = {"x": pos[0], "y": pos[1], "z": pos[2] if len(pos) > 2 else None}
+        return all(p["dead"] or self.h.pet_reaches(st, p, me) for p in self.pets(st))
+
+    def unlock(self, st) -> bool:
+        """'All Follow Me' at a pet locked on a monster a floor above or below it (HuntLoop.pets_locked) on one tile for
+        LOCKED_S: it swings at nothing, the monster at nothing either, and no rule of ours ends it (live 2026-11-15
+        14:19:29-14:26, hunt-20261115-131045-6072, Ossuary level 2: the three pets up the ramp at (5634-5629, 1290) and
+        on a wall top at (5627, 1284, 0), a black cat at (5627, 1283, -20) below them, 6.5 min). They come down to us;
+        'All Guard Me' once they are with us on our floor or after STUCK_FOLLOW_S (care)."""
+        now = time.monotonic()
+        if self.follow_called or now < self.follow_until:
+            return False
+        locked = self.h.pets_locked(st)
+        prev, self.locked_at = self.locked_at, {}
+        for p, _ in locked:
+            at = (p["x"], p["y"], p["z"])
+            old = prev.get(p["serial"])
+            self.locked_at[p["serial"]] = old if old is not None and old[0] == at else (at, now)
+        due = [(p, m) for p, m in locked if now - self.locked_at[p["serial"]][1] >= LOCKED_S]
+        if not due:
+            return False
+        p, m = due[0]
+        at, since = self.locked_at[p["serial"]]
+        self.count("locked_follows")
+        log(f"{p['name']} at {at} stands locked on {m.get('name') or 'a monster'} at ({m['x']}, {m['y']}, {m.get('z')}), "
+            f"a floor {'below' if (m.get('z') or 0) < (at[2] or 0) else 'above'} it, for {now - since:.0f} s: "
+            f"'All Follow Me'")
+        self.h.doing("pets", f"Calling {p['name']} off the {m.get('name') or 'monster'} out of its reach")
+        self.say("all follow me")
+        self.follow_until, self.follow_called = now + STUCK_FOLLOW_S, True
+        self.locked_at = {}
+        return True
 
     def duck(self, st, force: bool = False) -> bool:
         """Out of an idle monster's eyes while the pets can't be put in front of us (front: nothing fighting, the pets

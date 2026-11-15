@@ -7211,6 +7211,28 @@ docs/OVERSEER.md §5, the Seers SeerLoganWolf then SeerLoganWolf2 (skill `ossuar
   the 90 % case, fails before). Live in the second run: "Borealish (81%) is only in reach 4 from the awake lich magus,
   out of its sight 13 off here (80% or more); staying out of it" alone (00:40:41), "going in" only at 79 % and 61 %.
 
+## The Ossuary: the third live shift, level 2 (2026-11-15, new pets)
+
+Logan with SlipAndSlide 0x000DD0DE (body 61), WhelpMeWhelpU 0x000DDED5 (body 716) and ZoonerOrLater 0x00A30D41
+(body 34), the user's pick after Clicquot and Borealish died with him in Tidal Tomb on 11-13. The level 2 command of
+docs/OVERSEER.md §5, Seer SeerLoganWolf (skill `ossuary-shift`). The user's other character Satanic Panic stood beside
+Logan at the house. It has a human body, so `mount.pets_near` never takes it; the run claimed the three animals only.
+- **First run** hunt-20261115-131045-6072 (13:10:45-14:30:53, 4 visits): 119 kills (2 lost), 69,693 gold, 352 hits
+  lost, no death. The Seer ended it with `--after-trip` because of the stall below; it left by the crimson gate at 14:30:46.
+- **Pets locked on a monster a floor below them** (14:19:29-14:26, 6.5 min of no patrol; user in chat 9182: "The
+  runner seems stuck"). At 14:19:16-29 the pets walked up the ramp (5634 -> 5629, 1290, z -20 -> 0) onto the level's
+  z 0 layer and stood on a wall top at (5627, 1284, 0): a sandstone wall 0x0176 at -20, 20 high, under the land at 0.
+  A black cat 0x0070907E stood at (5627, 1283, -20) below them, 1 tile off in x/y and 20 below. Both sides stayed in war mode
+  (0x20 flags 0x40), and no hit or damage packet passed either way. `HuntLoop.pets_busy` counted a pet in war mode
+  within 2 tiles of a war-mode monster as fighting, without the pet's z. So "crawl: not patrolling yet: SlipAndSlide
+  is fighting" held every patrol. Logan targeted the cat every 60 s ("dropping a black cat ...: neither fighting the
+  pets nor us for 15 s") and played songs. `Team.rejoin`'s stuck-pet 'All Follow Me' needs a pet beyond 4 tiles and
+  `pets_busy` None, so it never fired. Fix: `pets_busy` counts a monster only on the pet's floor (`HuntLoop.pet_reaches`:
+  the map surfaces under both within `FLOOR_Z_TOL` 10). `Team.unlock` says 'All Follow Me' to a pet locked like that
+  on one tile for 8 s (`LOCKED_S`). The care step's 'All Guard Me' then waits until the pets are within 3 and on our
+  floor (`Team.on_our_floor`), or 10 s. The z of mobiles in the 0x77/0x20 V10 packets was right at every step here
+  (the ramp read -18, -13, -8, -3, 0).
+
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 
 The user played them with AlaFlambe (the tank) and Bussin, AR 137, Logan's max hits 100: 21:15:20-21:23:30,

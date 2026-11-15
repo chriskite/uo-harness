@@ -1898,6 +1898,54 @@ def test_pets_stuck_off_fight():
           f"'All Guard Me' {guards}, modes {modes}")
 
 
+def test_pets_locked_off_floor():
+    print("== the pets on a wall top locked on a monster 20 z below them: 'All Follow Me', not a hold on 'X is fighting' ==")
+    # live 2026-11-15 14:19:29-14:26 (hunt-20261115-131045-6072, Ossuary level 2): the pets up the ramp at (5634-5629,
+    # 1290) onto the z 0 level and the wall top at (5627, 1284, 0), a black cat at (5627, 1283, -20) below them, war mode
+    # on both sides, no hit either way; "crawl: not patrolling yet: SlipAndSlide is fighting" for 6.5 min
+    import crawl
+    cat_at = (5627, 1283)
+    w = ossuary_world((5633, 1281), [{"key": "black cat", "at": [*cat_at, -20]}], seed=7, z=-20)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    m.spec = {**m.spec, "melee": None, "ranged": None, "step_s": 1e9}     # live: it stood there and struck nothing
+    loop, clock, store, patched = hurt_loop(w, 100)
+    for p in w.pets():                            # claimed beside us, then up on the wall top
+        p.x, p.y, p.z = 5627, 1284, 0
+    m.target, m.threat = w.pets()[0].serial, {w.pets()[0].serial: 1e6}
+    w._warm(m, True)
+    stuck = {p.serial for p in w.pets()}          # locked on it until a command calls them off: war mode, no step
+    pet_step = w._pet
+
+    def locked(p):
+        if p.mode == "follow":
+            stuck.discard(p.serial)
+        if p.serial not in stuck:
+            return pet_step(p)
+        p.target = None
+        w._warm(p, True)
+    w._pet = locked
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            c.unlocked = 99
+            f0 = w.metrics["follow_commands"]
+            for _ in range(120):                                  # 60 s
+                clock.advance(0.5)
+                loop.tick()
+            follows = w.metrics["follow_commands"] - f0
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    text = out.getvalue()
+    zs = sorted({p.z for p in w.pets()})
+    check("60 s: 'All Follow Me' at the locked pets, once; they come off the wall top, the patrol goes on, they with us",
+          follows == 1 and not stuck and "stands locked on a black cat" in text
+          and all(abs(p.z - w.player.z) <= 10 and sim_cheb(p.pos, w.player.pos) <= 8 for p in w.pets()),
+          f"'All Follow Me' {follows}, still stuck {len(stuck)}, pets' z {zs}, ours {w.player.z}, "
+          f"pets {max(sim_cheb(p.pos, w.player.pos) for p in w.pets())} off, holds {text.count('is fighting')}")
+
+
 def test_others_corpse_not_looted():
     print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
     # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
@@ -9284,6 +9332,7 @@ def main():
               test_theirs_passed_over,
               test_theirs_after_kill_sent,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
+              test_pets_locked_off_floor,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
