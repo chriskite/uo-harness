@@ -165,6 +165,7 @@ channels.
 | `POST /api/nystul/ask`, `POST /api/nystul/cancel` | `{"conversation": id\|null, "text": T[, "char": C]}` → `{ok, conversation, message}` (400 text, 404 conversation, 409 busy, 503 no omp); `{"conversation": id}` → `{ok}` or 404 when nothing runs (§2.13, §2.14) |
 | `POST /api/nystul/approve` | `{"proposal": id}` → the operator approves a Codex change Nystul proposed; applied to the memory store → `{ok, result: {id, action}}`; 404 unknown, 409 not pending, 400 the store refused it (kept as failed), 503 no store (§2.13) |
 | `GET /api/nystul/models`, `POST /api/nystul/settings`, `POST /api/nystul/delete` | `{models: [{selector, name, thinking}], levels}` (omp's chat models, cached 10 min; 502/503 omp); `{"model"?, "thinking"?}` → `{ok, model, thinking}` (400 bad value; saved in nystul.db); `{"conversation": id}` → `{ok}` (404 unknown, 409 answering) (§2.13) |
+| `GET /api/knowledge/<id>`, `GET /api/discord/message/<id>` | The `#nystul` source drawer: `{entry}`, every column of a Codex entry plus `history` (older versions, newest first); `{message, channel, reply, before, after}`, a captured Discord message (`--discord-db`, read-only) with the message it replies to and 3 either side in its channel, snowflake ids as strings, attachment names only. 400 bad id, 404 unknown, 503 no store / no discord.db here (§2.13) |
 | `GET /api/razor` | the Razor profiles: `{dir, writable, writable_error, clients, in_use: {known, reason}, profiles: [{name, version, bindings, characters, in_use_by, locked, lock_reason}]}`; 404 without a Profiles dir (§2.15) |
 | `GET /api/razor/profile?name=N` | one profile's bindings `{name, mod, key, send, label, known}` and action catalog `{name, label, path, confirmed}`, never the raw XML (it holds passwords); 404 unknown, 400 unreadable XML (§2.15) |
 | `POST /api/razor/profile` | `{name, version, bindings}` → rewrites that profile's `<hotkeys>` block after a backup → `{ok, version, backup}`; 400 bad bindings, 404 unknown, 409 locked (`locked`) or changed on disk (`stale`), 403 folder not writable (§2.15) |
@@ -957,9 +958,9 @@ Wizard".
   2026-10-08). Both views share the same
   active conversation (`localStorage["uo-viz-nystul-conv"]`). Answers render through a small
   built-in markdown renderer (`viz/src/markdown.ts`, React elements only; links only for
-  `http(s)://` and `#`). Each answer shows its lookups (`stepLabel`, ✓/✗), time, count and cost; the
-  send button turns into "stop" while it runs. Polls the conversation every 1 s while it runs, the
-  list every 10 s.
+  `http(s)://` and `#`; bare `http(s)://` URLs autolinked since 2026-11-15). Each answer shows its
+  lookups (`stepLabel`, ✓/✗), time, count and cost; the send button turns into "stop" while it runs.
+  Polls the conversation every 1 s while it runs, the list every 10 s.
 - **Delete, model, thinking, autofocus (2026-10-11, user request):**
   - Each conversation in the `#nystul` list has a × (confirm dialog; disabled while it answers).
     `POST /api/nystul/delete` removes the conversation, its messages and proposals (409 while it runs, 404
@@ -973,6 +974,20 @@ Wizard".
     change and survives a restart.
   - Starting a new conversation (the button, or deleting the open one) focuses the "Ask Nystul" box
     (`feed.focusSeq`). Not on page load, so the Live-page panel doesn't grab focus.
+- **Cited sources open in a drawer (2026-11-15, user request):** on the `#nystul` page, a Codex citation
+  in Nystul's text (`#123`: `splitCodexRefs`, not after a word character, `#` or `&`) and a Discord message
+  link (`discord.com/channels/<guild>/<channel>/<message>`, as a markdown link or bare: `discordSource`)
+  open a right-hand drawer (`NystulSourceDrawer.tsx`) instead of a new tab; a modified click still follows a
+  Discord link. The Codex view shows every column (`GET /api/knowledge/<id>`): topic, content, kind,
+  status, source, reference (URLs linked; a Discord link in it opens in the drawer), confidence,
+  importance, tags, entities, location, confirmations, recall count, times, supersedes/superseded-by and
+  the earlier versions, each a link. The Discord view (`GET /api/discord/message/<id>`) shows the message
+  with the one it replies to and 3 messages either side, each with a link to the original in Discord;
+  the stored attachment URLs are signed and expire, so only their names show. Where `discord.db` isn't
+  (only the capture computer and a restored copy have it) the drawer says so and still links the
+  original. Sources opened inside the drawer stack (back button); Esc or × closes it. The prompt tells
+  Nystul to cite Codex entries as plain `#id` and Discord evidence as `[#channel date](link)` with the
+  link copied from `uo_discord` or the digest. The Live-page panel keeps plain links (no drawer there).
 - Access is whoever can open the viz (the same as the Seer chat; user decision). The protection
   against a prompt-injected LAN user is the tool surface, not access control. A Codex change
   still needs a click on Approve, which anyone with the viz can give.

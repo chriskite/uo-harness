@@ -20,6 +20,7 @@ import {
   type NystulList,
   type NystulMessage,
   type NystulProposal,
+  type NystulSource,
 } from "../nystul.ts";
 import { Markdown } from "./Markdown.tsx";
 
@@ -237,8 +238,9 @@ export function useNystul(): NystulFeed {
   return { list, activeId, conv, error, sending, select, focusSeq, remove, setSettings, ask, cancel, approve };
 }
 
-function ProposalCard({ p, onApprove }: { p: NystulProposal; onApprove: (id: number) => Promise<boolean> }) {
+function ProposalCard({ p, onApprove, onSource }: { p: NystulProposal; onApprove: (id: number) => Promise<boolean>; onSource?: (s: NystulSource) => void }) {
   const v = proposalView(p);
+  const beforeId = v.before?.id;
   const [busy, setBusy] = useState(false);
   return (
     <div className={`ny-proposal ny-proposal-${p.status}`}>
@@ -248,7 +250,18 @@ function ProposalCard({ p, onApprove }: { p: NystulProposal; onApprove: (id: num
       {v.why && <div className="ny-proposal-why">{v.why}</div>}
       {v.before && (
         <div className="ny-proposal-before" title="the entry as it was when Nystul proposed this">
-          <span className="dim">now #{v.before.id}:</span> [{v.before.topic}] {v.before.content}
+          <span className="dim">
+            now{" "}
+            {onSource ? (
+              <button type="button" className="ny-ref" onClick={() => beforeId !== undefined && onSource({ kind: "knowledge", id: beforeId })}>
+                #{v.before.id}
+              </button>
+            ) : (
+              `#${v.before.id}`
+            )}
+            :
+          </span>{" "}
+          [{v.before.topic}] {v.before.content}
         </div>
       )}
       {v.fields.length > 0 && (
@@ -283,7 +296,9 @@ function ProposalCard({ p, onApprove }: { p: NystulProposal; onApprove: (id: num
   );
 }
 
-function WizardMessage({ msg, onApprove }: { msg: NystulMessage; onApprove: (id: number) => Promise<boolean> }) {
+type SourceProps = { onSource?: (s: NystulSource) => void };
+
+function WizardMessage({ msg, onApprove, onSource }: { msg: NystulMessage; onApprove: (id: number) => Promise<boolean> } & SourceProps) {
   const running = msg.status === "running";
   return (
     <div className="ny-msg ny-wizard">
@@ -305,9 +320,9 @@ function WizardMessage({ msg, onApprove }: { msg: NystulMessage; onApprove: (id:
           </ol>
         </details>
       )}
-      {running && msg.text === "" ? <p className="dim ny-ponder">Nystul ponders…</p> : <Markdown text={msg.text} />}
+      {running && msg.text === "" ? <p className="dim ny-ponder">Nystul ponders…</p> : <Markdown text={msg.text} onSource={onSource} />}
       {msg.proposals.map((p) => (
-        <ProposalCard key={p.id} p={p} onApprove={onApprove} />
+        <ProposalCard key={p.id} p={p} onApprove={onApprove} onSource={onSource} />
       ))}
       {!running && <div className="mono dim ny-summary">{runSummary(msg)}</div>}
       {msg.status === "error" && msg.error && <div className="error">{msg.error}</div>}
@@ -326,8 +341,9 @@ function UserMessage({ msg }: { msg: NystulMessage }) {
   );
 }
 
-/** The active conversation with Nystul plus the compose box. */
-export function NystulChat({ feed, compact }: { feed: NystulFeed; compact?: boolean }) {
+/** The active conversation with Nystul plus the compose box. With `onSource`, Nystul's Codex
+ *  citations and Discord links open the cited source (the #nystul page's drawer). */
+export function NystulChat({ feed, compact, onSource }: { feed: NystulFeed; compact?: boolean } & SourceProps) {
   const { list, conv, error, sending } = feed;
   const [text, setText] = useState("");
   const running = isRunning(conv);
@@ -386,7 +402,7 @@ export function NystulChat({ feed, compact }: { feed: NystulFeed; compact?: bool
           </p>
         )}
         {messages.map((m) =>
-          m.role === "user" ? <UserMessage key={m.id} msg={m} /> : <WizardMessage key={m.id} msg={m} onApprove={feed.approve} />,
+          m.role === "user" ? <UserMessage key={m.id} msg={m} /> : <WizardMessage key={m.id} msg={m} onApprove={feed.approve} onSource={onSource} />,
         )}
       </div>
       <div className="ov-compose">

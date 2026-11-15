@@ -5,7 +5,7 @@
 // hotkeys page (profiles from the Razor Assistant dir, hotkey saves).
 import { getChar, type Session, withChar } from "./character.ts";
 import { localDay, presetRange, rangeBounds, type HuntResponse, type JobsResponse, type MiningPlanResponse, type MiningResponse, type PlanResponse, type RangeBounds } from "./jobs.ts";
-import type { NystulConversation, NystulList, NystulModels } from "./nystul.ts";
+import type { DiscordThread, KnowledgeEntry, NystulConversation, NystulList, NystulModels } from "./nystul.ts";
 import type { Binding, ProfileDoc, RazorSummary } from "./razor.ts";
 import type { OverseerResponse } from "./overseer.ts";
 import { supersede, type SseMessage } from "./sse.ts";
@@ -100,6 +100,28 @@ async function getNystul(path: string): Promise<unknown> {
     throw new Error(`nystul: ${err}`);
   }
   return body;
+}
+
+/** GET a source route of the Nystul drawer; throws the server's error (404 / 503 included). */
+async function getSource(path: string): Promise<unknown> {
+  const r = await fetch(path, { cache: "no-store" });
+  const body: unknown = await r.json().catch(() => null);
+  if (!r.ok || !body) {
+    throw new Error(body && typeof body === "object" && "error" in body ? String(body.error) : `HTTP ${r.status}`);
+  }
+  return body;
+}
+
+/** A Codex entry with every column and its older versions. */
+export async function fetchKnowledgeEntry(id: number): Promise<KnowledgeEntry> {
+  const body = await getSource(`/api/knowledge/${id}`);
+  if (typeof body !== "object" || body === null || !("entry" in body)) throw new Error("no entry in the response");
+  return body.entry as KnowledgeEntry;
+}
+
+/** A captured Discord message with its reply target and neighbours. */
+export async function fetchDiscordMessage(id: string): Promise<DiscordThread> {
+  return (await getSource(`/api/discord/message/${encodeURIComponent(id)}`)) as DiscordThread;
 }
 
 /** Nystul's conversations (newest first) and whether omp is available. */

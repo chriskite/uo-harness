@@ -2,7 +2,8 @@
 // with React elements only, so nothing here is ever HTML: raw tags stay text).
 // Blocks: paragraphs (single newlines kept as line breaks), # to ### headings,
 // one-level - / * / 1. lists, fenced code, > quotes, --- rules and pipe tables.
-// Inline: `code`, **strong**, *em* / _em_, [text](href) with http(s) or # hrefs only.
+// Inline: `code`, **strong**, *em* / _em_, [text](href) with http(s) or # hrefs only, and bare
+// http(s) URLs (trailing punctuation and an unbalanced closing parenthesis left out).
 
 export type Inline =
   | { t: "text"; v: string }
@@ -233,6 +234,31 @@ function linkAt(s: string, i: number): { textEnd: number; href: string; end: num
   return null;
 }
 
+const BARE_URL = /^https?:\/\/[^\s<>"'`]+/i;
+
+/** The bare URL starting at `i` (not inside a word), trimmed like GFM's autolinks, or null. */
+function urlAt(s: string, i: number): string | null {
+  if (isWord(s[i - 1])) return null;
+  const m = BARE_URL.exec(s.slice(i));
+  if (!m) return null;
+  let url = m[0];
+  for (;;) {
+    const trimmed = url.replace(/[.,;:!?*_]+$/, "");
+    const unbalanced = trimmed.endsWith(")") && trimmed.split(")").length > trimmed.split("(").length;
+    const next = unbalanced ? trimmed.slice(0, -1) : trimmed;
+    if (next === url) break;
+    url = next;
+  }
+  return /^https?:\/\/./i.test(url) ? url : null;
+}
+
+/** Inline nodes with every link replaced by its text: a link's label holds no links (bare URLs in it). */
+function unlinked(nodes: Inline[]): Inline[] {
+  return nodes.flatMap((n): Inline[] =>
+    n.t === "link" ? unlinked(n.c) : n.t === "strong" || n.t === "em" ? [{ t: n.t, c: unlinked(n.c) }] : [n],
+  );
+}
+
 export function parseInline(s: string): Inline[] {
   const out: Inline[] = [];
   let text = "";
@@ -285,11 +311,19 @@ export function parseInline(s: string): Inline[] {
         continue;
       }
     }
+    if (ch === "h" || ch === "H") {
+      const url = urlAt(s, i);
+      if (url) {
+        push({ t: "link", href: url, c: [{ t: "text", v: url }] });
+        i += url.length;
+        continue;
+      }
+    }
     if (ch === "[") {
       const link = linkAt(s, i);
       // Unsafe targets (javascript:, data:, relative paths) stay literal text.
       if (link && SAFE_HREF.test(link.href)) {
-        push({ t: "link", href: link.href, c: parseInline(s.slice(i + 1, link.textEnd)) });
+        push({ t: "link", href: link.href, c: unlinked(parseInline(s.slice(i + 1, link.textEnd))) });
         i = link.end;
         continue;
       }

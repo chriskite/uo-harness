@@ -16,6 +16,9 @@
   `system` memory chat row, leaves the Seer's heartbeat alone, and refuses a second approval
   (409), an unknown id (404) and one the store rejects (400, kept as failed); the next
   prompt carries the outcome
+- source drawer: GET /api/knowledge/<id> (every column, older versions, superseded_by; 400/404/503)
+  and GET /api/discord/message/<id> (snowflakes as strings, reply, neighbours in order, attachment
+  names without their signed urls; 400/404/503)
 """
 import json
 import os
@@ -524,6 +527,90 @@ def test_approve(omp, logdir):
         srv.server_close()
 
 
+# ---------------------------------------------------------------------------- source drawer
+
+def discord_fixture(path):
+    """A discord.db with the columns DiscordDB reads: channel 10 (#newplayer) with messages 1..7,
+    5 replying to 2 and carrying an attachment; ids above 2^53 to prove they stay strings."""
+    big = 1556402003855278000
+    con = sqlite3.connect(path)
+    con.executescript("CREATE TABLE channels(id INTEGER PRIMARY KEY, guild_id INTEGER, name TEXT);"
+                      "CREATE TABLE messages(id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, guild_id INTEGER,"
+                      " author_id INTEGER, author TEXT, ts TEXT NOT NULL, edited_ts TEXT, type INTEGER,"
+                      " content TEXT NOT NULL, embed_text TEXT, reply_to INTEGER, attachments TEXT, embeds TEXT,"
+                      " captured_t REAL)")
+    con.execute("INSERT INTO channels VALUES (?, ?, 'newplayer')", (big + 10, big + 99))
+    att = json.dumps([{"id": "9", "filename": "map.png", "url": "https://cdn.discordapp.com/x?ex=1&hm=secret",
+                       "content_type": "image/png", "size": 5}])
+    for i in range(1, 8):
+        con.execute("INSERT INTO messages(id, channel_id, guild_id, author_id, author, ts, content, reply_to, attachments)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (big + i, big + 10, big + 99, 42, f"player{i}", f"2026-08-20T10:0{i}:00+00:00", f"msg {i}",
+                     big + 2 if i == 5 else None, att if i == 5 else "[]"))
+    con.commit()
+    con.close()
+    return big
+
+
+def test_sources(omp, logdir):
+    print("== source drawer: /api/knowledge/<id>, /api/discord/message/<id> ==")
+    path, active, old = seeded_store()
+    tmp = tempfile.mkdtemp()
+    big = discord_fixture(os.path.join(tmp, "discord.db"))
+    port = tv._free_ports(1)[0]
+    srv = viz_server.VizServer(("127.0.0.1", port), viz_feed.ReplayDriver(tv.TAG, logdir),
+                               os.path.join(tv.ROOT, "viz", "dist"), path, nystul_db=os.path.join(tmp, "nystul.db"),
+                               discord_db=os.path.join(tmp, "discord.db"))
+    srv.nystul.close()
+    srv.nystul = nystul.Nystul(os.path.join(tmp, "nystul.db"), omp_cmd=omp)
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        code, r = http("GET", f"{base}/api/knowledge/{active}")
+        e = r.get("entry") or {}
+        check("knowledge: every column plus the older version", code == 200 and set(knowledge.COLS) <= set(e)
+              and e["supersedes"] == old and [h["id"] for h in e["history"]] == [old]
+              and e["content"].startswith("Five flamehounds make a popular"), str(r)[:300])
+        code, r = http("GET", f"{base}/api/knowledge/{old}")
+        check("knowledge: the old version points at its successor", code == 200
+              and r["entry"]["superseded_by"] == active and r["entry"]["status"] == "superseded", str(r)[:300])
+        for spec, want in (("99999", 404), ("abc", 400), ("-1", 400), ("1.0", 400)):
+            code, r = http("GET", f"{base}/api/knowledge/{spec}")
+            check(f"knowledge {spec!r} -> {want}", code == want and "error" in r, f"{code} {r}")
+
+        code, d = http("GET", f"{base}/api/discord/message/{big + 5}")
+        m = d.get("message") or {}
+        check("discord: the message, snowflakes as strings, its link", code == 200 and m.get("id") == str(big + 5)
+              and m["channel_id"] == str(big + 10) and d["channel"] == "newplayer"
+              and m["link"] == f"https://discord.com/channels/{big + 99}/{big + 10}/{big + 5}", str(d)[:300])
+        check("discord: attachment names without their signed urls",
+              m.get("attachments") == [{"filename": "map.png", "content_type": "image/png", "size": 5}]
+              and "secret" not in json.dumps(d), str(m.get("attachments")))
+        check("discord: the message it replies to", (d.get("reply") or {}).get("id") == str(big + 2), str(d.get("reply")))
+        check("discord: neighbours either side, oldest first",
+              [x["id"] for x in d["before"]] == [str(big + i) for i in (2, 3, 4)]
+              and [x["id"] for x in d["after"]] == [str(big + i) for i in (6, 7)], str(d)[:400])
+        code, d = http("GET", f"{base}/api/discord/message/{big + 1}")
+        check("discord: the channel's first message has no earlier neighbours", code == 200 and d["before"] == []
+              and d["reply"] is None and len(d["after"]) == viz_server.DISCORD_CONTEXT, str(d)[:300])
+        for spec, want in ((str(big + 500), 404), ("x1", 400), ("1" * 21, 400)):
+            code, r = http("GET", f"{base}/api/discord/message/{spec}")
+            check(f"discord {spec[:8]!r}… -> {want}", code == want and "error" in r, f"{code} {r}")
+
+        srv.discord.close()
+        srv.discord = viz_server.DiscordDB(os.path.join(tmp, "absent.db"))
+        code, r = http("GET", f"{base}/api/discord/message/{big + 5}")
+        check("discord: 503 without a discord.db here", code == 503 and "not on this computer" in r["error"], str(r))
+        srv.overseer.close()
+        srv.overseer = viz_server.OverseerDB(os.path.join(tmp, "absent_harness.db"))
+        code, r = http("GET", f"{base}/api/knowledge/{active}")
+        check("knowledge: 503 without a store", code == 503 and not os.path.exists(os.path.join(tmp, "absent_harness.db")),
+              str(r))
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def main():
     omp = fake_omp()
     test_tools()
@@ -535,6 +622,7 @@ def main():
     test_normalize()
     test_propose_tool()
     test_approve(omp, logdir)
+    test_sources(omp, logdir)
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILURES: {FAILURES}"))
     sys.exit(0 if not FAILURES else 1)
 

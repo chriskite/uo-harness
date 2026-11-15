@@ -202,3 +202,113 @@ export function thinkingAfterSwitch(current: string, choices: readonly string[])
   if (choices.includes(current)) return current;
   return ["medium", "low", "high", "minimal", "xhigh", "max"].find((l) => choices.includes(l)) ?? choices[0] ?? "off";
 }
+
+/** A source Nystul cites that the #nystul page's drawer opens: a Codex entry (`#id` in his
+ *  text) or a Discord message (a markdown link to it). Discord ids stay strings (snowflakes
+ *  exceed 2^53). */
+export type NystulSource =
+  | { kind: "knowledge"; id: number }
+  | { kind: "discord"; guild: string; channel: string; message: string };
+
+const DISCORD_LINK = /^https:\/\/(?:(?:www|ptb|canary)\.)?discord(?:app)?\.com\/channels\/(\d+|@me)\/(\d+)\/(\d+)\/?$/i;
+
+/** The Discord message a link points at, or null for any other href. */
+export function discordSource(href: string): NystulSource | null {
+  const m = DISCORD_LINK.exec(href.trim());
+  return m ? { kind: "discord", guild: m[1]!, channel: m[2]!, message: m[3]! } : null;
+}
+
+export function discordLink(s: { guild: string; channel: string; message: string }): string {
+  return `https://discord.com/channels/${s.guild}/${s.channel}/${s.message}`;
+}
+
+export function sameSource(a: NystulSource, b: NystulSource): boolean {
+  return a.kind === "knowledge" ? b.kind === "knowledge" && a.id === b.id : b.kind === "discord" && a.message === b.message;
+}
+
+// `#123`: not after a word character, `#` or `&` (C#5, ##1, &#38; stay text); not followed by a
+// word character or a decimal part (#1.5).
+const CODEX_REF = /(?<![\w#&])#(\d{1,9})(?![\w]|\.\d)/g;
+
+/** Text split around its Codex citations; strings are plain text. */
+export function splitCodexRefs(text: string): (string | { id: number; text: string })[] {
+  const out: (string | { id: number; text: string })[] = [];
+  let last = 0;
+  for (const m of text.matchAll(CODEX_REF)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push({ id: Number(m[1]), text: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+const URL_RE = /https?:\/\/[^\s<>"'`]+/g;
+
+/** Text split around its http(s) URLs (trailing . , ; : ! ? ) ] left out of the URL). */
+export function splitUrls(text: string): (string | { href: string })[] {
+  const out: (string | { href: string })[] = [];
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    const href = m[0].replace(/[.,;:!?)\]]+$/, "");
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push({ href });
+    last = m.index + href.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+/** GET /api/knowledge/<id>: every column of a Codex entry (harness/knowledge.py COLS). */
+export interface KnowledgeEntry {
+  id: number;
+  kind: string;
+  topic: string;
+  content: string;
+  tags: string[];
+  entities: unknown[];
+  facet: number | null;
+  x: number | null;
+  y: number | null;
+  source_type: string;
+  source_ref: string | null;
+  confidence: number;
+  importance: number;
+  status: string;
+  supersedes: number | null;
+  superseded_by: number | null;
+  retract_reason: string | null;
+  confirmations: number;
+  created_t: number;
+  updated_t: number;
+  last_access_t: number | null;
+  access_count: number;
+  /** Older versions, newest first (the supersedes chain). */
+  history: { id: number; content: string; confidence: number; created_t: number; status: string }[];
+}
+
+/** A captured Discord message (harness/viz_server.py DiscordDB). */
+export interface DiscordMessage {
+  id: string;
+  channel_id: string;
+  guild_id: string | null;
+  author_id: string | null;
+  author: string | null;
+  /** ISO 8601. */
+  ts: string;
+  edited_ts: string | null;
+  content: string;
+  embed_text: string | null;
+  reply_to: string | null;
+  attachments: { filename: string | null; content_type: string | null; size: number | null }[];
+  link: string;
+}
+
+/** GET /api/discord/message/<id>: the message, the one it replies to, and its neighbours in the channel. */
+export interface DiscordThread {
+  message: DiscordMessage;
+  channel: string | null;
+  reply: DiscordMessage | null;
+  before: DiscordMessage[];
+  after: DiscordMessage[];
+}

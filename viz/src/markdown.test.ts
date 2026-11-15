@@ -95,6 +95,29 @@ describe("parseInline", () => {
     ]);
   });
 
+  test("bare URLs are links, without trailing punctuation or an unbalanced )", () => {
+    const d = "https://discord.com/channels/1/2/3";
+    expect(parseInline(`(${d}) and ${d}. Also https://en.wikipedia.org/wiki/A_(b), x`)).toEqual([
+      { t: "text", v: "(" },
+      { t: "link", href: d, c: [{ t: "text", v: d }] },
+      { t: "text", v: ") and " },
+      { t: "link", href: d, c: [{ t: "text", v: d }] },
+      { t: "text", v: ". Also " },
+      { t: "link", href: "https://en.wikipedia.org/wiki/A_(b)", c: [{ t: "text", v: "https://en.wikipedia.org/wiki/A_(b)" }] },
+      { t: "text", v: ", x" },
+    ]);
+    expect(parseInline("xhttps://a.b and `https://c.d`")).toEqual([
+      { t: "text", v: "xhttps://a.b and " },
+      { t: "code", v: "https://c.d" },
+    ]);
+  });
+
+  test("a URL as a link's label stays inside that one link", () => {
+    expect(parseInline("[https://a.b/x](https://a.b/x)")).toEqual([
+      { t: "link", href: "https://a.b/x", c: [{ t: "text", v: "https://a.b/x" }] },
+    ]);
+  });
+
   test("[x](javascript:alert(1)) stays text, not a link", () => {
     const out = parseInline("[x](javascript:alert(1))");
     expect(out).toEqual([{ t: "text", v: "[x](javascript:alert(1))" }]);

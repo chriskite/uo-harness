@@ -1726,6 +1726,15 @@ renderer; full roleplay with exact, sourced facts. As built: docs/VISUALIZER.md 
   what the Seer recalls); `ctl know` from viz_server (it bumps the Seer's heartbeat); editing the
   Discord KB (its facts are rebuilt by `discord_kb.py run` and it has no override; a `user` Codex
   entry that overrules the fact does the job).
+- **Cited sources in a drawer (decided and built 2026-11-15, user request):** the user wanted
+  Nystul's knowledge citations and Discord messages to open in a right-hand drawer on the `#nystul`
+  page, with every field of a Codex entry and a link to the original Discord message. Adopted: the
+  client recognises the citations Nystul already writes (`#id`, Discord message URLs from the tool
+  output) and two read-only viz routes serve the details (`/api/knowledge/<id>`,
+  `/api/discord/message/<id>`; docs/VISUALIZER.md §2.13); the prompt asks for plain `#id` and
+  markdown Discord links. Rejected: structured citations recorded from the tool calls (the answer
+  text would still have to point at them, and old answers would get nothing); fetching the message
+  from Discord (the viz holds no Discord login, and the capture is already local).
 
 ## Wiki, patch notes and forums in the knowledge base (decided and built 2026-10-08)
 

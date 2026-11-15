@@ -88,6 +88,13 @@ live only, replay ignores it; without one the proxy serves its only session or e
                       the --nystul-model/--nystul-thinking flags); 400 bad value
   POST /api/nystul/delete  {"conversation": id} -> {"ok": true}: the conversation, its messages and
                       proposals; 404 unknown, 409 still answering
+  GET  /api/knowledge/<id>  {entry}: every column of a Codex (memory-store knowledge) entry plus
+                      `history`, its older versions; the Nystul page's source drawer. 400 bad id,
+                      404 unknown, 503 no store
+  GET  /api/discord/message/<id>  {message, channel, reply, before, after}: a captured Discord
+                      message (--discord-db, read-only) with the one it replies to and DISCORD_CONTEXT
+                      messages either side in its channel; snowflake ids are strings. 400 bad id,
+                      404 not captured, 503 no discord.db on this computer
   GET  /api/razor     {dir, writable, writable_error, clients, in_use: {known, reason}, profiles:
                       [{name, version, bindings, characters, in_use_by, locked, lock_reason}]}: the
                       Razor profiles (harness/razor.py; --razor-dir); 404 without a Profiles dir
@@ -143,12 +150,14 @@ import math
 import os
 import re
 import socket
+import sqlite3
 import struct
 import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -184,6 +193,9 @@ SIM_TRACE_NAME = re.compile(r"^[\w.-]+\.trace\.jsonl\.gz$")
 STOREY_Z = 20       # a house piece this high above the house's tile is on an upper floor
 HEARTBEAT_KEY = "overseer_heartbeat"   # ctl.HEARTBEAT_KEY; per character charsel.meta_key(HEARTBEAT_KEY, s)
 SERIAL_ONLY = "char must be a serial (0x...)"
+DISCORD_DB = os.path.join(ROOT, "harness", "data", "discord.db")   # discord_capture.DEFAULT_DB
+DISCORD_CONTEXT = 3   # messages shown either side of a cited Discord message
+SNOWFLAKE = re.compile(r"\d{1,20}", re.ASCII)
 
 
 class WalkMemDB:
@@ -379,6 +391,16 @@ class OverseerDB:
             mem = self._open(False)
             return None if mem is None else nystul_memory.compact(knowledge.Knowledge(mem.con).get(kid))
 
+    def knowledge_full(self, kid: int) -> dict | None:
+        """Every column of a knowledge entry plus `history` (its older versions), for the Nystul page's
+        source drawer. None: no such entry; LookupError: no store."""
+        import knowledge
+        with self.lock:
+            mem = self._open(False)
+            if mem is None:
+                raise LookupError(f"no harness memory store at {self.path}")
+            return knowledge.Knowledge(mem.con).get(kid, history=True)
+
     def apply_proposal(self, p: dict) -> dict:
         """Apply a Nystul proposal the operator approved (nystul_memory.apply) and show it in the
         Seer's chat as a `system` memory row: visible in the Seer panel, but it doesn't wake
@@ -459,6 +481,66 @@ class OverseerDB:
             body = json.dumps({**out, "store": mem is not None}).encode()
             self.fos_cache = (now, body)
             return body
+
+
+class DiscordDB:
+    """Captured Discord messages (harness/discord_capture.py) for the Nystul page's source drawer: one
+    read-only connection, opened lazily and shared under a lock. Only the capture computer and a restored
+    copy have the file. Snowflake ids go out as strings: they exceed a JS number's 2^53."""
+
+    COLS = ("id", "channel_id", "guild_id", "author_id", "author", "ts", "edited_ts", "content", "embed_text",
+            "reply_to", "attachments")
+    IDS = ("id", "channel_id", "guild_id", "author_id", "reply_to")
+
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = threading.Lock()
+        self.con = None
+
+    def close(self):
+        with self.lock:
+            if self.con is not None:
+                self.con.close()
+                self.con = None
+
+    def _view(self, r) -> dict:
+        d = dict(zip(self.COLS, r))
+        try:
+            att = json.loads(d["attachments"] or "[]")
+        except ValueError:
+            att = []
+        # names only: the stored CDN urls are signed and expire; the Discord link shows the files
+        d["attachments"] = [{"filename": a.get("filename"), "content_type": a.get("content_type"), "size": a.get("size")}
+                            for a in att if isinstance(a, dict)]
+        for k in self.IDS:
+            if d[k] is not None:
+                d[k] = str(d[k])
+        d["link"] = f"https://discord.com/channels/{d['guild_id'] or '@me'}/{d['channel_id']}/{d['id']}"
+        return d
+
+    def message(self, mid: int) -> dict | None:
+        """{message, channel, reply, before, after}; None when the message isn't captured.
+        LookupError when there is no discord.db here."""
+        sel = f"SELECT {', '.join(self.COLS)} FROM messages"
+        with self.lock:
+            if self.con is None:
+                if not os.path.exists(self.path):
+                    raise LookupError("the Discord capture (discord.db) is not on this computer")
+                self.con = sqlite3.connect(Path(os.path.abspath(self.path)).as_uri() + "?mode=ro", uri=True,
+                                           timeout=10, check_same_thread=False)
+            con = self.con
+            r = con.execute(sel + " WHERE id=?", (mid,)).fetchone()
+            if r is None:
+                return None
+            ch_id, reply_to = r[1], r[9]
+            ch = con.execute("SELECT name FROM channels WHERE id=?", (ch_id,)).fetchone()
+            rr = con.execute(sel + " WHERE id=?", (reply_to,)).fetchone() if reply_to is not None else None
+            before = con.execute(sel + " WHERE channel_id=? AND id<? ORDER BY id DESC LIMIT ?",
+                                 (ch_id, mid, DISCORD_CONTEXT)).fetchall()
+            after = con.execute(sel + " WHERE channel_id=? AND id>? ORDER BY id LIMIT ?",
+                                (ch_id, mid, DISCORD_CONTEXT)).fetchall()
+        return {"message": self._view(r), "channel": ch[0] if ch else None, "reply": self._view(rr) if rr else None,
+                "before": [self._view(x) for x in reversed(before)], "after": [self._view(x) for x in after]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -792,6 +874,10 @@ class Handler(BaseHTTPRequestHandler):
             self._nystul_models()
         elif url.path.startswith("/api/nystul/"):
             self._nystul_get(url.path[len("/api/nystul/"):])
+        elif url.path.startswith("/api/knowledge/"):
+            self._knowledge(url.path[len("/api/knowledge/"):])
+        elif url.path.startswith("/api/discord/message/"):
+            self._discord_message(url.path[len("/api/discord/message/"):])
         elif url.path == "/api/razor":
             self._razor_summary()
         elif url.path == "/api/razor/profile":
@@ -918,6 +1004,34 @@ class Handler(BaseHTTPRequestHandler):
             self._json(e.code, {"ok": False, "error": str(e)})
             return
         self._json(200, {"ok": True})
+
+    def _knowledge(self, spec: str):
+        if not SNOWFLAKE.fullmatch(spec):
+            self._json(400, {"error": "knowledge id must be a positive integer"})
+            return
+        try:
+            entry = self.server.overseer.knowledge_full(int(spec))
+        except LookupError as e:
+            self._json(503, {"error": str(e)})
+            return
+        if entry is None:
+            self._json(404, {"error": f"no Codex entry #{spec}"})
+        else:
+            self._json(200, {"entry": entry})
+
+    def _discord_message(self, spec: str):
+        if not SNOWFLAKE.fullmatch(spec):
+            self._json(400, {"error": "message id must be a Discord snowflake (digits)"})
+            return
+        try:
+            out = self.server.discord.message(int(spec))
+        except LookupError as e:
+            self._json(503, {"error": str(e)})
+            return
+        if out is None:
+            self._json(404, {"error": f"message {spec} is not in the Discord capture"})
+        else:
+            self._json(200, out)
 
     def _nystul_get(self, spec: str):
         try:
@@ -1328,7 +1442,8 @@ class VizServer(ThreadingHTTPServer):
                  live_factory=None, *, state_port: int = 25942, nystul_db: str = nystul_mod.DEFAULT_DB,
                  nystul_model: str = "sonnet", nystul_thinking: str = "medium",
                  razor_dir: str = razor.ASSISTANT_DIR, razor_backups: str = razor.BACKUP_DIR,
-                 razor_clients=razor.client_count, sim_dir: str = sim_trace.DEFAULT_DIR):
+                 razor_clients=razor.client_count, sim_dir: str = sim_trace.DEFAULT_DIR,
+                 discord_db: str = DISCORD_DB):
         super().__init__(addr, Handler)
         self.feed = feed
         self.char_feeds: dict = {}       # charsel.parse(char) -> StatePortPoller for ?char=
@@ -1345,6 +1460,7 @@ class VizServer(ThreadingHTTPServer):
         self.live_lock = threading.Lock()
         self.live_factory = live_factory
         self.overseer = OverseerDB(memory_db)
+        self.discord = DiscordDB(discord_db)
         self.facet = None
         self.facet_error = "disabled (--no-facet)" if facet_path is None else None
         if facet_path is not None:
@@ -1414,6 +1530,7 @@ class VizServer(ThreadingHTTPServer):
         self.overseer.close()
         self.sim_jobs.stop_all()
         self.nystul.close()
+        self.discord.close()
         with self.live_lock:
             if self.live is not None:
                 self.live.stop_locked()
@@ -1453,6 +1570,8 @@ def main():
     p.add_argument("--nystul-db", default=nystul_mod.DEFAULT_DB, help="Nystul the Wizard's conversations")
     p.add_argument("--nystul-model", default="sonnet", help="omp model for Nystul the Wizard")
     p.add_argument("--nystul-thinking", default="medium", help="omp thinking level for Nystul the Wizard")
+    p.add_argument("--discord-db", default=DISCORD_DB,
+                   help="captured Discord messages, read-only: the Nystul page's source drawer (harness/discord_capture.py)")
     p.add_argument("--razor-dir", default=razor.ASSISTANT_DIR,
                    help="Razor Assistant data dir (the Razor page reads its profiles and writes their hotkeys)")
     p.add_argument("--sim-dir", default=sim_trace.DEFAULT_DIR, help="simulator traces for the Sim page (sim/trace.py)")
@@ -1467,7 +1586,7 @@ def main():
     srv = VizServer((args.host, args.port), feed, os.path.abspath(args.dist), args.memory_db,
                     None if args.no_facet else args.facet, live_factory=live_factory, state_port=args.state_port,
                     nystul_db=args.nystul_db, nystul_model=args.nystul_model, nystul_thinking=args.nystul_thinking,
-                    razor_dir=args.razor_dir, sim_dir=args.sim_dir)
+                    razor_dir=args.razor_dir, sim_dir=args.sim_dir, discord_db=args.discord_db)
     what = (f"replay {args.replay} ({feed.order} order, {len(feed.items)} items)" if args.replay
             else f"live state port {args.state_host}:{args.state_port}")
     print(f"[viz] {what}; http://{args.host}:{args.port}/", flush=True)

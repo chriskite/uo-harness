@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { fetchNystulModels } from "../api.ts";
 import { fmtClock } from "../format.ts";
-import { thinkingAfterSwitch, thinkingChoices, type NystulModels } from "../nystul.ts";
+import { sameSource, thinkingAfterSwitch, thinkingChoices, type NystulModels, type NystulSource } from "../nystul.ts";
 import { NystulChat, type NystulFeed } from "./NystulChat.tsx";
+import { NystulSourceDrawer } from "./NystulSourceDrawer.tsx";
 
 /** Today's conversations show the clock time, older ones the local date. */
 function fmtUpdated(t: number): string {
@@ -67,11 +68,23 @@ function NystulSettings({ feed }: { feed: NystulFeed }) {
   );
 }
 
-/** The #nystul page: conversation list on the left, the active conversation beside it. */
+/** The #nystul page: conversation list on the left, the active conversation beside it, and the
+ *  source drawer on the right while a cited source is open. */
 export function NystulPage({ feed }: { feed: NystulFeed }) {
   const convs = feed.list?.conversations ?? [];
+  // the drawer's sources: a citation in the chat starts a new stack, one inside the drawer pushes
+  const [sources, setSources] = useState<NystulSource[]>([]);
+  const open = sources.length > 0;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSources([]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   return (
-    <div className="nystul-page">
+    <div className={open ? "nystul-page with-source" : "nystul-page"}>
       <aside className="ny-list panel">
         <button type="button" className="ny-new" onClick={() => feed.select(null)} disabled={feed.activeId === null}>
           New conversation
@@ -114,8 +127,21 @@ export function NystulPage({ feed }: { feed: NystulFeed }) {
           <span className="dim">court mage · reads the Codex, the archives and the scrying pool</span>
           <NystulSettings feed={feed} />
         </header>
-        <NystulChat feed={feed} />
+        <NystulChat feed={feed} onSource={(s) => setSources([s])} />
       </main>
+      {open && (
+        <NystulSourceDrawer
+          stack={sources}
+          onOpen={(s) =>
+            setSources((st) => {
+              const top = st.at(-1);
+              return top && sameSource(top, s) ? st : [...st, s];
+            })
+          }
+          onBack={() => setSources((st) => st.slice(0, -1))}
+          onClose={() => setSources([])}
+        />
+      )}
     </div>
   );
 }

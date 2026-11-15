@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   NYSTUL_MAX_CHARS,
   askError,
+  discordSource,
   isRunning,
+  splitCodexRefs,
+  splitUrls,
   proposalView,
   runSummary,
   stepLabel,
@@ -170,5 +173,44 @@ describe("thinking levels per model", () => {
     expect(thinkingAfterSwitch("medium", ["off", "low", "high"])).toBe("low");
     expect(thinkingAfterSwitch("medium", ["off", "high", "max"])).toBe("high");
     expect(thinkingAfterSwitch("high", ["off"])).toBe("off");
+  });
+});
+
+describe("cited sources", () => {
+  test("Codex citations: #digits, not inside words, entities, ## or decimals", () => {
+    expect(splitCodexRefs("per #14357, #9457 and (#1); not C#5, &#38;, ##2, #3x, #1.5 or #newplayer")).toEqual([
+      "per ",
+      { id: 14357, text: "#14357" },
+      ", ",
+      { id: 9457, text: "#9457" },
+      " and (",
+      { id: 1, text: "#1" },
+      "); not C#5, &#38;, ##2, #3x, #1.5 or #newplayer",
+    ]);
+    expect(splitCodexRefs("no refs")).toEqual(["no refs"]);
+  });
+
+  test("Discord message links, and nothing else", () => {
+    // snowflakes stay strings: 1556402003855278099 > 2^53
+    expect(discordSource("https://discord.com/channels/1520125994659348631/1520448541347151922/1556402003855278099")).toEqual({
+      kind: "discord",
+      guild: "1520125994659348631",
+      channel: "1520448541347151922",
+      message: "1556402003855278099",
+    });
+    expect(discordSource("https://ptb.discord.com/channels/@me/2/3")).toEqual({ kind: "discord", guild: "@me", channel: "2", message: "3" });
+    expect(discordSource("https://discord.com/channels/1/2")).toBeNull();
+    expect(discordSource("https://discord.com.evil.io/channels/1/2/3")).toBeNull();
+    expect(discordSource("https://outlands.fandom.com/wiki/Taming")).toBeNull();
+  });
+
+  test("URLs in a reference, trailing punctuation left out", () => {
+    expect(splitUrls("forum-kb:12 https://a.b/x?y=1 (first..last), see https://c.d/e.")).toEqual([
+      "forum-kb:12 ",
+      { href: "https://a.b/x?y=1" },
+      " (first..last), see ",
+      { href: "https://c.d/e" },
+      ".",
+    ]);
   });
 });
