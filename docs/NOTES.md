@@ -7263,6 +7263,12 @@ Logan at the house. It has a human body, so `mount.pets_near` never takes it; th
   (5926, 1326) 77 +20 danger)". It fought the 63-step walk there and was on the gate at 16:27:50. Its menu listed Totem
   ("moongate to Totem: arrived at (3884, 2901, -40)", 16:27:53), and the tome took Logan home 2 s later. The patrol
   once crossed a moongate at (5865, 1364) that no command names ("passing through", 16:14:18).
+- **Level 2 with the new pets** (the user's "Move on to level 2 runs"): hunt-20261115-162820-ebbe (16:28-17:04, 1
+  visit). 70 kills, 38,723 gold, 64 hits lost, no pet death. The noughtilus fell to 34 % once and the vet supplies
+  brought it back. Lich magus, pyromancer and slinger fire went on all the way. The pack reached the weight limit at
+  ~42.7k gold, under the 48,004 gp return line ("weight 439/450: no room for gold coin ...; leaving it", 17:03, the
+  `gold_no_room` leave of f46fada). Here gold weight ended the level 2 visit before the return rule did. The user
+  ended the shift ("Return home and pause there"), and the Seer stopped the run with `--after-trip`.
 
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 
