@@ -3260,6 +3260,55 @@ The batch: base 5462e61 (a worktree) against the change, run at once, the live s
 13 of the 16 seeds gave the same numbers on both sides. The simulator has no pet that walks onto a ledge by itself, so
 the batch only shows the change costs nothing elsewhere.
 
+### Level 3's deaths: the two-layer room west of the arrival (2026-11-15)
+
+User 2026-11-15: "In a worktree diagnose and attempt to improve the deaths" (Ossuary level 3, branch `oss3-deaths`).
+Batches: `--scenario ossuary --runs 96 --seed 1 --team phoenix_incubus --prior <the live store> --json -- --vet-range 5
+--crawl-learn-s 180` (level 3, the scenario's default), each side from its own worktree, 30 game minutes from home.
+
+- **Where:** 24 of the base's 39 runs with a death died in the room west of the arrival, x 5619-5638, y 1116-1141
+  (9 on level 2's walk in, 6 elsewhere on level 3). Its whole floor has two walkable layers on the map: the land at z 0
+  and a surface (0x049D, height 0) at z 20 over it, joined by ramps at the south (5623, 1135, z 15) and stairs out of
+  the north (5619, 1115-1110). It is so live too (docs/NOTES.md "The Ossuary: level 3's two-layer room").
+- **Why** (traces, the 30 s before each of the 24 deaths, one sample a second): a monster stood beside Logan hitting him
+  with **no pet on its floor** for 247 of the 346 s it did, the pets 1-2 tiles off under or over it, at full hits.
+  Pets on its floor but not on it: 72 s; a pet on it: 27 s. A pet's walk and a monster's go by x/y (within reach in
+  x/y, they stop) and a melee swing needs 15 z or less (`World._attack`), so a pet under a jackal spirit at z 20 never
+  swings at it; the same holds live for the server's pets [INFERENCE: ServUO's AI ranges are 2D; live 2026-11-15 the
+  pets stood 6.5 min on a wall top over a black cat, docs/NOTES.md "The Ossuary: the third live shift"].
+  Today's `Team.unlock` ('All Follow Me' at a pet locked 8 s) fired in 6 of the 24; it calls them to us in x/y, not
+  onto our floor.
+- **A second fault:** 11 of the 24 had 'All Kill' at the monster on Logan read as "dropped" a second later, then
+  'All Guard Me': it had been passed over ("it can't see us from N tiles; skipping it for 60 s"), came on, and
+  `Team.kill_order_over` reads a serial in `HuntLoop.skip` as dropped. 133 such lines in the batch.
+- **Fixes** (docs/HUNT_LOOP.md "A monster on us that no pet reaches"): `Team.to_floor` walks Logan onto the nearest
+  pet's floor beside it (route ≤ 2 x its distance + `TO_FLOOR_DETOUR_STEPS` 24); `pick_target` ends the pass-over of
+  a monster that attacks us or the pets.
+
+| level 3 | runs with a death | in the room | runs with a pet death | kills / h | damage on Logan / h | banked / game h | runs with a pet left behind |
+|---|---|---|---|---|---|---|---|
+| parent of 5e1a9d3 (5462e61) | 42 | 26 | 73 | 145.9 | 1,857 | 92,195 | 5 |
+| base 5e1a9d3 | 39 | 24 | 76 | 144.6 | 2,085 | 97,288 | 13 |
+| change, rejoin's detour (10) | 29 | 15 | 82 | 145.2 | 1,689 | 101,868 | 9 |
+| **change** | **25** | **12** | 81 | 145.7 | 1,612 | **103,661** | 9 |
+| change, `--never-aggro hierarch` | 40 | 11 | 60 | 171.9 | 1,894 | 97,362 | 3 |
+
+- With the rejoin's detour bound, 96 of 153 walks onto the pets' floor were refused ("no route within 12-16 steps"):
+  from the z 20 layer the way down is a ramp or the stairs. With 24: 104 walks, 86 arrived, 14 refused.
+- The deaths by the monster with the most damage in the last 15 s: jackal spirit 14 -> 3, hierarch 9 -> 9, the others
+  16 -> 13. The hierarchs are what is left in the room: their channelled fire (6 hits 0.5 s apart on its target) took
+  Logan 93 -> 14 in 3 s in a pack of two (seed 41). `--never-aggro hierarch` moved the deaths elsewhere on level 3
+  (22 there against 6) and is worse overall.
+- Today's 5e1a9d3 isn't behind the level's deaths: its parent gives 42.
+- **Level 2** (the live default; `--area 5581 1225 5689 1363 -- ... --enter-via 1205 2816 --enter-via 5786 1327
+  --leave-gate 5672 1277`, 96 runs a side): runs with a death 0 -> 2, runs with a pet death 3 -> 1, kills / h 191.3 ->
+  193.2, damage on Logan / h 429 -> 419, banked / game h 95,380 -> 105,321, pets left behind 28 -> 28. `to_floor`
+  walked once in the 96 runs (at (5640-5643, 1277-1281)), in neither death run: seed 61 died with the pets 32 off,
+  seed 91 to skeletal archers. 94 of 96 seeds differ between the sides (careers diverge), so 0 -> 2 is within chance.
+- Tests: test_sim `test_to_pets_floor` (a jackal spirit on Logan at z 20, the pets at z 0 under them: the pets' damage
+  on it in 30 s 3,175 before, all GraveRobber's, the phoenix none; 31,953 after) and `test_passed_over_then_on_us`
+  (both fail before).
+
 ### Level 2 walked whole by the runner (2026-11-07)
 
 User 2026-11-07: "Last night the hunt runner did several runs of Ossuary 2. Use the session captures to flesh out Oss

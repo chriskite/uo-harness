@@ -1008,8 +1008,13 @@ class HuntLoop:
             s = serial_of(key)
             if s == me or mob.get("x") is None or not self.wanted(world, key, mob):
                 continue
-            if self.skip.get(s, 0) > mono and s not in attacking:
-                continue
+            if self.skip.get(s, 0) > mono:
+                if s not in attacking:
+                    continue
+                # on us or the pets now: the pass-over is void. Kept, Team.kill_order_over read every 'All Kill' at it
+                # as dropped a second later and sent 'All Guard Me' (simulator, Ossuary level 3, seed 13: a jackal
+                # spirit passed over "it can't see us", on Logan 6 s later, the pets called off it for 60 s, dead)
+                del self.skip[s]
             # only what we could attack: our own pets, players and allies' pets aren't targets anyway (live 2026-11-11
             # 10:57:55 "leaving Clicquot 0x000DF914 to a decaying dragon (an ally is fighting it)": a guildmate's
             # dragon fighting beside our pets)

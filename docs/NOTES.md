@@ -7068,6 +7068,30 @@ vielle). Evidence for the simulator's 2026-10-31 Ossuary changes (docs/SIM.md "T
   spectraldile; level 3's colossal searing scorpion and cryptwing. 32 other players seen, no reds.
 - The 2026-10-30 capture's 407 packets in the Ossuary's boxes are on no level (no jump into one): not a visit.
 
+## The Ossuary: level 3's two-layer room (west of the arrival; capture 20261031_170158, decoded 2026-11-15)
+
+The room at x 5619-5638, y 1116-1141, the first one west of level 3's arrival (5666, 1123, 37), has two walkable
+floors over each other on the map: the land at z 0 and a surface 0x049D (height 0) at z 20 over all of it. The ways
+between them: a ramp at its south (5623, 1135, z 15) and stairs out of its north side ((5619, 1116, 20) -> (5619, 1110,
+0)); a step off at (5633, 1135, 22) -> (5632, 1136, 0) is a drop.
+
+Live it is two floors too. The 0x77/0x20 positions inside the room on 2026-10-31 20:42-20:45:
+
+| mobile | z 20 | z 22 | z 0 | other |
+|---|---|---|---|---|
+| Logan 0x002D618A | 229 | 52 | 24 | 4 |
+| AlaFlambe 0x0026EF56 | 114 | 114 | 74 | 0 |
+| Bussin 0x000EA04F | 93 | 58 | 138 | 1 |
+| six mobiles 0x00263C6B-0x00265AE3 [INFERENCE: level 3's monsters, by their serial range] | 73 | 71 | 460 | 45 |
+
+He walked in along z 20 from (5650, 1128), went down to z 0 at (5632, 1136), back up the ramp at (5623, 1135, 15) and
+out by the north stairs. Those six stood mostly at z 0, his pets on both floors. Not known: whether a monster at z 0
+hit him at z 20, or a pet at z 0 one at z 20 (the 2026-11-15 wall top on level 2 says no, docs "The Ossuary: the third
+live shift"). In the simulator a pet's or a monster's walk stops once it is beside its target in x/y and a melee
+swing needs 15 z or less, so a pet under a monster on Logan swings at nothing. That was most of level 3's simulated
+deaths (docs/SIM.md "Level 3's deaths: the two-layer room west of the arrival"; the runner's answer is in
+docs/HUNT_LOOP.md "A monster on us that no pet reaches").
+
 ## The Ossuary: the runner's first live run, level 2 (2026-11-06 22:17:44-23:54:20, hunt-20261106-221743-9644)
 
 Logan with Debuffy 0x001A309A (body 832, a phoenix's body, but a Bird of Paradise: "Debuffy the Bird Of Paradise has

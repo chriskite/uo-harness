@@ -36,7 +36,7 @@ re-dispatch, until the user changes them. None: level 2. Map each one before dis
    |---|---|---|---|
    | level 2, nothing | Oss 2 | `--enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` | The default. 0 of 56 runs with a death, 103k gp a game hour in a normal week (level 2 rebuilt from the runner's capture, docs/SIM.md "Level 2 walked whole by the runner"). 20 of 56 had "not going back in: Bussin is not with us" after a leave (cause untraced; not seen live). **Live 2026-11-06** (Debuffy and LayMore): 4 visits in 97 min, no death, 43k gold an hour in a Sanctuary week (0.65 x gold); LayMore died twice to lich magi and was resurrected by the vet supplies. **Live 2026-11-07** (Borealish and Debuffy): 5 visits in 2 h 15 min, no Logan death, ~51k gold an hour (Sanctuary week); Borealish died once to lich magi, resurrected in 6 s (no `pet_down` juncture fires for that: read the task log for "is dead"). |
    | level 1 | Oss 1 | `--enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870 1310` | 0 of 16 with a death, 55k gp a game hour. The golden gates' menus were never opened live. |
-   | level 3 | Oss 3 | `--enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --leave-gate 5577 1095` | **17 of 48 runs with a death**, most at the jackal spirits and hierarchs in the corridor west of the arrival (docs/SIM.md "The fourth visit"); 113k gp a game hour. The user hunts here by hand. |
+   | level 3 | Oss 3 | `--enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --leave-gate 5577 1095` | **25 of 96 runs with a death** (2026-11-15, with `Team.to_floor`; 39 of 96 before it), 12 of them in the two-layer room west of the arrival, 6 of those to hierarchs (docs/SIM.md "Level 3's deaths: the two-layer room west of the arrival"); 104k gp a game hour. The user hunts here by hand. |
    | level 4 | Oss 4 | none | 16 of 16 dead in the simulator, most on level 3 on the way. Refuse it: runner work first (section 4). |
 
    **Level 3:** before the first run, tell the user in one message what the table says for it and wait for their go;
@@ -133,7 +133,9 @@ Call `wait`. It returns on a message from the Seer, its end, the user, or a 30-m
     (the week from Friday 2026-11-06: its corpses hold about 0.65 x their usual gold; docs/NOTES.md "The Ossuary:
     level 2 from the runner's capture"). Not a fault.
 - **Watch for** a pet left behind at a leave ("not going back in: Bussin is not with us", seen in the simulator), and
-  on level 3 the corridor west of the arrival (x 5619-5649, y 1120-1135), where the simulated runner died most.
+  on level 3 the room west of the arrival (x 5619-5638, y 1116-1141), floors at z 0 and 20 over each other, where the
+  simulated runner died most: "no pet on its floor: to <pet> ..., on its floor" is the runner taking Logan onto the
+  pets' floor (expected).
 - **Never** `ctl wait` for Logan: it advances the Seer's shared cursors (`overseer_juncture_cursor`,
   `overseer_chat_cursor`) and the Seer misses those events. Never `ctl act`, `ctl run` or `ctl stop` while the
   Seer runs: have the Seer do it. Never fight by hand.

@@ -178,6 +178,16 @@ COMMAND_R = 12
 STUCK_REJOIN_S = 30.0
 STUCK_FOLLOW_S = 10.0         # ...then no walk back while they come, and 'All Guard Me' once with us or after this long
 LOCKED_S = 8.0               # a pet locked on a monster a floor above or below it this long on one tile: 'All Follow Me' (unlock)
+# A monster beside us that no live pet reaches (a floor above or below them all) with a pet within TO_FLOOR_R on another
+# floor than ours: onto that pet's floor beside it, the monster after us (to_floor; simulator, Ossuary level 3's two-layer
+# room at x 5619-5638, y 1116-1141, z 0 and 20: in the corridor deaths' last 30 s a monster stood beside Logan with no pet
+# on its floor 247 of the 346 s it did, the pets 1-2 tiles off under or over it)
+TO_FLOOR_R = 8
+TO_FLOOR_S = 4.0              # ...not again sooner (a walk the monster cut short, a route refused)
+# ...by a route of at most 2 x the pet's distance + this: the way between the floors is a ramp or stairs round (level
+# 3's room: (5623, 1135) south, (5619, 1115-1110) north; the rejoin's REJOIN_DETOUR_STEPS refused 96 of a batch's 153
+# walks, "no route within 12-16 steps")
+TO_FLOOR_DETOUR_STEPS = 24
 FALLBACK_R = 4                # run until this far from every attacker...
 FALLBACK_MOVES = 10           # ...at most this many steps...
 FALLBACK_S = 4.0              # ...or this long, stopping as soon as every pet is within FOLLOW_R
@@ -929,6 +939,7 @@ class Team:
         self.follow_until = 0.0          # 'All Follow Me' at pets stuck off a fight (rejoin, unlock): no walk back till then
         self.follow_called = False       # ...and 'All Guard Me' due once they are with us or it is over (care)
         self.locked_at = {}              # pet serial -> ((x, y, z), monotonic) since it stands locked off a monster's floor
+        self.to_floor_t = -1e9           # monotonic of the last walk onto the pets' floor (to_floor)
 
     # ------------------------------------------------------------ bookkeeping
     def count(self, what: str, n: int = 1):
@@ -1528,11 +1539,64 @@ class Team:
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.h.heal_at_now()
         calm = not self.view(st).engaged()
-        return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) \
+        return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) or self.to_floor(st) \
             or self.area_peace(st) or self.retreat(st) or self.cover(st) or self.duck(st) \
             or (low and self.vet(st, calm=calm)) \
             or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
             or self.unlock(st) or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+
+    def to_floor(self, st) -> bool:
+        """A monster beside us that no live pet in view reaches (HuntLoop.pet_reaches: each a floor above or below it),
+        with a live pet within TO_FLOOR_R on another floor than ours: walk onto that pet's floor beside it, the monster
+        after us, where the pets can swing at it. 'All Kill' doesn't help: the pets stand 1-2 tiles off it under or
+        over it and swing at nothing; the retreat and the area peace leave it on us. At most once in TO_FLOOR_S.
+        Simulator, Ossuary level 3 (seed 48 01:16:00-01:16:51): a jackal spirit at z 20 on Logan, the pets at z 0
+        below them both, 50 s, dead."""
+        h, now = self.h, time.monotonic()
+        if now - self.to_floor_t < TO_FLOOR_S or now < self.vet_busy_until:
+            return False
+        pos = h.pos(st)
+        if len(pos) < 3 or pos[2] is None:
+            return False
+        me = {"x": pos[0], "y": pos[1], "z": pos[2]}
+        pets = [p for p in self.pets(st) if not p["dead"]]
+        mobiles = st["world"]["mobiles"]
+        stuck = None
+        for a in h.attackers(st):
+            m = mobiles.get(a["serial"])
+            if a["dist"] <= 1 and m is not None and m.get("x") is not None \
+                    and pets and not any(h.pet_reaches(st, p, m) for p in pets):
+                stuck = m
+                break
+        if stuck is None:
+            return False
+        off = [p for p in pets if p["dist"] <= TO_FLOOR_R and not h.pet_reaches(st, p, me)]
+        if not off:
+            return False
+        p = min(off, key=lambda q: q["dist"])
+        z_ok = h.floor_z_ok(st, p)
+        if z_ok is None:
+            return False
+        self.to_floor_t = now
+        name = stuck.get("name") or "a monster"
+        label = "onto the pets' floor"
+        self.count("floor_joins")
+        log(f"{name} at ({stuck['x']}, {stuck['y']}, {stuck.get('z')}) on us at {tuple(pos[:3])}, no pet on its floor: "
+            f"to {p['name']} at ({p['x']}, {p['y']}, {p['z']}), {p['dist']} off, on its floor")
+        h.doing("reposition", f"{'Down' if (p['z'] or 0) < pos[2] else 'Up'} to {p['name']}'s floor, {name} after us",
+                (p["x"], p["y"]))
+
+        def where():
+            m = h.link.last["world"]["mobiles"].get(f"0x{p['serial']:08X}")
+            return (m["x"], m["y"]) if m is not None and m.get("x") is not None else (p["x"], p["y"])
+        try:
+            h.mover.walk_to(where, 1, label, z_ok=z_ok, urgent=True, mobile_wait=0,
+                            max_route=2 * p["dist"] + TO_FLOOR_DETOUR_STEPS)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"onto the pets' floor: {e}")
+        return True
 
     def on_our_floor(self, st) -> bool:
         """Every live pet in view on our floor (HuntLoop.pet_reaches with us for the monster)."""

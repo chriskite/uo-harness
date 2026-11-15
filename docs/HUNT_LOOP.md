@@ -1209,6 +1209,20 @@ changed (user 2026-10-22: "the overseer did not use the --patrol-flag").
   (x, y, z) stands locked on <monster> at (x, y, z), a floor below it, for N s: 'All Follow Me'"). "All Guard Me"
   after any "All Follow Me" now waits until the pets are within 3 **and on our floor** (`Team.on_our_floor`), or 10 s.
   test_sim `test_pets_locked_off_floor` (fails before).
+  **A monster on us that no pet reaches** (since 2026-11-15, branch `oss3-deaths`; docs/SIM.md "Level 3's deaths: the
+  two-layer room west of the arrival"). `Team.to_floor`, in the care step right after the fire: a monster beside us
+  that no live pet in view is on the floor of (`HuntLoop.pet_reaches`), with a live pet within `TO_FLOOR_R` 8 on
+  another floor than ours: walk onto that pet's floor beside it (`HuntLoop.floor_z_ok`), the monster after us, by a
+  route of at most 2 x the pet's distance + `TO_FLOOR_DETOUR_STEPS` 24, once in `TO_FLOOR_S` 4 s ("<monster> at
+  (x, y, z) on us at (x, y, z), no pet on its floor: to <pet> at (x, y, z), N off, on its floor"). Before the area
+  peace and the retreat, which leave it on us. Ossuary level 3's first room west of the arrival has floors at z 0
+  and 20 over each other; the pets stood under a jackal spirit on Logan and swung at nothing (docs/NOTES.md "The
+  Ossuary: level 3's two-layer room"). Simulator, level 3, 96 runs: runs with a death 39 -> 25. test_sim
+  `test_to_pets_floor` (fails before).
+  **A passed-over monster that comes on** (same change): `pick_target` already takes a skipped monster that attacks
+  us or the pets; it now ends its skip there too. Kept, `Team.kill_order_over` read every 'All Kill' at it as
+  "dropped" a second later and sent 'All Guard Me' for the rest of the 60 s. test_sim `test_passed_over_then_on_us`
+  (fails before).
   **The pull spot**: before holding, once per group, the runner steps (up to 3) to the tile where the
   fewest of them would see us before a pet, then the fewest by weight within their range, but at least one
   near enough to see the pets beside us; not in a Charge's reach or a never-aggro monster's sight; they

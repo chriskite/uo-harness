@@ -4049,6 +4049,21 @@ dead with the pets on follow after a resurrection").
   ghost's 'All Follow Me', 'All Guard Me' at once, past GUARD_REPEAT_S. One command, ~no time; every other step after it.
 - *Rejected*: moving the guard up inside Team.care only (the stand-off comes before care in combat_step).
 
+## Onto the pets' floor when a monster on us is where no pet reaches (Ossuary level 3 in the simulator, user 2026-11-15)
+
+User: "diagnose and attempt to improve the deaths" on level 3, in a worktree while the runner is live (branch
+`oss3-deaths`). 24 of 39 runs with a death in 96 were in the room west of the arrival, which has floors at z 0 and 20
+over each other; the pets stood under a jackal spirit on Logan and swung at nothing (docs/SIM.md "Level 3's deaths:
+the two-layer room west of the arrival").
+
+- *Decided*: `Team.to_floor` walks Logan onto the nearest pet's floor beside it, the monster after him, before the area
+  peace and the retreat; a passed-over monster that attacks us or the pets loses its skip (`pick_target`). Level 3,
+  96 runs: runs with a death 39 -> 25, banked / game h 97.3k -> 103.7k.
+- *Rejected*: the rejoin's detour bound for that walk (96 of 153 refused, 29 deaths); `--never-aggro hierarch` for the
+  hierarchs left (40: the crawl goes where it dies more).
+- *Open*: the hierarchs' channelled fire in the same room (9 deaths either way); whether pets live reach across the
+  room's floors at all (docs/NOTES.md "The Ossuary: level 3's two-layer room").
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

@@ -1946,6 +1946,73 @@ def test_pets_locked_off_floor():
           f"pets {max(sim_cheb(p.pos, w.player.pos) for p in w.pets())} off, holds {text.count('is fighting')}")
 
 
+def test_to_pets_floor():
+    print("== a jackal spirit on Logan at z 20 in Ossuary level 3's two-layer room, the pets at z 0 under them: onto the "
+          "pets' floor, the jackal after him, the pets on it ==")
+    # simulator, Ossuary level 3 (seed 48 01:16:00-01:16:51): the room at x 5619-5638, y 1116-1141 has a floor at z 0 and
+    # one at z 20 over it; a jackal spirit at z 20 on Logan, the pets 1-2 tiles off at z 0 swinging at nothing, dead
+    w = ossuary_world((5627, 1123), [{"key": "jackal spirit", "at": [5627, 1122, 20]}], seed=7, z=20)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    m.hits = m.hits_max = 100000                  # it lives; its melee on Logan small, so he lives too
+    m.spec = {**m.spec, "melee_player": [1, 2], "specials": []}
+    loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5628, 1125), (5626, 1125)))
+    for p in w.pets():
+        p.z = 0
+    m.target, m.threat = w.player.serial, {w.player.serial: 1e6}
+    w._warm(m, True)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            for _ in range(60):                   # 30 s
+                clock.advance(0.5)
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    by_pets = sum(m.damage_by.get(p.serial, 0) for p in w.pets())
+    # before: 3,175 in 30 s, all GraveRobber's where the jackal's walk brought it within 15 z; the phoenix none
+    check("30 s: Logan onto the pets' floor, the jackal spirit after him, both pets on it (10,000+ of theirs on it)",
+          by_pets >= 10000 and abs(m.z - w.pets()[0].z) <= 15,
+          f"Logan {w.player.pos}, jackal {m.pos}, pets {[p.pos for p in w.pets()]}, the pets' damage on it {by_pets}")
+
+
+def test_passed_over_then_on_us():
+    print("== a monster passed over that comes on us: 'All Kill' at it stands, no 'All Guard Me' a second later ==")
+    # simulator, Ossuary level 3 (seed 13 00:25:32-00:26:45): a jackal spirit passed over ("it can't see us from 6
+    # tiles"), on Logan 6 s later; each 'All Kill' at it read as dropped a second after (its skip still on) and
+    # 'All Guard Me' sent, for the skip's 60 s
+    import time as _time
+    x, y = OSS_L3
+    w = ossuary_world(OSS_L3, [{"key": "jackal spirit", "at": [x, y - 1, 0]}], seed=7)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    m.hits = m.hits_max = 100000
+    m.spec = {**m.spec, "melee_player": [1, 2], "specials": []}
+    loop, clock, store, patched = hurt_loop(w, 100, pets_at=((x + 3, y + 1), (x + 3, y + 2)))
+    m.target, m.threat = w.player.serial, {w.player.serial: 1e6}
+    w._warm(m, True)
+    loop.skip[m.serial] = _time.monotonic() + 60.0
+    pet_step = w._pet
+
+    def kill_only(p):                             # guarding, they don't take it on (in the run they couldn't reach it)
+        if p.mode == "kill":
+            return pet_step(p)
+        p.target = None
+    w._pet = kill_only
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            for _ in range(30):                   # 15 s
+                clock.advance(0.5)
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    text = out.getvalue()
+    kills, dropped = text.count('said "All Kill"'), text.count("dropped: the pets off guard")
+    by_pets = sum(m.damage_by.get(p.serial, 0) for p in w.pets())
+    check("15 s: 'All Kill' at it, never read as dropped, the pass-over gone; the pets on it",
+          kills > 0 and not dropped and m.serial not in loop.skip and by_pets > 0,
+          f"All Kill {kills}, dropped {dropped}, skip {m.serial in loop.skip}, the pets' damage on it {by_pets}")
+
+
 def test_others_corpse_not_looted():
     print("== a monster another player did most of the damage to: its corpse is blue, the runner doesn't open it ==")
     # live loot rights (docs/HUNT_LOOP.md "Loot rights"): the most damage takes the corpse; 160 of 164 monsters seen
@@ -9332,7 +9399,7 @@ def main():
               test_theirs_passed_over,
               test_theirs_after_kill_sent,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
-              test_pets_locked_off_floor,
+              test_pets_locked_off_floor, test_to_pets_floor, test_passed_over_then_on_us,
               test_others_corpse_not_looted,
               test_area_peace, test_audit_mechanics, test_blink_stepoff,
               test_heal_in_place,
