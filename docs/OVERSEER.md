@@ -720,7 +720,10 @@ Paste this (or point the session at this section) to start an overseer.
 >      `--enter-via` is the entrance 8 tiles west of it, then level 1's west end, then level 2's south end.
 >      - **Ossuary level 1**: `--enter-rune Ossuary --enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870
 >        1310`. Out by the easier of level 1's two golden gates (0x40001A02 beside the arrival, 0x40001A04 at the
->        rune library's spot). Their menus were never opened live [INFERENCE: Totem on them as on every gate seen].
+>        rune library's spot). 0x40001A04 (5870, 1310) took the runner to Totem live 2026-11-15 16:27:53
+>        (hunt-20261115-160512-4eee); 0x40001A02's menu was never opened live [INFERENCE: Totem on it as on every gate
+>        seen]. The patrol may cross a moongate at (5865, 1364): "closing gump 0xE0E675B8 from the moongate at (5865,
+>        1364) (passing through)" is harmless.
 >      - **Ossuary level 2** (the default): `--enter-rune Ossuary --enter-via 1205 2816 --enter-via 5786 1327
 >        --leave-gate 5672 1277`. Out by the crimson gate 0x4004A43E (5672, 1277), which Logan took to Totem live
 >        2026-10-28 17:37 and the runner four times on 2026-11-06. Level 2's arrival tile (5689, 1248-1250) is also the
@@ -731,7 +734,8 @@ Paste this (or point the session at this section) to start an overseer.
 >        The strips north to level 4 at (5588-5590, 985) and (5651-5654, 950) are known walls to the walk rules.
 >      - **Ossuary level 4**: no command. Every simulated run died. Tell the parent: runner work first.
 >    The runner's first live Ossuary run was level 2 on 2026-11-06 (docs/NOTES.md "The Ossuary: the runner's first
->    live run, level 2"): 4 visits in 97 min, 69k gold banked, no death; levels 1 and 3 have never been run live. In
+>    live run, level 2"): 4 visits in 97 min, 69k gold banked, no death. Level 1's first live run was on 2026-11-15
+>    (one visit, no death, out by 0x40001A04 to Totem); level 3 has never been run live. In
 >    the simulator with AlaFlambe and Bussin, runs with a death were 0 of 16 on level 1 (docs/SIM.md "The fourth
 >    visit"), 0 of 56 on level 2 and 17 of 48 on level 3 (2026-11-07, docs/SIM.md "Level 2 walked whole by the runner").
 >    The week from Friday 2026-11-06 the Ossuary is the Sanctuary dungeon ("Criminal actions are not permitted in the

@@ -7256,6 +7256,13 @@ Logan at the house. It has a human body, so `mount.pets_near` never takes it; th
   on one tile for 8 s (`LOCKED_S`). The care step's 'All Guard Me' then waits until the pets are within 3 and on our
   floor (`Team.on_our_floor`), or 10 s. The z of mobiles in the 0x77/0x20 V10 packets was right at every step here
   (the ramp read -18, -13, -8, -3, 0).
+- **The runner's first live level 1 run** (new pets: a giant black widow 0x0036D440, an oozing noughtilus 0x00379C41 and a
+  poison mephit 0x0058A7BC; Seer SeerLoganWolf2): hunt-20261115-160512-4eee (16:05:12-16:28:01, 1 visit): 57 kills,
+  16,181 gold, 32 hits lost, no death. At 16:26 the user moved the shift to level 2, and the Seer stopped the run with
+  `--after-trip`. The leave picked the golden gate 0x40001A04 at (5870, 1310): "the easiest of 2 (62 steps +20 danger;
+  (5926, 1326) 77 +20 danger)". It fought the 63-step walk there and was on the gate at 16:27:50. Its menu listed Totem
+  ("moongate to Totem: arrived at (3884, 2901, -40)", 16:27:53), and the tome took Logan home 2 s later. The patrol
+  once crossed a moongate at (5865, 1364) that no command names ("passing through", 16:14:18).
 
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 

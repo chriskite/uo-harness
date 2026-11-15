@@ -15,9 +15,10 @@ Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts
 "In and out of a dungeon", "Crawl"; docs/NOTES.md "The Ossuary: …" sections; docs/SIM.md "The Ossuary" and "The
 fourth visit; runs per level for a shift".
 
-**The runner has hunted the Ossuary live on level 2 only** (2026-11-06, docs/NOTES.md "The Ossuary: the runner's
-first live run, level 2": 4 visits, no death, the crimson gate to Totem every time). Levels 1 and 3 were tried only in
-the simulator, built from the user's four hand-played visits (2026-10-28 and 10-31): watch their first runs closely.
+**The runner has hunted the Ossuary live on levels 2 and 1** (level 2 since 2026-11-06, docs/NOTES.md "The Ossuary:
+the runner's first live run, level 2": no Logan death so far, the crimson gate to Totem every time; level 1 once, 2026-11-15,
+22 min, no death, out by the golden gate at (5870, 1310) to Totem). Level 3 was tried only in the simulator, built from
+the user's four hand-played visits (2026-10-28 and 10-31): watch its first runs closely.
 
 ## 0. The user's instructions
 
@@ -35,7 +36,7 @@ re-dispatch, until the user changes them. None: level 2. Map each one before dis
    | The user says | Level | Arguments | State (simulator, AlaFlambe and Bussin, 30 min from home: levels 2 and 3 2026-11-07, 1 and 4 2026-10-31) |
    |---|---|---|---|
    | level 2, nothing | Oss 2 | `--enter-via 1205 2816 --enter-via 5786 1327 --leave-gate 5672 1277` | The default. 0 of 56 runs with a death, 103k gp a game hour in a normal week (level 2 rebuilt from the runner's capture, docs/SIM.md "Level 2 walked whole by the runner"). 20 of 56 had "not going back in: Bussin is not with us" after a leave (cause untraced; not seen live). **Live 2026-11-06** (Debuffy and LayMore): 4 visits in 97 min, no death, 43k gold an hour in a Sanctuary week (0.65 x gold); LayMore died twice to lich magi and was resurrected by the vet supplies. **Live 2026-11-07** (Borealish and Debuffy): 5 visits in 2 h 15 min, no Logan death, ~51k gold an hour (Sanctuary week); Borealish died once to lich magi, resurrected in 6 s (no `pet_down` juncture fires for that: read the task log for "is dead"). |
-   | level 1 | Oss 1 | `--enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870 1310` | 0 of 16 with a death, 55k gp a game hour. The golden gates' menus were never opened live. |
+   | level 1 | Oss 1 | `--enter-via 1205 2816 --leave-gate 5926 1326 --leave-gate 5870 1310` | 0 of 16 with a death, 55k gp a game hour. **Live 2026-11-15** (a giant black widow, an oozing noughtilus, a poison mephit): one run of 22 min, 57 kills, 16k gold, no death; out by the golden gate 0x40001A04 (5870, 1310) to Totem. The gate beside the arrival (5926, 1326) was never opened live. |
    | level 3 | Oss 3 | `--enter-via 1205 2816 --enter-via 5786 1327 --enter-via 5683 1363 --leave-gate 5577 1095` | **25 of 96 runs with a death** (2026-11-15, with `Team.to_floor`; 39 of 96 before it), 12 of them in the two-layer room west of the arrival, 6 of those to hierarchs (docs/SIM.md "Level 3's deaths: the two-layer room west of the arrival"); 104k gp a game hour. The user hunts here by hand. |
    | level 4 | Oss 4 | none | 16 of 16 dead in the simulator, most on level 3 on the way. Refuse it: runner work first (section 4). |
 
