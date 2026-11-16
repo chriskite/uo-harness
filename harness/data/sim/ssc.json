@@ -9,8 +9,8 @@
  "calibration": {
   "facet": 0,
   "boxes": [[5092, 2457, 5200, 2665], [5236, 2411, 5364, 2649]],
-  "tags": ["20261024_102346", "20261024_225113", "20261031_132152", "20261103_101743"],
-  "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5); the east wing (x 5415-5530) and the grounds outside lie outside both. Captures: the user's seven visits (description)"
+  "tags": ["20261024_102346", "20261024_225113", "20261031_132152", "20261103_101743", "20261115_171431"],
+  "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5); the east wing (x 5415-5530) and the grounds outside lie outside both. Captures: the user's seven visits (description); 20261115_171431 (2026-11-15: the runner's level 1 runs 19:39-21:57, the user's level 2 visit 20:37:49-20:50:24, the runner's level 2 run to Logan's death 21:58:41-22:05:40 and the user's 63 s back down after it; docs/NOTES.md \"Shadowspire Cathedral: level 2 live, the user's visit and the runner's death\")"
  },
  "inherit": {
   "from": "mausoleum",
@@ -239,18 +239,18 @@
     "leave_via": [[5277, 2641]],
     "note": "down level 1's south strip (5132, 2653) as Logan went 5 of 5 times, the leg across level 1 fought through (`fight_via`: walked, 10 of 32 runs died on it in the simulator); out up level 2's strip (5277, 2641) from its floor and across to level 1's crimson gate (5157, 2647), 25 tiles east of the landing below the strip, as he left 5 of 5 times (Tidal Tomb level 3's way: leave_via, then a leave gate on the level above)",
     "trip": {
-     "note": "Logan Wolf's visits on level 2 (visits 1, 3, 4, 5 and 7, the user playing): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan; vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there (corpses others killed included). Per hour on the level beside the sim's (run.py --level 2 --compare)",
-     "hunt_s": 2498.1,
-     "kills": 78,
-     "player_damage": 943,
-     "vet_uses": 130,
-     "potions": 21,
-     "discord_ok": 61,
-     "discord_fail": 29,
-     "peace_ok": 26,
-     "peace_fail": 14,
-     "provoke": 13,
-     "gold": 81489
+     "note": "Logan Wolf's visits on level 2 (visits 1, 3, 4, 5 and 7, and 2026-11-15 20:37:49-20:50:24 (754.4 s: 22 kills, 731 on Logan, 51 vet, 9 potions, 39,351 gp), the user playing): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan; vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there (corpses others killed included). Per hour on the level beside the sim's (run.py --level 2 --compare)",
+     "hunt_s": 3252.5,
+     "kills": 100,
+     "player_damage": 1674,
+     "vet_uses": 181,
+     "potions": 30,
+     "discord_ok": 84,
+     "discord_fail": 38,
+     "peace_ok": 44,
+     "peace_fail": 28,
+     "provoke": 19,
+     "gold": 120840
     }
    }
   ],
@@ -621,6 +621,11 @@
    "key": "spectral pontiff",
    "at": [5284, 2608, -25],
    "note": "level 2: first seen 10-24 20:24:09 (5284, 2608) at 18 tiles"
+  },
+  {
+   "key": "spectral pontiff",
+   "at": [5254, 2602, -23],
+   "note": "level 2: first seen 11-15 22:05:12 (5254, 2602) at 13 tiles, idle; back at (5253, 2601) at 22:08:03 after its fight (its home) [INFERENCE: a spawn of its own, 30 tiles west of the 10-24 one]"
   },
   {
    "key": "spectral warrior",
@@ -1063,7 +1068,7 @@
    "note": "level 2: first seen 11-03 22:22:04 (5287, 2624) at 18 tiles"
   }
  ],
- "spawn_note": "one spawn per cluster of a type's first sightings in the seven visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; types without a wiki row at Shadowspire Cathedral left out: players' summons and pets, 'daemon', 'black widow', unnamed bodies): level 1 67, level 2 94. The tiles within 18 of where Logan stood are 100 % of level 1's floor, 67 % of level 2's, so level 2's far side has none. Busy with other players: many first sightings came after another player's fight",
+ "spawn_note": "one spawn per cluster of a type's first sightings in the seven visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; types without a wiki row at Shadowspire Cathedral left out: players' summons and pets, 'daemon', 'black widow', unnamed bodies): level 1 67, level 2 94. The tiles within 18 of where Logan stood are 100 % of level 1's floor, 67 % of level 2's, so level 2's far side has none. Busy with other players: many first sightings came after another player's fight. 2026-11-15 (the user's and the runner's level 2 visits): a spectral pontiff spawn added at its home (5254, 2602), level 2 95; the 10 gargan stoneshapers seen then (6 by the user in 754 s, 4 by the runner in 419 s) were first sighted within 1-3 of the existing spawns 6 times and 6-7 off them 4 times ((5281, 2563); (5273, 2620) and (5272, 2618) on 22:00:51 and 22:05:16, one place, 237 s after the first one's death there; (5290, 2638)): none added [INFERENCE: wanderers off the spawns beside them; the simulator already meets 2.2 x the live stoneshapers an hour (docs/SIM.md)]",
  "melee_observed": {
   "golden gargoyle": {
    "melee": [12, 26, 16],
@@ -1096,6 +1101,19 @@
   "stone familiar": {
    "melee": [19, 47, 34],
    "note": "its swings on the pets (a number while it alone stood beside the victim) outside its '*slams earth*' windows and the stoneshapers' ticks: 16-39 as seen, median 28 (n=43), song-corrected here; the capture's swing numbers (16-112) mix in its slams"
+  },
+  "spectral warrior": {
+   "swing_s": 1.87,
+   "melee": [25, 53, 43],
+   "note": "its swings before 2026-11-15 (ssc_observed at 18e13d9: period median 1.87 s, n=15; per swing 25-53, median 43, n=22). The 11-15 capture's 28 '*blade wind*' (a 17 on each pet within reach, up to 14 tiles, 0.8 s after the emote, and more ticks after) drag its swing period to 1.23 s (n=68, under MIN_SWING_S: the 3.0 s default) and its numbers to a median 34; the blade wind itself is not modelled (specials.note)"
+  }
+ },
+ "ranged_observed": {
+  "spectral pontiff": {
+   "damage": [17, 40, 31],
+   "damage_player": [30, 37],
+   "every_s": 5.0,
+   "note": "2026-11-15 22:05:28-40 and 22:08:14-53 (docs/NOTES.md \"Shadowspire Cathedral: level 2 live, ...\"): its damaging spells (sound 0x456 at it with the number; no visible bolt for the single ones) 1.7-11.2 s apart (median 5.0, n=8), the first 3.3 s after its war flag; on the pets 17-40 (median 31, n=15; the 18.0 % Song of Discordance taken out before the death), on Logan 30 and 37 (n=2), at 1-11 tiles (once 20-21 [INFERENCE: its]). The wiki's spell damage 35-45 x ranged_kb_factor 0.5 gave 17.5-22.5 every 6 s. `damage` as on the reference pet [INFERENCE: measured on a giant black widow, an oozing noughtilus and a poison mephit]; range the default 12"
   }
  },
  "specials": {
@@ -1207,11 +1225,11 @@
     "delay_s": 1.38,
     "repeat": 4,
     "repeat_s": 0.45,
-    "radius": 9,
-    "chance": 0.2,
+    "radius": 10,
+    "chance": 0.26,
     "damage_pet": null,
     "damage_player": [7, 24, 12],
-    "note": "the same cast's ticks on Logan away from the pets: with Logan within 9 of a stoneshaper (30 casts) 24 ticks landed on him at 3-9 tiles (1-6 from the pets it hit), 0.8 a cast: chance 0.2 a tick. Logan 6-20 as seen (median 10, n=26), song-corrected. Two bursts of one cast [INFERENCE: what picks its far victims is unknown: neither its own nor its target's distance tells]"
+    "note": "the same cast's ticks on Logan away from the pets: with Logan within 9 of a stoneshaper (30 casts) 24 ticks landed on him at 3-9 tiles (1-6 from the pets it hit), 0.8 a cast; on 2026-11-15 (levels 2 by the user and the runner) 25 ticks in the 17 casts with Logan within 10 (at 3-10 tiles; none in 3 casts at 14-17), 1.5 a cast, whole casts at a time: 8 of 17 casts put 1-4 ticks on him, the other 9 none. Pooled 49 ticks in 47 casts: chance 0.26 a tick, radius 10 (was 0.2 and 9). Logan 6-20 as seen (median 10, n=26; 11-15 7-14, median 10, n=25, under an 18.0 % Song of Discordance), song-corrected. Two bursts of one cast [INFERENCE: what picks its far victims is unknown: neither its own nor its target's distance tells; the per-tick chance spreads what live came as whole casts]"
    }
   ],
   "horned devil": [
@@ -1230,7 +1248,24 @@
     "note": "'*devil strike*' (n=13, level 2) with animation 6 0.24 s after, every 7.6-13.0 s (median 8.6, n=9); 0.63-0.66 s after the emote one number on each pet within 1 of it: 93 on 3 pets at once 3 times, 93 alone 3 times, 100 once, 40-53 once (n=17): a fixed number, so song_pets false [INFERENCE]. Logan never stood within 1: damage_player [INFERENCE: 0.7 of the pets', as Cavernam's charoite crush]"
    }
   ],
-  "note": "Song-corrected by the Song of Discordance share his songs printed then (17.7 % at E 118, 2026-10-24; none printed in the 10-31 and 11-03 captures). Not modelled: the winged hulk's '*intimidates*' (n=13, every 15.3-16.3 s; animation 5; 'The creature intimidates you, reducing your accuracy.' and '*intimidated*' over Logan and over players at 4-8 tiles, no number with it: an accuracy cut, and Logan doesn't swing [INFERENCE: harmless to the --pets runner]; no World kind for an accuracy debuff); the crimson gargoyle's '*crimson harvest*' (n=16: a fireball volley (effect 0x36D4, hue 2838) onto its target's tiles and fire columns there; 3 numbers 9-11 on the pets in 16); the horned devil's '*absorbs power*' (n=114, a 16 on a pet now and then: unmeasured); the spectral knight's '*parries spell*' (n=85: 6-8 on the pet whose spell it parried, as the Ossuary's lion warrior, no reflect kind); the spectral footman's '*throws axe*' (n=60: 7-29 on a pet 0.3-1.9 s later, too scattered to time); the spectral warrior's '*blade wind*' (n=37, 4 hits on us in 37); the stone and volcanic familiars' '*slams earth*' / '*slams ground*' (n=51, 37: their numbers mix with the stoneshapers' ticks beside them); the corrupted hornbeast's '*growls*' (n=16)"
+  "spectral pontiff": [
+   {
+    "kind": "burst",
+    "id": "orb",
+    "on_hit": true,
+    "delay_s": 0.5,
+    "flight_tile_s": 0.072,
+    "radius": 6,
+    "damage_pet": [48, 89, 64],
+    "damage_player": [39, 52, 47],
+    "note": "2026-11-15 22:05:28-40 (the runner's death) and 22:08:14-53 (the user's pets on it): every damaging spell of its on a victim was followed 0.498-0.513 s later (n=8 of 8) by sound 0x5D3 at it and a thrown effect 0xA25E to the victim's tile (drawn at +2, +2), landing 0.07-0.08 s later at 1 tile, 0.54-0.55 at 7, 0.78-0.83 at 11 (0.072 s a tile; one landing 1.93 s after its hit at 17), then 0xAA26 fragments and sound 0xA67 on each of us within 6 of that tile (Chebyshev): every live one of us at 0-6 hit (n=22), none at 7+ (n=11). Its tile at the throw, not the victim's at landing (22:08:16: the group's tile of 1.9 s before). No sight from it needed: 22:08:16 Logan was hit with the pontiff's line to him blocked on our map (from the landing tile in sight). Numbers: before the death under an 18.0 % Song of Discordance (21:57:39), Logan 38, 39, 43 and pets 47-62; after the resurrection none [INFERENCE: lost on death], Logan 39, 43, 48 and pets 48-89; song-corrected here: Logan 39-52 (median 47, n=6), pets 48-89 (median 64, n=16). As `burst` on its target's tile (`on_hit`: World._specials schedules it at delay_s + flight_tile_s a tile of the throw; _burst at= the tile)"
+   },
+   {
+    "kind": "hold",
+    "note": "no chase: in war mode it stood on (5256, 2604) the whole 11 s of the 22:05 fight (us at 7-11) and on (5256, 2601) the 36 s of the 22:08 one (pets beside it, Logan at 13-15); its steps were 2 tiles idle in 14 s before the first and 3 east onto the pets on waking before the second (step 0.53 s, ssc_observed). World._attack: no step after its target"
+   }
+  ],
+  "note": "Song-corrected by the Song of Discordance share his songs printed then (17.7 % at E 118, 2026-10-24; none printed in the 10-31 and 11-03 captures; 18.0 % on 2026-11-15). Not modelled: the winged hulk's '*intimidates*' (n=13, every 15.3-16.3 s; animation 5; 'The creature intimidates you, reducing your accuracy.' and '*intimidated*' over Logan and over players at 4-8 tiles, no number with it: an accuracy cut, and Logan doesn't swing [INFERENCE: harmless to the --pets runner]; no World kind for an accuracy debuff); the crimson gargoyle's '*crimson harvest*' (n=16: a fireball volley (effect 0x36D4, hue 2838) onto its target's tiles and fire columns there; 3 numbers 9-11 on the pets in 16); the horned devil's '*absorbs power*' (n=114, a 16 on a pet now and then: unmeasured); the spectral knight's '*parries spell*' (n=85: 6-8 on the pet whose spell it parried, as the Ossuary's lion warrior, no reflect kind); the spectral footman's '*throws axe*' (n=60: 7-29 on a pet 0.3-1.9 s later, too scattered to time); the spectral warrior's '*blade wind*' (n=37, 4 hits on us in 37; 11-15 28 more: a 17 on each pet within reach out to 14 tiles 0.8 s after it); the stone and volcanic familiars' '*slams earth*' / '*slams ground*' (n=51, 37: their numbers mix with the stoneshapers' ticks beside them); the corrupted hornbeast's '*growls*' (n=16); the spectral pontiff's multi-target spells (11-15: 4 of its 10 damaging spells, three fireball volleys 0x36D4 at 2-3 of us at once (sound 0x160 on each, 25-40 on each 0.5 s later) and a lightning on all four of us at 20-21 tiles while its war flag read off [INFERENCE: its]; each followed by its orb): its spells here hit one victim (ranged_observed)"
  },
  "upscale_note": "no upscale block: a normal week in each capture. Every type killed in view took at most its wiki hits in numbers (max 1.00 x: 7,001 for 7,000, 12,001 for 12,000, 4,001 for 4,000; 10-24, 10-25, 10-31) and its corpse held 1.01-1.03 x its wiki gold value (median by capture: 1.03 on 10-24, 1.01 on 10-25, 1.01 on 10-31; 100 corpses), against Cavernam's Challenger week's 1.5 x hits and 1.6 x gold and the Ossuary's Sanctuary week's 0.65 x gold. 11-03 had no corpse gold lifted (80 s on the levels). So neither a Challenger (upscaled) nor a Sanctuary dungeon those weeks",
  "reds_note": "no `reds` block (run.py --reds refused here): 2026-10-31 14:24:45-50 the red players Richard Wagner and Albert Wagner (body 400, 'X is attacking you!', Corp Por casts, an earth elemental of notoriety 6 beside them) killed Logan on level 1 at (5128-5131, 2613-2616) beside a mud gargoyle whose mud rooted him three times (14:24:47-49); his last numbers 9, 41, 24, 34, 15 in 4 s; murder reports 14:24:54-56. 3 reds and 22 players in view that visit; a guild 'Reds SSC1' warning after. The Mausoleum's reds model (sim/reds.py) is fitted to Maus captures [INFERENCE: not measured here]",

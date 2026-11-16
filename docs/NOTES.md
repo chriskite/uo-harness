@@ -7557,6 +7557,88 @@ Where the time goes, live SSC (the runner's first "target" line for it, 1 s reso
   approach's). In the simulator's 11:57 consort layout it walked 1 off her spot once a test's timing changed. Batches
   with every new switch off match the batches before exactly.
 
+## Shadowspire Cathedral: level 2 live, the user's visit and the runner's death (2026-11-15)
+
+User 2026-11-15: "use it plus my manual run on SSC 2 earlier to improve the simulator". Capture session_20261115_171431,
+replayed with `replay.timed_packets` -> `WorldRuntime` (scratch passes, not in the repo; Outlands' 0x54 sound is 18
+bytes, x/y/z as 32-bit at 6/10/14, and its 0xC0 effect 52 bytes, graphic and coordinates 32-bit from offset 10). Pets
+all three times: a giant black widow 0x0036D440, an oozing noughtilus 0x00379C41, a poison mephit 0x0058A7BC. Level 2's
+box is x 5241-5359, y 2416-2644.
+
+| visit | on level 2 | s | kills ours / others' | on Logan | pets took | potions / vet | stoneshapers seen / fought by us / killed by others | pontiffs seen |
+|---|---|---|---|---|---|---|---|---|
+| the user | 20:37:49.7-20:50:24.1 | 754.4 | 22 / 21 | 731 | 12,589 | 9 / 51 | 6 / 2 / 3 | 0 (never nearer its home than 17) |
+| the runner (hunt-20261115-215726-37e5) | 21:58:41.5-22:05:40.3 (dead) | 418.9 | 12 / 8 | 271 | 3,323 | 3 / 22 | 4 / 3 / 0 | 1, fought (it killed him) |
+| the user after the resurrection | 22:07:50.4-22:08:53.2 (capture end) | 62.8 | 1 / 1 | 180 | 1,418 | 3 / 4 | 0 | the same one, the pets on it |
+
+- **Kills by type** (ours: a hue-89 number over it before its death). The user's: stone familiar, spectral warrior,
+  footman and flameshaper 3 each, scorcher, stoneshaper and volcanic familiar 2, bishop, hornbeast, horned devil and knight
+  1 each. Others' 21: stoneshaper, stone and volcanic familiar and scorcher 3 each, and the rest 1-2. The runner's:
+  stone familiar 5, stoneshaper 3, and footman, priest, warrior and scorcher 1 each. Others' 8. 18 and 9 other players
+  were seen (Ryanross on the stoneshaper beside the death). No number shows over a monster fought only by another
+  player: Ryanross's stoneshaper 0x0073F172 took none in view.
+- **Damage by source** (a scratch attribution: an orb by its 0xA67 on the victim's tile; the pontiff's spell by its
+  0x456; a stoneshaper tick by its '*shapes stone*' + 1.38 + 0.45 k s; detonate and devil strike by their emotes; else
+  the nearest monster in war mode, within 1 = melee). On Logan, the user: scorcher detonate 223, stoneshaper ticks 132,
+  flameshaper 105, warrior 78, bishop 57, the rest under 31. The runner: stoneshaper ticks 121, the pontiff's orbs 120,
+  its spell 30. On the pets, the user: flameshaper 2,476, warrior 2,029, stoneshaper ticks 1,368, detonate 965, bishop
+  879, devil strike 869. The runner: stone familiar 999, stoneshaper ticks 736, warrior 403, the orbs 374, priest 300.
+- **The stoneshapers' ticks on Logan** come as whole casts: 8 of the 17 casts with him within 10 (at 3-10) put 1-4 on
+  him and the other 9 none. That is 25 ticks of 7-14 (median 10) under an 18.0 % Song of Discordance, and none in 3
+  casts at 14-17. With the 10-24 visits (24 in 30 casts within 9) the far burst becomes chance 0.26, radius 10.
+  Logan was never within 2 of one as it cast (closest 3), and no stoneshaper swing landed on him.
+- **Stoneshapers' spots:** 6 of the 10 first sightings were within 1-3 of the scenario's spawns and 4 were 6-7 off:
+  (5281, 2563); (5273, 2620) and (5272, 2618), one spot twice, the second 237 s after the first one's death there; and
+  (5290, 2638).
+
+**The spectral pontiff** 0x0073EFB3 (body 704, 10,000 hits, a mage by the wiki). It was first seen 22:05:12 idle at
+(5254, 2602), 13 tiles from Logan, and was back at (5253, 2601) by 22:08:03 after the fight (its home). The only other
+sighting live was 10-24 20:24:09 at (5284, 2608), 18 off, never fought: 2 sightings in 3,671 s on level 2 (2.0 an hour).
+- **Its orb.** Every damaging spell of its on a victim was followed 0.498-0.513 s later (8 of 8) by sound 0x5D3 at it
+  and a thrown effect 0xA25E to the victim's tile (drawn at +2, +2). It landed 0.07-0.08 s later at 1 tile, 0.54-0.55
+  at 7 and 0.78-0.83 at 11 (0.072 s a tile). There it bursts (0xAA26 fragments to each victim and ~7 random spots up to
+  13 off, sound 0xA67 on each victim) on each of us within 6 of that tile (Chebyshev). All 22 of the live ones of us at
+  0-6 were hit, and none of 11 at 7+. The tile is the victim's at the throw: at 22:08:16 the group had moved 1.9 s
+  before and was hit round its old tile. It needs no sight from the pontiff: at 22:08:16 Logan's line to the pontiff
+  was blocked on our map; he stood 3 from the landing tile, in its sight. Victims were at 1-15 from the pontiff's tile.
+  Numbers: Logan 38, 39, 43 under the song before his death; 43, 39, 48 after the resurrection (no song, the song
+  [INFERENCE] lost with the death). The pets took 47-62 under the song and 48-89 without.
+- **Its spells** (sound 0x456 at it with the number; no bolt shown for the single ones) came 1.7-11.2 s apart
+  (median 5.0, n=8), the first 3.3 s after its war flag. Single ones: 17-40 on a pet. Three were fireball volleys
+  (0x36D4 at 2-3 of us at once, sound 0x160 on each, 25-40 each 0.5 s later); one was a lightning on all four of us at
+  20-21 tiles (22:08:14.03, its war flag reading off, no other caster in reach [INFERENCE: its]). Each was followed by
+  an orb.
+- **No chase.** In war mode it stood on (5256, 2604) the whole 11 s of the 22:05 fight, us at 7-11. In the 22:08 fight
+  it stood on (5256, 2601) for 36 s, the pets beside it and Logan at 13-15. Its only steps: 2 tiles idle in 14 s, and
+  3 east onto the pets as it woke at 22:08:15 (0.53 s a step, `ssc_observed`).
+
+**The death, 22:05:12-40** (task log and capture). Logan had 111 hits max.
+- 22:05:12 the pontiff came in view, idle, 13 off. At 22:05:14-19 the runner held for, then fronted, a corrupted hornbeast
+  at (5261, 2602). At 22:05:25-27 he walked to a hurt pet, to (5267, 2600): 11 from the pontiff, in its sight. The
+  widow and noughtilus were on the hornbeast at (5263, 2602), 7 from it.
+- 22:05:28.96 the pontiff's war flag came on. 22:05:29 "crawl: keeping out of the reach of the awake spectral pontiff
+  at (5256, 2604)", then "cover: the spectral pontiff shoots us here; no tile out of its shot within 4 of the pets;
+  staying by them". 22:05:31 he targeted the hornbeast (Discordance failed at :32 and :38) and vetted the pets at :31
+  and :37.
+- 22:05:32.263 its spell on the widow (27); 32.767 its throw; 33.315 the orb: Logan -38 (73), widow 56, noughtilus 50;
+  the mephit at 7 off was spared. 34.058 a heal potion: 111. 37.287 its spell on the widow (26); 38.332 the orb:
+  Logan -39 (72). 38.505 a volley at Logan and both pets; 39.008 Logan -30 (42). 39.514 the throw at Logan; 40.339
+  the orb on his tile: -43, dead at (5267, 2600, -22). The mephit 3 off took 52.
+- 112 lost to two orbs and a volley in 2.0 s (38.33-40.34) from full hits: no hits-based leave rule had a moment. The
+  stoneshaper at (5281-5285, 2608-2616) was Ryanross's (its casts at 22:05:28.5 and 36.8, Logan 14-17 off); none of
+  its ticks landed on him.
+- **What the simulator lacked:** the orb (its pontiff cast single spells of 17.5-22.5 every 6 s and nothing else) and
+  the pontiff's home spawn. Its pontiff also chased. Since this note: the orb (an `on_hit` `burst`, World._specials),
+  a `hold` special (no chase), the measured spells (`ranged_observed`) and the second spawn; docs/SIM.md "Shadowspire
+  Cathedral" has the numbers. The user's decision on the runner: "handling pontiffs is beyond what the runner will be
+  capable of, it should just avoid them" (the parent session's runner change).
+- **Runner rules the evidence points to:** (1) the user's decision, an awake pontiff avoided: out of its sight with the
+  pets, never targeted (the parent session's change). (2) The orb's 6 round its victim beat any spacing off the pets:
+  Logan at 4 from the pets it hit was in it, so the only safe stand is the pets out of its spells' reach too. (3) The
+  cover's "no tile out of its shot within 4 of the pets; staying by them" kept him in its sight, then the step-in and
+  two vet channels held him there for 11 s. (4) With an orb of 39-52 after every spell (~5 s apart, but a volley 1.7 s
+  after one: two orbs and the volley in 2.0 s here), a hits threshold can't save him: only being out of reach first.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

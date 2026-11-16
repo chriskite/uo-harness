@@ -3625,13 +3625,75 @@ step-in's (the user's pick); "+ step-in" the dropped rule on top; each "no ..." 
   shipped deaths there were skeletal archers (one at "wait" 11 of its last 15 s), no bard step in either.
 - run.py `--set tamer.DISCORD_OTHERS_FIRST=False` (or `BARD_STEP_MID_CHANNEL`, `BARD_STEP_MELEE_ONLY`) turns one off.
 
+**Level 2 from the 2026-11-15 visits** (docs/NOTES.md "Shadowspire Cathedral: level 2 live, the user's visit and the
+runner's death"): capture `20261115_171431` is in `calibration.tags` and `ssc_observed.json` was regenerated.
+`calibrate.py` gives byte-identical output on two passes. It has 54 creature types (48 before; the six new names,
+bwlvore, druina styrm, edritch, a transfixed copy of a poison mephit and two unnamed bodies, are none of them spawn
+types) and larger samples on every type, from tonight's level 1 runs too. The changes:
+
+- **The spectral pontiff's orb** (new: a `burst` with `on_hit`, World._specials). After each of its damaging spells it
+  throws an orb at the victim's tile 0.5 s later. The orb lands 0.072 s a tile later on each of us within 6 of that
+  tile, with no sight needed from the pontiff: Logan 39-52, the pets 48-89 (song-corrected). Live, 22 of 22 of us at
+  0-6 were hit and none of 11 at 7+.
+- **`hold`** (new special kind, World._attack): it never steps after its target. Live the pontiff stood on its tile
+  through both fights.
+- **The pontiff's spells** (`ranged_observed`): 17-40 on a pet (median 31), Logan 30-37, every 5.0 s. Before, the
+  wiki's x 0.5: 17.5-22.5 every 6 s. Its volleys (3 of 10 spells hitting 2-3 of us at once) are not modelled.
+- **A second pontiff spawn** at its home (5254, 2602). The other, from 10-24 (5284, 2608), is kept.
+- **The stoneshaper's far ticks**: radius 9 -> 10, chance 0.2 -> 0.26 a tick (pooled 49 ticks in 47 casts; live they
+  come as whole casts, 8 of 17 casts on Logan). No stoneshaper spawn was added: 6 of tonight's 10 sightings were within
+  1-3 of the existing spawns, 4 were 6-7 off (scenario `spawn_note`).
+- **The spectral warrior's swings** kept at their old measure (`melee_observed`: 1.87 s, 25-53). Tonight's 28 '*blade
+  wind*' drag its regenerated period under 1.5 s (the 3.0 s default) and its median to 34.
+- The level 2 `trip` adds the user's 754 s: 3,252 s, 100 kills, 1,674 on Logan.
+
+32 runs a side, `--level 2 --team phoenix_incubus --prior` the live store, `-- --vet-range 5 --crawl-learn-s 180`.
+Before = HEAD 18e13d9's scenario, simulator and runner. After = the same runner (a worktree of 18e13d9, so none of the
+parent's runner edits then in flight) with this scenario and simulator. "Live" is the two visits' 1,173 s on level 2
+(the user's 754 and the runner's 419). Per hour on level 2 unless "game hour":
+
+| batch | runs with a death | runs with a pet death | deaths a game hour | on Logan a game hour | on Logan an hour on it | banked gp a game hour | kills an hour on it | stoneshapers met / killed | pontiffs met / killed | Logan from stoneshapers / the pontiff |
+|---|---|---|---|---|---|---|---|---|---|---|
+| live, 11-15 | 1 (the runner's) | 0 | | | 3,075 | | 104 (ours) | 30.7 / 15.3 | 3.1 / 0 | 776 / 460 |
+| before | 22 | 32 | 1.74 | 2,596 | 5,038 | 102,555 | 355 | 69.0 / 45.4 | 7.2 / 3.8 | 3,684 / 103 |
+| after | 22 | 30 | 1.67 | 2,593 | 5,078 | 100,847 | 359 | 64.1 / 41.3 | 5.7 / 1.0 | 3,444 / 717 |
+| the runner's pontiff flight | 21 | – | 1.52 | 2,267 | – | 107,709 | – | – | – | – |
+
+- **The runner's pontiff flight** (the user's decision: "handling pontiffs is beyond what the runner will be capable
+  of, it should just avoid them"; the parent session's runner change, docs/HUNT_LOOP.md): the same batch on this
+  scenario with the flight, which the parent ran ("–": not reported). With the flight off (`--set aggro.FLEE=()`) the
+  batch matched "after" to the number. With it on, no death had the pontiff in its last 15 s, against 5, and the
+  pontiff's damage on Logan fell from 4,814 to 641 in all. The other deaths: stoneshaper 10, gargan flamekin 7. Level 1
+  with the flight: no death, 794 on Logan a game hour, 149,983 banked a game hour.
+- **Deaths by the type with the most damage in their last 15 s**: before, stoneshaper 17, stone familiar 3 and
+  spectral warrior 2, all 22 on level 2. After, stoneshaper 11, gargan flamekin 4, stone familiar 3, the pontiff 2 and
+  golden gargoyle 2: 15 on level 2 and 7 on level 1. Six of those 7 were on the way out after a full hunt, at the
+  crimson gate's crowd (5128-5155, 2640-2653), on seeds that died on level 2 before; one was on the way in. The pontiff
+  was in the last 15 s of 5 deaths, against 2 before. [INFERENCE: with 32 runs the shift from level 2 to the walk out is
+  mostly the batches' spread. Level 1's types got bigger samples from tonight's level 1 runs (the flamekin's number per
+  swing 17 -> 21).]
+- **Against live** the simulated team still meets 2.1 x the stoneshapers and kills 2.7 x as many. Logan takes 4.4 x the
+  live damage from them, 1.7 x in all, and potions run 89 against 37 an hour, vet 557 against 224. Live, other players
+  took 29 of the 63 kills on level 2 in view (3 of the 6 stoneshapers the user saw). The scenario has no other players
+  (`--others` refused) [INFERENCE: most of the gap]. The pontiff: met 5.7 an hour in the simulator against 2.0 live
+  (2 sightings in 3,671 s on level 2 in all captures); its damage on Logan rose 7 x with the orb.
+- **Level 1, 32 runs, same command without `--level`**: before 1 run with a death (golden gargoyle), 796 on Logan an
+  hour on it, 167 kills an hour, 142,652 banked a game hour. After: 0, 801, 164, 149,983. No stoneshaper or pontiff
+  there.
+- test_sim `test_ssc_pontiff_orb` (the 22:05:33 layout: its spell on a pet 7 off, the orb 1.0 s later on that pet and
+  Logan 4 off it, not the pet 7 off; with its target 20 off, no step).
+
 **Open on Shadowspire Cathedral:**
 
 - The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).
-- Level 2's danger rests on the stoneshapers: their encounter rate (spawns from one evening's first sightings, default
-  respawns) and the far ticks' rule are not measured well; the live team on level 2 was never AlaFlambe and Bussin
-  (43 s on 11-03).
-- Other players (58, 64, 22, 4 seen) and reds (3 and 3) are not measured.
+- Level 2's danger rests on the stoneshapers. The simulator meets 2.1 x their live encounter rate (11-15) and Logan
+  takes 4.4 x the live damage from them. Their simulated far ticks land at 0-2 tiles too (43 % of their ticks in the
+  simulated deaths' last 15 s), and simulated stoneshapers swing at Logan (26 % of their damage there). Live, he never
+  stood within 2 of one casting and took none of their swings. The live team on level 2 was never AlaFlambe and
+  Bussin (43 s on 11-03).
+- Other players (58, 64, 22, 4 seen; on 11-15 18 and 9, taking 29 of the 63 level 2 kills in view) and reds (3 and 3)
+  are not measured; no `others` block.
+- The pontiff's volleys and its long-range lightning (20-21 tiles, once) are not modelled; its respawn is the default.
 
 ## Player armor (2026-10-24)
 

@@ -1955,7 +1955,9 @@ class World:
                     self._specials(m, tgt, spec)
             if d <= 1:
                 return
-        if t >= m.next_step:
+        if t >= m.next_step and not any(sp["kind"] == "hold" for sp in spec.get("specials", [])):
+            # a `hold` special: it never steps after its target (the spectral pontiff stood on its tile through both
+            # live fights, docs/NOTES.md "Shadowspire Cathedral: level 2 live, ...")
             m.next_step = self._due(m.next_step, spec["step_s"])
             self._step_toward(m, tgt.pos, 1)
 
@@ -2074,6 +2076,13 @@ class World:
         (`_impact`), the only hit an `ensnare` rolls on."""
         for sp in spec.get("specials", []):
             kind = sp["kind"]
+            if kind == "burst" and sp.get("on_hit"):
+                # the spectral pontiff's orb (docs/NOTES.md "Shadowspire Cathedral: level 2 live, ..."): every damaging
+                # hit of its is followed `delay_s` later by a throw at its victim's tile, landing `flight_tile_s` a tile
+                # of the throw later on each of us within `radius` of that tile (`_burst` at=: no sight from it)
+                self.delayed.append((self.t + sp["delay_s"] + sp.get("flight_tile_s", 0.0) * cheb(m.pos, tgt.pos),
+                                     m.serial, sp, (tgt.x, tgt.y)))
+                continue
             chance = sp.get("pet_chance", sp.get("chance", 0)) if tgt.kind == "pet" else sp.get("chance", 0)
             if kind not in ON_HIT or (kind == "ensnare" and not spell) or self.rng.random() >= chance:
                 continue
@@ -2317,8 +2326,8 @@ class World:
                         dmg = sp.get("damage_player" if o.kind == "player" else "damage_pet", sp.get("damage"))
                         self.hurt(o, self.roll(dmg), m, "wail", ref=sp.get("ref"))
             elif kind == "burst":
-                if sp.get("on_blink"):
-                    continue                             # the apparition's: only where its blink lands
+                if sp.get("on_blink") or sp.get("on_hit"):
+                    continue                             # the apparition's: only where its blink lands; the orb: on a hit
                 # reanimated daemon (20261014_221341): bones around it out to ~5 tiles, one hit on each of us
                 if key not in m.cd:
                     m.cd[key] = t + self.rng.uniform(*sp["first_s"])
