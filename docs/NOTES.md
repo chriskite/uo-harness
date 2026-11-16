@@ -1315,6 +1315,15 @@ t 1791153675; gump fixtures `harness/testdata/aspect_gumps.json`. Wiki: Aspect_M
   "5", its bonuses (armor: armor rating 25 %, effective harvesting skill +4, 8 % double yield, 4.2 %
   damage resist for 60 s after a harvest) and the aspect icon in its hue (2086 for Harvest).
   Bottom: "Aspect Details" 102/103, 106 ("[Redline"), 105. Dan's three sections all showed Harvest.
+- **A locked section (live 2026-11-15 19:36, Logan):** a section stepped to an aspect not yet unlocked (the user
+  stepped Logan's weapon section to Artisan, "Tier 0") shows "Unlock Aspect" at (540, 80) with button 8, and no
+  "Activate", no xp, no active tier. `aspects.parse` found the sections by their "Activate" labels only, so the
+  spellbook section was read as the weapon's, the armor's (Command Tier 14, Activate 17) as the spellbook's, and the
+  armor section was missing: the hunt runner's pre-trip check refused "armor aspect off: the menu shows no armor
+  aspect; not going in" with the armor on (hunt-20261115-193325-ca6e, 19:33:33; user: "The aspect menu does show the
+  armor, and it's already Command aspect"). Since then the sections are found by either label
+  (`aspects.SECTION_LABELS`); a locked one has `locked` and no `activate` (button 8 there unlocks: never pressed).
+  Fixture `logan_locked_weapon`, test_aspects `test_locked_section` (fails before).
 - **Activating:** armor Activate (17) → System "Click again to confirm." and the gump again → 17
   again → "Harvest aspect armor activated." (from Dan), "Harvest skill and yield bonuses become
   available in 1 Minute.", the gump with Charges **424** (5 spent); 60 s later "Harvest skill and

@@ -189,6 +189,19 @@ def test_armor_check():
     check("no armor worn: off", not r["ok"] and r["why"] == "no armor worn", r)
 
 
+def test_locked_section():
+    print("== a section showing a locked aspect (Logan, live 2026-11-15 19:36) ==")
+    m = parse("logan_locked_weapon")
+    w, sb, arm = (m["sections"].get(k) or {} for k in aspects.SECTIONS)
+    check("the weapon section on Artisan, locked: no Activate (its button 8 unlocks)",
+          w.get("aspect") == "Artisan" and w.get("tier") == 0 and w["locked"] and w["activate"] is None, w)
+    check("the spellbook section stays the spellbook's", sb.get("aspect") == "Madness" and sb["activate"] == 13
+          and not sb["locked"], sb)
+    check("the armor section is found: Command Tier 14, Activate 17", arm.get("aspect") == "Command"
+          and arm.get("tier") == 14 and arm.get("hue") == 1782 and arm.get("activate") == 17, arm)
+    r = aspects.armor_check(m, logan(1782), LOGAN)
+    check("19:33:33's refusal ('the menu shows no armor aspect') gone: on", r["ok"] and r["aspect"] == "Command", r)
+
 
 if __name__ == "__main__":
     test_gump()
@@ -196,5 +209,6 @@ if __name__ == "__main__":
     test_flow()
     test_suit()
     test_armor_check()
+    test_locked_section()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")
     sys.exit(1 if FAILURES else 0)

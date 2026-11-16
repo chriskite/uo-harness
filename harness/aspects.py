@@ -26,6 +26,9 @@ import actions
 ASPECT_GUMP = 0x907FC735
 SECTIONS = ("weapon", "spellbook", "armor")       # top to bottom
 CONFIRM_TEXT = "Click again to confirm."
+# Each section's action label, at the same height in its band: "Activate", or "Unlock Aspect" when the section's shown
+# aspect isn't unlocked (live 2026-11-15 19:29, Logan's weapon section stepped to Artisan Tier 0: no Activate there).
+SECTION_LABELS = ("Activate", "Unlock Aspect")
 REVERT_TEXT = "Your aspect items revert to normal"   # at 0 essence: live 2026-10-25 21:16:06 "... (no arcane essence remaining)."
 HARVEST_HUE = 2086                # Harvest aspect armor and the menu's Harvest icon (live 2026-10-04)
 # The layers of a suit of armor (Outland Dan's six studded pieces, live 2026-10-04): legs, helmet,
@@ -48,8 +51,9 @@ def _num(s: str) -> int:
 
 def parse(layout: str, lines) -> dict:
     """{charges, warn_below, sections: {weapon|spellbook|armor: {aspect, tier, xp,
-    xp_max, active_tier, hue, activate, prev, next}}} from the gump. Button ids are
-    read from the layout (live: armor Activate 17, arrows 14/15)."""
+    xp_max, active_tier, hue, locked, activate, prev, next}}} from the gump. Button ids are
+    read from the layout (live: armor Activate 17, arrows 14/15). Sections are found by their
+    action label (SECTION_LABELS); a locked section ("Unlock Aspect") has no `activate`."""
     lines = list(lines or [])
     texts, buttons, icons = [], [], []
     for t in _TOKEN.findall(layout or ""):
@@ -71,13 +75,13 @@ def parse(layout: str, lines) -> dict:
             out["charges"] = _num(nxt[2])
         elif s == "Warn When Below" and nxt:
             out["warn_below"] = _num(nxt[2])
-    heads = sorted(y for x, y, s in texts if s == "Activate")
-    for name, ay in zip(SECTIONS, heads):
+    heads = sorted((y, x, s) for x, y, s in texts if s in SECTION_LABELS)
+    for name, (ay, ax, label) in zip(SECTIONS, heads):
         band = [(x, y, s) for x, y, s in texts if ay - 10 <= y <= ay + 40]
         sec = {"aspect": None, "tier": None, "xp": None, "xp_max": None, "active_tier": None, "hue": None,
-               "activate": None, "prev": None, "next": None}
+               "locked": label != "Activate", "activate": None, "prev": None, "next": None}
         left = sorted((x, y, s) for x, y, s in band if x < 260)
-        sec["aspect"] = next((s for x, y, s in left if not _TIER.match(s) and s != "Activate"), None)
+        sec["aspect"] = next((s for x, y, s in left if not _TIER.match(s) and s not in SECTION_LABELS), None)
         tiers = sorted((x, s) for x, y, s in band if _TIER.match(s))
         if tiers:
             sec["tier"] = int(_TIER.match(tiers[0][1]).group(1))
@@ -86,9 +90,9 @@ def parse(layout: str, lines) -> dict:
         xp = next((_XP.match(s) for x, y, s in band if _XP.match(s)), None)
         if xp:
             sec["xp"], sec["xp_max"] = _num(xp.group(1)), _num(xp.group(2))
-        ax = next(x for x, y, s in band if s == "Activate")
-        act = [(abs(bx - ax), bid) for bx, by, bid in buttons if ay - 10 <= by <= ay + 25 and 0 < ax - bx <= 60]
-        sec["activate"] = min(act)[1] if act else None
+        if not sec["locked"]:       # the button by "Unlock Aspect" unlocks; never press it as Activate
+            act = [(abs(bx - ax), bid) for bx, by, bid in buttons if ay - 10 <= by <= ay + 25 and 0 < ax - bx <= 60]
+            sec["activate"] = min(act)[1] if act else None
         arrows = sorted((bx, bid) for bx, by, bid in buttons if ay <= by <= ay + 25 and bx < 150)
         if len(arrows) >= 2:
             sec["prev"], sec["next"] = arrows[0][1], arrows[1][1]
