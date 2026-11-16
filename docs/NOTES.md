@@ -7639,6 +7639,29 @@ sighting live was 10-24 20:24:09 at (5284, 2608), 18 off, never fought: 2 sighti
   two vet channels held him there for 11 s. (4) With an orb of 39-52 after every spell (~5 s apart, but a volley 1.7 s
   after one: two orbs and the volley in 2.0 s here), a hits threshold can't save him: only being out of reach first.
 
+**The simulator's gaps, measured over all five SSC captures (2026-11-16, user: "fix the simulator gaps")**: one-second
+samples while Logan stood on a level (level 1 2.11 h, level 2 1.12 h), every mobile within 18. A player: a human body,
+not a ghost, a name without an article ('Notorious NPC' left out).
+- **Other players:** in view 39.3 % of level 1's seconds and 63.4 % of level 2's (0.56 and 1.28 on average; 370 and
+  210 appearances, 175 and 187 an hour; stays p25 / median / p75 / p90 4 / 7 / 16 / 33 s and 6 / 11 / 34 / 69 s). 55 %
+  had a pet or summon within 4: black widows, giant and colossal black widows, brasshoppers, vampires, wyverns,
+  gravebugs ... Notoriety 1 in 90.6 % of their seconds, green 8.4 %, red 0.4 %. Monsters dying in view without a
+  number of ours: level 1 110 named (52 an hour) of 296 named, level 2 82 (73 an hour) of 198. With the unnamed bodies
+  they took 47 % and 48 % of the kills in view, on level 2 stone familiars 22, warriors 11, volcanic familiars 9,
+  stoneshapers 7 and priests 7 most.
+- **Monsters in view:** level 1 0.90 on average, level 2 1.81 (1.96 round the landing, where the runner hunts; the
+  runner's own 11-15 visit 1.67). Stoneshapers 0.19 (0.33 round the landing): at most 2 at once, one in 16.6 % of the
+  seconds. Met an hour (distinct serials first seen on the level): level 1 189, level 2 237 (stoneshaper 27.6, pontiff
+  1.8). Idle monsters watched 30 s or more drifted a median 9 tiles from their first sighting on level 2 (p75 13, n=27)
+  and 2 on level 1 (n=13). The next sighting of a type within 3 of a death's spot came a median ~300 s after it.
+- **Stoneshapers** (level 2, 73 casts, 580 war seconds in view): 44 landed swings (a number on one of us beside it
+  0-0.5 s after its animation 10, 4 or 11, outside its ticks), all on pets; within 1 of a pet 324 of the 580 seconds,
+  of Logan 3; Logan 4 / 7 / 16 tiles off it at p10 / p50 / p90. Its far ticks: 52 on Logan at 3-11 tiles (3: 9, 4: 14,
+  5: 8, 6: 10, 7: 4, 8: 1, 9: 3, 10: 1, 11: 2), numbers 6-15 (median 10). None came in the 18 casts with him 12-18 off,
+  and no cast came with him within 2. Of the 55 casts with him at 3-11, 17 put 1-4 on him.
+- What changed in the simulator, and the live-against-simulated tables: docs/SIM.md "Shadowspire Cathedral" ("The
+  simulator's gaps closed").
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

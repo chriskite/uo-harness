@@ -166,16 +166,17 @@ LEVEL_RUNNER_KEYS = ("enter_via", "fight_via", "leave_gates", "leave_via")
 
 def levels(sc: dict) -> list[dict]:
     """The dungeon's levels a run can hunt (the runner block's `levels`): each {name, note, default?, area?, start?,
-    enter_via?, fight_via?, leave_gates?, leave_via?}."""
+    enter_via?, fight_via?, leave_gates?, leave_via?, others?}."""
     return (sc.get("runner") or {}).get("levels") or []
 
 
 def select_level(sc: dict, name: str | None) -> None:
     """Hunt the level `name` (run.py --level): its `area` (the per-hour numbers' box), its arrival `start` (where
     --at-hunt starts), the ways in and out it names (`enter_via`, `fight_via`, `leave_gates`, `leave_via`: run.py's
-    runner defaults) instead of the scenario's, a key it lacks staying the scenario's; and its own live `trip` (run.py
-    --compare), none if it has none: the scenario's trip is the default level's. None: as it is. ValueError for a
-    level the scenario hasn't."""
+    runner defaults) instead of the scenario's, a key it lacks staying the scenario's; its `others` keys over the
+    scenario's `others` block (the level's own crowd: Shadowspire's level 2); and its own live `trip` (run.py --compare),
+    none if it has none: the scenario's trip is the default level's. None: as it is. ValueError for a level the scenario
+    hasn't."""
     if not name:
         return
     lv = next((v for v in levels(sc) if v["name"] == name), None)
@@ -189,6 +190,8 @@ def select_level(sc: dict, name: str | None) -> None:
     for k in LEVEL_RUNNER_KEYS:
         if k in lv:
             sc["runner"][k] = [list(p) for p in lv[k]]
+    if "others" in lv and "others" in sc:
+        sc["others"] = {**sc["others"], **lv["others"]}
     if not lv.get("default"):
         sc["trip"] = dict(lv.get("trip") or {})
 

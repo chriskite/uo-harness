@@ -22,8 +22,8 @@
   "start_note": "level 1's arrival by the tome row 'SSC Inside' (2026-10-24 20:22:22, 20:38:52, 22:22:48, 22:53:28, 10-25 11:02:37, 11:19:24, 10-31 14:21:23, 14:27:06): --at-hunt starts here"
  },
  "defaults": {
-  "pets_first": [],
-  "pets_first_note": "no type here is known to go for the pets first"
+  "pets_first": ["gargan stoneshaper"],
+  "pets_first_note": "types that take a pet over Logan whenever one is a candidate (World._think). The gargan stoneshaper (2026-11-16, all five captures, level 2): its 44 swings that landed (a number on one of us beside it 0-0.5 s after its animation 10, 4 or 11, outside its ticks) all on a pet, none on Logan; in war mode within 1 of a pet 324 of its 580 seconds in view, of Logan 3 (Logan 4 / 7 / 16 tiles off it at p10 / p50 / p90); its '*shapes stone*' always on a pet. The simulator before: within 1 of Logan 2.8 % of its war seconds and 26 % of its damage on him in the deaths' last 15 s its swings"
  },
  "bard": {
   "capture_d": {
@@ -251,7 +251,8 @@
      "peace_fail": 28,
      "provoke": 19,
      "gold": 120840
-    }
+    },
+    "others": {"arrive_per_h": 30.0, "note": "level 2's crowd (the scenario's `others` otherwise): 30 arrivals an hour, fitted with its spawns merged within 10 (32 runs): 61.8 % in view / 1.07 on average / 245 arrivals in view an hour / stays 4 / 9 / 21 / 41 s / their kills in view 93 an hour (live 63.4 % / 1.28 / 187 / 6 / 11 / 34 / 69 / 73); monsters in Logan's view 2.08, stoneshapers 0.35 (live 1.96 and 0.33 round the landing, where the runner hunts). At 45 an hour: 67.9 % / 1.42 / 387 / 112, monsters 1.53"}
    }
   ],
   "note": "run.py's defaults: recall by the 'SSC Inside' row to level 1 beside its golden gate, the hunt on level 1, out by the easiest of level 1's three moongates to Totem, then the recall home. Level 2: `levels` (run.py --level 2)"
@@ -749,18 +750,8 @@
   },
   {
    "key": "gargan stoneshaper",
-   "at": [5292, 2615, -25],
-   "note": "level 2: first seen 10-24 22:40:57 (5292, 2615) at 18 tiles"
-  },
-  {
-   "key": "gargan stoneshaper",
    "at": [5306, 2622, -22],
    "note": "level 2: first seen 10-24 22:40:59 (5306, 2622) at 18 tiles, 2 first sightings within 5"
-  },
-  {
-   "key": "stone familiar",
-   "at": [5304, 2610, -22],
-   "note": "level 2: first seen 10-24 22:41:19 (5304, 2610) at 18 tiles"
   },
   {
    "key": "spectral priest",
@@ -771,11 +762,6 @@
    "key": "gargan stoneshaper",
    "at": [5305, 2597, -22],
    "note": "level 2: first seen 10-24 22:42:03 (5305, 2597) at 11 tiles, 2 first sightings within 5"
-  },
-  {
-   "key": "stone familiar",
-   "at": [5304, 2624, -22],
-   "note": "level 2: first seen 10-24 22:42:03 (5304, 2624) at 16 tiles, 4 first sightings within 5"
   },
   {
    "key": "stone familiar",
@@ -791,11 +777,6 @@
    "key": "gargan stoneshaper",
    "at": [5304, 2567, -22],
    "note": "level 2: first seen 10-24 22:43:17 (5304, 2567) at 18 tiles, 2 first sightings within 5"
-  },
-  {
-   "key": "stone familiar",
-   "at": [5307, 2573, -22],
-   "note": "level 2: first seen 10-24 22:44:19 (5307, 2573) at 18 tiles"
   },
   {
    "key": "spectral bishop",
@@ -828,11 +809,6 @@
    "note": "level 2: first seen 10-24 22:46:24 (5265, 2520) at 18 tiles, 3 first sightings within 5"
   },
   {
-   "key": "volcanic familiar",
-   "at": [5256, 2520, -22],
-   "note": "level 2: first seen 10-24 22:46:24 (5256, 2520) at 18 tiles, 4 first sightings within 5"
-  },
-  {
    "key": "horned devil",
    "at": [5261, 2531, -25],
    "note": "level 2: first seen 10-24 22:46:27 (5261, 2531) at 10 tiles, 3 first sightings within 5"
@@ -851,11 +827,6 @@
    "key": "volcanic familiar",
    "at": [5285, 2522, -25],
    "note": "level 2: first seen 10-24 22:46:28 (5285, 2522) at 18 tiles"
-  },
-  {
-   "key": "stone familiar",
-   "at": [5298, 2572, -25],
-   "note": "level 2: first seen 10-24 22:47:04 (5298, 2572) at 18 tiles"
   },
   {
    "key": "spectral priest",
@@ -888,19 +859,9 @@
    "note": "level 2: first seen 10-24 22:48:52 (5328, 2540) at 18 tiles, 2 first sightings within 5"
   },
   {
-   "key": "volcanic familiar",
-   "at": [5330, 2520, -22],
-   "note": "level 2: first seen 10-24 22:48:52 (5330, 2520) at 18 tiles, 2 first sightings within 5"
-  },
-  {
    "key": "gargan stoneshaper",
    "at": [5276, 2556, -22],
    "note": "level 2: first seen 10-24 22:49:55 (5276, 2556) at 13 tiles, 3 first sightings within 5"
-  },
-  {
-   "key": "gargan stoneshaper",
-   "at": [5276, 2610, -22],
-   "note": "level 2: first seen 10-24 22:50:17 (5276, 2610) at 18 tiles"
   },
   {
    "key": "gargan scorcher",
@@ -911,16 +872,6 @@
    "key": "gargan flameshaper",
    "at": [5277, 2507, -22],
    "note": "level 2: first seen 10-24 22:50:47 (5277, 2507) at 9 tiles, 2 first sightings within 5"
-  },
-  {
-   "key": "gargan flameshaper",
-   "at": [5276, 2514, -22],
-   "note": "level 2: first seen 10-24 22:51:14 (5276, 2514) at 7 tiles"
-  },
-  {
-   "key": "spectral warrior",
-   "at": [5275, 2593, -23],
-   "note": "level 2: first seen 10-24 22:51:43 (5275, 2593) at 15 tiles"
   },
   {
    "key": "gargan scorcher",
@@ -941,11 +892,6 @@
    "key": "spectral bishop",
    "at": [5322, 2536, -25],
    "note": "level 2: first seen 10-24 22:56:51 (5322, 2536) at 18 tiles"
-  },
-  {
-   "key": "horned devil",
-   "at": [5328, 2534, -25],
-   "note": "level 2: first seen 10-24 22:56:54 (5328, 2534) at 18 tiles"
   },
   {
    "key": "gargan scorcher",
@@ -973,29 +919,9 @@
    "note": "level 2: first seen 10-24 23:00:30 (5298, 2543) at 14 tiles, 3 first sightings within 5"
   },
   {
-   "key": "volcanic familiar",
-   "at": [5306, 2513, -22],
-   "note": "level 2: first seen 10-24 23:01:21 (5306, 2513) at 18 tiles"
-  },
-  {
-   "key": "spectral bishop",
-   "at": [5261, 2531, -25],
-   "note": "level 2: first seen 10-24 23:02:40 (5261, 2531) at 6 tiles, 2 first sightings within 5"
-  },
-  {
    "key": "corrupted hornbeast",
    "at": [5246, 2529, -25],
    "note": "level 2: first seen 10-24 23:02:41 (5246, 2529) at 18 tiles"
-  },
-  {
-   "key": "spectral footman",
-   "at": [5288, 2581, -25],
-   "note": "level 2: first seen 10-24 23:04:15 (5288, 2581) at 18 tiles"
-  },
-  {
-   "key": "gargan stoneshaper",
-   "at": [5284, 2594, -25],
-   "note": "level 2: first seen 10-25 11:05:25 (5284, 2594) at 18 tiles"
   },
   {
    "key": "volcanic familiar",
@@ -1008,31 +934,6 @@
    "note": "level 2: first seen 10-25 11:08:17 (5290, 2502) at 18 tiles"
   },
   {
-   "key": "spectral knight",
-   "at": [5315, 2529, -25],
-   "note": "level 2: first seen 10-25 11:08:24 (5315, 2529) at 18 tiles"
-  },
-  {
-   "key": "gargan flameshaper",
-   "at": [5288, 2557, -25],
-   "note": "level 2: first seen 10-25 11:09:23 (5288, 2557) at 18 tiles"
-  },
-  {
-   "key": "stone familiar",
-   "at": [5304, 2593, -22],
-   "note": "level 2: first seen 10-25 11:10:18 (5304, 2593) at 17 tiles"
-  },
-  {
-   "key": "gargan scorcher",
-   "at": [5302, 2537, -25],
-   "note": "level 2: first seen 10-25 11:12:51 (5302, 2537) at 18 tiles"
-  },
-  {
-   "key": "volcanic familiar",
-   "at": [5277, 2510, -22],
-   "note": "level 2: first seen 10-25 11:13:33 (5277, 2510) at 18 tiles"
-  },
-  {
    "key": "horned devil",
    "at": [5298, 2510, -25],
    "note": "level 2: first seen 10-25 11:13:58 (5298, 2510) at 18 tiles"
@@ -1043,32 +944,12 @@
    "note": "level 2: first seen 10-25 11:14:26 (5287, 2513) at 18 tiles"
   },
   {
-   "key": "stone familiar",
-   "at": [5296, 2634, -25],
-   "note": "level 2: first seen 10-25 11:17:46 (5296, 2634) at 18 tiles"
-  },
-  {
    "key": "corrupted hornbeast",
    "at": [5299, 2642, -25],
    "note": "level 2: first seen 11-03 22:22:00 (5299, 2642) at 11 tiles"
-  },
-  {
-   "key": "spectral warrior",
-   "at": [5300, 2642, -25],
-   "note": "level 2: first seen 11-03 22:22:00 (5300, 2642) at 10 tiles"
-  },
-  {
-   "key": "gargan stoneshaper",
-   "at": [5289, 2631, -25],
-   "note": "level 2: first seen 11-03 22:22:01 (5289, 2631) at 18 tiles"
-  },
-  {
-   "key": "spectral priest",
-   "at": [5287, 2624, -25],
-   "note": "level 2: first seen 11-03 22:22:04 (5287, 2624) at 18 tiles"
   }
  ],
- "spawn_note": "one spawn per cluster of a type's first sightings in the seven visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; types without a wiki row at Shadowspire Cathedral left out: players' summons and pets, 'daemon', 'black widow', unnamed bodies): level 1 67, level 2 94. The tiles within 18 of where Logan stood are 100 % of level 1's floor, 67 % of level 2's, so level 2's far side has none. Busy with other players: many first sightings came after another player's fight. 2026-11-15 (the user's and the runner's level 2 visits): a spectral pontiff spawn added at its home (5254, 2602), level 2 95; the 10 gargan stoneshapers seen then (6 by the user in 754 s, 4 by the runner in 419 s) were first sighted within 1-3 of the existing spawns 6 times and 6-7 off them 4 times ((5281, 2563); (5273, 2620) and (5272, 2618) on 22:00:51 and 22:05:16, one place, 237 s after the first one's death there; (5290, 2638)): none added [INFERENCE: wanderers off the spawns beside them; the simulator already meets 2.2 x the live stoneshapers an hour (docs/SIM.md)]",
+ "spawn_note": "one spawn per cluster of a type's first sightings in the seven visits (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; types without a wiki row at Shadowspire Cathedral left out: players' summons and pets, 'daemon', 'black widow', unnamed bodies): level 1 67, level 2 94. The tiles within 18 of where Logan stood are 100 % of level 1's floor, 67 % of level 2's, so level 2's far side has none. Busy with other players: many first sightings came after another player's fight. 2026-11-15 (the user's and the runner's level 2 visits): a spectral pontiff spawn added at its home (5254, 2602), level 2 95; the 10 gargan stoneshapers seen then (6 by the user in 754 s, 4 by the runner in 419 s) were first sighted within 1-3 of the existing spawns 6 times and 6-7 off them 4 times ((5281, 2563); (5273, 2620) and (5272, 2618) on 22:00:51 and 22:05:16, one place, 237 s after the first one's death there; (5290, 2638)): none added. 2026-11-16, level 2 merged within 10 (95 -> 71): its idle monsters wander far from where they were first seen (all five captures, idle position spread of the ones watched idle 30 s or more: median 9 tiles, p75 13, n=27; level 1's median 2, n=13, left as it was), so first sightings 6-10 apart are one spawner's [INFERENCE]; and the simulator's level 2 had 6.5 monsters in Logan's view on average against 1.81 live (1.96 round the landing), stoneshapers 1.55 against 0.19 (live at most 2 at once, 16.6 % of the seconds). Merged into the earlier spawn of its type within 10, list order: gargan stoneshaper (5292, 2615) into (5284, 2609); stone familiar (5304, 2610) into (5307, 2601); stone familiar (5304, 2624) into (5304, 2616); stone familiar (5307, 2573) into (5305, 2567); volcanic familiar (5256, 2520) into (5265, 2520); stone familiar (5298, 2572) into (5291, 2569); volcanic familiar (5330, 2520) into (5323, 2516); gargan stoneshaper (5276, 2610) into (5284, 2609); gargan flameshaper (5276, 2514) into (5277, 2507); spectral warrior (5275, 2593) into (5275, 2602); horned devil (5328, 2534) into (5321, 2536); volcanic familiar (5306, 2513) into (5311, 2520); spectral bishop (5261, 2531) into (5271, 2541); spectral footman (5288, 2581) into (5287, 2587); gargan stoneshaper (5284, 2594) into (5277, 2584); spectral knight (5315, 2529) into (5305, 2531); gargan flameshaper (5288, 2557) into (5285, 2565); stone familiar (5304, 2593) into (5307, 2601); gargan scorcher (5302, 2537) into (5296, 2533); volcanic familiar (5277, 2510) into (5272, 2501); stone familiar (5296, 2634) into (5303, 2636); spectral warrior (5300, 2642) into (5302, 2636); gargan stoneshaper (5289, 2631) into (5279, 2622); spectral priest (5287, 2624) into (5282, 2614)",
  "melee_observed": {
   "golden gargoyle": {
    "melee": [12, 26, 16],
@@ -1113,6 +994,7 @@
    "damage": [17, 40, 31],
    "damage_player": [30, 37],
    "every_s": 5.0,
+   "volley": {"chance": 0.4, "radius": 4, "note": "its multi-target spells, 4 of its 10 damaging ones on 11-15 (three fireball volleys, effect 0x36D4 at 2-3 of us at once with sound 0x160 on each and 25-40 on each 0.5 s later: 22:05:38.505 the noughtilus, Logan 4 off it and the widow, not the mephit 7 off the pets; 22:08:38.842 and 43.734 the widow and noughtilus together; and the 22:08:14 lightning on all four, within 1 of each other): chance 0.4 a cast; on every one of us within 4 of its victim [INFERENCE: 4 to 6, the narrowest that fits], in its reach and sight. Each was followed by one orb on a victim's tile, as World._impact's on-hit specials on the victim alone. 6 single spells came with others of us within 4 of the victim too: the pick is not the crowd"},
    "note": "2026-11-15 22:05:28-40 and 22:08:14-53 (docs/NOTES.md \"Shadowspire Cathedral: level 2 live, ...\"): its damaging spells (sound 0x456 at it with the number; no visible bolt for the single ones) 1.7-11.2 s apart (median 5.0, n=8), the first 3.3 s after its war flag; on the pets 17-40 (median 31, n=15; the 18.0 % Song of Discordance taken out before the death), on Logan 30 and 37 (n=2), at 1-11 tiles (once 20-21 [INFERENCE: its]). The wiki's spell damage 35-45 x ranged_kb_factor 0.5 gave 17.5-22.5 every 6 s. `damage` as on the reference pet [INFERENCE: measured on a giant black widow, an oozing noughtilus and a poison mephit]; range the default 12"
   }
  },
@@ -1225,11 +1107,12 @@
     "delay_s": 1.38,
     "repeat": 4,
     "repeat_s": 0.45,
-    "radius": 10,
-    "chance": 0.26,
+    "radius": 11,
+    "min_r": 3,
+    "chance": 0.24,
     "damage_pet": null,
     "damage_player": [7, 24, 12],
-    "note": "the same cast's ticks on Logan away from the pets: with Logan within 9 of a stoneshaper (30 casts) 24 ticks landed on him at 3-9 tiles (1-6 from the pets it hit), 0.8 a cast; on 2026-11-15 (levels 2 by the user and the runner) 25 ticks in the 17 casts with Logan within 10 (at 3-10 tiles; none in 3 casts at 14-17), 1.5 a cast, whole casts at a time: 8 of 17 casts put 1-4 ticks on him, the other 9 none. Pooled 49 ticks in 47 casts: chance 0.26 a tick, radius 10 (was 0.2 and 9). Logan 6-20 as seen (median 10, n=26; 11-15 7-14, median 10, n=25, under an 18.0 % Song of Discordance), song-corrected. Two bursts of one cast [INFERENCE: what picks its far victims is unknown: neither its own nor its target's distance tells; the per-tick chance spreads what live came as whole casts]"
+    "note": "the same cast's ticks on Logan away from the pets. All five captures (2026-11-16, level 2: 73 casts): 52 ticks of 6-15 as seen (median 10) on Logan at 3-11 tiles from it (3: 9, 4: 14, 5: 8, 6: 10, 7: 4, 8: 1, 9: 3, 10: 1, 11: 2), none in the 18 casts with him at 12-18, and he never stood within 2 of one as it cast (min_r 3 [INFERENCE: untested nearer; live a stoneshaper in war mode stood within 1 of him 3 of its 580 seconds]). 55 casts with him at 3-11 put 52 ticks on him: chance 0.24 a tick, radius 11 (was 0.26 and 10; before 11-15, 0.2 and 9); whole casts at a time live (17 of the 55 casts put 1-4 on him, the other 38 none). Song-corrected numbers as before (median 12). Two bursts of one cast [INFERENCE: what picks its far victims is unknown: neither its own nor its target's distance tells; the per-tick chance spreads what live came as whole casts]"
    }
   ],
   "horned devil": [
@@ -1265,9 +1148,47 @@
     "note": "no chase: in war mode it stood on (5256, 2604) the whole 11 s of the 22:05 fight (us at 7-11) and on (5256, 2601) the 36 s of the 22:08 one (pets beside it, Logan at 13-15); its steps were 2 tiles idle in 14 s before the first and 3 east onto the pets on waking before the second (step 0.53 s, ssc_observed). World._attack: no step after its target"
    }
   ],
-  "note": "Song-corrected by the Song of Discordance share his songs printed then (17.7 % at E 118, 2026-10-24; none printed in the 10-31 and 11-03 captures; 18.0 % on 2026-11-15). Not modelled: the winged hulk's '*intimidates*' (n=13, every 15.3-16.3 s; animation 5; 'The creature intimidates you, reducing your accuracy.' and '*intimidated*' over Logan and over players at 4-8 tiles, no number with it: an accuracy cut, and Logan doesn't swing [INFERENCE: harmless to the --pets runner]; no World kind for an accuracy debuff); the crimson gargoyle's '*crimson harvest*' (n=16: a fireball volley (effect 0x36D4, hue 2838) onto its target's tiles and fire columns there; 3 numbers 9-11 on the pets in 16); the horned devil's '*absorbs power*' (n=114, a 16 on a pet now and then: unmeasured); the spectral knight's '*parries spell*' (n=85: 6-8 on the pet whose spell it parried, as the Ossuary's lion warrior, no reflect kind); the spectral footman's '*throws axe*' (n=60: 7-29 on a pet 0.3-1.9 s later, too scattered to time); the spectral warrior's '*blade wind*' (n=37, 4 hits on us in 37; 11-15 28 more: a 17 on each pet within reach out to 14 tiles 0.8 s after it); the stone and volcanic familiars' '*slams earth*' / '*slams ground*' (n=51, 37: their numbers mix with the stoneshapers' ticks beside them); the corrupted hornbeast's '*growls*' (n=16); the spectral pontiff's multi-target spells (11-15: 4 of its 10 damaging spells, three fireball volleys 0x36D4 at 2-3 of us at once (sound 0x160 on each, 25-40 on each 0.5 s later) and a lightning on all four of us at 20-21 tiles while its war flag read off [INFERENCE: its]; each followed by its orb): its spells here hit one victim (ranged_observed)"
+  "note": "Song-corrected by the Song of Discordance share his songs printed then (17.7 % at E 118, 2026-10-24; none printed in the 10-31 and 11-03 captures; 18.0 % on 2026-11-15). Not modelled: the winged hulk's '*intimidates*' (n=13, every 15.3-16.3 s; animation 5; 'The creature intimidates you, reducing your accuracy.' and '*intimidated*' over Logan and over players at 4-8 tiles, no number with it: an accuracy cut, and Logan doesn't swing [INFERENCE: harmless to the --pets runner]; no World kind for an accuracy debuff); the crimson gargoyle's '*crimson harvest*' (n=16: a fireball volley (effect 0x36D4, hue 2838) onto its target's tiles and fire columns there; 3 numbers 9-11 on the pets in 16); the horned devil's '*absorbs power*' (n=114, a 16 on a pet now and then: unmeasured); the spectral knight's '*parries spell*' (n=85: 6-8 on the pet whose spell it parried, as the Ossuary's lion warrior, no reflect kind); the spectral footman's '*throws axe*' (n=60: 7-29 on a pet 0.3-1.9 s later, too scattered to time); the spectral warrior's '*blade wind*' (n=37, 4 hits on us in 37; 11-15 28 more: a 17 on each pet within reach out to 14 tiles 0.8 s after it); the stone and volcanic familiars' '*slams earth*' / '*slams ground*' (n=51, 37: their numbers mix with the stoneshapers' ticks beside them); the corrupted hornbeast's '*growls*' (n=16); the spectral pontiff's lightning on all four of us at 20-21 tiles while its war flag read off (11-15 22:08:14, once [INFERENCE: its]; its spells here reach the default 12). Its fireball volleys are modelled since 2026-11-16 (ranged_observed `volley`)"
  },
  "upscale_note": "no upscale block: a normal week in each capture. Every type killed in view took at most its wiki hits in numbers (max 1.00 x: 7,001 for 7,000, 12,001 for 12,000, 4,001 for 4,000; 10-24, 10-25, 10-31) and its corpse held 1.01-1.03 x its wiki gold value (median by capture: 1.03 on 10-24, 1.01 on 10-25, 1.01 on 10-31; 100 corpses), against Cavernam's Challenger week's 1.5 x hits and 1.6 x gold and the Ossuary's Sanctuary week's 0.65 x gold. 11-03 had no corpse gold lifted (80 s on the levels). So neither a Challenger (upscaled) nor a Sanctuary dungeon those weeks",
+ "others": {
+  "enabled": true,
+  "arrive_per_h": 35.0,
+  "stay_s": [300, 1800, 600],
+  "notoriety": 1,
+  "bodies": [400, 400, 400, 400, 401],
+  "names": ["RedRum NaoMi", "iChriss", "RudeLion", "Niskala", "Ryanross", "Jobab", "Geese", "Friggo", "el Macra", "ColdSun", "JimBeam", "MenneHarl", "Kairi Heart", "Krunch", "Guiizera", "Harmon Oak", "Cuppie", "Reluctant Angler"],
+  "pets": [
+   {"name": "a black widow", "body": 736, "tag": "(bonded)", "w": 611},
+   {"name": "a giant black widow", "body": 11, "tag": "(bonded)", "w": 569},
+   {"name": "a brasshopper", "body": 699, "tag": "(bonded)", "w": 367},
+   {"name": "a colossal black widow", "body": 173, "tag": "(bonded)", "w": 261},
+   {"name": "a vampire", "body": 722, "tag": "(summoned)", "w": 244},
+   {"name": "a wyvern", "body": 62, "tag": "(bonded)", "w": 176},
+   {"name": "a gravebug", "body": 387, "tag": "(bonded)", "w": 159},
+   {"name": "a blood serpent", "body": 21, "tag": "(bonded)", "w": 147},
+   {"name": "a reef serpent", "body": 21, "tag": "(bonded)", "w": 142},
+   {"name": "a poison mephit", "body": 393, "tag": "(bonded)", "w": 128},
+   {"name": "an earth elemental", "body": 14, "tag": "(summoned)", "w": 122},
+   {"name": "a corpse eater", "body": 302, "tag": "(bonded)", "w": 113},
+   {"name": "a searing bullvore", "body": 715, "tag": "(bonded)", "w": 104},
+   {"name": "a warpig", "body": 354, "tag": "(bonded)", "w": 98},
+   {"name": "a cryptwing", "body": 386, "tag": "(bonded)", "w": 93},
+   {"name": "a savage primordial", "body": 324, "tag": "(bonded)", "w": 86}
+  ],
+  "pet_share": 0.55,
+  "dps": [178, 885, 456],
+  "every_s": 1.5,
+  "reach": 8,
+  "step_s": 0.2,
+  "engage_r": 10,
+  "linger_s": [5, 40, 15],
+  "roam_r": 40,
+  "pet_part": 0.6,
+  "hits": 1000,
+  "unseen": {"life_s": 300, "start_fill": 0.4, "note": "the level's other hunters out of our view (World._unseen_tick): an idle spawned monster out of Logan's view goes at 1/life_s a second, a spawn up at a run's start with start_fill. Fitted with the players above [INFERENCE]: level 2 (its spawns merged within 10), monsters in view 2.39 without them, 2.30 at 600 s / 0.6, 2.08 at 300 s / 0.4 (live 1.81, 1.96 round the landing); 300 / 0.4 taken"},
+  "note": "other (non-hostile) players, measured 2026-11-16 over the five captures (calibration.tags; the Mausoleum's method, docs/NOTES.md 'Other players at the Mausoleum': one-second samples while Logan stood on a level, every mobile within 18; a player: a human body, not a ghost, a name without an article, 'Notorious NPC' left out; Logan's pets of each capture apart). Level 1 (2.109 h, 7,594 samples, much of it the runner's level 1 runs of 11-15): >= 1 other player in view 39.3 % of the time, 0.56 on average; 370 appearances (gaps over 30 s split them), 175 an hour; in-view stays p25 / median / p75 / p90 4 / 7 / 16 / 33 s; 55 % with a pet or summon within 4 (pet_share); notoriety 1 in 3,813 of 4,232 player-seconds, 2 (green) 350, a red 41. Monsters dying in view without a number of ours: 52 an hour (named; 58 unnamed bodies more, players' summons [INFERENCE]), 47 % of the kills in view. Level 2 (1.124 h, 4,045 samples): in view 63.4 %, 1.28 on average, 210 appearances, 187 an hour, stays 6 / 11 / 34 / 69 s, pets 55 %; their kills in view 73 an hour named (48 % of the kills in view: stone familiar 22, warrior 11, volcanic familiar 9, stoneshaper 7, priest 7, flameshaper 6, footman 6 ...), level 2's `others` override. Names: the 18 most seen; bodies 400 : 401 as 7,427 : 1,991 player-seconds; pets by seconds beside a player (the article-named ones; players' own names left out). The Mausoleum's fight rules and damage rates (dps, every_s, reach, step_s, hits, pet_part, roam_r) [INFERENCE: not measured here]. Fitted (32-run batches, the shift's command, 2026-11-16, docs/SIM.md 'Shadowspire Cathedral'): arrive_per_h, stay_s, linger_s, engage_r and the unseen hunters, so that the monsters in Logan's view match live (level 1 0.90 on average, level 2 1.81, 1.96 round the landing). Level 1, arrive 30: 36.6 % / 0.49 / 148 arrivals / their kills in view 28 an hour, monsters in view 1.22; arrive 40: 47.6 % / 0.72 / 251 / 36, monsters 0.91; 35 taken: 43.7 % / 0.65 / 216 / 32, monsters 0.93. On by default here (enabled; run.py --no-others turns them off): live they took half the kills in view on both levels and the in-view densities match only with them"
+ },
  "reds_note": "no `reds` block (run.py --reds refused here): 2026-10-31 14:24:45-50 the red players Richard Wagner and Albert Wagner (body 400, 'X is attacking you!', Corp Por casts, an earth elemental of notoriety 6 beside them) killed Logan on level 1 at (5128-5131, 2613-2616) beside a mud gargoyle whose mud rooted him three times (14:24:47-49); his last numbers 9, 41, 24, 34, 15 in 4 s; murder reports 14:24:54-56. 3 reds and 22 players in view that visit; a guild 'Reds SSC1' warning after. The Mausoleum's reds model (sim/reds.py) is fitted to Maus captures [INFERENCE: not measured here]",
  "trip": {
   "note": "Logan Wolf's visits on level 1 (the user playing, all seven visits, 2026-10-24 to 11-03; four teams, see description): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan; vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there (corpses others killed included). Per hour on the level beside the sim's (run.py --compare). Includes 10-31 14:21-14:25 (dead to two reds)",

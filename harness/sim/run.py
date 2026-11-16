@@ -107,7 +107,7 @@ def seed_prior(db: str, prior: str, serial: int) -> int:
 
 
 def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: float = 30.0,
-             at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool = False,
+             at_hunt: bool = False, sets: tuple = (), db: str | None = None, others: bool | None = None,
              eerie: bool = False, epoch: float = EPOCH, prior: str | None = None, reds: bool = False,
              trace: str | None = None, area: tuple | None = None, armor: dict | None = None,
              instrument: str | None = None, team: str | None = None, bestiary: str | None = None,
@@ -117,7 +117,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     (experiments, e.g. "tamer.FALLBACK_S=0"; the value is a Python literal). `db`: the runner's
     memory store (a career's, kept across its runs: crawl priors, fights, avoided types, learnt
     teleporters), else a fresh one (with `prior`'s hunt history: seed_prior). `others`: other players on the
-    level (the scenario's `others`, off by default so earlier batches stay comparable); `eerie`: the Field of
+    level (the scenario's `others`): True on, False off, None the block's `enabled` (off in every scenario but
+    Shadowspire Cathedral's, so earlier batches stay comparable); `eerie`: the Field of
     Souls' eerie corpses (the scenario's `eerie`, off by default too); `reds`: red players (the scenario's `reds`, off
     by default; a number: groups arriving an hour instead of its `arrive_per_h`). `epoch`: the game time it starts at.
     `trace`: record the run's trace (sim/trace.py) to this path.
@@ -161,6 +162,8 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
             if flag not in sc:
                 raise ValueError(f"--{flag}: scenario {scenario} has no `{flag}` block")
             sc[flag]["enabled"] = True
+    if others is False and "others" in sc:
+        sc["others"]["enabled"] = False
     if reds is not True and reds:
         sc["reds"]["arrive_per_h"] = float(reds)   # --reds RATE: groups an hour instead of the scenario's
     for k, v in (armor or {}).items():
@@ -363,8 +366,11 @@ def arg_parser() -> argparse.ArgumentParser:
                     help="split the runs into this many careers (default: CPU count - 1), each one after another on "
                          "one memory store, as the live runner keeps its memory between runs")
     ap.add_argument("--fresh", action="store_true", help="every run on a fresh memory store (no careers)")
-    ap.add_argument("--others", action="store_true",
-                    help="other players on the level (the scenario's `others`; off by default, docs/SIM.md)")
+    ap.add_argument("--others", action="store_const", const=True, default=None,
+                    help="other players on the level (the scenario's `others`; off by default but in Shadowspire "
+                         "Cathedral, docs/SIM.md)")
+    ap.add_argument("--no-others", dest="others", action="store_const", const=False,
+                    help="no other players, where the scenario has them on by default (Shadowspire Cathedral)")
     ap.add_argument("--eerie", action="store_true",
                     help="the Field of Souls' eerie corpses on the level, empty soul jars in the pack (the scenario's "
                          "`eerie`; off by default)")

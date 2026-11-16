@@ -2057,6 +2057,16 @@ class World:
                         or cheb(o.pos, m.pos) > ranged["range"]:
                     continue
                 self.hurt(o, self._shot_damage(ranged, o), m, "spell", ref=ranged.get("ref"))
+        vo = ranged.get("volley")
+        if vo and self.rng.random() < vo["chance"]:
+            # `volley`: at `chance` a cast lands on every one of our side within `radius` of its victim too, in the
+            # caster's reach and sight (the spectral pontiff's fireball volleys, docs/NOTES.md "Shadowspire Cathedral:
+            # level 2 live, ..."); its on-hit specials (the orb) follow the victim's hit alone, as live one orb a volley
+            for o in [self.player] + self.pets():
+                if o is victim or not o.alive or o.ghost or cheb(o.pos, victim.pos) > vo["radius"] \
+                        or cheb(o.pos, m.pos) > ranged["range"] or not self.can_see(m, o):
+                    continue
+                self.hurt(o, self._shot_damage(ranged, o), m, "spell", ref=ranged.get("ref"))
 
     def _shot_damage(self, ranged: dict, o: Mob) -> float:
         """A ranged attack's number on `o`: Logan's own measured numbers (`damage_player`) where the type has them,
@@ -2697,7 +2707,8 @@ class World:
         not round itself (the astral zoas' spell); `at` (x, y): on each of us within `radius` of that tile (a
         telegraphed burst's named tile, `telegraph_s`). `damage_pet` / `damage_player` null: no number on a pet / on
         Logan (a debuff or bleed only, or its numbers already in the type's swings: the biolumen shellpod's barrage on a
-        pet beside it); `numbers` of them on each victim (the shellpod's barrage: two on Logan).
+        pet beside it); `numbers` of them on each victim (the shellpod's barrage: two on Logan); `min_r`: none of us
+        nearer its centre than that (the stoneshaper's far ticks, 3-11 tiles off it).
         A `bleed` rider: a stacked bleed on each victim (`_bleed_stack`); a `disease` one (`_disease`, the anubite's
         blight); a `root` one (`_root`, the ossuarian hunters' net: no step for `hold_s`); a `mud` one (`_mud_drop`, the
         mud gargoyle's spray: a puddle near each victim that may root Logan when he steps into it). A `debuff`, a stack of
@@ -2713,6 +2724,9 @@ class World:
             hit = [o for o in self.team() if cheb(o.pos, tgt.pos) <= sp["radius"]]
         else:
             hit = [o for o in self.team() if cheb(o.pos, m.pos) <= sp["radius"]]
+        if sp.get("min_r"):
+            c = at if at is not None else tgt.pos if sp.get("center") == "target" else m.pos
+            hit = [o for o in hit if cheb(o.pos, c) >= sp["min_r"]]
         self._ev("ability", by=m.serial, kind="burst", v=None)
         if sp.get("targets") and len(hit) > sp["targets"]:
             hit = self.rng.sample(hit, sp["targets"])

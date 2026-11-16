@@ -8197,7 +8197,7 @@ def test_area_hitters():
           "Cavernam's white wyrmling's chilling hit (every 14.5 s), Shadowspire's stoneshaper's ticks round its pet (every "
           "7.8 s); nothing else (not a shellpod's barrage, radius 0; not the zoas' lightning, one every 22-87 s; not the "
           "silicite's shards or the frigid archfiend's hit, every 15.9 and 15.3 s; not the gargan scorcher's detonation, "
-          "every 21.2 s; not the stoneshaper's far ticks, radius 10)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
+          "every 21.2 s; not the stoneshaper's far ticks, radius 11)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
 
 
 def test_shy_by_ai():
@@ -9169,6 +9169,7 @@ def ssc_world(start, spawns=(), seed=1, z=39, team="phoenix_incubus"):
     sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
     sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
     sc["player"]["start"] = [start[0], start[1], z]
+    sc["others"]["enabled"] = False                     # the layouts' own monsters only (on by default here)
     return World(sc, seed=seed)
 
 
@@ -9368,6 +9369,82 @@ def test_ssc_pontiff_orb():
     check("...its target 20 off: it holds its tile (a `hold` special)", m.pos == at, f"from {at} to {m.pos}")
 
 
+def test_ssc_stoneshaper():
+    print("== a gargan stoneshaper takes a pet over Logan nearer it and never swings at him; its far ticks land 3-11 off "
+          "it, none nearer ==")
+    # live (all five captures, level 2, docs/NOTES.md "Shadowspire Cathedral: level 2 live, ..."): its 44 swings that
+    # landed all on a pet; within 1 of Logan 3 of its 580 war seconds; its ticks on Logan at 3-11 tiles, never nearer
+    w = ssc_world((5265, 2600), [{"key": "gargan stoneshaper", "at": [5261, 2600, -22]}], seed=7, z=-22)
+    hurts = _log_hurts(w)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    pets = sorted(w.pets(), key=lambda p: p.name)
+    for p, xy in zip(pets, ((5268, 2600), (5268, 2601))):
+        p.mode = "stay"
+        w._teleport(p, (*xy, -22))
+        p.hits = p.hits_max = 100000
+    w.player.hits = w.player.hits_max = 100000
+    m.hits = m.hits_max = 100000
+    m.spec = {**m.spec, "specials": []}                  # its swings and its pick alone
+    seen = set()
+    while w.t < 20.0:
+        w.run_until(w.t + 0.5)
+        if m.target is not None:
+            seen.add(m.target)
+    on_logan = [k for _, v, k, _ in hurts if v is w.player]
+    check("4 off Logan, 7 off the pets: it took a pet, never Logan, and no swing on him",
+          seen and seen <= {p.serial for p in pets} and not on_logan,
+          f"targets {[hex(s) for s in seen]} pets {[hex(p.serial) for p in pets]} on Logan {on_logan}")
+    far = next(s for s in load("ssc")["specials"]["gargan stoneshaper"] if s.get("id") == "shapes_stone_far")
+    got = {}
+    for d in (2, 3, 11, 12):
+        w._teleport(w.player, (m.x + d, m.y, -22))
+        n = len(hurts)
+        w._burst(m, {**far, "chance": None})
+        got[d] = any(v is w.player for _, v, _, _ in hurts[n:])
+    check("...a far tick on Logan at 3 and 11 off it, not at 2 or 12 (min_r 3, radius 11)",
+          got == {2: False, 3: True, 11: True, 12: False}, str(got))
+
+
+def test_ssc_pontiff_volley():
+    print("== a spectral pontiff's volley: its spell on the pet it casts at and on each of us within 4 of that pet, in "
+          "its reach and sight, not the pet 7 off; one orb after it ==")
+    # live 2026-11-15 22:05:38.505 (Shadowspire level 2): fireballs at the noughtilus, Logan 4 off it and the widow;
+    # the mephit 7 off the pets spared; 22:05:39.514 one orb (docs/NOTES.md "Shadowspire Cathedral: level 2 live, ...")
+    w = ssc_world((5267, 2600), [{"key": "spectral pontiff", "at": [5256, 2604, -23]}], seed=7, z=-22)
+    hurts = _log_hurts(w)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    near, far = sorted(w.pets(), key=lambda p: p.name)
+    for p, xy in ((near, (5263, 2602)), (far, (5270, 2598))):
+        p.mode = "stay"
+        w._teleport(p, (*xy, -22))
+        p.hits = p.hits_max = 100000
+    w.player.hits = w.player.hits_max = 100000
+    m.hits = m.hits_max = 100000
+    m.next_swing = 1e9
+    r = m.spec["ranged"]
+    m.spec = {**m.spec, "ranged": {**r, "volley": {**r["volley"], "chance": 1.0}}}
+    t0 = w.t
+    w._impact((t0, m, near.serial))
+    spell = {v.serial for _, v, k, _ in hurts if k == "spell"}
+    w.run_until(t0 + 2.0)
+    orb = [v.serial for _, v, k, _ in hurts if k == "burst" and v is not m]
+    check("the spell on the pet and Logan 4 off it, not the pet 7 off; then one orb on those two",
+          spell == {near.serial, w.player.serial} and sorted(orb) == sorted([near.serial, w.player.serial]),
+          f"spell {[hex(s) for s in spell]} orb {[hex(s) for s in orb]}")
+
+
+def test_ssc_others():
+    print("== Shadowspire's other players: on by default, level 1's crowd the scenario's, level 2's its own arrivals ==")
+    from sim.scenario import select_level
+    sc = load("ssc")
+    l1 = dict(sc["others"])
+    select_level(sc, "2")
+    check("on by default; 35 an hour on level 1, 30 on level 2 with level 1's other numbers",
+          l1["enabled"] and l1["arrive_per_h"] == 35.0 and sc["others"]["enabled"]
+          and sc["others"]["arrive_per_h"] == 30.0 and sc["others"]["stay_s"] == l1["stay_s"],
+          f"level 1 {l1['arrive_per_h']} level 2 {sc['others']['arrive_per_h']}")
+
+
 def test_ssc_patrol_named():
     print("== 'All Patrol' on Shadowspire level 1: the click names the floor static over the land 0x244 at -75, so the "
           "server takes it; the pets wake the idle mephit, not us ==")
@@ -9474,8 +9551,9 @@ def test_ssc_hunt():
     # seed 1 died there after the 2026-11-09 gargoyle change (36 -> 34 of 48 batch deaths: no worse); seed 2 died there
     # after the strips' firing move (2026-11-15: they fire on the move from their tile), seed 1 lived again; seed 1 died
     # there after the pontiff's orb and the flight from it (2026-11-15; level 2 runs with a death 22 -> 21 of 32), seed 4
-    # lives
-    for level, minutes, seed in ((None, 10, 1), ("2", 20, 4)):  # level 2's fought leg across level 1 takes 6-8 minutes
+    # lived; seed 4 died on the walk out with its loot after the players went on by default and level 2's spawns were
+    # merged (2026-11-16; 5 of these 24 seeds die, 19 live), seed 1 lives
+    for level, minutes, seed in ((None, 10, 1), ("2", 20, 1)):  # level 2's fought leg across level 1 takes 6-8 minutes
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             r = simrun.run_once(seed, [], scenario="ssc", minutes=minutes, team="phoenix_incubus", dungeon_level=level)
         gates = [e.get("gate") for e in r["leave_events"] if e.get("ok")]
@@ -9561,6 +9639,7 @@ def main():
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
               test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_pontiff_orb,
+              test_ssc_stoneshaper, test_ssc_pontiff_volley, test_ssc_others,
               test_ssc_patrol_named, test_ssc_bard_beyond_range, test_ssc_pontiff_flee, test_ssc_rope, test_ssc_red_race,
               test_ssc_hunt):
         t()

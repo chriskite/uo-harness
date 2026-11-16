@@ -68,6 +68,7 @@ python harness/sim/run.py --scenario cavernam --level 2                 # ... it
 python harness/sim/run.py --scenario cavernam --level 1                 # ... its level 1 (the recall's level: no teleporter)
 python harness/sim/run.py --scenario ssc --runs 32 --team phoenix_incubus   # Shadowspire Cathedral's level 1 ("Shadowspire Cathedral" below)
 python harness/sim/run.py --scenario ssc --level 2                      # ... its level 2 (down level 1's strip, out up level 2's)
+python harness/sim/run.py --scenario ssc --level 2 --no-others          # ... without its other players (on by default there)
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
 python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
@@ -841,7 +842,9 @@ parameter's evidence is in `mausoleum.json`'s `others.note`.
   waits left are ~4 s a monster: the approach and the "All Kill" itself.
 - **Why off by default**: players move every headline number 15-30 % (gold, kills, deaths), so with them on no batch
   would compare with the tables above this section. Use `--others` for anything players touch (targets on others,
-  loot rights, crowding), and for a final check of a change.
+  loot rights, crowding), and for a final check of a change. Shadowspire Cathedral is the exception (2026-11-16, its
+  `others.enabled`; `--no-others` turns them off there): live they took half the kills in view on both its levels,
+  and the monsters in view match live only with them ("Shadowspire Cathedral" below).
 - **Tidal Tomb** (2026-10-26, user: "Add other players to TT"): its own `others` block (`tidal_tomb.json`, every
   number's evidence in its note), level 1. Measured over the three captures with Logan there (1.39 h, the method
   above): another player in view 8.9 % of the time (here 27.4 %), 36 arrivals in view an hour, in-view stays median
@@ -3683,17 +3686,88 @@ parent's runner edits then in flight) with this scenario and simulator. "Live" i
 - test_sim `test_ssc_pontiff_orb` (the 22:05:33 layout: its spell on a pet 7 off, the orb 1.0 s later on that pet and
   Logan 4 off it, not the pet 7 off; with its target 20 off, no step).
 
+**The simulator's gaps closed** (2026-11-16, user: "fix the simulator gaps"; docs/NOTES.md "Shadowspire Cathedral:
+level 2 live, ..."). Measured over all five captures (calibration.tags) with one-second samples while Logan stood on
+a level (level 1 2.11 h, level 2 1.12 h; a scratch replay, as the Mausoleum's players were measured):
+
+- **Other players** (`others`, on by default here; run.py `--no-others`, `run_once(others=False)`): the Mausoleum's
+  model with Shadowspire's numbers. Live, another player was in view 39 % of level 1's seconds and 63 % of level 2's
+  (0.56 and 1.28 on average, 175 and 187 arrivals in view an hour, stays median 7 and 11 s). They killed 47 % and 48 %
+  of the monsters dying in view. Their names, bodies and pets (55 %) are from the captures. The arrivals (35 an hour,
+  level 2's own 30 through a level's new `others` key, `select_level`), stays and the hunters out of view (`unseen`
+  300 s, 0.4) are fitted to the monsters in Logan's view.
+- **Level 2's spawns merged within 10** (95 -> 71; stoneshapers 12 -> 8). Live, its idle monsters drifted a median 9
+  tiles from where they were first seen (p75 13, n=27; level 1's 2, left as it was), so first sightings 6-10 apart
+  were one spawner's [INFERENCE]. Without the merge, the simulator had 6.5 monsters in view against 1.81 live, 1.55
+  stoneshapers against 0.19, and up to 6 stoneshapers at once (live at most 2).
+- **Stoneshapers take a pet** (`defaults.pets_first`): live their 44 landed swings were all on a pet, and in war mode
+  one stood within 1 of Logan 3 of its 580 seconds. **Their far ticks** land at 3-11 tiles (new `min_r` on `burst`;
+  radius 11, chance 0.24 a tick: 52 ticks in the 55 casts with Logan 3-11 off, none in 18 casts at 12-18; he never
+  stood within 2 of one casting).
+- **The pontiff's volleys** (new `volley` on a ranged attack, World._impact): at chance 0.4 a cast, its spell also
+  lands on each of us within 4 of its victim, in its reach and sight. Live that was 4 of its 10 spells (three fireball
+  volleys and the lightning); one orb follows each, on the victim alone. The lightning's 20-21 tiles (once) is left
+  out [INFERENCE: one sighting, its war flag off; its spells' reach stays the default 12].
+
+32 runs a side, the shift's command (`--team phoenix_incubus --prior` the live store, `-- --vet-range 5
+--crawl-learn-s 180`). Before = HEAD 1974f19 (the runner af3ef45 with the pontiff flight, no players). In view, the
+stoneshapers' distances and the share within 1 of Logan: 24 runs a side of a scratch probe of one-second samples.
+Per hour on the level:
+
+| level 2 | live (5 captures) | before | after, `--no-others` | after |
+|---|---|---|---|---|
+| monsters in Logan's view (mean) | 1.81 (1.96 round the landing) | 6.48 | 5.66 | 2.19 |
+| stoneshapers in view (mean) | 0.19 (0.33 round the landing) | 1.55 | 0.98 | 0.36 |
+| monsters met | 237 | 248 | 245 | 332 |
+| stoneshapers met | 27.6 (11-15: 30.7) | 57.8 | 40.9 | 50.2 |
+| pontiffs met | 1.8 | 4.5 | 3.6 | 10.2 |
+| our kills | 103 | 170 | 165 | 125 |
+| our stoneshaper kills | 10.7 | 37.6 | 27.0 | 16.8 |
+| on Logan | 2,051 | 4,287 | 2,863 | 1,473 |
+| ... from stoneshapers | 472 (ticks only) | 3,299 | 1,683 | 1,086 |
+| ... from the pontiff | | 88 | 117 | 127 |
+| an awake stoneshaper within 1 of Logan (share of its seconds); Logan's distance p10 / p50 / p90 | 0.5 %; 4 / 7 / 16 | 2.8 %; 3 / 4 / 9 | 1.7 %; 3 / 4 / 8 | 1.4 %; 3 / 5 / 12 |
+| heal potions / vet supplies | 34.7 / 192 | 82 / 535 | 51 / 440 | 55 / 366 |
+| players in view: share / mean / arrivals an hour / stays p25-p50-p75-p90 s | 63 % / 1.28 / 187 / 6-11-34-69 | | | 55 % / 0.86 / 185 / 3-9-23-41 |
+| their kills in view | 73 (+ 23 unnamed) | | | 84 |
+| runs with a death / deaths a game hour / banked gp a game hour | | 21 / 1.52 / 107,709 | 24 / 1.36 / 61,879 | 11 / 0.69 / 154,363 |
+
+| level 1 | live | before | after |
+|---|---|---|---|
+| monsters in Logan's view (mean) | 0.90 | 2.08 | 0.93 |
+| monsters met | 189 | 213 | 236 |
+| our kills | 88 | 164 | 108 |
+| on Logan | 592 | 801 | 605 |
+| heal potions / vet supplies | 10.0 / 86 | 13.7 / 94 | 10.3 / 60 |
+| players in view: share / mean / arrivals / stays | 39 % / 0.56 / 175 / 4-7-16-33 | | 44 % / 0.65 / 216 / 4-8-13-23 |
+| their kills in view | 52 (+ 27 unnamed) | | 32 |
+| runs with a death / banked gp a game hour | | 0 / 149,983 | 1 (a flamekin) / 100,391 |
+
+- **Level 1** now matches live on what's in view, the damage on Logan and the potions. The gold an hour falls a
+  third: the players take their share of the kills and the loot.
+- **Level 2's deaths** (after): gargan flamekin 4, golden gargoyle 3, stonekin 2 (level 1's legs in and out), pontiff
+  1, stoneshaper 1. Before: stoneshaper 10, flamekin 7, ... The stoneshapers' damage on Logan is 2.3 x live's, against
+  7 x before; none of it from their swings in the deaths' last 15 s (before 244 of their 1,228 there).
+- **`--no-others`** shows what the players do. The merged spawns alone thin the view only to 5.66: with no one else
+  clearing it, the runner fights through more of level 2. That gives more scorchers and pontiffs met, and 24 runs with
+  a death.
+- **Still above live:** stoneshapers met (50 against 28-31 an hour) and monsters met (332 against 237). The players'
+  kills, the unseen hunters' and ours (125 against 103) respawn as new monsters to meet. A respawn takes 240-360 s;
+  live, the next sighting near a death's spot came a median ~300 s after it. And the pontiff: 10.2 met an hour against
+  1.8, as the players kill it (10,000 hits at their 178-885 a second) and it respawns [INFERENCE: its respawn and the
+  players' taking it are not measured]. Damage on Logan is under live's (1,473 against 2,051), potions and vet over it
+  (the team AlaFlambe and Bussin never hunted level 2 live).
+- test_sim `test_ssc_stoneshaper` (a pet over Logan nearer it, no swing on him; far ticks at 3 and 11, not 2 or 12),
+  `test_ssc_pontiff_volley` (the 22:05:38 layout: Logan 4 off the pet hit, the pet 7 off spared, one orb),
+  `test_ssc_others` (on by default, level 2's own arrivals).
+
 **Open on Shadowspire Cathedral:**
 
 - The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).
-- Level 2's danger rests on the stoneshapers. The simulator meets 2.1 x their live encounter rate (11-15) and Logan
-  takes 4.4 x the live damage from them. Their simulated far ticks land at 0-2 tiles too (43 % of their ticks in the
-  simulated deaths' last 15 s), and simulated stoneshapers swing at Logan (26 % of their damage there). Live, he never
-  stood within 2 of one casting and took none of their swings. The live team on level 2 was never AlaFlambe and
-  Bussin (43 s on 11-03).
-- Other players (58, 64, 22, 4 seen; on 11-15 18 and 9, taking 29 of the 63 level 2 kills in view) and reds (3 and 3)
-  are not measured; no `others` block.
-- The pontiff's volleys and its long-range lightning (20-21 tiles, once) are not modelled; its respawn is the default.
+- Monsters met on level 2 run 1.4 x live (stoneshapers 1.6-1.8 x, pontiffs 5.7 x) with the players on: the respawns
+  of what they and we kill (above). The live team on level 2 was never AlaFlambe and Bussin (43 s on 11-03).
+- Reds (3 and 3 seen) are not measured; no `reds` block.
+- The pontiff's long-range lightning (20-21 tiles, once) is not modelled; its respawn is the default.
 
 ## Player armor (2026-10-24)
 
