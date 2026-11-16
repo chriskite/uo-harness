@@ -394,12 +394,25 @@ class Walk:
 
 
 def fires(rule, d: int, z: int) -> bool:
-    """Whether a one-way teleporter fires on a step in direction `d` that lands at height `z`. `rule` is (dirs, (z0,
-    z1)) from harness/data/teleporters.json: the step directions it fires on and the landing heights it fires at; None
-    on either side means any. Shadowspire Cathedral's strips (docs/SIM.md "Shadowspire Cathedral"): level 1's fires on a
-    step S, SE or SW only, level 2's from its floor only, not from the stair over it."""
+    """Whether a one-way teleporter fires on a move in direction `d` at height `z`. `rule` is (dirs, (z0, z1)) from
+    harness/data/teleporters.json: the directions it fires on and the heights it fires at; None on either side means
+    any. Shadowspire Cathedral's strips fire on a move request made FROM their tile (live, all 17 crossings in five
+    captures: the step onto the strip confirmed, the next request from it denied and the teleport with the deny), level
+    1's on S, SE or SW, level 2's from its floor only, not from the stair over it. The planner (plan's `one_way`) keeps
+    a walk from leaving a strip's tile the way it fires and from stepping onto it that way unless aimed at it; the
+    runner sends the firing move once on it (HuntLoop.teleport)."""
     dirs, zr = rule
     return (dirs is None or d in dirs) and (zr is None or zr[0] <= z <= zr[1])
+
+
+def fire_dir(rule, facing: int) -> int:
+    """The direction of the move from a one-way teleporter's tile that fires it (fires at its height): `facing` (the
+    step onto it) when that fires, else the middle of its directions, round the compass (level 1's strip S of SE/S/SW,
+    level 2's N of NW/N/NE)."""
+    dirs = rule[0]
+    if dirs is None or facing in dirs:
+        return facing
+    return next((d for d in sorted(dirs) if (d - 1) % 8 in dirs and (d + 1) % 8 in dirs), min(dirs))
 
 
 def one_way_ok(rule, d: int, z: int, aimed: bool) -> bool:
@@ -474,6 +487,8 @@ def plan(walk: Walk, start, goal_fn, blocked_moves=(), occupied=(), cost_scale=N
                 continue
             if one_way and nxt[:2] in one_way and not one_way_ok(one_way[nxt[:2]], d, nxt[2], nxt[:2] == aim):
                 continue
+            if one_way and (x, y) in one_way and fires(one_way[(x, y)], d, z):
+                continue                  # a move from a strip's tile the way it fires is its teleport (fires)
             if max_steps is not None and n + h(nxt[:2]) > max_steps:
                 continue
             step = cost_scale((x, y), nxt[:2]) if cost_scale else 1.0

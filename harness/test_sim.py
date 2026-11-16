@@ -9195,21 +9195,30 @@ def test_ssc_recall_rule():
 
 
 def test_ssc_strips():
-    print("== Shadowspire's strips fire one way: south onto level 1's into level 2's landing, north from level 2's floor "
-          "onto its strip back up; the step off each landing across the other strip doesn't ==")
+    print("== Shadowspire's strips fire on the move from their tile, one way: S from level 1's into level 2's landing, N "
+          "from level 2's floor-level strip back up; the step onto one never fires, nor the move off it the other way ==")
+    # live 2026-11-15 21:33:06 (hunt-20261115-212853-3c98): the runner stepped S onto (5132, 2653), stood 2 s, nothing;
+    # every live crossing (17 in five captures) was the step onto it confirmed, then the next request from it denied
+    # with the teleport
     w = ssc_world((5132, 2652))
     _step(w, 4)
-    check("a step S onto (5132, 2653) puts Logan on level 2's landing (5276, 2640)", w.player.pos[:2] == (5276, 2640),
+    check("a step S onto (5132, 2653): on it, no teleport", w.player.pos[:2] == (5132, 2653), str(w.player.pos))
+    _step(w, 4)
+    check("...the move S from it puts Logan on level 2's landing (5276, 2640)", w.player.pos[:2] == (5276, 2640),
           str(w.player.pos))
     _step(w, 4)
-    check("...a step S off it onto (5276, 2641), the stair down, keeps him on level 2", w.player.pos[:2] == (5276, 2641),
-          str(w.player.pos))
+    _step(w, 4)
+    check("...S off the landing onto (5276, 2641), the stair down, and S again: still on level 2",
+          w.player.pos[0] > 5200, str(w.player.pos))
     w = ssc_world((5277, 2642), z=-25)
     _step(w, 0)
-    check("a step N from level 2's floor onto (5277, 2641) puts him below level 1's strip (5133, 2654)",
-          w.player.pos[:2] == (5133, 2654), str(w.player.pos))
+    check("a step N from level 2's floor onto (5277, 2641): on it", w.player.pos[:2] == (5277, 2641), str(w.player.pos))
     _step(w, 0)
-    check("...a step N off that landing onto (5133, 2653) keeps him on level 1", w.player.pos[:2] == (5133, 2653),
+    check("...the move N from it puts him below level 1's strip (5133, 2654)", w.player.pos[:2] == (5133, 2654),
+          str(w.player.pos))
+    _step(w, 0)
+    _step(w, 0)
+    check("...N off that landing onto (5133, 2653) and N again: on level 1 north of it", w.player.pos[:2] == (5133, 2652),
           str(w.player.pos))
 
 
@@ -9389,8 +9398,9 @@ def test_ssc_hunt():
     from sim import run as simrun
     # level 2 is the deadliest in the simulator (34-36 of 48 runs with a death, 2026-11-09): a seed whose run lives to
     # the leave, so the route out (up level 2's strip, across level 1 to the crimson gate) is what the check covers;
-    # seed 1 died there after the 2026-11-09 gargoyle change (36 -> 34 of 48 batch deaths: no worse)
-    for level, minutes, seed in ((None, 10, 1), ("2", 20, 2)):  # level 2's fought leg across level 1 takes 6-8 minutes
+    # seed 1 died there after the 2026-11-09 gargoyle change (36 -> 34 of 48 batch deaths: no worse); seed 2 died there
+    # after the strips' firing move (2026-11-15: they fire on the move from their tile), seed 1 lives again
+    for level, minutes, seed in ((None, 10, 1), ("2", 20, 1)):  # level 2's fought leg across level 1 takes 6-8 minutes
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             r = simrun.run_once(seed, [], scenario="ssc", minutes=minutes, team="phoenix_incubus", dungeon_level=level)
         gates = [e.get("gate") for e in r["leave_events"] if e.get("ok")]

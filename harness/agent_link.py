@@ -785,7 +785,11 @@ class Mover:
                     log(f"moved to {tuple(after[:3])} by {walks - 1} walk(s) from the client (the user steering); "
                         f"not a teleporter")
                     return "steered"
-                self._teleported(facet_before, nav.step(tuple(before[:2]), d), facet_after, after)
+                # from a one-way strip's tile (Shadowspire's): the move from it fired it (pathfind.fires), not the tile
+                # it went for, which is floor (level 2's landing, level 1's pocket)
+                here = tuple(before[:2])
+                fired = here if here in self.one_way(facet_before) else nav.step(here, d)
+                self._teleported(facet_before, fired, facet_after, after)
                 return "teleported"
             return "moved"
         if after[3] != before[3]:

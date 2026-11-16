@@ -7390,6 +7390,17 @@ scenario (docs/SIM.md "Shadowspire Cathedral"). Decoded with `replay.timed_packe
   (5276, 2641) after stepping S onto it and was sent up [INFERENCE: a turn north]. Level 1's is a direction rule
   (same height both ways); level 2's fits a height rule as well (the floor fires, the stair over it doesn't)
   [INFERENCE: RunUO teleporters fire only for a mobile at their height].
+  **Corrected 2026-11-15: they fire on the move FROM the strip, not the step onto it.** The runner's first level 2 run
+  (hunt-20261115-212853-3c98) stepped S from (5132, 2652) onto (5132, 2653) at 21:33:06.68 (confirmed), stood 2 s
+  and nothing came ("the step in direction 4 moved without a teleport"; the escape out by the crimson gate, no harm).
+  Every live crossing in the five captures (10-24 x2, 10-25, 11-03, 11-15 20:37:49 and 20:50:24: 17, both ways) was the
+  step onto the strip confirmed (0x22), then the next walk request from it (S on level 1's, N on level 2's; 10-24
+  20:23:05 a turn N first, the "2.1 s") denied (0x21) with the move to the other level. The rule's directions and
+  heights now apply to the move from the tile: `pathfind.fires`, the planner never leaves a strip the way it fires
+  (and steps onto it that way only when aimed), `HuntLoop.teleport` sends the firing move once on it ("the teleporter at
+  5132,2653: on it at (x, y, z), no teleport on the step onto it; the move from it (direction 4) fires it"),
+  `Mover.step` remembers the strip's tile (not the floor it went for) as the one that fired, and the simulator fires
+  the strips on that move (`World._walk`). test_sim `test_ssc_strips`.
 - **Level 2's surface exit** (5309, 2638): a step S from (5309, 2637) put him outside at (3393, 816, -23) (the SSC
   grounds; the "SSC West Entrance" rune (3353, 762)), and N from (3394, 818) onto (3394, 817) back in at (5310, 2640,
   -25). The east wing is entered from outside at (3434, 749) -> (5436, 2472, -23); its hue-2825 gates 0x40035EDA and

@@ -3254,6 +3254,19 @@ class World:
             pl.d = d
             self.send(P.confirm_walk(seq))
             return
+        # a one-way strip (`dirs` / `z`: Shadowspire's) fires on a move request from its tile, the way it fires: live all
+        # 17 crossings in five captures, the step onto it confirmed and the next one from it denied with the move to the
+        # other level (docs/NOTES.md "Shadowspire Cathedral: seven visits by hand", "The strips fire one way")
+        tp = next((tp for tp in self.sc.get("teleporters", []) if ("dirs" in tp or "z" in tp)
+                   and tuple(tp["from"][:2]) == (pl.x, pl.y)
+                   and ("dirs" not in tp or d in tp["dirs"]) and ("z" not in tp or tp["z"][0] <= pl.z <= tp["z"][1])),
+                  None)
+        if tp is not None:
+            self.send(P.deny_walk(seq, pl.x, pl.y, pl.z, pl.d))
+            self.reds.player_teleported((pl.x, pl.y))
+            self._move_party(tp["to"], follow_r=VIEW)
+            self._view()
+            return
         to = self.walk.can_walk(pl.x, pl.y, pl.z, d)
         # our own pets never block (the captures since 10-13: steps into GraveRobber's or AlaFlambe's tile went through
         # 1,257 of 1,278 times, 244 of 255 below full stamina, 14 with a shove's cliloc) [INFERENCE: the owner walks
@@ -3288,12 +3301,9 @@ class World:
             self.penalty -= 1
             self.send(P.penalty_buff(pl.serial, self.penalty) if self.penalty else P.penalty_remove(pl.serial))
         self._mud_step()
-        # `dirs`: the step directions it fires on, `z`: the heights of the step's landing it fires at (Shadowspire
-        # Cathedral's strips fire one way only: level 1's on a step south, level 2's from its floor, not from the stair
-        # over it; docs/SIM.md "Shadowspire Cathedral"); neither: every step onto it
-        tp = next((tp for tp in self.sc.get("teleporters", []) if tuple(tp["from"][:2]) == (pl.x, pl.y)
-                   and ("dirs" not in tp or d in tp["dirs"]) and ("z" not in tp or tp["z"][0] <= pl.z <= tp["z"][1])),
-                  None)
+        # an ordinary teleporter fires on the step onto it (the strips above on the move from them)
+        tp = next((tp for tp in self.sc.get("teleporters", []) if "dirs" not in tp and "z" not in tp
+                   and tuple(tp["from"][:2]) == (pl.x, pl.y)), None)
         if tp is not None:
             self.reds.player_teleported((pl.x, pl.y))
             self._move_party(tp["to"], follow_r=VIEW)

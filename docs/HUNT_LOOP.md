@@ -213,6 +213,14 @@ takes the exit step there.
   and a learnt twin closed that landing for every later run of the store (2 of 32 simulated level 2 runs: "no route
   from (5277, 2641)"). With all four seeded as walls, the crawl found a 2-tile floor at level 2's landing and crashed.
   test_sim `test_ssc_strip_routes` (every strip tile in the store: off each landing, onto each strip only aimed).
+  **They fire on the move FROM the strip** (since 2026-11-15; live, all 17 crossings in five captures: the step onto
+  it confirmed, the next walk request from it denied with the teleport; the runner's first level 2 run stood 2 s on
+  (5132, 2653) and aborted "the step in direction 4 moved without a teleport"). `dirs` / `z` are the direction of that
+  move and the height stood at; level 2's strip fires on N, NE (NW [INFERENCE]) from its floor. The planner never
+  leaves a strip's tile the way it fires and steps onto it that way only when aimed; once on it, `HuntLoop.teleport`
+  sends the firing move ("the teleporter at 5132,2653: on it at (x, y, z), no teleport on the step onto it; the move
+  from it (direction 4) fires it"), and `Mover.step` remembers the strip's tile as the one that fired, not the floor
+  the move went for. test_sim `test_ssc_strips`.
 - **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
   fight spot the runner plans the route back to `--spot` and leaves below
   `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that

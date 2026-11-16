@@ -2151,6 +2151,7 @@ class HuntLoop:
         "Tidal Tomb: dead at the teleporter down, gripped"). A hold (a grip, a net) with nothing on the tile: waited
         out, the step again."""
         tries = shoves = holds = 0
+        again = False
         while tries < TELEPORT_TRIES:
             here = tuple(self.pos(self.link.state())[:2])
             on_it = self.on_tile(self.link.state(), nav.step(here, d))
@@ -2164,6 +2165,18 @@ class HuntLoop:
                 log(f"{what}: teleported to {self.pos(self.link.state())[:3]}")
                 return
             if out == "moved":
+                st = self.link.state()
+                pos = self.pos(st)
+                rule = self.mover.one_way(st["world"]["self"].get("map")).get(tuple(pos[:2]))
+                if rule is not None and not again:
+                    # Shadowspire's strips fire on a move request from their tile, not on the step onto it (live, all
+                    # 17 crossings in five captures; 2026-11-15 21:33:06 the runner stood 2 s on (5132, 2653) after
+                    # the step and nothing came): the step again from it, the way it fires
+                    again = True
+                    d = pathfind.fire_dir(rule, d)
+                    log(f"{what}: on it at {tuple(pos[:3])}, no teleport on the step onto it; the move from it "
+                        f"(direction {d}) fires it")
+                    continue
                 raise Abort(f"{what}: the step in direction {d} moved without a teleport")
             st = self.link.state()
             if out == "blocked" and on_it is not None:
@@ -2245,7 +2258,13 @@ class HuntLoop:
                 if self.mover.teleports > n0:
                     log(f"{what}: teleported to {self.pos(self.link.state())[:3]}")
                     return
-                raise Abort(f"{label}: no teleport onto the one-way {what}")
+                st = self.link.state()
+                pos = self.pos(st)
+                if tuple(pos[:2]) != tuple(tile[:2]):
+                    raise Abort(f"{label}: no teleport onto the one-way {what}")
+                # on it: the move from it fires it (pathfind.fires); teleport's step from the tile
+                self.teleport(pathfind.fire_dir(rule, pos[3] if len(pos) > 3 else d), what)
+                return
         self.teleport(d, what)
 
     # ------------------------------------------------------------ recall in, recall out
