@@ -194,6 +194,8 @@ FALLBACK_S = 4.0              # ...or this long, stopping as soon as every pet i
 PET_MISSING_S = 30.0
 RETREAT_R = 7
 RETREAT_REPEAT_S = 15.0
+FLEE_STEPS = 16              # Team.flee: a tile out of an awake pontiff's sight within this many steps
+FLEE_REPEAT_S = 2.0          # ...looked for again this often while it sees one of us
 POISON_S = 10.0               # "*looks violently ill*" over a pet: poisoned for this long (vet supplies cure)
 OWN_PETS_KEY = "own_pets"     # memory-store meta: {character: [{serial, name}], ...}
 LOOK_MAX = 6                  # setup: untagged mobiles beside us single-clicked for their pet line, at most
@@ -875,6 +877,8 @@ class Team:
         self.seen_at = {}                # pet serial -> (x, y) where last seen alive (rejoin)
         self.walk_pet_t = 0.0
         self.retreat_t = -1e9
+        self.flee_t = -1e9               # the last flight from an awake aggro.FLEE monster (flee)
+        self.flee_stuck = None           # why no flight tile was found: Team.leave_reason's leave
         self.counts = {}
         self.fought = {}                 # serial -> (last-seen mob dict, monotonic): mobs the pets fought
         self.chargers = set(CHARGERS)    # creature types with an area Charge (known + seen this run)
@@ -1326,6 +1330,8 @@ class Team:
         """(why, severity) to leave for the pets' sake, else None. --heal-in-place: a pet below
         --pet-leave-at is healed where it stands while vet supplies last (user 2026-10-13)."""
         now = time.monotonic()
+        if self.flee_stuck is not None and self.flee_seers(st):
+            return self.flee_stuck + ": leaving", "attention"
         seen = {p["serial"]: p for p in self.pets(st)}
         for s, name in self.roster.items():
             p = seen.get(s)
@@ -1535,8 +1541,9 @@ class Team:
         self.update(st)
         if self.kill_order_over(st):
             self.guard_needed = True
-        if self.follow_called and ((self.together(st) and self.on_our_floor(st)) or time.monotonic() >= self.follow_until
-                                   or self.h.attackers(st)):
+        if self.follow_called and not self.flee_seers(st) and (
+                (self.together(st) and self.on_our_floor(st)) or time.monotonic() >= self.follow_until
+                or self.h.attackers(st)):
             # on 'All Follow Me' they guard no more (knowledge #2073); not before they're with us: guarding, they
             # went back to the fight they stood locked on [INFERENCE: 'All Guard Me' doesn't call them off live]; with
             # us is on our floor too (a pet on the wall top 3 off us, live 2026-11-15 14:19, is not)
@@ -1546,11 +1553,94 @@ class Team:
         me = st["world"]["self"]
         low = me.get("hits") is not None and self.h.frac(me) < self.h.heal_at_now()
         calm = not self.view(st).engaged()
-        return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) or self.to_floor(st) \
-            or self.area_peace(st) or self.retreat(st) or self.cover(st) or self.duck(st) \
+        # an awake pontiff sees one of us (flee): the pets stay on 'All Follow Me' (no guard, no 'All Kill' at a lone
+        # fight, no walk to a hurt pet in its sight) until none of us is in its sight
+        calm_pets = not self.flee_seers(st)
+        return (self.follow_needed and self.ghost_follow()) or self.out_of_fire(st) or self.flee(st) \
+            or self.to_floor(st) or self.area_peace(st) or self.retreat(st) or self.cover(st) or self.duck(st) \
             or (low and self.vet(st, calm=calm)) \
-            or self.spacing(st) or self.vet(st, calm=calm) or (self.guard_needed and self.guard()) \
-            or self.unlock(st) or self.lone_fight(st) or self.to_pet(st, calm) or self.reposition(st) or self.song(st)
+            or self.spacing(st) or self.vet(st, calm=calm) or (calm_pets and self.guard_needed and self.guard()) \
+            or self.unlock(st) or (calm_pets and self.lone_fight(st)) or (calm_pets and self.to_pet(st, calm)) \
+            or self.reposition(st) or self.song(st)
+
+    def flee_seers(self, st) -> list:
+        """The awake aggro.FLEE monsters (the spectral pontiff) that see us or a live pet within aggro.FLEE_R."""
+        v = self.view(st)
+        ours = [v.pos] + list(v.pets)
+        return [m for m in v.mobs if m["kind"] in aggro.FLEE and m["war"]
+                and any(v.sees(m, t, aggro.FLEE_R) for t in ours)]
+
+    def flee_near(self, st, mob) -> bool:
+        """An aggro.FLEE monster, idle or awake, that sees `mob`'s tile within its never-aggro zone (aggro.AGGRO_MAX +
+        NEVER_MARGIN): the pets' fight with `mob` there would take them into its sight (live 2026-11-15 22:05:29, a
+        corrupted hornbeast 6 off an idle pontiff: the pets on it at 7 woke it; HuntLoop.pick_target passes it over)."""
+        v = self.view(st)
+        t = (mob["x"], mob["y"])
+        return any(m["kind"] in aggro.FLEE and v.sees(m, t, aggro.AGGRO_MAX + aggro.NEVER_MARGIN) for m in v.mobs)
+
+    def flee(self, st) -> bool:
+        """An awake aggro.FLEE monster (the spectral pontiff) sees us or a pet within aggro.FLEE_R: 'All Follow Me'
+        and a walk (up to FLEE_STEPS) to the nearest tile out of its sight, the fewest idle eyes first; again every
+        FLEE_REPEAT_S while it sees one of us; the pets back on guard once none of us is in its sight (care's
+        follow_called). It is never fought (HuntLoop.pick_target). No such tile: `flee_stuck`, the visit's leave
+        (leave_reason). User 2026-11-15 after Logan's death to one (22:05:40, hunt-20261115-215726-37e5: three orbs and
+        a volley, 112 in 7 s, Logan 11 off it): "it should just avoid them", "I also get away from pontiffs". It
+        doesn't chase (live: stood still in war mode). True when we walked."""
+        seers = self.flee_seers(st)
+        if not seers:
+            self.flee_stuck = None
+            return False
+        h, now = self.h, time.monotonic()
+        if now - self.flee_t < FLEE_REPEAT_S:
+            return False
+        self.flee_t = now
+        v = self.view(st)
+        zone, fire = self.charge_zone(st), self.fire_tiles(st)
+        best = None
+        tiles = self.tiles_within(v, FLEE_STEPS)
+
+        def seen(t) -> bool:
+            return any(v.sees(m, t, aggro.FLEE_R) for m in seers)
+
+        def around(t):
+            """The walkable tiles a step from `t` (where the pets on follow stand)."""
+            for d in range(8):
+                n = v.walk.can_walk(t[0], t[1], t[2], d)
+                if n is not None:
+                    yield n
+        for t, k in tiles.items():
+            # the pets on follow stand a tile off us: the tiles round it out of its sight too
+            if t[:2] in zone or t[:2] in fire or seen(t) or any(seen(n) for n in around(t)):
+                continue
+            c = (round(v.stand_score(t)), k)
+            if best is None or c < best[0]:
+                best = (c, t, k)
+        m = seers[0]
+        what = f"the awake {m['kind']} 0x{m['serial']:08X} at {m['pos'][:2]}"
+        if best is None:
+            if self.flee_stuck is None:
+                log(f"flight from {what}: no tile within {FLEE_STEPS} steps out of its sight")
+            self.flee_stuck = f"{what} sees us, no tile within {FLEE_STEPS} steps out of its sight"
+            return False
+        self.flee_stuck = None
+        _, to, k = best
+        if k == 0:
+            return False                  # out of its sight here already: the pets on follow catch up
+        if not self.follow_called:
+            self.say("all follow me")
+            self.follow_called, self.follow_until = True, now + STUCK_FOLLOW_S
+        log(f"flight from {what}: to {to[:2]}, {k} steps, out of its sight, the pets on 'All Follow Me'")
+        self.count("flights")
+        h.doing("retreat", f"Getting out of the sight of the {m['kind']}", to[:2])
+        label = "out of its sight"
+        try:
+            h.mover.walk_to(lambda: to[:2], 0, label, urgent=True, max_moves=2 * FLEE_STEPS,
+                            max_route=2 * FLEE_STEPS, mobile_wait=0)
+        except Abort as e:
+            if not str(e).startswith(label):
+                raise
+            log(f"flight: {e}")
+        return True
 
     def to_floor(self, st) -> bool:
         """A monster beside us that no live pet in view reaches (HuntLoop.pet_reaches: each a floor above or below it),

@@ -8197,7 +8197,7 @@ def test_area_hitters():
           "Cavernam's white wyrmling's chilling hit (every 14.5 s), Shadowspire's stoneshaper's ticks round its pet (every "
           "7.8 s); nothing else (not a shellpod's barrage, radius 0; not the zoas' lightning, one every 22-87 s; not the "
           "silicite's shards or the frigid archfiend's hit, every 15.9 and 15.3 s; not the gargan scorcher's detonation, "
-          "every 21.2 s; not the stoneshaper's far ticks, radius 9)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
+          "every 21.2 s; not the stoneshaper's far ticks, radius 10)", tamer.TARGET_AREA == want, str(tamer.TARGET_AREA))
 
 
 def test_shy_by_ai():
@@ -9334,6 +9334,40 @@ def test_ssc_mud_spray():
           f"held {held} at {tile} now {w.player.pos}")
 
 
+def test_ssc_pontiff_orb():
+    print("== a spectral pontiff's spell on a pet: 0.5 s later its orb, landing 0.072 s a tile of its throw later on each "
+          "of us within 6 of that pet's tile, none farther; it holds its tile with its target out of reach (no chase) ==")
+    # live 2026-11-15 22:05:32.263-33.315 (hunt-20261115-215726-37e5, Shadowspire level 2): its spell on the widow 7 off,
+    # its throw 0.504 s later, the orb 0.548 s after that on the widow and noughtilus (0) and Logan (4); the mephit at 7
+    # untouched (docs/NOTES.md "Shadowspire Cathedral: level 2 live, the user's visit and the runner's death")
+    w = ssc_world((5267, 2600), [{"key": "spectral pontiff", "at": [5256, 2604, -23]}], seed=7, z=-22)
+    hurts = _log_hurts(w)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    near, far = sorted(w.pets(), key=lambda p: p.name)
+    for p, xy in ((near, (5263, 2602)), (far, (5270, 2598))):
+        p.mode = "stay"
+        w._teleport(p, (*xy, -22))
+        p.hits = p.hits_max = 100000
+    w.player.hits = w.player.hits_max = 100000
+    m.hits = m.hits_max = 100000
+    m.next_swing = 1e9                                   # its own next spells off: the one below alone
+    t0 = w.t
+    w._impact((t0, m, near.serial))
+    w.run_until(t0 + 2.0)
+    orb = [(t, v) for t, v, k, _ in hurts if k == "burst" and v is not m]
+    land = t0 + 0.5 + 0.072 * 7
+    check("one orb at 1.0 s on the pet it hit and Logan 4 off it, not the pet 7 off",
+          {v.serial for _, v in orb} == {near.serial, w.player.serial} and len(orb) == 2
+          and all(abs(t - land) < 0.11 for t, _ in orb),
+          f"spell {t0} orb {[(t, v.name) for t, v in orb]}")
+    w._teleport(far, (5276, 2610, -22))                 # 20 off it: beyond its spells' 12
+    m.target, m.threat = far.serial, {far.serial: 1e6}
+    w._warm(m, True)
+    at = m.pos
+    w.run_until(w.t + 5.0)
+    check("...its target 20 off: it holds its tile (a `hold` special)", m.pos == at, f"from {at} to {m.pos}")
+
+
 def test_ssc_patrol_named():
     print("== 'All Patrol' on Shadowspire level 1: the click names the floor static over the land 0x244 at -75, so the "
           "server takes it; the pets wake the idle mephit, not us ==")
@@ -9392,6 +9426,45 @@ def test_ssc_bard_beyond_range():
           f"from {d0} went {went} counts {loop.team.counts} at {w.player.pos} gargoyle {m.pos}")
 
 
+def test_ssc_pontiff_flee():
+    print("== an awake spectral pontiff with Logan and the pets in its sight (the 22:05 death's layout): never targeted, "
+          "'All Follow Me' and a walk out of its sight; the pets with us out of it ==")
+    # live 2026-11-15 22:05:29-40 (hunt-20261115-215726-37e5, Shadowspire level 2): the pontiff at (5256, 2604) woke with
+    # the pets at 7 on a hornbeast and Logan at 11; three orbs and a volley killed him in 11 s. User: "it should just
+    # avoid them", "I also get away from pontiffs"
+    w = ssc_world((5267, 2600), [{"key": "spectral pontiff", "at": [5256, 2604, -25]}], seed=7, z=-22)
+    m = next(o for o in w.mobs.values() if o.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    pets = sorted(w.pets(), key=lambda p: p.name)
+    for p, xy in zip(pets, ((5263, 2602), (5263, 2601))):
+        w._teleport(p, (*xy, -25))
+    # no crawl here: the fixed fight spot is where the runner goes back to when idle; the crawl keeps out of a
+    # never-aggro monster's sight by its zones, so the anchor stands out of it as the crawl's would
+    loop.spot = loop.fight_spot = (5271, 2595)
+    m.target, m.threat = pets[0].serial, {pets[0].serial: 50}
+    w._warm(m, True)
+    m.next_step = 1e9                       # live it stood still in war mode, no chase (22:05:29-40, 22:08:15-51)
+    targeted, out = set(), io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            t0 = tamer.time.monotonic()
+            while tamer.time.monotonic() - t0 < 25 and not w.player.ghost:
+                loop.tick()
+                if loop.engaged is not None:
+                    targeted.add(loop.engaged)
+            st = loop.state()
+            seen = loop.team.flee_seers(st)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    lines = out.getvalue().splitlines()
+    check("a flight out of its sight, the pontiff never the target, none of us in its sight 25 s on, Logan alive",
+          loop.team.counts.get("flights", 0) >= 1 and m.serial not in targeted and not seen and not w.player.ghost,
+          f"flights {loop.team.counts.get('flights', 0)} targeted {[hex(s) for s in targeted]} seen "
+          f"{[o['serial'] for o in seen]} Logan {w.player.hits} at {w.player.pos} pets {[p.pos for p in pets]} "
+          f"{[ln for ln in lines if 'flight' in ln][:2]}")
+
+
 def test_ssc_hunt():
     print("== Shadowspire hunts from home: level 1 in by the 'SSC Inside' row, out by a moongate to Totem and home; level 2 "
           "down level 1's strip, out up level 2's from its floor and across level 1 to the crimson gate ==")
@@ -9399,8 +9472,10 @@ def test_ssc_hunt():
     # level 2 is the deadliest in the simulator (34-36 of 48 runs with a death, 2026-11-09): a seed whose run lives to
     # the leave, so the route out (up level 2's strip, across level 1 to the crimson gate) is what the check covers;
     # seed 1 died there after the 2026-11-09 gargoyle change (36 -> 34 of 48 batch deaths: no worse); seed 2 died there
-    # after the strips' firing move (2026-11-15: they fire on the move from their tile), seed 1 lives again
-    for level, minutes, seed in ((None, 10, 1), ("2", 20, 1)):  # level 2's fought leg across level 1 takes 6-8 minutes
+    # after the strips' firing move (2026-11-15: they fire on the move from their tile), seed 1 lived again; seed 1 died
+    # there after the pontiff's orb and the flight from it (2026-11-15; level 2 runs with a death 22 -> 21 of 32), seed 4
+    # lives
+    for level, minutes, seed in ((None, 10, 1), ("2", 20, 4)):  # level 2's fought leg across level 1 takes 6-8 minutes
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             r = simrun.run_once(seed, [], scenario="ssc", minutes=minutes, team="phoenix_incubus", dungeon_level=level)
         gates = [e.get("gate") for e in r["leave_events"] if e.get("ok")]
@@ -9485,8 +9560,9 @@ def main():
               test_ossuary_delayed_bursts,
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
-              test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_patrol_named,
-              test_ssc_bard_beyond_range, test_ssc_rope, test_ssc_red_race, test_ssc_hunt):
+              test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_pontiff_orb,
+              test_ssc_patrol_named, test_ssc_bard_beyond_range, test_ssc_pontiff_flee, test_ssc_rope, test_ssc_red_race,
+              test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

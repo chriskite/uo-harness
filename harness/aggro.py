@@ -120,7 +120,16 @@ WAR = 0x40
 # user 2026-10-15 after the eleventh live run (the elder vampire countess froze both pets and killed Logan): "I
 # suppose the runner can avoid the elder vampires for now". The consort, avoided from 2026-10-13, no longer
 # ("we don't need to avoid any mob specifically", 2026-10-15)
-NEVER_AGGRO = ("elder vampire", "elder vampire countess")
+# The spectral pontiff (Shadowspire level 2) since 2026-11-15, after Logan's death to one (hunt-20261115-215726-37e5):
+# "handling pontiffs is beyond what the runner will be capable of, it should just avoid them"
+NEVER_AGGRO = ("elder vampire", "elder vampire countess", "spectral pontiff")
+# ...and an awake one is run from, never fought (tamer.Team.flee): the user "I also get away from pontiffs, that big
+# purple ball attack does I think target everyone it can see and is very high damage". Live 22:05:29-40: its orb (sound
+# 0x5D3, 0.5 s after each damaging spell) burst 38-43 on Logan and 47-89 on each pet within 6 of its victim; its spells
+# reached 1-11 tiles, a lightning once 20-21; it stood still in war mode, no chase (docs/NOTES.md "Shadowspire
+# Cathedral: level 2 live ..."). FLEE_R: its sight of any of us within this is a flight
+FLEE = frozenset(("spectral pontiff",))
+FLEE_R = 21
 # A giant astral zoa's spell stacks Backlash on its victims, a 0.3 chance a stack to fizzle each spellcast for 30 s:
 # the phoenix fizzled 54 % of its casts under it and the fight took 111 s against 47 (docs/NOTES.md "Backlash"). User
 # 2026-10-27: "Maybe we should just avoid it when our pet team relies on caster(s)": --avoid-backlash puts these into

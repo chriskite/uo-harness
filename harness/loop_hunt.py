@@ -1008,6 +1008,11 @@ class HuntLoop:
             s = serial_of(key)
             if s == me or mob.get("x") is None or not self.wanted(world, key, mob):
                 continue
+            kind = aggro.type_key((world.get("labels") or {}).get(key) or mob.get("name"))
+            if kind in aggro.FLEE:
+                continue                        # never fought, even on us: Team.flee takes us out of its sight
+            if s not in attacking and self.team is not None and self.team.flee_near(st, mob):
+                continue                        # its fight would bring the pets into a pontiff's sight (it woke so)
             if self.skip.get(s, 0) > mono:
                 if s not in attacking:
                     continue

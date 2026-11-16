@@ -696,7 +696,9 @@ class Crawl:
                 if type_key(name) not in self.avoided:
                     self.avoided[type_key(name)] = "never aggro it alone (user 2026-10-13)"
                     log(f"crawl: keeping out of sight of the {type_key(name)} at {tile}")
-                self.danger[s] = (tile, now, type_key(name), aggro.AGGRO_MAX + aggro.NEVER_MARGIN)
+                # a flee type (the spectral pontiff): out to its reach (aggro.FLEE_R), not only its waking range
+                r = aggro.FLEE_R if type_key(name) in aggro.FLEE else aggro.AGGRO_MAX + aggro.NEVER_MARGIN
+                self.danger[s] = (tile, now, type_key(name), r)
                 continue
             war = (mob.get("flags") or 0) & aggro.WAR
             kept = (getattr(getattr(self.h, "team", None), "kept_off", None) or {}).get(s, 0)
