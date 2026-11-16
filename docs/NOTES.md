@@ -5809,6 +5809,13 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     wolf, garou, arctic bullvore) for 288 ore before that leg ended creature-blocked and hopped. Fixed in the planner
     (PLAN "A leg ended with its forge cut off cools its spot too"); the runner's own handling (the ore goes home, no
     hop) is unchanged.
+  - **A spot planned again 3 min after a break-ended leg had dug it out (live 2026-11-16, mining-20261115-234437-bc78
+    → mining-20261116-004258-b849, forge_3537_1948).** Leg 3 of the first of these runs dug forge_3537_1948 from 00:25 to 00:39
+    (877 of 877 stands fresh at the start) and ended `stored` by the break due, not dry. After the break the plan
+    picked it at 00:42 (exploit): "47 of 877 stands at forge_3537_1948 reach ore not dug out lately", then "the area
+    ran dry at 20 ore" at 00:44:55 and a hop, a recall pair for 20 ore. The planner's cooldowns knew only dry,
+    creature-blocked and forge-cut-off legs. Fixed (PLAN "A leg that left its spot mostly dug out cools it too"): the
+    leg row carries `stands`/`stands_left`, and under a quarter left keeps the spot out for 60 min.
   - **A false staff alarm on a Time Quest Hub NPC (live 2026-11-10, mining-20261110-200529-985e, capture
     session_20261110_175019).** At 20:12:39.255 "Lazric of Grere's Fighters" (0x0000B383, body 0x190, notoriety 1, flags
     0, an innocent company NPC like Roan and Delric) said "Every man dies. Not every man really lives." in view. The

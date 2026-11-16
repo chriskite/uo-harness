@@ -2284,6 +2284,14 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   the spot out for `REGROW_MIN` like a dry or creature-blocked leg: `why_not` "forge cut off N min ago". Either cause
   holds for the next hour (creatures linger; dug blocks regrow in REGROW_MIN). The runner itself still sends the ore home
   with no hop (a full pack). It doesn't count as sent home, so the hazard rates are unchanged. test_mining `test_plan`.
+- *A leg that left its spot mostly dug out cools it too* (2026-11-16, docs/NOTES.md "A spot planned again 3 min after
+  a break-ended leg had dug it out"). `MineLoop.harvest_trip` writes the leg's `stands` (the candidate stands it
+  started with) and `stands_left` (those `avail` still finds ore at, this leg's dry blocks counted) into the trip row
+  whenever it looked at the stands. `mining_opt.trip_obs` reads `stands_left < DUG_OUT_FRAC (0.25) × stands` as
+  `dug_out`, and `plan` keeps the spot out for `REGROW_MIN` like a dry leg: `why_not` "dug out N min ago". A leg ended by
+  a break, a stop, the daily cap or the field time never sets `dry`, though it may leave little. The 0.25 is a guess
+  [INFERENCE: ~0.5-0.7 ore per stand left at forge_3537_1948, so a quarter of 877 is ~150 ore, a few minutes against a
+  recall pair]. Rows before this have no `stands`: no rule. test_mining `test_plan`, `test_stands_left`.
 - *A speaker gone from view is judged by its last_seen record* (2026-11-10, docs/NOTES.md "A false staff alarm on a
   Time Quest Hub NPC"). `speech_guard.speaker`: an NPC or creature the client dropped after it spoke (the scan can
   come tens of seconds after the line) is no speaker. Only a speaker the client never had, or a character it had,

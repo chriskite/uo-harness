@@ -121,6 +121,17 @@ def test_plan():
     check("a leg ended with its forge cut off 10 min ago keeps the spot out for the regrowth (50 min left)",
           c["crab"]["why_not"] == "forge cut off 10 min ago" and c["crab"]["ready_in_min"] == 50,
           (c["crab"]["why_not"], c["crab"]["ready_in_min"]))
+    # live 2026-11-16: forge_3537_1948's leg ended by a break due at 00:39 (stored, not dry) with most stands dug out,
+    # was planned again at 00:42 with 47 of 877 stands left and ran dry at 20 ore
+    dug = trip("crab", 400, ago_min=3)
+    dug.update(stands=877, stands_left=47)
+    half = trip("old", 400, ago_min=3)
+    half.update(stands=877, stands_left=500)
+    d = {r["id"]: r for r in mining_opt.plan(crab, [dug, half], NOW, random.Random(1),
+                                              {sid: LANDING for sid in crab})["spots"]}
+    check("a leg that left 47 of 877 stands 3 min ago keeps the spot out for the regrowth (57 min left); one that "
+          "left 500 doesn't", d["crab"]["why_not"] == "dug out 3 min ago" and d["crab"]["ready_in_min"] == 57
+          and d["old"]["eligible"], (d["crab"]["why_not"], d["crab"]["ready_in_min"], d["old"]["why_not"]))
     check("every row carries its hazards: deaths/h, sent home/h, P(death) over one run",
           all({"deaths_per_h", "sent_home_per_h", "p_death_stint"} <= r.keys() for r in out["spots"]), out["spots"])
     check("a spot with a sent-home leg is above the pooled sent-home rate",
@@ -467,7 +478,9 @@ def field_loop(here=(1, 1, 0)):
     loop.guard_route_ready = loop.go_out = lambda: None
     loop.track_ensure = lambda why: None
     loop.state = lambda: {}
-    loop.candidate_stands = lambda st: [{"x": 1, "y": 1}]
+    loop.candidate_stands = lambda st: [{"x": 1, "y": 1, "blocks": [(0, 0)]}]
+    loop.args = SimpleNamespace(regrow_min=60)
+    loop._block_state, loop.dry_blocks = {}, set()
     loop.time_up = lambda: False
     loop.needs_smelt = lambda st: False
     loop.smeltable_ore = lambda st: 0
@@ -492,6 +505,25 @@ def test_daily_cap_near():
     got = loop.harvest_trip()
     check("... and the leg digs nothing (home, store, the run ends)", got == 0 and dug == [], (got, dug))
     check("... with no hop after it", loop.ended_early() is None, loop.ended_early())
+
+
+def test_stands_left():
+    print("the leg's end records how many of its stands still had ore (the planner's dug-out rule)")
+    loop = field_loop()
+    loop.candidate_stands = lambda st: [{"x": i, "y": 1, "blocks": [(i, 0)]} for i in range(4)]
+
+    def dig_stand(stand, tally):              # two stands dug out, then a break due ends the leg
+        loop.dry_blocks.add(stand["blocks"][0])
+        if len(loop.dry_blocks) == 2:
+            loop.break_due = True
+    loop.dig_stand = dig_stand
+    loop.next_stand = lambda stands: next(s for s in stands if loop.avail(s))
+    loop.harvest_trip()
+    check("4 stands, 2 left", (loop.stats.get("stands"), loop.stats.get("stands_left")) == (4, 2), loop.stats)
+    loop = field_loop()
+    loop.break_due = True
+    loop.harvest_trip()
+    check("no stands looked at (the leg didn't dig): nothing recorded", "stands" not in loop.stats, loop.stats)
 
 
 def test_forge_unreachable():
@@ -1090,7 +1122,7 @@ def main():
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
               test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
               test_last_pickaxe_worn_out, test_stash_lift_refused, test_far_stand_scored_by_steps,
-              test_daily_cap_near):
+              test_daily_cap_near, test_stands_left):
         t()
     print()
     if FAILURES:

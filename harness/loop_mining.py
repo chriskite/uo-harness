@@ -960,6 +960,7 @@ class MineLoop(loop_lumber.LumberLoop):
         suspected thief leaves the stand, digging goes on at the next one out of reach."""
         tally = {"ore": 0, "attempts": 0, "successes": 0, "doubles": 0, "unknown": 0}
         unreachable = None           # this leg: why the walk to the spot's forge failed (no smelt here again)
+        stands = None
         try:
             if self.ending:
                 log(f"{self.ending}: no digging this trip")
@@ -1046,6 +1047,12 @@ class MineLoop(loop_lumber.LumberLoop):
             if self.leg_t0:
                 self.trip_field_s += time.monotonic() - self.leg_t0
                 self.leg_t0 = None
+            if stands:
+                # what the leg left (the planner's "dug out": mining_opt.DUG_OUT_FRAC). Live 2026-11-16 00:39-00:44:
+                # forge_3537_1948's leg ended by a break due at 00:39 (stored, not dry), was planned again at 00:42
+                # with 47 of its 877 stands left, and ran dry at 20 ore
+                self.stats["stands"] = len(stands)
+                self.stats["stands_left"] = sum(1 for s in stands if self.avail(s))
 
     def dig_stand(self, stand: dict, tally: dict):
         """Walk onto `stand` and dig until the server says nothing in reach has ore, the field time is up,

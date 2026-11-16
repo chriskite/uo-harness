@@ -16,7 +16,8 @@ Model (deliberately small: the lumber planner's machinery without its trip-size 
   - choice: Thompson sampling (one posterior draw per eligible spot; the best draw wins), or the
     greedy posterior-mean pick with `exploit` (the runner's hop between spots).
 Eligible: active, not in a lumber_opt no-go area, a landing known, no threat there within
-lumber_opt.COOLDOWN_S and not run dry, ended creature-blocked or ended with its forge cut off within REGROW_MIN.
+lumber_opt.COOLDOWN_S and not run dry, dug out (under DUG_OUT_FRAC of its stands left), ended creature-blocked or
+ended with its forge cut off within REGROW_MIN.
 """
 import copy
 import math
@@ -34,6 +35,11 @@ SEEDS = os.path.join(HERE, "data", "mining_spots.json")
 PRIOR_ORE_H = 1300.0     # ore per field hour before any trip (capture 20261019_200350: 189 ore in 8.7 field min)
 PRIOR_CV = 0.5           # the prior rate's coefficient of variation
 REGROW_MIN = 60          # minutes a spot that ran dry waits (nodes respawn in 30-60 min, docs/NOTES.md)
+# A leg that left under this share of its stands with ore (loop_mining's stands_left / stands; a break, a stop or the
+# field time ended it, not "ran dry") counts as dry. Live 2026-11-16: forge_3537_1948 left 47 of 877 stands at 00:39,
+# planned again at 00:42, dry at 20 ore. [INFERENCE: ~0.5-0.7 ore per stand left there (588 ore before dry from 877
+# stands at 23:03): a quarter left is ~150 ore, a few minutes against a recall pair]
+DUG_OUT_FRAC = 0.25
 RESTART_H = 0.1          # hours a threat that sends us home costs (recall home, storing, the next run's way out)
 DEATH_H = 0.5            # hours a death costs besides the carried ingots (recovery, re-equipping)
 DRAWS = 2000             # Thompson draws for P(best)
@@ -99,8 +105,10 @@ def trip_obs(row: dict, deaths=()) -> dict | None:
     died = why.startswith("died") or any(t0 <= d <= t1 + DEATH_SLACK_S for d in deaths)
     sent_home = not died and (why.startswith("threat:") or "escaped by recall" in why or "fled into the guards" in why
                               or bool((row.get("creature") or {}).get("recalled")))
+    left, total = row.get("stands_left"), row.get("stands")
     return {"spot": row.get("spot"), "t0": t0, "t1": t1, "ore": row.get("ore", 0) or 0, "field_h": field_h,
             "died": died, "sent_home": sent_home, "dry": bool(row.get("dry")),
+            "dug_out": bool(total) and left is not None and left < DUG_OUT_FRAC * total,
             "blocked": bool(row.get("creature_blocked")), "forge_cut": bool(row.get("forge_unreachable"))}
 
 
@@ -150,7 +158,7 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
         elif last is not None and (last["sent_home"] or last["died"]) and now - last["t1"] < lumber_opt.COOLDOWN_S:
             why = f"threat {round((now - last['t1']) / 60)} min ago"
             ready_in = lumber_opt.COOLDOWN_S - (now - last["t1"])
-        elif (last is not None and (last["dry"] or last["blocked"] or last["forge_cut"])
+        elif (last is not None and (last["dry"] or last["dug_out"] or last["blocked"] or last["forge_cut"])
               and now - last["t1"] < REGROW_MIN * 60):
             # creature-blocked: the ore left was in a creature's reach and the rest dug out; the dug blocks come back in
             # REGROW_MIN (live 2026-11-07: forge_1951_1523 blocked at 14:37:45 by a sand crab, planned again at 14:52:28
@@ -159,7 +167,8 @@ def plan(spots: dict, episodes: list, now: float, rng: random.Random, landings: 
             # the forge too far from the stands left); live 2026-11-10 18:03:20 (mining-20261110-175224-31a4):
             # forge_2426_413's forge cut off by a cougar and an air elemental, planned again at 18:03:44 and its leg
             # spent 7 min in 4 escapes (cougar, wolf, garou, bullvore) before it ended creature-blocked
-            kind = "dry" if last["dry"] else "creature-blocked" if last["blocked"] else "forge cut off"
+            kind = ("dry" if last["dry"] else "dug out" if last["dug_out"] else "creature-blocked" if last["blocked"]
+                    else "forge cut off")
             why = f"{kind} {round((now - last['t1']) / 60)} min ago"
             ready_in = REGROW_MIN * 60 - (now - last["t1"])
         h_d = haz["died"][0] / haz["died"][1]
