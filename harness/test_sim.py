@@ -9352,6 +9352,37 @@ def test_ssc_patrol_named():
           f"pets {pets} Logan {w.player.hits} at {w.player.pos}")
 
 
+def test_ssc_bard_beyond_range():
+    print("== an iron gargoyle on the pets 14 tiles off, Logan held back out of its sight: a step into bard range and the "
+          "skill (before: 'no bard at ...: 14 tiles off, beyond 10') ==")
+    # live 2026-11-15 19:44:26 (hunt-20261115-193909-8e17, Shadowspire level 1): the pets patrolled onto an iron gargoyle
+    # at (5116, 2536), Logan at (5130, 2530) out of its sight; no bard skill all fight long, nor at the flamekin, stonekin
+    # and winged hulk before and after (user: "patrolled the pets up to some mobs and then stood back and never discorded
+    # or provoked that mob")
+    w = ssc_world((5130, 2530), [{"key": "iron gargoyle", "at": [5116, 2536, 40]}], seed=7, z=40)
+    m = next(m for m in w.mobs.values() if m.kind == "monster")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    pets = sorted(w.pets(), key=lambda p: p.name)
+    for p, xy in zip(pets, ((5117, 2536), (5117, 2537))):
+        w._teleport(p, (*xy, 40))
+    m.target, m.threat = pets[0].serial, {pets[0].serial: 50}
+    w._warm(m, True)
+    m.next_step = 1e9
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop.link.send(tamer.command("all kill"))
+            clock.advance(4.0)                      # the pets on it: hurt within ENGAGED_S
+            st = loop.state()
+            d0 = sim_cheb(w.player.pos, m.pos)
+            went = loop.team.bard(st, m.serial, st["world"]["mobiles"][f"0x{m.serial:08X}"])
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    check("from 14 off: a step within 10 of it in its sight, and the skill", d0 > tamer.BARD_RANGE and went
+          and loop.team.counts.get("bard", 0) == 1 and sim_cheb(w.player.pos, m.pos) <= tamer.BARD_RANGE,
+          f"from {d0} went {went} counts {loop.team.counts} at {w.player.pos} gargoyle {m.pos}")
+
+
 def test_ssc_hunt():
     print("== Shadowspire hunts from home: level 1 in by the 'SSC Inside' row, out by a moongate to Totem and home; level 2 "
           "down level 1's strip, out up level 2's from its floor and across level 1 to the crimson gate ==")
@@ -9445,7 +9476,7 @@ def main():
               test_ossuary_death_brood, test_ossuary_net_and_blight, test_pets_pass_through, test_ossuary_hunt,
               test_cavernam_upscale, test_cavernam_silica_shards, test_cavernam_recall_rule, test_cavernam_hunt,
               test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_patrol_named,
-              test_ssc_rope, test_ssc_red_race, test_ssc_hunt):
+              test_ssc_bard_beyond_range, test_ssc_rope, test_ssc_red_race, test_ssc_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

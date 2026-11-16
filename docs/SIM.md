@@ -3582,6 +3582,21 @@ the shift's batch command (seeds as `run.py`'s default):
   death, 2 "recall home failed (moongate: overall timeout)", 139,428 gp an hour, 29 patrols refused: dropped.
 - test_sim `test_ssc_patrol_named` (fails before: 0 patrols, 2 refused), `test_ssc_rope` (fails on graphic 0).
 
+**Bard skills beyond 10 tiles** (2026-11-15, the second shift's first run; docs/HUNT_LOOP.md "Beyond 10 too"): the
+stand-off held Logan 14 off the shy gargoyles the pets were patrolled onto, and `bard_target` refused anything beyond
+10 before its peek. Level 1, 32 runs a side, the shift's batch command (phoenix_incubus, `--prior` the live store;
+before on b366b22):
+
+| runner | runs with a death | runs leaving a pet | kills an hour | kills unbarded | Discordance / Peacemaking / Provocation ok | "beyond 10" refusals | damage on Logan an hour | banked gp a game hour |
+|---|---|---|---|---|---|---|---|---|
+| before | 1 | 2 | 160.2 | 39.6 % | 1,353 / 521 / 56 | 924 | 697 | 138,532 |
+| the peek beyond 10 | 1 | 0 | 161.2 | **12.2 %** | 2,094 / 783 / 70 | 133 | 750 | 147,381 |
+
+- The death after (seed 22, 00:08) was a crimson gargoyle's step-in and an idle iron gargoyle's duck with no tile
+  left, no bard step in it; before's (seed 7) a leave with 44,880 gp. Damage on Logan +8 %: the peek walks into the
+  fought monster's sight for the skill, and the cover walks him back out.
+- test_sim `test_ssc_bard_beyond_range` (the live 19:44:26 layout; fails before: no step, no skill).
+
 **Open on Shadowspire Cathedral:**
 
 - The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).

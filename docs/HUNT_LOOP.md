@@ -597,6 +597,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    out of the sight of a blightmare, purger or caster the pets fight, so no tile ever counted as good enough: 0 skills
    at 96 shy kills 2026-10-22..25; round a corner from two awake purgers, 23:31, one skill in 50 s with four monsters
    on the pets, the only seeing tile 4 steps off; docs/NOTES.md "No bard skill at a caster or shy monster").
+   **Beyond 10 too** (since 2026-11-15): a target up to 10 + `PEEK_STEPS` off gets the same peek, to a tile within 10
+   that sees it ("no bard at …: N tiles off, beyond 10; <why no tile>" when none). Live Shadowspire level 1
+   (hunt-20261115-193909-8e17, 19:43-19:45): the pets patrolled onto four gargoyles and a winged hulk while the stand-off
+   held Logan 14 off, out of their sight, and none got a skill (user: "patrolled the pets up to some mobs and then stood
+   back and never discorded or provoked that mob"). test_sim `test_ssc_bard_beyond_range`.
    **The others on the pets** (since 2026-11-05; user: "Why is the runner letting the pets fight several mobs without
    trying to bard?"): when the target gets no skill this round (nothing due at it, or due and unseen with no step, out
    of range, the server's out-of-sight block, shy and not yet hurt), Discordance, else Peacemaking, goes at another

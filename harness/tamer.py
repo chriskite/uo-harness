@@ -4533,8 +4533,10 @@ class Team:
         if fx.get("los", 0) > now:
             return self.no_bard(serial, mob, "los", f"the server's last answer was out of sight or reach; no try for "
                                                     f"{LOS_BLOCK_S:.0f} s")
-        if (d := cheb(self.h.pos(st), (mob["x"], mob["y"]))) > BARD_RANGE:
-            return self.no_bard(serial, mob, "range", f"{d} tiles off, beyond {BARD_RANGE}")
+        d = cheb(self.h.pos(st), (mob["x"], mob["y"]))
+        if d > BARD_RANGE + PEEK_STEPS:
+            return self.no_bard(serial, mob, "range", f"{d} tiles off, beyond {BARD_RANGE} and a peek's "
+                                                      f"{PEEK_STEPS} steps")
         kind = type_key(mob.get("name"))
         on_us = serial in {serial_of(a["serial"]) for a in self.h.attackers(st)}
         if aggro.shy(kind) and not on_us and not self.engaged(st, serial):
@@ -4547,12 +4549,21 @@ class Team:
             and fx.get("immune", 0) <= now)
         if due and not self.bard_sees(st, serial):
             # a step that sees it, then the skill from there at once: the care (cover from a shy one's shot, the
-            # reposition out of a caster's sight) walks us back out next tick and would undo the step before the skill
-            if not self.bard_step(st, serial, peek=not on_us):
+            # reposition out of a caster's sight) walks us back out next tick and would undo the step before the skill.
+            # Beyond BARD_RANGE too, up to a peek's steps (live 2026-11-15 19:43-19:45, hunt-20261115-193909-8e17,
+            # Shadowspire level 1: the pets patrolled onto four gargoyles and a winged hulk while the stand-off held
+            # Logan 14 off, "no bard at ...: 14 tiles off, beyond 10" and no skill at any; user: "patrolled the pets up
+            # to some mobs and then stood back and never discorded or provoked that mob")
+            if not self.bard_step(st, serial, peek=not on_us or d > BARD_RANGE):
+                if d > BARD_RANGE:
+                    why = f"; {self.step_why[1]}" if self.step_why is not None else ""
+                    return self.no_bard(serial, mob, "range", f"{d} tiles off, beyond {BARD_RANGE}{why}")
                 return self.step_why is not None and self.no_bard(serial, mob, *self.step_why)
             st = self.h.state()
             if not self.bard_sees(st, serial):
                 return True
+        elif d > BARD_RANGE:
+            return self.no_bard(serial, mob, "range", f"{d} tiles off, beyond {BARD_RANGE}")
         if self.a.provoke and now >= self.calm_ready and (pair := self.provoke_first(st, serial, now)) is not None:
             # before the discord: a provoked sprayer sprays only the one it was set on (spray_cone); the user on Tidal
             # Tomb's level 2 (2026-10-26): "In that area I'm generally able to keep the mobs provo'd onto each other",
