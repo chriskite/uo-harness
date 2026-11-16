@@ -3600,6 +3600,31 @@ before on b366b22):
   fought monster's sight for the skill, and the cover walks him back out.
 - test_sim `test_ssc_bard_beyond_range` (the live 19:44:26 layout; fails before: no step, no skill).
 
+**Bard skills: the delay's three changes** (2026-11-15, docs/NOTES.md "Shadowspire Cathedral: the bard skills' delay").
+32 runs a batch, `--prior` the live store, `-- --vet-range 5 --crawl-learn-s 180`, default seeds; SSC with
+phoenix_incubus, the Mausoleum and the Ossuary level 2 with their scenario teams. "Shipped" is every switch but the
+step-in's (the user's pick); "+ step-in" the dropped rule on top; each "no ..." row is shipped + step-in less that one.
+
+| batch | kills never barded | first try p50 (s) | damage on Logan/h | banked/h | runs with a death | runs leaving a pet |
+|---|---|---|---|---|---|---|
+| SSC 1 before (9c028a7) | 12.2 % | 4.6 | 750 | 147,381 | 1 | 0 |
+| SSC 1 shipped | 7.6 % | 5.2 | 787 | 142,798 | 1 | 2 |
+| SSC 1 + step-in | 7.7 % | 4.7 | 767 | 145,033 | 1 | 0 |
+| SSC 1 + step-in, no melee-only step | 12.1 % | 4.3 | 732 | 145,968 | 0 | 1 |
+| SSC 1 discord-first and mid-channel only | 12.1 % | 4.4 | 782 | 145,620 | 2 | 0 |
+| Mausoleum before | 16.0 % | 4.4 | 954 | 162,478 | 0 | 6 |
+| Mausoleum shipped | 8.9 % | 4.6 | 962 | 162,512 | 0 | 4 |
+| Mausoleum + step-in | 10.3 % | 4.1 | 1,139 | 165,066 | 1 | 7 |
+| Mausoleum discord-first and mid-channel only | 15.8 % | 4.4 | 940 | 164,774 | 0 | 6 |
+| Ossuary 2 before | 27.3 % | 4.9 | 409 | 101,150 | 0 | 7 |
+| Ossuary 2 shipped | 20.5 % | 4.8 | 367 | 96,238 | 2 | 14 |
+| Ossuary 2 + step-in | 19.0 % | 4.4 | 522 | 92,762 | 1 | 14 |
+| Ossuary 2 discord-first and mid-channel only | 27.0 % | 4.9 | 426 | 99,897 | 0 | 11 |
+
+- The ossuary batches' pets left are "Pets not with us after the recall (gate)" at the leave, 7 before too; the two
+  shipped deaths there were skeletal archers (one at "wait" 11 of its last 15 s), no bard step in either.
+- run.py `--set tamer.DISCORD_OTHERS_FIRST=False` (or `BARD_STEP_MID_CHANNEL`, `BARD_STEP_MELEE_ONLY`) turns one off.
+
 **Open on Shadowspire Cathedral:**
 
 - The level 2 strip's height rule is [INFERENCE] (a step onto it on the floor from the north was never seen live).

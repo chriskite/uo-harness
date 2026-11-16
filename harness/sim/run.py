@@ -500,7 +500,7 @@ def bard_latency(ok: list[dict]) -> dict:
     """How soon our first bard skill goes at a monster the pets (or we) fight, over our kills (World.bard_lat): those that
     fought us; of them barded before the fight, barded in it (seconds from its first fight to the skill: median, p75,
     p90; the share within 5 and 10 s) and never (seconds from its first fight to its death: median)."""
-    rows = [(a, b, d) for r in ok for _, a, b, d in r.get("bard_lat") or () if a is not None]
+    rows = [(a, b, d) for r in ok for _, a, b, d, *_ in r.get("bard_lat") or () if a is not None]
     lat = sorted(b - a for a, b, _ in rows if b is not None and b >= a)
     never = sorted(d - a for a, b, d in rows if b is None)
 

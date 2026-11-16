@@ -1210,8 +1210,8 @@ class World:
             self.metrics["kills"] += 1
             if not m.barded:
                 self.count("kills_unbarded")             # ours with no bard skill at it (run.py summaries)
-            # (kind, its first fight with us, our first bard skill at it, its death): run.py's bard_latency
-            self.metrics.setdefault("bard_lat", []).append((m.key, m.aggro_t, m.bard_t, round(self.t, 2)))
+            # (kind, its first fight with us, our first bard skill at it, its death, its serial): run.py's bard_latency
+            self.metrics.setdefault("bard_lat", []).append((m.key, m.aggro_t, m.bard_t, round(self.t, 2), m.serial))
             if self.essence is not None and self.essence["charges"] > 0:
                 self.essence["charges"] = max(0.0, self.essence["charges"] - self.essence["per_kill"])
                 if not self.essence["charges"]:

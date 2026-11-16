@@ -447,6 +447,13 @@ FIGHT_LINGER_S = 8.0          # a fight counts this long after its last monster 
 REPOSITION_S = 3.0
 REPOSITION_STEPS = 2
 PEEK_STEPS = 4                # bard_step's peek at a target not on us: this far (live 23:31: the fight seen 4 steps off)
+# The bard skills' delay (user 2026-11-15, docs/NOTES.md "Shadowspire Cathedral: the bard skills' delay"), each its own
+# switch for the simulator (run.py --set tamer.NAME=False): Discordance at every other monster on the pets before a
+# Peacemaking or Provocation at the target (bard_target); bard_step mid-channel, and off only a fighting monster's melee
+# instead of the fight's spacing
+DISCORD_OTHERS_FIRST = True
+BARD_STEP_MID_CHANNEL = True
+BARD_STEP_MELEE_ONLY = True
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 CASTER_R = 12                 # a caster in war mode this close in sight is casting at us (live 2026-10-19 19:54:43-57 a
 #                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
@@ -4124,7 +4131,11 @@ class Team:
                     f"going in")
             # and a sprayer's wind-up with us in or beside its cone ends the walk: the stand-off or the wait next
             # (simulator 2026-10-28, level 2: walks to a pet down an ocean bedrock's cone took its wave mid-walk)
-            stop = self.spray_stop if p["dead"] else (lambda s: purger_first(s) or self.spray_stop(s))
+            # and a closed stealther area (closed_step: the consort's spawn spot with no pet beside it) stops it at its
+            # edge, as the approach's: the walk to a hurt pet by the spot went through it 1 off (simulator, the 11:57
+            # layout, once the step-in's hold ended with the pets on the soul, 2026-11-15)
+            stop = self.spray_stop if p["dead"] else (
+                lambda s: purger_first(s) or self.closed_step(s, label) or self.spray_stop(s))
             if to is not None:
                 log(f"{label}: {to[:2]}, {cheb(to, (p['x'], p['y']))} from {p['name']} (--vet-range "
                     f"{self.a.vet_range}), {self.zone_depth(self.area_zone(st), to)} into an area hit's reach")
@@ -4571,6 +4582,11 @@ class Team:
             return self.use(SKILL_PROVO, *pair)
         if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
             return self.use(SKILL_DISCORD, serial)
+        if DISCORD_OTHERS_FIRST and self.a.discord and self.bard_others(st, serial, now, discord_only=True):
+            # every monster on the pets discorded before a Peacemaking or Provocation at the target (user 2026-11-15:
+            # live Shadowspire level 1, 7 of 46 kills, a second monster on the pets waited 9-25 s for its first skill
+            # while the target took Discordance, then Peacemaking; docs/NOTES.md "the bard skills' delay")
+            return True
         if now >= self.calm_ready:
             if self.a.provoke:
                 others = [s for s in self.others(st, serial) if self.provokable(st, s, now)]
@@ -4596,13 +4612,14 @@ class Team:
             log(f"no bard at {type_key(mob.get('name')) or 'a monster'} 0x{serial:08X}: {why}")
         return False
 
-    def bard_others(self, st, serial: int, now: float) -> bool:
+    def bard_others(self, st, serial: int, now: float, discord_only: bool = False) -> bool:
         """Discordance, else Peacemaking, at another monster fighting the pets (pet_attackers, or engaged) that we see
         within BARD_RANGE, when the target `serial` gets no skill this round (bard; the fight's wait for a target the
         pets haven't engaged): under the target's rules (its own effects, beyond our skill, a barding break, the server's
         out-of-sight answer, a shy one only when the pets fight it or it's on us); the heaviest (aggro.weight) first, then
         the nearest. Live 2026-11-05 10:16:45-10:17:30: a corpse purger and a second bound soul fought the pets beside the
-        target with no skill at either (discord and peace went only at the target). True when one went out."""
+        target with no skill at either (discord and peace went only at the target). True when one went out.
+        `discord_only`: Discordance alone (bard_target's, before its Peacemaking or Provocation at the target)."""
         if now < self.skill_ready or self.no_instrument or not (self.a.discord or self.a.peace):
             return False
         pos = self.h.pos(st)
@@ -4621,7 +4638,8 @@ class Team:
                 continue
             if self.a.discord and fx.get("discord", 0) <= now and (SKILL_DISCORD, kind) not in self.beyond:
                 sid = SKILL_DISCORD
-            elif self.a.peace and now >= self.calm_ready and fx.get("calm", 0) <= now and fx.get("immune", 0) <= now \
+            elif not discord_only and self.a.peace and now >= self.calm_ready and fx.get("calm", 0) <= now \
+                    and fx.get("immune", 0) <= now \
                     and (SKILL_PEACE, kind) not in self.beyond:
                 sid = SKILL_PEACE
             else:
@@ -4687,8 +4705,11 @@ class Team:
         REPOSITION_S) to the tile that sees it with the fewest eyes on us (aggro.View.stand_score), under the
         reposition's rules (the pets within --vet-range, out of every area hit's reach (area_zone) and fire, not onto
         the tank), and no more eyes on us than here (stand_score plus 0.3 a step: allowing REPOSITION_GAIN more cost the
-        simulator 9 runs with a death in 144, docs/NOTES.md "Bard skills at targets out of sight"). Never
-        mid-channel. True when we stepped.
+        simulator 9 runs with a death in 144, docs/NOTES.md "Bard skills at targets out of sight"). Mid-channel too, the
+        pets kept within --vet-range (the vet supplies and the bard skills share no timer; user 2026-11-15). Not the
+        fight's spacing (SPACING_R from the pets and what fights them) but only off a monster in the fight's melee (1):
+        one skill and the care walks us back (live Shadowspire 2026-11-15, the simulator: the spacing took every tile
+        that saw 129 of 338 never-barded kills). True when we stepped.
         `peek` (the target isn't on us): up to PEEK_STEPS; only the eyes that would wake to us count (idle monsters
         before a pet, a --never-aggro one, the backspawn), not those of monsters already fighting, and no more of
         them than here will do; the pets kept within --vet-range only while a vet channel runs (its finish needs one in
@@ -4704,7 +4725,7 @@ class Team:
         self.step_why = None              # (key, text) of a refusal for no_bard; None: its own timer (routine)
         if now - self.bard_step_t < REPOSITION_S:
             return False
-        if now < self.vet_busy_until and not peek:
+        if not BARD_STEP_MID_CHANNEL and now < self.vet_busy_until and not peek:
             self.step_why = ("channel", "out of our sight, and no step mid-channel")
             return False
         self.bard_step_t = now
@@ -4718,7 +4739,11 @@ class Team:
         # and round (simulator, the live 2026-10-29 12:36 layout: "stepping to (6892, 2063)" 3 from the pets a combustive
         # zoa scorched, every 6-8 s, test_scorch_stand_off)
         clear, fire = ClearOf(self.area_zone(st)), self.fire_tiles(st)
-        spaced = [o["pos"][:2] for o in v.mobs if o["war"]] + keep if self.a.vet_range >= SPACING_R + 1 else []
+        fighting = [o["pos"][:2] for o in v.mobs if o["war"]]
+        if BARD_STEP_MELEE_ONLY:
+            near_r, near = 1, fighting
+        else:                             # the fight's spacing, as before 2026-11-15
+            near_r, near = SPACING_R - 1, (fighting + keep if self.a.vet_range >= SPACING_R + 1 else [])
         in_range = keep if not peek or now < self.vet_busy_until else []
 
         def score(t) -> float:
@@ -4737,7 +4762,8 @@ class Team:
                 continue
             rule = "area" if not clear(t) else "fire" if t[:2] in fire \
                 else "vet" if any(cheb(t, p) > self.a.vet_range for p in in_range) \
-                else "spacing" if any(cheb(t, n) < SPACING_R for n in spaced) else None
+                else "melee" if any(cheb(t, n) <= near_r for n in near) \
+                else "stealth" if v.stealth_closed(t, pets=[]) else None
             if rule is not None:
                 refused.append((t, rule))
                 continue
@@ -4752,7 +4778,9 @@ class Team:
             rules = sorted({rule for t, rule in refused if v.we_see(m, t, BARD_RANGE)})
             texts = {"area": "in an area hitter's reach", "fire": "in fire",
                      "vet": f"out of --vet-range {self.a.vet_range} of a pet",
-                     "spacing": f"within {SPACING_R - 1} of a monster in the fight or a pet (spacing)"}
+                     "melee": "beside a monster in the fight" if BARD_STEP_MELEE_ONLY
+                     else f"within {SPACING_R - 1} of a monster in the fight or a pet (spacing)",
+                     "stealth": "by a lurking stealther's spawn spot"}
             self.step_why = ("+".join(rules), f"the tiles within {steps} steps that see it are "
                                               + " or ".join(texts[r] for r in rules)) if rules \
                 else ("none", f"no tile within {steps} steps sees it")

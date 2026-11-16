@@ -573,8 +573,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    `tamer.PROVOKE_FIRST` "pairs", `Team.provoke_first`: the target onto the one nearest it). The user on Tidal Tomb's
    level 2: "In that area I'm generally able to keep the mobs provo'd onto each other". In the simulator, level 3 runs
    with a death went 12 -> 5 of 24, level 2's damage on Logan 2,192 -> 1,708 an hour, and Maus 3 was no worse. Then
-   Discordance, then Provocation of another mob in the fight (the other onto a second other, or onto our target), then
-   Peacemaking on the target (it stops hitting the pets while they kill it). A provoked target isn't pacified. 51 of
+   Discordance, then **Discordance at every other monster on the pets** (since 2026-11-15, `Team.bard_others` with
+   `discord_only`, under its rules below; user: "Discordance on every monster fighting the pets before Peacemaking or
+   Provocation on the current target": live Shadowspire 7 of 46 kills waited 9-25 s for a first skill as the second
+   monster on the pets), then Provocation of another mob in the fight (the other onto a second other, or onto our
+   target), then Peacemaking on the target (it stops hitting the pets while they kill it). A provoked target isn't
+   pacified. 51 of
    Logan's 60 bard/"All Kill" target answers on the trip were at such a target by this rule; the other 9 were
    openers the user now advises against. Cooldowns: one bard skill every 5 s, peace/provoke 10 s
    after a success (wiki Peacemaking); "You must wait a few moments to use another skill."
@@ -588,8 +592,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    **In sight first** (user 2026-10-17: "A lot of times it tries to bard a mob that cannot be seen and
    fails"): a skill goes only at a target we see by the server's rule (`Team.bard_sees`, `aggro.View.we_see`:
    from us to it, within 10), a provoked pair both seen. One due but unseen: a step (up to 2, at most every
-   3 s, never mid-channel) to the tile that sees it with the fewest eyes on us, fewer than here (a step costs 0.3),
-   under the reposition's rules (`Team.bard_step`); none: no skill this tick. **A target not on us** (on a pet), a
+   3 s, mid-channel too since 2026-11-15, the pets kept within --vet-range: the vet supplies and the bard skills share
+   no timer) to the tile that sees it with the fewest eyes on us, fewer than here (a step costs 0.3),
+   under the reposition's rules (`Team.bard_step`) but not the fight's spacing: only off a monster in the fight's
+   melee (1) and out of a live stealther's spawn spot's closed area whatever the pets (since 2026-11-15; the spacing
+   took every seeing tile of 129 of the simulator's 338 never-barded Shadowspire kills); none: no skill this tick.
+   **A target not on us** (on a pet), a
    peek: up to 4 steps (`PEEK_STEPS`), only the eyes that would wake to us counted (idle monsters before a pet, a
    --never-aggro one, the backspawn; not those already fighting, the target included) and no more of them than here,
    the pets kept within --vet-range only while a vet channel runs; the skill goes from the new tile at once and the
@@ -616,9 +624,9 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    **Why no skill, logged** (since 2026-11-05): when the target gets no skill for a reason other than the skill timers
    and its own effects running, one line per target and reason (`Team.no_bard`), e.g. "no bard at bound soul
    0x000EB3B4: no tile within 4 steps sees it better than here (9.2 vs 0.0)"; the others: "the tiles within 4 steps
-   that see it are out of --vet-range 5 of a pet" (or "in an area hitter's reach", "in fire", "within 2 of a monster in
-   the fight or a pet (spacing)", joined by "or"), "no tile within 4 steps sees it", "out of our sight, and no step
-   mid-channel", "the server's last answer was out of sight or reach; no try for 10 s", "11 tiles off, beyond 10", "shy
+   that see it are out of --vet-range 5 of a pet" (or "in an area hitter's reach", "in fire", "beside a monster in the
+   fight", "by a lurking stealther's spawn spot", joined by "or"), "no tile within 4 steps sees it",
+   "the server's last answer was out of sight or reach; no try for 10 s", "11 tiles off, beyond 10", "shy
    and the pets haven't hurt it yet (our skill would draw it)", "Discordance and Peacemaking beyond our skill at it",
    "no instrument in the pack". test_sim `test_bard_skip_logged`.
    **Barding songs** (`--songs`; user 2026-10-13, capture 20261013_173449): the same skills at a

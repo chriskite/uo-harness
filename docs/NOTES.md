@@ -7533,6 +7533,18 @@ Where the time goes, live SSC (the runner's first "target" line for it, 1 s reso
   `SPACING_R - 1` of a monster or a pet 129, no tile seeing it better than here 42, the server's last out-of-sight
   answer 39, no tile within 4 steps seeing it 36, passed over 35, no step mid-channel 28; 80 with none logged (most a
   provoked pair's victim or a monster on the pets that never became the target).
+- **What changed** (the user's three picks plus "applying vet supplies is not on a shared cooldown with barding so one
+  does not need to wait for the other"; docs/HUNT_LOOP.md rule 2): Discordance at every other monster on the pets
+  before a Peacemaking or Provocation at the target (`tamer.DISCORD_OTHERS_FIRST`); the bard step mid-channel too, the
+  pets kept in vet range (`BARD_STEP_MID_CHANNEL`; live "no step mid-channel" 7 times today); the bard step off only a
+  fighting monster's melee instead of the fight's spacing (`BARD_STEP_MELEE_ONLY`), and never into a live stealther's
+  closed area. The step-in's hold ending once the pets hit the monster awake was built and dropped at the user's pick:
+  in the Mausoleum it added damage on Logan (962 -> 1,139 an hour) with no barding gain. Measured one at a time in
+  docs/SIM.md "Bard skills: the delay's three changes". Only the melee-only step moved the barding; the other two
+  are cheap and neutral. The first try's median stays 4-5 s: the 5 s skill gap goes to the monster already fought.
+- The walk to a hurt pet (`Team.to_pet`) now stops at a closed stealther area's edge too (`closed_step`, as the
+  approach's). In the simulator's 11:57 consort layout it walked 1 off her spot once a test's timing changed. Batches
+  with every new switch off match the batches before exactly.
 
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
