@@ -245,6 +245,8 @@ class Mob:
     immune_until: float = 0.0     # barding break immunity (peace/provoke)
     provoke: tuple | None = None  # (onto serial, until)
     barded: bool = False          # a bard skill of ours went at it (Discordance, Peacemaking, either of a provoked pair)
+    aggro_t: float | None = None  # the first tick it fought one of us (its target the player or a pet): bard_lat
+    bard_t: float | None = None   # our first bard skill at it, answered or not: bard_lat
     poison_until: float = 0.0
     poison_next: float = 0.0
     bleed_until: float = 0.0      # 0: not bleeding
@@ -1208,6 +1210,8 @@ class World:
             self.metrics["kills"] += 1
             if not m.barded:
                 self.count("kills_unbarded")             # ours with no bard skill at it (run.py summaries)
+            # (kind, its first fight with us, our first bard skill at it, its death): run.py's bard_latency
+            self.metrics.setdefault("bard_lat", []).append((m.key, m.aggro_t, m.bard_t, round(self.t, 2)))
             if self.essence is not None and self.essence["charges"] > 0:
                 self.essence["charges"] = max(0.0, self.essence["charges"] - self.essence["per_kill"])
                 if not self.essence["charges"]:
@@ -1434,6 +1438,8 @@ class World:
                 if o.kind == "monster" and o.alive and o.target in team:
                     mt = self.metrics
                     mt["on_us_s"] = mt.get("on_us_s", 0.0) + TICK_S
+                    if o.aggro_t is None:
+                        o.aggro_t = round(t, 2)
                     if o.discord_until <= t:
                         mt["on_us_undiscorded_s"] = mt.get("on_us_undiscorded_s", 0.0) + TICK_S
                         if o.calm_until <= t and not o.provoke:
@@ -3542,6 +3548,8 @@ class World:
         for m in (target, tgt):
             if m is not None:
                 m.barded = True
+                if m.bard_t is None:
+                    m.bard_t = round(t, 2)
         if kind != "discord" and (target.immune_until > t or (kind == "provoke" and tgt.immune_until > t)):
             # live: the next use went through 1.1-3 s after such an answer (13 of them): no 5 s skill timer, only the
             # prompt's 1 s (docs/NOTES.md "Bard rates and cooldowns live")

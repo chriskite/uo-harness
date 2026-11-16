@@ -7504,6 +7504,36 @@ script):
   the leave), no death, no pet left behind; no 'All Patrol' or rope refused; one 'All Kill … cannot be seen' in each
   run (the existing rule, no repeat).
 
+## Shadowspire Cathedral: the bard skills' delay (2026-11-15, hunt-20261115-193909-8e17)
+
+The user, after 64e97fc: "Measure how long it takes from pets getting aggro'd by a mob to the runner attempting a bard skill.
+I suspect it is still not getting in as many disco/provos as it could." Measured live with `sim/bard_lat_scan.py`
+(capture replay: a monster's aggro is the first of its war flag and the first '-N' over it; the bard try is our first
+target answer after a Discordance, Peacemaking or Provocation use) and in the simulator with run.py's `bard_latency`
+(World `aggro_t`: its first tick on one of us; `bard_t`: our first skill at it). Our kills only.
+
+| source | runner | kills | never barded | first try p50 / p75 / p90 (s) | within 5 s | within 10 s | an unbarded kill's fight p50 (s) |
+|---|---|---|---|---|---|---|---|
+| live SSC 1, 19:39-20:13 | b366b22 (before 64e97fc) | 46 | 15 (33 %) | 5.8 / 14.8 / 23.7 | 24 % | 44 % | 16.6 |
+| live Ossuary 2, 13:10 | 0d667ff | 121 | 20 (17 %) | 7.4 / 16.8 / 32.8 | 21 % | 52 % | 16.7 |
+| live Ossuary 2, 16:05 | 0d667ff | 57 | 9 (16 %) | 6.6 / 13.5 / 23.6 | 30 % | 56 % | 9.4 |
+| live Ossuary 2, 16:28 | 0d667ff | 71 | 11 (15 %) | 10.1 / 25.1 / 53.2 | 11 % | 42 % | 20.2 |
+| sim SSC 1, 32 runs | 64e97fc | 2,781 | 338 (12 %) | 4.6 / 13.2 / 22.1 | 46 % | 59 % | 18.7 |
+
+Where the time goes, live SSC (the runner's first "target" line for it, 1 s resolution):
+- **Never barded, 15:** 10 were the stand-off 12-14 off a gargoyle or mephit the pets were patrolled onto ("no bard at
+  …: 14 tiles off, beyond 10"), fixed in 64e97fc, which the run didn't have yet. The rest: a second monster
+  on the pets while the first was the target (killed before its turn), and one passed over as another player's.
+- **Aggro to target:** p50 3.6 s. 7 of 46 waited 9-25 s: each was a second monster on the pets while the runner
+  barded and fought the first. `bard_others` (a skill at another on the pets) only goes when the target gets no skill
+  that round, and Discordance then Peacemaking on the target take two 5-6 s skill gaps first.
+- **Target to skill:** p50 2.4 s when in range; longer behind a vet channel, a step-in or front watch (the winged hulk
+  at 19:48:52: war at +0, the watch's "took a giant black widow 5.6 s after the step-in" at +4, the skill at +5.8).
+- The simulator after 64e97fc, the 338 never barded by the reasons logged for them ("no bard at …"): a peek tile within
+  `SPACING_R - 1` of a monster or a pet 129, no tile seeing it better than here 42, the server's last out-of-sight
+  answer 39, no tile within 4 steps seeing it 36, passed over 35, no step mid-channel 28; 80 with none logged (most a
+  provoked pair's victim or a monster on the pets that never became the target).
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp

@@ -148,7 +148,10 @@ python harness/sim/run.py --scenario tidal_tomb --level 2 --runs 96 --reds 1.2 -
   and what healed it in its last 15 s, where it and Logan stood, his distance at its hits, `vet_reach`, who fought it,
   the other pets, the runner's intents meanwhile; `junctures`, `kills_by`, `bard`, ...; `kills_unbarded`: our kills
   with no bard skill of ours at them, any answer, a provoked pair both (`World` `Mob.barded`, since 2026-11-05), and
-  `all:`'s `kills_unbarded_share`).
+  `all:`'s `kills_unbarded_share`); `bard_lat` and `all:`'s `bard_latency`: of our kills that fought us (World
+  `Mob.aggro_t`, its first tick on the player or a pet), how many got our first bard skill (`Mob.bard_t`, any answer)
+  before that, in the fight (seconds to it: p50, p75, p90; the share within 5 and 10 s) or never (the fight's length:
+  p50). Its live counterpart is `sim/bard_lat_scan.py` (docs/NOTES.md "Shadowspire Cathedral: the bard skills' delay").
 - Seeds make runs reproducible (the world's randomness and the runner's `--seed`).
 - `--others`: other (blue) players on the fight level (the scenario's `others`, "Other players" below). Off by
   default, so batches stay comparable with the earlier ones; `all:` then adds an `others` block (in-view numbers

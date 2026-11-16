@@ -232,6 +232,7 @@ def run_once(seed: int, extra: list[str], scenario: str = "mausoleum", minutes: 
     r = {"seed": seed, "level": dungeon_level, "outcome": outcome, "error": error, "sim_s": round(clock.elapsed, 1),
             "wall_s": round(wall, 2), "speed_x": round(clock.elapsed / wall, 1) if wall else None,
             "kills": m["kills"], "kills_unbarded": m.get("kills_unbarded", 0), "kills_by": m["kills_by"],
+            "bard_lat": m.get("bard_lat", []),
             "gold_looted": m["gold_looted"],
             # banked: what reached home (World._land); lost: what a death left on the corpse
             "gold_banked": m["gold_banked"], "gold_lost": m["gold_looted"] - m["gold_banked"] if m["deaths"] else 0,
@@ -495,6 +496,25 @@ def main(argv=None):
     return 0
 
 
+def bard_latency(ok: list[dict]) -> dict:
+    """How soon our first bard skill goes at a monster the pets (or we) fight, over our kills (World.bard_lat): those that
+    fought us; of them barded before the fight, barded in it (seconds from its first fight to the skill: median, p75,
+    p90; the share within 5 and 10 s) and never (seconds from its first fight to its death: median)."""
+    rows = [(a, b, d) for r in ok for _, a, b, d in r.get("bard_lat") or () if a is not None]
+    lat = sorted(b - a for a, b, _ in rows if b is not None and b >= a)
+    never = sorted(d - a for a, b, d in rows if b is None)
+
+    def q(xs, p):
+        return round(xs[min(len(xs) - 1, int(p * len(xs)))], 1) if xs else None
+    n = len(rows) or 1
+    return {"fought": len(rows), "before": sum(1 for a, b, _ in rows if b is not None and b < a),
+            "in_fight": len(lat), "never": len(never),
+            "lat_s": {"p50": q(lat, 0.5), "p75": q(lat, 0.75), "p90": q(lat, 0.9)},
+            "within_5s": round(sum(1 for x in lat if x <= 5) / n, 3),
+            "within_10s": round(sum(1 for x in lat if x <= 10) / n, 3),
+            "never_fight_s_p50": q(never, 0.5)}
+
+
 def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
     """Across runs: game hours, kills per game hour, deaths per game hour, the share of runs with a death, a pet
     death, a pet left behind, a crash or a rule violation; gold looted and gold banked (what reached home) per game
@@ -512,6 +532,7 @@ def aggregate(results: list[dict], downtime_s: float = 0.0) -> dict:
             # our kills with no bard skill of ours at them (World.barded)
             "kills_unbarded_share": round(sum(r.get("kills_unbarded", 0) for r in ok)
                                           / (sum(r["kills"] for r in ok) or 1), 3),
+            "bard_latency": bard_latency(ok),
             "gold_per_h": round(sum(r["gold_looted"] for r in ok) / hours),
             "banked_per_h": round(banked / hours),
             "banked_per_h_net": round(banked / (hours + deaths * downtime_s / 3600)),
