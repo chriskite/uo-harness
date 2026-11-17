@@ -1647,11 +1647,16 @@ class HuntLoop:
                  and c["x"] is not None and cheb((it["x"], it["y"]), (c["x"], c["y"])) <= 1), None)
         me = st["world"]["self"]
         wmax = weight_max(me)
-        if self.overweight and me.get("weight") is not None and wmax and me["weight"] >= wmax - LOOT_WEIGHT_MARGIN:
+        w = me.get("weight")
+        if self.overweight and w is not None and wmax and (
+                w >= wmax - LOOT_WEIGHT_MARGIN or (self.gold_no_room is not None and w >= self.gold_no_room)):
+            # a gold pile found no room at this weight: gold comes first and stops the loot, so another corpse gives
+            # nothing (live 2026-11-16 21:33-21:35 hunt-20261116-201415-0e84, the walk to the moongate at 438/450:
+            # seven corpses walked to, "no room for gold coin" and "looted 0 item(s)" on each)
             self.corpses.remove(c)
             if c.get("corpse") is not None:
                 self.looted.add(c["corpse"])
-            log(f"weight {me['weight']}/{wmax}: not looting the {c['name']}")
+            log(f"weight {w}/{wmax}: not looting the {c['name']}")
             return
         self.overweight = False
         corpse = st["world"]["items"].get(key_of(c["corpse"])) if c["corpse"] is not None else None

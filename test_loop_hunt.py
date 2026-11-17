@@ -1627,9 +1627,10 @@ def weight_guard():
 
 
 def gold_no_room():
-    print("\n== a gold pile with no room in the pack short of LOOT_WEIGHT_MARGIN: left, and the leave fires ==")
+    print("\n== a gold pile with no room in the pack short of LOOT_WEIGHT_MARGIN: left, no more corpses, the leave fires ==")
     # live 2026-11-12 11:10-11:12 (hunt-20261112-102724-f592): 435/450, "no room for gold coin (~14 stones); leaving
-    # it" on four corpses running, no leave: the pack-full rule waited for 440
+    # it" on four corpses running, no leave: the pack-full rule waited for 440. Live 2026-11-16 21:33-21:35
+    # (hunt-20261116-201415-0e84): on the walk to the moongate at 438/450, seven corpses walked to, each 'looted 0'
     import loop_hunt
     from agent_link import Link
     for name in ("wait", "pos", "open_containers"):
@@ -1638,16 +1639,19 @@ def gold_no_room():
     store = memory.Memory(db)
     link = RightsLink()
     link.feed(login_pkt(), equip(BACKPACK, 0x0E75, 0x15), contained(PACK_GOLD, combat.GOLD_GRAPHIC, 100, BACKPACK))
-    mob, g, _, noto = RIGHTS[GOOD_C]
-    link.feed(mob_pkt(mob, SPOT[0], SPOT[1] - 1), ground_item(GOOD_C, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 1),
-              display_death(mob, GOOD_C), delete(mob), corpse_flags(GOOD_C, mob, noto=noto),
-              contained(g, combat.GOLD_GRAPHIC, 1600, GOOD_C))
+    for corpse in (GOOD_C, REJECT_C):
+        mob, g, _, noto = RIGHTS[corpse]
+        link.feed(mob_pkt(mob, SPOT[0], SPOT[1] - 1), ground_item(corpse, combat.CORPSE_GRAPHIC, MONGBAT, SPOT[0], SPOT[1] - 1),
+                  display_death(mob, corpse), delete(mob), corpse_flags(corpse, mob, noto=noto),
+                  contained(g, combat.GOLD_GRAPHIC, 1600, corpse))
     me = link.rt.state.self
     me.weight, me.stats["weight_max"] = 435, 450
     args = loop_hunt.arg_parser().parse_args(["--human", "off", "--no-map", "--memory", db, "--leave-recall", "0x1"])
     loop = loop_hunt.HuntLoop(link, store, args)
     before = loop.return_reason(loop.state())
-    loop.corpses.append({"mob": mob, "name": "a mongbat", "x": SPOT[0], "y": SPOT[1] - 1, "t": time.monotonic()})
+    for corpse in (GOOD_C, REJECT_C):
+        loop.corpses.append({"mob": RIGHTS[corpse][0], "name": "a mongbat", "x": SPOT[0], "y": SPOT[1] - 1,
+                             "t": time.monotonic()})
     while loop.corpses:
         loop.loot(loop.corpses[0])
     after = loop.return_reason(loop.state())
@@ -1655,9 +1659,12 @@ def gold_no_room():
     home = loop.return_reason(loop.state())
     store.close()
     lifts = [p for p in link.sent if p[0] == 0x07]
-    check("435/450: no leave before; 1600 gold (~16 stones) not lifted; then 'no room for gold'; none at 120/450",
-          before is None and lifts == [] and after is not None and "no room for gold" in after[0] and home is None,
-          f"before {before} lifts {len(lifts)} after {after} home {home}")
+    opened = [int.from_bytes(p[1:5], "big") for p in link.sent if p[0] == 0x06]
+    check("435/450: no leave before; 1600 gold (~16 stones) not lifted; the second corpse never opened; then 'no room "
+          "for gold'; none at 120/450",
+          before is None and lifts == [] and REJECT_C not in opened and after is not None
+          and "no room for gold" in after[0] and home is None,
+          f"before {before} lifts {len(lifts)} opened {[hex(o) for o in opened]} after {after} home {home}")
 
 
 class HeavyLink(RightsLink):

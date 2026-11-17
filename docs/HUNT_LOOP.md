@@ -389,7 +389,10 @@ loot exceeds the risk/reward of being killed by reds or mobs, like the lumber ru
   V\* (the value carried at the visit's start is a load a drop-off didn't take: it doesn't count), or when the pack
   is within `LOOT_WEIGHT_MARGIN` of full, or a gold pile had no room in it (`gold_no_room`, until we are lighter:
   "taking the loot home: no room for gold (w/max stones)"; live 2026-11-12 at 435/450 every pile of ~14 stones was
-  left on its corpse, the leave waiting for 440). Only between fights: nothing on us, nothing engaged, no corpse to loot.
+  left on its corpse, the leave waiting for 440). From then until we are lighter no corpse is walked to ("weight
+  w/max: not looting the <name>"): gold is lifted first and its refusal ends the loot, so another corpse gives nothing
+  (live 2026-11-16 the walk to the gate at 438/450 went to seven corpses, "looted 0 item(s)" on each).
+  Only between fights: nothing on us, nothing engaged, no corpse to loot.
   The leave is planned (severity `return`: no `threat` juncture, the walk to the gate at a normal pace with the
   pets following and waited for, the crawl doesn't mark the place) and the run goes back in.
 - **The inputs**, from the store at each visit's start, this character's within 120 tiles of the spot since the first
