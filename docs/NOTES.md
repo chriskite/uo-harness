@@ -10162,6 +10162,30 @@ and each corpse a walk and an open among the monsters for nothing.
 - **Fix**: `loot()` skips a corpse while `overweight` and the weight is still at or above `gold_no_room` too ("weight
   438/450: not looting the <name>"). test_loop_hunt `gold_no_room` (a second corpse, never opened; fails before).
 
+## Maus 3: bitten to death on a loot walk (live 2026-11-17 14:52:49, hunt-20261117-133539-5af1)
+
+Maus 3 shift (SeerLoganWolf2), pets Clicquot and Borealish; run 2, visit 7. A vampire countess's room at (5171-5177,
+678-683): the countess (provoked), a vampire bat (discorded) and her hostile copies of both pets ("Clicquot transfixed
+(a hostile copy 0x008158CD on its tile)"). Capture 20261117_124820 replayed (WorldRuntime):
+- **14:52:40-42** -25, -13, -20 on Logan, the bat in war mode beside him (its attack animation 4 with each hit); a heal
+  potion at 41.22 (75 -> 100). **No 0x2F from the bat** in the whole window (the only one is ours).
+- **14:52:44** "duck: the idle borealish 0x008159E1 ... to (5171, 678)": 2 tiles off the bat at (5171, 680).
+  `attackers()` (a swing, or war mode *beside* us while hurt) came back empty, so combat_step's loot ran:
+  **14:52:45** "to the corpse: looting from (5177, 681)", 6 steps east. The bat followed tile for tile ((5171, 679) ->
+  (5176, 681)): -5 at 45.03, -26 at 45.25, -10 at 45.30 (26/100), no heal (the potion's cooldown; the 14:52:43.93
+  bandage on himself never finished [INFERENCE: broken by the walk or the hits]). At the corpse "leaving 1 item(s) of no
+  value: spellbook" (no item: no heal check), -5, -16, -7,
+  dead at 48.98. Both pets lived.
+- **Fix** (`HuntLoop.chaser` / `chase_hold`): no loot while a war-mode monster within `CHASE_R` 3 has us hit within
+  `tamer.HIT_ON_US_S` 5 s ("not looting yet: a vampire bat 0x... in war mode 2 off, a hit on us 0.4 s ago"); the fight
+  goes on instead. And a hit on us during the walk to a corpse ends it ("to the corpse: stopped (hit on the way,
+  77 -> 57 hits); looting it after"), the corpse kept queued. test_sim `test_loot_chased` (fails before: looted).
+- **Maus 3 batches** (`--runs 96 --seed 17 --careers 14 --jobs 14 --others --eerie --prior` a copy of the main store,
+  HEAD 490f05c against the change): runs with a death 3 -> 2 (apparition bursts at the gate, a countess pair; neither
+  side a loot walk), pet deaths 0 -> 0, monster damage on Logan 925 -> 885 an hour, banked 152.2k -> 151.3k an hour,
+  kills 138.7 -> 137.4 an hour: within a batch's noise (docs/SIM.md "A batch's noise"); the simulator's bats come
+  beside us and seldom chase a loot walk [INFERENCE], so the live case is what the test reproduces.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

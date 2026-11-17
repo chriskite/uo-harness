@@ -210,6 +210,8 @@ RANGED_REACH = 13            # ...a ranged one (aggro.ranged): the purger's barr
 PIN_S = 15.0                  # an engaged target neither adjacent nor hurt this long is dropped...
 SKIP_S = 60.0                 # ...and not picked again for this long (unless it attacks us)
 LOOSE_R = 1                  # a monster this close attacking us that the pets aren't fighting becomes the target (pick_target)
+CHASE_R = 3                  # a war-mode monster this close while a hit on us is this recent (tamer.HIT_ON_US_S) is on us
+#                              though not beside us: no loot walk (chaser)
 LOST_ALIVE_S = 30.0           # an engaged target that left the view alive (0x1D, no death): its death this soon counts
 GATE_POTION_WAIT_S = 1.5      # hurt beside the leave gate: a heal potion due this soon is drunk before the click
 GATE_CLICK_TRIES = 3          # the gate's double-click again after 500119 (an item use just before it)...
@@ -529,6 +531,7 @@ class HuntLoop:
         self.gold_no_room = None     # our weight when a gold pile had no room in the pack: full for the loot (return_reason)
         self.loot_keep = tuple(w.lower() for w in (args.loot_keep or ()))
         self.corpses = []            # [{mob, name, x, y, t}] kills to loot
+        self.chase_said = None       # the chaser (chase_hold) the 'not looting yet' line was written for
         self.looted = set()          # corpse serials handled (looted or refused)
         self.lift_ok_t = -1e9        # monotonic time of our last lift the server took (loot: combat.LIFT_GAP_S)
         self.jar_tried = set()       # eerie corpse serials a soul jar was tried at (fill_soul_jar): never again
@@ -988,6 +991,38 @@ class HuntLoop:
                         "dist": cheb(pos, (mob["x"], mob["y"])), "hits": [mob.get("hits"), mob.get("hits_max")],
                         "last_swing_age_s": round(age, 1)})
         return sorted(out, key=lambda a: a["dist"])
+
+    def chaser(self, st) -> dict | None:
+        """A war-mode monster within CHASE_R while a hit on us is within tamer.HIT_ON_US_S: on us though attackers()
+        reads no swing and it isn't beside us (we stepped off it). Live 2026-11-17 14:52:44-49
+        (hunt-20261117-133539-5af1): a vampire bat biting Logan, no 0x2F; a duck took him 2 tiles off it, attackers()
+        came back empty, and the loot walk went 6 steps with it biting behind (62 -> 26 hits), dead at the corpse."""
+        world, me, pos = st["world"], self.me(st), self.pos(st)
+        hurt = self.hurt_t.get(me)
+        if hurt is None or time.monotonic() - hurt > tamer.HIT_ON_US_S or pos is None:
+            return None
+        labels = world.get("labels") or {}
+        near = [(cheb(pos, (m["x"], m["y"])), k, m) for k, m in world["mobiles"].items()
+                if serial_of(k) != me and serial_of(k) not in self.dead and m.get("x") is not None
+                and (m.get("flags") or 0) & threats.FLAG_WARMODE and not m.get("pet")
+                and m.get("notoriety") in combat.ATTACKABLE_NOTORIETY and cheb(pos, (m["x"], m["y"])) <= CHASE_R
+                and threats.identify(m, labels.get(k))[0] == "monster"]
+        if not near:
+            return None
+        d, k, m = min(near, key=lambda n: n[0])
+        return {"serial": k, "name": labels.get(k) or m.get("name"), "dist": d}
+
+    def chase_hold(self, st) -> bool:
+        """No loot while a chaser is on us (chaser): True, the line written once a monster."""
+        ch = self.chaser(st)
+        if ch is None:
+            self.chase_said = None
+            return False
+        if self.chase_said != ch["serial"]:
+            log(f"not looting yet: {ch['name'] or 'a monster'} {ch['serial']} in war mode {ch['dist']} off, "
+                f"a hit on us {time.monotonic() - self.hurt_t[self.me(st)]:.1f} s ago")
+            self.chase_said = ch["serial"]
+        return True
 
     def pick_target(self, st, pull: bool = True):
         """The serial to fight now, or None: a monster beside us attacking us that the pets aren't fighting (LOOSE_R)
@@ -1720,8 +1755,16 @@ class HuntLoop:
             # rooms and died there (sim 2026-10-21, seed 1019)
             bound = 2 * cheb(self.pos(st), goal) + LOOT_DETOUR_STEPS
             # a sprayer's wind-up with us in its cone ends the walk (Team.spray_stop): out of it first, the corpse after;
-            # so does a step into an idle monster's range and sight ahead of the pets (Team.front_stop: the pets first)
-            stop = (lambda s: self.team.spray_stop(s) or self.team.front_stop(s)) if self.team is not None else None
+            # so does a step into an idle monster's range and sight ahead of the pets (Team.front_stop: the pets first),
+            # and a hit on us (live 2026-11-17 14:52:45, hunt-20261117-133539-5af1: a vampire bat bit Logan 62 -> 26 on
+            # the 6 steps to a corpse and killed him there)
+            hits0 = st["world"]["self"].get("hits")
+
+            def stop(s):
+                h = s["world"]["self"].get("hits")
+                if hits0 is not None and h is not None and h < hits0:
+                    return f"hit on the way, {hits0} -> {h} hits"
+                return (self.team.spray_stop(s) or self.team.front_stop(s)) if self.team is not None else None
             try:
                 try:
                     with self.team.around_areas(st) if self.team is not None else contextlib.nullcontext() as round_:
@@ -5404,7 +5447,8 @@ class HuntLoop:
         if not attackers and (eerie := self.soul_corpse(st, walk=self.engaged is None)) is not None:
             self.fill_soul_jar(*eerie)     # before looting: other players race us to an eerie corpse
             return True
-        if not attackers and not (self.team is not None and self.team.dipping) and (c := self.loot_next()) is not None:
+        if not attackers and not (self.team is not None and self.team.dipping) and (c := self.loot_next()) is not None \
+                and not self.chase_hold(st):
             self.loot(c)
             return True
         if self.team is not None and self.team.patrol_watch(st):

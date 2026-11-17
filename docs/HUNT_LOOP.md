@@ -127,6 +127,12 @@ Each tick re-reads the proxy state and decides, in this order:
    knight: human bodies; 59 such corpses were left on 2026-10-17 before this), walk within 2 tiles, open the backpack (stock dclick) and the corpse, then lift + drop
    each item into the backpack, gold first, up to the weight limit. See "Loot rights" below:
    blue corpses are skipped, a refused open stops at once, only items that reach the pack count.
+   **Not while chased** (since 2026-11-17): a war-mode monster within `CHASE_R` 3 tiles with a hit on us in the last
+   `tamer.HIT_ON_US_S` 5 s holds the loot ("not looting yet: <name> <serial> in war mode N off, a hit on us N s ago"),
+   though `attackers()` sees nothing (no swing packet; not beside us after a step away), and the fight takes it up.
+   A hit on us during the walk to a corpse ends the walk ("to the corpse: stopped (hit on the way, A -> B hits);
+   looting it after"). Live 2026-11-17 14:52:44-49 a vampire bat bit Logan to death on the 6 steps to a corpse
+   (docs/NOTES.md "Maus 3: bitten to death on a loot walk").
 7. **Fight** the target:
    - Targets come only from the live world model (`world.mobiles` holds what the stock client still
      has; docs/WORLDMODEL.md) and pass the `ctl act attack` guard (`combat.attackable`: threats.py

@@ -1594,6 +1594,74 @@ def test_loot_off_area_hitter():
           and b["nearest to the live daemon"] >= r and not b["first"][0] and b["first"][1] == 0, str(out))
 
 
+def test_loot_chased():
+    print("== a vampire bat biting us, 2 tiles off after a step away: no loot walk; one that bites on the walk ends it ==")
+    import combat
+    import loop_hunt
+    # live 2026-11-17 14:52:44-49 (hunt-20261117-133539-5af1): no swing packet from the bat, a duck 2 tiles off it, so
+    # attackers() came back empty; "to the corpse: looting from (5177, 681)", 6 steps with it biting, 62 -> 26, dead there
+    out = {}
+    for case in ("gate", "walk"):
+        start = (5247, 675)
+        w = world_with([{"key": "vampire bat", "at": [5249 if case == "gate" else 5248, 675, 0]},
+                        {"key": "shade wolf", "at": [5242, 677, 0]}], seed=7, start=start)
+        bat = next(m for m in w.mobs.values() if m.key == "vampire bat")
+        wolf = next(m for m in w.mobs.values() if m.key == "shade wolf")
+        bat.hits = bat.hits_max = 10 ** 6
+        if case == "gate":
+            bat.hinder_until = 1e12                         # stays 2 off, no swing: the decision only
+        loop, clock, store, patched = hurt_loop(w, 100, pets_at=((5246, 674), (5246, 676)))
+        buf, calls = io.StringIO(), {"loot": 0, "fight": []}
+        try:
+            with contextlib.redirect_stdout(buf):
+                for p in w.pets():
+                    p.mode, p.target = "stay", None
+                bat.target, bat.threat = w.player.serial, {w.player.serial: 1e9}
+                w._warm(bat, True)
+                w.die(wolf, None)
+                corpse = next(s for s, it in w.items.items() if it.get("kind") == "corpse" and it["owner"] == wolf.serial)
+                w.items[w._item_serial()] = {"graphic": combat.GOLD_GRAPHIC, "amount": 500, "container": corpse,
+                                             "kind": "gold"}
+                clock.advance(0.5)
+                c = {"mob": wolf.serial, "name": "a shade wolf", "x": 5242, "y": 677, "t": tamer.time.monotonic(),
+                     "corpse": corpse}
+                loop.corpses.append(c)
+                if case == "gate":
+                    st = loop.state()
+                    loop.hurt_t[loop.me(st)] = tamer.time.monotonic()      # bitten just now, as live 2.9 s before
+                    real_loot = loop.loot
+                    loop.loot = lambda cc: calls.__setitem__("loot", calls["loot"] + 1)
+                    loop.fight = lambda t: calls["fight"].append(t)
+                    for _ in range(6):                   # the decisions while it stands within CHASE_R of us
+                        st = loop.state()
+                        if sim_cheb(w.player.pos, bat.pos) > loop_hunt.CHASE_R or calls["loot"] or calls["fight"]:
+                            break
+                        loop.combat_step(st, loop.attackers(st), False)
+                    loop.loot = real_loot
+                    out[case] = {"loot calls": calls["loot"], "fight": calls["fight"], "pos": w.player.pos[:2],
+                                 "bat": bat.pos[:2], "held": "not looting yet: " in buf.getvalue()}
+                else:
+                    h0, step = w.player.hits, clock.on_advance
+
+                    def bite(now):                       # a bite once we are a step on the way
+                        step(now)
+                        if tuple(w.player.pos[:2]) != start and w.player.hits == h0:
+                            w.hurt(w.player, 20, bat)
+                    clock.on_advance = bite
+                    loop.loot(c)
+                    clock.on_advance = step
+                    out[case] = {"queued": c in loop.corpses, "pos": w.player.pos[:2], "hits": (h0, w.player.hits),
+                                 "stopped": "hit on the way" in buf.getvalue(),
+                                 "left": sum(1 for it in w.items.values() if it.get("container") == corpse)}
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+        out[case]["log"] = [l for l in buf.getvalue().splitlines() if "corpse" in l or "loot" in l][:6]
+    g, k = out["gate"], out["walk"]
+    check("bitten 2 tiles off a war-mode bat: no loot walk ('not looting yet'); a bite on the walk to the corpse: "
+          "stopped, the corpse kept queued",
+          g["loot calls"] == 0 and g["held"] and k["stopped"] and k["queued"] and k["left"] > 0, str(out))
+
 
 def test_on_another_player():
     print("== a monster fighting another player, our pets in war mode at our side: 'All Kill' at it, no 15 s wait ==")
@@ -9589,7 +9657,7 @@ def main():
               test_instrument, test_levels, test_recall_charges, test_essence, test_essence_sim,
               test_standoff_sight, test_standoff_ties, test_pet_death_readout,
               test_idle_pet, test_lone_pet_kill, test_pet_shot, test_countess_held_pet, test_countess_reguard, test_loot_lift_gap,
-              test_loot_off_area_hitter, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
+              test_loot_off_area_hitter, test_loot_chased, test_on_another_player, test_ally_left_alone, test_kill_unseen_once,
               test_theirs_passed_over,
               test_theirs_after_kill_sent,
               test_patrol_off_passed_over_area_hitter, test_walk_past_purger_on_another, test_pets_stuck_off_fight,
