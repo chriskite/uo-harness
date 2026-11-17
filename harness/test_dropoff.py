@@ -110,13 +110,16 @@ class SavingRoom(Room):
 
 
 def test_dropoff():
-    print("== the user's 'New Drop Off', then research materials and resource maps into the chest ==")
+    print("== the user's 'New Drop Off', then research materials, resource maps and paragon chests into the chest ==")
     plan = home.for_character("Logan Wolf")["dropoff"]
     loot = {"0x44100001": {"graphic": 0x5F72, "amount": 2, "container": f"0x{PACK:08X}", "name": "research materials"},
             "0x44100002": {"graphic": 0x14EC, "amount": 1, "container": f"0x{PACK:08X}",
                            "name": "a dullwood lumber resource map"},
             "0x44100003": {"graphic": 0x5F72, "amount": 1, "container": f"0x{BAG:08X}", "name": "research materials"},
-            "0x44100004": {"graphic": 0x0F0C, "amount": 20, "container": f"0x{PACK:08X}", "name": "Greater Heal potion"}}
+            "0x44100004": {"graphic": 0x0F0C, "amount": 20, "container": f"0x{PACK:08X}", "name": "Greater Heal potion"},
+            # user 2026-11-17: "drop off paragon chests at home, not keep carrying them back to the dungeon"
+            "0x44100005": {"graphic": 0x0E7C, "amount": 1, "container": f"0x{PACK:08X}",
+                           "name": "paragon chest (lowtide scavenger)"}}
     room = Room(plan, loot)
     out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
     picks = [(int.from_bytes(p[5:9], "big"), int.from_bytes(p[9:11], "big")) for p in room.sent
@@ -132,9 +135,9 @@ def test_dropoff():
     check("the stockpile's Restock cursor answered with the backpack, as the script's `target 0x445E9F92`",
           tgt == actions.target_object(7, PACK, 0, 0, 0, 0x0E75, 0), str(tgt))
     moved = sorted(c["serial"] for c in out["chest"])
-    check("research materials and the resource map from the pack's top level into the chest; "
-          "the one in a bag and the potions stay", moved == ["0x44100001", "0x44100002"] and not out["left"],
-          str(out["chest"]))
+    check("research materials, the resource map and the paragon chest from the pack's top level into the chest; "
+          "the one in a bag and the potions stay",
+          moved == ["0x44100001", "0x44100002", "0x44100005"] and not out["left"], str(out["chest"]))
     drops = [p for p in room.sent if p[0] == 0x08]
     check("each one lifted and dropped into the chest, opened first",
           room.sent.index(actions.dclick(CHEST)) < room.sent.index(drops[0])

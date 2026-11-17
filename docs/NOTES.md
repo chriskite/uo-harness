@@ -3926,6 +3926,14 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     Graphic 0x5736's tiledata name is "seed of renewal" (`combat.item_name({'graphic': 0x5736})`), so a seed without its
     tooltip name shows that way in the drop-off events' `unpriced` lists (user 2026-10-21: the client calls them "common
     seed" and the like). The 00:06 drop-off (job event 24127) moved 0x51F5EDA4 and a nameless 0x522C4324 by graphic.
+  - **Paragon chests go to the chest since 2026-11-17** (user: "The runner needs to drop off paragon chests at home, not
+    keep carrying them back to the dungeon, they're valuable. I just moved one from the pack to the house chest").
+    "paragon chest (lowtide scavenger)" 0x5107A4EF, graphic 0x0E7C, a Tidal Tomb paragon's, was looted and rode along
+    in the pack through later drop-offs (no step takes it). `to_chest` now has the name "paragon chest" (the regex
+    matches "paragon chest (<creature>)"); no graphic, since 0x0E7C is a plain metal chest's. Only the pack's top
+    level is searched, so the house's own "paragon chest (drake)" and the sealed one are never touched. A chest still
+    without its tooltip name at the drop-off would stay in the pack [INFERENCE: the name was in the state for this one].
+    test_dropoff `test_dropoff` (fails before).
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 

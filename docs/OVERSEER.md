@@ -602,7 +602,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    proxy restart** `status.mobiles` is empty, so the pets look gone: wait until they show again, or ask the
 >    user (they may need fetching).
 > 2. **At home before every run: `act dropoff`** (the user's drop-off: gold into the bank deposit safe,
->    loot into its tomes, research materials, resource maps, skill mastery orbs and seeds into the chest, then the shelf's Resupply).
+>    loot into its tomes, research materials, resource maps, skill mastery orbs, seeds and paragon chests (since
+>    2026-11-17) into the chest, then the shelf's Resupply).
 >    Read its `reply`. Not at home: `act recall 0x444AB1F3` (its default rune is the house) first.
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"
 >    and the like): heal potions `0x0F0C`, vet supplies `0x6496`, Total Refresh `0x0F0B`, adventurer's rope,
