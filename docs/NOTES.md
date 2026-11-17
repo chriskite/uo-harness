@@ -10142,6 +10142,18 @@ level 1 "fought through" and on. Visit 6, 12 kills, in the gate pocket round (69
   deaths 1 -> 1, damage on Logan 473 -> 464 an hour, banked/h 175.4k -> 175.3k: one pet death in the batch, so it
   seldom fires there [INFERENCE: the simulator's pets on Clicquot and Borealish's numbers die less than live ones].
 
+## Maus 3: corpses walked to with no room for their gold (live 2026-11-16 21:33-21:35, hunt-20261116-201415-0e84)
+
+Maus 3 shift (SeerLoganWolf), pets a giant black widow, an oozing noughtilus, a poison mephit; 218 kills, 192,909 gp,
+7 leaves, no death. Visit 5 left at 21:31:17 on value ("taking the loot home: 36670 gp carried ... >= V* 35165") and
+fought through to the gate (5203, 703), arriving 21:36:00. On the way, at 438/450, seven corpses each got "weight
+438/450: no room for gold coin (~7-14 stones); leaving it" and "looted 0 item(s) ... +0 gold": 64 stones of gold left,
+and each corpse a walk and an open among the monsters for nothing.
+- **Cause**: the loot loop lifts gold first and breaks when it doesn't fit (`overweight`, `gold_no_room`), but the
+  next `loot()` skipped a corpse only at `LOOT_WEIGHT_MARGIN` of full (440), reset `overweight`, and walked on.
+- **Fix**: `loot()` skips a corpse while `overweight` and the weight is still at or above `gold_no_room` too ("weight
+  438/450: not looting the <name>"). test_loop_hunt `gold_no_room` (a second corpse, never opened; fails before).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
