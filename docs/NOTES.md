@@ -10186,6 +10186,21 @@ Maus 3 shift (SeerLoganWolf2), pets Clicquot and Borealish; run 2, visit 7. A va
   kills 138.7 -> 137.4 an hour: within a batch's noise (docs/SIM.md "A batch's noise"); the simulator's bats come
   beside us and seldom chase a loot walk [INFERENCE], so the live case is what the test reproduces.
 
+## 'All Follow Me' twice at the leave gate (user 2026-11-17)
+
+User: "Why does the runner say 'All Follow Me' twice before leaving through the crimson gate? More than once is a waste
+of time (which could matter if we're escaping a red or dangerous mob)". Live 2026-11-16 21:36:06 and 21:36:07
+(hunt-20261116-201415-0e84, Maus 3) and 2026-11-16 13:28:17 and 13:28:18 (hunt-20261116-125604-7344, Tidal Tomb).
+- **Cause**: a planned leave's fought walk (`leave_fought` -> `walk_in_fought`) ends with `Team.follow()` and its wait
+  for the pets; `leave_by_one_gate` then calls `Team.follow()` again before the gate's click: two commands, a hotkey
+  pause each, nothing between them. A flight (urgent) already said it once (`if not flee`), so a flight from a red never
+  had the repeat.
+- **Fix** (`Team.follow`): no "All Follow Me" again while our last pet command is one said within `FOLLOW_FRESH_S` 15 s
+  and every pet is within `FOLLOW_R` 3 (`together`); a pet out of reach still gets it again. test_sim
+  `test_gate_one_follow` (2 -> 1 on a planned leave by Maus 3's gate, both pets at Totem beside us); test_sim all pass.
+- **Maus 3 batch** (the same 96 runs as above, 0a45f3d against the change): 'All Follow Me' 19 -> 10 an hour, pets
+  left behind at a run's end 12 -> 10, pet deaths 0 -> 0, runs with a death 2 -> 0, banked 151.3k -> 151.9k an hour.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -1069,6 +1069,28 @@ def test_gate_after_vet():
           f"ok {res.get('ok')} {res.get('error')} at {w.player.pos} vet uses {w.metrics['vet_uses']}")
 
 
+def test_gate_one_follow():
+    print("== a planned leave by Maus 3's gate, nothing about: one 'All Follow Me', the pets through with us ==")
+    from agent_link import cheb
+    # user 2026-11-17: "Why does the runner say 'All Follow Me' twice before leaving through the crimson gate?" (live
+    # 2026-11-16 21:36:06 and 07, hunt-20261116-201415-0e84: walk_in_fought's end, then leave_by_one_gate's own)
+    gate = (5203, 703)
+    w = world_with([], seed=7, start=(5209, 697))
+    loop, clock, store, patched = hurt_loop(w, 100)
+    f0 = w.metrics["follow_commands"]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = loop.leave_by_gate("info")
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    follows = w.metrics["follow_commands"] - f0
+    pets = [cheb(p.pos, w.player.pos) for p in w.pets()]
+    check("through the gate with one 'All Follow Me', both pets beside us at Totem",
+          res.get("ok") and cheb(w.player.pos, gate) > 100 and follows == 1 and all(d <= 3 for d in pets),
+          f"ok {res.get('ok')} {res.get('error')} at {w.player.pos} follows {follows} pets at {pets}")
+
+
 def test_area_first():
     print("== an apparition on our tile: a ready potion at once, then out of its reach, mid-channel ==")
     import time
@@ -9640,7 +9662,7 @@ def main():
               test_vet_tile_off_tank, test_calm_heal,
               test_stairs, test_boss_room_door, test_out_of_boss_room, test_backspawn,
               test_area_first, test_leave_called_off, test_leave_from_far, test_leave_pet_out_of_view, test_gate_dash,
-              test_gate_after_vet,
+              test_gate_after_vet, test_gate_one_follow,
               test_bard_sight, test_bard_peek, test_bard_peek_corner, test_bard_kill_tile_spot, test_bard_skip_logged,
               test_bard_other_on_pets, test_bard_provoke, test_rope_sight, test_red_flight,
               test_red_out_of_view, test_red_walled, test_tidal_red_unseen,

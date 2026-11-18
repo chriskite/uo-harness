@@ -881,7 +881,11 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    not (live 20261015_090607 a banshee killed Logan in the 7 s he stood there; user 2026-10-15: pets left
    in the dungeon are retrieved at the stablemaster, "Retrieve Lost Followers"). The waits read the
    state through the runner's guards, so a due potion is drunk. After a recall a missing pet is an
-   urgent `pet_left_behind` juncture.
+   urgent `pet_left_behind` juncture. **Said once** (since 2026-11-17, user: "More than once is a waste of time"):
+   no "All Follow Me" again while our last pet command is one said within `tamer.FOLLOW_FRESH_S` 15 s and every pet
+   is within 3 (`Team.together`); a pet out of reach still gets it again. Before, a planned leave said it twice
+   beside Maus 3's and Tidal Tomb's gates, 1 s apart (the fought walk's end, then the gate's own). test_sim
+   `test_gate_one_follow`.
    - **No leave that isn't to survive walks off from a live pet** (`HuntLoop.gather_pets`, since 2026-10-31; user,
      after the 19:14:58 V* leave went without the pets fighting out of view: "you should fix whatever is causing us
      to leave the pets behind"; docs/NOTES.md "Tidal Tomb level 2: the leave without the pets"). Time up, the loot

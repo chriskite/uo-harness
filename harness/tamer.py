@@ -167,6 +167,10 @@ FOLLOW_R = 3                  # mount.PET_RANGE: a following pet stays this clos
 # recall without waiting left a pet behind in 12 of 16. Leaving for a pet while we are fine (follow()
 # upgrades "attention" to "info" then) and planned leaves: 10 s.
 FOLLOW_WAIT_S = {"urgent": 0.0, "attention": 0.0, "info": 10.0}
+# follow(): no second 'All Follow Me' while our last pet command is one said this recently and every pet is with us
+# (user 2026-11-17: "Why does the runner say 'All Follow Me' twice before leaving through the crimson gate? More than
+# once is a waste of time"; walk_in_fought's end and the gate's own follow 1 s apart, a hotkey pause each)
+FOLLOW_FRESH_S = 15.0
 # A pet hears a command this far, with a margin [INFERENCE: 71 'All Follow Me' with a pet 7+ off in 25 captures to
 # 2026-10-24: from 11-13 tiles 9 of 15 were beside us 3 s later, from 15-17 none of 7; live 18:26:51-18:27:28 GraveRobber
 # at 17 fought on through three while AlaFlambe at 6 came; the simulator's sim.world.COMMAND_R is 14]
@@ -937,6 +941,7 @@ class Team:
         self.follow_needed = False       # a pet died: "All Follow Me" so the ghost stays in the vet's reach
         self.ghosts = set()              # pet serials seen dead (update: the "All Follow Me" once per death)
         self.on_follow = False           # our last pet command was "All Follow Me" (say)
+        self.follow_said_t = -1e9        # when that "All Follow Me" was said (follow: no repeat while fresh)
         self.ghost_followed = False      # ...said for a ghost (ghost_follow): unfollow once none is left
         self.backspawn = {}              # (x, y) -> stealther type: its spawn spot (seed_backspawn, sightings)
         self.backspawn_pending = []      # [(spot, kind, facet)] collected, not yet within BACKSPAWN_SEED_R
@@ -1371,6 +1376,8 @@ class Team:
         self.h.link.act(command(text))
         self.count("commands")
         self.on_follow = text.lower() == "all follow me"
+        if self.on_follow:
+            self.follow_said_t = time.monotonic()
         log(f'said "{COMMANDS[text.lower()]}"')
         return True
 
@@ -1470,8 +1477,12 @@ class Team:
         `wait` False: no wait and no fall back (hurt beside the gate: live 20261015_090607 Logan stood 7 s
         beside it for pets fighting 20 tiles off and a banshee killed him; user 2026-10-15: "its fine if our
         pets stay or die in the dungeon, we can easily retrieve them at the stablemaster"). The waits read
-        the state through the host (HuntLoop.state: its guards drink a potion on the way out)."""
-        self.say("all follow me")
+        the state through the host (HuntLoop.state: its guards drink a potion on the way out). Not said again when our
+        last pet command is an 'All Follow Me' within FOLLOW_FRESH_S and every pet is with us (together): the leave's
+        fought walk ends with one, and the gate's follow came 1 s after it."""
+        now = time.monotonic()
+        if not (self.on_follow and now - self.follow_said_t <= FOLLOW_FRESH_S and self.together(self.h.state())):
+            self.say("all follow me")
         st = self.h.state()
         me = st["world"]["self"]
         hurt = me.get("hits") is not None and self.h.frac(me) < self.a.heal_at
