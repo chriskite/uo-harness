@@ -173,6 +173,17 @@ def test_npcs_and_players():
        (one(a, 0x218).kind, one(a, 0x218).player), ("grey", True))
     eq("a capitalised name without the flag is still assumed a player",
        (one(a, 0x219).kind, one(a, 0x219).player), ("grey", True))
+    # live 2026-11-19 16:44:49-16:46:31 (lumber-20261119-155530-c3ec, witcher_170): five "a cultist of the
+    # enchantress" (body 400, no player flag) came out as titled NPCs ("... the enchantress" read like "Len the
+    # banker") and were ignored; the one 2 tiles off went 3 -> 4 with war mode at 16:46:30.15 and Dan lost 35 hits
+    # 1.4 s later, "no creature in view that could have hit us". An article starts a creature label, not a title.
+    cult = {0x21A: "a cultist of the enchantress"}
+    a = assess(state([mob(0x21A, 2, 0, noto=3, flags=0)], labels=cult), recall_s=4.0, margin_s=1.0, now=NOW)
+    eq("'a cultist of the enchantress' (grey, no flag) is a monster, not a titled NPC",
+       (one(a, 0x21A).kind, one(a, 0x21A).player), ("monster", None))
+    a = assess(state([mob(0x21A, 2, 0, noto=4, flags=0x40)], labels=cult), recall_s=4.0, margin_s=1.0, now=NOW)
+    eq("the cultist in war mode at 2 tiles: hostile, flee", (one(a, 0x21A).hostile, one(a, 0x21A).action),
+       (True, "flee"))
 
 
 def test_monsters():

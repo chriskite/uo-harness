@@ -242,7 +242,9 @@ FLAG_PLAYER_HINT = 0x20          # EntityFlags.Movable; players only in captures
 FLAG_WARMODE = 0x40              # EntityFlags.WarMode (EntityFlags.cs:18)
 
 ALLY_NOTORIETY = 2               # green: our guild or alliance (friendly; never a thief, never fled from)
-_TITLE = re.compile(r"^\S.* the [A-Za-z][A-Za-z' -]*$")
+# "Len the banker", "Riane the battle trainer"; never an article-led label ("a cultist of the enchantress", live
+# 2026-11-19: five of them read as titled NPCs and ignored, one hit Dan for 35 in war mode at 2 tiles)
+_TITLE = re.compile(r"^(?!(?i:an?) )\S.* the [A-Za-z][A-Za-z' -]*$")
 # A named NPC of a faction or company, "<Name> of <Owner>'s <Group>": the Time Quest Hub's "Roan of Grere's Fighters",
 # "Delric of Grere's Rangers", "Alden of Grere's Magi" (live 2026-10-20: innocent, human body, no player flag; their
 # idle lines held mining twice and one, "You like dags?", read as an attendance check; the user: "Just another NPC")

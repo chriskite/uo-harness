@@ -10229,6 +10229,23 @@ of time (which could matter if we're escaping a red or dangerous mob)". Live 202
 - **Maus 3 batch** (the same 96 runs as above, 0a45f3d against the change): 'All Follow Me' 19 -> 10 an hour, pets
   left behind at a run's end 12 -> 10, pet deaths 0 -> 0, runs with a death 2 -> 0, banked 151.3k -> 151.9k an hour.
 
+## Cultists of the enchantress read as titled NPCs (live 2026-11-19 16:46:31, lumber-20261119-155530-c3ec)
+
+At witcher_170 (Fortune Teller forest, (4245, 476)) Dan lost 35 hits in one blow, 100 -> 65; the runner healed and
+recalled home ("taking damage, no creature in view or just out of it that could have hit us", juncture 3459).
+- **Evidence** (session_20261118_231915): five "a cultist of the enchantress" (body 400, no player flag) stood 2-10
+  tiles off. The juncture listed them as `kind: npc`, evidence "title label ... (heuristic)", action `ignore`. The
+  nearest, 0x00910780, sent 0x20 with notoriety 3, flags 0 at 16:44:49; at 16:46:30.15 notoriety 4 with war mode
+  (0x40), an animation (0x6E action 13) and its own 0x374A effect; Dan's hits fell to 65 at 16:46:31.50 (0xA1), and the
+  cultist said "*blood r…*" just after. No 0x0B, swing or spell on us (Outlands sends none: threats.py docstring).
+- **Cause**: `threats._TITLE` (`^\S.* the <word>$`, meant for "Len the banker") matched "a cultist of the
+  enchantress", and the title check comes before the article-led creature rule, so the cultist was an NPC and never
+  a monster, war mode or not.
+- **Fix**: `_TITLE` no longer matches a label that starts with an article ("a"/"an"). Such a label on a human body
+  with notoriety 3-5 is a monster, so the cultist is watched at notoriety 3 and fled from once in war mode.
+  test_threats `test_npcs_and_players` (fails before). Live at the next `ctl run` (runners) and `ctl` call; no proxy
+  restart (harness/world names threats.py only in a docstring).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

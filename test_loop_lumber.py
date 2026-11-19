@@ -4143,7 +4143,7 @@ def unit_smart_range():
     two, three = {"x": 12, "y": 12, "z": 0, "graphic": "0x0CE0"}, {"x": 13, "y": 10, "z": 0, "graphic": "0x0CE0"}
     marks, events = [], []
     fake = loop_fake(
-        doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None,
+        doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None, walk_to_work=lambda *a, **kw: None,
         link=SimpleNamespace(pos=lambda st: (10, 10, 0), state=lambda: {}, last={}),
         mover=SimpleNamespace(walk_to=lambda *a, **kw: None), timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
         trip_n=1, k={"spot": {"id": "s"}}, harvesting=False, ending=None, break_due=False, finish_requested=False,
@@ -4382,7 +4382,7 @@ def unit_run_and_recall():
         memory=SimpleNamespace(juncture=lambda *a: juncs.append(a)), trip_n=1, k={"spot": {"id": "sim"}},
         pacer=lambda st, a: None, flight_hit=lambda *a, **kw: None, guard_route=lambda st, w: route[0],
         escape_heal=lambda st, a: log_.append("heal"), doing=lambda *a: None, _guard_run=False, _flee_mark=0,
-        guard_summary=None)
+        guard_summary=None, red_flight_start=lambda: None, red_flight_end=lambda: None)
     route = [None]
     fake.threat_name = loop_lumber.LumberLoop.threat_name
     fake.run_and_recall = types.MethodType(loop_lumber.LumberLoop.run_and_recall, fake)
