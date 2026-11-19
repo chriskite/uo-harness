@@ -578,6 +578,12 @@ Paste this (or point the session at this section) to start an overseer.
 > `task_done`: the leg ends at home in the house, the ingots into the stockpile. **The daily cap** (since 2026-11-12):
 > with 10 min of the gate's daily budget left the run ends its trip at home by itself ("daily cap near …"), so a run
 > may be started late in the day; once it ends there, start no new one and end the shift.
+> **Lawless regions** (since 2026-11-19, after Dan died in Smugglers Den by forge_1193_1066): recall is refused inside
+> one, so the runner digs in none. A walk that steps into one turns back ("stepped into a lawless region at (x, y)";
+> its stand is passed over, a spot all inside ends unworkable). A refused escape recall in one walks out and casts again
+> ("recall refused in a lawless region …; out of the lawless region: back to (x, y)"). "no way out of the lawless region
+> known" or "still in the lawless region" in a log is an issue: report it. forge_1193_1066 stays disabled unless the
+> user says otherwise.
 > **Every spot cooling down** (`ok: false`, `retry_in_min` set): each spot is kept out for 30 min after a threat
 > sent Dan home from it (a tracked red included), and 60 min after it ran dry, a leg there ended creature-blocked
 > (every stand left in a creature's reach; since 2026-11-07, `why_not` "creature-blocked N min ago") or ended with its

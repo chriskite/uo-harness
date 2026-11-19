@@ -52,6 +52,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import guards  # noqa: E402
 import lumber_forest  # noqa: E402
 import lumber_opt  # noqa: E402
 import places  # noqa: E402
@@ -355,13 +356,14 @@ def forge_sites(records, link=FORGE_LINK):
 
 
 # -------------------------------------------------------------------- places
-def guard_points(db, facet) -> list:
-    """The memory store's learned guard-zone tiles on facet, read-only ([] without a store)."""
+def guard_points(db, facet, table: str = "guard_points") -> list:
+    """The memory store's learned guard-zone tiles on facet (`table` lawless_points: tiles inside lawless regions),
+    read-only ([] without a store)."""
     if not db or not os.path.exists(db):
         return []
     con = sqlite3.connect(Path(os.path.abspath(db)).as_uri() + "?mode=ro", uri=True, timeout=10)
     try:
-        return con.execute("SELECT x, y FROM guard_points WHERE facet = ?", (facet,)).fetchall()
+        return con.execute(f"SELECT x, y FROM {table} WHERE facet = ?", (facet,)).fetchall()
     except sqlite3.OperationalError:
         return []
     finally:
@@ -369,11 +371,13 @@ def guard_points(db, facet) -> list:
 
 
 def exclusions(facet, db):
-    """(rects, towns, guard points): the rectangles no node tile or stand may lie in."""
+    """(rects, towns, guard points): the rectangles no node tile or stand may lie in (towns, guard zones, and the
+    tiles round learned lawless-region points: recall is refused there, guards.LAWLESS_KEEP)."""
     towns = [(t["x"], t["y"]) for t in places.atlas(("town",)) if t["facet"] == facet]
     gps = guard_points(db, facet)
-    tr, gk = lumber_opt.TOWN_RADIUS, lumber_forest.GUARD_KEEP
+    tr, gk, lk = lumber_opt.TOWN_RADIUS, lumber_forest.GUARD_KEEP, guards.LAWLESS_KEEP
     rects = [(x - tr, y - tr, x + tr, y + tr) for x, y in towns] + [(x - gk, y - gk, x + gk, y + gk) for x, y in gps]
+    rects += [(x - lk, y - lk, x + lk, y + lk) for x, y in guard_points(db, facet, "lawless_points")]
     return rects, towns, gps
 
 

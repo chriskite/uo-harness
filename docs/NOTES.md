@@ -5890,6 +5890,23 @@ not a miner. Everything below is wiki/community/client-file evidence until a dem
     leg aborted home with `low_supplies` ("no pickaxe worn, in the backpack or in a bag in it"). The Seer read that as
     "none in the chest" and held the shift for the user, who found pickaxes in the chest already. Fix: PLAN "The last
     pickaxe wearing out ends the leg; a hop tops up".
+  - **Dead in a lawless region where the recall was refused (live 2026-11-19 10:19-10:22, mining-20261119-101907-372a,
+    forge_1193_1066 "Urk Fort/Smugglers Den", capture session_20261118_231915).** The plan's explore pick landed Dan by
+    the DTF tome's rune '12' at (1164, 1049), a lawful tile. The lawless region (Smugglers Den) starts 3 tiles north:
+    the step (1167, 1047) → (1167, 1046) came with "You are now entering a lawless region." from Dan's own serial
+    (`speech_heard`, hue 946) in the same batch as the step's confirm, and "Your mount finds a quiet place to rest
+    safely." right after (no riding in there). "You have left a lawless region." comes the same way. The boundary also
+    runs through (1193, 1024) / (1194, 1024). The runner knew none of it and dug 2 stands inside, (1170, 1031) and
+    (1174, 1021). Two highwayman leader escapes ended at (1187, 1013), inside. At 10:22:16 Tracking found red Lei Fang
+    86 tiles off. The recall was refused at once ("Magical travel is not allowed in this location.", `restricted`). The
+    guard route was 712 steps to (1474, 1495), and none fit within 964 steps from (1187, 1013). The run aborted at
+    10:22:18 and Dan stood there: Lei Fang attacked at 10:22:40 (Ort Por Ylem, Kal Vas Flam, Vas Ort Flam, Por Ort Grav
+    and Greater Explosion potions) and he died at 10:22:52. The tile he last walked outside, (1195, 1025), was 12 tiles
+    off. The store's events show Dan crossed the same boundary on 2026-10-19 and 2026-11-11 without incident
+    (`guards.py lawless-backfill`: 17 inside tiles from 37 notices; the others are Corpse Creek, around (897-930,
+    578-889)). The Seer disabled forge_1193_1066. After the resurrection (a wandering healer at (1156, 1048)) the Seer
+    saw a charge recall fail with `mana` at 7 mana and work at 22 [the Seer's report; not checked in a capture]. Fix:
+    PLAN "Mining runner…" *Lawless regions*.
 
 ## Monster casts on the wire: 0x6E then 0xC0 then '-N' (cast_scan, 2026-10-23)
 

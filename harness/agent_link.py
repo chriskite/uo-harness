@@ -167,6 +167,7 @@ OVERWEIGHT_TEXT = "You are carrying too much weight and are unable to move"
 # was walled and the walk in aborted ("no route") with Logan on the Mausoleum's second level.
 HOLD_ICONS = (19, 20, 135)
 SYSTEM_SERIALS = (None, 0, 0xFFFFFFFF, "0xFFFFFFFF")
+LAWLESS_TRAIL_EVERY = 4      # inside a lawless region a tile is recorded every this many tiles walked (Mover.lawless)
 
 
 def world_save(ev: dict) -> str | None:
@@ -641,6 +642,12 @@ class Mover:
         self.walled = set()          # (x, y) walls for this walk_to only: doors that refused us (walk_to)
         self.held_until = 0.0        # monotonic end of a hold on us (held): HELD_TEXT seen, HELD_END_TEXT not yet
         self._held_upto = len(link.events)   # link.events scanned for them (earlier ones are history)
+        # lawless regions (guards.LAWLESS_ENTER / LAWLESS_LEFT with a step; recall is refused there): _lawless_notices
+        self.lawless = None          # True inside one, False outside, None before the first notice (taken as outside)
+        self.lawful_tile = None      # ((x, y), facet): the last tile walked outside one (the way out of it)
+        self.lawless_tiles = set()   # (x, y) recorded inside one this session (the store's lawless_points too)
+        self._lawless_upto = len(link.events)   # link.events scanned for the notices
+        self._lawless_last = None    # the last inside tile recorded (every LAWLESS_TRAIL_EVERY tiles walked there)
 
     def in_danger(self, tile) -> bool:
         return tile in self.danger_tiles or any(tile in s for s in self.avoid.values()) \
@@ -775,12 +782,14 @@ class Mover:
         if after[:2] != before[:2] and nav.chebyshev(tuple(before[:2]), tuple(after[:2])) == 1 \
                 and st["world"]["self"].get("map") == facet_before:
             self._guard_entries(facet_before, before, after)   # before guard(): a flight stops on it
+            self._lawless_notices(facet_before, before, after)
         if self.guard(st):
             self._after = None                   # the guard acted (seconds may have gone by): no reuse of this state
         if after[:2] != before[:2]:
             self.steps += 1
             facet_after = st["world"]["self"].get("map")
             if nav.chebyshev(tuple(before[:2]), tuple(after[:2])) > 1 or facet_after != facet_before:
+                self._lawless_jump()
                 if walks > 1 and facet_after == facet_before:
                     log(f"moved to {tuple(after[:3])} by {walks - 1} walk(s) from the client (the user steering); "
                         f"not a teleporter")
@@ -805,6 +814,43 @@ class Mover:
         events += [e for e in self.link.events[self.step_mark:] if e.get("ev") == "cliloc"]
         for x, y in guards.entries(events):
             self._source.guard_point_record(facet, x, y)
+
+    def _lawless_notices(self, facet, before, after):
+        """A one-tile step: a lawless-region notice since the last look (guards.lawless_crossing; the server sends it
+        with the step that crossed) sets `lawless`. The way out, `lawful_tile`: the step's start when it entered, else
+        every tile walked outside. Inside, the tile is recorded (`lawless_tiles`, the store's lawless_points) on
+        entering and every LAWLESS_TRAIL_EVERY tiles walked there, so the runners' stand choice keeps out of it."""
+        evs = self.link.events
+        texts = [e.get("text") for e in evs[self._lawless_upto:] if e.get("ev") == "speech_heard"
+                 and e.get("text") in (guards.LAWLESS_ENTER, guards.LAWLESS_LEFT)]
+        self._lawless_upto = len(evs)
+        entered = False
+        for text in texts:
+            self.lawless = guards.lawless_crossing(before, after, text)[2]
+            entered = self.lawless
+        here = tuple(after[:2])
+        if not self.lawless:
+            self.lawful_tile, self._lawless_last = (here, facet), None
+            return
+        if entered:
+            self.lawful_tile, self._lawless_last = (tuple(before[:2]), facet), None
+        if self._lawless_last is not None and nav.chebyshev(self._lawless_last, here) < LAWLESS_TRAIL_EVERY:
+            return
+        self._lawless_last = here
+        self.lawless_tiles.add(here)
+        if hasattr(self._source, "lawless_point_record"):
+            self._source.lawless_point_record(facet, here[0], here[1])
+
+    def _lawless_jump(self):
+        """A move that wasn't a one-tile step (a teleporter, the user steering): a lawless-region notice since the last
+        look sets `lawless` without a tile to record; inside, the way out is unknown."""
+        evs = self.link.events
+        texts = [e.get("text") for e in evs[self._lawless_upto:] if e.get("ev") == "speech_heard"
+                 and e.get("text") in (guards.LAWLESS_ENTER, guards.LAWLESS_LEFT)]
+        self._lawless_upto = len(evs)
+        if texts:
+            self.lawless = texts[-1] == guards.LAWLESS_ENTER
+        self.lawful_tile, self._lawless_last = (None if self.lawless else self.lawful_tile), None
 
     def fresh_state(self) -> dict:
         """The full state the last step ended with while it is still current

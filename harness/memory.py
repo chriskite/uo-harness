@@ -59,7 +59,7 @@ Characters (v6)
   NULL = not character-scoped, or written before v6). A Memory built with a
   char_serial tags what it writes and, for junctures/chat, reads only that
   character's rows plus the NULL ones (scope_sql). World facts (walk_moves,
-  harvest_*, teleporters, guard_points, knowledge) are shared by every character.
+  harvest_*, teleporters, guard_points, lawless_points, knowledge) are shared by every character.
 
 Writers
   - the proxy: MemoryWriter, a background thread fed from SessionTap events, each
@@ -144,6 +144,10 @@ CREATE TABLE IF NOT EXISTS teleporters(
     n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
     PRIMARY KEY (facet, x, y));
 CREATE TABLE IF NOT EXISTS guard_points(
+    facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
+    n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
+    PRIMARY KEY (facet, x, y));
+CREATE TABLE IF NOT EXISTS lawless_points(
     facet INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
     n INTEGER NOT NULL, first_t REAL NOT NULL, last_t REAL NOT NULL,
     PRIMARY KEY (facet, x, y));
@@ -618,6 +622,21 @@ class Memory:
         """{(x, y)} known tiles inside town-guard zones on facet."""
         return {(x, y) for x, y in self.con.execute(
             "SELECT x, y FROM guard_points WHERE facet = ?", (0 if facet is None else facet,))}
+
+    # -- lawless regions ------------------------------------------------------------
+    def lawless_point_record(self, facet, x, y, t: float | None = None):
+        """(facet, x, y) is a tile inside a lawless region (guards.lawless_crossings; recall is blocked there)."""
+        t = time.time() if t is None else t
+        self.con.execute(
+            "INSERT INTO lawless_points(facet, x, y, n, first_t, last_t) VALUES(?,?,?,1,?,?) "
+            "ON CONFLICT(facet, x, y) DO UPDATE SET n=n+1, last_t=excluded.last_t",
+            (0 if facet is None else facet, x, y, t, t))
+        self.con.commit()
+
+    def lawless_points(self, facet) -> set:
+        """{(x, y)} known tiles inside lawless regions on facet."""
+        return {(x, y) for x, y in self.con.execute(
+            "SELECT x, y FROM lawless_points WHERE facet = ?", (0 if facet is None else facet,))}
 
     # -- lumber and mining spots, prices (lumber_opt.py, mining_opt.py, docs/LUMBER_LOOP.md §6) -------
     SPOT_STATUSES = ("active", "candidate", "disabled")

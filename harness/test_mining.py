@@ -281,6 +281,7 @@ def test_reachable_stands():
         # from (55, 49), just north of the wall: (55, 52) is 3 tiles off but ~48 steps round by x 75; (45, 45) 10
         loop.link.pos = lambda st: [55, 49, 0, 4]
         loop.no_route_stands, loop.danger = set(), {}
+        loop.near_lawless = lambda xy: False
         loop.human = SimpleNamespace(rng=random.Random(7))
         picks = {(p["x"], p["y"]) for p in (loop.next_stand(cands) for _ in range(20))}
         loop.mover.danger = {("seen", 7): ((45, 45), 3)}   # a creature in view among the near stand's rocks
@@ -330,6 +331,7 @@ def test_field_stands():
         cands = loop.candidate_stands({})
         got = sorted((s["x"], s["y"]) for s in cands)
         loop.no_route_stands, loop.danger = set(), {}
+        loop.near_lawless = lambda xy: False
         loop.human = SimpleNamespace(rng=random.Random(7))
         first = loop.next_stand(cands)
         loop.dry_blocks = {(1, 1)}                  # the near stand dug out
@@ -378,6 +380,7 @@ def test_next_stand_away_from_escaped():
         loop.link = SimpleNamespace(pos=lambda st: [62, 25, 0, 4], state=lambda: {}, last=None)
         loop.human = SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0))
         loop.no_route_stands, loop.danger, loop.escaped_from = set(), {}, {}
+        loop.near_lawless = lambda xy: False
         before = loop.next_stand([west, east])
         # live 2026-11-08 12:31-12:35 (mining-20261108-122035-886c, Time Quest Hub): a blue player stepped away from
         # (keep_away: self.danger, not escaped_from) across the corridor; no monster escaped
@@ -777,6 +780,7 @@ def test_far_stand_scored_by_steps():
     loop.danger = {}
     loop.human = SimpleNamespace(rng=SimpleNamespace(uniform=lambda a, b: 1.0))
     loop.no_route_stands = set()
+    loop.near_lawless = lambda xy: False
     loop.avail = lambda s: s["blocks"]
 
     def walk_steps(st, whole=False):
@@ -872,19 +876,26 @@ def test_gate_out():
           escape.failure({"ev": "speech_heard", "text": "Magical travel is not allowed in this location."}, 0)
           == "restricted" and escape.retry_wait({"failure": "restricted"}) is None)
 
-    def run(gate_at):
+    def run(gate_at, lawful=None):
         calls, events = [], []
         pos = [7338, 1220, -55]
         items = {} if gate_at is None else {"0x40001234": {"graphic": 0x0F6C, "x": gate_at[0], "y": gate_at[1], "z": -55}}
-        state = {"world": {"items": items}}
+        state = {"world": {"items": items, "self": {"map": 0}}}
         loop = object.__new__(MineLoop)
         loop.JOB, loop.trip_n, loop.recall_book, loop.home_rune_name = "mining", 1, 0x49865F8F, None
         loop.home = {"landing": [3575, 3251, 0]}
         loop.link = SimpleNamespace(state=lambda: state, pos=lambda st: pos, events=events,
                                     act=lambda pkt: calls.append(("dclick", int.from_bytes(bytes(pkt)[1:5], "big"))))
         loop.mover = object.__new__(Mover)
-        loop.mover.use_map = False
-        loop.mover.walk_to = lambda goal, r, label, **kw: calls.append(("walk", tuple(goal())))
+        loop.mover.use_map, loop.mover.lawless, loop.mover.lawful_tile = False, lawful is not None, lawful
+        loop.mode = "work"
+
+        def walk_to(goal, r, label, **kw):
+            calls.append(("walk", tuple(goal())))
+            if label == "out of the lawless region":
+                pos[:2] = goal()
+                loop.mover.lawless = False
+        loop.mover.walk_to = walk_to
         loop.human = SimpleNamespace(wait=lambda kind: None)
         loop.at_home = lambda st: tuple(pos[:2]) == (3575, 3251)
         loop.doing = loop.travel_leg = loop.note_book_charge = lambda *a, **k: None
@@ -924,6 +935,151 @@ def test_gate_out():
     calls, out = run(None)
     check("no gate in view: the run aborts where it is, one recall tried",
           out == "recall home failed: restricted (at (7338, 1220))" and calls == [("recall", (7338, 1220))], (out, calls))
+    calls, out = run((7338, 1220), lawful=((7330, 1220), 0))
+    check("refused in a lawless region: back out to the last tile outside it, the recall from there; no gate",
+          out == "home" and calls == [("recall", (7338, 1220)), ("walk", (7330, 1220)), ("recall", (7330, 1220))],
+          (out, calls))
+
+
+def test_lawless_notices():
+    print("the lawless-region notices with their steps: in or out, the way out, the tiles inside recorded")
+    # live 2026-11-19 (events seq 267726-267729): the step (1167, 1047) -> (1167, 1046) and "You are now entering a
+    # lawless region." in one batch; 10:22:03 "You have left a lawless region." with (1194, 1024) -> (1193, 1025)
+    from agent_link import Mover
+    import guards
+    recorded = []
+    m = object.__new__(Mover)
+    m.link = SimpleNamespace(events=[])
+    m._source = SimpleNamespace(lawless_point_record=lambda facet, x, y: recorded.append((x, y)))
+    m.lawless, m.lawful_tile, m.lawless_tiles, m._lawless_upto, m._lawless_last = None, None, set(), 0, None
+
+    def step(a, b, text=None):
+        if text:
+            m.link.events.append({"ev": "speech_heard", "text": text})
+        m._lawless_notices(0, list(a), list(b))
+    step((1167, 1049), (1167, 1048))
+    check("outside (no notice yet): every tile walked is the way out", m.lawless is None
+          and m.lawful_tile == ((1167, 1048), 0) and not recorded, (m.lawless, m.lawful_tile))
+    step((1167, 1048), (1167, 1047))
+    step((1167, 1047), (1167, 1046), guards.LAWLESS_ENTER)
+    check("entering: inside, the way out the tile before, the tile inside recorded",
+          m.lawless is True and m.lawful_tile == ((1167, 1047), 0) and recorded == [(1167, 1046)], (m.lawful_tile, recorded))
+    for y in range(1045, 1036, -1):
+        step((1167, y + 1), (1167, y))
+    check(f"walking on inside: a tile every {4} recorded, the way out kept",
+          recorded == [(1167, 1046), (1167, 1042), (1167, 1038)] and m.lawful_tile == ((1167, 1047), 0), recorded)
+    step((1167, 1037), (1167, 1038), guards.LAWLESS_LEFT)
+    check("leaving: outside again, the way out where we stand", m.lawless is False
+          and m.lawful_tile == ((1167, 1038), 0) and len(recorded) == 3, (m.lawless, m.lawful_tile, recorded))
+
+
+def test_lawless_recall():
+    print("a recall refused in a lawless region: back out to the last tile outside it at a run, then the recall again")
+    # live 2026-11-19 10:22:16-52 (mining-20261119-101907-372a, forge_1193_1066 by Smugglers Den): a tracked red, the
+    # recall refused at (1187, 1013) ('restricted', "Magical travel is not allowed in this location."), no guards on
+    # foot, the run stopped there and Lei Fang killed Dan; the tile last walked outside, (1195, 1025), was 12 tiles off
+    import escape
+    import loop_lumber
+    from agent_link import Mover
+    from loop_lumber import Unsafe
+
+    def run(back):
+        calls = []
+        pos = [1187, 1013, 0]
+        state = {"world": {"self": {"map": 0}, "mobiles": {}}, "movement": {"pos": pos}}
+        loop = object.__new__(MineLoop)
+        loop.JOB, loop.trip_n, loop.recall_book, loop.home_rune_name = "mining", 1, 0x49865F8F, None
+        loop.mode, loop.k = "work", {"spot": {"id": "forge_1193_1066"}}
+        loop.link = SimpleNamespace(state=lambda: state, pos=lambda st: pos)
+        loop.mover = object.__new__(Mover)
+        loop.mover.lawless, loop.mover.lawful_tile = True, back
+
+        def walk_to(goal, r, label, urgent=False, stop=None, **kw):
+            calls.append(("walk", tuple(goal()), urgent, loop.mode))
+            pos[:2] = goal()
+            loop.mover.lawless = False
+        loop.mover.walk_to = walk_to
+        loop.drop_cursor = lambda: False
+        loop.sight_t = lambda worst, swung: None
+        loop.flee_aid = lambda st, **k: False
+        loop.aid = SimpleNamespace(ready_at=lambda: 0.0)
+        loop._checking, loop.guard_summary, loop.travel = 1, None, []
+        loop.attacker_list = lambda swung: []
+        loop._where = lambda st: {}
+        loop.memory = SimpleNamespace(
+            job_event=lambda job, kind, data, **kw: calls.append(("event", kind, data["ok"], data.get("left_lawless"))),
+            juncture=lambda *a, **k: calls.append(("juncture", a[1])))
+        loop.expect_casts = loop.note_book_charge = loop.check_ledger = lambda *a: None
+        loop.post_threat = lambda *a, **k: "red Lei Fang"
+
+        def recall(io, book, **kw):
+            calls.append(("recall", tuple(pos[:2])))
+            if loop.mover.lawless:
+                return {"ok": False, "failure": "restricted", "attempts": 1, "elapsed_s": 0.1}
+            return {"ok": True, "failure": None, "attempts": 1, "elapsed_s": 2.2, "to": [3575, 3251], "kind": "runebook",
+                    "method": "charge", "press_to_arrival_s": 2.2}
+        saved = escape.escape, escape.LinkIO, loop_lumber.log
+        escape.escape, escape.LinkIO, loop_lumber.log = recall, (lambda link: None), (lambda s: None)
+        try:
+            out = loop.recall_out(state, SimpleNamespace(), None, set(), why="tracking: Lei Fang 86 spaces")
+        except Unsafe as e:
+            out = str(e)
+        finally:
+            escape.escape, escape.LinkIO, loop_lumber.log = saved
+        return calls, out, loop.mode
+    calls, out, mode = run(((1195, 1025), 0))
+    check("refused inside: a run (mode 'gap') to (1195, 1025), the recall from there lands; the event says so",
+          calls == [("recall", (1187, 1013)), ("walk", (1195, 1025), True, "gap"), ("recall", (1195, 1025)),
+                    ("event", "recall", True, True), ("juncture", "pk_escape")]
+          and "escaped by recall" in out and mode == "work", (calls, out, mode))
+    for back, what in ((None, "no tile outside known"), (((1100, 900), 0), "the last tile outside 113 tiles off")):
+        calls, out, mode = run(back)
+        check(f"{what}: one recall, no walk, the failure returned as before",
+              calls == [("recall", (1187, 1013)), ("event", "recall", False, False)]
+              and out == "recall failed after 1 cast(s): restricted", (calls, out))
+
+
+def test_lawless_stand():
+    print("a walk to an ore stand that steps into a lawless region: back out, the stand passed over")
+    import loop_lumber
+    import loop_mining
+    from agent_link import Mover
+    pos = [1169, 1049, 0]
+    calls = []
+    loop = object.__new__(MineLoop)
+    loop.mode, loop.walk_goal = "work", None
+    loop.link = SimpleNamespace(state=lambda: {"world": {"self": {"map": 0}}}, pos=lambda st: pos)
+    loop.mover = object.__new__(Mover)
+    loop.mover.lawless, loop.mover.lawful_tile = None, None
+
+    def walk_to(goal, r, label, stop=None, **kw):
+        calls.append((label, tuple(goal())))
+        if label == "out of the lawless region":
+            pos[:2] = goal()
+            loop.mover.lawless = False
+            return stop({})
+        for y in (1048, 1047, 1046):                 # (1169, 1046) is inside
+            pos[:2] = [1169, y]
+            if y == 1046:
+                loop.mover.lawless, loop.mover.lawful_tile = True, ((1169, 1047), 0)
+            if (why := stop({})) is not None:
+                return why
+        return None
+    loop.mover.walk_to = walk_to
+    loop.state = lambda: {}
+    loop.doing = lambda *a: None
+    loop._steps, loop._clear_route = None, None
+    loop.no_route_stands, loop.stall_stands, loop.fruitless = set(), 0, 0
+    saved = loop_mining.log, loop_lumber.log
+    loop_mining.log = loop_lumber.log = lambda s: None
+    try:
+        loop.dig_stand({"x": 1170, "y": 1031, "blocks": []}, {"ore": 0})
+    finally:
+        loop_mining.log, loop_lumber.log = saved
+    check("stopped on the first tile inside, back to (1169, 1047); the stand passed over, counted as fruitless",
+          calls == [("to the ore stand 1170,1031", (1170, 1031)), ("out of the lawless region", (1169, 1047))]
+          and tuple(pos[:2]) == (1169, 1047) and loop.no_route_stands == {(1170, 1031)} and loop.fruitless == 1,
+          (calls, pos, loop.no_route_stands, loop.fruitless))
 
 
 def test_cut_off_level():
@@ -1120,7 +1276,8 @@ def main():
               test_reachable_stands, test_field_stands, test_next_stand_away_from_escaped, test_run_past,
               test_forge_unreachable, test_stalled_leg,
               test_cut_off_level, test_fall_hit, test_in_guards, test_red_flight_zones, test_smelt_busy,
-              test_teleported_away, test_gate_out, test_far_stand_route_cap, test_field_forge_route_cap,
+              test_teleported_away, test_gate_out, test_lawless_notices, test_lawless_recall, test_lawless_stand,
+              test_far_stand_route_cap, test_field_forge_route_cap,
               test_last_pickaxe_worn_out, test_stash_lift_refused, test_far_stand_scored_by_steps,
               test_daily_cap_near, test_stands_left):
         t()

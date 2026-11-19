@@ -2349,6 +2349,30 @@ schema v7. Offline-proven (`test_loop_mining.py`, `harness/test_mining.py`); run
   one burst. The dig's pace stays humanize's `dig_use` (~0.2 s after the reply, ANTICHEAT.md §3): the press should come
   ~0.25 s after the reply, against 0.53 s measured before [INFERENCE until a live capture shows it]. Rejected: a runner
   thread for store writes (more moving parts; one commit a stand is cheap once the lock is free).
+- *Lawless regions: never dig in one, walk out before a recall* (2026-11-19, Outland Dan's death at forge_1193_1066;
+  docs/NOTES.md "Dead in a lawless region where the recall was refused"). The server refuses magical travel inside a
+  lawless region, so a red there leaves only the guards on foot, often hundreds of steps off. The client data has no
+  region shapes; the server's notices with the step that crossed give them. `agent_link.Mover` reads "You are now
+  entering a lawless region." / "You have left a lawless region." (guards.LAWLESS_ENTER/LEFT, guards.lawless_crossing)
+  on each one-tile step: `lawless` (in or out), `lawful_tile` (the step's start when entering, else every tile walked
+  outside) and the tiles inside, recorded on entering and every 4 tiles walked there (`lawless_tiles`, the store's
+  `lawless_points` table; `python harness/guards.py lawless-backfill` fills it from the event log). The lumber and
+  mining runners (loop_lumber):
+  - `recall_out` (every escape recall, and the abort's way home) refused with `restricted` while `lawless`:
+    `leave_lawless` runs back to `lawful_tile` (mode 'gap', within `LAWLESS_BACK_MAX` 40 tiles), then casts again
+    ("recall refused in a lawless region (1 cast(s)); out of the lawless region: back to (x, y), N tiles", "out of the
+    lawless region at (x, y)"). The `recall` job event has `left_lawless`. `go_home` does the same before its moongate
+    fallback (gate_out).
+  - `walk_to_work` (stands, trees): standing inside, out first; a step into one ends the walk ("stepped into a
+    lawless region at (x, y)"), walks back out and returns that, so the stand or tree is passed over. Mining counts
+    it as fruitless (`UNWORKABLE_STANDS` in a row disables the spot as unworkable); lumber drops the trees round it.
+  - Stand choice keeps `guards.LAWLESS_KEEP` (6) tiles from every known inside tile: `near_lawless` in `next_stand`
+    (this run's and the store's), and `ore_nodes.exclusions` for the leg's candidate stands and spot discovery.
+  Rejected: disabling every spot near a lawless notice (forge_1193_1066's landing and its stand (1159, 1054) are lawful);
+  a hand-drawn region list (no source for the shapes; the notices are the ground truth). Limits: stands deep inside,
+  more than 6 tiles from any known inside tile, are still chosen; each costs a step in and back. A teleporter or recall
+  into a lawless region leaves `lawful_tile` unknown, and `leave_lawless` then says "no way out of the lawless region
+  known". test_mining `test_lawless_notices`, `test_lawless_recall`, `test_lawless_stand`, `test_gate_out`.
 - *Not built*: ore maps, pickaxe wear tracking (a broken pickaxe leaves the hand empty and the next dig equips the
   spare or aborts with none).
 

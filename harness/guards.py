@@ -26,6 +26,7 @@ the 16:44 death spot (4172,849) to Anchor's Rest's bank, weight 3 9 196 (0.26 s)
 Nusero Island (witcher_280) is an island after 125 046 expansions (7.0 s), witcher_242 after 126 796.
 
 CLI: python harness/guards.py backfill [--db PATH]
+     python harness/guards.py lawless-backfill [--db PATH]   (lawless-region points: lawless_crossing)
      python harness/guards.py route X Y [--facet N] [--expand N] [--db PATH]
 """
 import argparse
@@ -57,6 +58,14 @@ FLEE_ISLAND_MIN = 200          # an exhausted search smaller than this started i
 ROUTE_KEEP_EVERY = 4           # a cached route keeps every 4th tile (the Mover plans between them)
 BANK_RADIUS = 2
 ENTRY_WINDOW_S = 1.0           # backfill: the notice follows its step within this (no recall/teleport since)
+# Lawless regions (Corpse Creek, Smugglers Den by Urk Fort, the seas...): everyone reads grey, a mount is sent away
+# ("Your mount finds a quiet place to rest safely.") and magical travel is refused ("Magical travel is not allowed in
+# this location.", escape.py 'restricted'). Live 2026-11-19 10:21-10:22, mining-20261119-101907-372a: each notice came
+# with the step that crossed (same packet batch), and Outland Dan died at (1187, 1013) when his recall was refused there
+LAWLESS_ENTER = "You are now entering a lawless region."
+LAWLESS_LEFT = "You have left a lawless region."
+LAWLESS_KEEP = 6               # tiles round a learned lawless point no stand or tree is chosen in (inside points come
+#                                every agent_link.LAWLESS_TRAIL_EVERY tiles walked there, so this covers the trail)
 
 
 def entries(events) -> list:
@@ -94,6 +103,38 @@ def backfill(memory) -> int:
                 and nav.chebyshev(last[0], last[1]) == 1 and t is not None and last[2] is not None \
                 and 0 <= t - last[2] <= ENTRY_WINDOW_S:
             memory.guard_point_record(0, last[1][0], last[1][1], t)
+            n += 1
+    return n
+
+
+def lawless_crossing(step_from, step_to, text):
+    """(inside, outside, entered) for a lawless-region notice `text` that came with a one-tile step `step_from` ->
+    `step_to`: entering, the step's destination is inside and its start outside; leaving, the other way round.
+    None for any other text or step."""
+    if text not in (LAWLESS_ENTER, LAWLESS_LEFT) or nav.chebyshev(tuple(step_from[:2]), tuple(step_to[:2])) != 1:
+        return None
+    a, b = tuple(step_from[:2]), tuple(step_to[:2])
+    return (b, a, True) if text == LAWLESS_ENTER else (a, b, False)
+
+
+def lawless_backfill(memory) -> int:
+    """Record a lawless point (memory.lawless_points) for every lawless-region notice in the store's event log that
+    came within ENTRY_WINDOW_S of a one-tile step: the tile of that step inside the region. Facet 0, as backfill.
+    Returns the count."""
+    n = 0
+    session = None
+    last = None
+    rows = memory.con.execute("SELECT session, seq, t, ev, data FROM events WHERE ev = 'step' OR "
+                              "(ev = 'speech_heard' AND data LIKE '%lawless region%') ORDER BY session, seq").fetchall()
+    for sess, _seq, t, ev, data in rows:
+        if sess != session:
+            session, last = sess, None
+        e = json.loads(data)
+        if ev == "step":
+            last = (e["from"], e["to"], t)
+        elif last is not None and t is not None and last[2] is not None and 0 <= t - last[2] <= ENTRY_WINDOW_S \
+                and (c := lawless_crossing(last[0], last[1], e.get("text"))) is not None:
+            memory.lawless_point_record(0, c[0][0], c[0][1], t)
             n += 1
     return n
 
@@ -285,6 +326,8 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("backfill", help="record guard points from the store's event log")
     b.add_argument("--db", default=memory_mod.DEFAULT_DB)
+    lb = sub.add_parser("lawless-backfill", help="record lawless-region points from the store's event log")
+    lb.add_argument("--db", default=memory_mod.DEFAULT_DB)
     r = sub.add_parser("route", help="plan_route from a tile to the nearest guarded place (store + bank markers)")
     r.add_argument("x", type=int)
     r.add_argument("y", type=int)
@@ -300,6 +343,11 @@ def main():
         goals = flee_goals(mem.guard_points(args.facet), bank_markers(), args.facet, (args.x, args.y), None)
         route = plan_route(walk, start, goals, args.expand) if start else Route("undecided")
         print(json.dumps({"start": start, **route.summary()}))
+        return
+    if args.cmd == "lawless-backfill":
+        n = lawless_backfill(mem)
+        total = mem.con.execute("SELECT COUNT(*) FROM lawless_points").fetchone()[0]
+        print(json.dumps({"recorded": n, "points": total}))
         return
     n = backfill(mem)
     total = mem.con.execute("SELECT COUNT(*) FROM guard_points").fetchone()[0]

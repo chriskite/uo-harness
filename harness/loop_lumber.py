@@ -144,6 +144,12 @@ import moongate  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
+# Lawless regions (guards.LAWLESS_ENTER; recall is refused there). Live 2026-11-19 10:21-10:22 (mining-20261119-101907-372a,
+# forge_1193_1066 by Smugglers Den): Dan dug at stands inside one, a tracked red's recall was refused ('restricted'),
+# the guards were out of reach on foot, the run stopped at (1187, 1013) and Lei Fang killed him there 35 s later; the
+# tile he had last walked outside it was 12 tiles away
+LAWLESS_BACK_MAX = 40         # leave_lawless walks back to the last tile outside only within this many tiles
+LAWLESS_STOP = "stepped into a lawless region"   # walk_to_work's answer when a step to a stand or tree crossed into one
 # the agent gate's daily budget left (gate daily_remaining_s, active time) at or below which the trip winds down and
 # goes home like a break: the gate refuses every action at 0, the recall home too (live 2026-11-08 22:46:40,
 # mining-20261108-224015-2660: "recall home after the abort: action 0x06 refused: ERR daily agent budget exhausted",
@@ -550,6 +556,8 @@ class LumberLoop:
         self.run_arrived = None      # time.time() when the last walk-away ended (--creature-rehit-s)
         self.walk_hits = 0           # hits that cost hits during the current walk-away (hit_verdict walk_hits)
         self.walk_goal = None        # (x, y) of the stand or tree a walk heads for (walk_to_work), for run_past
+        self._lawless_store = None   # the store's lawless_points on the spot's facet (near_lawless; read once a run)
+        self._lawless_cover = (None, set())   # (the point counts it was built from, tiles within LAWLESS_KEEP of them)
         self.run_past_from = {}      # creature serial -> (x, y) where run_past first weighed it
         self.ran_past = set()        # (serial, goal) pairs run_past logged
         self.cut_off_now = set()     # creature serials on another level with no way to us (cut_off), this state read
@@ -1300,13 +1308,72 @@ class LumberLoop:
                            self.memory.job_event(self.JOB, "run_past", data, **where))
         return keep
 
-    def walk_to_work(self, goal, radius: int, label: str, **kw):
-        """mover.walk_to a stand or tree, the goal known to run_past while walking."""
+    def walk_to_work(self, goal, radius: int, label: str, stop=None, **kw):
+        """mover.walk_to a stand or tree, the goal known to run_past while walking. Never into a lawless region (recall
+        is refused there): standing in one, out of it first (leave_lawless); a step into one ends the walk, walks back
+        out and returns LAWLESS_STOP + " at (x, y)", so the caller passes the goal over (near_lawless keeps the ones
+        round it out from then on)."""
         self.walk_goal = tuple(goal[:2])
         try:
-            return self.mover.walk_to(lambda: goal, radius, label, **kw)
+            if self.mover.lawless:
+                self.leave_lawless(f"{label}: standing in a lawless region")
+            inside = self.mover.lawless             # still in one (no way out known): walk on as before
+
+            def stop_(st):
+                if self.mover.lawless and not inside:
+                    return LAWLESS_STOP
+                return stop(st) if stop is not None else None
+            why = self.mover.walk_to(lambda: goal, radius, label, stop=stop_, **kw)
+            if why == LAWLESS_STOP:
+                here = tuple(self.link.pos(self.link.state())[:2])
+                why = f"{LAWLESS_STOP} at {here}"
+                self.leave_lawless(f"{label}: {why} (recall is refused there)")
+            return why
         finally:
             self.walk_goal = None
+
+    def near_lawless(self, xy) -> bool:
+        """`xy` within guards.LAWLESS_KEEP tiles of a tile known inside a lawless region: this run's (Mover.lawless_tiles)
+        or the store's (lawless_points, read once a run)."""
+        if self._lawless_store is None:
+            self._lawless_store = self.memory.lawless_points(self.facet)
+        key = (len(self._lawless_store), len(self.mover.lawless_tiles))
+        if key != self._lawless_cover[0]:
+            k = guards.LAWLESS_KEEP
+            self._lawless_cover = (key, {(x + dx, y + dy) for x, y in self._lawless_store | self.mover.lawless_tiles
+                                         for dx in range(-k, k + 1) for dy in range(-k, k + 1)})
+        return tuple(xy[:2]) in self._lawless_cover[1]
+
+    def leave_lawless(self, why: str, urgent: bool = False) -> bool:
+        """Out of the lawless region we stand in (Mover.lawless): back to the last tile walked outside it
+        (Mover.lawful_tile) when it is within LAWLESS_BACK_MAX tiles, until the server says we left. `urgent`: a flight
+        before a recall (mode 'gap': no threat stops it, running). True when out (or never in)."""
+        m = self.mover
+        if not m.lawless:
+            return True
+        st = self.link.state()
+        here = tuple(self.link.pos(st)[:2])
+        back = m.lawful_tile
+        if back is None or back[1] != st["world"]["self"].get("map") or cheb(here, back[0]) > LAWLESS_BACK_MAX:
+            log(f"{why}; no way out of the lawless region known from {here}"
+                + (f" (the last tile outside, {back[0]}, is farther than {LAWLESS_BACK_MAX})" if back else ""))
+            return False
+        log(f"{why}; out of the lawless region: back to {back[0]}, {cheb(here, back[0])} tiles")
+        mode = self.mode
+        if urgent:
+            self.mode = "gap"
+        try:
+            m.walk_to(lambda: back[0], 0, "out of the lawless region", urgent=urgent,
+                      stop=lambda s: "out" if not m.lawless else None, max_moves=3 * LAWLESS_BACK_MAX)
+        except Unsafe:
+            raise
+        except Abort as x:
+            log(f"out of the lawless region: {str(x).split(': ', 1)[-1]}")
+        finally:
+            self.mode = mode
+        here = tuple(self.link.pos(self.link.state())[:2])
+        log(f"out of the lawless region at {here}" if not m.lawless else f"still in the lawless region at {here}")
+        return not m.lawless
 
     def creature_hit(self, st, a, swung, monsters, escape: bool):
         """Damage taken (LUMBER_LOOP.md §13 "Running from a creature"). Who hit us is
@@ -2360,9 +2427,19 @@ class LumberLoop:
         def between(s, last):
             used = self.flee_aid(s, standing=True, frozen_hint=last["failure"] == "frozen")
             return self.aid.ready_at() if used else None
+
+        def cast():
+            return escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log, attempts=attempts,
+                                     between=between, gate=gate, rune=self.home_rune_name)
+        left = None
         try:
-            res = escape_mod.escape(escape_mod.LinkIO(self.link), self.recall_book, log=log, attempts=attempts,
-                                    between=between, gate=gate, rune=self.home_rune_name)
+            res = cast()
+            # refused in a lawless region: out of it, then again (LAWLESS_BACK_MAX; the 2026-11-19 death)
+            if not res["ok"] and res["failure"] == "restricted" and self.mover.lawless:
+                left = self.leave_lawless(f"recall refused in a lawless region ({res['attempts']} cast(s))",
+                                          urgent=True)
+                if left:
+                    res = cast()
         except escape_mod.RecallError as e:
             return f"recall not possible: {e}"
         if self._checking == 0:              # not inside a threat check (an abort's way home): its writes now
@@ -2372,6 +2449,8 @@ class LumberLoop:
                 "cause": "player" if pk else "creature", "react_s": react, "cursor_cancelled": cancelled}
         if why:
             data["why"] = why
+        if left is not None:
+            data["left_lawless"] = left              # refused in a lawless region; this cast is from outside it
         if pk and self.guard_summary is not None:
             data["guards"] = self.guard_summary      # the way to the guards this escape found (guard_route)
         self.memory.job_event(self.JOB, "recall", data, **self._where(st))
@@ -3760,6 +3839,10 @@ class LumberLoop:
             else:
                 why = self.walk_to_work((tree["x"], tree["y"]), 1, f"to {label}", z_ok=z_ok, max_route=max_route,
                                         stop=rethink)
+            if why and why.startswith(LAWLESS_STOP):
+                trees[:] = [t for t in trees if not self.near_lawless((t["x"], t["y"]))]
+                log(f"{label}: {why}; the trees round it passed over, {len(trees)} left")
+                return
             if why:
                 trees.append(tree)               # still a candidate, for later or from elsewhere
                 if why.startswith("a creature's zone"):
@@ -4656,9 +4739,9 @@ class LumberLoop:
     def go_home(self):
         """Home by our own book's home rune (prepare_recall: its default, else by the name home_rune_name),
         unless at home already (home.at_home: in the house; come_home walks to the landing tile). A recall the
-        place refuses ('restricted') goes through a moongate in view to a town first (gate_out), then again. A
-        `travel` job event (leg 'home') per recall; a recall that lands anywhere but home aborts. Either way we're
-        no longer out at the spot (afield)."""
+        place refuses ('restricted') goes out of the lawless region we stand in first (leave_lawless), else through a
+        moongate in view to a town (gate_out), then again. A `travel` job event (leg 'home') per recall; a recall that
+        lands anywhere but home aborts. Either way we're no longer out at the spot (afield)."""
         st = self.link.state()
         if self.at_home(st):
             self.afield = False
@@ -4676,7 +4759,10 @@ class LumberLoop:
                 raise Abort(f"recall home not possible: {e}")
             self.travel_leg(leg, t0, res, before)
             self.note_book_charge(res)
-            if res["ok"] or gated or res["failure"] != "restricted" or not self.gate_out():
+            if res["ok"] or gated or res["failure"] != "restricted":
+                break
+            if not (self.mover.lawless and self.leave_lawless("recall home refused in a lawless region")) \
+                    and not self.gate_out():
                 break
         if not res["ok"]:
             raise Abort(f"recall home failed: {res['failure']}"

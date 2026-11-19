@@ -892,7 +892,8 @@ class MineLoop(loop_lumber.LumberLoop):
             best, any_avail = None, False
             for s in stands:
                 xy = (s["x"], s["y"])
-                if xy in self.no_route_stands or (far is not None and xy not in far and _holds(box, (*xy, *xy))):
+                if xy in self.no_route_stands or self.near_lawless(xy) \
+                        or (far is not None and xy not in far and _holds(box, (*xy, *xy))):
                     continue
                 free = self.avail(s)
                 if not free:
@@ -1072,8 +1073,8 @@ class MineLoop(loop_lumber.LumberLoop):
             n = self._clear_route[(x, y)]   # next_stand chose it by the way out of the escaped creatures' zones
         try:
             # on the map a detour round creatures' zones longer than STAND_DETOUR x the way is given up quickly
-            self.walk_to_work((x, y), 0, f"to the ore stand {x},{y}",
-                              max_route=None if n is None else STAND_ROUTE_MIN + STAND_DETOUR * n)
+            why = self.walk_to_work((x, y), 0, f"to the ore stand {x},{y}",
+                                    max_route=None if n is None else STAND_ROUTE_MIN + STAND_DETOUR * n)
         except WalkFailed as e:
             # no route, or a walk that went round in circles / was boxed in / replanned too often (Mover): the stand
             # is given up and digging goes on at the next (STALL_STANDS counts it; live 2026-11-02 a circling walk)
@@ -1082,6 +1083,13 @@ class MineLoop(loop_lumber.LumberLoop):
             self.stall_stands += 1
             if steps is None and why == "no route":   # on the map the stand is walkable: what cut the way passes
                 self.fruitless += 1
+            log(f"ore stand {x},{y}: {why}; trying the next one")
+            return
+        if why is not None and why.startswith(loop_lumber.LAWLESS_STOP):
+            # recall is refused there (the 2026-11-19 death): the stand is passed over, the ones round the tiles known
+            # inside too (near_lawless); a spot all inside ends unworkable like one with no route (UNWORKABLE_STANDS)
+            self.no_route_stands.add((x, y))
+            self.fruitless += 1
             log(f"ore stand {x},{y}: {why}; trying the next one")
             return
         z = self.link.pos(self.link.state())[2]
