@@ -3934,6 +3934,17 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     level is searched, so the house's own "paragon chest (drake)" and the sealed one are never touched. A chest still
     without its tooltip name at the drop-off would stay in the pack [INFERENCE: the name was in the state for this one].
     test_dropoff `test_dropoff` (fails before).
+  - **Ore maps, runes, cloth and dyes go to the chest since 2026-11-18** (the Seer's report of the Maus 3 shift
+    19:50-23:11: the drop-off said "into the chest: nothing" while an ore map 0x78726083 (graphic 0x1120A) and five
+    hued runes (0x9BE1 hue 0x950, 0x9BD4 hue 0x845, 0x9BD1 hue 0x949, …; tiledata "rune", the house's tome shelf
+    graphic 0x1120E is an "arcane rune tome") stayed in the pack and it moved them by hand; the user: "ore map, rune,
+    cloth, dyes"). The name "resource map" missed "<metal> ore map", and items without a tooltip name are matched by
+    graphic only. `to_chest.graphics` now takes inclusive ranges ("0x9BD1-0x9BEE"): resource maps 0x11202-0x1120D
+    (tiledata fishing, lumber, ore and skinning maps), runes 0x9BD1-0x9BEE, cloth 0x0F95-0x0F9C (bolts) and
+    0x175D-0x1768 (folded, cut, plain); dyes by the name "dye" ("mastery chain dye"; "dyeing tub" doesn't match
+    `\bdyes?\b`). Runes never by name: "a rune tome" would match. Two runes 0x78E56320 0x9BEC and 0x78F13786 0x9BE7
+    were still in the pack at logout 23:11 (capture 20261118_194719 replayed): the next drop-off takes them.
+    test_dropoff `test_dropoff` (fails before).
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 

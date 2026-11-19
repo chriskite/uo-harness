@@ -79,20 +79,22 @@ class _Flow:
 
 def chest_items(state: dict, rules: dict) -> list[tuple[int, dict]]:
     """(serial, item) in the backpack's top level that `rules` sends to the chest: a graphic of
-    rules["graphics"], or a name holding one of rules["names"] as words (case-blind). Worn items and
-    whatever lies in a bag inside the pack are never moved."""
+    rules["graphics"] (a graphic, or an inclusive range "0x9BD1-0x9BEE"), or a name holding one of rules["names"]
+    as words (case-blind). Worn items and whatever lies in a bag inside the pack are never moved."""
     items = state["world"]["items"]
     pack = combat.backpack(items, state["movement"].get("self_serial"))
     if pack is None:
         return []
-    graphics = {_serial(g) for g in rules.get("graphics") or []}
+    spans = [tuple(_serial(v) for v in g.split("-")) if isinstance(g, str) and "-" in g else (_serial(g),) * 2
+             for g in rules.get("graphics") or []]
     names = [re.compile(rf"\b{re.escape(n.lower())}s?\b") for n in rules.get("names") or []]
     out = []
     for k, it in items.items():
         if it.get("container") is None or _serial(it["container"]) != pack or it.get("layer"):
             continue
         name = (it.get("name") or "").lower()
-        if _serial(it.get("graphic") or 0) in graphics or any(n.search(name) for n in names):
+        graphic = _serial(it.get("graphic") or 0)
+        if any(lo <= graphic <= hi for lo, hi in spans) or any(n.search(name) for n in names):
             out.append((_serial(k), it))
     return out
 

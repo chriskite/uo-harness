@@ -110,7 +110,8 @@ class SavingRoom(Room):
 
 
 def test_dropoff():
-    print("== the user's 'New Drop Off', then research materials, resource maps and paragon chests into the chest ==")
+    print("== the user's 'New Drop Off', then research materials, resource maps, paragon chests, runes, cloth and dyes "
+          "into the chest ==")
     plan = home.for_character("Logan Wolf")["dropoff"]
     loot = {"0x44100001": {"graphic": 0x5F72, "amount": 2, "container": f"0x{PACK:08X}", "name": "research materials"},
             "0x44100002": {"graphic": 0x14EC, "amount": 1, "container": f"0x{PACK:08X}",
@@ -119,7 +120,16 @@ def test_dropoff():
             "0x44100004": {"graphic": 0x0F0C, "amount": 20, "container": f"0x{PACK:08X}", "name": "Greater Heal potion"},
             # user 2026-11-17: "drop off paragon chests at home, not keep carrying them back to the dungeon"
             "0x44100005": {"graphic": 0x0E7C, "amount": 1, "container": f"0x{PACK:08X}",
-                           "name": "paragon chest (lowtide scavenger)"}}
+                           "name": "paragon chest (lowtide scavenger)"},
+            # user 2026-11-18: ore maps, runes, cloth and dyes too (live they stayed in the pack: "into the chest:
+            # nothing"); an unnamed ore map, a Mausoleum rune, cut cloth, a mastery chain dye
+            "0x44100006": {"graphic": 0x1120A, "amount": 1, "container": f"0x{PACK:08X}"},
+            "0x44100007": {"graphic": 0x9BE1, "amount": 1, "container": f"0x{PACK:08X}"},
+            "0x44100008": {"graphic": 0x1766, "amount": 12, "container": f"0x{PACK:08X}"},
+            "0x44100009": {"graphic": 0x0E26, "amount": 1, "container": f"0x{PACK:08X}", "name": "mastery chain dye"},
+            # kit: the rune tome and a dyeing tub stay
+            "0x4410000A": {"graphic": 0x22C5, "amount": 1, "container": f"0x{PACK:08X}", "name": "a rune tome"},
+            "0x4410000B": {"graphic": 0x0FAB, "amount": 1, "container": f"0x{PACK:08X}", "name": "a dyeing tub"}}
     room = Room(plan, loot)
     out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
     picks = [(int.from_bytes(p[5:9], "big"), int.from_bytes(p[9:11], "big")) for p in room.sent
@@ -135,9 +145,10 @@ def test_dropoff():
     check("the stockpile's Restock cursor answered with the backpack, as the script's `target 0x445E9F92`",
           tgt == actions.target_object(7, PACK, 0, 0, 0, 0x0E75, 0), str(tgt))
     moved = sorted(c["serial"] for c in out["chest"])
-    check("research materials, the resource map and the paragon chest from the pack's top level into the chest; "
-          "the one in a bag and the potions stay",
-          moved == ["0x44100001", "0x44100002", "0x44100005"] and not out["left"], str(out["chest"]))
+    check("research materials, the resource map, the paragon chest, the ore map, the rune, the cloth and the dye "
+          "from the pack's top level into the chest; the one in a bag, the potions, the rune tome and the tub stay",
+          moved == ["0x44100001", "0x44100002", "0x44100005", "0x44100006", "0x44100007", "0x44100008",
+                    "0x44100009"] and not out["left"], str(out["chest"]))
     drops = [p for p in room.sent if p[0] == 0x08]
     check("each one lifted and dropped into the chest, opened first",
           room.sent.index(actions.dclick(CHEST)) < room.sent.index(drops[0])
