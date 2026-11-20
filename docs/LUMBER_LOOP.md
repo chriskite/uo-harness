@@ -172,7 +172,7 @@ runtime data, AGENTS.md Rule 0):
   - breaks and daily cap
   - never renounce Young (§1)
   - forced breaks: the runner itself still doesn't read the gate. But since 2026-10-01 a due break waits up to 10 min and wakes the overseer (`break_due` juncture), which can stop the run, get home and `ctl break` (docs/OVERSEER.md). Without an overseer the break starts when the grace runs out; `Mover.step` then waits it out for up to ~200 s and aborts the run where the character stands (ANTICHEAT.md §10 A9)
-  - speech hold (2026-10-01): a character speaking near the agent holds the run until the overseer's all-clear (`speech_guard.py`; docs/OVERSEER.md `speech_nearby`); a speaker with staff hints also raises `gm_suspected` and the repeating staff alarm (`alerts.py`), and the run stays held until that's acked. Laya judges each line (`triage.py`, `--triage-url`, empty = off): a likely attendance check is a staff hint; nothing is ever skipped because of it (PLAN.md "Laya speech triage")
+  - speech hold (2026-10-01): a character speaking near the agent holds the run until the overseer's all-clear (`speech_guard.py`; docs/OVERSEER.md `speech_nearby`); a speaker with staff hints also raises `gm_suspected` and the repeating staff alarm (`alerts.py`), and the run stays held until that's acked, or (since 2026-11-19) until the overseer's all-clear with the alarm still open, which ends the trip at home to wait there (§13 "Guards"). Laya judges each line (`triage.py`, `--triage-url`, empty = off): a likely attendance check is a staff hint; nothing is ever skipped because of it (PLAN.md "Laya speech triage")
 
 ## 6. Optimize
 
@@ -1824,7 +1824,13 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
 - **Guards:** overall timeout, HP loss, movement stall, the agent gate (pause/break → wait;
   kill/budget → abort; break_due → finish the trip at home, above), threats (escape or stop,
   above), and the speech hold (a character speaking nearby → send nothing until the
-  overseer acks the `speech_nearby` juncture; the pause doesn't count against the timeout).
+  overseer acks the `speech_nearby` juncture; the pause doesn't count against the timeout). An
+  all-clear given while `gm_suspected` is still open (the user's to ack) ends the trip at home instead
+  of resuming (`staff_wait`, since 2026-11-19): "all-clear after N s with gm_suspected [id] still open:
+  ending the trip at home…", "possible staff open: stopping the harvest at N logs…", then "possible staff
+  open: boards stored after trip N; the run ends here, at home, until the user acks gm_suspected"; the
+  trip row and the stand carry `staff_wait` / `end: staff`. A run started with one open makes no trip
+  ("possible staff open: no trip 1").
 - **Human texture (user request 2026-09-29; `harness/humanize.py`, used by every runner via
   `Mover` and `Human`):**
   - Seeded `Human` profiles: `normal` (default) and `off` (deterministic tests).

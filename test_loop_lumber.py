@@ -177,9 +177,9 @@ LOG_G, BOARD_G, POUCH_G = 0x1BDD, 0x1BD7, 0x0E79
 THIEF, THIEF_NAME = 0x0073C056, "Caputo Wood"            # a blue who walks up to steal (live 2026-10-03)
 PASSERBY = 0x0000ABCD                                    # a player who walks up and says hello mid-harvest
 GREETING = "hail! good trees here?"
-HOLD_S = 3.0                                             # the test overseer's all-clear comes this long after
+HOLD_S = 3.0                                             # the test overseer's first ack comes this long after the hold
 HIDDEN = 0x0000BEEF                                      # speaks during the hold, never on screen (hidden GM?)
-GM_EXTRA_S = 2.0                                         # the GM suspicion is acked this long after the all-clear
+GM_EXTRA_S = 2.0                                         # main: the speech all-clear comes this long after the staff ack
 GM_SEEN, VENDOR_NEAR = 0x0000D00D, 0x00000B8E             # staff_in_view: notoriety 7 with / without the player flag
 GM_ROBE = 0x40000D01                                     # staff_in_view: what the invulnerable player wears
 GOOD_VISIT = 6                                           # attempts before the good tree runs dry
@@ -1974,8 +1974,9 @@ async def main():
         held = {}
 
         async def overseer():
-            """Gives the all-clear (acks the speech juncture) HOLD_S after it appears and
-            stands the staff alarm down (acks gm_suspected) GM_EXTRA_S after that."""
+            """The user stands the staff alarm down (acks gm_suspected, once the hidden speaker raised it) HOLD_S
+            after the hold appears, and the overseer gives the all-clear (acks the speech juncture) GM_EXTRA_S
+            after that. (The all-clear first, with the alarm still open, ends the trip at home: staff_in_view.)"""
             store = memory.Memory(paths["db"])
             while True:
                 await asyncio.sleep(0.2)
@@ -1984,13 +1985,17 @@ async def main():
                 if row:
                     held["t"] = row[1]
                     await asyncio.sleep(HOLD_S)
+                    gm = None
+                    while gm is None:                 # the hidden speaker speaks ~1 s into the hold
+                        gm = store.con.execute("SELECT id FROM junctures WHERE kind='gm_suspected' "
+                                               "AND acked_t IS NULL").fetchone()
+                        if gm is None:
+                            await asyncio.sleep(0.2)
+                    held["gm_ack"] = time.time()
+                    store.juncture_ack(gm[0])
+                    await asyncio.sleep(GM_EXTRA_S)
                     held["ack"] = time.time()
                     store.juncture_ack(row[0])
-                    await asyncio.sleep(GM_EXTRA_S)
-                    for (gid,) in store.con.execute("SELECT id FROM junctures WHERE kind='gm_suspected' "
-                                                    "AND acked_t IS NULL").fetchall():
-                        held["gm_ack"] = time.time()
-                        store.juncture_ack(gid)
         clearer = asyncio.create_task(overseer())
         await asyncio.sleep(0.5)
         runner = await asyncio.create_subprocess_exec(
@@ -2061,10 +2066,10 @@ async def main():
               and sp.get("serial") == f"0x{PASSERBY:08X}" and sp.get("text") == GREETING
               and "player flag 0x20" in sp.get("evidence", []), str(holds))
         quiet = [p.hex() for p, t in zip(world.c2s, world.c2s_t)
-                 if held.get("t") is not None and held["t"] + 0.3 < t < held.get("gm_ack", 0)]
-        check(f"nothing sent while held, even after the speech all-clear ({HOLD_S:.0f} s) while the GM "
-              f"suspicion stayed open ({GM_EXTRA_S:.0f} s more)",
-              "gm_ack" in held and world.spoke_at is not None and held["t"] - world.spoke_at < 3.0 and quiet == [],
+                 if held.get("t") is not None and held["t"] + 0.3 < t < held.get("ack", 0)]
+        check(f"nothing sent while held, even after the staff alarm was acked ({HOLD_S:.0f} s) while the speech "
+              f"hold stayed open ({GM_EXTRA_S:.0f} s more)",
+              "ack" in held and world.spoke_at is not None and held["t"] - world.spoke_at < 3.0 and quiet == [],
               f"held {held} spoke {world.spoke_at} sent {quiet[:5]}")
         gms = [j for j in store.junctures() if j["kind"] == "gm_suspected"]
         check("the hidden speaker raised one urgent gm_suspected juncture from the runner (not on screen)",
@@ -3811,17 +3816,19 @@ async def staff_in_view():
     player flag) steps next to us: nothing. Then an invulnerable player (notoriety 7 + player flag 0x20,
     wearing a robe) comes into view 5 tiles off and stays: one urgent gm_suspected (staff alarm) and one
     speech_nearby hold for it, a staff_sighting job event with what it looks like, nothing sent until the
-    test overseer acks both; then the trip banks."""
+    test overseer gives the all-clear. The alarm stays open for the user (user 2026-11-19: once the overseer
+    has answered, wait at home, not in the field): the trip ends at home with its boards stored and the run with
+    it; no trip 2."""
     print("\n== staff in view: a vendor next to us is nothing; an invulnerable player holds the job ==")
     world = World("staff")
     held = {}
 
     async def overseer(db):
-        """Acks the hold HOLD_S after it appears, and gm_suspected GM_EXTRA_S after that."""
+        """Acks the hold HOLD_S after it appears; leaves gm_suspected open (the user's)."""
         await asyncio.sleep(1.0)
         store = memory.Memory(db)
         try:
-            while "gm_ack" not in held:
+            while "ack" not in held:
                 await asyncio.sleep(0.2)
                 row = store.con.execute("SELECT id, t FROM junctures WHERE kind='speech_nearby' "
                                         "AND acked_t IS NULL").fetchone()
@@ -3830,17 +3837,12 @@ async def staff_in_view():
                     await asyncio.sleep(HOLD_S)
                     held["ack"] = time.time()
                     store.juncture_ack(row[0])
-                    await asyncio.sleep(GM_EXTRA_S)
-                    for (gid,) in store.con.execute("SELECT id FROM junctures WHERE kind='gm_suspected' "
-                                                    "AND acked_t IS NULL").fetchall():
-                        store.juncture_ack(gid)
-                    held["gm_ack"] = time.time()
         finally:
             store.close()
 
     # one tree, as before (the walk home from GOOD_TREE crosses the door)
     text, code, store, _ = await run_scenario(world, "staff_in_view", [GOOD_TREE],
-                                              ["--trips", "1", "--logs-per-trip", "100", "--human", "off"],
+                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
                                               during=overseer)
     gm_key, vendor_key = f"0x{GM_SEEN:08X}", f"0x{VENDOR_NEAR:08X}"
     js = store.junctures()
@@ -3854,10 +3856,10 @@ async def staff_in_view():
           and not [j for j in js if j["kind"] == "thief_near"],
           f"vendor {world.vendor_t} gm {world.gm_t} {[(j['kind'], j['summary']) for j in js]}")
     g = gms[0] if gms else {}
-    check("one urgent gm_suspected from the runner for the invulnerable player, raised on sight (< 3 s), acked",
+    check("one urgent gm_suspected from the runner for the invulnerable player, raised on sight (< 3 s), left open",
           len(gms) == 1 and g["source"] == "lumber" and g["severity"] == "urgent"
           and g["data"]["speakers"][0]["serial"] == gm_key and "invulnerable player" in g["summary"]
-          and g["t"] - world.gm_t < 3.0 and g["acked_t"] is not None, str(gms))
+          and g["t"] - world.gm_t < 3.0 and g["acked_t"] is None, str(gms))
     h = holds[0] if holds else {}
     sp = (h.get("data") or {}).get("speakers") or [{}]
     check("one urgent speech_nearby hold for it (a sighting: no text), saying it is in view",
@@ -3865,9 +3867,9 @@ async def staff_in_view():
           and sp[0].get("serial") == gm_key and sp[0].get("type") == "sighting" and sp[0].get("text") is None
           and "is in view (invulnerable player" in h["summary"] and h["t"] - world.gm_t < 3.0, str(holds))
     quiet = [p.hex() for p, t in zip(world.c2s, world.c2s_t)
-             if held.get("t") is not None and held["t"] + 0.3 < t < held.get("gm_ack", 0)]
-    check(f"nothing sent while held: the hold's all-clear ({HOLD_S:.0f} s), then the staff alarm acked "
-          f"({GM_EXTRA_S:.0f} s more)", "gm_ack" in held and quiet == [], f"held {held} sent {quiet[:5]}")
+             if held.get("t") is not None and held["t"] + 0.3 < t < held.get("ack", 0)]
+    check(f"nothing sent while held, until the hold's all-clear ({HOLD_S:.0f} s)",
+          "ack" in held and quiet == [], f"held {held} sent {quiet[:5]}")
     sights = [e for e in store.job_events("lumber") if e["kind"] == "staff_sighting"]
     s = sights[0]["data"] if sights else {}
     check("one staff_sighting job event (the vendor none): serial, body, hue, notoriety, flags, position, "
@@ -3877,10 +3879,16 @@ async def staff_in_view():
           and [(w["serial"], w["layer"], w["graphic"], w["hue"]) for w in s["worn"]]
           == [(f"0x{GM_ROBE:08X}", 0x16, 0x204F, 0x0481)] and s["trip"] == 1, str(sights))
     eps = store.episodes("lumber")
-    check("it stayed in view and raised nothing more; the job resumed after the all-clear and stored, exit 0",
-          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and "all-clear after" in text
+    clears = [e["data"] for e in store.job_events("lumber") if e["kind"] == "speech_clear"]
+    check("it stayed in view and raised nothing more; the all-clear with the alarm open ended the trip at home with "
+          "the boards stored, the run with it (no trip 2), exit 0",
+          code == 0 and [e.get("outcome") for e in eps] == ["stored"] and eps[0].get("staff_wait") is True
+          and "still open: ending the trip at home" in text and "possible staff open: stopping the harvest" in text
+          and "possible staff open: boards stored after trip 1; the run ends here" in text and world.at_home_landing
+          and [c.get("staff_wait") for c in clears] == [True]
           and sum(r.get("speech_holds", 0) for r in eps) == 1 and text.count("STAFF IN VIEW") == 1,
-          f"exit {code} {[(e.get('outcome'), e.get('speech_holds')) for e in eps]}\n{text[-600:]}")
+          f"exit {code} {[(e.get('outcome'), e.get('speech_holds'), e.get('staff_wait')) for e in eps]}"
+          f"\n{text[-600:]}")
     store.close()
 
 

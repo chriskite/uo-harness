@@ -1214,12 +1214,24 @@ as a test over the committed captures). THREATS.md §1 and OVERSEER.md describe 
   get us killed"): no speech reading, sightings or Laya in the hunt runner (docs/HUNT_LOOP.md "Guards").
 - Tests: `test_speech_guard.py` `test_sightings`; `test_loop_lumber.py staff_in_view` (a vendor at
   1 tile raises nothing; then a robed notoriety-7 + `0x20` mobile gives one `gm_suspected`, one
-  hold, one `staff_sighting` with the robe, nothing sent until both acks, then the trip banks);
+  hold, one `staff_sighting` with the robe, nothing sent until the all-clear; since 2026-11-19 the alarm
+  stays open and the trip ends at home, below);
   `harness/test_staff_sighting_replay.py`. That last one replays the 10 committed captures (~2 s) and
   checks after every mobile 0x20, the only packet that sets notoriety or flags: 2,597 checks, 271
   notoriety-7 and 263 player-flagged mobiles, zero hints.
 - Open: a GM shown blue/grey or hidden still gets past the sight rule (the speech hold and the
   other hints cover them). The first live `staff_sighting` will show whether the rule holds.
+- **Wait for the user's ack at home, not in the field (user 2026-11-19).** The "no resume while
+  `gm_suspected` is open" rule left Dan standing at the tree after the Seer had answered the speaker and judged
+  him a player (live: OreGoblin's "are u in a guild?", Laya 0.99, ~4 min idle at witcher_279 until the user's
+  ack). The user: "once it responded and decided it wasn't a GM it should probably not just stand there…
+  maybe recalling home and pausing the run is the right thing to do". Now the overseer's all-clear (ack of
+  `speech_nearby`) while `gm_suspected` is still open ends the hold with `staff_wait`: the trip ends like a
+  `stop --after-trip` (home, convert, store, exit 0, "possible staff open: boards stored after trip N"), and a run
+  started while one is open makes no trip. The Seer starts the next run after the user's ack. Rejected: resuming
+  the same trip after the ack (a second recall out mid-trip, more code for no gain: the next run re-plans
+  anyway); leaving at once on the alarm (an unanswered possible GM must be answered on the spot, where he is).
+  The order of the two acks still matters: the user's ack first, then the all-clear, resumes in place.
 
 ## One supervisor for the stack (decided and built 2026-10-04)
 

@@ -72,6 +72,10 @@ overseer (`speech_nearby`); one with staff hints also raises `gm_suspected` and 
 repeating staff alarm. An invulnerable player (notoriety 7 + player flag 0x20)
 coming into view is a staff hint without a word: the alarm at once, a
 `staff_sighting` job event on its first sighting this run, and the same hold.
+When the overseer gives the all-clear (acks `speech_nearby`) while `gm_suspected`
+stays open for the user, the trip ends at home (boards stored) and the run with it
+(staff_wait): Dan waits for the user's ack in the house, not standing in the field
+(user 2026-11-19). A run started while one is open makes no trip.
 
 Threats (threats.py; LUMBER_LOOP.md §13): a monster close enough to flee from
 gets an escape: legs of ESCAPE_RUN tiles until it gives up the chase (out of view,
@@ -518,6 +522,7 @@ class LumberLoop:
     CARRIED = {"logs": LOGS, "boards": BOARDS}   # the theft event's and trip row's carried counts
     HOME_DONE = "boards stored"     # what a finished trip did at home (run's log lines)
     cap_near = False                # the gate's daily budget is down to CAP_MARGIN_S (check_gate sets it)
+    staff_wait = False              # all-clear given with gm_suspected still open: the trip ends at home (speech_hold)
 
     def __init__(self, link: Link, memory: Memory, know: dict, args, base: dict | None = None):
         self.link = link
@@ -730,11 +735,11 @@ class LumberLoop:
     @property
     def ending(self) -> str | None:
         """Why this trip winds down early and the run ends at home after it: "break due" (the
-        agent gate), "stop requested" (ctl stop --after-trip) or "daily cap near" (the gate's daily budget down to
-        CAP_MARGIN_S); None to carry on. Either way: stop harvesting, home, convert, store, exit 0
-        (docs/LUMBER_LOOP.md §13)."""
+        agent gate), "stop requested" (ctl stop --after-trip), "daily cap near" (the gate's daily budget down to
+        CAP_MARGIN_S) or "possible staff open" (staff_wait); None to carry on. Either way: stop harvesting, home,
+        convert, store, exit 0 (docs/LUMBER_LOOP.md §13)."""
         return ("break due" if self.break_due else "stop requested" if self.finish_requested
-                else "daily cap near" if self.cap_near else None)
+                else "daily cap near" if self.cap_near else "possible staff open" if self.staff_wait else None)
 
     # ------------------------------------------------------------ watchful waits
     def look(self, st=None):
@@ -2861,7 +2866,11 @@ class LumberLoop:
                 self.suspect_staff(new, st)
                 alerts.staff_alarm_due(self.memory, not self.args.quiet)
                 j = self.memory.junctures(after_id=jid - 1, limit=1)
-                if j and j[0]["acked_t"] is not None and not alerts.open_gm(self.memory):
+                if j and j[0]["acked_t"] is not None:
+                    if not alerts.open_gm(self.memory):
+                        break
+                    # the overseer has dealt with the speaker; the staff alarm waits for the user: wait at home
+                    self.staff_wait = True
                     break
         finally:
             self.holding = False
@@ -2871,12 +2880,17 @@ class LumberLoop:
               for g in self.memory.junctures(after_id=min(gms) - 1, limit=max(gms) - min(gms) + 1)
               if g["id"] in gms] if gms else []
         self.memory.job_event(self.JOB, "speech_clear",
-                              {"juncture": jid, "waited_s": round(waited, 1), "gm_suspected": gm, "lines": lines},
+                              {"juncture": jid, "waited_s": round(waited, 1), "gm_suspected": gm, "lines": lines,
+                               "staff_wait": self.staff_wait},
                               **self._where(st))
         self.speech.clear(heard)
         self.stats["speech_holds"] = self.stats.get("speech_holds", 0) + 1
         self.stats["speech_wait_s"] = self.stats.get("speech_wait_s", 0.0) + waited
-        log(f"all-clear after {waited:.0f} s; resuming")
+        if self.staff_wait:
+            log(f"all-clear after {waited:.0f} s with gm_suspected {alerts.open_gm(self.memory)} still open: "
+                f"ending the trip at home to wait for the user's ack")
+        else:
+            log(f"all-clear after {waited:.0f} s; resuming")
         self.human.wait("read")
         if resume is not None:
             self.doing(*resume)
@@ -3943,6 +3957,7 @@ class LumberLoop:
                         raise Abort("harvest attempts keep ending without a known outcome")
             self.stash_now()                   # the last chop's logs (each chop stashes the one before)
             rec["end"] = ("break" if self.break_due else "stop" if self.finish_requested
+                          else "staff" if self.staff_wait
                           else "quota" if tally["gained"] >= self.args.logs_per_trip
                           else "max_attempts")
         except BaseException as e:
@@ -5062,6 +5077,8 @@ class LumberLoop:
                 self.stats["break_due"] = True
             if self.finish_requested:
                 self.stats["stop_requested"] = True
+            if self.staff_wait:
+                self.stats["staff_wait"] = True
             woods = self.stats.get("woods") or (self.ledger.summary(kind="log") if outcome == "hopped" else None)
             if woods is not None:           # this leg's logs by wood: what it carried in isn't its own
                 woods = {w: n - woods0.get(w, 0) for w, n in woods.items() if n - woods0.get(w, 0) > 0}
@@ -5356,6 +5373,8 @@ class LumberLoop:
             self.doing("done", "Flee drill done; waiting at home")
             return
         for n in range(1, self.args.trips + 1):
+            if not self.staff_wait and alerts.open_gm(self.memory):   # the user hasn't acked it: no trip out
+                self.staff_wait = True
             if self.ending:                          # asked between trips: no new one
                 log(f"{self.ending}: no trip {n}; waiting at home")
                 self.doing("done", f"Stopped before trip {n} ({self.ending}); waiting at home")
@@ -5373,6 +5392,11 @@ class LumberLoop:
             if self.finish_requested:
                 log(f"stop requested: {self.HOME_DONE} after trip {n}; the run ends here, at home")
                 self.doing("done", f"Stop requested: {self.HOME_DONE} after trip {n}; waiting at home")
+                return
+            if self.staff_wait:
+                log(f"possible staff open: {self.HOME_DONE} after trip {n}; the run ends here, at home, until the "
+                    f"user acks gm_suspected")
+                self.doing("done", f"Possible staff: {self.HOME_DONE} after trip {n}; waiting at home for the user")
                 return
             if self.cap_near:
                 log(f"daily cap near: {self.HOME_DONE} after trip {n}; the run ends here, at home")

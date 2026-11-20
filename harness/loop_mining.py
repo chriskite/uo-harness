@@ -1163,7 +1163,7 @@ class MineLoop(loop_lumber.LumberLoop):
                     if tally["unknown"] > 3:
                         raise Abort("dig attempts keep ending without a known outcome")
             rec["end"] = ("break" if self.break_due else "stop" if self.finish_requested
-                          else "time_up" if self.time_up() else "max_attempts")
+                          else "staff" if self.staff_wait else "time_up" if self.time_up() else "max_attempts")
         except BaseException as e:
             rec["end"] = rec["end"] or f"interrupted: {type(e).__name__}: {e}"[:200]
             raise
