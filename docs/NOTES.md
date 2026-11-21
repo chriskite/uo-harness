@@ -10332,6 +10332,16 @@ NPC house vendors (user confirmed), and the staff check doesn't fire on them. So
 player invulnerable here, and Bers' notoriety 7 with flags 0x20 is still unexplained. User decision 2026-11-21: that
 combination stays a possible-staff alarm; no change.
 
+## Short hatchets turned every red into the end of a run (live 2026-11-21 16:57-17:03)
+
+The house shelf ran out of hatchets (the user was asked to restock). Each run then started short (~1540 uses for the
+2000 a 10 000-log quota may take; `low_supplies` 'hatchet uses') and every tracked red ended it at home: "no library
+hop (…): the hatchets hold 1540 uses, the hop's quota may take 2000: storing first" in lumber-20261121-164853-6cb7
+(665 boards), -165828-3741 (102) and -170233-888b (0). Storing first exists so the top-up at home can cover the next
+leg; with home already out it gains nothing and costs a run restart (the hatchet round with the shelf, two recall
+charges). Now `hatchets_ready` notes `hatchets_out` when its top-up at home left us short, and `try_hop` hops on
+then (never with 0 uses). Test: `test_loop_lumber.py unit_hop_hatchets_out`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

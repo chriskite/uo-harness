@@ -929,7 +929,10 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
      short: an attention `low_supplies` juncture (item `hatchet uses`) and the trip goes on; no hatchet
      at all: the juncture with 0 uses, the run ends at home, exit 1, no trip. A hatchet that breaks
      mid-trip hands the chopping to the next one (`hatchet()` picks among those left); a library hop
-     whose quota the hatchets can't cover goes home first. The trip row's `hatchets` {need,
+     whose quota the hatchets can't cover goes home first, unless this run's last top-up at home already came up
+     short (`hatchets_out`: the shelf and chest had no more; since 2026-11-21, after three runs in a row ended at
+     home on tracked reds with the shelf empty): then it hops on ("hatchets: N uses for the hop's M; the house had
+     no more at the last top-up: hopping anyway"), never with 0 uses. The trip row's `hatchets` {need,
      have, uses, how, swapped (each hatchet put into the chest), from_chest}. Scenarios `hatchet_swap`
      (10 uses for a 100-log trip: swapped for the shelf's fresh one), `hatchet_back` (the shelf has none:
      the worn one comes back out, the trip goes short), `hatchet_chest` (the chest's spare covers the

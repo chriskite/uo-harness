@@ -4699,6 +4699,41 @@ def unit_hop_salvage():
           f"{out} {steps} mode {fake.mode}")
 
 
+def unit_hop_hatchets_out():
+    """Live 2026-11-21 16:57-17:03 (lumber-20261121-164853-6cb7, -165828-3741, -170233-888b): the house shelf was out of
+    hatchets, so every run started short (~1540 uses for 2000) and each tracked red ended it at home, 'storing first'
+    for a top-up that couldn't come. Short hatchets still refuse a hop while home may have more; after a top-up at
+    home came up short this run (hatchets_out) the hop goes on; with no uses left it never does."""
+    print("\n== try_hop with short hatchets: store first only when home may have more ==")
+    import types
+    import loop_lumber
+    st = {"world": {"self": {"hits": 100, "hits_max": 100}}, "movement": {"pos": [3575, 3251, 6, 0]}}
+    uses = {0x456F90A1: (1540, "label")}
+    fake = loop_fake(mode="work")
+    fake.__dict__.update(
+        link=SimpleNamespace(state=lambda: st, pos=lambda s: s["movement"]["pos"]), hop_blocked=lambda s: None,
+        count=lambda s, g: 300, doing=lambda *a: None, self_serial=lambda s: 1, facet_now=lambda s: 0,
+        args=SimpleNamespace(spots=None), k={"spot": {"id": "witcher_57"}}, home={}, trip_n=1,
+        hatchet_uses=lambda s: uses, uses_needed=lambda logs: 2000, _where=lambda s: {},
+        memory=SimpleNamespace(job_event=lambda job, kind, data, **w: None), settle_at_home=lambda: None)
+    fake.try_hop = types.MethodType(loop_lumber.LumberLoop.try_hop, fake)
+    saved = loop_lumber.lumber_opt.plan_from_store
+    loop_lumber.lumber_opt.plan_from_store = lambda *a, **kw: {
+        "hop": {"spot": "witcher_116", "logs_per_trip": 10000, "gain_logs": 60}}
+    try:
+        fake.hatchets_out = False
+        first = fake.try_hop("threat: red Dobner at 99 tiles", None, recall=False)
+        fake.hatchets_out = True
+        second = fake.try_hop("threat: red Dobner at 99 tiles", None, recall=False)
+        uses[0x456F90A1] = (0, "label")
+        third = fake.try_hop("threat: red Dobner at 99 tiles", None, recall=False)
+    finally:
+        loop_lumber.lumber_opt.plan_from_store = saved
+    check("home may have more: store first; home had none: hop on; no uses left: store",
+          first is None and second is not None and second["spot"] == "witcher_116" and third is None,
+          f"{first} {second} {third}")
+
+
 def unit_named_attacker():
     """'<name> is attacking you!' marks the player a known PK even when he isn't in view (live 2026-10-14: lxl's
     line came as the escape recall landed; only players in view were marked, so he wasn't). His serial comes from
@@ -5495,7 +5530,7 @@ if __name__ == "__main__":
             unit_hatchet, unit_hit_verdict, unit_recall_reagents, unit_tree_rethink, unit_smart_range,
             unit_run_and_recall, unit_escape_heal, unit_dispel_field, unit_guard_route, unit_escape_direction,
             unit_escape_walkable, unit_escape_crowd,
-            unit_hop_salvage, unit_named_attacker, unit_no_harvest,
+            unit_hop_salvage, unit_hop_hatchets_out, unit_named_attacker, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
             unit_death_cause, unit_local_trees_spin, unit_zone_stall, unit_tree_walk_circles,
             unit_zone_view_edge, unit_home_on_abort,

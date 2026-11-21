@@ -606,6 +606,7 @@ class LumberLoop:
         self.books = []              # our own runebooks / rune tomes as read at the start (escape.read_book)
         self.out_landing = None      # the landing trips recall to (lumber_opt.landing_for), chosen once a run
         self.pre_stats = {}          # this trip's steps at home before it (resupply, mount), for its trip row
+        self.hatchets_out = False    # the last top-up at home left us short: the shelf and chest had no more (hatchets_ready)
         self.mount_warned = False    # the missing-mount juncture went out this run
         self.pre_trip = None         # (time, mover steps, blocked) when resupply_home began this trip
         self.aspect_hue = aspects.HARVEST_HUE   # worn armor in this hue counts as Harvest-aspected (aspect_ensure)
@@ -3099,6 +3100,8 @@ class LumberLoop:
                 break
         have = sum(n for n, _ in uses.values())
         rec["have"] = have
+        if at_home:
+            self.hatchets_out = have < need
         self.pre_stats["hatchets"] = rec
         if have >= need:
             log(f"hatchets: {have} uses carried for the {need} the trip may take "
@@ -5224,8 +5227,13 @@ class LumberLoop:
             why_not = self.hop_blocked(st) or (None if hop else (out.get("hop_why") or out.get("error")))
             if why_not is None:                     # the leg's quota in hatchet uses (hatchets_ready's rule)
                 have, need = sum(n for n, _ in self.hatchet_uses(st).values()), self.uses_needed(hop["logs_per_trip"])
-                if have < need:
+                if have < need and (not self.hatchets_out or have <= 0):
                     why_not = f"the hatchets hold {have} uses, the hop's quota may take {need}: storing first"
+                elif have < need:
+                    # home's top-up already came up short this run (live 2026-11-21 16:57-17:03: three runs ended at
+                    # home on tracked reds instead of hopping, the shelf out of hatchets): storing first gains none
+                    log(f"hatchets: {have} uses for the hop's {need}; the house had no more at the last top-up: "
+                        f"hopping anyway")
         finally:
             self.mode = mode
         data = {"trip": self.trip_n, "from": self.k["spot"]["id"], "reason": reason, "carried": carried,

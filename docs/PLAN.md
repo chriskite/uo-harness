@@ -4141,6 +4141,10 @@ the two-layer room west of the arrival").
   and counts as a zone drop, like mining's circling stands, instead of aborting the trip. *Rejected*: treating it as
   "boxed in" (disabling the spot): circling comes from zones moving under a walk, not from being hemmed in, and the
   stall rule already ends a grove the creatures keep out of reach as `creature_blocked`.
+- *Decided* (2026-11-21): a library hop whose quota the hatchets can't cover still goes home first, except when
+  this run's top-up at home already came up short (shelf and chest out): then it hops with what it carries, since a
+  hatchet that breaks hands over to the next and the last one ends the leg anyway. *Rejected*: lowering the hop's
+  quota to the uses carried (the plan sizes quotas by value; a shorter quota hides the shortage from the trip rows).
 
 ## Risks
 
