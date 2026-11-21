@@ -10325,6 +10325,11 @@ him as a faction player within 12 tiles. The next 0x20 for him, 14:21:09.41, had
 0x20 and z -1 at (1040, 847): the runner raised `gm_suspected` 3541 ("invulnerable player (notoriety 7 + player flag
 0x20)") and the staff alarm, as designed. Our decoding is not the cause: the byte is the server's. Whether it was
 staff or some shard state that shows a player invulnerable is unknown [INFERENCE]; he never spoke. Left to the user.
+Comparison the user asked for (2026-11-21 ~14:40, Dan at (1119, 766) by a player house): the players inside
+(Parumpie, Sesqui [Cambria], Norman Borlaug, guild CFC, at z 5 and 25) were notoriety 1 with flags 0x20 (Sesqui 0x22),
+not invulnerable. The three notoriety-7 mobiles there (Brandon, John H. Kirby, Elkan, body 0x190) had flags 0x00, so
+they're NPCs such as vendors, and the staff check doesn't fire on them. So being inside a house doesn't make a player
+invulnerable here, and Bers' notoriety 7 with flags 0x20 is still unexplained.
 
 ## Network observations
 
