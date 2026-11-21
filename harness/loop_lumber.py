@@ -3898,6 +3898,15 @@ class LumberLoop:
             if "detour" in str(e):
                 log(f"{label}: {str(e).split(': ', 1)[-1]}; trying the next stand")
                 return
+            if "going round in circles" in str(e):
+                # Mover's WALK_REVISITS: the walk swung round moving creatures' zones. The tree is passed over for the
+                # trip and chopping goes on at the next stand, as the mining runner does with its stands; the drop feeds
+                # zone_stalled. Live 2026-11-21 13:34:25 (lumber-20261121-133029-7ab0, witcher_260 by polar bears and a
+                # garou): it aborted the whole trip at 187 logs.
+                self.no_route.add(spot)
+                self.zone_drops.append(time.monotonic())
+                log(f"{label}: {str(e).split(': ', 1)[-1]}; passing it over, trying the next stand")
+                return
             if "boxed in" in str(e):
                 self.boxed_in(str(e).split(": ", 1)[-1])
             if "no route" not in str(e):

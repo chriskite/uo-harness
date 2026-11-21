@@ -4137,6 +4137,10 @@ the two-layer room west of the arrival").
 - *Decided*: a lumber landing that puts Dan among monsters on arrival goes on the shared bad-landings list (`ctl
   mining landing bad`), the Seer's call, as mining's already did (ratmen at "Ruins and Underground Lair",
   2026-11-20 23:30).
+- *Decided* (2026-11-21, live witcher_260): a lumber walk to a tree that goes round in circles passes that tree over
+  and counts as a zone drop, like mining's circling stands, instead of aborting the trip. *Rejected*: treating it as
+  "boxed in" (disabling the spot): circling comes from zones moving under a walk, not from being hemmed in, and the
+  stall rule already ends a grove the creatures keep out of reach as `creature_blocked`.
 
 ## Risks
 

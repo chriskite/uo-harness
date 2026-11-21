@@ -1161,6 +1161,9 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
     reason; `ctl lumber spot set <id> --status active` undoes it), posts an attention `stuck`
     juncture (`data.disabled`, `creatures`) and goes home by `monster_stop`. Before, danger replans
     weren't counted at all: 178 of them in 4.5 min there.
+  - **A tree walk going round in circles** (`Mover` `WALK_REVISITS`; live 2026-11-21, witcher_260): the tree is
+    passed over for the trip (`no_route`) and counted as a zone drop; chopping goes on at the next stand ("tree X,Y:
+    going round in circles (…); passing it over, trying the next stand"). Before, it aborted the trip.
   - **Run and recall until home** (`monster_stop` → `run_and_recall`; user, 2026-10-05: "we're on a
     horse and can outrun any mob in the overworld. If we fail to recall, we should just run away"):
     first run out of reach (`gain_distance`): urgent, up to `RECALL_GAP_MAX_MOVES` (60) steps, until

@@ -10305,6 +10305,18 @@ flat step cadence), found by `git bisect run` in a worktree between 98d0937 (202
 
 Read the whole tail of a full run (`FAILURES:` lines, `-- <scenario>: FAILED`, tracebacks), not only its last line.
 
+## A tree walk going round in circles ended the whole trip (live 2026-11-21 13:34, lumber-20261121-133029-7ab0)
+
+witcher_260 (DTF landing "Snow Cave", (1638, 612)) is thick with polar bears, grizzlies and a garou. At 13:34:22 the
+walk to tree 1568,668 replanned three times as zones moved ("danger ahead changed", routes of 31, 84 and 35 steps) and
+stood on (1580, 692) a third time; Mover's circling rule (`WALK_REVISITS`) raised `WalkFailed`. `work_stand` caught
+only "detour", "no route" and "boxed in", so the walk failure went up as a plain abort: "aborting away from home …:
+recalling home first", 187 boards stored, exit 1, task_failed. The mining runner already passed a circling stand over
+(`loop_mining` "ore stand …: going round in circles …; trying the next one"). Now lumber does the same: "tree X,Y:
+going round in circles (…); passing it over, trying the next stand". The tree joins `no_route` for the trip and counts
+as a zone drop, so a grove the creatures keep out of reach ends `creature_blocked` by `zone_stalled` (a hop may
+follow) instead of aborting. Test: `test_loop_lumber.py unit_tree_walk_circles`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

@@ -4183,6 +4183,34 @@ def unit_zone_stall():
           fake.next_stand([far, mid]) is mid)
 
 
+def unit_tree_walk_circles():
+    """Live 2026-11-21 13:34:25 (lumber-20261121-133029-7ab0, witcher_260): the walk to tree 1568,668 replanned round
+    polar bears' and a garou's moving zones until it stood on (1580, 692) 3 times (Mover WALK_REVISITS) and the whole
+    trip aborted at 187 logs. Now work_stand passes that tree over for the trip (a zone drop for zone_stalled) and
+    harvest_trip goes on at the next stand."""
+    print("\n== a walk to a tree going round in circles: that tree passed over, the harvest goes on ==")
+    import agent_link
+    import loop_lumber
+
+    def walk(goal, radius, label, **kw):
+        raise agent_link.WalkFailed(f"{label}: going round in circles (stood on (1580, 692) 3 times in 30 steps)")
+    fake = SimpleNamespace(
+        doing=lambda *a: None, tree_z_ok=lambda t: None, tree_route_max=lambda pos, t: 30,
+        tree_rethink=lambda spot, trees, z_ok: None, walk_to_work=walk, no_route=set(), zone_drops=[],
+        timing={}, link=SimpleNamespace(pos=lambda st: (1580, 696, 0), state=lambda: {}),
+        args=SimpleNamespace(logs_per_trip=10000))
+    tree, other = {"x": 1568, "y": 668, "z": 0, "graphic": "0x0CD8"}, {"x": 1600, "y": 700, "z": 0, "graphic": "0x0CD8"}
+    trees = [other]
+    try:
+        loop_lumber.LumberLoop.work_stand(fake, tree, trees, {"gained": 187})
+        err = None
+    except loop_lumber.Abort as e:
+        err = str(e)
+    check("no abort; the tree leaves the trip (no_route), the others stay, one zone drop counted",
+          err is None and (1568, 668) in fake.no_route and trees == [other] and len(fake.zone_drops) == 1,
+          f"err {err} no_route {fake.no_route} trees {trees} drops {fake.zone_drops}")
+
+
 def unit_smart_range():
     """Smart Harvest reaches 2 tiles (docs/NOTES.md "Reach is 2 tiles", 2026-10-08): a 'nothing nearby' marks every
     candidate within 2 of the stand out of wood, not just the adjacent ones (at 1, the trees 2 off that a stand had
@@ -5469,7 +5497,7 @@ if __name__ == "__main__":
             unit_escape_walkable, unit_escape_crowd,
             unit_hop_salvage, unit_named_attacker, unit_no_harvest,
             unit_thief_out, unit_boxed_in,
-            unit_death_cause, unit_local_trees_spin, unit_zone_stall,
+            unit_death_cause, unit_local_trees_spin, unit_zone_stall, unit_tree_walk_circles,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,
             unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest,
