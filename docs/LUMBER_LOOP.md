@@ -1702,10 +1702,19 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   the house, converts, stores, logs `break due: boards stored after trip N`, marks the episode row `break_due`
   and exits 0, so the overseer can `ctl break` there. Logs and boards weigh ~0.025 stone each
   (knowledge #88), so there is no weight trigger.
+  **Break soon (since 2026-11-20):** before each trip at home the runner reads the gate's `next_break_in_s`;
+  under `--break-soon-min` (15) it makes no trip ("break due in N min: too soon for trip 1; stopping for the break
+  first (ctl break), then run again"), exit 0, intent `break_due`. A run started 11.5 min before the break had
+  turned back 1 min into the harvest with 8 boards for two charges (docs/NOTES.md "A run started just before a
+  break"). Test: `break_soon`.
 
   Until 2026-10-01 the trip ended in the rental room instead: say `room` to the innkeeper,
   press Enter, store in the secure container, and exit by the door at the start of the next
   trip. The live runs below used that version.
+- **A hatchet in the pack (since 2026-11-20):** every cast (the recall, the wards) puts the hatchet in the pack, and
+  its double-click then only equips it (0x1D + 0x2E, no cursor). `use_hatchet` and `convert.use_tool` double-click
+  it again once it is in hand ("the hatchet went from the pack to the hand without a cursor; using it again")
+  instead of losing a 4 s cursor wait (docs/NOTES.md "The hatchet's double-click from the pack brings no cursor").
 - **Stop requested (since 2026-10-07; `ctl stop --after-trip`, docs/OVERSEER.md §2):** the graceful
   stop, the same wind-down as a due break (`LumberLoop.ending`). Earlier the same evening, a plain
   `ctl stop` on an end-the-day order killed a run that was already home: it had converted 561 logs

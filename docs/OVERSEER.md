@@ -426,7 +426,9 @@ Paste this (or point the session at this section) to start an overseer.
 >      recall home to the house, then `ctl break`. If it's
 >      already somewhere safe, `ctl break` now. The lumber runner does this by itself: it stops
 >      harvesting, recalls home to the house, converts, stores the boards in the stockpile and
->      exits 0 there ("break due: boards stored"); then `ctl break`.
+>      exits 0 there ("break due: boards stored"); then `ctl break`. A run started with the next break
+>      under 15 min away makes no trip at all ("break due in N min: too soon for trip 1", exit 0 at home,
+>      since 2026-11-20): `ctl break` too, then plan and run again.
 >    - `speech_nearby`: the harvest job is holding; nothing happens until you act. Read what was
 >      said (`ctl journal`, the juncture's `speakers`), look at the speaker if needed (`act
 >      single_click <serial>`: name, title, guild). Each speaker carries Laya's `triage` verdict:

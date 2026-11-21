@@ -7,7 +7,9 @@ Every log stack in the backpack, at any bag depth, becomes boards with the hatch
 where the logs were [INFERENCE: RunUO ScissorHelper drops them into the logs' container]. One
 conversion per stack (logs of several woods, what aborted trips left: live 2026-10-05, 4 stacks)
 plus CONVERT_RETRIES for hatchet uses that bring no cursor (one did right after the pouch went off,
-and a 4-try loop left a 9-log stack; docs/NOTES.md "Convert left logs").
+and a 4-try loop left a 9-log stack; docs/NOTES.md "Convert left logs"). A hatchet in the pack (every
+cast puts it there) is equipped by its first double-click with no cursor (live 2026-11-20); the
+tool users (use_tool, the runner's use_hatchet) double-click it again once it is in hand.
 
 A trip carries its logs in a live trapped pouch (hue 38, harness/pouch.py), which a double-click
 only sets off; the logs inside can't be targeted while it is closed. So each live pouch holding
@@ -35,6 +37,7 @@ BOARDS = ledger.BOARD_GRAPHICS
 CONVERT_RETRIES = 3                   # hatchet uses without a cursor tolerated (one live, 2026-10-05)
 POP_WAIT_S = 4.0                      # our double-click -> the pouch re-sent with hue 0
 CURSOR_WAIT_S = 4.0                   # the hatchet's double-click -> its target cursor
+EQUIP_CURSOR_GRACE_S = 0.5            # a packed tool equipped by the double-click -> its cursor, if one comes
 CONVERT_WAIT_S = 5.0                  # the target -> "You shape the logs into boards."
 SETTLE_S = 1.0                        # the ok text -> the log stack gone from the world model
 POLL_S = 0.1
@@ -110,22 +113,37 @@ def unpack(io, human, graphics, *, open_for, on_pop=None, log=_quiet) -> list[in
     return done
 
 
+def _worn(st: dict, tool: int) -> bool:
+    it = st["world"]["items"].get(_key(tool)) or {}
+    me = st["movement"].get("self_serial")
+    return me is not None and it.get("container") is not None and _serial(it["container"]) == me
+
+
 def use_tool(io, human, tool: int, *, open_for, captcha_gump_id: int | None = None):
     """Double-click `tool` (bags on the way opened first) after a `use` pause; its target-cursor
     event, or None when none came within CURSOR_WAIT_S. A captcha gump (captcha_gump_id) raises
-    ConvertError: only the runner answers captchas."""
+    ConvertError: only the runner answers captchas. A packed tool the double-click only equipped (in
+    hand, no cursor within EQUIP_CURSOR_GRACE_S) is double-clicked once more."""
+    def answered(evs):
+        return any(e.get("ev") == "target" or (captcha_gump_id is not None and e.get("ev") == "gump_open"
+                                               and _serial(e.get("gump_id") or 0) == captcha_gump_id) for e in evs)
     human.wait("use")
     open_for((tool, False))
-    io.poll()
-    io.send(actions.dclick(tool))
-    _, got = _wait(io, lambda _s, evs: any(
-        e.get("ev") == "target" or (captcha_gump_id is not None and e.get("ev") == "gump_open"
-                                    and _serial(e.get("gump_id") or 0) == captcha_gump_id) for e in evs),
-        CURSOR_WAIT_S)
-    if captcha_gump_id is not None and any(e.get("ev") == "gump_open" and _serial(e.get("gump_id") or 0)
-                                           == captcha_gump_id for e in got):
-        raise ConvertError("a captcha came up: answer it in the client, then convert again")
-    return next((e for e in reversed(got) if e.get("ev") == "target"), None)
+    st, _ = io.poll()
+    packed = not _worn(st, tool)
+    while True:
+        io.send(actions.dclick(tool))
+        st, got = _wait(io, lambda s, evs, p=packed: answered(evs) or (p and _worn(s, tool)), CURSOR_WAIT_S)
+        if st is not None and not answered(got):
+            got += _wait(io, lambda _s, evs: answered(evs), EQUIP_CURSOR_GRACE_S)[1]
+        if captcha_gump_id is not None and any(e.get("ev") == "gump_open" and _serial(e.get("gump_id") or 0)
+                                               == captcha_gump_id for e in got):
+            raise ConvertError("a captcha came up: answer it in the client, then convert again")
+        cur = next((e for e in reversed(got) if e.get("ev") == "target"), None)
+        if cur is not None or not packed or st is None:
+            return cur
+        packed = False                       # equipped without a cursor: use it again, now in hand
+        human.wait("use")
 
 
 def convert(io, human, *, use_hatchet, open_for, ok_text: str, on_pop=None, on_stack=None, on_target=None,

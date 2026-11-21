@@ -159,6 +159,13 @@ LAWLESS_STOP = "stepped into a lawless region"   # walk_to_work's answer when a 
 # mining-20261108-224015-2660: "recall home after the abort: action 0x06 refused: ERR daily agent budget exhausted",
 # Dan left at forge_2426_413). The leg's end, the recall pair and the store at home take ~2 min of active time
 CAP_MARGIN_S = 600.0
+# the gate's next break (next_break_in_s, agent time) at or below which no trip starts: the trip would end at the break
+# due right after the recall out (live 2026-11-20 19:47, lumber-20261120-194720-038a: started 11.5 min before the break,
+# break due 1.5 min in, 8 boards for two recall charges); --break-soon-min sets it, 0 = off
+BREAK_SOON_MIN = 15.0
+# a packed hatchet's double-click only equips it (0x1D + 0x2E, no cursor: live 2026-11-20, all 12 uses after a cast in
+# session 20261120_174441); after the equip, this long for a cursor before the second double-click
+EQUIP_CURSOR_GRACE_S = 0.5
 # An Outlands faction waypost marker's click label (live: "FACTION WP 17" at witcher_66, 6 sightings;
 # "1Frozen Ruin Waypost", 17; wiki.uooutlands.com/Factions "Wayposts")
 WAYPOST = re.compile(r"Waypost$|^FACTION WP \d+$", re.IGNORECASE)
@@ -3322,7 +3329,8 @@ class LumberLoop:
         the cursor (stock Esc packet) and uses the hatchet again. When the cursor comes,
         whether the hatchet is now in hand is noted for the trip row (hatchet_worn): the
         server equips a packed hatchet on the double-click, and every spell cast puts it
-        back in the pack (LUMBER_LOOP.md §13, session 20261003_213125)."""
+        back in the pack (LUMBER_LOOP.md §13, session 20261003_213125). That double-click
+        brings no cursor (live 2026-11-20): once the hatchet is in hand, it is used again."""
         for attempt in range(2):
             self.human.wait(kind)
             st = self.state()
@@ -3330,11 +3338,14 @@ class LumberLoop:
             closed = containers_to_open(st["world"], hatchet)
             if closed:
                 self.link.open_containers(closed, self.human)
-            mark = len(self.link.events)
-            self._tool_sent = (mark, time.monotonic())     # a threat before its cursor comes: drop_cursor waits
-            self.link.act(actions.dclick(hatchet))
-            self.wait_for(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, 4.0)
-            self._tool_sent = None
+            me = self.self_serial(st)
+            packed = not in_hand(st["world"], hatchet, me)
+            mark = self._dclick_hatchet(hatchet, me, packed)
+            if packed and self.cursor(mark) is None and self.real_captcha(mark) is None \
+                    and in_hand((self.link.last or st)["world"], hatchet, me):
+                log("the hatchet went from the pack to the hand without a cursor; using it again")
+                self.human.wait(kind)
+                mark = self._dclick_hatchet(hatchet, me, False)
             cap = self.real_captcha(mark)
             if cap is not None:
                 self.captcha_handoff(cap)
@@ -3349,6 +3360,20 @@ class LumberLoop:
             self.human.wait("aim")
             self.link.act(actions.target_cancel(cur["cursor_id"], cur["target_type"], cur["cursor_type"]))
         return None
+
+    def _dclick_hatchet(self, hatchet: int, me: int, packed: bool) -> int:
+        """One double-click of `hatchet`; the event mark its cursor or captcha comes after. From the pack (`packed`)
+        the server may only equip it, with no cursor: the wait ends once it is in hand and no cursor followed within
+        EQUIP_CURSOR_GRACE_S, so use_hatchet double-clicks again at once instead of after the 4 s wait."""
+        mark = len(self.link.events)
+        self._tool_sent = (mark, time.monotonic())     # a threat before its cursor comes: drop_cursor waits
+        self.link.act(actions.dclick(hatchet))
+        st = self.wait_for(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None
+                           or (packed and in_hand(s["world"], hatchet, me)), 4.0)
+        if st is not None and self.cursor(mark) is None and self.real_captcha(mark) is None:
+            self.wait_for(lambda s: self.cursor(mark) or self.real_captcha(mark) is not None, EQUIP_CURSOR_GRACE_S)
+        self._tool_sent = None
+        return mark
 
     # ------------------------------------------------------------ harvesting
     def outcome(self, mark):
@@ -5379,6 +5404,15 @@ class LumberLoop:
                 log(f"{self.ending}: no trip {n}; waiting at home")
                 self.doing("done", f"Stopped before trip {n} ({self.ending}); waiting at home")
                 return
+            st = self.link.state()
+            soon = (st.get("gate") or {}).get("next_break_in_s")
+            if soon is not None and 0 < self.args.break_soon_min and soon <= self.args.break_soon_min * 60 \
+                    and self.at_home(st):
+                self.break_due = True                # a trip now would turn back at the break due right away
+                log(f"break due in {soon / 60:.0f} min: too soon for trip {n}; stopping for the break first "
+                    f"(ctl break), then run again")
+                self.doing("break_due", f"Break due in {soon / 60:.0f} min: no trip {n}; waiting at home for the break")
+                return
             self.trip_n = n                          # intents from here on are this trip's
             self.pre_trip = (time.time(), self.mover.steps, self.mover.blocked_count)
             self.guarded(self.resupply_home)    # the loadout from the storage shelf at home; no hatchet: no trip
@@ -5468,6 +5502,9 @@ def common_args(ap):
     ap.add_argument("--resupply", choices=("on", "off"), default="on",
                     help="before each trip at home, top up the loadout from the house's storage shelf (shelf.py); "
                          "the guild house's on the way out by a library row when the house's lacks something")
+    ap.add_argument("--break-soon-min", type=float, default=BREAK_SOON_MIN,
+                    help="start no trip when the agent gate's next break is due within this many minutes (agent "
+                         "time): the run ends at home for `ctl break` instead; 0 = off")
     ap.add_argument("--mount", choices=("on", "off"), default="on",
                     help="before each trip at home, ride our pet (mount.py): the one remembered, else the pet "
                          "whose menu offers Release; a ghost needs a healer or a stable master")

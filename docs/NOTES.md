@@ -10262,6 +10262,32 @@ recalled home ("taking damage, no creature in view or just out of it that could 
   test_threats `test_npcs_and_players` (fails before). Live at the next `ctl run` (runners) and `ctl` call; no proxy
   restart (harness/world names threats.py only in a docstring).
 
+## The hatchet's double-click from the pack brings no cursor (live 2026-11-20, session 20261120_174441)
+
+Every convert of the 2026-11-20 lumber shift logged "convert: the hatchet brought no cursor; trying again" (4 runs,
+lumber-20261120-175049-06df to -195458-9486); the retry converted each time.
+- **Evidence**: 12 hatchet double-clicks without a 0x6C cursor in the capture, every one right after a cast (a
+  recall home, the wards heading out), every one answered within 0.05 s by 0x1D (the hatchet gone from the pack) and
+  0x2E (worn on layer 2) and nothing else. Example 21:06:10.15: `06 4E16495D` -> `1D 4E16495D`, `2E 4E16495D … 0F44
+  … 02 0014683F`; the next double-click at 21:06:15.11 brought `6C 01 001C82AD` at once.
+- **Cause**: a cast puts the hatchet in the pack (known since 2026-10-03); its double-click then only equips it.
+  The runner's `use_hatchet` waited the full 4 s for a cursor and returned None, so a convert try was spent (the
+  log line above) and a chop counted as `captcha` with 4 s lost. The simulator always answered with a cursor.
+- **Fix**: `use_hatchet` (`_dclick_hatchet`) and `convert.use_tool` (ctl's `act convert`) stop waiting once a
+  packed hatchet is in hand, allow 0.5 s for a cursor (`EQUIP_CURSOR_GRACE_S`), then double-click once more. Log line:
+  "the hatchet went from the pack to the hand without a cursor; using it again". Test: `test_loop_lumber.py
+  unit_hatchet_from_pack`.
+
+## A run started just before a break (live 2026-11-20 19:47, lumber-20261120-194720-038a)
+
+The Seer started a run at 19:47:20, 11.5 min (agent time) before the gate's break interval ran out. The gate
+called the break due at 19:48:52, 1 min into the harvest ("break due (it starts in 600 s): ending the trip at
+home"), and the trip brought 8 boards for the recall out, the library hop and the recall home (two charges). Now the
+runner checks the gate's `next_break_in_s` before each trip at home and makes no trip under `--break-soon-min` (15
+by default): "break due in N min: too soon for trip 1; stopping for the break first (ctl break), then run again",
+exit 0, intent `break_due`. `ctl break` works at any time (agent_gate.apply) and resets the interval. Test:
+`test_loop_lumber.py break_soon`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

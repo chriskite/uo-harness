@@ -2447,7 +2447,8 @@ async def break_due():
               "break_until": None, "break_due_at": None, "last_active": None,
               "paused": False, "killed": False}
     text, code, store, _ = await run_scenario(world, "break", [GOOD_TREE, DRY_TREE],
-                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
+                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off",
+                                               "--break-soon-min", "0"],
                                               budget=budget)
     eps = store.episodes("lumber")
     check("one trip, 'break due: boards stored', exit 0 (for ctl break) at home, episode row marked break_due",
@@ -2462,6 +2463,26 @@ async def break_due():
           and world.logs == 0 and not world.pack_boards and world.recalls_home == [HOME_RUNE_POS],
           f"chest {world.chest_stack}, harvested {world.harvested}")
     check("no threat juncture", not [j for j in store.junctures() if j["kind"] == "threat"])
+    store.close()
+
+
+async def break_soon():
+    """Live 2026-11-20 19:47 (lumber-20261120-194720-038a): a run started 11.5 min before the break went out, the
+    break came due 1.5 min into the harvest and the trip brought 8 boards for two recall charges. With the gate's next
+    break within --break-soon-min the run makes no trip: it ends at home, exit 0, for `ctl break`."""
+    print("\n== break soon: no trip out right before a break ==")
+    world = World("break")
+    budget = {"day": datetime.date.today().isoformat(), "active_today_s": 0.0,
+              "since_break_s": 7200.0 - BREAK_AFTER_S, "next_break_after_s": 7200.0,
+              "break_until": None, "break_due_at": None, "last_active": None,
+              "paused": False, "killed": False}
+    text, code, store, _ = await run_scenario(world, "break_soon", [GOOD_TREE, DRY_TREE],
+                                              ["--trips", "2", "--logs-per-trip", "100", "--human", "off"],
+                                              budget=budget)
+    check("no trip: 'too soon for trip 1', exit 0 at home, no recall out, no episode",
+          code == 0 and "too soon for trip 1" in text and not store.episodes("lumber") and world.at_home_landing
+          and world.harvested == 0 and world.recalls_home == [],
+          f"exit {code}, harvested {world.harvested}, recalls home {world.recalls_home}\n{text[-600:]}")
     store.close()
 
 
@@ -4072,6 +4093,7 @@ def unit_local_trees_spin():
         # 1763,1070: dropped a moment ago when a zone covered it (live L2812), waiting its cooldown in the list
         dropped_trees={(1763, 1070): time.monotonic()}, avoided=set(), creature={"avoided_trees": 0}, far_passed=0,
         danger={0x00ABCDEF: ((1781, 1068), 6)},                 # a black bear escaped from: zone 6 at its last tile
+        escaped_from={0x00ABCDEF},
         args=SimpleNamespace(logs_per_trip=10000, regrow_min=70, max_trees=0),
         link=SimpleNamespace(state=lambda: st, pos=lambda s=None: st["movement"]["pos"], last=st),
         mover=SimpleNamespace(walk_map=lambda s: Walk,
@@ -4083,7 +4105,8 @@ def unit_local_trees_spin():
         go_out=lambda: None, track_ensure=lambda w: None,
         candidate_trees=lambda s: [*trees(), {"x": 1763, "y": 1070, "z": 0, "graphic": "0x0CD8"}],
         work_stand=lambda tree, ts, tally: tries.append(("chopped", tree["x"], tree["y"])))
-    for m in ("harvest_trip", "next_stand", "out_of_reach", "zone_stalled", "tree_route_max", "no_route_tree"):
+    for m in ("harvest_trip", "next_stand", "out_of_reach", "zone_stalled", "tree_route_max", "no_route_tree",
+              "danger_zones"):
         setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
     real_add = types.MethodType(loop_lumber.LumberLoop.add_local_trees, fake)
 
@@ -4226,8 +4249,9 @@ def unit_zone_view_edge():
                           aggression="default", distance=17, flee_radius=8)
     mover = SimpleNamespace(danger={}, replan_requested=False)
     fake = SimpleNamespace(last_threats=SimpleNamespace(threats=[rat]), recent_guards={}, mover=mover,
-                           watch=threats.Watch(), link=SimpleNamespace(pos=lambda st: (100, 100, 0, 0)))
-    for name in ("tree_guards", "may_aggro", "aggro_r", "zone_r", "aggro_zones"):
+                           watch=threats.Watch(), link=SimpleNamespace(pos=lambda st: (100, 100, 0, 0)),
+                           red_flight=None, cut_off_now=set())
+    for name in ("tree_guards", "may_aggro", "may_come", "aggro_r", "zone_r", "aggro_zones"):
         setattr(fake, name, types.MethodType(getattr(loop_lumber.LumberLoop, name), fake))
     seen = {"world": {"mobiles": {"0x00000222": {"x": 117, "y": 100}}}}
     gone = {"world": {"mobiles": {}}}
@@ -4679,7 +4703,8 @@ def unit_no_harvest():
     fake = loop_fake(
         doing=lambda *a: None, tree_z_ok=lambda t: None, tree_rethink=lambda *a: None,
         link=SimpleNamespace(pos=lambda st: (2145, 575, 0), state=lambda: {}, last={}),
-        mover=SimpleNamespace(walk_to=lambda *a, **kw: None), timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
+        mover=SimpleNamespace(walk_to=lambda *a, **kw: None), walk_to_work=lambda *a, **kw: None,
+        timing={"walk_out_s": 1.0, "tree_walk_s": 0.0},
         trip_n=1, k={"spot": {"id": "witcher_26"}}, harvesting=False, ending=None, break_due=False,
         finish_requested=False, args=SimpleNamespace(max_attempts_per_stand=60, logs_per_trip=500),
         track_ensure=lambda *a: None, unstick=lambda stand: False, stats={}, attempt=lambda: ("no_harvest", 0),
@@ -5217,6 +5242,55 @@ def unit_capture_hatchet():
     _eq("no hatchet: nothing to record", row_hatchet(None, True), None)
 
 
+def unit_hatchet_from_pack():
+    """Live 2026-11-20 (session 20261120_174441, all 12 hatchet uses after a cast): the double-click of a packed
+    hatchet only equips it (0x1D + 0x2E, no cursor). use_hatchet waited 4 s and returned None (a chop counted as
+    'captcha', convert logged 'the hatchet brought no cursor; trying again'); now it double-clicks once more as soon as
+    the hatchet is in hand and returns that cursor."""
+    print("\n== use_hatchet: a packed hatchet's double-click equips it, the second brings the cursor ==")
+    import types
+    import loop_lumber
+    key, pack = f"0x{HATCHET:08X}", f"0x{BACKPACK:08X}"
+
+    def fake_for(where, answers=True):
+        st = dan_state()
+        st["world"]["items"][key] = {"graphic": 0x0F44, "container": where}
+        st["world"]["containers"] = [BACKPACK]
+
+        def server(pkt, link):
+            it = link.last["world"]["items"][key]
+            if pkt != actions.dclick(HATCHET) or not answers:
+                return []
+            if it["container"] == pack:                      # live: equipped, no cursor
+                it["container"], it["layer"] = f"0x{SELF:08X}", 0x02
+                return []
+            return [{"ev": "target", "cursor_id": 0x77, "target_type": 0, "cursor_type": 0}]
+        fake = cast_fake(st, server, want_hatchet=None, hatchet_worn=None, _tool_sent=None)
+        fake.human.hesitate = lambda: False
+        fake.hatchet = lambda _st, _want: HATCHET
+        fake.state = lambda: fake.link.last
+        fake.real_captcha = lambda _mark: None
+        fake.look = lambda _st=None: None
+        fake.link.open_containers = lambda _c, _h: None
+        for m in ("use_hatchet", "_dclick_hatchet", "wait_for"):
+            setattr(fake, m, types.MethodType(getattr(loop_lumber.LumberLoop, m), fake))
+        return fake
+    fake = fake_for(pack)
+    cur = fake.use_hatchet("chop_use", hesitate=False)
+    check("packed: two double-clicks, the second's cursor returned, the hatchet noted in hand",
+          cur is not None and cur["cursor_id"] == 0x77 and fake.link.sent == [actions.dclick(HATCHET)] * 2
+          and fake.hatchet_worn is True and fake.timeline.count(("wait", "chop_use")) == 2,
+          f"{cur} {fake.link.sent} {fake.timeline}")
+    fake = fake_for(f"0x{SELF:08X}")
+    cur = fake.use_hatchet("chop_use", hesitate=False)
+    check("in hand: one double-click, its cursor", cur is not None and fake.link.sent == [actions.dclick(HATCHET)],
+          str(fake.link.sent))
+    fake = fake_for(pack, answers=False)
+    check("packed and the server silent: None after one double-click (no blind second one)",
+          fake.use_hatchet("chop_use", hesitate=False) is None and fake.link.sent == [actions.dclick(HATCHET)],
+          str(fake.link.sent))
+
+
 def unit_capture_buffs():
     print("\n== trip row buffs: names, not cliloc ids ==")
     world = CaptureFeed().feed(CAP_TRIP1_START).state(CAP_HB_BANK)["world"]
@@ -5357,8 +5431,8 @@ async def run_async(fn):
 
 
 if __name__ == "__main__":
-    runs = [main, skirmish, leash, break_due, no_harvest, stop_after_trip, library, library_chased, track_reds,
-            track_known_pk, gazer_run, gazer_rehit, gazer_reflect, unseen_caster, pacer,
+    runs = [main, skirmish, leash, break_due, break_soon, no_harvest, stop_after_trip, library, library_chased,
+            track_reds, track_known_pk, gazer_run, gazer_rehit, gazer_reflect, unseen_caster, pacer,
             wary, idle_mob, zone_on_way, red_aim, faction, precast, flee_aid, escape_heal, guard_run, pk_island,
             work_heal, work_spell, thief_keep_away,
             pouch_pop, faction_lone, known_pk, wards,
@@ -5377,7 +5451,8 @@ if __name__ == "__main__":
             unit_death_cause, unit_local_trees_spin, unit_zone_stall,
             unit_zone_view_edge, unit_home_on_abort,
             unit_capture_spell_witcher, unit_capture_juncture_222,
-            unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest]
+            unit_capture_hatchet, unit_capture_buffs, unit_capture_named_players, unit_capture_smart_harvest,
+            unit_hatchet_from_pack]
     pick = set(sys.argv[1:])                 # optional: scenario names to run alone, e.g. `gazer_run wary`
     import cpu_budget
     cpu_budget.limit()                       # the scenarios (child processes) inherit it: two CPUs left to the game

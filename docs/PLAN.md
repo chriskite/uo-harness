@@ -4117,6 +4117,17 @@ the two-layer room west of the arrival").
 - *Open*: the hierarchs' channelled fire in the same room (9 deaths either way); whether pets live reach across the
   room's floors at all (docs/NOTES.md "The Ossuary: level 3's two-layer room").
 
+## Lumber runner small fixes after the 2026-11-20 shift (decided and built 2026-11-20)
+
+- *Decided*: no trip when the gate's next break is under 15 min of agent time away (`--break-soon-min`, also the
+  mining runner's); the run ends at home for `ctl break` and the next run plans afresh. Taking the break early
+  costs nothing (it resets the interval); a trip cut short by `break_due` costs two recall charges and the
+  overhead for minutes of chopping. *Rejected*: making `lumber plan` refuse (the plan doesn't read the gate; the
+  runner already does, and a run started by hand gets the same rule).
+- *Decided*: a packed hatchet's double-click that only equips it is followed by a second double-click as soon
+  as the hatchet is in hand, not after a 4 s cursor timeout (NOTES "The hatchet's double-click from the pack brings
+  no cursor"). A player does the same: the first click arms, the second uses.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.
