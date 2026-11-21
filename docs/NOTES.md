@@ -10317,6 +10317,15 @@ going round in circles (…); passing it over, trying the next stand". The tree 
 as a zone drop, so a grove the creatures keep out of reach ends `creature_blocked` by `zone_stalled` (a hop may
 follow) instead of aborting. Test: `test_loop_lumber.py unit_tree_walk_circles`.
 
+## A faction player sent as invulnerable for a moment (live 2026-11-21 14:21, lumber-20261121-141957-23f5)
+
+At witcher_4a (DTF landing '18. Outer Creek SE Bridge', (1060, 853)) 'Bers' 0x0000D1E4 (body 0x190, mounted, hue
+33770, tag [Prevalia]) came in with 0x20 notoriety 1 at 14:21:06.38 (session_20261121_114504) and the escape ran from
+him as a faction player within 12 tiles. The next 0x20 for him, 14:21:09.41, had notoriety 7 (invulnerable) with flags
+0x20 and z -1 at (1040, 847): the runner raised `gm_suspected` 3541 ("invulnerable player (notoriety 7 + player flag
+0x20)") and the staff alarm, as designed. Our decoding is not the cause: the byte is the server's. Whether it was
+staff or some shard state that shows a player invulnerable is unknown [INFERENCE]; he never spoke. Left to the user.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
