@@ -1055,7 +1055,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   - still in view and closer than 19 tiles, or closer than at the last check: following but falling
     behind → another leg from where it is now (its zone moves with it), up to `CHASE_LEGS_MAX` (6)
     legs or `CHASE_MAX_MOVES` (200) steps, then home ("still after us after N escape legs");
-  - out of view, or 19+ tiles off and not closing in: it gave up.
+  - out of view, or 19+ tiles off and not closing in: it gave up (since 2026-11-20 its last chasing tile then
+    stops guarding trees in either case; `tree_guards` takes it again from where it is now when in range).
+  Every leg after the first runs at least `ESCAPE_LEG_MIN` (8) tiles (since 2026-11-20): one following at half
+  our pace stays just inside `ESCAPE_RUN` of the goal, so the legs shrank to 1-3 steps and the 6 legs ran out in
+  31 steps before a leashed creature gave up (scenario `leash`, broken since 35e37a9's straight, unjittered walks).
+  No goal that far: the nearest as before.
   When all gave up the runner watches `LEASH_LOOK_S` (2 s, still in escape mode: damage there is a
   hit "while walking away") and checks again; one coming back means more legs. Then it chops on at a
   tree out of every zone. Each creature shaken off is a `leash` job event (serial, name, body, how,

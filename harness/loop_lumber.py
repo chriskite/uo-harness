@@ -303,6 +303,11 @@ LEVEL_ROUTE_MAX = 24
 # An escape runs far, not a few steps (user, 2026-10-05: "a few steps isn't going to break aggro"):
 # its goal is at least ESCAPE_RUN tiles from what we flee [INFERENCE: past perception and view]
 ESCAPE_RUN = 20
+# ... and each leg after it at least this many tiles from where it starts: the goal is ESCAPE_RUN from where the creature
+# is, and one following at half our pace stays ~ESCAPE_RUN - legs/2 behind, so goals shrank to 1-3 steps and six legs
+# (CHASE_LEGS_MAX) ran out in 31 steps, short of where a leashed creature gives up (test_loop_lumber leash after
+# 35e37a9's straighter, unjittered walks; the same user rule: a few steps don't break aggro)
+ESCAPE_LEG_MIN = 8
 # Escape goals on the map: tiles the walk rules reach from us within this many tiles (escape_tiles). Straight-away
 # tiles alone can be rock: live 2026-10-20 10:35 at Desert Outpost all three were unstandable, no route within the
 # bound, and a horse archer shot Dan from 100 to 20 hits through six disturbed recalls; the way out was 18 steps west
@@ -4097,7 +4102,7 @@ class LumberLoop:
         t0, steps0, legs, dist, gone = time.monotonic(), self.mover.steps, 0, {}, {}
         try:
             while True:
-                goals = self.escape_tiles(st, run_from)
+                goals = (legs and self.escape_tiles(st, run_from, ESCAPE_LEG_MIN)) or self.escape_tiles(st, run_from)
                 if not goals:
                     self.monster_stop(st, self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S),
                                       e.monsters[0], {}, "nowhere clear to run to")
@@ -4140,9 +4145,11 @@ class LumberLoop:
             t = fled[s]
             if ("was", s) in self.danger:    # it went back where it came from: its zone too, not where it chased us
                 self.danger[s] = self.mover.danger[s] = self.danger[("was", s)]
-            if how == "out of view":         # nor does its last chasing tile guard trees (tree_guards' RECENT_ZONE_S)
-                self.recent_guards.pop(s, None)
-                self.mover.danger.pop(("seen", s), None)
+            # nor does its last chasing tile guard trees (tree_guards' RECENT_ZONE_S): out of view, or seen
+            # ESCAPE_RUN off and not closing in (tree_guards takes it again from its tile now when it is in range)
+            self.recent_guards.pop(s, None)
+            self.mover.danger.pop(("seen", s), None)
+            if how == "out of view":
                 if s in unseen:              # it hit us from out of view: no leash measured
                     how = gone[s] = "out of view all along"
             self.memory.job_event(self.JOB, "leash", {
@@ -4207,7 +4214,7 @@ class LumberLoop:
                 gone[s] = f"{t.distance} tiles off, not closing in"
         return kept, following, gone
 
-    def escape_tiles(self, st, run_from=()) -> list:
+    def escape_tiles(self, st, run_from=(), min_leg: int = 0) -> list:
         """Escape goals, best first, each at least ESCAPE_RUN tiles from each of `run_from` and out of every
         zone (the runner's escaped-from monsters, the Mover's: aggro zones of the creatures in view, thieves).
         "Away" sums the unit vectors from every zone centre and every `run_from` point (the players of a pk
@@ -4217,13 +4224,14 @@ class LumberLoop:
         in reach of a bounded escape route (ESCAPE_ROUTE_MIN / ESCAPE_DETOUR), the fewest steps first: the
         best not toward them (within 90 degrees of straight away), the best within 60, the best anywhere. Without a map: up to
         two tiles walked before (walk memory) within 60 degrees of away, nearest first; then the first such
-        tile straight away and 45 degrees to either side."""
+        tile straight away and 45 degrees to either side. `min_leg`: goals at least this many tiles from us."""
         pos = tuple(st["movement"]["pos"][:2])
         zones = list(self.danger.values())
         avoid = zones + [z for k, z in self.mover.danger.items() if isinstance(k, tuple) and k[0] == "seen"]
 
         def clear(t):
-            return all(cheb(t, z) > r for z, r in avoid) and all(cheb(t, p) >= ESCAPE_RUN for p in run_from)
+            return (cheb(t, pos) >= min_leg and all(cheb(t, z) > r for z, r in avoid)
+                    and all(cheb(t, p) >= ESCAPE_RUN for p in run_from))
         vx = vy = 0.0
         for zx, zy in [z for z, _ in zones] + [tuple(p[:2]) for p in run_from]:
             n = math.hypot(pos[0] - zx, pos[1] - zy) or 1.0

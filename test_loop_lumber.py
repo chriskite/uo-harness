@@ -1932,6 +1932,23 @@ def kill_proxy(proc):
             pass
 
 
+def seed_town_wall(db):
+    """The town wall as walk memory knows it: every move into a WALLS tile denied (live, the map planner has the wall).
+    The simulator has no map, so without this the walk-memory planner probed the 55-tile wall a tile at a time on the
+    walk home and the circling rule (bea355e: a tile stood on 3 times) ended it; the zig-zag routes before 35e37a9
+    found the door by luck."""
+    t, rows = time.time(), []
+    for w in WALLS:
+        for d in range(8):
+            n = nav.step(w, (d + 4) % 8)                 # the neighbour whose move `d` enters w
+            if n not in WALLS and n != DOOR:
+                rows.append((0, n[0], n[1], memory.UNKNOWN_Z, d, 0, t))
+    con = memory.connect(db)
+    memory._upsert_walk(con.cursor(), rows)
+    con.commit()
+    con.close()
+
+
 async def main():
     logdir = os.path.join(LOGDIR, "main")
     os.makedirs(logdir, exist_ok=True)
@@ -1942,6 +1959,7 @@ async def main():
     store = memory.Memory(paths["db"])
     store.set_captcha_mode("auto")
     store.close()
+    seed_town_wall(paths["db"])
 
     world = World()
     world.home_rune_pos = DOOR_RUNE_POS               # "Logan's House" lands outside the town door: a walk home
@@ -2170,8 +2188,8 @@ async def main():
                       and want[tuple(s["stand"][:2])][1] in s["trees"] for s in stands)
               and sum(s["logs"] for s in stands) == sum(r["logs"] for r in rows) and len(by_tile) == 2,
               str(stands)[:900])
-        check("walk memory (store): the proxy recorded the agent's walks",
-              len(walked.edges) >= 20, str(walked.stats()))
+        check("walk memory (store): the proxy recorded the agent's walks, the door crossing on the walk home included",
+              ((DOOR[0] - 1, DOOR[1]), DOOR) in walked.edges and len(walked.edges) >= 7, str(walked.stats()))
         check("open-door requests only next to a door, like the client's auto-open (never at plain walls)",
               world.open_door_reqs == world.doors_opened, f"{world.open_door_reqs} requests, "
               f"{world.doors_opened} opened")
@@ -3449,7 +3467,8 @@ async def guard_run():
     spot a red comes into view 8 tiles off and stays at our heels; a guard point learned earlier lies GUARD_RUN_DIST
     tiles south (past the old 250-tile cap; no map in the simulator: the straight line, as walk memory plans). The
     runner runs there in legs, never casting while he's within the gap, until the town's 500112; "guards" on him;
-    a guard_flight event (its route, no casts), the pk_escape juncture, exit 1 there."""
+    a guard_flight event (its route, no casts), then the recall home (user 2026-11-02, 3d2497f: "when our character
+    reaches a guard zone he should say 'guards' and then recall home"), the pk_escape juncture, exit 1."""
     print("\n== guard run: a red at our heels, a guarded place 270 tiles off -> run there, call the guards ==")
     world = World("pk_chase")
     world.guard_zone = GUARD_PT
@@ -3462,13 +3481,15 @@ async def guard_run():
                                               ["--trips", "1", "--logs-per-trip", "100", "--human", "off",
                                                "--regrow-min", "0.05"], spot_extra=LIB_SPOT, prepare=guard_point)
     seen = world.red_t
+    called = world.guards_called[0][0] if world.guards_called else float("inf")
     books = [t for p, t in zip(world.c2s, world.c2s_t) if p[0] == 0x06 and p[1:5] == u32(RUNEBOOK)
-             and seen and t >= seen]
+             and seen and seen <= t < called]
     check("the red came and chased; more than 250 steps run with him at our heels",
           seen is not None and world.chase_steps > 250, f"steps {world.chase_steps}\n{text[-1500:]}")
     check("the town's 500112 came at its edge", world.guard_entered is not None
-          and world.cheb(GUARD_PT) <= GUARD_ZONE_R + 1, f"{world.guard_entered} at {world.pos}")
-    check("no recall cast with him within the gap all the way", books == [], str(books))
+          and max(abs(world.guard_entered[1][0] - GUARD_PT[0]),
+                  abs(world.guard_entered[1][1] - GUARD_PT[1])) <= GUARD_ZONE_R + 1, str(world.guard_entered))
+    check("no recall cast with him within the gap all the way there", books == [], str(books))
     check("'guards' called on him once, there", len(world.guards_called) == 1
           and max(abs(world.guards_called[0][1][0] - GUARD_PT[0]),
                   abs(world.guards_called[0][1][1] - GUARD_PT[1])) <= GUARD_ZONE_R + 1, str(world.guards_called))
@@ -3478,9 +3499,9 @@ async def guard_run():
           and gf[0]["route"]["steps"] > 250 and gf[0]["route"]["goal"] == list(GUARD_PT) and gf[0]["casts"] == 0,
           str(gf)[:600])
     junc = [j["kind"] for j in store.junctures()]
-    check("the pk_escape juncture; the run stopped there (exit 1), no recall home",
-          "pk_escape" in junc and code == 1 and world.recalls_home == [] and "fled into the guards" in text,
-          f"{junc} exit {code}")
+    check("then the recall home: the pk_escape juncture, exit 1, home",
+          "pk_escape" in junc and code == 1 and world.recalls_home == [HOME_RUNE_POS] and "in the guards at" in text,
+          f"{junc} exit {code} home {world.recalls_home}")
     store.close()
 
 

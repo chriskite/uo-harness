@@ -10288,6 +10288,23 @@ by default): "break due in N min: too soon for trip 1; stopping for the break fi
 exit 0, intent `break_due`. `ctl break` works at any time (agent_gate.apply) and resets the interval. Test:
 `test_loop_lumber.py break_soon`.
 
+## test_loop_lumber: a red suite for 18 days (found 2026-11-20)
+
+`python test_loop_lumber.py` had exited 1 since 2026-11-02 and the failures went unread. A unit check that crashed
+(`unit_no_harvest`: its fake lacked `walk_to_work` since f6de645) ended the unit pass, hiding three more stale fakes
+(`unit_local_trees_spin` danger_zones, `unit_zone_view_edge` red_flight/may_come) and every check after them, while
+"ALL PASS" could still print from an earlier stage. Three scenarios failed from 35e37a9 (2026-11-02, straight routes, a
+flat step cadence), found by `git bisect run` in a worktree between 98d0937 (2026-11-01, green) and afe137f:
+- `main`: no map in the simulator, so the walk home probed the 55-tile town wall one refused step at a time and the
+  circling rule (bea355e) ended it at (121, 202); the old zig-zag routes found the door by luck. The test now seeds
+  the wall into walk memory (`seed_town_wall`), as the map would give it.
+- `leash`: escape legs shrank to 1-3 steps (each aims `ESCAPE_RUN` from where the half-pace creature is now) and the
+  6-leg cap came after 31 steps, before the leash snapped. Runner fix: `ESCAPE_LEG_MIN` (8) for legs after the first;
+  a shaken creature's last chasing tile no longer guards trees.
+- `guard_run`: still expected the stop in town; the user's 3d2497f rule ("guards", then the recall home) is the test now.
+
+Read the whole tail of a full run (`FAILURES:` lines, `-- <scenario>: FAILED`, tracebacks), not only its last line.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

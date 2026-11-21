@@ -4127,6 +4127,16 @@ the two-layer room west of the arrival").
 - *Decided*: a packed hatchet's double-click that only equips it is followed by a second double-click as soon
   as the hatchet is in hand, not after a 4 s cursor timeout (NOTES "The hatchet's double-click from the pack brings
   no cursor"). A player does the same: the first click arms, the second uses.
+- *Decided* (the three simulator scenarios failing since 35e37a9, 2026-11-02, found by bisect): escape legs after
+  the first run at least `ESCAPE_LEG_MIN` (8) tiles, so the leg cap measures running, not 1-step legs (`leash`);
+  `guard_run` now expects the user's 2026-11-02 rule (3d2497f: "guards", then the recall home); `main` gives the
+  simulator's town wall to walk memory as a map would, since without a map the walk-memory planner probes a long wall
+  tile by tile and the circling rule ends the walk. *Rejected*: making the walk-memory planner treat an unknown tile
+  refused once as a wall (it changes persisted-memory planning for a case live runs, which plan on the map, don't
+  meet, and still circles along a long wall).
+- *Decided*: a lumber landing that puts Dan among monsters on arrival goes on the shared bad-landings list (`ctl
+  mining landing bad`), the Seer's call, as mining's already did (ratmen at "Ruins and Underground Lair",
+  2026-11-20 23:30).
 
 ## Risks
 

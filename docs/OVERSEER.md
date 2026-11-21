@@ -535,7 +535,11 @@ Paste this (or point the session at this section) to start an overseer.
 > candidate with `ctl map` (no dungeon or town walls, trees reachable from its landing), and approve
 > it (`lumber spot set <id> --status active`) or disable it with a reason, then `ctl lumber forests` so
 > the approved spots grow into their forests (and a disabled one stops the fill); the same for a spot that
-> proves unworkable (unreachable trees, guarded, a dungeon mouth). Record prices you see for
+> proves unworkable (unreachable trees, guarded, a dungeon mouth). A landing that puts Dan among
+> monsters on arrival (an escape or a hop right after "recall try … arrived"): pass the landing over,
+> `ctl mining landing bad <x> <y> --why …` (the landing's tile from the plan or the recall line; lumber and
+> mining share the list, so its spots take another landing), and tell the user (since 2026-11-20: ratmen
+> at "Ruins and Underground Lair", 7 attacking, -12 hits). Record prices you see for
 > hatchets and boards (`ctl lumber price hatchet:copper 1200 --source "vendor search"`): the hatchet
 > choice uses them. `hatchets.buy` is advice for the user, not something to buy on your own
 > unless the user's gold policy allows it.
