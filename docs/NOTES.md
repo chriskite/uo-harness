@@ -7743,6 +7743,22 @@ not a ghost, a name without an article ('Notorious NPC' left out).
 - What changed in the simulator, and the live-against-simulated tables: docs/SIM.md "Shadowspire Cathedral" ("The
   simulator's gaps closed").
 
+## Shadowspire Cathedral: level 1 live with AlaFlambe and an eldritch mephit (2026-11-22, hunt-20261122-142028-e5c7)
+
+- One run, 14:20-14:53, the level 1 command of docs/OVERSEER.md §5, Seer SeerLoganWolf3; ended on the user's "Head
+  home and end" by `ctl stop --after-trip`. Pets AlaFlambe 0x0026EF56 and an eldritch mephit 0x004C4BF6 (the team of
+  the 2026-11-21 Ossuary shift; the simulator's Shadowspire numbers are with Bussin).
+- 34 kills, 34,231 gold, 160 hits lost on Logan (about 290 an hour, against 886 in the simulator), one heal potion. No
+  death, no pet down, no red, no pet left behind, never on level 2.
+- Visit 1: 26 kills, left at 14:42 by the golden gate (5176, 2489) at 23,227 gp carried (threshold 21,697), Totem, the
+  tome home, 30,209 gp dropped off. Visit 2: 8 kills, out by the crimson gate (5157, 2647) on the stop. One 'All Follow
+  Me' before each gate (cd1b868), both pets in view after each recall.
+- Handled by design, not faults: 'heal potion not drunk: already at full health (79 -> 100 hits before the click)'
+  (14:31:38, a heal landed between the refusal and the click); "'All Patrol': no target cursor" twice (14:36:33,
+  14:41:39), each followed by "no 'All Patrol' at … a patrol at it refused or timed out lately" and the crawl going on;
+  "Song of Provocation: no target cursor" once (14:21:22). One "corpse of a gargan flamekin is someone else's kill
+  (blue): not looted" (14:23:40) in the crowd.
+
 ## Other pets than GraveRobber and AlaFlambe: no roster (2026-10-24 21:11)
 
 - The user brought GirthyEarthy 0x000E820F (body 12, the tank), fireminion 0x001D17E6 (body 776) and a searing imp
