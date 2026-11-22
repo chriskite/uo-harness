@@ -36,9 +36,12 @@ def check(name, cond, detail=""):
 
 
 def row_runs(y):
-    """Row y: 250 red, 20 green (crosses x=256), then 30 blue; the last row is all grey."""
+    """Row y: 250 red, 20 green (crosses x=256), then 30 blue; row 1 starts with 10 black (an area the picture
+    lacks); the last row is all grey."""
     if y == H - 1:
         return [(255, GREY), (45, GREY)]
+    if y == 1:
+        return [(10, 0x0000), (240, RED), (20, GREEN), (30, BLUE)]
     return [(250, RED), (20, GREEN), (30, BLUE)]
 
 
@@ -96,6 +99,26 @@ def main():
         check("corner chunk clipped to 44x4", (w, h) == (44, 4), (w, h))
         check("5-bit 16 -> 131 like the client's table", rows[3][0] == (131, 131, 131), rows[3][0])
         check("out-of-range chunk -> None", fp.chunk_png(2, 0) is None and fp.chunk_png(-1, 0) is None)
+
+        print("blank areas filled from the map")
+
+        class Fill:
+            source = "map0.uoo + radarcol.mul"
+            asked = []
+
+            def rgb(self, x0, y0, x1, y1):
+                import numpy as np
+                self.asked.append((x0, y0, x1, y1))
+                return np.full((y1 - y0, x1 - x0, 3), 9, np.uint8)
+        filled = facet.FacetPicture(path, fill=Fill())
+        w, h, rows = png_pixels(filled.chunk_png(0, 0))
+        check("black pixels take the map's colour, the rest the picture's",
+              rows[1][0] == (9, 9, 9) and rows[1][9] == (9, 9, 9) and rows[1][10] == (255, 0, 0) and rows[0][0] == (255, 0, 0),
+              (rows[1][0], rows[1][10]))
+        filled.chunk_png(1, 0)
+        check("asked for the chunk's own tiles, and only for a chunk with black in it", Fill.asked == [(0, 0, 256, 256)],
+              Fill.asked)
+        check("meta names the fill", filled.meta()["fill"] == "map0.uoo + radarcol.mul" and fp.meta()["fill"] is None)
 
         bad = os.path.join(tmp, "bad.mul")
         with open(bad, "wb") as f:

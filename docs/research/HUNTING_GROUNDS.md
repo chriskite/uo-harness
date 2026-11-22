@@ -133,14 +133,15 @@ decoded with `harness/world/parsers.py`. Outlands sends u32 coordinates. 450 dis
 
 ### Geography
 
-| Feature | Position |
-|---|---|
-| Hunting Official (Prevalia bank) | (1600, 1530) |
-| Game Warden (Willow) | (8342, 89) |
-| Entry tile | about (8340, 90) |
-| Region (from player and deer positions) | x 8218-8474, y 72-330 |
+| Feature | East instance (runs 1-2) | West instance (runs 3-4) |
+|---|---|---|
+| Hunting Official (Prevalia bank) | (1600, 1530) | |
+| Game Warden (Willow) | (8342, 89) | (8030, 89) |
+| Entry tile | about (8340, 90) | about (8028, 90) |
+| Region (from player and deer positions) | x 8218-8474, y 72-330 | x 7906-8162, y 72-330 |
 
-The region is about 256 × 258 tiles, with the lodge at its north edge.
+Each region is about 256 × 258 tiles, with the lodge at its north edge. The two instances are the same map side
+by side, the west one shifted 312 tiles west. Points by distance south of the lodge apply to both.
 
 **Points rise with distance south of the lodge.** Buck values by dy = (median y of the buck) − 88:
 
@@ -285,6 +286,37 @@ Leaderboard on 2026-11-22 at 15:13 and 15:28:
 
 **[INFERENCE]** The permit chance grows with the creature's value or gold, so harder content farms permits
 several times faster.
+
+### Runs 3 and 4 (2026-11-22 evening, west instance): before and with the viz advice
+
+Run 3 (16:19-16:34, capture `20261122_140905`) was played without the advice. In run 4 (16:35-16:50, capture
+`20261122_163459`) the proxy had been restarted and the viz showed it (docs/VISUALIZER.md §2.22).
+
+| | Run 1 | Run 2 | Run 3 | **Run 4 (advice)** |
+|---|---|---|---|---|
+| Score | 82 | 72 (+44 lost) | 78 | **144** |
+| Trophies turned in | 13 | 12 | 13 | **18** |
+| Points per trophy | 6.3 | 6.0 | 6.0 | **8.0** |
+| Median dy of kills | | | 143 | **192** |
+| Kills per real shot | 60% (runs 1-2) | | 57% (13/23) | **78% (18/23)** |
+| Shots at nervous/fleeing deer | | | 3 | **0** |
+| Refused for not standing still | 9 (runs 1-2) | | 7 | **3** |
+
+Run 4, trip by trip:
+
+| Trip | Length | Points | Notes |
+|---|---|---|---|
+| 1 | 277 s | 40 | |
+| 2 | 248 s | 38 | |
+| 3 | 208 s | 50 | 12-8-10-12-8, with the Great Bow |
+| 4 | 136 s | 14 | 2 kills; 165 s were left at its start |
+| 5 | 28 s | 2 | a 2-pointer 4 tiles from the lodge, turned in 1 s before expiry |
+
+- Nothing was lost.
+- 144 is near the model's ~159 per permit (§4.2), and nearly double the 77 average of runs 1-3.
+- The live advice measured the run home to the east warden (only the east instance was known then). In the
+  west instance that put the slack 14-60 s short: at 16:49:31 the badge said 3 s to spare where 22 s were left.
+  It erred safe, but trip 4 probably ended a kill early. Fixed the same evening.
 
 ## 4. Strategy
 

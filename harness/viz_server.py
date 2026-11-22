@@ -1465,7 +1465,7 @@ class VizServer(ThreadingHTTPServer):
         self.facet_error = "disabled (--no-facet)" if facet_path is None else None
         if facet_path is not None:
             try:
-                self.facet = facet_mod.FacetPicture(facet_path)
+                self.facet = facet_mod.FacetPicture(facet_path, fill=facet_mod.radar_for(facet_path))
             except (OSError, ValueError, struct.error) as e:
                 self.facet_error = f"{facet_path}: {e}"
         self.stopping = False

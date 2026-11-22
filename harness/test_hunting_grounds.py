@@ -14,7 +14,8 @@ from sim import packets as P  # noqa: E402
 
 FAILURES = []
 ME, BUCK_A, BUCK_B, BUCK_C = 0x00104A60, 0x0020C001, 0x0020C002, 0x0020C003
-LX, LY = hg.LODGE
+LX, LY = hg.INSTANCES[0][1]          # the east warden
+WX, WY = hg.INSTANCES[1][1]          # the west warden
 
 
 def check(name, cond, extra=""):
@@ -93,6 +94,14 @@ def test_run():
     n, nclock = grounds_tap()
     nclock[0] += hg.SESSION_S + hg.END_GRACE_S + 1
     check("no expiry line, the end long past: no run", status(n) is None)
+    w, wclock = grounds_tap()
+    at(w, WX - 2, WY + 1)                                                     # the west instance's entry (16:35:42)
+    g = status(w)
+    check("the west instance: its warden and region, the same zone", g["instance"] == "west" and g["lodge"] == [WX, WY]
+          and g["region"] == [7906, 72, 8162, 330] and g["plan"]["zone"] == [249, 330], str({k: g[k] for k in ("instance", "lodge", "region")}))
+    at(w, 8000, 300)
+    check("the run home from the west warden: 211 tiles, 62 s", status(w)["home_s"] == round(0.2 * 211 + hg.RETURN_MARGIN_S, 1),
+          str(status(w)["home_s"]))
 
 
 def test_deadline():
@@ -170,10 +179,10 @@ def test_hotbar():
 
 def test_plan_endgame():
     print("== after a turn-in with R s left: deep while it fits, shallower as time runs out (§4.2 step 8) ==")
-    deep = hg.plan(LX, LY, 300, [], 12)
-    mid = hg.plan(LX, LY, 160, [], 12)
-    near = hg.plan(LX, LY, 80, [], 12)
-    none = hg.plan(LX, LY, 40, [], 12)
+    deep = hg.plan(LX, LY, 300, [], 12, (LX, LY))
+    mid = hg.plan(LX, LY, 160, [], 12, (LX, LY))
+    near = hg.plan(LX, LY, 80, [], 12, (LX, LY))
+    none = hg.plan(LX, LY, 40, [], 12, (LX, LY))
     check("300 s: 5 in the deep zone, calm 6+", (deep["zone"], deep["kills"], deep["min_points"]) == ([249, 330], 5, 6), str(deep))
     check("160 s: a short deep trip, any calm buck (time, not slots, is short)", mid["kills"] < 5 and mid["min_points"] == 2
           and mid["zone"][0] >= 249, str(mid))

@@ -6,6 +6,7 @@ const status = (over: Partial<GroundsStatus>, plan: Partial<GroundsPlan> | null)
   started: 1000,
   ends: 1900,
   left_s: 600,
+  instance: "east",
   lodge: [8342, 89],
   region: [8218, 72, 8474, 330],
   held: [],

@@ -12,6 +12,8 @@ export interface FacetMeta {
   chunks_y?: number;
   source?: string;
   mtime?: number;
+  /** What paints the picture's blank (pure black) areas: the live map in radar colours (harness/facet.py MapRadar). */
+  fill?: string | null;
 }
 
 export async function fetchFacetMeta(): Promise<FacetMeta> {

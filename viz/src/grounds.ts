@@ -50,7 +50,9 @@ export interface GroundsStatus {
   started: number;
   ends: number;
   left_s: number;
-  /** The Game Warden's tile. */
+  /** Which of the two side-by-side instances we're in ("east" / "west"), by the nearest warden. */
+  instance: string;
+  /** The Game Warden's tile in that instance. */
   lodge: [number, number];
   /** x0, y0, x1, y1 (inclusive). */
   region: [number, number, number, number];
@@ -143,7 +145,7 @@ export function groundsView(g: GroundsStatus | null | undefined): GroundsView | 
     left: fmtLeft(g.left_s),
     headline,
     lines,
-    title: `Hunting Grounds: the permit expires at ${ends}; held trophies are lost then. Plan from docs/research/HUNTING_GROUNDS.md §4`,
+    title: `Hunting Grounds (${g.instance} instance): the permit expires at ${ends}; held trophies are lost then. Plan from docs/research/HUNTING_GROUNDS.md §4`,
     urgent,
     warn,
   };

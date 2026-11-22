@@ -22,9 +22,12 @@ import functools
 import math
 import re
 
-LODGE = (8342, 89)            # the Game Warden (Willow) at the lodge, live 2026-11-22; entry ~(8340, 90)
-REGION = (8218, 72, 8474, 330)   # every player step and buck position seen: x0, y0, x1, y1 (inclusive)
-LEAVE_R = 400                 # farther than this from the lodge: we left (the exit moongate, a recall)
+# The two instances (the forum post: identical, entrants alternate) are the same map side by side, 312 tiles
+# apart: (name, the Game Warden Willow's tile, the region: every player step and buck seen, x0, y0, x1, y1 inclusive)
+INSTANCES = (("east", (8342, 89), (8218, 72, 8474, 330)),     # Logan's runs 1-2 (2026-11-22, 20261122_140905)
+             ("west", (8030, 89), (7906, 72, 8162, 330)))     # runs 3-4 (x - 312; 20261122_140905, _163459)
+Y_MAX = 330                   # the regions' south edge
+LEAVE_R = 400                 # farther than this from both wardens: we left (the exit moongate, a recall)
 SESSION_S = 900.0             # the start line -> "expired": 904 s and 899 s in Logan's runs
 END_GRACE_S = 10.0            # past the end this long without the expiry line: the session is over
 RUN_S = 0.2                   # s per tile running visible (1918 of 2131 visible steps)
@@ -83,9 +86,14 @@ def kill_s(turned_in: int) -> float:
     return a / (HIT_CALM * (1 - graze)) + CARVE_S
 
 
-def band_y(band, lodge_y: int = LODGE[1]) -> tuple[int, int]:
-    """A band's y range on the map, clipped to the region."""
-    return lodge_y + band[0], min(lodge_y + band[1], REGION[3])
+def band_y(band, lodge_y: int) -> tuple[int, int]:
+    """A band's y range on the map, clipped to the regions."""
+    return lodge_y + band[0], min(lodge_y + band[1], Y_MAX)
+
+
+def instance_at(x: int, y: int):
+    """(name, lodge, region) of the instance whose warden is nearest (x, y)."""
+    return min(INSTANCES, key=lambda i: cheb(x, y, *i[1]))
 
 
 @functools.lru_cache(maxsize=None)
@@ -109,7 +117,7 @@ def _rest(left_s: float, turned_in: int) -> float:
     return lodge_value(int(max(0.0, left_s) // 5), turned_in) if left_s > 0 else 0.0
 
 
-def plan(x: int, y: int, left_s: float, held: list[int], turned_in: int, lodge=LODGE) -> dict:
+def plan(x: int, y: int, left_s: float, held: list[int], turned_in: int, lodge) -> dict:
     """What to do now (docs/research/HUNTING_GROUNDS.md §4): fill this trip's free trophy slots with the most
     points that still fit before the run home, else run home.
 
@@ -198,7 +206,7 @@ class GroundsLog:
                 text = e.get("text") or ""
                 if text == START_TEXT:
                     self.run = {"started": now, "ends": now + SESSION_S, "held": [], "turned_in": 0,
-                                "score": 0, "ammo": None, "wind": None, "lodge": LODGE}
+                                "score": 0, "ammo": None, "wind": None}
                     self.moods.clear()
                     continue
                 r = self.run
@@ -250,7 +258,7 @@ class GroundsLog:
             if left_s < END_GRACE_S:          # the last one, sent with the expiry
                 return
             r = self.run = {"started": now + left_s - SESSION_S, "ends": now + left_s, "held": [], "turned_in": 0,
-                            "score": 0, "ammo": None, "wind": None, "lodge": LODGE}
+                            "score": 0, "ammo": None, "wind": None}
             self.moods.clear()
         r["ends"] = now + left_s
         r["held"] = held
@@ -267,18 +275,20 @@ class GroundsLog:
         if r is None:
             return None
         me = state.self
-        gone = me.x is not None and cheb(me.x, me.y, *r["lodge"]) > LEAVE_R and now - r["started"] > END_GRACE_S
+        inst = instance_at(me.x, me.y) if me.x is not None else INSTANCES[0]
+        gone = me.x is not None and cheb(me.x, me.y, *inst[1]) > LEAVE_R and now - r["started"] > END_GRACE_S
         if gone or now > r["ends"] + END_GRACE_S:     # the exit moongate / a recall; no expiry line seen
             self.run = None
             return None
         left = max(0.0, r["ends"] - now)
-        lodge = r["lodge"]
+        _, lodge, region = inst
         t = tier(r["turned_in"])
         _, wname, rng, graze = TIERS[t]
         nxt = TIERS[t + 1] if t + 1 < len(TIERS) else None
         out = {
             "started": round(r["started"], 3), "ends": round(r["ends"], 3), "left_s": round(left, 1),
-            "lodge": list(lodge), "region": list(REGION), "held": list(r["held"]), "held_points": sum(r["held"]),
+            "instance": inst[0], "lodge": list(lodge), "region": list(region),
+            "held": list(r["held"]), "held_points": sum(r["held"]),
             "hold_max": HOLD_MAX, "turned_in": r["turned_in"], "score": r["score"], "ammo": r["ammo"],
             "wind": r["wind"],
             "weapon": {"name": wname, "range": rng, "graze": graze,

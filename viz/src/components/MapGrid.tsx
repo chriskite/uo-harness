@@ -1169,7 +1169,7 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
           disabled={!facetInfo?.available}
           title={
             facetInfo?.available
-              ? `terrain from the client's ${facetInfo.source} (1 px/tile, file dated ${new Date((facetInfo.mtime ?? 0) * 1000).toISOString().slice(0, 10)})`
+              ? `terrain from the client's ${facetInfo.source} (1 px/tile, file dated ${new Date((facetInfo.mtime ?? 0) * 1000).toISOString().slice(0, 10)})${facetInfo.fill ? `; areas it lacks from ${facetInfo.fill}` : ""}`
               : `no facet picture: ${facetInfo?.error ?? "loading"}`
           }
           onClick={() => {

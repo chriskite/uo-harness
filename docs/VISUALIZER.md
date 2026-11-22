@@ -1318,6 +1318,10 @@ time remaining". The strategy and the numbers behind it: docs/research/HUNTING_G
 
 **Source.** The state's `grounds` (§1; `hunting_grounds.GroundsLog.status`), null outside a run. Live proxies
 and replays both compute it; it is silent (no proxy events, no sound). Its fields:
+- **Instance:** `instance` ("east" / "west"), `lodge` and `region`, by the warden nearest us. The two instances
+  are the same map 312 tiles apart (wardens at (8342, 89) and (8030, 89)). Until 2026-11-22 evening only the
+  east one was known, so in the west one the overlay drew on the wrong instance and the run home was measured to
+  the east warden: the badge's slack read 14-60 s short in run 4.
 - **Clock:** `left_s`, `ends`.
   - The run starts at "\*You now have 15 minutes in this realm\*", spoken over our own head, and lasts 900 s.
   - It is reset by "You now have N minutes left…" and by the warden gump's `Nm Ns Left`.
@@ -1482,7 +1486,15 @@ choices persist in `localStorage["uo-viz-left-hidden"]` / `["uo-viz-right-hidden
       `/api/facet`. Flags: `--facet PATH` and `--no-facet`.
     - The browser fetches only the chunks in view and draws them unsmoothed, rotated in iso.
     - The 1 px/tile scale was verified on 40 bank markers (docs/NOTES.md).
-    - It's colour only: no heights, no walkability. The file is dated 2024-12 and may miss recent map edits.
+    - It's colour only: no heights, no walkability. The file is dated 2024-12 and misses later map edits.
+    - **Blank areas filled from the live map** (2026-11-22). The user asked why the Hunting Grounds had no
+      background. It is pure black in the picture: the area opened in 2025-11. `facet.MapRadar` paints a
+      chunk's pure-black pixels from `map0.uoo` (the land, and the topmost static when it's at least as high)
+      in the client's `radarcol.mul` colours, as the client's minimap does. Void land is black in radarcol
+      too, so real black stays black.
+      - It takes 0.1 s per chunk with black in it, and the PNG is cached.
+      - `/api/facet` names the fill in `fill`, and the `terrain` button's tooltip shows it.
+      - Test: `test_facet.py` "blank areas filled from the map".
     - Tests: `harness/test_facet.py` (synthetic file) and `viz/src/facet.test.ts`.
   - **Underlay: walk memory** (`/api/walkmem`, plus live `step`/`blocked` events): known-walkable
     tiles shaded, confirmed edges faint, blocked moves as red ticks. It shows the planner's world directly.
