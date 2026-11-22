@@ -7338,6 +7338,28 @@ Logan at the house. It has a human body, so `mount.pets_near` never takes it; th
   `gold_no_room` leave of f46fada). Here gold weight ended the level 2 visit before the return rule did. The user
   ended the shift ("Return home and pause there"), and the Seer stopped the run with `--after-trip`.
 
+## The Ossuary: the fourth live shift, level 2 (2026-11-21, AlaFlambe and an eldritch mephit)
+
+Logan with AlaFlambe 0x0026EF56 and an eldritch mephit 0x004C4BF6, the level 2 command of docs/OVERSEER.md §5, Seer
+SeerLoganWolf2 (skill `ossuary-shift`). One run, hunt-20261121-183235-c33c (18:32:35-20:10:32, 4 visits): 126 kills (2
+lost), 111,258 gold (~68k an hour, ~20 min of it at home sitting out `--pk-wait`), 1087 hits lost, no Logan death. No
+"Sanctuary" line this week (the Ossuary was not the Sanctuary dungeon).
+- **Leaves:** red players in view at 18 tiles at 18:55:57 and 19:16:19 (crimson gate, Totem, home, the drop-off, back
+  in after the wait), the return rule at 19:49:13 (54,456 gp carried >= V* 51,552) and the Seer's `--after-trip` stop
+  at 20:06:33. Every leave went by 0x4004A43E (5672, 1277) to Totem.
+- **AlaFlambe died once** (19:42:15, 44 % to dead in about 1 s beside lich magi and pyromancers): "AlaFlambe is dead:
+  its ghost follows us to be resurrected by the vet supplies", alive again at 27 % 4 s later. No `pet_down` juncture
+  fires for that, as on 11-06 and 11-07.
+- **The wind-down after the stop took 4 min.** The leave is a fought leg (`walk_in_fought`). It pulled an idle
+  ossuarian hunter 7 tiles off ("step-in: ... still idle after 10 s with no act; the hold ends"), killed and looted
+  it (20:06:42-20:08:11), walked back to AlaFlambe and then set out for the gate 98 steps off ("LEAVING by the
+  moongate: done" logged twice, 20:06:33 and 20:08:17). On the way it roped off from the red player Flat Lander
+  (20:10:11) and was on the gate at 20:10:26.
+- The drop-off's `banked` tally stays 0: `totals["banked"]` counts only gold put in a bank, not the house deposit safe
+  (34,796 + 17,196 + ... gold went in by it). Display only.
+- Logan was at 85/100 at home after a potion: the Seer read a mummy's curse ticking on after the run ("You are no longer
+  diseased."); [INFERENCE] caught on the way to the gate, the curse lasting 30 s.
+
 ## Cavernam: three visits by hand, dead on level 3 (2026-10-31 21:15:20-21:47:04, capture 20261031_170158)
 
 The user played them with AlaFlambe (the tank) and Bussin, AR 137, Logan's max hits 100: 21:15:20-21:23:30,
