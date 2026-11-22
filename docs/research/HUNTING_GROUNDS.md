@@ -309,6 +309,65 @@ and 10 s at the warden.
 Hunting the deep south (y ≥ 250) earns 2.5-3× as much per second as hunting near the lodge, even after the
 longer run. A 2-point buck spends a trophy slot that is worth about 9 points in the deep band.
 
+**Bow upgrades in the model** (added 2026-11-22 at the user's question).
+
+An upgrade doesn't change the **hit** chance, which depends only on the deer's state (90/30/3%). It lowers
+the **graze** chance, so it raises the kill chance per calm shot:
+
+| Weapon (trophies) | Graze | Kill per calm shot | Usable range |
+|---|---|---|---|
+| starter (0) | 25% | 67.5% | 12 |
+| Recurve (3) | 20% | 72% | 14 |
+| Hunting (6) | 15% | 76.5% | 16 |
+| Great (9) | 10% | 81% | 18 |
+| Ancient Rifle (12) | 5% | 85.5% | 18 (20 nominal) |
+
+Range above 18 is wasted. All 450 bucks came into view at exactly 18 tiles, and you can't target a deer you
+can't see. The Great Bow already shoots anything in view.
+
+To see how much upgrades matter, I ran a dynamic program over a 15-minute run
+(`V(t, trophies turned in)` = the best expected score from time t). Each trip chooses a band and 1-5 kills,
+costs 0.4·dy + 10 + k·T_kill seconds, and must end by 885 s.
+- Kill time: T_kill = a/p_kill + 6 s carve. Here a is the search, approach and shot time per attempt, minus
+  0.4 s per extra tile of range up to 18.
+- a = 18 s reproduces the observed ~30 s per kill.
+- A graze costs the same as a miss: the deer is gone either way.
+
+With a = 18 s, T_kill falls from 32.7 s (starter) to 24.2 s (Rifle), 26% faster. Results:
+
+| Kill-time parameter a | 12 s | 18 s | 24 s | 30 s |
+|---|---|---|---|---|
+| Expected score with upgrades | 190 | 159 | 136 | 114 |
+| ... upgrades ignored | 182 | 141 | 127 | 106 |
+| First trip 5 deep (dy 220) | 190 | 158 | 136 | 114 |
+| First trip 3 at dy 180, to unlock the Recurve | 187 | 159 | 121 | 114 |
+| Warm-up: 3 two-pointers by the lodge | 188 | 146 | 120 | 99 |
+| Warm-up: 4 two-pointers by the lodge | 190 | 145 | 115 | 99 |
+
+**Conclusions**
+- Upgrades are worth about +5-13% per run, mostly because later trips get faster. Trip 3 kills about 20%
+  faster than trip 1.
+- They don't change the route. Upgrades count trophies, not points. The deep policy already turns in the
+  most trophies a trip can hold. A warm-up trip by the lodge buys tiers early but costs 10-15 points
+  whenever a ≥ 18 s, and only ties when kills are very fast (a = 12 s).
+- A sensitivity run gave the same answer: with range worth 1.5 s per tile, deep-first scored 184 against
+  168-173. Only an implausible 3 s per tile (6 s kills) made a warm-up tie.
+- What upgrades change is execution:
+  - From the Great Bow (trip 3 onward), shoot from where you first see the deer and skip the stealth approach.
+  - Later trips are shorter, so re-check the endgame table (step 8) against the time left. A Rifle-tier trip
+    of 5 deep kills takes about 220 s, not 245 s.
+  - Nervous deer are still not worth it. With the Rifle a nervous 12-point buck is worth 0.3 × 0.95 × 12 =
+    3.4, against 6.8 for a calm 8-point buck.
+
+The tier sequence under the deep policy:
+
+| Trip | Trophies turned in before it | Weapon | Graze | Range |
+|---|---|---|---|---|
+| 1 | 0 | starter bow | 25% | 12 |
+| 2 | 5 | Recurve | 20% | 14 |
+| 3 | 10 | Great Bow | 10% | 18 |
+| 4 | 15 | Ancient Rifle | 5% | 18 effective |
+
 ### 4.2 Per-run procedure
 
 1. **Before entering** (the clock hasn't started):
@@ -325,7 +384,8 @@ longer run. A 2-point buck spends a trophy slot that is worth about 9 points in 
    - **Hide the moment a target comes into view.** At 18 tiles a visible player is probably already inside a
      deer's 20-tile flee radius.
    - Stealth toward the target, but stop **outside 10 tiles** (the nervous radius) and inside weapon range:
-     11-12 tiles with the starter bow, up to 14-20 tiles after upgrades.
+     11-12 tiles with the starter bow, 14 with the Recurve. With the Great Bow or better (range ≥ 18 = view
+     range), shoot from where you first see the deer.
    - Keep the deer **upwind**: never stand where the wind blows from you toward the deer (30% / 15% penalty).
      Wind moves one octant every 30 s. Approach across the wind or from the downwind side, and re-check every
      30 s.
@@ -365,10 +425,10 @@ longer run. A 2-point buck spends a trophy slot that is worth about 9 points in 
 
    Leftover trophies are lost at expiry, so the deadline rule matters more than one extra kill.
 9. **Expected result**
-   - Three deep trips of about 245 s, at about 42 points each, plus a partial 4th trip (about 15-20 points):
-     **about 140-150 points per permit**.
-   - At the best observed cadence (25-28 s per kill): about 4 trips, **about 170**.
-   - Upgrades come for free along the way: range 14 after trip 1, 16 after trip 2, 20 after trip 3 (12 trophies).
+   - The dynamic program (§4.1, "Bow upgrades in the model"), with a = 18 s calibrated to the observed
+     ~30 s per kill, gives **about 159 points per permit** including upgrades, against 141 if upgrades did
+     nothing.
+   - At the best observed cadence (25-28 s per kill): about 4 trips, **about 170-190**.
 
 ### 4.3 Permits
 
