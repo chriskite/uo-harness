@@ -4191,6 +4191,24 @@ Code: `harness/fos_field.py`. The viz overlay: docs/VISUALIZER.md §2.17. User: 
   items and mobiles need a world replay (`replay.timed_packets` through a `proxy.SessionTap`, as
   `fos_field.replay_events` does; ~3 s per session), because `item_seen` rows carry no position.
 
+## Hunting Grounds: deer hunting event (2026-11-21 to 11-28)
+
+Rules, measured mechanics and the scoring strategy: docs/research/HUNTING_GROUNDS.md. In `ctl know`:
+`ctl know search "Hunting Grounds" --tag hunting_grounds` (#17162-17175).
+
+- **Analysis method (capture `20261122_140905`, Logan's two runs 14:57-15:28).** Deer positions aren't
+  in the store's events. Decode them from the capture's S2C `0x77`/`0x20` packets with
+  `harness/world/parsers.parse_packet`, because Outlands widens their coordinates to u32. A hand-rolled
+  u16 `struct` read gives garbage (y = 0). A deer's state labels ("(calm)", "*flees*", ...) arrive as
+  type-0 `speech_heard` from the deer, about every 5 s, so the label before a shot can be stale.
+- **Key numbers.**
+  - Buck value rises with distance south of the lodge: about 2 points within 60 tiles, about 9 at 200+.
+  - Running is 0.2 s/tile; stealth is 0.4 s/tile.
+  - The session expires about 900 s after "*You now have 15 minutes in this realm*", which is spoken over
+    our own head.
+  - Held trophies are lost at expiry. Run 2 lost 44 points that way.
+  - Weapon upgrades reset every run.
+
 ## Other players at the Mausoleum (19 live captures 2026-10-13 to 10-19, measured 2026-10-19)
 
 Measured for the simulator's other players (docs/SIM.md "Other players"). A throwaway script replayed every capture
