@@ -1310,6 +1310,85 @@ mining run is going (§2.19's rule), the Live map shows its spot the way loop_mi
   (447 ore); the outline, block grid, rings and forge drew over the facet picture, and hovering read "ore block 316,84
   (2528-2535, 672-679): dug out 2m ago, ready in 58m". The route answered in 1.2 s cold, 6 ms warm.
 
+### 2.22 Hunting Grounds advice (added 2026-11-22, user request)
+
+User: "incorporate this strategy info into the viz UI, similar to how we did for the Field of Souls event...
+recommended range to move to, recommended points of deer to shoot, when we must return to the lodge based on
+time remaining". The strategy and the numbers behind it: docs/research/HUNTING_GROUNDS.md §4.
+
+**Source.** The state's `grounds` (§1; `hunting_grounds.GroundsLog.status`), null outside a run. Live proxies
+and replays both compute it; it is silent (no proxy events, no sound). Its fields:
+- **Clock:** `left_s`, `ends`.
+  - The run starts at "\*You now have 15 minutes in this realm\*", spoken over our own head, and lasts 900 s.
+  - It is reset by "You now have N minutes left…" and by the warden gump's `Nm Ns Left`.
+  - It ends at "Your permit for the Hunting Grounds has expired.", when we're more than 400 tiles from the
+    warden (the exit moongate), or 10 s past the end.
+- **Trophies and the weapon:** `held`, `turned_in` and `score` come from the carve and turn-in lines, and
+  `ammo` from the hotbar.
+  - `weapon` {name, range, graze, shoot_from, next}. It is reset every run, like the server's.
+  - `wind` comes from "Wind is now blowing to the X.".
+- **The run home:** `home_s` is 0.2 s a tile to the warden + 20 s. `slack_s` = `left_s − home_s`.
+  `no_return_r` is the Chebyshev radius around the warden that the run home still fits.
+- **`plan`:**
+  - `phase`: `out`, `north`, `hunt`, `return` or `done`.
+  - `zone`: the recommended y range. `min_points`: shoot calm bucks worth at least this.
+  - `kills`, `kills_max`, and `expect` (the points to come this run).
+- **The plan** (`hunting_grounds.plan`):
+  - For each band of buck value (BANDS: 2.1 points within 60 tiles of the lodge up to 9.1 beyond 200), work
+    out the kills that fit before the run home, at the weapon's kill time (§4.1 there: 32.7 s starter …
+    24.2 s Rifle).
+  - The band whose trip earns the most points wins. The zone also takes in neighbours that earn ≥ 80% as
+    much, so the deep south is one zone.
+  - It says return when the trophy slots are full or no kill fits any more.
+  - `min_points` is 6 in the deep zone while trophy slots are the limit. It is 2 when time is the limit.
+  - The dynamic program over the rest of the run gives only `expect`. Choosing by its best value flipped the
+    advice from look to look on Logan's runs: its options sit within ~5 points of each other.
+- **`bucks`** (deer in the world model with a recent "N point buck" label):
+  - `points`; `mood` (the deer's last "(calm)"/"(nervous)"/"(fleeing)"/"\*flees\*" label within 15 s, else null).
+  - `verdict`:
+
+    | Verdict | When |
+    |---|---|
+    | `shoot` | calm and ≥ `min_points` |
+    | `wait` | nervous, or no recent label |
+    | `skip` | fleeing, below `min_points`, or the plan is to return |
+
+  - `downwind`: 30 when the wind blows from us straight at it, 15 when one octant off.
+
+**Badge.** Where the FoS countdown goes, under the map buttons:
+- the time left (m:ss) and a headline from the phase, e.g. "Run south to y 249–330 (~7.6–9.1 pts a buck)",
+  "Hunt here: calm bucks ≥ 6 pts", "Head back now: 3 trophies (24 pts)";
+- lines for what to shoot and from where ("shoot from 11–12 tiles", or "from where you see them" once the range
+  reaches the view's 18);
+- "head back within m:ss" while holding trophies;
+- the trip's kills and the points to come; held / score / ammo; the weapon and its next tier; the wind's side.
+
+The badge turns amber when 30 s or less are left to spare, or the plan says return. It turns red and pulses
+once holding trophies and the slack is gone.
+
+**Overlay** (`hunt` button, `localStorage["viz.mapGrounds"]`, on by default):
+- band lines with their mean points;
+- the zone, shaded green with a dashed edge;
+- the warden as a gold diamond;
+- red dashed: the square beyond which the run home no longer fits (drawn once it lies inside the region);
+- around us, the shooting distance: cyan dashed at the usable range, amber at the 10-tile nervous radius;
+- around each buck, a ring in its verdict's colour (dashed when the wind carries our scent to it) and "points
+  mood" under it.
+
+**Code and tests.**
+- `viz/src/grounds.ts` is the pure model (bun tests). `MapGrid.tsx` draws it.
+- Python: `harness/test_hunting_grounds.py`, including Logan's run-2 ending, where the plan says return at 76 s
+  left with 3 held.
+
+**Verified** in headless WebKit (1600×1000) against a second viz server (port 8091) replaying `20261122_140905`:
+- At 15:22:11 the badge read "6:32 Hunt here: calm bucks ≥ 6 pts" and "head back within 5:40". The 8-point calm
+  buck Logan killed 4 s later had a green ring, a 6-point nervous one an amber ring, and the 2- and 4-pointers
+  grey ones.
+- At 15:13:55 (run 2's start) it read "Run south to y 249–330", with the warden marker and the band labels.
+- At 15:28:10 (5 held, 34 s left, 233 tiles out) it was red: "5 trophies: run back to the warden", "head back NOW".
+- Replaying both runs every 5 s: the advice said return at 15:27:28 with 3 held (slack 13 s). The live run kept
+  hunting and lost all five trophies (44 points) at the expiry.
+
 ## 3. Parity principle
 
 The viz consumes exactly the state-port contract, the agent's contract. If the human can't see

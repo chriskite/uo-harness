@@ -2,6 +2,7 @@
 // Snapshot serials are '0x%08X' strings; event serials are ints (serial.ts normalizes).
 
 import type { FieldClock } from "./fieldtimer.ts";
+import type { GroundsStatus } from "./grounds.ts";
 
 /** Snapshot-side serial key, always '0x%08X'. */
 export type HexSerial = string;
@@ -232,6 +233,8 @@ export interface StateResponse {
   intents?: AgentIntent[];
   /** The Field of Souls session while we're in it (harness/fos_field.py FieldLog.status), else null/absent. */
   field?: FieldClock | null;
+  /** The Hunting Grounds run while we're in it (harness/hunting_grounds.py GroundsLog.status), else null/absent. */
+  grounds?: GroundsStatus | null;
 }
 
 /** An agent runner's current intent (harness/proxy.py SessionTap.set_intent).

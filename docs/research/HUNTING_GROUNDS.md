@@ -6,7 +6,8 @@ Three parts:
    session 307, 2026-11-22 14:57-15:28 local time (CST, UTC-6).
 3. The strategy derived from both (§4).
 
-The same facts are in the knowledge store: `ctl know search "Hunting Grounds" --tag hunting_grounds`.
+The same facts are in the knowledge store: `ctl know search "Hunting Grounds" --tag hunting_grounds`. During a
+run the viz's map shows the §4 strategy live (zone, points to shoot, when to head back): docs/VISUALIZER.md §2.22.
 
 ## 1. Official rules (forum post)
 

@@ -4146,6 +4146,25 @@ the two-layer room west of the arrival").
   hatchet that breaks hands over to the next and the last one ends the leg anyway. *Rejected*: lowering the hop's
   quota to the uses carried (the plan sizes quotas by value; a shorter quota hides the shortage from the trip rows).
 
+## Hunting Grounds advice in the viz (user 2026-11-22; docs/VISUALIZER.md §2.22)
+
+- *Decided*: the proxy computes the advice (`hunting_grounds.GroundsLog`, the state's `grounds`), as
+  `fos_field.FieldLog` does the Field of Souls countdown. Replays compute it too, and the viz only words and draws
+  it. The run, the trophies, the turn-ins and the clock all come from the server's own lines. None of it needs
+  new packets.
+- *Decided*: what to do now is the strategy doc's greedy rule (docs/research/HUNTING_GROUNDS.md §4).
+  - Fill this trip's free trophy slots with the most points that still fit before the run home, at the
+    weapon tier's kill time.
+  - Return when the slots are full or no kill fits.
+  - The deep band and its neighbour form one zone.
+- *Rejected*: taking the dynamic program's best value as the advice. Replayed every 5 s over Logan's two runs,
+  it flipped zone, phase and target points from look to look, because its options sit within ~5 points of each
+  other: whole trips are packed into 5 s steps. Tolerances (3, then 5 points) and sticking with the last choice
+  still flipped between bands and sometimes sent him back with one trophy. The program stays only for the
+  "points to come" line.
+- *Decided*: return before the warden's clock runs out with a 20 s margin over the 0.2 s-a-tile run home. Replayed
+  on run 2, this said return at 15:27:28 with 3 held. He hunted on and lost 5 trophies (44 points) at 15:28:44.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

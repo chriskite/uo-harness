@@ -8,6 +8,7 @@ import { runningMining } from "../miningjob.ts";
 import { fetchOre, oreText, type BlockState, type OreResponse } from "../ore.ts";
 import { MultiFootprints, houseAt, houseOf, type FootprintTile, type House } from "../multis.ts";
 import { fieldTimer } from "../fieldtimer.ts";
+import { VERDICT_COLORS, buckCaption, groundsView, type GroundsStatus } from "../grounds.ts";
 import { hex } from "../serial.ts";
 import {
   NEAR_FIELD,
@@ -39,6 +40,7 @@ const ORE_KEY = "viz.mapOre";
 const SPOT_POLL_MS = 15_000;
 const REAPERS_KEY = "viz.mapReapers";
 const REAPER_MODE_KEY = "viz.mapReaperMode";
+const GROUNDS_KEY = "viz.mapGrounds";
 const NO_LIVE: LiveWalk = { steps: [], blocked: [] };
 
 /** Grove layer tree colours per harvest-memory state (legend: .lg-tree-*). */
@@ -116,9 +118,18 @@ interface Scene {
   mainFacet: boolean;
   /** The Field of Souls reaper heatmap (/api/fos/reapers) while shown in or near the field, else null. */
   reapers: ReaperLayer | null;
+  /** The Hunting Grounds run (state `grounds`) while in it with the overlay on, else null. */
+  grounds: GroundsStatus | null;
 }
 
-function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse | null, ore: OreResponse | null, reapers: ReaperLayer | null): Scene {
+function buildScene(
+  viz: VizSnapshot,
+  layers: WalkLayer[],
+  grove: GroveResponse | null,
+  ore: OreResponse | null,
+  reapers: ReaperLayer | null,
+  grounds: GroundsStatus | null,
+): Scene {
   const st = viz.state;
   const world = st?.world;
   const self = world?.self;
@@ -182,6 +193,7 @@ function buildScene(viz: VizSnapshot, layers: WalkLayer[], grove: GroveResponse 
     ore: ore?.spot && (ore.spot.facet ?? 0) === (self?.map ?? 0) ? ore : null,
     mainFacet: (self?.map ?? 0) === 0,
     reapers,
+    grounds,
   };
 }
 
@@ -327,12 +339,17 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
     };
   }, [reapersOn, inField, reaperMap, reaperMode]);
 
+  // Hunting Grounds advice (§2.22): the proxy state's `grounds` while in a run; the overlay can be switched off.
+  const groundsState = viz.state?.grounds ?? null;
+  const [groundsOn, setGroundsOn] = useState(localStorage.getItem(GROUNDS_KEY) !== "off");
+
   const scene = useMemo(
-    () => buildScene(viz, layers, groveOn ? grove : null, oreOn ? ore : null, reaperLayer),
-    [viz, layers, groveOn, grove, oreOn, ore, reaperLayer],
+    () => buildScene(viz, layers, groveOn ? grove : null, oreOn ? ore : null, reaperLayer, groundsOn ? groundsState : null),
+    [viz, layers, groveOn, grove, oreOn, ore, reaperLayer, groundsOn, groundsState],
   );
   // Field of Souls: the time left before the ejection (§2.18; the proxy state's `field`, null outside the field).
   const fieldView = fieldTimer(viz.state?.field);
+  const groundsBadge = groundsView(groundsState);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -675,6 +692,87 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       ctx.fillText(text, x, y);
     };
 
+    // Hunting Grounds (§2.22): the bands' mean points, the recommended zone, the line beyond which the run
+    // home no longer fits, the warden, and our shooting distance (inside the range, outside the nervous radius).
+    const hg = s.grounds;
+    if (hg) {
+      const [rx0, ry0, rx1, ry1] = hg.region;
+      const rect = (ax: number, ay: number, bx: number, by: number) => {
+        ctx.moveTo(...P(ax, ay));
+        ctx.lineTo(...P(bx + 1, ay));
+        ctx.lineTo(...P(bx + 1, by + 1));
+        ctx.lineTo(...P(ax, by + 1));
+        ctx.closePath();
+      };
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(232, 220, 192, 0.25)";
+      ctx.beginPath();
+      for (const b of hg.bands) {
+        if (b.y[0] <= ry0) continue;
+        ctx.moveTo(...P(rx0, b.y[0]));
+        ctx.lineTo(...P(rx1 + 1, b.y[0]));
+      }
+      ctx.stroke();
+      for (const b of hg.bands) {
+        const ly = Math.max(b.y[0], ry0) + 3;
+        if (ly < y0 || ly > y1) continue;
+        const [sx, sy] = P(Math.max(rx0, x0), ly);
+        label(`~${b.points} pts a buck`, Math.max(sx, 0) + 6, sy, "#c4b292");
+      }
+      const zone = hg.plan?.zone;
+      if (zone) {
+        ctx.beginPath();
+        rect(rx0, zone[0], rx1, zone[1]);
+        ctx.fillStyle = "rgba(34, 197, 94, 0.08)";
+        ctx.fill();
+        ctx.setLineDash([8, 5]);
+        ctx.strokeStyle = "#22c55e";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      const [lx, ly] = hg.lodge;
+      const r = hg.no_return_r;
+      if (r < Math.max(lx - rx0, rx1 - lx, ry1 - ly)) {
+        ctx.beginPath();
+        rect(Math.max(rx0, lx - r), Math.max(ry0, ly - r), Math.min(rx1, lx + r), Math.min(ry1, ly + r));
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (ly + r <= ry1 && visible(lx, ly + r)) label("too far to get back in time", ...P(lx + 1, ly + r + 2.5), "#fca5a5");
+      }
+      if (visible(lx, ly)) {
+        const [wx, wy] = C(lx, ly);
+        const wr = Math.max(5, z * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(wx, wy - wr);
+        ctx.lineTo(wx + wr, wy);
+        ctx.lineTo(wx, wy + wr);
+        ctx.lineTo(wx - wr, wy);
+        ctx.closePath();
+        ctx.fillStyle = "#f5d77a";
+        ctx.fill();
+        label("warden", wx + wr + 3, wy + 4, "#f5d77a");
+      }
+      if (s.truth && hg.plan?.min_points != null) {
+        const [tx, ty] = s.truth;
+        const [near, far] = hg.weapon.shoot_from;
+        ctx.beginPath();
+        rect(tx - far, ty - far, tx + far, ty + far);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(34, 211, 238, 0.7)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        rect(tx - near + 1, ty - near + 1, tx + near - 1, ty + near - 1);
+        ctx.strokeStyle = "rgba(245, 158, 11, 0.45)";
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
     // Mobiles: dots first, then captions placed without overlapping each other
     // (selected and hovered first; a caption with no free slot shows on hover).
     const mr = Math.max(3.5, z * 0.34);
@@ -698,6 +796,22 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
       ctx.stroke();
       // healthbar under the dot: always when hurt, at readable zoom when full
       if (m.hp !== null && (m.hp < 1 || z >= 8)) healthbar(ctx, ...C(m.x, m.y), mr, m.hp);
+    }
+    // Hunting Grounds bucks: a ring in the verdict's colour (shoot / wait / skip) and the points and mood
+    // under the dot; dashed when the wind carries our scent to it.
+    if (hg) {
+      for (const b of hg.bucks) {
+        if (!visible(b.x, b.y)) continue;
+        const [bx, by] = C(b.x, b.y);
+        ctx.strokeStyle = VERDICT_COLORS[b.verdict];
+        ctx.lineWidth = b.verdict === "shoot" ? 3 : 2;
+        if (b.downwind) ctx.setLineDash([3, 2]);
+        ctx.beginPath();
+        ctx.arc(bx, by, mr * 1.9, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (z >= 4) label(buckCaption(b), bx - mr, by + mr * 1.9 + 12, VERDICT_COLORS[b.verdict]);
+      }
     }
     const rank = (m: MobileDot) => (m.serial === s.selected ? 0 : m.serial === hovered ? 1 : 2);
     const placed: Array<[number, number, number, number]> = [];
@@ -933,6 +1047,19 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
           </span>
         </div>
       )}
+      {groundsBadge && (
+        <div className={`hg-panel${groundsBadge.urgent ? " urgent" : groundsBadge.warn ? " warn" : ""}`} title={groundsBadge.title}>
+          <div className="hg-top">
+            <span className="fos-left">{groundsBadge.left}</span>
+            <span className="hg-headline">{groundsBadge.headline}</span>
+          </div>
+          {groundsBadge.lines.map((l) => (
+            <div key={l} className="hg-line">
+              {l}
+            </div>
+          ))}
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         onPointerDown={(e) => {
@@ -1094,6 +1221,19 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
             reapers
           </button>
         )}
+        {groundsState && (
+          <button
+            type="button"
+            className={groundsOn ? "active" : ""}
+            title="Hunting Grounds: the recommended zone, points by band, where the run home stops fitting, the warden, our shooting distance and which bucks to shoot"
+            onClick={() => {
+              localStorage.setItem(GROUNDS_KEY, groundsOn ? "off" : "on");
+              setGroundsOn(!groundsOn);
+            }}
+          >
+            hunt
+          </button>
+        )}
         {onSwap && (
           <button type="button" title="swap the map and the live view" onClick={onSwap}>
             ⇄ swap
@@ -1120,6 +1260,17 @@ export function MapGrid({ viz, onSwap }: { viz: VizSnapshot; onSwap?: () => void
             setReaperMode(m);
           }}
         />
+      )}
+      {groundsState && groundsOn && (
+        <div className="map-legend reaper-legend" title="docs/VISUALIZER.md §2.22">
+          <b>hunt</b>
+          <span className="lg lg-hg-zone" /> zone
+          <span className="lg lg-hg-return" /> run home stops fitting
+          <span className="lg lg-hg-range" /> shooting distance
+          <span className="lg lg-hg-shoot" /> shoot
+          <span className="lg lg-hg-wait" /> wait (nervous / no label)
+          <span className="lg lg-hg-skip" /> skip
+        </div>
       )}
     </div>
   );

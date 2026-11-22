@@ -4194,7 +4194,8 @@ Code: `harness/fos_field.py`. The viz overlay: docs/VISUALIZER.md §2.17. User: 
 ## Hunting Grounds: deer hunting event (2026-11-21 to 11-28)
 
 Rules, measured mechanics and the scoring strategy: docs/research/HUNTING_GROUNDS.md. In `ctl know`:
-`ctl know search "Hunting Grounds" --tag hunting_grounds` (#17162-17175).
+`ctl know search "Hunting Grounds" --tag hunting_grounds` (#17162-17176). The strategy is on the viz's map
+during a run: `harness/hunting_grounds.py`, docs/VISUALIZER.md §2.22.
 
 - **Analysis method (capture `20261122_140905`, Logan's two runs 14:57-15:28).** Deer positions aren't
   in the store's events. Decode them from the capture's S2C `0x77`/`0x20` packets with

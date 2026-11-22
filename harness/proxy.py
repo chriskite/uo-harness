@@ -59,6 +59,8 @@ The field map's record and clock (fos_field.FieldLog, per session, silent, repla
 reaper heatmap and countdown): proxy events `fos_session`, `fos_mob`, `fos_corpse` and `fos_warning`
 (90 s before the ejection, which a live session sounds with alerts.toll), and the state's `field`
 {instance, spirit, named, ends, left_s, warn_s} while in the field (null otherwise).
+Hunting Grounds (hunting_grounds.GroundsLog, per session, silent, replays too; the viz's badge and map
+overlay): the state's `grounds` {left_s, held, turned_in, weapon, plan, bucks, ...} during a run (null otherwise).
 
 Usage:
   python proxy.py [--listen-host 127.0.0.1] [--listen-port 2593]
@@ -85,6 +87,7 @@ import cuo_profile
 from memory import MemoryWriter
 import pathfind
 import fos_field
+import hunting_grounds
 import soul_jar
 from world.runtime import WorldRuntime, C2S, S2C
 
@@ -601,6 +604,7 @@ class SessionTap:
         self.eerie = None                # live sessions: soul_jar.EerieSeen shared by all (eerie corpse alarm)
         self.spirit = None               # live sessions: this character's soul_jar.SpiritWatch (spirit alarm)
         self.field = None                # this character's fos_field.FieldLog (field map record and clock)
+        self.grounds = None              # this character's hunting_grounds.GroundsLog (run clock and advice)
         self.alarms = False              # live sessions: play the sounds (fos_warning's toll); never in replays
 
     def _log(self, **kw):
@@ -732,6 +736,11 @@ class SessionTap:
                     self._field_of_souls(new, t)
                 except Exception as e:  # noqa: BLE001 - nor an alarm bug
                     self._log(ev="alarm_error", note=f"{type(e).__name__}: {e}")
+            if self.grounds is not None:
+                try:
+                    self.grounds.feed(new, t, self.world.state)
+                except Exception as e:  # noqa: BLE001 - nor an advice bug
+                    self._log(ev="grounds_error", note=f"{type(e).__name__}: {e}")
 
     def _field_of_souls(self, new, t):
         """Field of Souls: an eerie corpse first seen (soul_jar.EerieSeen): proxy event `eerie_corpse` and the
@@ -806,6 +815,7 @@ class SessionTap:
             "intent": self.intent,
             "intents": list(self.intents),
             "field": self.field.status(self.wall()) if self.field is not None else None,
+            "grounds": self.grounds.status(self.wall(), self.world.state) if self.grounds is not None else None,
         })
         return out
 
@@ -1198,6 +1208,7 @@ async def handle_client(client_reader, client_writer, args):
     tap.eerie = args.eerie
     tap.spirit = soul_jar.SpiritWatch()
     tap.field = fos_field.FieldLog()
+    tap.grounds = hunting_grounds.GroundsLog()
     tap.alarms = True
     print(f"[proxy] {peer} connected -> {upstream_host}:{args.upstream_port} (log session_{tag}.jsonl)")
 

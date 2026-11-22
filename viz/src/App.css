@@ -1197,6 +1197,92 @@ table.evtable {
   right: auto;
   left: 6px;
 }
+/* the Hunting Grounds advice (MapGrid; docs/VISUALIZER.md §2.22), where the FoS countdown goes */
+.hg-panel {
+  position: absolute;
+  top: 46px;
+  right: 8px;
+  z-index: 2;
+  max-width: min(420px, calc(100% - 16px));
+  padding: 4px 10px 6px;
+  border: 1px solid #8a6a2e;
+  border-radius: 2px;
+  background: rgba(14, 10, 6, 0.9);
+  color: #e8dcc0;
+  pointer-events: auto;
+}
+.hg-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hg-headline {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #86efac;
+}
+.hg-line {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #c4b292;
+}
+.hg-panel.warn {
+  border-color: #f59e0b;
+}
+.hg-panel.warn .hg-headline {
+  color: #fcd34d;
+}
+.hg-panel.urgent {
+  border-color: #ef4444;
+  background: rgba(60, 8, 8, 0.92);
+  animation: fos-pulse 1s ease-in-out infinite;
+}
+.hg-panel.urgent .hg-headline,
+.hg-panel.urgent .fos-left {
+  color: #fca5a5;
+}
+.hg-panel .fos-left {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f5d77a;
+}
+.side-map .hg-panel {
+  top: 6px;
+  right: auto;
+  left: 6px;
+}
+.side-map .hg-line {
+  display: none;
+}
+.lg-hg-zone {
+  background: rgba(34, 197, 94, 0.25);
+  border: 1px dashed #22c55e;
+}
+.lg-hg-return {
+  border-top: 2px dashed #ef4444;
+  height: 0;
+}
+.lg-hg-range {
+  border: 1px dashed rgba(34, 211, 238, 0.8);
+}
+.lg-hg-shoot,
+.lg-hg-wait,
+.lg-hg-skip {
+  border: 2px solid;
+  border-radius: 50%;
+}
+.lg-hg-shoot {
+  border-color: #22c55e;
+}
+.lg-hg-wait {
+  border-color: #f59e0b;
+}
+.lg-hg-skip {
+  border-color: #6b7280;
+}
 
 /* ---------------------------------------------------------------- event log */
 

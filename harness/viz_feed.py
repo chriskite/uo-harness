@@ -54,6 +54,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import fos_field  # noqa: E402
+import hunting_grounds  # noqa: E402
 import pathfind  # noqa: E402
 import proxy  # noqa: E402
 from uo.packets import packet_length, C2S_OVERRIDES  # noqa: E402
@@ -456,6 +457,7 @@ class ReplayDriver(Feed):
         # the Field of Souls record and clock, silent (no alarms): replays and `memory.py ingest` get the
         # fos_* events and the countdown the live proxy has
         self.tap.field = fos_field.FieldLog()
+        self.tap.grounds = hunting_grounds.GroundsLog()   # the Hunting Grounds badge and overlay, as live
         self.tap.reanchor_on_confirm = self.reanchor_on_confirm
         self.now = self.t0
         # the simulated clock; the world model's too, so no closure holds this tap (a checkpoint's
