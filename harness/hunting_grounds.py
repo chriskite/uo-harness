@@ -53,8 +53,14 @@ TROPHY = re.compile(r"^(\d+) point trophy added to carried trophies\.$")
 TURNIN = re.compile(r"^Ammunition resupplied and (\d+) trophies turned in for (\d+) points \((\d+) new score\)$")
 WIND = re.compile(r"^Wind is now blowing to the (north|northeast|east|southeast|south|southwest|west|northwest)\.$")
 BUCK = re.compile(r"^(\d+) point buck$")
-GUMP_LEFT = re.compile(r"^(?:(\d+)m )?(\d+)s Left$")            # the warden gump: "10m 30s Left", "10s Left"
+# "15m Left", "14m 50s Left", "20s Left": the hotbar's (re-sent every 5 s, within 0.5 s of the real end in Logan's
+# runs) and the warden gump's time left
+LEFT = re.compile(r"^(?:(\d+)m)? ?(?:(\d+)s)? Left$")
 AMMO = re.compile(r"^(\d+)/(\d+)$")
+HELD_PT = re.compile(r"^(\d+) Pt$")                              # a held trophy on the hotbar
+LAYOUT_TEXT = re.compile(r"\{ text -?\d+ -?\d+ \d+ (\d+)\b")    # a text entry: its index into the lines
+SHOOT_ART = re.compile(r"\{ tilepic -?\d+ -?\d+ (\d+) \}\{ button [^}]* 4 \}")   # the art beside the Shoot button
+WEAPON_ART = {5041: 0, 30995: 1, 30994: 2, 30990: 3, 30606: 4}  # that art -> TIERS index (live 2026-11-22)
 MOODS = {"(calm)": "calm", "(nervous)": "nervous", "(fleeing)": "fleeing", "*flees*": "fleeing",
          "*looks nervous*": "nervous", "*grazed*": "fleeing"}
 OCTANTS = ("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest")
@@ -214,15 +220,46 @@ class GroundsLog:
                     r["ammo"] = 15
                 elif m := WIND.match(text):
                     r["wind"] = m.group(1)
-            elif ev == "gump_open" and self.run is not None:
+            elif ev == "gump_open":
                 lines = e.get("lines") or []
-                for i, line in enumerate(lines):
-                    if m := GUMP_LEFT.match(line):
-                        self.run["ends"] = now + 60 * int(m.group(1) or 0) + int(m.group(2))
-                    elif line == "Ammo" and i + 1 < len(lines) and (m := AMMO.match(lines[i + 1])):
-                        self.run["ammo"] = int(m.group(1))
+                if "Held Trophies" in lines:
+                    self._hotbar(lines, e.get("layout") or "", now)
+                elif self.run is not None:
+                    for line in lines:
+                        if (m := LEFT.match(line)) and (m.group(1) or m.group(2)):
+                            self.run["ends"] = now + 60 * int(m.group(1) or 0) + int(m.group(2) or 0)
         if len(self.moods) > 600:       # deer that left long ago
             self.moods = {s: v for s, v in self.moods.items() if now - v[2] <= 120}
+
+    def _hotbar(self, lines: list[str], layout: str, now: float) -> None:
+        """The Hunting Grounds hotbar (re-sent every 5 s; it can't be closed): the time left, the score, the held
+        trophies (one "N Pt" text entry each; equal values share a line), the ammo and the weapon (the art beside
+        the Shoot button). It is the run's ground truth: it corrects what the lines gave, and it starts a run
+        whose start line we missed (a proxy restarted in the Grounds), its trophies turned in taken as the
+        weapon tier's threshold."""
+        left = next((m for line in lines if (m := LEFT.match(line)) and (m.group(1) or m.group(2))), None)
+        if left is None:
+            return
+        left_s = 60 * int(left.group(1) or 0) + int(left.group(2) or 0)
+        held = [int(m.group(1)) for i in map(int, LAYOUT_TEXT.findall(layout))
+                if i < len(lines) and (m := HELD_PT.match(lines[i]))]
+        art = SHOOT_ART.search(layout)
+        t = WEAPON_ART.get(int(art.group(1))) if art else None
+        r = self.run
+        if r is None:
+            if left_s < END_GRACE_S:          # the last one, sent with the expiry
+                return
+            r = self.run = {"started": now + left_s - SESSION_S, "ends": now + left_s, "held": [], "turned_in": 0,
+                            "score": 0, "ammo": None, "wind": None, "lodge": LODGE}
+            self.moods.clear()
+        r["ends"] = now + left_s
+        r["held"] = held
+        if "Score" in lines and (i := lines.index("Score") + 1) < len(lines) and lines[i].isdigit():
+            r["score"] = int(lines[i])
+        if "Ammo" in lines and (i := lines.index("Ammo") + 1) < len(lines) and (m := AMMO.match(lines[i])):
+            r["ammo"] = int(m.group(1))
+        if t is not None and tier(r["turned_in"]) != t:
+            r["turned_in"] = TIERS[t][0]
 
     def status(self, now: float, state) -> dict | None:
         """The run for the state port (the viz's Hunting Grounds badge and map overlay), or None outside."""

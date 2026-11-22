@@ -1323,6 +1323,15 @@ and replays both compute it; it is silent (no proxy events, no sound). Its field
   - It is reset by "You now have N minutes left…" and by the warden gump's `Nm Ns Left`.
   - It ends at "Your permit for the Hunting Grounds has expired.", when we're more than 400 tiles from the
     warden (the exit moongate), or 10 s past the end.
+- **The hotbar is the ground truth** (added the same evening). The server re-sends it every 5 s, and its
+  "14m 50s Left" was within 0.5 s of the real end all through Logan's runs. It sets the time left, `score`,
+  `ammo` and `held` (one "N Pt" text entry per trophy; equal values share a line, so the entries are counted, not
+  the lines). It also sets the weapon tier from the art beside the Shoot button (5041 starter, 30995 Recurve,
+  30994 Hunting, 30990 Great, 30606 Ancient Rifle).
+  - A hotbar with no run starts one. That covers a proxy started or restarted inside the Grounds, which missed
+    the start line (the user's report: the live proxy dated from the day before, so nothing showed).
+  - Such a run takes the tier's threshold as its trophies turned in.
+  - The last hotbar (under 10 s left) never starts one.
 - **Trophies and the weapon:** `held`, `turned_in` and `score` come from the carve and turn-in lines, and
   `ammo` from the hotbar.
   - `weapon` {name, range, graze, shoot_from, next}. It is reset every run, like the server's.

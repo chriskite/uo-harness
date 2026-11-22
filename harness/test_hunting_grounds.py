@@ -132,6 +132,42 @@ def test_bucks():
     check("fleeing (3% to hit): skip", next(b for b in status(t)["bucks"] if b["serial"] == "0x0020C001")["verdict"] == "skip")
 
 
+# the hotbar as live at 15:08:44 (run 1, capture 20261122_140905): five held, two pairs sharing a line; the Recurve
+# Bow's art (30995) beside the Shoot button (button 4)
+HOTBAR_LINES = ["Score", "20", "4m 15s Left", "Held Trophies", "8 Pt", "12 Pt", "10 Pt", "Ammo", "5/15", "Wind"]
+HOTBAR_LAYOUT = (
+    "{ resizepic 13 13 11571 149 548 }{ text 52 26 2606 0 18 0 1 0 0 0 }{ text 101 26 2655 1 18 0 1 0 0 0 }"
+    "{ tilepic 20 42 6163 }{ text 55 46 2655 2 18 0 1 0 0 0 }{ gumppictiled 25 79 126 3 96 }"
+    "{ text 50 70 149 3 18 0 1 0 0 0 }{ tilepic 44 89 63994 }{ text 101 100 2655 4 18 0 1 0 0 0 }"
+    "{ tilepic 37 123 63996 }{ text 101 135 2655 5 18 0 1 0 0 0 }{ tilepic 37 158 63996 }"
+    "{ text 101 170 2655 5 18 0 1 0 0 0 }{ tilepic 38 194 63995 }{ text 101 205 2655 6 18 0 1 0 0 0 }"
+    "{ tilepic 38 229 63995 }{ text 101 240 2655 6 18 0 1 0 0 0 }{ gumppictiled 25 274 126 3 96 }"
+    "{ tilepic 52 287 31188 }{ button 95 285 2151 2154 1 0 1 }{ tilepic 55 318 51173 }{ button 95 325 9721 9724 1 0 2 }"
+    "{ tilepichue 43 363 63989 2499 }{ button 95 370 2151 2154 1 0 3 }{ tilepic 47 409 30995 }"
+    "{ button 95 414 9721 9724 1 0 4 }{ text 45 465 149 7 18 0 1 0 0 0 }{ text 96 465 2655 8 18 0 1 0 0 0 }")
+
+
+def test_hotbar():
+    print("== the hotbar: a run picked up without its start line (a proxy restarted in the Grounds), and kept true ==")
+    t = proxy.SessionTap(viz_feed._Null(), viz_feed._Null(), viz_feed._Null())
+    t.grounds = hg.GroundsLog()
+    t.wall = lambda: 5000.0
+    t._world(proxy.S2C, P.login(ME, 400, 8340, 285, 0))
+    check("no start line, no hotbar: no run", status(t) is None)
+    t._world(proxy.S2C, P.gump(0x01A2B3C4, 4100931131, HOTBAR_LAYOUT, HOTBAR_LINES))
+    g = status(t)
+    check("the hotbar starts the run: 255 s left, the five held (shared lines counted per entry), score, ammo",
+          g is not None and g["left_s"] == 255.0 and g["held"] == [8, 12, 12, 10, 10] and g["score"] == 20
+          and g["ammo"] == 5, str(g and {k: g[k] for k in ("left_s", "held", "score", "ammo")}))
+    check("the weapon from the Shoot button's art: the Recurve Bow, trophies turned in its threshold (3)",
+          g["weapon"]["name"] == "Recurve Bow" and g["turned_in"] == 3, str(g["weapon"]))
+    check("five held: run back", g["plan"]["phase"] == "return")
+    last = [x if x != "4m 15s Left" else "5s Left" for x in HOTBAR_LINES]
+    t.grounds = hg.GroundsLog()
+    t._world(proxy.S2C, P.gump(0x01A2B3C4, 4100931131, HOTBAR_LAYOUT, last))
+    check("the hotbar sent with the expiry doesn't start a run", status(t) is None)
+
+
 def test_plan_endgame():
     print("== after a turn-in with R s left: deep while it fits, shallower as time runs out (§4.2 step 8) ==")
     deep = hg.plan(LX, LY, 300, [], 12)
@@ -151,6 +187,7 @@ def main():
     test_run()
     test_deadline()
     test_bucks()
+    test_hotbar()
     test_plan_endgame()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
