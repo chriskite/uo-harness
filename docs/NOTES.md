@@ -4195,7 +4195,9 @@ Code: `harness/fos_field.py`. The viz overlay: docs/VISUALIZER.md §2.17. User: 
 
 Rules, measured mechanics and the scoring strategy: docs/research/HUNTING_GROUNDS.md. In `ctl know`:
 `ctl know search "Hunting Grounds" --tag hunting_grounds` (#17162-17176). The strategy is on the viz's map
-during a run: `harness/hunting_grounds.py`, docs/VISUALIZER.md §2.22.
+during a run: `harness/hunting_grounds.py`, docs/VISUALIZER.md §2.22. The runner is `harness/loop_hg.py` (`ctl run hg`,
+docs/PLAN.md "Hunting Grounds runner and simulator"); it is tested on the simulator `harness/sim/hgworld.py` (docs/SIM.md
+"Hunting Grounds simulator", calibration `harness/data/sim/hunting_grounds.json`).
 
 - **Analysis method (capture `20261122_140905`, Logan's two runs 14:57-15:28).** Deer positions aren't
   in the store's events. Decode them from the capture's S2C `0x77`/`0x20` packets with

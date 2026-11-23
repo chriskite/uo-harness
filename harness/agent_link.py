@@ -1279,7 +1279,7 @@ class Mover:
 
     def walk_to(self, center_fn, radius: int, label: str, max_moves: int | None = None, z_ok=None, gate=None,
                 goal_fn=None, urgent: bool = False, stop=None, max_route: int | None = None,
-                mobile_wait: float | None = None):
+                mobile_wait: float | None = None, run: bool = True):
         """Walk until within `radius` (Chebyshev) of center_fn(), re-evaluated
         on every replan (NPCs wander). `z_ok(z)` also requires the standing
         height (same level as the target, not a cave below or a floor above);
@@ -1305,13 +1305,14 @@ class Mover:
         mobiles we can't shove waits for them to move (after a stamina potion when short; None:
         MOBILE_WAIT_S), then WalkFailed; 0 fails at once (a fight's step away: standing there waiting is
         the worst of it, live 2026-10-15 22:57:56 and simulator fight1822 seed 5, a retreat 'waiting'
-        until dead)."""
+        until dead). `run`: False walks every step (the Hunting Grounds' stealth: a running step reveals; runs are
+        the default, the client's Always Run)."""
         self.sticky = set()
         self.walled = set()
         outer = self.route
         try:
             return self._walk_to(center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route,
-                                 MOBILE_WAIT_S if mobile_wait is None else mobile_wait)
+                                 MOBILE_WAIT_S if mobile_wait is None else mobile_wait, run)
         finally:
             self.sticky = set()
             self.walled = set()
@@ -1346,7 +1347,8 @@ class Mover:
             f"replanning")
         return True
 
-    def _walk_to(self, center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route, mobile_wait):
+    def _walk_to(self, center_fn, radius, label, max_moves, z_ok, gate, goal_fn, urgent, stop, max_route, mobile_wait,
+                 run=True):
         gate = tuple(gate) if gate is not None else None
         replans = 0
         best_route, stalled = None, 0  # danger replans since the planned route last got shorter (boxed in)
@@ -1355,7 +1357,7 @@ class Mover:
         start_blocked = self.blocked_count   # --max-blocked is per walk: a run's total grows for hours
         opened = {}                  # door tile -> event mark of its open request in this walk (_open_ahead)
         dispelled = set()            # field serials a dispel was tried on in this walk (_clear_fields)
-        run = True                   # the client's Always Run is on: a player never walks a route
+        # run: the client's Always Run is on, so a player never walks a route (except a stealth walk: walk_to's run)
         mobile_wait_until = None
         visits = collections.Counter()   # tile -> times this walk stepped onto it (WALK_REVISITS)
         took = set()                 # teleporters this walk took (or tried) for want of a route (teleporter_way)

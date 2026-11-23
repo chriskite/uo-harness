@@ -28,6 +28,10 @@ INSTANCES = (("east", (8342, 89), (8218, 72, 8474, 330)),     # Logan's runs 1-2
              ("west", (8030, 89), (7906, 72, 8162, 330)))     # runs 3-4 (x - 312; 20261122_140905, _163459)
 Y_MAX = 330                   # the regions' south edge
 LEAVE_R = 400                 # farther than this from both wardens: we left (the exit moongate, a recall)
+GATE_DY = -4                  # the exit moongate stands 4 tiles north of each warden (live (8030, 85)); stepping on it ends the run
+OFFICIAL_AT = (1600, 1530)    # the Hunting Official (Easton) by the Prevalia bank; ejected players land 50-180 tiles off
+OFFICIAL_GUMP, WARDEN_GUMP, HOTBAR_GUMP = 515811277, 3914586893, 4100931131
+PERMIT_GRAPHIC = 63999       # "hunting permit", a stack in the backpack
 SESSION_S = 900.0             # the start line -> "expired": 904 s and 899 s in Logan's runs
 END_GRACE_S = 10.0            # past the end this long without the expiry line: the session is over
 RUN_S = 0.2                   # s per tile running visible (1918 of 2131 visible steps)
@@ -43,8 +47,11 @@ CARVE_S = 6.0
 HOLD_MAX = 5
 STATE_TTL_S = 15.0            # a deer's mood label is re-sent about every 5 s; older: unknown
 WARN_SLACK_S = 30.0           # holding trophies with less spare time than this: the badge warns
-# (dy0, dy1, mean points) by tiles south of the lodge: the buck values seen (450 bucks)
-BANDS = ((0, 60, 2.1), (60, 120, 2.7), (120, 160, 4.2), (160, 200, 7.6), (200, 260, 9.1))
+# (dy0, dy1, mean points) by tiles south of the lodge: the buck values seen in Logan's 8 runs of 2026-11-22 (1585
+# bucks; harness/data/sim/hunting_grounds.json `points_by_band`). Value rises with depth and levels off past 200;
+# x within a band hardly matters (dy >= 180: 7.9-8.6 across the eight 32-tile columns)
+BANDS = ((0, 40, 2.07), (40, 80, 2.27), (80, 120, 2.89), (120, 140, 4.12), (140, 160, 4.94), (160, 180, 6.39),
+         (180, 200, 7.80), (200, 220, 8.77), (220, 260, 8.90))
 # (trophies turned in, weapon, range, graze), from the warden gump
 TIERS = ((0, "starter bow", 12, 0.25), (3, "Recurve Bow", 14, 0.20), (6, "Hunting Bow", 16, 0.15),
          (9, "Great Bow", 18, 0.10), (12, "Ancient Rifle", 20, 0.05))
@@ -92,8 +99,11 @@ def band_y(band, lodge_y: int) -> tuple[int, int]:
 
 
 def instance_at(x: int, y: int):
-    """(name, lodge, region) of the instance whose warden is nearest (x, y)."""
-    return min(INSTANCES, key=lambda i: cheb(x, y, *i[1]))
+    """(name, lodge, region) of the instance whose region holds (x, y), else the one whose warden is nearest in x.
+    Not the nearest warden by Chebyshev: deep in the west instance (8133, 325) is 236 tiles from both wardens (dy
+    dominates) and min() took the east one (simulator, 2026-11-22: the runner walked to an unreachable warden)."""
+    inside = [i for i in INSTANCES if i[2][0] <= x <= i[2][2] and i[2][1] <= y <= i[2][3]]
+    return inside[0] if inside else min(INSTANCES, key=lambda i: abs(x - i[1][0]))
 
 
 @functools.lru_cache(maxsize=None)
@@ -199,7 +209,7 @@ class GroundsLog:
         self.run: dict | None = None
         self.moods: dict[int, tuple[int, str | None, float]] = {}   # serial -> (points, mood, when)
 
-    def feed(self, events, now: float, state) -> None:
+    def feed(self, events, now: float) -> None:
         for e in events:
             ev = e.get("ev")
             if ev == "speech_heard":
@@ -269,14 +279,15 @@ class GroundsLog:
         if t is not None and tier(r["turned_in"]) != t:
             r["turned_in"] = TIERS[t][0]
 
-    def status(self, now: float, state) -> dict | None:
-        """The run for the state port (the viz's Hunting Grounds badge and map overlay), or None outside."""
+    def status(self, now: float, me, where, min_points: int | None = None) -> dict | None:
+        """The run for the state port (the viz's Hunting Grounds badge and map overlay) and the runner
+        (loop_hg.py), or None outside. `me`: our (x, y) or None; `where(serial)`: a mobile's (x, y) or None
+        (out of the world model). `min_points` overrides the plan's (the runner's --min-points)."""
         r = self.run
         if r is None:
             return None
-        me = state.self
-        inst = instance_at(me.x, me.y) if me.x is not None else INSTANCES[0]
-        gone = me.x is not None and cheb(me.x, me.y, *inst[1]) > LEAVE_R and now - r["started"] > END_GRACE_S
+        inst = instance_at(*me) if me is not None else INSTANCES[0]
+        gone = me is not None and cheb(*me, *inst[1]) > LEAVE_R and now - r["started"] > END_GRACE_S
         if gone or now > r["ends"] + END_GRACE_S:     # the exit moongate / a recall; no expiry line seen
             self.run = None
             return None
@@ -298,17 +309,19 @@ class GroundsLog:
             "no_return_r": int(max(0.0, left - RETURN_MARGIN_S) / RUN_S),
             "home_s": None, "slack_s": None, "warn_slack_s": WARN_SLACK_S, "plan": None, "bucks": [],
         }
-        if me.x is None:
+        if me is None:
             return out
-        home_s = RUN_S * cheb(me.x, me.y, *lodge) + RETURN_MARGIN_S
+        home_s = RUN_S * cheb(*me, *lodge) + RETURN_MARGIN_S
         out["home_s"] = round(home_s, 1)
         out["slack_s"] = round(left - home_s, 1)
-        p = plan(me.x, me.y, left, r["held"], r["turned_in"], lodge)
+        p = plan(*me, left, r["held"], r["turned_in"], lodge)
+        if min_points is not None and p["min_points"] is not None:
+            p["min_points"] = max(min_points, 2) if p["kills_max"] >= HOLD_MAX - len(r["held"]) else p["min_points"]
         out["plan"] = p
         bucks = []
         for serial, (pts, mood, when) in list(self.moods.items()):
-            m = state.mobiles.get(serial)
-            if m is None or m.x is None:
+            at = where(serial)
+            if at is None:
                 continue
             if now - when > STATE_TTL_S:
                 mood = None
@@ -319,9 +332,8 @@ class GroundsLog:
                 verdict = "shoot"
             else:
                 verdict = "wait"         # nervous (calm again after 10 s alone) or no recent label
-            bucks.append({"serial": f"0x{serial:08X}", "x": m.x, "y": m.y, "points": pts, "mood": mood,
-                          "dist": cheb(me.x, me.y, m.x, m.y), "verdict": verdict,
-                          "downwind": downwind((me.x, me.y), (m.x, m.y), r["wind"])})
+            bucks.append({"serial": f"0x{serial:08X}", "x": at[0], "y": at[1], "points": pts, "mood": mood,
+                          "dist": cheb(*me, *at), "verdict": verdict, "downwind": downwind(me, at, r["wind"])})
         bucks.sort(key=lambda b: (b["verdict"] != "shoot", -b["points"], b["dist"]))
         out["bucks"] = bucks
         return out

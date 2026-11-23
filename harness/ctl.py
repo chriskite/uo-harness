@@ -87,7 +87,8 @@ HOST = "127.0.0.1"
 TASKS = {"lumber": os.path.join(HERE, "loop_lumber.py"),
          "bank": os.path.join(HERE, "errand_bank.py"),
          "hunt": os.path.join(HERE, "loop_hunt.py"),
-         "mining": os.path.join(HERE, "loop_mining.py")}
+         "mining": os.path.join(HERE, "loop_mining.py"),
+         "hg": os.path.join(HERE, "loop_hg.py")}
 # Tests only: JSON {name: script path} replacing TASKS. Production never sets it.
 TEST_TASKS_ENV = "UO_CTL_TEST_TASKS"
 LOG_DIR = os.path.join(ROOT, "logs", "tasks")

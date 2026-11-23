@@ -62,7 +62,7 @@ def test_run():
     check("the start line: the run with 900 s left and the starter bow", g is not None and g["left_s"] == hg.SESSION_S
           and g["weapon"]["name"] == "starter bow" and g["weapon"]["shoot_from"] == [11, 12], str(g and g["weapon"]))
     check("at the lodge: run south to the deep zone, shoot calm bucks of 6 or more",
-          (g["plan"]["phase"], g["plan"]["zone"], g["plan"]["min_points"]) == ("out", [249, 330], 6), str(g["plan"]))
+          (g["plan"]["phase"], g["plan"]["zone"], g["plan"]["min_points"]) == ("out", [269, 330], 6), str(g["plan"]))
     clock[0] += 297
     me_line(t, "You now have 10 minutes left remaining in this realm.")
     check("the 10-minute line resets the end", status(t)["left_s"] == 600.0, str(status(t)["left_s"]))
@@ -98,7 +98,7 @@ def test_run():
     at(w, WX - 2, WY + 1)                                                     # the west instance's entry (16:35:42)
     g = status(w)
     check("the west instance: its warden and region, the same zone", g["instance"] == "west" and g["lodge"] == [WX, WY]
-          and g["region"] == [7906, 72, 8162, 330] and g["plan"]["zone"] == [249, 330], str({k: g[k] for k in ("instance", "lodge", "region")}))
+          and g["region"] == [7906, 72, 8162, 330] and g["plan"]["zone"] == [269, 330], str({k: g[k] for k in ("instance", "lodge", "region")}))
     at(w, 8000, 300)
     check("the run home from the west warden: 211 tiles, 62 s", status(w)["home_s"] == round(0.2 * 211 + hg.RETURN_MARGIN_S, 1),
           str(status(w)["home_s"]))
@@ -183,7 +183,7 @@ def test_plan_endgame():
     mid = hg.plan(LX, LY, 160, [], 12, (LX, LY))
     near = hg.plan(LX, LY, 80, [], 12, (LX, LY))
     none = hg.plan(LX, LY, 40, [], 12, (LX, LY))
-    check("300 s: 5 in the deep zone, calm 6+", (deep["zone"], deep["kills"], deep["min_points"]) == ([249, 330], 5, 6), str(deep))
+    check("300 s: 5 in the deep zone, calm 6+", (deep["zone"], deep["kills"], deep["min_points"]) == ([269, 330], 5, 6), str(deep))
     check("160 s: a short deep trip, any calm buck (time, not slots, is short)", mid["kills"] < 5 and mid["min_points"] == 2
           and mid["zone"][0] >= 249, str(mid))
     check("80 s: by the lodge", near["phase"] == "hunt" and near["zone"][1] <= 149, str(near))

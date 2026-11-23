@@ -8,6 +8,7 @@ Three parts:
 
 The same facts are in the knowledge store: `ctl know search "Hunting Grounds" --tag hunting_grounds`. During a
 run the viz's map shows the §4 strategy live (zone, points to shoot, when to head back): docs/VISUALIZER.md §2.22.
+The runner `harness/loop_hg.py` plays it unattended; its simulator results are in docs/SIM.md "Hunting Grounds simulator".
 
 ## 1. Official rules (forum post)
 
@@ -249,6 +250,106 @@ some are stale.
   event are updated every 1 hour."
   - At 15:13:05 it showed Logan at 82, 17 s after his 82-point turn-in.
   - At 15:28:54 it showed him at 154 = 82 + 72.
+
+### Eight runs (added 2026-11-22 night)
+
+**Source.** Runs 1-8 of 2026-11-22: captures `20261122_140905`, `20261122_163459` and `20261122_181713`. Runs
+1, 2 and 6 were in the east instance; runs 3, 4, 5, 7 and 8 in the west. Buck positions are given in the east
+frame (x − 312 for the west), with dy measured from y 89. The calibration file is
+`harness/data/sim/hunting_grounds.json`.
+
+**Buck values by depth** (1585 bucks, each at its median position):
+
+| dy | Bucks | Mean points | Mix |
+|---|---|---|---|
+| 0-40 | 134 | 2.07 | 2:130, 4:3, 6:1 |
+| 40-80 | 229 | 2.27 | 2:202, 4:23, 6:4 |
+| 80-120 | 211 | 2.89 | 2:138, 4:54, 6:17, 8:2 |
+| 120-140 | 137 | 4.12 | 2:50 … 14:1 |
+| 140-160 | 149 | 4.94 | 2:31, 4:52, 6:37, 8:23, 10:6 |
+| 160-180 | 188 | 6.39 | 2:15, 4:41, 6:60, 8:43, 10:22, 12:7 |
+| 180-200 | 228 | 7.80 | 4:26, 6:58, 8:70, 10:44, 12:23, 14:3 |
+| 200-220 | 194 | 8.77 | 6:32, 8:51, 10:69, 12:25, 14:5 |
+| 220-245 | 98 | 8.90 | 6:11, 8:37, 10:36, 12:12 |
+
+- 14-point bucks exist: 9 of them, 8 at dy ≥ 180.
+- Value tracks distance from the lodge. Its correlation is 0.76 with dy, 0.77 with Euclidean distance and 0.77
+  with Chebyshev distance.
+- Across the deep band, x hardly matters. At dy ≥ 180 the mean is 7.9-8.6 in every 32-tile column.
+- `hunting_grounds.BANDS` uses this table since the same night. The recommended zone moved from y ≥ 249 to
+  y ≥ 269 (dy ≥ 180).
+
+**Deer density.** Deer in view per 1000 visible tiles of the region, sampled every 5 s in runs 4-8:
+
+| dy | Deer per 1000 tiles |
+|---|---|
+| 0-60 | 0.3-0.7 |
+| 60-120 | 1.0-1.4 |
+| 120-160 | 1.1-1.2 |
+| 160-240 | 1.5-2.0 |
+
+[INFERENCE] That is about 100 deer per instance. Over a run, 220-285 different bucks came into view, so felled
+deer come back.
+
+**Deer movement**, in tiles per 5 s after a mood label:
+
+| Mood | Tiles per 5 s | Windows with movement | Notes |
+|---|---|---|---|
+| Calm | 5.6 | 82% | |
+| Nervous | 10.8 | 94% | |
+| Fleeing | 15.3 | | net displacement 9.6; about 0.17 s a tile while moving |
+
+**Mood changes**, per second of a deer within the distance, by our state:
+
+| Our state | Change | Rate |
+|---|---|---|
+| Visible | calm → flee | 0.27-0.33/s anywhere within 20 tiles; 0.18 within 4 |
+| Visible | nervous → flee | about 0.25/s |
+| Hidden | calm → nervous or flee | about 0 at 4-20 tiles (0.02/s flee at 8 and 16) |
+| Hidden | nervous → flee | 0.14/s within 4 tiles; under 0.02 farther |
+
+Here "hidden" runs from "You hide" to the next shot or running step.
+- [INFERENCE] Some of the hidden flights come from other players.
+- A visible player within view makes a calm deer bolt in about 3 s.
+- A hidden player can walk to within a few tiles of a calm deer almost without risk.
+
+**Being held still.** "You are no longer hindered." comes 0.07-0.2 s after "You have felled a deer!" (the shot
+holds you until it lands) and 0.6-0.8 s after a carve. Walks in between are refused.
+
+**Server timers** (runs 4-8):
+
+| Event | Timing (82 kills) |
+|---|---|
+| Target response → felled | 1.29-1.75 s, median 1.49 |
+| Carve accepted | 4.66 s or more after the shot |
+| Carve refused | up to 5.68 s after the shot (27 refusals) |
+| Hide after a carve | refused up to 2.98 s, accepted from 3.01 s |
+
+The carve gate is [INFERENCE] 3.2-4.2 s after the kill.
+
+**Between runs.**
+- The expired permit drops you on a random Prevalia tile: (1650, 1456), (1641, 1564), (1778, 1504) and
+  (1656, 1525) were seen.
+- The user then recalled or walked to the Hunting Official, Easton, at (1600, 1530), double-clicked him and
+  pressed "Enter Hunting Grounds".
+- The permit is a stack of graphic 63999, "hunting permit".
+- Each lodge's exit moongate is graphic 3948, hue 1196, four tiles north of the warden: (8030, 85) in the west.
+
+**What the eight runs scored:**
+
+| Run | Instance | Score | Trophies | Points per trophy | Lost at expiry |
+|---|---|---|---|---|---|
+| 1 | E | 82 | 13 | 6.3 | 0 |
+| 2 | E | 72 | 12 | 6.0 | 44 |
+| 3 | W | 78 | 13 | 6.0 | 0 |
+| 4 | W | 144 | 18 | 8.0 | 0 |
+| 5 | W | 146 | 15 | 9.7 | 2 |
+| 6 | E | 126 | 16 | 7.9 | 0 |
+| 7 | W | 134 | 14 | 9.6 | 2 |
+| 8 | W | 150 | 17 | 8.8 | 0 |
+
+The viz advice was on from run 4. Runs 4-8 average **140**, and that is the benchmark for the runner
+(docs/SIM.md "Hunting Grounds simulator").
 
 ## 3. Logan's two runs, trip by trip
 

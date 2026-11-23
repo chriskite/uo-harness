@@ -4189,6 +4189,38 @@ nook by an awake soulcatcher").
 - *Open*: a go-home run started at 610 s under water walked 87 steps to the gate, with the stairs' refill 3 steps
   off (no oxygen leg first).
 
+## Hunting Grounds runner and simulator (user 2026-11-22: "a runner that can run Hunting Grounds in a loop as long as I have hunting permits available ... a Hunting Grounds simulator so you can test the runner")
+
+- *Decided*: `harness/loop_hg.py` (`ctl run hg`) spends the permits one run after another. It uses the strategy the
+  viz shows (`hunting_grounds.GroundsLog.status` and `plan`), kept in-process from the link's events so the
+  simulator runs it unchanged.
+  - Roam the zone running.
+  - Stalk: hide (skill 21), stealth-walk to the weapon's range minus 1, stand still 2.3 s, double-click the buck.
+  - Carve 3.9 s after the kill.
+  - Turn in when the plan says return.
+  - It ends with no permits left, at `ctl stop --after-trip`, or when a break or the daily cap is closer than a run.
+- *Decided*: the actions are those the user's client has: skills by id, double-clicks on things in view, gump buttons
+  found by label (`room.labelled_button`). Nothing is said and war mode is never used.
+  - Shots are double-clicks (the forum post's way); a Shoot cursor, if one comes, is answered.
+  - Pacing is the human profile's (`hotkey`, `hotkey_aim`, `menu`, `use`).
+- *Decided*: the simulator is a sibling world, `harness/sim/hgworld.py`, not an extension of the dungeon `World`
+  (that one assumes pets, chains and a vet). It speaks the live protocol through `SimLink` and the real client
+  model. Every number is in `harness/data/sim/hunting_grounds.json`, measured on the user's 8 runs; the guesses
+  are listed in docs/SIM.md.
+- *Decided* (sim batches, docs/SIM.md "Tuning batches"):
+  - The runner also stalks worth-it bucks not yet heard calm (`--stalk-unsettled`, default on): +8 points a run
+    over 72 sessions at live pacing.
+  - It roams running, not stealth-walking: stealth cost 15 points a run.
+  - It keeps the plan's 6-point minimum: 8 was no better, 10 cost 27.
+- Expected live: about 130 a run at human pacing (149 without reaction times) against the user's 140 (runs 4-8).
+  Other hunters spooking deer are not modelled (`others_flee_per_s` = 0); at 0.02-0.04 the runner lost 10-45 points
+  in the sim. A first live run settles that.
+- *Fixed on the way* (the simulator found them):
+  - The buck serial was handed to `stalk` as a hex string, so the runner never shot.
+  - `hunting_grounds.instance_at` took the nearest warden by Chebyshev distance, which ties deep in the west
+    instance; it now uses the region that holds the tile. The viz advice had the same bug.
+  - An unreachable roam waypoint was retried every second.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

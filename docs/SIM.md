@@ -200,6 +200,7 @@ python harness/sim/run.py --scenario tidal_tomb --level 2 --runs 96 --reds 1.2 -
 | `data/sim/ossuary.json`, `_kb.json`, `_observed.json` | The Ossuary ("The Ossuary" below): four levels in two boxes, 292 spawns, specials of 19 types, level 2's own live trip; the wiki's 88 creatures (kb_scan) and 5 by hand; the user's four visits of 2026-10-28 and 10-31 and the runner's level 2 of 2026-11-06 (calibrate). |
 | `data/sim/cavernam.json`, `_kb.json`, `_observed.json` | Cavernam ("Cavernam" below): three levels in three boxes, 93 spawns, 6 specials, the creatures upscaled (`upscale`); the wiki's 69 creatures (kb_scan) and 3 by hand; the user's three visits of 2026-10-31 (calibrate). |
 | `data/sim/tamer/logan_wolf.json`, `_observed.json` | Logan the tamer: skills, species, the 8 pets, 5 team presets, the live anchors, the perk tables (hand-authored, each block with its evidence); the scan's codex, loadouts and Guide values (generated, committed). |
+| `sim/hgworld.py`, `sim/hgscenario.py`, `sim/run_hg.py`, `data/sim/hunting_grounds.json` | The Hunting Grounds deer event (a separate world for `loop_hg.HGLoop`, "Hunting Grounds simulator" below): `HGWorld`, its calibration loader, the batch CLI, the measured numbers and live gump templates. |
 
 ## Calibration (2026-10-13)
 
@@ -4508,3 +4509,105 @@ runs that much behind ours after it), our packets held and answered in order at 
 flight until the proxy's 3 s rejection (`proxy.CONFIRM_TIMEOUT_S`), its confirm after the end. On the live layout the
 first cover walk arrived 9.8 s in (median, live 10.3 s) on the runner of the day and 6.8 s with `Deadline` counting a
 mid-save wait's part only.
+
+## Hunting Grounds simulator (2026-11-22)
+
+An in-process server for the Hunting Grounds deer event (docs/research/HUNTING_GROUNDS.md), so the Hunting Grounds
+runner (`loop_hg.HGLoop`, unchanged) can be scored offline and compared with the user's live runs (runs 4-8: 144, 146,
+126, 134, 150 points, 14-18 trophies a run at 8.0-9.7 points each). It is a sibling of `World`, not an extension:
+`sim/hgworld.py` `HGWorld(scenario, seed, permits, walkers=None, followers=False)` has the six members `SimLink` uses
+(`player`, `login_packets`, `drain`, `c2s`, `run_until`, `_ev`, `intent`), so the runner sees the live packets
+through the real client model, and `hunting_grounds.GroundsLog` reads the same lines and gumps it reads live. The
+geometry is the install's map (facet 0: Prevalia and both instances). Every number is in
+`harness/data/sim/hunting_grounds.json` (`sim/hgscenario.load()`), measured on Logan Wolf's runs of 2026-11-22.
+
+```
+python harness/sim/run_hg.py --runs 12 --permits 2 --seed 1 --jobs 6 -- [loop_hg arguments]
+python harness/sim/run_hg.py --permits 1 --seed 5 --log logs/hg_s5.log      # one career with the runner's log
+python harness/sim/run_hg.py --runs 12 --json > hg.jsonl                    # every career's summary, then `all`
+python harness/test_hg_sim.py                                              # the world's tests (~2 s)
+```
+
+`run_hg.run_once(seed, permits, extra_args, followers=False) -> dict` runs one career: the character by the
+Prevalia bank with `permits` permits, the runner (`--human off --seed <seed> --memory <temp db>` unless given) until
+it returns ("done"), raises `agent_link.Abort` ("aborted") or anything else ("crashed"), or passes 600 s + 1500 s a
+permit of game time ("timeout"). Each row lists the sessions' scores; `all:` gives the score per permit (its sd, min,
+max), trophies per session, points per trophy, points lost, shots, the kill rate, the outcomes by the deer's mood at
+the shot, the refusals by text, violations, steps faster than the pace (`fast_steps`) and wall seconds per session.
+
+**Modelled**
+
+- **Town**: the permit stack (graphic 63999, "hunting permit : N" on a click), the Hunting Official at (1600, 1530)
+  and his menu (the live gump 515811277); "Enter Hunting Grounds" within 3 tiles spends a permit and lands us at the next
+  instance's entry (east and west alternate from a seeded start), with "\*You now have 15 minutes in this realm\*" over
+  our head. Followers out: the live refusal line.
+- **Session**: the 10- and 5-minute lines at 300 and 600 s, the expiry at `session_s` (900) over our head, held
+  trophies lost, out to one of the four live eject tiles, hidden (the forum post); the exit moongate (graphic 3948 hue
+  1196) ends it on a step; the wind's line every 30 s, one octant either way (§2: "each change moves one octant").
+- **Hotbar** (4100931131): closed and re-sent every 5 s in the live layout (`hotbar_full` / `hotbar_empty`): the text
+  table deduplicated (`hgworld.intern`), one text entry per held trophy, the weapon's art before the Shoot button.
+  Buttons: 1 Carve (the nearest corpse within 2), 2 Hide, 3 Track, 4 Shoot (a cursor, "Select a target to fire at.").
+- **Warden** (3914586893, the live template with the held points, score and time left): "Turn in Trophies and
+  Resupply" adds the held points, refills 15 ammo, sends the turn-in line and "<weapon> unlocked!" for each tier passed
+  (3/6/9/12 trophies; tiers reset each run).
+- **Hide** (skill 21 or the hotbar): always hidden (self 0x20 flag 0x80); refused within 5 s of a hide or 3 s of a
+  carve. A running step, a shot or a step onto a deer reveals; walking hidden is unlimited.
+- **Shoot** (a double-click on a buck or the cursor): refusals as live (stationary 2 s, 7 s cooldown, the tier's
+  Chebyshev range, 5 held, not a deer); one ammo; reveals; scares deer within 6 of the target at 0.5; hindered (steps
+  denied) until it lands 1.29-1.75 s later; hit by the target's mood (`hit`), graze by the tier; a kill: the felled line,
+  its death and corpse ("an animal corpse", gone after 30 s), "You are no longer hindered." 0.2 s later; a graze:
+  "\*grazed\*" and 20 s of flight; a miss: it flees.
+- **Carve** (a double-click on the corpse, skill 19, the hotbar): within 2 tiles, from 3.2-4.2 s after the kill, at most
+  5 held; the trophy line over our head, 0.8 s hindered.
+- **Deer**: per instance, each `density_by_band` band's per-1000 count over its area (the last band to the south
+  edge, about 77 deer) on walkable tiles, points from `points_by_band` at the spawn depth, body 234 "N point buck".
+  Moods by `hazard_per_s` (per second, by our hidden state and Chebyshev distance), drawn every 0.5 s, times 1.3 / 1.15
+  when the buck is directly / one octant downwind (`hunting_grounds.downwind`); fleeing -> nervous -> calm after
+  `calm_after_s` without sensing us (visible within 20, hidden within 10). Movement in bursts at the measured rates
+  (calm 5.55, nervous 10.79 tiles a 5 s; fleeing 0.17 s a step away from us). Labels "(calm)" etc. every 4-6 s in
+  view, "\*flees\*" / "\*looks nervous\*" on the change. Respawn 30-90 s later out of view. Deer over 40 tiles from us
+  stand still (speed).
+- **Metrics** (`HGWorld.metrics`): runs, sessions (score, trophies, held lost, end, shots, kills, the kills' depth,
+  the deepest point), scores, trophies, points lost (expiry / gate), shots and outcomes by mood, refusals by text,
+  permits left, steps, hides, carves, turn-ins, and violations: war mode, attack, any speech, spells, context menus.
+
+**[INFERENCE]** (the live server never showed these): the no-permit refusal "You need a Hunting Permit to enter."; the
+out-of-ammo line; Track's line, its cooldown line, and no location given; the Carve button with no corpse in reach;
+"That is too far away." (cliloc 500446) for an NPC or corpse out of reach; the order of the shot's refusals; no line of
+sight check (none of 64 live shot attempts was refused for sight); the target's mood held during the flight (live calm
+shots hit 84 %, no room for the visible flee hazard over 1.5 s); the miss's and graze's unhinder line; the hotbar's trophy
+art for 2/4/6/14 points (63990 + points/2 fits 8/10/12), the weapon art's spot for the Hunting Bow and Rifle, the
+pressed button art, the wind arrow's art; the deer's walk step (0.4 s), burst length (2-7), heading noise, the 12-tile
+home tether; the east exit moongate (by the 312-tile shift); respawn times; where the exit moongate puts us (the
+expiry's eject tiles) and that we arrive there visible.
+
+Batch of 2026-11-22 (runner with the instance and roam fixes, `--runs 12 --permits 2 --seed 1`): all 12 careers done,
+24 sessions scored 92-174, **139.6 a permit** (sd 22.9), 17.2 trophies at 8.11 points, nothing lost, 23.7 shots a
+session, 72.7 % kills per shot (all at calm bucks: 413 kills, 94 grazes, 61 misses), no violations, no step faster
+than its pace. Live runs 4-8: 126-150 (mean 140), 14-18 trophies at 8.0-9.7 points, 78 % kills per shot in run 4. The
+runner's only refusals were 317 early carves (it tries 3.4 s after the kill; the server allows 3.2-4.2 s). A session
+takes about 4.5 s of wall time (12 two-permit careers in 13 s on 12 workers).
+
+**Tuning batches (2026-11-22 night).** The runner's carve was set 3.9 s after the kill for these. `--runs 12 --permits 2
+--seed 100`, 24 sessions each, `--human off` unless noted:
+
+| Variant | Points a run | Trophies | Points a trophy |
+|---|---|---|---|
+| Default (stalk unsettled bucks, run while roaming, the plan's minimum of 6 points) | 149.2 | 18.2 | 8.22 |
+| `--no-stalk-unsettled` | 134.7 | | |
+| `--roam stealth` | 133.8 | | |
+| `--min-points 8` | 145.7 | 16.4 | 8.9 |
+| `--min-points 4` | 145.2 | 19.2 | 7.56 |
+| Default, `--human normal` (live pacing) | 130.8 | 16.0 | 8.17 |
+| `--human normal --min-points 8` | 129.2 | | |
+| `--human normal --min-points 10` | 102.7 | | |
+
+At live pacing over 72 sessions (`--runs 24 --permits 3 --seed 300`):
+- the default scored **129.9 a run** (sd 22.3), 15.7 trophies at 8.27 points;
+- `--no-stalk-unsettled` scored 121.6.
+
+So the defaults stand. With live pacing the runner is expected at about 130 against the user's 140. Human-speed
+reactions cost it about 19 points. Without them it scores 149.
+
+`others_flee_per_s` (other hunters spooking deer, unmeasured, 0) is the sim's biggest unknown. 0.02 cost the runner
+about 10 points and 0.04 about 45 (three careers each). A live run will say which is right.

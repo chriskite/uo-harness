@@ -738,7 +738,7 @@ class SessionTap:
                     self._log(ev="alarm_error", note=f"{type(e).__name__}: {e}")
             if self.grounds is not None:
                 try:
-                    self.grounds.feed(new, t, self.world.state)
+                    self.grounds.feed(new, t)
                 except Exception as e:  # noqa: BLE001 - nor an advice bug
                     self._log(ev="grounds_error", note=f"{type(e).__name__}: {e}")
 
@@ -815,9 +815,21 @@ class SessionTap:
             "intent": self.intent,
             "intents": list(self.intents),
             "field": self.field.status(self.wall()) if self.field is not None else None,
-            "grounds": self.grounds.status(self.wall(), self.world.state) if self.grounds is not None else None,
+            "grounds": self._grounds_status(),
         })
         return out
+
+    def _grounds_status(self):
+        """hunting_grounds.GroundsLog.status from the world model (None with no GroundsLog or outside a run)."""
+        if self.grounds is None:
+            return None
+        ws = self.world.state
+        me = (ws.self.x, ws.self.y) if ws.self.x is not None else None
+
+        def where(serial):
+            m = ws.mobiles.get(serial)
+            return (m.x, m.y) if m is not None and m.x is not None else None
+        return self.grounds.status(self.wall(), me, where)
 
     # ---- client -> server ----
     def _learn_speech_hue(self, pkt: bytearray):
