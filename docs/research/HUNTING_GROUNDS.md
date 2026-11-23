@@ -232,6 +232,29 @@ some are stale.
 - Two grazed 10-point bucks were chased. Both chases missed: a grazed deer flees.
 - Ammo was never short. The most shots on one trip was 12, out of 15.
 
+### A buck that leaves the range during the shot is never killed (2026-11-23)
+
+The user noticed this and it held up. Sources: the user's 184 cursor shots (runs 1-8) and the runner's 25 double-click
+shots (session `20261123_101257`). For each shot, the buck's Chebyshev distance was taken at the shot and 1.5 s later,
+when the shot lands, and compared with the bow's range from the hotbar art.
+
+| Buck at landing | Shots | Kills | Grazes | Misses |
+|---|---|---|---|---|
+| Past the range | 8 | **0** | 6 | 2 |
+| Exactly at the range (calm) | 9 | 6 | 1 | 2 |
+| Inside the range (calm) | 144 | 112 | 18 | 14 |
+
+- The range is inclusive: a buck exactly at the range at landing can still be killed.
+- A buck past it never is. With a 77% kill rate, 0 kills in 8 has a probability of about 1e-5.
+- The hit roll still seems to happen: a "hit" on an out-of-range buck comes back as `*grazed*`, a miss as nothing.
+  Either way the buck flees and the shot is spent.
+- Calm bucks moved during the flight in 13% of the shots: 1 tile in 8 of 160, 2 tiles in 5, 3 in 4, 4 in 1.
+- Of the calm shots taken at range − 1, 3 of 148 ended past the range. At range − 2 it was 2 of 130, and at
+  range − 3 it was 0 of 99.
+
+So shoot from at least 2 tiles inside the range. The runner's `--shot-margin` defaults to 2, and the simulator applies
+the rule at landing.
+
 ### Signals for automation
 
 - **Hotbar gump** 4100931131: button 1 Carve, 2 Hide, 3 Track, 4 Shoot. Its lines are `Score`, `NNm Left`,
@@ -448,16 +471,19 @@ longer run. A 2-point buck spends a trophy slot that is worth about 9 points in 
 An upgrade doesn't change the **hit** chance, which depends only on the deer's state (90/30/3%). It lowers
 the **graze** chance, so it raises the kill chance per calm shot:
 
-| Weapon (trophies) | Graze | Kill per calm shot | Usable range |
-|---|---|---|---|
-| starter (0) | 25% | 67.5% | 12 |
-| Recurve (3) | 20% | 72% | 14 |
-| Hunting (6) | 15% | 76.5% | 16 |
-| Great (9) | 10% | 81% | 18 |
-| Ancient Rifle (12) | 5% | 85.5% | 18 (20 nominal) |
+| Weapon (trophies) | Graze | Kill per calm shot | Range | Shoot from (2 inside, at most the view's 18) |
+|---|---|---|---|---|
+| starter (0) | 25% | 67.5% | 12 | 10 |
+| Recurve (3) | 20% | 72% | 14 | 12 |
+| Hunting (6) | 15% | 76.5% | 16 | 14 |
+| Great (9) | 10% | 81% | 18 | 16 |
+| Ancient Rifle (12) | 5% | 85.5% | 20 | 18 |
 
-Range above 18 is wasted. All 450 bucks came into view at exactly 18 tiles, and you can't target a deer you
-can't see. The Great Bow already shoots anything in view.
+Corrected 2026-11-23. This section first said range above 18 is wasted, because all 450 bucks came into view at
+exactly 18 tiles and you can't target a deer you can't see. That was wrong. The range counts where the buck is when
+the shot lands, ~1.5 s after the click, and a buck past the range then is never killed ("A buck that leaves the range
+during the shot", §2). So shoot from 2 tiles inside the range. The Rifle's 20 is exactly that margin over the view (the
+user's observation): it is the only weapon that can safely shoot anything in view.
 
 To see how much upgrades matter, I ran a dynamic program over a 15-minute run
 (`V(t, trophies turned in)` = the best expected score from time t). Each trip chooses a band and 1-5 kills,
@@ -487,7 +513,8 @@ With a = 18 s, T_kill falls from 32.7 s (starter) to 24.2 s (Rifle), 26% faster.
 - A sensitivity run gave the same answer: with range worth 1.5 s per tile, deep-first scored 184 against
   168-173. Only an implausible 3 s per tile (6 s kills) made a warm-up tie.
 - What upgrades change is execution:
-  - From the Great Bow (trip 3 onward), shoot from where you first see the deer and skip the stealth approach.
+  - Only the Ancient Rifle (range 20) can shoot from where you first see the deer. Every other weapon shoots from
+    2 tiles inside its range, so the Great Bow (trip 3) shoots from 16.
   - Later trips are shorter, so re-check the endgame table (step 8) against the time left. A Rifle-tier trip
     of 5 deep kills takes about 220 s, not 245 s.
   - Nervous deer are still not worth it. With the Rifle a nervous 12-point buck is worth 0.3 × 0.95 × 12 =
@@ -500,7 +527,7 @@ The tier sequence under the deep policy:
 | 1 | 0 | starter bow | 25% | 12 |
 | 2 | 5 | Recurve | 20% | 14 |
 | 3 | 10 | Great Bow | 10% | 18 |
-| 4 | 15 | Ancient Rifle | 5% | 18 effective |
+| 4 | 15 | Ancient Rifle | 5% | 20 (shoots anything in view) |
 
 ### 4.2 Per-run procedure
 
@@ -517,9 +544,9 @@ The tier sequence under the deep policy:
      twice as fast as stealth.
    - **Hide the moment a target comes into view.** At 18 tiles a visible player is probably already inside a
      deer's 20-tile flee radius.
-   - Stealth toward the target, but stop **outside 10 tiles** (the nervous radius) and inside weapon range:
-     11-12 tiles with the starter bow, 14 with the Recurve. With the Great Bow or better (range ≥ 18 = view
-     range), shoot from where you first see the deer.
+   - Stealth toward the target and stop 2 tiles inside the weapon's range: 10 tiles with the starter bow, 12 with
+     the Recurve, 14 with the Hunting Bow, 16 with the Great Bow. A buck that steps past the range while the shot
+     is in the air is never killed. With the Ancient Rifle (range 20), shoot from where you first see the deer.
    - Keep the deer **upwind**: never stand where the wind blows from you toward the deer (30% / 15% penalty).
      Wind moves one octant every 30 s. Approach across the wind or from the downwind side, and re-check every
      30 s.

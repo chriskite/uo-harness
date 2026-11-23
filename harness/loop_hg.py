@@ -497,7 +497,9 @@ class HGLoop:
                 log(f"stalk: no shot at 0x{serial:08X} in {STALK_MAX_S:.0f} s")
                 self.skip[serial] = time.monotonic() + SKIP_S
                 return
-            want = max(6, min(self.g["weapon"]["shoot_from"][1], hg.VIEW_R) - 1)
+            # shoot from `shot_margin` inside the range (a buck past it when the shot lands ~1.5 s later is never
+            # killed), at most from the view's edge: the Rifle (range 20) shoots anything in view
+            want = max(6, hg.shot_r(self.g["weapon"]["range"], self.args.shot_margin))
             if b["dist"] > want:
                 self.walk(lambda: self.buck_xy(serial), want, "stalk",
                           stop=lambda s: self.stalk_stop(s, serial, want), run=False)
@@ -715,6 +717,9 @@ def hg_body(st, serial) -> int:
 
 def arg_parser():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--shot-margin", type=int, default=hg.SHOT_MARGIN,
+                    help="shoot from this many tiles inside the weapon's range, at most from the view's 18 (a buck that "
+                         "steps past the range during the shot's flight is grazed or missed, never killed: 0 of 8 live)")
     ap.add_argument("--min-points", type=int, default=None,
                     help="shoot calm bucks worth at least this while trophy slots are the limit (default: the plan's)")
     ap.add_argument("--stalk-unsettled", action=argparse.BooleanOptionalAction, default=True,

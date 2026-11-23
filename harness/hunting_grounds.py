@@ -39,8 +39,13 @@ STEALTH_S = 0.4               # s per tile hidden (1153 of 1302 hidden steps)
 WARDEN_S = 10.0               # at the warden: the double-click and the turn-in button
 RETURN_MARGIN_S = 20.0        # on top of the run home: the warden, a detour, the 5 s hotbar clock
 END_MARGIN_S = 15.0           # a trip planned from the lodge ends this long before the expiry
-VIEW_R = 18                   # every buck came into view exactly 18 tiles off: farther range is wasted
+VIEW_R = 18                   # every buck came into view exactly 18 tiles off: the farthest a deer can be targeted
 NERVOUS_R = 10                # a hidden player made deer nervous within 10 tiles (17 of 18)
+# A buck past the range when the shot lands (~1.5 s after the click) is never killed (0 of 8 live; docs/research/
+# HUNTING_GROUNDS.md "A buck that leaves the range"), so shoot from this far inside it. The Rifle's range of 20 is that
+# margin over the view (the user's observation, 2026-11-23): it can shoot anything in view
+SHOT_MARGIN = 2
+NEAR_R = 5                    # hidden, nothing within 4 tiles startles calm deer (runs 4-8): the near end of shoot_from
 HIT_CALM = 0.9
 KILL_A_S = 18.0               # search + approach + the shot, per attempt (fits ~30 s per kill observed)
 CARVE_S = 6.0
@@ -76,6 +81,11 @@ MOODS = {"(calm)": "calm", "(nervous)": "nervous", "(fleeing)": "fleeing", "*fle
 OCTANTS = ("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest")
 
 
+def shot_r(rng: int, margin: int = SHOT_MARGIN) -> int:
+    """The farthest to shoot from with a weapon of range `rng`: `margin` inside the range, capped at the view."""
+    return min(rng - margin, VIEW_R)
+
+
 def cheb(ax, ay, bx, by) -> int:
     return max(abs(ax - bx), abs(ay - by))
 
@@ -89,7 +99,7 @@ def kill_s(turned_in: int) -> float:
     calm buck (a graze loses the deer like a miss), less stealth walking the longer the range (up to the view),
     plus the carve."""
     _, _, rng, graze = TIERS[tier(turned_in)]
-    a = KILL_A_S - STEALTH_S * (min(rng, VIEW_R) - TIERS[0][2])
+    a = KILL_A_S - STEALTH_S * (shot_r(rng) - shot_r(TIERS[0][2]))
     return a / (HIT_CALM * (1 - graze)) + CARVE_S
 
 
@@ -303,7 +313,7 @@ class GroundsLog:
             "hold_max": HOLD_MAX, "turned_in": r["turned_in"], "score": r["score"], "ammo": r["ammo"],
             "wind": r["wind"],
             "weapon": {"name": wname, "range": rng, "graze": graze,
-                       "shoot_from": [NERVOUS_R + 1, min(rng, VIEW_R)],
+                       "shoot_from": [NEAR_R, shot_r(rng)],
                        "next": None if nxt is None else {"name": nxt[1], "at": nxt[0], "range": nxt[2], "graze": nxt[3]}},
             "bands": [{"y": list(band_y(b, lodge[1])), "points": b[2]} for b in BANDS],
             "no_return_r": int(max(0.0, left - RETURN_MARGIN_S) / RUN_S),

@@ -854,8 +854,13 @@ class HGWorld:
             s["misses"] += 1
             return
         d.shot = False
+        tier = self.weapons[self._tier(s["turned_in"])]
+        # past the weapon's range when the shot lands (it moved during the ~1.5 s flight): never a kill. Live, 8 such
+        # shots (2026-11-22/23, the user's and the runner's): 0 kills, 6 grazed, 2 missed, against 77 % kills for calm
+        # bucks that stayed in range; so the hit roll stands and a hit becomes a graze
+        beyond = cheb(d, self.player) > tier[2]
         if self.rng.random() < self.sc["hit"][d.mood]:
-            if self.rng.random() < self.weapons[self._tier(s["turned_in"])][3]:
+            if beyond or self.rng.random() < tier[3]:
                 out["graze"] += 1
                 m["grazes"] += 1
                 s["grazes"] += 1

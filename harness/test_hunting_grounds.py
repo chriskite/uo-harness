@@ -60,7 +60,7 @@ def test_run():
     t, clock = grounds_tap()
     g = status(t)
     check("the start line: the run with 900 s left and the starter bow", g is not None and g["left_s"] == hg.SESSION_S
-          and g["weapon"]["name"] == "starter bow" and g["weapon"]["shoot_from"] == [11, 12], str(g and g["weapon"]))
+          and g["weapon"]["name"] == "starter bow" and g["weapon"]["shoot_from"] == [5, 10], str(g and g["weapon"]))
     check("at the lodge: run south to the deep zone, shoot calm bucks of 6 or more",
           (g["plan"]["phase"], g["plan"]["zone"], g["plan"]["min_points"]) == ("out", [269, 330], 6), str(g["plan"]))
     clock[0] += 297
@@ -188,8 +188,8 @@ def test_plan_endgame():
           and mid["zone"][0] >= 249, str(mid))
     check("80 s: by the lodge", near["phase"] == "hunt" and near["zone"][1] <= 149, str(near))
     check("40 s: nothing fits", none["phase"] == "done", str(none))
-    check("upgrades shorten the kill: starter 32.7 s, Rifle 24.2 s",
-          round(hg.kill_s(0), 1) == 32.7 and round(hg.kill_s(12), 1) == 24.2)
+    check("upgrades shorten the kill: starter 32.7 s, Rifle 23.3 s (it shoots from 18 tiles, the starter from 10)",
+          round(hg.kill_s(0), 1) == 32.7 and round(hg.kill_s(12), 1) == 23.3)
 
 
 def main():

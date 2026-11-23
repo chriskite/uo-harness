@@ -16,7 +16,7 @@ const status = (over: Partial<GroundsStatus>, plan: Partial<GroundsPlan> | null)
   score: 12,
   ammo: 15,
   wind: "south",
-  weapon: { name: "Recurve Bow", range: 14, graze: 0.2, shoot_from: [11, 14], next: { name: "Hunting Bow", at: 6, range: 16, graze: 0.15 } },
+  weapon: { name: "Recurve Bow", range: 14, graze: 0.2, shoot_from: [5, 12], next: { name: "Hunting Bow", at: 6, range: 16, graze: 0.15 } },
   bands: [],
   no_return_r: 2900,
   home_s: 40,
@@ -43,14 +43,14 @@ describe("groundsView", () => {
     expect(v.left).toBe("10:00");
     expect(v.headline).toBe("Run south to y 249–330 (~7.6–9.1 pts a buck)");
     expect(v.lines).toContain("shoot calm bucks ≥ 6 pts");
-    expect(v.lines).toContain("shoot from 11–14 tiles");
+    expect(v.lines).toContain("shoot from 5–12 tiles");
     expect(v.lines).toContain("Recurve Bow: range 14, graze 20% · Hunting Bow at 6 (1 more turned in)");
     expect(v.lines).toContain("wind to the south: approach deer from their south side");
     expect(v.warn).toBe(false);
     expect(v.urgent).toBe(false);
   });
-  test("from the Great Bow on (range at the view's 18): shoot from where you see them", () => {
-    const g = status({ weapon: { name: "Great Bow", range: 18, graze: 0.1, shoot_from: [11, 18], next: null } }, { phase: "hunt" });
+  test("the Ancient Rifle (range 20 = the view's 18 + the margin): shoot from where you see them", () => {
+    const g = status({ weapon: { name: "Ancient Rifle", range: 20, graze: 0.05, shoot_from: [5, 18], next: null } }, { phase: "hunt" });
     const v = groundsView(g)!;
     expect(v.headline).toBe("Hunt here: calm bucks ≥ 6 pts");
     expect(v.lines).toContain("shoot from where you see them (≤ 18 tiles)");

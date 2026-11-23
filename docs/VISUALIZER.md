@@ -1371,8 +1371,9 @@ and replays both compute it; it is silent (no proxy events, no sound). Its field
 **Badge.** Where the FoS countdown goes, under the map buttons:
 - the time left (m:ss) and a headline from the phase, e.g. "Run south to y 249–330 (~7.6–9.1 pts a buck)",
   "Hunt here: calm bucks ≥ 6 pts", "Head back now: 3 trophies (24 pts)";
-- lines for what to shoot and from where ("shoot from 11–12 tiles", or "from where you see them" once the range
-  reaches the view's 18);
+- lines for what to shoot and from where: `weapon.shoot_from` is [5, min(range − 2, 18)] (`hunting_grounds.shot_r`),
+  shown as "shoot from 5–10 tiles", or "from where you see them" with the Ancient Rifle (range 20). A buck past the
+  range when the shot lands is never killed (2026-11-23);
 - "head back within m:ss" while holding trophies;
 - the trip's kills and the points to come; held / score / ammo; the weapon and its next tier; the wind's side.
 
