@@ -280,12 +280,16 @@ def cast_spell(spell_id: int) -> bytes:
     return struct.pack(">BHI BH", 0xFF, 0x000A, 4, 0, spell_id)
 
 
-def item_query(serial: int) -> bytes:
-    """0xFF dialect sub 9 item/object detail query:
-    `ff 000e 00000009 01 0001 <serial u32be>`."""
-    _check_u32(serial, "serial")
-    return struct.pack(">BHI", 0xFF, 0x000E, 9) + b"\x01\x00\x01" \
-        + struct.pack(">I", serial)
+def item_query(*serials: int) -> bytes:
+    """0xFF dialect sub 9 item/object detail query (the server answers with sub 0x15 names):
+    `ff <len u16be> 00000009 01 <count u16be> <serial u32be>...`. The client batches the serials it lacks names for
+    (capture 20261117_124820 19:15:48: five in one, answered by one sub 0x15 of five)."""
+    if not serials:
+        raise ValueError("item_query needs a serial")
+    for s in serials:
+        _check_u32(s, "serial")
+    body = b"\x01" + struct.pack(">H", len(serials)) + b"".join(struct.pack(">I", s) for s in serials)
+    return struct.pack(">BHI", 0xFF, 7 + len(body), 9) + body
 
 
 def _check_z(z):

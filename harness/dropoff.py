@@ -32,6 +32,8 @@ import combat
 EVENT_WAIT_S = 3.0
 LINE_WAIT_S = 1.5             # after the last pick: its line (the server's lines come within ~0.1 s live)
 RANGE = 2                     # every drop-off item stands within 2 tiles of the home landing tile
+NAME_BATCH = 5                # serials in one name query, as the client batches them (actions.item_query)
+NAME_WAIT_S = 1.0             # for a name query's answer (sub 0x15; ~0.05 s live)
 
 
 class DropoffError(Exception):
@@ -77,26 +79,50 @@ class _Flow:
         return pre + self.wait(done, timeout, pre)
 
 
-def chest_items(state: dict, rules: dict) -> list[tuple[int, dict]]:
-    """(serial, item) in the backpack's top level that `rules` sends to the chest: a graphic of
-    rules["graphics"] (a graphic, or an inclusive range "0x9BD1-0x9BEE"), or a name holding one of rules["names"]
-    as words (case-blind). Worn items and whatever lies in a bag inside the pack are never moved."""
+def _name_rule(n: str):
+    """A to_chest name as whole words, a trailing plural s allowed ("dye" in "mount gear dye", not "dyeing tub");
+    lookarounds, not \\b, so a name in brackets ("(sealed)", a sealed paragon chest's whole name) matches too."""
+    return re.compile(rf"(?<!\w){re.escape(n.lower())}s?(?!\w)")
+
+
+def _top_level(state: dict):
+    """(serial, item) of the backpack's top level, nothing worn."""
     items = state["world"]["items"]
     pack = combat.backpack(items, state["movement"].get("self_serial"))
     if pack is None:
         return []
-    spans = [tuple(_serial(v) for v in g.split("-")) if isinstance(g, str) and "-" in g else (_serial(g),) * 2
-             for g in rules.get("graphics") or []]
-    names = [re.compile(rf"\b{re.escape(n.lower())}s?\b") for n in rules.get("names") or []]
+    return [(_serial(k), it) for k, it in items.items()
+            if it.get("container") is not None and _serial(it["container"]) == pack and not it.get("layer")]
+
+
+def _graphic_spans(rules: dict) -> list[tuple[int, int]]:
+    return [tuple(_serial(v) for v in g.split("-")) if isinstance(g, str) and "-" in g else (_serial(g),) * 2
+            for g in rules.get("graphics") or []]
+
+
+def chest_items(state: dict, rules: dict) -> list[tuple[int, dict]]:
+    """(serial, item) in the backpack's top level that `rules` sends to the chest: a graphic of
+    rules["graphics"] (a graphic, or an inclusive range "0x9BD1-0x9BEE"), or a name holding one of rules["names"]
+    as words (case-blind; _name_rule). Worn items and whatever lies in a bag inside the pack are never moved."""
+    spans = _graphic_spans(rules)
+    names = [_name_rule(n) for n in rules.get("names") or []]
     out = []
-    for k, it in items.items():
-        if it.get("container") is None or _serial(it["container"]) != pack or it.get("layer"):
-            continue
+    for s, it in _top_level(state):
         name = (it.get("name") or "").lower()
         graphic = _serial(it.get("graphic") or 0)
         if any(lo <= graphic <= hi for lo, hi in spans) or any(n.search(name) for n in names):
-            out.append((_serial(k), it))
+            out.append((s, it))
     return out
+
+
+def unnamed(state: dict, rules: dict) -> list[int]:
+    """The pack's top-level items with no name in the world model that no graphic of `rules` takes anyway: their
+    names are asked for (item_query) before chest_items. Live the server names an item only when the client asks
+    (the 0xFF sub 9 query on a hover or an open), and nothing asks for loot dropped into the pack: on 2026-11-22 a
+    sealed paragon chest ("(sealed)", graphic 0x0E7C) and a "mount gear dye" rode through four drop-offs nameless."""
+    spans = _graphic_spans(rules)
+    return [s for s, it in _top_level(state) if not it.get("name")
+            and not any(lo <= _serial(it.get("graphic") or 0) <= hi for lo, hi in spans)]
 
 
 def ground_item(items: dict, serial: int) -> dict | None:
@@ -198,6 +224,15 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
     if error is None and plan.get("chest") and plan.get("to_chest"):
         chest = _serial(plan["chest"]["serial"])
         st, _ = io.poll()
+        ask = unnamed(st, plan["to_chest"])
+        for i in range(0, len(ask), NAME_BATCH):   # what the client's hover would ask: the loot's names
+            batch = set(ask[i:i + NAME_BATCH])
+            flow.send_wait(actions.item_query(*ask[i:i + NAME_BATCH]),
+                           lambda e, b=batch: e.get("ev") == "names" and any(
+                               _serial(x.get("serial") or 0) in b for x in e.get("entries") or []),
+                           "asking the pack's item names", min(timeout, NAME_WAIT_S))
+        if ask:
+            st, _ = io.poll()
         todo = chest_items(st, plan["to_chest"])
         if todo and f"0x{chest:08X}" not in (st["world"].get("containers") or {}):
             human.wait("use")              # a player opens the chest before dragging into it

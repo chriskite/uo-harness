@@ -3961,6 +3961,18 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     `\bdyes?\b`). Runes never by name: "a rune tome" would match. Two runes 0x78E56320 0x9BEC and 0x78F13786 0x9BE7
     were still in the pack at logout 23:11 (capture 20261118_194719 replayed): the next drop-off takes them.
     test_dropoff `test_dropoff` (fails before).
+  - **Nameless loot: the names asked for first since 2026-11-23** (the user, after the 2026-11-22 Tidal Tomb level 2
+    shift: the metal chest and the dye bottle in the pack were loot; the Seers had left them through four drop-offs).
+    Capture 20261122_181713 replayed: at each drop-off 21:38-22:35 the pack's top level held 0x4AF589DF (graphic
+    0x0E7C, hue 2843) and 0x4B1BC5A3 (0x3BC0, hue 1995) with **no name** in the world model. Their names came only
+    when the user hovered them after taking over: the client's 0xFF sub 9 query (22:44:07, 22:45:17), answered by sub
+    0x15 "(sealed)" (the whole name of a sealed paragon chest) and "mount gear dye". The 2026-11-17 risk above came
+    true: **the server names an item only when the client asks**, and nothing asks for loot lifted into the pack. Now
+    `dropoff.unnamed` lists the pack's top-level items with no name that no `to_chest` graphic takes,
+    and the drop-off asks for their names before `chest_items`. It sends `actions.item_query`, five serials a query
+    as the client batches them (capture 20261117_124820 19:15:48), and waits up to 1 s for each answer. `to_chest`
+    names gain "(sealed)". The name rule's `\b` became lookarounds, since `\b` can't match before "(". test_dropoff
+    `test_dropoff` (fails before).
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 

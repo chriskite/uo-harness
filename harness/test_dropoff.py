@@ -32,8 +32,9 @@ class NoHuman:
 class Room:
     """The room's items and menus; send() answers like the server, poll() hands the events over."""
 
-    def __init__(self, plan, extra_items):
+    def __init__(self, plan, extra_items, names=None):
         self.sent, self.pending = [], []
+        self.names = names or {}      # serial -> the name the server's sub 0x15 gives on an item query (0xFF sub 9)
         self.contents = {}            # container serial -> items the server sends when it opens (0x3C)
         self.menus = {int(s["serial"], 16): s["entry"] for s in plan["steps"]}
         self.target_step = next(int(s["serial"], 16) for s in plan["steps"] if s.get("target"))
@@ -76,6 +77,14 @@ class Room:
         elif pkt[0] == 0x08:
             s = int.from_bytes(pkt[1:5], "big")
             self.state["world"]["items"][f"0x{s:08X}"]["container"] = f"0x{CHEST:08X}"
+        elif pkt[0] == 0xFF and int.from_bytes(pkt[3:7], "big") == 9:
+            n = int.from_bytes(pkt[8:10], "big")
+            asked = [int.from_bytes(pkt[10 + 4 * i:14 + 4 * i], "big") for i in range(n)]
+            entries = [{"serial": s, "name": self.names[s]} for s in asked if s in self.names]
+            for e in entries:
+                self.state["world"]["items"][f"0x{e['serial']:08X}"]["name"] = e["name"]
+            if entries:
+                self.pending.append({"ev": "names", "count": len(entries), "entries": entries})
 
     def poll(self):
         evs, self.pending = self.pending, []
@@ -162,6 +171,26 @@ def test_dropoff():
     except dropoff.DropoffError as e:
         check("off the landing tile, out of reach: refused before anything is sent",
               far.sent == [] and "within 2 tiles" in str(e), str(e))
+
+    print("== loot the server never named (live 2026-11-22: a sealed paragon chest and a mount gear dye rode through four "
+          "drop-offs): their names asked for first, as the client's hover would; kit named too stays ==")
+    sealed, dye, shelf, mute = 0x4AF589DF, 0x4B1BC5A3, 0x41914174, 0x4C6E0214
+    nameless = {f"0x{s:08X}": {"graphic": g, "amount": 1, "container": f"0x{PACK:08X}"}
+                for s, g in ((sealed, 0x0E7C), (dye, 0x3BC0), (shelf, 0x6B92), (mute, 0x5EB6))}
+    # capture 20261122_181713 22:44:07 / 22:45:17: the 0xFF sub 0x15 answers; the wall shelf is Logan's blessed kit
+    room = Room(plan, nameless, names={sealed: "(sealed)", dye: "mount gear dye", shelf: "wall shelf"})
+    out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
+    queries = [p for p in room.sent if p[0] == 0xFF and int.from_bytes(p[3:7], "big") == 9]
+    check("one name query for the four, before the chest opens; the chest and the dye moved, the shelf and the item "
+          "the server didn't name stay",
+          out["ok"] and queries == [actions.item_query(sealed, dye, shelf, mute)]
+          and room.sent.index(queries[0]) < room.sent.index(actions.dclick(CHEST))
+          and sorted(c["serial"] for c in out["chest"]) == [f"0x{sealed:08X}", f"0x{dye:08X}"],
+          f"{out.get('error')} {out['chest']} queries {[q.hex() for q in queries]}")
+    bare = Room(plan, {})
+    dropoff.run(bare, NoHuman(), plan, timeout=0.5)
+    check("nothing nameless in the pack: no query",
+          not any(p[0] == 0xFF and int.from_bytes(p[3:7], "big") == 9 for p in bare.sent))
 
     print("== the tomes in a wooden shelf by the landing (the user's house, 2026-10-21) ==")
     shelf_serial, tomes = 0x5656B661, [int(s["serial"], 16) for s in plan["steps"][:4]]

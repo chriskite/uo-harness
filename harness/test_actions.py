@@ -313,6 +313,10 @@ def test_item_query():
     check("item query 0x40000D54",
           actions.item_query(0x40000D54)
           == bytes.fromhex("ff000e0000000901000140000d54"))
+    # capture 20261117_124820 19:15:48: the client's batch of five
+    check("item query of five, as the client batches",
+          actions.item_query(0x64F9D57E, 0x5107A4EF, 0x4F73C39C, 0x47807BCC, 0x4278C152)
+          == bytes.fromhex("ff001e0000000901000564f9d57e5107a4ef4f73c39c47807bcc4278c152"))
 
 
 def test_gump_response():

@@ -250,6 +250,10 @@ Working rules, each tied to a detection surface above:
       - `buy` is capped by `policy.json`.
     - Every action uses the stock client's packet sequence (war mode then attack; context menu
       Buy then 0x3B; cast 0xFF sub 4 then 0x6C), so the server sees what a player's client sends.
+      The drop-off's name query for nameless pack items (since 2026-11-23, `dropoff.unnamed`) is the
+      client's own hover query: 0xFF sub 9 in batches of up to five serials, the batch shape seen
+      in capture 20261117_124820 19:15:48. Confidence high that the packet is stock. [INFERENCE, unverified]
+      Asked with no hover just before it, it looks like a client that cached the pack's layout.
 
 18. **Target cursors the agent answered (2026-09-30, §10 A1).** When the agent answers a server
     target cursor (`0x6C`) the client still shows, the proxy hands the client the server's own
