@@ -355,7 +355,8 @@ The carve gate is [INFERENCE] 3.2-4.2 s after the kill.
   (1656, 1525) were seen.
 - The user then recalled or walked to the Hunting Official, Easton, at (1600, 1530), double-clicked him and
   pressed "Enter Hunting Grounds".
-- The permit is a stack of graphic 63999, "hunting permit".
+- The permit is a stack of graphic 63999, "hunting permit". Logan's house drop-off moves every permit in the pack into
+  the house chest (user 2026-11-23), so permits for an hg run go into the pack after the last drop-off.
 - Each lodge's exit moongate is graphic 3948, hue 1196, four tiles north of the warden: (8030, 85) in the west.
 
 **What the eight runs scored:**

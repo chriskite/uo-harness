@@ -620,7 +620,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    user (they may need fetching).
 > 2. **At home before every run: `act dropoff`** (the user's drop-off: gold into the bank deposit safe,
 >    loot into its tomes, research materials, resource maps (ore, lumber, skinning and fishing maps), skill mastery
->    orbs, seeds, paragon chests (since 2026-11-17), and runes, cloth and dyes (since 2026-11-18) into the chest, then
+>    orbs, seeds, paragon chests (since 2026-11-17), runes, cloth and dyes (since 2026-11-18), and hunting permits
+>    (since 2026-11-23, all of them: the user loads permits right before a Hunting Grounds run) into the chest, then
 >    the shelf's Resupply).
 >    Read its `reply`. Not at home: `act recall 0x444AB1F3` (its default rune is the house) first.
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"

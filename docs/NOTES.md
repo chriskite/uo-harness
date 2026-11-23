@@ -3973,6 +3973,12 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     as the client batches them (capture 20261117_124820 19:15:48), and waits up to 1 s for each answer. `to_chest`
     names gain "(sealed)". The name rule's `\b` became lookarounds, since `\b` can't match before "(". test_dropoff
     `test_dropoff` (fails before).
+  - **Hunting permits go to the chest since 2026-11-23** (the Seer's report of that day's Tidal Tomb level 2 shift:
+    5 hunting permits 0x4D98186A, graphic 0xF9FF, looted in the Tomb, stayed in the pack after the drop-off; the user:
+    "House chest"). Permits stack, so a looted one can't be told from those the user puts in the pack for the
+    Hunting Grounds runner (`loop_hg`, which spends them from the pack and never runs the house drop-off). Asked, the
+    user chose to move every permit: graphic 0xF9FF in `to_chest.graphics`, and the user loads permits right before
+    an hg run. test_dropoff `test_dropoff` (fails before).
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 
