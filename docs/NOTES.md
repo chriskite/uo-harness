@@ -10399,6 +10399,41 @@ leg; with home already out it gains nothing and costs a run restart (the hatchet
 charges). Now `hatchets_ready` notes `hatchets_out` when its top-up at home left us short, and `try_hop` hops on
 then (never with 0 uses). Test: `test_loop_lumber.py unit_hop_hatchets_out`.
 
+## Tidal Tomb level 2: stuck in the arrival nook by an awake soulcatcher (live 2026-11-22 20:07-20:17, hunt-20261122-190724-5bf4)
+
+Level 2 shift, Logan with AlaFlambe 0x0026EF56 and an eldritch mephit 0x004C4BF6, the §5 level 2 command. Visits 1-3
+clean (~120k gold tallied in 66 min, no death). Visit 4 arrived in level 2's arrival nook (6943, 2004) at 20:07:07.
+Capture 20261122_181713 (`replay.timed_packets`, the soulcatcher's 0x20 flags; scratch, not kept).
+
+- **20:07:12-21** the pets killed a drowned mariner at (6944, 2019) beside the soulcatcher 0x0023AA24 on the stairs
+  south of the nook. Its 0x20 flags went 0x00 -> 0x40 (war) at 20:07:41.8, again 0x40 at 20:08:24 and 20:08:30, and
+  no 0x20 for it after that. It stepped once (y 2022 -> 2021, 20:11:13) and stood. Its one animation was at 20:07:27.
+  Logan stayed 100/100 and the pets 99-100.
+- **20:07:43-20:11:23** the crawl's patrol and the cover undid each other every ~2 s. Each patrol was "stopped (an
+  awake soulcatcher would see us)", followed by "cover: the soulcatcher shoots us here; to (6943, 2009), 1 steps".
+  Then from (6942, 2007), 14 off and out of its shot, "crawl: every way on runs through the awake soulcatcher's shot;
+  waiting out of it" (`Crawl.idle`) held with no end. Nothing sent the pets: it was beyond the pull range (8), and
+  'All Patrol' goes only at idle ones. The other "every way on" holds that day lasted 2-8 s (19:30, 19:50).
+- **The corpse held the stop too.** The mariner's corpse lay in the soulcatcher's shot ("not looting a drowned
+  mariner yet: ... waiting for the area hitter to die or go"). A wind-down and the leave rules wait for the loot
+  queue to empty (`HuntLoop.tick`), so `ctl stop --after-trip` (20:15:29, "stop requested: winding down") never left.
+  A plain stop at 20:17:21 and the go-home run got him out. Its walk to the crimson gate (6913, 2071) went into the
+  soulcatcher's shot, it shot at him, 'All Kill' went out at 13 tiles and the pets killed it at 20:18:29. Home at
+  20:19:04.
+- **Why it stays awake** [INFERENCE: ServUO's BaseAI keeps a combatant within its perception range, 16, whether it
+  sees it or not; Outlands' AI is custom]: Logan and the pets stayed 14 off for 9 minutes with no peace flag. The
+  simulator drops a target 8 s out of sight (`sim/world.py` LOST_S [INFERENCE]), so no batch ever held there.
+- **Oxygen** (not changed): the go-home run began at 610 s under water and walked 87 steps to the gate ("to the
+  moongate: short of oxygen (610 s under water, 87 steps to go); stopping short"). He reached it at ~700 s, with no
+  deprivation line. The stairs up were 3 steps from the nook. A go-home run takes no oxygen leg first.
+- **Built** (docs/HUNT_LOOP.md "Pets", awake shooters; docs/SIM.md "Tidal Tomb: the nook's awake soulcatcher"):
+  - The crawl waits out an awake shooter's shot that covers every way on for `crawl.SHOT_WAIT_S` (60 s) with no
+    kill and nothing on us. Then it goes on past with the pets on guard, logging "crawl: 60 s out of the awake
+    soulcatcher's shot with every way on through it and no kill; going on past it with the pets on guard".
+    `Team.waited` takes it out of `shy_threats` until the next kill or until it hits one of us.
+  - A corpse held in an area hitter's reach or a shot is left after `loop_hunt.LOOT_HELD_MAX_S` (120 s): "not looting
+    X: held 121 s (...); leaving it".
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

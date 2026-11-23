@@ -8823,6 +8823,89 @@ def test_oxygen_leg_past_shooter():
           f"| " + " | ".join(buf.getvalue().splitlines()[-6:])[-600:])
 
 
+NOOK_L2 = (6942, 2007)        # live 2026-11-22 20:11:23 (hunt-20261122-190724-5bf4): Logan in level 2's arrival nook...
+NOOK_SOUL = (6944, 2022, -110)  # ...the soulcatcher 0x0023AA24 on the stairs south of it, awake from 20:07:41, 14 off
+
+
+def _nook_loop(spawns):
+    """The live nook layout: Logan at NOOK_L2 (z -45), the pets beside him on guard, the crawl set up, the soulcatcher at
+    NOOK_SOUL awake on a pet and holding it out of its sight as live (a `hold` special: it never steps after it; the
+    world's LOST_S lifted: live it stayed in war mode 9 min, Logan 14 off out of its sight, no 0x20 peace).
+    -> (world, soulcatcher, loop, clock, store, patched, saved LOST_S)."""
+    import copy
+    import crawl
+    from sim import world as simworld
+    lost = simworld.LOST_S
+    simworld.LOST_S = 1e9
+    w = tidal_world(NOOK_L2, [{"key": "soulcatcher", "at": list(NOOK_SOUL)}, *spawns], z=-45, team="phoenix_incubus")
+    sc = next(o for o in w.mobs.values() if o.key == "soulcatcher")
+    sc.spec = copy.deepcopy(sc.spec)
+    sc.spec.setdefault("specials", []).append({"kind": "hold"})
+    loop, clock, store, patched = hurt_loop(w, 100)
+    sc.target, sc.seen_target_t = w.pets()[0].serial, w.t
+    w._warm(sc, True)
+    with contextlib.redirect_stdout(io.StringIO()):
+        loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+        c.setup(loop.state())
+        c.unlocked = 99
+    return w, sc, loop, clock, store, patched, lost
+
+
+def test_shot_wait_nook():
+    print("== level 2's arrival nook, the live 20:07-20:17 layout: an awake soulcatcher on the stairs covers every way on "
+          "and stays awake; the crawl waits out of its shot SHOT_WAIT_S, then on past it with the pets on guard, who "
+          "kill it ==")
+    from sim import world as simworld
+    w, sc, loop, clock, store, patched, lost = _nook_loop([])
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            end = clock.monotonic() + 120.0     # SHOT_WAIT_S (60) and a minute for the fight
+            while clock.monotonic() < end and sc.alive:
+                loop.tick()
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+        simworld.LOST_S = lost
+    out = buf.getvalue()
+    check("one wait, then 'going on past it' once; the soulcatcher dead within a minute of it, Logan unhurt",
+          out.count("every way on runs through the awake soulcatcher's shot") >= 1
+          and out.count("going on past it with the pets on guard") == 1 and not sc.alive and w.player.hits == 100,
+          f"soulcatcher alive {sc.alive} Logan {w.player.pos} {w.player.hits} | " + " | ".join(out.splitlines()[-6:])[-600:])
+
+
+def test_loot_held_left():
+    print("== a wind-down with our drowned mariner's corpse in the awake soulcatcher's shot (live 20:15:29, `ctl stop "
+          "--after-trip` never left): the corpse left after LOOT_HELD_MAX_S, then out by the moongate ==")
+    import crawl
+    import loop_hunt
+    from sim import world as simworld
+    w, sc, loop, clock, store, patched, lost = _nook_loop([{"key": "drowned mariner", "at": [6944, 2019, -110]}])
+    mar = next(o for o in w.mobs.values() if o.key == "drowned mariner")
+    wait_s, done = crawl.SHOT_WAIT_S, None
+    crawl.SHOT_WAIT_S = 1e9                    # the crawl's own way past it off: the queue alone held the run
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            w.die(mar, w.pets()[0])
+            clock.advance(0.5)
+            loop.on_kill(loop.state(), mar.serial, {"name": "a drowned mariner", "x": 6944, "y": 2019})
+            loop.finish_requested = True
+            start = clock.monotonic()
+            while clock.monotonic() - start < loop_hunt.LOOT_HELD_MAX_S + 60:
+                if loop.tick():
+                    done = clock.monotonic() - start
+                    break
+    finally:
+        crawl.SHOT_WAIT_S = wait_s
+        store.close()
+        simclock.uninstall(patched)
+        simworld.LOST_S = lost
+    out = buf.getvalue()
+    check("the corpse left once held LOOT_HELD_MAX_S, the run out by the moongate and done, Logan unhurt",
+          "leaving it" in out and "LEAVING by the moongate: done" in out and done is not None
+          and done < loop_hunt.LOOT_HELD_MAX_S + 60 and w.player.hits == 100,
+          f"done {done} at {w.player.pos} {w.player.hits} | " + " | ".join(out.splitlines()[-4:])[-500:])
+
+
 def _step_in_layout(start, reactive: bool):
     """Level 2's idle soulcatcher at SOUL_L2, Logan at `start` with the pets beside him on guard: the step-in at it
     (Team.step_in, fight's walk up; `reactive`: Logan already in its first sight, the tick's back_off), then 30 s of
@@ -9721,6 +9804,7 @@ def main():
               test_area_hitters, test_shy_by_ai, test_backspawn_on_arrival, test_retreat_by_the_pets, test_wail_far_reach,
               test_consort_lurk, test_approach_short_of_consort, test_consort_spot_open_after_death,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_far, test_oxygen_leg_past_shooter,
+              test_shot_wait_nook, test_loot_held_left,
               test_step_in,
               test_step_in_fallback, test_front_gate_crab, test_duck, test_oxygen_dolphin,
               test_tidal_hunt,

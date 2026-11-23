@@ -4165,6 +4165,30 @@ the two-layer room west of the arrival").
 - *Decided*: return before the warden's clock runs out with a 20 s margin over the 0.2 s-a-tile run home. Replayed
   on run 2, this said return at 15:27:28 with 3 held. He hunted on and lost 5 trophies (44 points) at 15:28:44.
 
+## No endless wait on an awake shooter or a corpse in its shot (live Tidal Tomb level 2, 2026-11-22 20:07-20:17)
+
+An awake soulcatcher on the stairs south of level 2's arrival nook stayed in war mode with Logan 14 off and out of
+its sight. The crawl's "waiting out of it" and the corpse's "waiting for the area hitter to die or go" had no end, and
+the second kept `ctl stop --after-trip` from ever leaving (docs/NOTES.md "Tidal Tomb level 2: stuck in the arrival
+nook by an awake soulcatcher").
+
+- *Decided*: when its shot covers every way on, the crawl waits at most `crawl.SHOT_WAIT_S` (60 s) with no kill and
+  nothing on us. Then it goes on past with the pets on guard (`Team.waited`, out of `shy_threats` until the next kill
+  or until it hits one of us). This is the fought legs' "on past it" (`Team.faced`), narrowed to an awake shooter
+  that has held every way on for a minute. The live go-home walk did just that and the pets killed it in 8 s.
+- *Decided*: a corpse held in an area hitter's reach or a shot is left after `loop_hunt.LOOT_HELD_MAX_S` (120 s), so
+  the leave rules and a wind-down can go.
+- *Rejected*: extending the pull range or 'All Patrol' to an awake shooter that can't be seen. From the nook it is
+  out of sight, the server refuses a target there, and 'All Patrol' found no spot on those stairs (2026-10-29).
+- *Rejected*: leaving the visit after the wait. It costs a whole re-entry across level 1, and its walk out passes the
+  same shooter anyway.
+- *Rejected*: the hop up the arrival stairs and back. It works only beside a teleporter. [INFERENCE] The shooter
+  would calm while we're away, but the crawl walks past it again on the way back.
+- *Open*: the simulator's monsters drop a target after 8 s out of sight, so batches can't show this hold (docs/SIM.md
+  "Tidal Tomb: the nook's awake soulcatcher"). Modelling the live hold would change every scenario's fights.
+- *Open*: a go-home run started at 610 s under water walked 87 steps to the gate, with the stairs' refill 3 steps
+  off (no oxygen leg first).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

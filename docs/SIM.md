@@ -2261,6 +2261,29 @@ docs/HUNT_LOOP.md "Pets", a leg that must arrive).
   pets' 26,719 -> 18,788, banked an hour 116,864 -> 108,869 (29 of 48 runs with a death on both sides); 45 times on
   past a shy monster, all on the fought walks.
 
+### Tidal Tomb: the nook's awake soulcatcher (2026-11-22)
+
+Live 20:07-20:17 a soulcatcher on the stairs south of level 2's arrival nook stayed in war mode with Logan 14 off and
+out of its sight. The crawl waited out of its shot with no end, and the drowned mariner's corpse in its shot held
+`ctl stop --after-trip` (docs/NOTES.md "Tidal Tomb level 2: stuck in the arrival nook by an awake soulcatcher").
+
+- **The world doesn't hold there by itself.** A monster drops its target 8 s out of sight (`LOST_S` [INFERENCE]), and
+  a ranged one steps after a target it can't see. Without changes the soulcatcher came on and the pets killed it in
+  17 s. The tests set the live layout up instead:
+  - Logan at (6942, 2007, -45) with the pets beside him.
+  - The soulcatcher at (6944, 2022, -110), awake on a pet.
+  - A `hold` special on it (it never steps after its target).
+  - `LOST_S` lifted.
+- **`test_shot_wait_nook`**: before (`crawl.SHOT_WAIT_S` 1e9), 180 s of "waiting out of it" in the nook, the
+  soulcatcher alive. After, on past it at 60 s; the pets killed it 12 s later and the crawl went on, Logan 100/100.
+- **`test_loot_held_left`**: the mariner's corpse in its shot, a wind-down requested, the crawl's cap off. Before
+  (`loop_hunt.LOOT_HELD_MAX_S` 1e9), the run left only at the simulator's `--timeout` (454 s). The live run has none,
+  so it never would have. After, the corpse was left at 121 s, "LEAVING by the moongate: done", home.
+- **Runs** (`--scenario tidal_tomb --level 2 --runs 24 --compare`; before with `--set crawl.SHOT_WAIT_S=1e9 --set
+  loop_hunt.LOOT_HELD_MAX_S=1e9`): the same on both sides. Each side had 188.2 kills an hour, 156,054 banked an
+  hour and no death. Neither cap fired: in the batches the shooters calm in 8 s. To show the cap in batches, the
+  world would need the live hold (a shy monster keeping a target it can't see within ~16), which is not modelled.
+
 ### Tidal Tomb: a far refill, and level 2's north strip to level 3's dolphin (2026-11-12)
 
 Live hunt-20261112-102724-f592 the crawl hunted level 2's NW corner ~170 route steps from the stairs and no oxygen leg

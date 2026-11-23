@@ -919,6 +919,9 @@ class Team:
         self.backed = {}                  # serial -> (back_offs from it with no kill between, the run's kills then)
         self.faced = {}                   # serial -> the run's kills when the leg went on past it (back_off; shy_first
                                           # skips it until the next kill or the leg's end)
+        self.waited = {}                  # serial -> the run's kills when the crawl gave up waiting out its shot
+                                          # (crawl.Crawl.shot_wait_over): shy_threats leaves it out until the next kill
+                                          # or until it is on us or a pet
         self.passing = None               # the pass under way (back_off -> pass_by): serial, kills, rounds, t
         self.stepin = None                # the step-in held (step_back -> step_in_watch): serial, kind, tile, t, pet
         self.stepped = {}                 # serial -> (step-ins at it with no kill between, the run's kills then)
@@ -3948,15 +3951,18 @@ class Team:
     def shy_threats(self, st, v) -> list[dict]:
         """shy_on_us less one fighting someone else (another player or his pets, `elsewhere`) and not us or a pet of
         ours (attackers, pet_attackers): its shot isn't ours to keep out of (user 2026-10-24: "We can just walk past when
-        one is fighting someone else"). The cover, an advance's stop (pull_check) and the patrol's waypoints
-        (crawl.Crawl.shot_tiles) go by these."""
+        one is fighting someone else"); and less one the crawl waited out of for crawl.SHOT_WAIT_S (`waited`, until the
+        next kill) while it isn't on us or a pet: on past it with the pets on guard. The cover, an advance's stop
+        (pull_check) and the patrol's waypoints (crawl.Crawl.shot_tiles) go by these."""
         shy = self.shy_on_us(st, v)
         if not shy:
             return shy
         mobiles = st["world"]["mobiles"]
         ours = {serial_of(a["serial"]) for a in self.h.attackers(st)} | self.pet_attackers(st)
+        kills = self.kills()
         return [m for m in shy if m["serial"] in ours
-                or self.elsewhere(st, mobiles.get(f"0x{m['serial']:08X}") or {}) is None]
+                or (self.waited.get(m["serial"]) != kills
+                    and self.elsewhere(st, mobiles.get(f"0x{m['serial']:08X}") or {}) is None)]
 
     @staticmethod
     def shot_at(v, shy: list, tile) -> int:

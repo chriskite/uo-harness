@@ -1069,7 +1069,14 @@ pets (on us: "All Kill" at once, below; on a pet: the guard; an idle one: "All P
 these rules only keep Logan's own tile and walks out of its shot while they do:
 - **The patrol picks only waypoints it reaches without stepping into its shot** (`Crawl.shot_tiles`, the floor BFS
   with them blocked; seek's monster in view too). None left but through it: "crawl: every way on runs through the
-  awake corpse purger's shot; waiting out of it", until the pets kill it, it leaves or calms.
+  awake corpse purger's shot; waiting out of it", until the pets kill it, it leaves or calms, for at most
+  `crawl.SHOT_WAIT_S` (60 s; since 2026-11-22) with no kill and nothing on us. Then "crawl: 60 s out of the awake
+  soulcatcher's shot with every way on through it and no kill; going on past it with the pets on guard":
+  `Team.waited` leaves it out of `shy_threats` (the cover, these two rules) until the next kill or until it hits one
+  of us, and then the fight takes it. A shooter that hasn't held us for `SHOT_WAIT_GAP_S` (60 s) starts its count
+  again. Live 2026-11-22 a soulcatcher on the stairs south of level 2's arrival nook stayed awake 9 minutes with
+  Logan 14 off and out of its sight, and the wait had no end (docs/NOTES.md "Tidal Tomb level 2: stuck in the arrival
+  nook by an awake soulcatcher"; test_sim `test_shot_wait_nook`).
 - **An advance stops on a step into its shot** (`Team.pull_check`: "an awake corpse purger would see us"): the patrol
   rests that waypoint for 60 s (`crawl.AWAKE_SHY_REST_S`) and goes elsewhere; an approach to another target passes
   that target over. Simulator check 2026-10-24: an awake purger on a pet is killed in 14.5 s, the same as before
@@ -2261,7 +2268,10 @@ counted the corpse's gold as xp. Now (`loop_hunt.loot`):
   hit's reach, every tile within 2 of it too; waiting for the area hitter to die or go" (or "… lies in the shot of
   the awake corpse purger, every tile within 2 of it too; …"), looked at again every
   `LOOT_DEFER_S` 1 s (`HuntLoop.loot_next` passes it over meanwhile, so the fight goes on) and looted as soon as the
-  hitter is dead, gone or out of war mode. **Nor to beside an awake monster** (since 2026-10-26): not to a tile
+  hitter is dead, gone or out of war mode. Held `LOOT_HELD_MAX_S` (120 s, since 2026-11-22) it is left: "not looting
+  <name>: held 121 s (…); leaving it". A wind-down and the leave rules wait for the loot queue, so live 2026-11-22 a
+  corpse in an awake soulcatcher's shot held `ctl stop --after-trip` for good (test_sim `test_loot_held_left`).
+  **Nor to beside an awake monster** (since 2026-10-26): not to a tile
   within 2 of a monster in war mode near the corpse (not a shy one: their shot rule above), as the spacing off the
   tank. If no tile within 2 of the corpse is that clear it waits ("… lies beside the awake ocean bedrock, every tile
   within 2 of it too"). In the simulator, Tidal Tomb seed 6 walked "to the corpse" at 100 hits to beside a provoked

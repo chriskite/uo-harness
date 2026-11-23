@@ -279,6 +279,10 @@ FLEE_NEAR_FAILS = 6           # failed walks toward the gate a flight tries agai
 NO_LOS_CLILOCS = (500446, 500237)   # "That is too far away." / "Target cannot be seen."
 CORPSE_WAIT_S = 4.0           # a dead mob's corpse item shows up within this
 LOOT_DEFER_S = 1.0            # a corpse in an area hitter's reach (tamer.Team.loot_tile): looked at again this soon
+LOOT_HELD_MAX_S = 120.0       # ...and left after this long held so: the leave rules and a wind-down wait for the queue to
+#                               empty (tick), so a corpse in the shot of a shooter that stays awake held the run there
+#                               (live 2026-11-22 20:07:22-20:17:21, hunt-20261122-190724-5bf4: a drowned mariner's corpse
+#                               in a soulcatcher's shot; `ctl stop --after-trip` never left)
 CONTAINER_WAIT_S = 3.0
 # Kills whose corpse never holds anything: never walked to or opened. The pincer crab is brooded by a dungeon-nest crab
 # mid-fight (docs/SIM.md "Tidal Tomb"); user 2026-10-28: "its corpse cannot be looted, but the runner keeps stopping for
@@ -1707,12 +1711,21 @@ class HuntLoop:
         if self.team is not None and corpse.get("container") is None and corpse.get("x") is not None:
             loot_at, why = self.team.loot_tile(st, (corpse["x"], corpse["y"]))
             if why:
-                # kept queued (others race us to loot): tried again after LOOT_DEFER_S, at once safe (loot_next)
+                # kept queued (others race us to loot): tried again after LOOT_DEFER_S, at once safe (loot_next); left
+                # after LOOT_HELD_MAX_S held
+                now = time.monotonic()
+                held = now - c.setdefault("deferred_t", now)
+                if held >= LOOT_HELD_MAX_S:
+                    self.corpses.remove(c)
+                    self.looted.add(c["corpse"])
+                    self.count("loot_held_left")
+                    log(f"not looting {corpse.get('name') or c['name']}: held {held:.0f} s ({why}); leaving it")
+                    return
                 if c.get("deferred") != why:
                     log(f"not looting {corpse.get('name') or c['name']} yet: {why}; "
                         + ("waiting for the pets to stand by" if "'s spawn spot" in why
                            else "waiting for the area hitter to die or go"))
-                c["deferred"], c["defer_until"] = why, time.monotonic() + LOOT_DEFER_S
+                c["deferred"], c["defer_until"] = why, now + LOOT_DEFER_S
                 return
         c.pop("deferred", None)
         self.corpses.remove(c)

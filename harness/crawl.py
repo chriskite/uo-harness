@@ -79,6 +79,12 @@ RESPAWN_S = 600.0       # a depleted area rests this long [INFERENCE: spawn time
 CLOSED_WP = True        # no waypoint by a live vampiric consort's spawn spot (closed_wp; the batch's test variant: False)
 AWAKE_SHY_REST_S = 60.0  # a waypoint whose way runs into an awake purger's or blightmare's shot rests this long (one
 #                         on another player's pets is killed or gone within a minute or two [INFERENCE])
+SHOT_WAIT_S = 60.0      # the most the crawl waits out of an awake shooter's shot that covers every way on, with no kill
+#                         between; then on past it with the pets on guard (Team.waited). Live 2026-11-22 20:07:44-20:17
+#                         (hunt-20261122-190724-5bf4, TT level 2): a soulcatcher on the stairs south of the arrival nook,
+#                         woken by the pets' mariner fight beside it, stayed in war mode 14 tiles off and out of sight
+#                         (no 0x20 peace in 9 min); "waiting out of it" had no end. Its other holds that day: 2-8 s
+SHOT_WAIT_GAP_S = 60.0  # ...a shooter not holding us this long starts its count again
 SPOT_SAME_R = 80        # earlier crawl visits from a start this close count as the same floor (load_prior; live the
 #                         Mausoleum runs started 21, then 53 tiles from each other and twice began with no history)
 STALE_CAP_S = 600.0     # staleness beyond this counts the same
@@ -470,6 +476,7 @@ class Crawl:
         self.glance_s = 0.0
         self.pets_held = None        # why the last patrol waited for the pets (HuntLoop.patrol_hold), logged once
         self.shot_held = None        # the awake shy kinds whose shot covers every way on (idle holds), logged once
+        self.shot_wait = {}          # serial -> (first, last monotonic it held every way on, the run's kills then)
         self.stop_last = None        # (waypoint, why) of the last patrol walk's stop: refused again before a step, a hold
         self.seek_for = None         # serial of the monster in view the patrol is heading for (seek), else None
         self.looked = None           # the waypoint a patrol leg saw from within SEEN_R and stopped short of (interrupt)
@@ -931,14 +938,14 @@ class Crawl:
             return i
         return None
 
-    def shot_tiles(self, st) -> tuple[frozenset, list]:
-        """(the floor tiles an awake corpse purger or blightmare in view shoots, tamer.Team.shot_at, their kinds): not
-        one fighting someone else (Team.shy_threats; user 2026-10-24: "We can just walk past when one is fighting
-        someone else"). The patrol chooses only waypoints it reaches without stepping on one (user 2026-10-21: "stay
-        out of their aggro range")."""
+    def shot_tiles(self, st) -> tuple[frozenset, list, list]:
+        """(the floor tiles an awake corpse purger or blightmare in view shoots, tamer.Team.shot_at, their kinds, their
+        serials): not one fighting someone else (Team.shy_threats; user 2026-10-24: "We can just walk past when one is
+        fighting someone else"). The patrol chooses only waypoints it reaches without stepping on one (user 2026-10-21:
+        "stay out of their aggro range")."""
         team = getattr(self.h, "team", None)
         if team is None:
-            return frozenset(), []
+            return frozenset(), [], []
         v = team.view(st)
         shy = team.shy_threats(st, v)
         out = set()
@@ -947,7 +954,22 @@ class Crawl:
             cx, cy = m["pos"][:2]
             out.update(t for t in ((x, y) for x in range(cx - r, cx + r + 1) for y in range(cy - r, cy + r + 1))
                        if t in self.floor.adj and team.shot_at(v, [m], t))
-        return frozenset(out), sorted({m["kind"] for m in shy})
+        return frozenset(out), sorted({m["kind"] for m in shy}), [m["serial"] for m in shy]
+
+    def shot_wait_over(self, st, serials: list, now: float) -> list:
+        """The shooters (of `serials`, those whose shot covers every way on now) we have waited out of for SHOT_WAIT_S
+        with no kill between and nothing on us: the crawl goes on past them (Team.waited). A shooter's count starts
+        again after SHOT_WAIT_GAP_S of not holding us, or at a kill."""
+        team, kills = self.h.team, self.h.team.kills()
+        over = []
+        for s in serials:
+            first, last, k = self.shot_wait.get(s, (now, now, kills))
+            if now - last > SHOT_WAIT_GAP_S or k != kills:
+                first = now
+            self.shot_wait[s] = (first, now, kills)
+            if now - first >= SHOT_WAIT_S:
+                over.append(s)
+        return over if over and not self.h.attackers(st) else []
 
     def idle(self, st):
         """Nothing to fight or loot: hold at the waypoint (a glance, or while targets keep
@@ -995,7 +1017,7 @@ class Crawl:
             self.wp, self.arrived_t = None, None
         if self.wp is None:
             self.update_zones()
-            shot, kinds = self.shot_tiles(st)
+            shot, kinds, shooters = self.shot_tiles(st)
             found = None if self.a.crawl_loop else self.seek(st, pos)
             if found is not None and shot:
                 start = self.floor.nearest(pos)
@@ -1009,7 +1031,16 @@ class Crawl:
                 self.seek_for = None
                 self.wp = self.choose(pos, shot)
             if self.wp is None and shot and self.choose(pos) is not None:
-                # every way on runs through an awake purger's or blightmare's shot: out of it until it ends
+                # every way on runs through an awake purger's or blightmare's shot: out of it until it ends, at most
+                # SHOT_WAIT_S (one 14 off out of its sight stays awake: live 2026-11-22, 9 min); then on past it
+                if over := self.shot_wait_over(st, shooters, now):
+                    for s in over:
+                        h.team.waited[s] = h.team.kills()
+                    h.team.count("waited_out")
+                    log(f"crawl: {SHOT_WAIT_S:.0f} s out of the awake {', '.join(kinds)}'s shot with every way on "
+                        "through it and no kill; going on past it with the pets on guard")
+                    self.shot_held = None
+                    return
                 if self.shot_held != kinds:
                     log(f"crawl: every way on runs through the awake {', '.join(kinds)}'s shot; waiting out of it")
                 self.shot_held = kinds
