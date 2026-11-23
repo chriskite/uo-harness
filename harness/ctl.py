@@ -738,16 +738,18 @@ def cmd_stop(a, mem):
         # the graceful stop: the task ends itself at home (the lumber runner: LumberLoop.ending, like a break
         # due: stop harvesting, home, convert, store, exit 0; the mining runner the same with nothing to convert
         # or store; the hunt runner: HuntLoop.finished, as at time up: the fights on us, the loot, out with the
-        # pets, home, exit 0); task_done wakes `wait` when it has
-        if e.get("task") not in ("lumber", "hunt", "mining"):
-            raise CtlError(f"--after-trip is honoured by lumber, mining and hunt runs only ({tid} is {e.get('task')}); "
-                           "plain stop")
+        # pets, home, exit 0; the Hunting Grounds runner: no new run once this one ends, exit 0 in town); task_done
+        # wakes `wait` when it has
+        if e.get("task") not in ("lumber", "hunt", "mining", "hg"):
+            raise CtlError(f"--after-trip is honoured by lumber, mining, hunt and hg runs only ({tid} is "
+                           f"{e.get('task')}); plain stop")
         tw.meta_set(mem, tw.finish_key(tid), json.dumps({"task_id": tid, "t": time.time()}))
         mem.chat_post("overseer", f"stop --after-trip {tid}", "action",
                       data={"cmd": "stop", "task_id": tid, "after_trip": True})
         how = {"lumber": "the run ends its trip at home (convert, store) and exits 0",
                "mining": "the run ends its leg at home in the house (ingots into the resource stockpile) and "
-                         "exits 0"}.get(
+                         "exits 0",
+               "hg": "the Hunting Grounds runner plays out this run (permit) and starts no other; exits 0 in town"}.get(
             e.get("task"),
             "the hunt finishes the fight on us and its loot, leaves the way it leaves at time up and exits 0 at home")
         return {"ok": True, "task_id": tid, "after_trip": True, "next": f"{how}: wait for its task_done"}
