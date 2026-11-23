@@ -80,6 +80,7 @@ CELL = 16                     # roam memory: the zone in CELL x CELL squares, th
 UNREACHABLE_S = 300.0        # a roam waypoint with no route: its cell counts as swept this far into the future
 ROAM_MIN, ROAM_MAX = 18, 40   # a roam waypoint this far off (Chebyshev)
 ROAM_EDGE = 6                 # waypoints keep this far inside the region
+ZONE_SNEAK_R = 25             # hidden this close outside the zone: walk in hidden (roam), don't run
 NPC_R = 3                     # double-click an NPC from this close
 GUMP_WAIT_S = 3.0
 START_WAIT_S = 8.0
@@ -390,7 +391,9 @@ class HGLoop:
                 best = (score, t)
         return best[1] if best else (min(max(here[0], x0 + 30), x1 - 30), (zy0 + zy1) // 2)
 
-    def roam_stop(self, st):
+    def roam_stop(self, st, rehide: bool = False):
+        """A roam walk's stop: the plan changed, a buck worth stalking came into view, or (`rehide`: a visible run in the
+        zone) the hide is ready again or any deer came into view (stop and hide before it sees us)."""
         self.update(st)
         if self.g is None:
             return "over"
@@ -398,15 +401,37 @@ class HGLoop:
         if p is None or p["phase"] in ("return", "done") or self.corpse is not None:
             return "plan"
         self.swept[self.cell(self.me(st))] = time.monotonic()
-        return "buck" if self.pick() is not None else None
+        if self.pick() is not None:
+            return "buck"
+        if rehide and (time.monotonic() >= self.hide_ready or self.g["bucks"]):
+            return "hide"
+        return None
 
     def roam(self):
+        """Run to the zone; in it (--roam stealth, the default) sweep it hidden. Not hidden yet: hide when the skill is
+        ready; while its cooldown runs, stand still if a deer is in view (a visible player makes calm deer bolt in ~3 s,
+        and a run toward them is the worst of it), else run until it is ready. Live 2026-11-23 10:15-10:24 the runner
+        ran visible in the zone between stalks: 24 of 44 hides were broken by a running step within a second, and the
+        next stalk then waited out the 5 s hide cooldown standing in view while the buck fled."""
         to = self.waypoint()
-        stealth = self.args.roam == "stealth" and self.g["plan"]["phase"] == "hunt"
-        if not stealth:
-            self.hidden = False
-        self.doing("roam", f"{'Stalking through' if stealth else 'Running to'} the zone (y {self.g['plan']['zone'][0]}-"
-                           f"{self.g['plan']['zone'][1]})", to)
+        y0, y1 = self.g["plan"]["zone"]
+        here_y = self.me()[1]
+        # just outside the zone (a stalk drifted over its edge, or the zone moved with the clock) and hidden: walk back
+        # in hidden rather than break the stealth for a few tiles of running
+        near = self.hidden and max(y0 - here_y, here_y - y1) <= ZONE_SNEAK_R
+        zone = self.g["plan"]["phase"] == "hunt" or near
+        stealth = zone and self.args.roam == "stealth"
+        if stealth and not self.hidden:
+            if time.monotonic() >= self.hide_ready or self.g["bucks"]:
+                self.doing("hide", f"Hiding in the zone (y {y0}-{y1})")
+                if not self.hide():
+                    log("roam: couldn't hide; running on")
+                    stealth = False
+            else:
+                self.doing("roam", f"Running through the zone until the hide is ready (y {y0}-{y1})", to)
+                self.walk(lambda: to, 3, "roam", stop=lambda s: self.roam_stop(s, rehide=True), run=True)
+                return
+        self.doing("roam", f"{'Stalking through' if stealth else 'Running to'} the zone (y {y0}-{y1})", to)
         if self.walk(lambda: to, 3, "roam", stop=self.roam_stop, run=not stealth) == "failed":
             # no route there (water, a wall): not that cell again for a while, and no fixed waypoint next time
             self.swept[self.cell(to)] = time.monotonic() + UNREACHABLE_S
@@ -475,7 +500,7 @@ class HGLoop:
             want = max(6, min(self.g["weapon"]["shoot_from"][1], hg.VIEW_R) - 1)
             if b["dist"] > want:
                 self.walk(lambda: self.buck_xy(serial), want, "stalk",
-                          stop=lambda s: self.stalk_stop(s, serial, want), run=not self.hidden)
+                          stop=lambda s: self.stalk_stop(s, serial, want), run=False)
                 continue
             still = time.monotonic() - self.last_move
             if still < STATIONARY_S:
@@ -694,7 +719,7 @@ def arg_parser():
                     help="shoot calm bucks worth at least this while trophy slots are the limit (default: the plan's)")
     ap.add_argument("--stalk-unsettled", action=argparse.BooleanOptionalAction, default=True,
                     help="also close in (hidden) on worth-it bucks not yet heard calm, and shoot once they settle")
-    ap.add_argument("--roam", choices=("run", "stealth"), default="run",
+    ap.add_argument("--roam", choices=("run", "stealth"), default="stealth",
                     help="sweep the zone running (visible) or stealth-walking (hidden, half speed)")
     ap.add_argument("--max-runs", type=int, default=0, help="stop after this many runs (0: until the permits run out)")
     ap.add_argument("--max-blocked", type=int, default=12)

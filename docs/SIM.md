@@ -4609,5 +4609,21 @@ At live pacing over 72 sessions (`--runs 24 --permits 3 --seed 300`):
 So the defaults stand. With live pacing the runner is expected at about 130 against the user's 140. Human-speed
 reactions cost it about 19 points. Without them it scores 149.
 
+**Hidden roaming (2026-11-23, after the first live run).** The user saw the runner run visible in the zone and break a
+fresh hide by running. In the live events (session `20261123_101257`, 10:14-10:24), 24 of 44 hides were followed
+within a second by a running step from the roam. The next stalk then waited out the 5 s hide cooldown, standing
+visible 17-18 tiles from a buck, which bolted.
+
+The old `--roam stealth` only walked; it never hid first. Now, in the zone, the roam hides first and walks hidden. While
+the hide cools down it stands still if a deer is in view, else runs until the hide is ready. Hidden within 25 tiles
+outside the zone, it walks back in.
+
+| Live pacing (`--runs 24 --permits 3 --seed 300`, 72 sessions) | Points a run |
+|---|---|
+| `--roam run` | 129.2 |
+| `--roam stealth`, now the default | **137.2-137.7** |
+
+Hides broken by a running step within 1 s, three simulated runs: 13, 11 and 22 before; 0, 0 and 3 after.
+
 `others_flee_per_s` (other hunters spooking deer, unmeasured, 0) is the sim's biggest unknown. 0.02 cost the runner
 about 10 points and 0.04 about 45 (three careers each). A live run will say which is right.

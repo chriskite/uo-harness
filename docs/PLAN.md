@@ -4210,7 +4210,9 @@ nook by an awake soulcatcher").
 - *Decided* (sim batches, docs/SIM.md "Tuning batches"):
   - The runner also stalks worth-it bucks not yet heard calm (`--stalk-unsettled`, default on): +8 points a run
     over 72 sessions at live pacing.
-  - It roams running, not stealth-walking: stealth cost 15 points a run.
+  - It roams the zone hidden: it hides first and walks hidden (`--roam stealth`, the default since 2026-11-23). It
+    first roamed running, but live it ran visible in the zone and broke 24 of 44 hides within a second; hidden roaming
+    scores 137 against 129 a run in the simulator at live pacing (docs/SIM.md "Hidden roaming").
   - It keeps the plan's 6-point minimum: 8 was no better, 10 cost 27.
 - Expected live: about 130 a run at human pacing (149 without reaction times) against the user's 140 (runs 4-8).
   Other hunters spooking deer are not modelled (`others_flee_per_s` = 0); at 0.02-0.04 the runner lost 10-45 points
