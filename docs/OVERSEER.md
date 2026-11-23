@@ -664,7 +664,9 @@ Paste this (or point the session at this section) to start an overseer.
 >    flute" 0x68D40079 until its loss at the 2026-10-26 00:32 death, since then the "supremely melodious shawm"
 >    0x67F5BCA3; a looted instrument beside it is loot), his crook, the codexes, books and tomes, bags, pouches, the satchel, the
 >    wooden box and its key, the wraith mask and hood, the Kasa, the spyglass, **mastery chains** (player-crafted
->    only, never loot: user 2026-10-20), the soul jars (a filled one is the user's: step
+>    only, never loot: user 2026-10-20), **his blessed clothing** (user 2026-11-23: the wall shelf, the shimmer saffron
+>    shoulder snake, the rose stem, the bunch of flax, the skull lantern (unlit) and the ramshead mask; a paragon chest
+>    or a dye bottle beside them is loot), the soul jars (a filled one is the user's: step
 >    5). To tell new loot from kit, save `status` before each `ctl run` and compare serials after the drop-off.
 >    Ask the user (`ctl say "@user …"`) before moving anything you aren't sure about, and keep the answer
 >    (`ctl know add …`).
