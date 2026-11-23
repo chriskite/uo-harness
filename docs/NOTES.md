@@ -4211,6 +4211,16 @@ docs/PLAN.md "Hunting Grounds runner and simulator"); it is tested on the simula
     our own head.
   - Held trophies are lost at expiry. Run 2 lost 44 points that way.
   - Weapon upgrades reset every run.
+- **The client carves for us (live 2026-11-23, session `20261123_101257`).** Logan's ClassicUO profile has
+  `auto_open_corpses: true` (range 2). In the Grounds a double-click on your own deer's corpse carves it, so the
+  client starts the carve as the runner walks up: 10 of 10 kills in run 1, about 2.6 s after the kill.
+  - Timing (10:32:47.9): the client's double-click; the corpse is deleted 0.8 s later; "8 point trophy added"
+    comes at 50.2, 2.3 s after the click. Hide is refused all through that and for 3 s after the trophy line.
+  - The runner took the vanished corpse to mean "done" and hid at once: 46 refused hides in run 1.
+  - `loop_hg` now waits for the trophy line when the corpse vanishes, and starts the 3 s hide lock on any trophy
+    line, the client's included. The setting itself is left alone (Constraint 1).
+  - Open: this suggests a carve is accepted earlier and takes ~2.3 s, rather than being refused until 3.2-4.2 s
+    after the kill (§2 of the research doc). The simulator still models the latter and has no client auto-open.
 
 ## Other players at the Mausoleum (19 live captures 2026-10-13 to 10-19, measured 2026-10-19)
 

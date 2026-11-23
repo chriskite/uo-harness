@@ -70,6 +70,7 @@ SHOT_COOLDOWN_S = 7.2         # a shot 6.0 s after the last was refused, 7.7 s w
 SHOT_RESULT_S = 3.0           # target response -> felled: 1.29-1.75 s; no word by then: a miss
 CARVE_AFTER_KILL_S = 3.9      # carves were refused up to ~4.2 s after the kill and went through from ~3.2 s
 CARVE_RETRY_S = 0.5
+CARVE_LINE_S = 3.5           # the corpse vanishes 0.8 s into a carve and the trophy line comes ~2.3 s later
 HIDE_AFTER_HIDE_S = 5.05
 HIDE_AFTER_CARVE_S = 3.05
 HIDE_TRY_S = 6.0              # give up hiding for this stalk after this long (shoot from where we are)
@@ -122,6 +123,7 @@ class HGLoop:
         self.swept = {}               # roam cell -> monotonic of our last pass
         self.halt = None
         self.roam_failed = False      # the last roam walk found no route: pick a random waypoint next
+        self.trophy_t = 0.0           # monotonic: the last trophy line (our carve or the client's)
 
     # ------------------------------------------------------------------ state
     def update(self, st):
@@ -132,8 +134,16 @@ class HGLoop:
         self.fed = len(self.link.events)
         now = time.time()
         for ev in new:
-            if ev.get("ev") == "speech_heard" and ev.get("text") == HIDDEN:
+            if ev.get("ev") != "speech_heard":
+                continue
+            if ev.get("text") == HIDDEN:
                 self.hidden = True
+            elif TROPHY.match(ev.get("text") or ""):
+                # a carve, ours or the client's own: ClassicUO's auto-open corpses (Logan's profile, range 2)
+                # double-clicks our kill as we walk up, and in the Grounds that double-click carves. Hide is refused
+                # for 3 s after any carve (live 2026-11-23 10:32-10:38: 46 refused hides, one burst per kill)
+                self.hide_ready = max(self.hide_ready, time.monotonic() + HIDE_AFTER_CARVE_S)
+                self.trophy_t = time.monotonic()
         self.grounds.feed(new, now)
         pos = st["movement"]["pos"]
         me = (pos[0], pos[1]) if pos is not None else None
@@ -625,7 +635,13 @@ class HGLoop:
         end = kill_t + 25.0
         while time.monotonic() < end:
             st = self.read()
-            if self.item_xy(corpse, st) is None or self.g is None:
+            if self.g is None:
+                return
+            if self.item_xy(corpse, st) is None:
+                # gone: a carve started (the corpse goes 0.8 s into it, the trophy line ~2.3 s later; the client's
+                # auto-open does the double-click as we walk up, live 2026-11-23 10:32:47.9-50.2) or it decayed.
+                # Wait for the trophy before anything else: hide is refused all through a carve
+                self.link.wait(lambda s: self.update(s) is not None and self.trophy_t > kill_t, timeout=CARVE_LINE_S)
                 return
             if cheb(self.me(st), self.item_xy(corpse, st)) > 2:
                 self.walk(lambda: self.item_xy(corpse) or at, 1, "to the corpse", run=True)
