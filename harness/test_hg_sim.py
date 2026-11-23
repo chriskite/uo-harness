@@ -531,6 +531,34 @@ def test_runner():
           f"lost {r['lost_at_expiry']} violations {r['violations']}")
 
 
+def test_runner_home():
+    print("== the way home once the permits are spent: our own book's home rune (homes.json), tomes first ==")
+    import home as home_mod
+    import loop_hg
+    from sim import run_hg
+    house = home_mod.for_character(H.PLAYER_NAME)
+    tried = []
+    orig = (loop_hg.escape_mod.find_books, loop_hg.escape_mod.escape)
+
+    def escape(io, book, rune=None, **kw):          # the recall itself is escape.py's (proven live by the hunt runs)
+        tried.append((book, rune))
+        if book == 0x40000001:
+            raise loop_hg.escape_mod.RecallError(f"no rune {rune!r} in the rune tome 0x{book:08X}")
+        pl = io.link.world.player
+        pl.x, pl.y, pl.z = house["landing"]
+        return {"ok": True, "failure": None, "attempts": 1}
+    loop_hg.escape_mod.find_books = lambda world, me: [(0x40000001, "runetome"), (0x40000002, "runebook")]
+    loop_hg.escape_mod.escape = escape
+    try:
+        r = run_hg.run_once(seed=8, permits=1, extra_args=["--home"])
+    finally:
+        loop_hg.escape_mod.find_books, loop_hg.escape_mod.escape = orig
+    check("one run, then home: the tome without the rune passed over, the runebook's 'Logan's House' taken",
+          r["outcome"] == "done" and r["runs"] == 1
+          and tried == [(0x40000001, house["rune"]), (0x40000002, house["rune"])],
+          f"{r['outcome']} {tried} {r.get('error') or ''}"[:300])
+
+
 def main():
     if WALKERS.get(0) is None:
         print("SKIP: no map geometry for facet 0 (install files missing)")
@@ -549,6 +577,7 @@ def main():
     test_density()
     test_violations()
     test_runner()
+    test_runner_home()
     print(f"\n{len(FAILURES)} failure(s) in {time.perf_counter() - t0:.1f} s")
     for f in FAILURES:
         print("  FAIL:", f)

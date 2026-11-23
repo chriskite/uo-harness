@@ -4198,7 +4198,9 @@ nook by an awake soulcatcher").
   - Stalk: hide (skill 21), stealth-walk to the weapon's range minus 1, stand still 2.3 s, double-click the buck.
   - Carve 3.9 s after the kill.
   - Turn in when the plan says return.
-  - It ends with no permits left, at `ctl stop --after-trip`, or when a break or the daily cap is closer than a run.
+  - It ends with no permits left, at `--max-runs`, at `ctl stop --after-trip`, or when a break or the daily cap is
+    closer than a run. Then it recalls home with our own book's home rune (homes.json, "Logan's House"; user
+    2026-11-23). `--no-home` stays in town.
 - *Decided*: the actions are those the user's client has: skills by id, double-clicks on things in view, gump buttons
   found by label (`room.labelled_button`). Nothing is said and war mode is never used.
   - Shots are double-clicks (the forum post's way); a Shoot cursor, if one comes, is answered.

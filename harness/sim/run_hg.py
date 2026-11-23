@@ -39,6 +39,8 @@ def _runner_args(ap: argparse.ArgumentParser, extra: list[str], seed: int, db: s
     for flag, val in (("--human", "off"), ("--seed", str(seed)), ("--memory", db)):
         if flag not in have and flag in ap._option_string_actions:
             out += [flag, val]
+    if not have & {"--home", "--no-home"} and "--no-home" in ap._option_string_actions:
+        out.append("--no-home")          # no house or runebook in the simulated world: the runs alone
     return out
 
 

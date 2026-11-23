@@ -16,7 +16,8 @@ One run:
        fits the time left.
   3. The permit expires (900 s) or the run ends at the warden with no time left; the server ejects us to town.
 Then the next permit, until the backpack has none, `ctl stop` (now) / `ctl stop --after-trip` (after this run), the
-agent gate's break or the daily cap comes up (no run is started that would run into it).
+agent gate's break or the daily cap comes up (no run is started that would run into it); then it recalls home
+(homes.json: our own book's "Logan's House" rune; --no-home stays in town).
 
 Every action is one the hotbar, a Razor hotkey or a double-click gives a player (ANTICHEAT.md §8): skills by id,
 double-clicks on things in view, gump buttons found by their label. Nothing is said. War mode is never used.
@@ -37,6 +38,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actions  # noqa: E402
 import combat  # noqa: E402
+import escape as escape_mod  # noqa: E402
+import home as home_mod  # noqa: E402
 import hunting_grounds as hg  # noqa: E402
 import task_wrap  # noqa: E402
 from agent_link import Abort, GatePaused, Link, Mover, WalkFailed, cheb, label_since, log, look_at, serial_of  # noqa: E402
@@ -723,7 +726,48 @@ class HGLoop:
         t = self.totals
         log(f"hunting grounds done ({self.finish or 'max runs'}): {t['runs']} run(s), {t['score']} points, "
             f"{t['trophies']} trophies, {t['lost']} points lost at expiries, {t['shots']} shots, {t['kills']} kills")
-        self.doing("done", f"Finished: {t['runs']} run(s), {t['score']} points ({self.finish or 'max runs'})")
+        if self.args.home:
+            self.go_home()
+        self.doing("done", f"Finished: {t['runs']} run(s), {t['score']} points ({self.finish or 'max runs'})"
+                           + (", home" if self.args.home else ""))
+
+    def go_home(self):
+        """Recall to the character's home (harness/data/homes.json: Logan Wolf's house) with our own runebook or rune
+        tome's home rune (`rune`, "Logan's House"), as the user does after his runs (user 2026-11-23: "return to
+        Logan's house after the last hunting permit is consumed, or max runs is reached"). The books in the pack are
+        tried in escape.find_books' order (tomes first); one without that rune raises RecallError before any cast."""
+        st = self.read()
+        me = st["world"].get("self") or {}
+        house = home_mod.for_character(me.get("name"))
+        if house is None:
+            log(f"no home for {me.get('name')!r} in homes.json: staying here")
+            return
+        if home_mod.at_home(self.link.pos(st), me.get("map") or 0, house):
+            log("already home")
+            return
+        self.doing("home", f"Recalling home ({house['rune']})", house["landing"][:2])
+        books = escape_mod.find_books(st["world"], st["movement"]["self_serial"])
+        if not books:
+            raise Abort("no runebook or rune tome in the backpack to recall home with")
+        why = None
+        for book, kind in books:
+            self.human.wait("use")
+            try:
+                res = escape_mod.escape(escape_mod.LinkIO(self.link), book, rune=house.get("rune"), log=log, attempts=3)
+            except escape_mod.RecallError as e:
+                log(f"home: {kind} 0x{book:08X}: {e}")
+                why = str(e)
+                continue
+            st = self.link.state()
+            pos = self.link.pos(st)
+            facet = (st["world"].get("self") or {}).get("map") or 0
+            self.memory.job_event("hg", "travel", {"leg": "home", "book": f"0x{book:08X}", **res}, facet=facet,
+                                  x=pos[0], y=pos[1])
+            if res.get("ok") and home_mod.at_home(pos, facet, house):
+                log(f"home at {tuple(pos[:2])}")
+                return
+            why = res.get("failure") or f"landed at {tuple(pos[:2])}, not at home"
+        raise Abort(f"couldn't recall home: {why}")
 
 
 def hg_body(st, serial) -> int:
@@ -742,6 +786,8 @@ def arg_parser():
                     help="also close in (hidden) on worth-it bucks not yet heard calm, and shoot once they settle")
     ap.add_argument("--roam", choices=("run", "stealth"), default="stealth",
                     help="sweep the zone running (visible) or stealth-walking (hidden, half speed)")
+    ap.add_argument("--home", action=argparse.BooleanOptionalAction, default=True,
+                    help="recall home (homes.json, our own book's home rune) once the runs are over")
     ap.add_argument("--max-runs", type=int, default=0, help="stop after this many runs (0: until the permits run out)")
     ap.add_argument("--max-blocked", type=int, default=12)
     ap.add_argument("--human", choices=sorted(PROFILES), default="normal")
