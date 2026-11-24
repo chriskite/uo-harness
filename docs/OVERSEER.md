@@ -621,8 +621,9 @@ Paste this (or point the session at this section) to start an overseer.
 > 2. **At home before every run: `act dropoff`** (the user's drop-off: gold into the bank deposit safe,
 >    loot into its tomes, research materials, resource maps (ore, lumber, skinning and fishing maps), skill mastery
 >    orbs, seeds, paragon chests (since 2026-11-17), runes, cloth and dyes (since 2026-11-18), hunting permits
->    (since 2026-11-23, all of them: the user loads permits right before a Hunting Grounds run) and redline bottles
->    (0x630F, since 2026-11-23) into the chest, then the shelf's Resupply). Its "into the chest: 5 hunting permit, …"
+>    (since 2026-11-23, all of them: the user loads permits right before a Hunting Grounds run), redline bottles
+>    (0x630F, since 2026-11-23) and collectable cards (0x6BDB, since 2026-11-24; each named for itself) into the chest,
+>    then the shelf's Resupply). Its "into the chest: 5 hunting permit, …"
 >    names what it moved: count from it when the user asks what was collected.
 >    Read its `reply`. Not at home: `act recall 0x444AB1F3` (its default rune is the house) first.
 >    Then check `status` counts by graphic, not by name (after a relog the potions show as "Yellow Potion"

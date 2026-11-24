@@ -3985,6 +3985,11 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     (`combat.item_name`) with graphic and amount ("into the chest: 5 hunting permit, 1 rune").
   - **Redline bottles go to the chest since 2026-11-23** (the Seer moved a redlightning bottle 0x4E670160, graphic
     0x630F, tiledata "redline bottle", by hand after the 19:06 drop-off; the user: every one to the chest).
+  - **Collectable cards go to the chest since 2026-11-24** (the Seer moved a "Great Abyssal Hornbeast" 0x51A52483 by
+    hand after a drop-off; the user: it's a collectable card, add the class). Each card has its own name, so they go by
+    graphic 0x6BDB (tiledata "parchment"). Every 0x6BDB item in the captures to date was one: 7 items, 6 with a sub
+    0x15 name (Galvin, Great Abyssal Hornbeast, Lodestone, Lord Bile, Outpost, Tidal Tomb), the seventh nameless in
+    the pack 2026-11-22 (0x4B55D5BB).
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 

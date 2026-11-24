@@ -34,7 +34,7 @@
           {"serial": "0x6CEB65CD", "name": "a storage shelf", "entry": 3006348}
         ],
         "chest": {"serial": "0x4AE0DD2C"},
-        "to_chest": {"graphics": ["0x5F72", "0x5740", "0x5736", "0x11202-0x1120D", "0x9BD1-0x9BEE", "0x0F95-0x0F9C", "0x175D-0x1768", "0xF9FF", "0x630F"], "names": ["research materials", "resource map", "skill mastery orb", "seed", "paragon chest", "(sealed)", "dye"]}
+        "to_chest": {"graphics": ["0x5F72", "0x5740", "0x5736", "0x11202-0x1120D", "0x9BD1-0x9BEE", "0x0F95-0x0F9C", "0x175D-0x1768", "0xF9FF", "0x630F", "0x6BDB"], "names": ["research materials", "resource map", "skill mastery orb", "seed", "paragon chest", "(sealed)", "dye"]}
       }
     }
   }

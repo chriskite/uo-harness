@@ -142,7 +142,9 @@ def test_dropoff():
             # user 2026-11-23: every hunting permit in the pack to the chest (5 looted in the Tomb, 0x4D98186A)
             "0x4410000C": {"graphic": 0xF9FF, "amount": 5, "container": f"0x{PACK:08X}"},
             # user 2026-11-23: redline bottles too (the Seer moved a redlightning bottle 0x4E670160 by hand)
-            "0x4410000D": {"graphic": 0x630F, "amount": 1, "container": f"0x{PACK:08X}"}}
+            "0x4410000D": {"graphic": 0x630F, "amount": 1, "container": f"0x{PACK:08X}"},
+            # user 2026-11-24: collectable cards, each named for itself ("Great Abyssal Hornbeast", "Lodestone", ...)
+            "0x4410000E": {"graphic": 0x6BDB, "amount": 1, "container": f"0x{PACK:08X}", "name": "Lodestone"}}
     room = Room(plan, loot)
     out = dropoff.run(room, NoHuman(), plan, timeout=0.5)
     picks = [(int.from_bytes(p[5:9], "big"), int.from_bytes(p[9:11], "big")) for p in room.sent
@@ -162,7 +164,7 @@ def test_dropoff():
           "hunting permits from the pack's top level into the chest; the one in a bag, the potions, the rune tome and "
           "the tub stay",
           moved == ["0x44100001", "0x44100002", "0x44100005", "0x44100006", "0x44100007", "0x44100008",
-                    "0x44100009", "0x4410000C", "0x4410000D"] and not out["left"], str(out["chest"]))
+                    "0x44100009", "0x4410000C", "0x4410000D", "0x4410000E"] and not out["left"], str(out["chest"]))
     drops = [p for p in room.sent if p[0] == 0x08]
     check("each one lifted and dropped into the chest, opened first",
           room.sent.index(actions.dclick(CHEST)) < room.sent.index(drops[0])
