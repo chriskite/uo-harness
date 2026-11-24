@@ -1941,8 +1941,10 @@ class World:
             if d <= ranged.get("keep", ranged["range"]) or not spec.get("melee"):
                 return
         if d <= spec.get("melee_reach", 1) and abs(m.z - tgt.z) <= 15 and (d <= 1 or self.can_see(m, tgt)):
-            # a reach of 2 (melee_observed `reach`: the giant pincer crab's pinches landed 2 tiles off 29 of 52 times)
-            # swings from there and still closes in (live 2026-10-30 18:29:29.14 from 2, beside him 1.8 s later)
+            # a reach of 2 (melee_observed `reach`: the giant pincer crab's pinches landed 2 tiles off 29 of 52 times;
+            # the frenzyfin's, scourgeon's and ironscale grouper's swings, docs/NOTES.md "Tidal Tomb level 2: dead to a
+            # frenzyfin from 2 tiles") swings from there and stands there: after a swing from 2 the next came from 2
+            # again, the monster unmoved, 258 of 282 times for the crab, 26 of 29 for the frenzyfin (30 captures)
             self._face(m, tgt)
             if t >= m.next_swing and spec.get("melee"):
                 m.next_swing = self._due(m.next_swing, spec["swing_s"] * self.rng.uniform(0.9, 1.1))
@@ -1953,7 +1955,7 @@ class World:
                 if hit:
                     self.hurt(tgt, self._melee_on(tgt, spec), m, ref=spec.get("melee_ref"))
                     self._specials(m, tgt, spec)
-            if d <= 1:
+            if d <= 1 or spec.get("melee_reach", 1) > 1:
                 return
         if t >= m.next_step and not any(sp["kind"] == "hold" for sp in spec.get("specials", [])):
             # a `hold` special: it never steps after its target (the spectral pontiff stood on its tile through both

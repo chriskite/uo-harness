@@ -141,10 +141,14 @@ Each tick re-reads the proxy state and decides, in this order:
    - A mob attacking us comes first: the current one, else the one with the lowest hits.
      Otherwise the nearest within `--pull-range` of the fight spot. "Attacking us" (`attackers()`,
      within 10 s): a `0x2F` swing at us in `world.swings`, **or the mob our own latest swing is
-     at, or a war-mode creature adjacent to us while we take damage** ("-N" overhead text or a
-     `0x0B`). Outlands has never sent a `0x2F` with us as the defender (all 2172 stored swings
-     are our own, no `0x0B` either), so live only the last two work: the server turns our swings
-     on whoever attacks us.
+     at while it is within 3 (`CHASE_R`), or a war-mode creature within its melee reach of us
+     (`aggro.melee_reach`: 1; the frenzyfin's, scourgeon's, ironscale grouper's and giant pincer
+     crab's 2) while we take damage** ("-N" overhead text or a `0x0B`). Outlands has never sent a
+     `0x2F` with us as the defender (all 2172 stored swings are our own, no `0x0B` either), so live
+     only the last two work: the server turns our swings on whoever attacks us. Since 2026-11-24
+     (docs/NOTES.md "Tidal Tomb level 2: dead to a frenzyfin from 2 tiles"): before, only an
+     adjacent one counted, so a frenzyfin's swings from 2 never made it "on us", and our swings
+     at a zoa we had walked 15 tiles from kept that one "on us" for 10 s.
    - Attack once (war mode on, `0x34` unless the client has a status request outstanding, `0x05`),
      and once more when the mob first comes adjacent (the overseer's NPD procedure).
    - The attack spell while mana ≥ `--mana-reserve` + its cost, its reagents (Lightning:
@@ -627,6 +631,12 @@ run hunt --pets --pet GraveRobber --pet AlaFlambe --enter-recall <TOME> --enter-
    (hunt-20261115-193909-8e17, 19:43-19:45): the pets patrolled onto four gargoyles and a winged hulk while the stand-off
    held Logan 14 off, out of their sight, and none got a skill (user: "patrolled the pets up to some mobs and then stood
    back and never discorded or provoked that mob"). test_sim `test_ssc_bard_beyond_range`.
+   **No peek while another monster is on us** (since 2026-11-24): with a monster other than the target attacking us
+   (`attackers()`) or chasing us (`HuntLoop.chaser`: war mode within 3, a hit on us within 5 s) there is no peek step
+   ("no bard at …: … out of our sight, and another monster on us: no step off to see it"). Live 14:22:47
+   (hunt-20261124-135129-ffbb) the peek walked Logan 4 steps toward a toxic zoa 14 off with a frenzyfin hitting him
+   from 2, into the zoa's area hit round Bussin (its war flag read off between its casts, so no area zone): dead on
+   arrival (docs/NOTES.md "Tidal Tomb level 2: dead to a frenzyfin from 2 tiles"). test_sim `test_frenzyfin_reach`.
    **The others on the pets** (since 2026-11-05; user: "Why is the runner letting the pets fight several mobs without
    trying to bard?"): when the target gets no skill this round (nothing due at it, or due and unseen with no step, out
    of range, the server's out-of-sight block, shy and not yet hurt), Discordance, else Peacemaking, goes at another
@@ -1159,12 +1169,21 @@ the pets"); test_sim `test_loot_tile_zoa_per_tile`. **The walk to a hurt pet ref
 within N steps from ... (a longer detour, if any)"); live that walk's "route 156 steps" took 18 moves away from the
 pets; test_sim `test_to_pet_detour`.
 **A monster beside us that the pets aren't fighting is the target** (`HuntLoop.pick_target`, `loop_hunt.LOOSE_R` 1, since
-2026-10-29): a monster within 1 attacking us that no pet has hurt lately, while the current target isn't on us, takes
+2026-10-29): a monster within 1 (or within its melee reach: the frenzyfin's 2, since 2026-11-24) attacking us that no
+pet has hurt lately, while the current target isn't on us, takes
 the target over, logged "a razorfin 0x... on us and the pets on 0x...: it is the target now". `Team.fight` then says
 "All Kill" at it at once when the pets fight another monster (`KILL_AFTER_BUSY_S` 0, not `KILL_AFTER_S` 4: guarding,
 they don't turn from their fight to it). Before, `pick_target` kept a target that fought the pets even with another
 monster on us (its docstring said otherwise): in the simulator 7 of level 2's 24 deaths (144 runs) were a fin alone on
 Logan, the pets at full hits 5-10 off on a zoa. Ablation with the target areas above.
+**A target hitting a pet that the pets leave alone gets "All Kill"** (`Team.fight`, since 2026-11-24): a target in
+`pet_attackers` (war mode within 1 of a pet hurt within 10 s) that isn't on us and that the pets haven't hurt
+(`engaged`) gets "All Kill" after `KILL_AFTER_S` (4 s), logged "a frenzyfin 0x... hits a pet the pets leave alone:
+'All Kill' at it"; and being on a pet keeps it from the fight's 15 s drop (`PIN_S`) as being on us does. Live
+2026-11-24 14:22:17-32 (hunt-20261124-135129-ffbb) a frenzyfin hit AlaFlambe from 1 tile for 15 s while the pets
+fought a kelpdweller, with no "All Kill" at it (no rule sent one at a target on a pet that isn't on us), then
+"dropping a frenzyfin ...: neither fighting the pets nor us"; she died to it and a toxic zoa 10 s later, and Logan to
+it and the zoa 8 s after that. test_sim `test_frenzyfin_on_pet`.
 **No walk to a hurt pet from out of an awake caster's sight into its reach** (`Team.to_pet`, since 2026-10-25): with
 an awake caster or ranged monster (not a corpse purger or blightmare: their shot rule above; the casters made shy on
 2026-10-26 keep this rule, test_sim `test_to_pet_not_into_caster_reach`) that doesn't see us here (`CASTER_R` 12,

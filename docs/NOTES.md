@@ -10470,6 +10470,61 @@ Capture 20261122_181713 (`replay.timed_packets`, the soulcatcher's 0x20 flags; s
   - A corpse held in an area hitter's reach or a shot is left after `loop_hunt.LOOT_HELD_MAX_S` (120 s): "not looting
     X: held 121 s (...); leaving it".
 
+## Tidal Tomb level 2: dead to a frenzyfin from 2 tiles (live 2026-11-24 14:22:49, hunt-20261124-135129-ffbb)
+
+Level 2 shift, Logan with Bussin 0x000EA04F (tank) and AlaFlambe 0x0026EF56, the §5 level 2 command (`--pets --crawl
+--heal-in-place --vet-range 5 --crawl-learn-s 180 ... --fight-via 6718 1984`), visit 2. Task log
+logs/tasks/hunt-20261124-135129-ffbb.log ~2225-2415; capture 20261124_105250 replayed (`replay.timed_packets` ->
+`WorldRuntime`, the raw 0x6E / 0x2F and the '-N' numbers; scratch, not kept).
+
+- **14:22:12-41.96 the frenzyfin 0x00367F4F on AlaFlambe.** War mode, 100 % hits throughout (the pets never hurt
+  it), at (6826, 1937) beside her at (6825, 1936). Its action 5 with her hit animation and a number at the same
+  instant: -36 (26.59), -33 (28.28), -37 (29.98), -33 (31.69), -30 (36.12), -8 (41.96, her death). Her own attacks
+  went at a kelpdweller (killed 14:22:27); "All Guard Me" at 28.67.
+- **14:22:17 "target a frenzyfin ... at 3 tiles", 14:22:32 "dropping a frenzyfin ...: neither fighting the pets nor
+  us for 15 s; skipping it for 60 s".** `Team.fight` counted progress only as the target hurt or on us; a target on a
+  pet (it was in `pet_attackers`: within 1 of her, hurt every second) was never sent at and was dropped. Then
+  "target a toxic zoa 0x00367F85 at 4 tiles", "All Kill" (answered 0x00367F85 at 33.55).
+- **14:22:34.77 and 37.19 Logan's own swings (0x2F) at the zoa**, the stand-off having walked him beside it at
+  (6820, 1926). `attackers()` counted "our own swing is at it" for 10 s at any distance.
+- **14:22:43.65-49.51 the frenzyfin on Logan from 2 tiles:** -16 (it (6825, 1940), him (6825, 1942)), -24 (45.34,
+  (6824, 1941) / (6824, 1943)), -22 (47.06, (6823, 1942) / (6823, 1944)), -13 (49.51); from 47.0 it stood at (6823,
+  1942) and swung, not closing in. `attackers()` read only a war-mode monster adjacent while we take damage, so it
+  was never "on us": its 60 s pass-over stood, `pick_target` didn't take it. 14:22:45.26 "All Kill" went to the zoa
+  (the cursor answered 0x00367F85 at 45.69), 14-15 off, still "on us" by his swing of 37.19. 14:22:47 "not looting
+  yet: a frenzyfin 0x00367F4F in war mode 2 off, a hit on us 0.4 s ago" (`chaser` saw it; `attackers` didn't).
+- **14:22:47 "toxic zoa 0x00367F85 out of our sight: stepping to (6820, 1940)", "to see the bard target: route 4
+  steps"** (`bard_step`'s peek at a target not on us, 14 off) with the frenzyfin hitting him. The zoa's war flag read
+  0x00 from 14:22:44 to 47.46 (Outlands flaps it between casts), so `area_zone` had no zone round Bussin, whom it
+  targeted, and the step went to 4 from him. 47.99 -20, 48.27 -22, 48.54 -24 on Logan with Bussin -29 at 47.99 and
+  48.54 (the zoa's area hit on its target and each of us within 6), 49.51 -13 the frenzyfin; dead 14:22:49.59.
+  100 -> 0 in ~3 s after the potion's 100 at 46.65.
+- **The frenzyfin's reach, measured** (30 Tidal Tomb captures 2026-10-24..11-24, 17,527 numbers on ours; a '-N' at
+  the instant of the monster's 0x6E, no other monster within 14 animating in the 1.5 s before, no spin sound 0x090A
+  within 3 in 2.5 s, not after its '*frenzies*'; the distance at that instant; "still" = it and the victim unmoved
+  1 s). Its swing (action 5, 70 of 71 from 2) lands from 2 tiles: 71 of 162 numbers (85 from 1), 56 of 133 still,
+  25 of its 60 in 18 captures; after a swing from 2 the next within 4 s came from 2 again 26 of 29 times with it
+  unmoved (it stands at 2). Its numbers from 2 are its swings' (9-52, median 31; from 1 9-37, median 28). The same
+  count for the giant pincer crab (reach 2 since 2026-10-30): 322 of 756 still from 2, then from 2 again 258 of 282.
+  The scourgeon 228 of 558 still (174 of 212 again), the ironscale grouper 170 of 383 (60 of 70). Reach-1 types:
+  bottomfeeder 3 of 617, pincer crab 0 of 227, singing noughtilus 1 of 262; Mausoleum shade wolf 1 of 526, vampire 4
+  of 426. Not set (a second mechanism or too few): the clearwater grouper 152 of 447 (its bubbles), razorfin 139 of
+  655 (its spin), voidfin, the shellpods (barrage), ocean bedrock (spray), kelpdweller 26 of 66.
+- **Built** (docs/HUNT_LOOP.md "Pets" and step 7; docs/SIM.md "Tidal Tomb: a frenzyfin's swings from 2"):
+  - `attackers()`: a war-mode monster within its melee reach (`aggro.melee_reach`, `melee_observed.reach`: 2 for
+    the frenzyfin, scourgeon and ironscale grouper, as the giant pincer crab) while we take damage ("war mode, in its
+    melee reach while we take damage"); our own swing counts only while its mob is within `CHASE_R` (3).
+    `pick_target`'s "on us and the pets on ...: it is the target now" takes one within its reach too.
+  - `Team.fight`: a target on a pet is progress as one on us (no `PIN_S` drop), and one the pets leave alone gets
+    "All Kill" after `KILL_AFTER_S`: "a frenzyfin 0x... hits a pet the pets leave alone: 'All Kill' at it".
+  - `Team.bard_step`: no peek step while another monster is on us or chasing us: "no bard at toxic zoa 0x...: ... out
+    of our sight, and another monster on us: no step off to see it".
+  - Simulator: the three reaches, and a reach-2 swinger stands where it lands its swings (before, it swung from 2
+    and stepped in).
+- **Not changed:** `area_zone` with a war flag that flaps off between casts (the zoa here); `pet_attackers` within a
+  monster's melee reach (tried: test_sim `test_tidal_leave_crab` seed 11 then provoked a voidfin onto the crab, the
+  voidfin dove and the crab pinched Logan; not needed for the death).
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

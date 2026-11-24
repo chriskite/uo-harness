@@ -7588,6 +7588,121 @@ def test_loose_on_us():
           f"{buf.getvalue().splitlines()[-3:]}")
 
 
+FZ_L2 = (6823, 1942, -121)      # Tidal Tomb level 2, live 2026-11-24 14:22:47 (hunt-20261124-135129-ffbb): the frenzyfin
+LOGAN_FZ = (6823, 1944)          # ...hitting Logan from 2 tiles...
+BUSSIN_FZ = (6824, 1940)         # ...Bussin on a giant pincer crab beside him, AlaFlambe dead at (6824, 1942)...
+ZOA_FZ = (6823, 1930, -103)      # ...and the awake toxic zoa on Bussin, 14 from Logan, the target since 14:22:32
+
+
+def test_frenzyfin_reach():
+    print("== level 2, the live 14:22:47 layout: a frenzyfin passed over 15 s before hits Logan from 2 tiles (its reach), "
+          "the target a toxic zoa 14 off on Bussin, AlaFlambe dead: the frenzyfin is on us, the target, 'All Kill' at "
+          "it; no step off toward the zoa ==")
+    # docs/NOTES.md "Tidal Tomb level 2: dead to a frenzyfin from 2 tiles": live attackers() read only a monster beside
+    # us, Logan's own swings at the zoa 8 s before kept it "on us" 14 off, 'All Kill' at it, then "toxic zoa ... out of
+    # our sight: stepping to (6820, 1940)" with the frenzyfin hitting him; dead 2.5 s later
+    import loop_hunt
+    from world.runtime import S2C
+    w = tidal_world(LOGAN_FZ, [{"key": "frenzyfin", "at": list(FZ_L2)}, {"key": "toxic zoa", "at": list(ZOA_FZ)},
+                               {"key": "giant pincer crab", "at": [6826, 1939, -121]}], z=-121, team="phoenix_incubus")
+    mobs = {o.key: o for o in w.mobs.values() if o.kind == "monster"}
+    fz, zoa, crab = mobs["frenzyfin"], mobs["toxic zoa"], mobs["giant pincer crab"]
+    bussin = next(p for p in w.pets() if p.name == "Bussin")
+    ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+    loop, clock, store, patched = hurt_loop(w, 100, pets_at=[(6824, 1943) if p is bussin else (6824, 1942) for p in w.pets()])
+    loop.team.guard_needed = False                      # hurt_loop said 'All Guard Me'
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            w.die(ala, None)
+            w._place(bussin, (*BUSSIN_FZ, FZ_L2[2]), d=0)     # rostered beside Logan (team.setup), then on the crab
+            flags = w._flags                            # the zoa's war flag read off between its casts, as live
+            w._flags = lambda m, on: flags(m, on and m is not zoa)     # (14:22:44-47.46): no area zone round Bussin
+            for m, on in ((crab, bussin), (zoa, bussin), (fz, w.player)):
+                m.hits = m.hits_max = 10 ** 6
+                m.target = on.serial
+                w._warm(m, True)
+            bussin.target = crab.serial
+            clock.advance(0.5)
+            now = tamer.time.monotonic()
+            loop.hurt_t.update({w.player.serial: now, bussin.serial: now, crab.serial: now})   # its hit on him
+            loop.skip[fz.serial] = now + loop_hunt.SKIP_S - 15.0    # "dropping a frenzyfin ...", 14:22:32
+            loop.engaged = zoa.serial                   # "target a toxic zoa", 14:22:32
+            # Logan's swing (0x2F) at the zoa when beside it, 14:22:37.19
+            loop.link.rt.feed_packet(S2C, bytes([0x2F, 0]) + w.player.serial.to_bytes(4, "big")
+                                     + zoa.serial.to_bytes(4, "big"))
+            st = loop.state()
+            atts = loop.attackers(st)
+            picked = loop.pick_target(st)
+            loop.fight(picked)
+            stepped = loop.team.bard_step(loop.state(), zoa.serial, peek=True)
+            why = loop.team.step_why
+            start, sent = clock.monotonic(), None
+            while clock.monotonic() - start < tamer.KILL_AFTER_S + 2.0 and sent is None and picked == fz.serial:
+                clock.advance(0.5)
+                loop.hurt_t[w.player.serial] = tamer.time.monotonic()     # its swings on him
+                loop.fight(picked)
+                if bussin.kill == fz.serial:
+                    sent = round(clock.monotonic() - start, 1)
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("the frenzyfin 2 off is on us ('in its melee reach'), the zoa 14 off not; it is the target and the pets are "
+          "sent at it within KILL_AFTER_S + 2 s (before: passed over, the zoa kept, 'All Kill' at the zoa)",
+          [(int(a["serial"], 16), a["dist"]) for a in atts] == [(fz.serial, 2)] and picked == fz.serial
+          and sent is not None and "it is the target now" in out,
+          f"attackers {[(a['name'], a['dist'], a['how']) for a in atts]}, picked {picked and hex(picked)} (fz "
+          f"{fz.serial:#x}, zoa {zoa.serial:#x}), 'All Kill' at it after {sent} s | {out.splitlines()[-4:]}")
+    check("...and no step off to see the zoa while it is on us (before: 'toxic zoa ... out of our sight: stepping to')",
+          not stepped and why is not None and why[0] == "on us" and "to see the bard target" not in out,
+          f"stepped {stepped} why {why}")
+
+
+def test_frenzyfin_on_pet():
+    print("== level 2, the live 14:22:17-32 layout: the target a frenzyfin hitting AlaFlambe from 1 tile, the pets on a "
+          "kelpdweller, never on it: 'All Kill' at it after KILL_AFTER_S, not dropped at PIN_S as 'neither fighting the "
+          "pets nor us' ==")
+    # docs/NOTES.md "Tidal Tomb level 2: dead to a frenzyfin from 2 tiles": 15 s of waiting for it to come on while it
+    # hit her 80 -> 27 %, then "dropping a frenzyfin ...: neither fighting the pets nor us for 15 s"
+    import loop_hunt
+    w = tidal_world((6825, 1934), [{"key": "frenzyfin", "at": [6826, 1937, -121]},
+                                   {"key": "kelpdweller", "at": [6826, 1939, -121]}], z=-121, team="phoenix_incubus")
+    mobs = {o.key: o for o in w.mobs.values() if o.kind == "monster"}
+    fz, kelp = mobs["frenzyfin"], mobs["kelpdweller"]
+    ala = next(p for p in w.pets() if p.name == "AlaFlambe")
+    loop, clock, store, patched = hurt_loop(w, 100, ("--no-peace", "--no-discord", "--no-provoke"),
+                                            pets_at=[(6825, 1936) if p is ala else (6827, 1936) for p in w.pets()])
+    loop.team.guard_needed = False                      # hurt_loop said 'All Guard Me'
+    buf, sent = io.StringIO(), None
+    try:
+        with contextlib.redirect_stdout(buf):
+            for m, on in ((fz, ala), (kelp, ala)):
+                m.hits = m.hits_max = 10 ** 6
+                m.target, m.spec = on.serial, {**m.spec, "step_s": 999.0}
+                w._warm(m, True)
+            for p in w.pets():
+                p.hits = p.hits_max = 10 ** 6
+                p.target, p.mode, p.next_step = kelp.serial, "stay", 1e9    # on the kelpdweller, as live
+            start = clock.monotonic()
+            while clock.monotonic() - start < loop_hunt.PIN_S + 2.0 and sent is None:
+                clock.advance(0.5)
+                now = tamer.time.monotonic()
+                loop.hurt_t.update({ala.serial: now, kelp.serial: now})    # its swings on her; theirs on the kelp
+                loop.fight(fz.serial)
+                if ala.kill == fz.serial:
+                    sent = clock.monotonic() - start
+    finally:
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    check("'All Kill' at the frenzyfin within KILL_AFTER_S + 2 s ('hits a pet the pets leave alone'), never dropped "
+          "(before: dropped after PIN_S, no 'All Kill')",
+          sent is not None and sent <= tamer.KILL_AFTER_S + 2.0 and "dropping a frenzyfin" not in out
+          and "hits a pet the pets leave alone" in out,
+          f"sent after {sent} s | {out.splitlines()[-3:]}")
+
+
 BEDROCK = (6886, 1957, -126)    # Tidal Tomb level 2's north strip, a live bedrock spawn (20261024_102346 20:53:13)
 
 
@@ -9796,7 +9911,7 @@ def main():
               test_potion_after_vet, test_patrol_refused_hold,
               test_zoa_lightning, test_scorch_susceptible, test_zoa_volley, test_zoa_on_pets_vet, test_zoa_dip,
               test_loot_tile_zoa_per_tile, test_to_pet_detour, test_rejoin_detour, test_shooter_hits,
-              test_shooter_stand_off, test_loose_on_us,
+              test_shooter_stand_off, test_loose_on_us, test_frenzyfin_reach, test_frenzyfin_on_pet,
               test_tidal_bedrock_spray, test_spray_stand_off,
               test_spray_windup_fewest_steps, test_spray_loot_wait, test_spray_hold_awake,
               test_tidal_bubbles, test_tidal_marinerbane, test_bubbles_step_off, test_tidal_level3_bursts,

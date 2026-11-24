@@ -1855,6 +1855,18 @@
    "reach": 2,
    "note": "docs/NOTES.md 'Tidal Tomb: level 2 death 2026-10-30 18:29' (8 captures 2026-10-24..30; numbers on one of ours with no other monster within 3 of it): its plain numbers on the pets 19-46 p10-p90 (median 33, 1-66, n=70; AlaFlambe, GraveRobber, GirthyEarthy, a tidal mantis); one crab's numbers on one victim 3.36 s apart (median of 32 gaps at 3.0-3.7 s; then 6.7 s, two swings). calibrate's 21-78 every 2.05 s took a pinch's two numbers at once (e.g. 20 + 37) as a swing's sum and its own number as a swing. Its swings land 2 tiles off: 76 of 168 numbers with the victim 2 from it, 29 of its 52 pinches; live 2026-10-30 18:29:29.14 from (6911, 2060) on Logan at (6910, 2058), its war flag after the hit, beside him 1.8 s later. On Logan 16-29 (7 numbers in 4 swings, 3 of them with a pinch; melee_player stays the wiki's less his armor)"
   },
+  "frenzyfin": {
+   "reach": 2,
+   "note": "docs/NOTES.md 'Tidal Tomb level 2: dead to a frenzyfin from 2 tiles' (30 Tidal Tomb captures 2026-10-24..11-24; a '-N' on one of ours at the instant of its 0x6E, no other monster within 14 animating 1.5 s before, no spin sound within 3, not after its '*frenzies*'): its swing (action 5) lands 2 tiles off, 71 of 162 numbers (1 off 85), 56 of 133 with it and the victim unmoved 1 s; 25 of 60 frenzyfins; after a swing from 2 the next within 4 s from 2 again 26 of 29 times, it unmoved (it stands at 2). Live 2026-11-24 14:22:43.65-49.51 four on Logan from 2 (-16 -24 -22 -13). Reach-1 types by the same count: bottomfeeder 3 of 617 still at 2, pincer crab 0 of 227, singing noughtilus 1 of 262"
+  },
+  "scourgeon": {
+   "reach": 2,
+   "note": "the frenzyfin's count (its note): 323 of 718 numbers from 2 tiles, 228 of 558 still, 23 captures; the next swing from 2 again 174 of 212 times, it unmoved"
+  },
+  "ironscale grouper": {
+   "reach": 2,
+   "note": "the frenzyfin's count (its note): 240 of 461 numbers from 2 tiles, 170 of 383 still, 21 captures; the next swing from 2 again 60 of 70 times, it unmoved"
+  },
   "colossal scourgeon": {
    "melee": [34, 76, 50],
    "swing_s": 3.0,

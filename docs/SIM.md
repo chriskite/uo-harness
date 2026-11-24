@@ -3104,6 +3104,39 @@ the pets first at every wake"). The simulator and its scenarios are as at a46a0b
   (development seeds 2001-2144 and 3001-3144: 1,114 and 1,271 for a46a0be). A rule worth under ~50 an hour needs both
   blocks, or a hit-by-hit breakdown of what it was meant to remove.
 
+### Tidal Tomb: a frenzyfin's swings from 2 (2026-11-24)
+
+Live 14:22:49 Logan died on level 2 to a frenzyfin swinging from 2 tiles and a toxic zoa's area hit (docs/NOTES.md
+"Tidal Tomb level 2: dead to a frenzyfin from 2 tiles"; the rules in docs/HUNT_LOOP.md step 7 and "Pets").
+
+- **Simulator:** `melee_observed.reach` 2 for the frenzyfin, scourgeon and ironscale grouper (measured over 30
+  captures, the note in the scenario); a monster with reach 2 now stands where it lands its swings (before it swung
+  from 2 and stepped in; live the next swing came from 2 again, unmoved, 26 of 29 for the frenzyfin, 258 of 282 for
+  the giant pincer crab). Both sides of the batches below run this world.
+- **Tests:** `test_frenzyfin_reach` (the 14:22:47 layout: the frenzyfin 2 off is on us, the target, 'All Kill' at it;
+  no peek step toward the zoa) and `test_frenzyfin_on_pet` (14:22:17-32: 'All Kill' at a frenzyfin on AlaFlambe after
+  `KILL_AFTER_S`, no drop). Both fail on aec0db7's runner (the zoa kept "on us" by our own swing 14 off, 'All Kill' at
+  it; the frenzyfin dropped after 15 s). On that runner the sim's peek was refused anyway ("worse"), not walked as live.
+- **Level 2 batches** (`--scenario tidal_tomb --level 2 --compare`, aec0db7's runner with this world against the
+  change; `tamer.PET_HIT_KILL` / `tamer.PEEK_ON_US` switch two of the three rules):
+
+  | batch | runner | runs with a death | runs with a pet death | pet deaths | banked / h | damage on Logan / h |
+  |---|---|---|---|---|---|---|
+  | `--runs 48` | aec0db7 | 1 | 0 | 0 | 161,498 | 333 |
+  | `--runs 48` | **change** | 2 | 0 | 0 | 157,071 | 322 |
+  | `--runs 144` | aec0db7 | 2 | 1 | 2 | 172,800 | 448 |
+  | `--runs 144` | **change** | 6 | 0 | 0 | 168,699 | 416 |
+  | `--runs 144 --team phoenix_incubus` | aec0db7 | 11 | 31 | 46 | 166,831 | 465 |
+  | `--runs 144 --team phoenix_incubus` | **change** | 3 | 29 | 36 | 176,477 | 496 |
+  | `--runs 144 --seed 1 --team phoenix_incubus -- --vet-range 5 --crawl-learn-s 180` | aec0db7 | 4 | 32 | 56 | 176,145 | 484 |
+  | same | **change** | 9 | 30 | 46 | 170,431 | 481 |
+
+  The batches can't separate the change from the noise (a 144-run batch's spread is ~5 deaths): 18 -> 20 runs with
+  a death over the 480 runs, pet deaths 104 -> 82. Three of the six deaths in the change's default-team 144 were the
+  giant pincer crab's pinch (now "on us" from 2: once it took the target and a rejoin walk past it). The simulator's
+  guard sends a pet at any monster on a pet (`World._pet_think`), so the live case the on-pet rule is for (the pets
+  on guard ignoring a frenzyfin on AlaFlambe) barely happens here; it fired mostly at voidfins and shellpods.
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

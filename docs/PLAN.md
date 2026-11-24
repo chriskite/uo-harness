@@ -4229,6 +4229,26 @@ nook by an awake soulcatcher").
     instance; it now uses the region that holds the tile. The viz advice had the same bug.
   - An unreachable roam waypoint was retried every second.
 
+## A frenzyfin's swings from 2 tiles are on us (Logan dead on Tidal Tomb level 2, live 2026-11-24 14:22:49)
+
+A frenzyfin hit AlaFlambe from 1 tile for 15 s and was dropped as "neither fighting the pets nor us"; then it hit
+Logan from 2 tiles four times, never "on us"; 'All Kill' went to a toxic zoa 14 off (kept "on us" by his own swing
+8 s old), and a bard peek walked him toward it into its area hit round Bussin (docs/NOTES.md "Tidal Tomb level 2:
+dead to a frenzyfin from 2 tiles").
+
+- *Decided*: `attackers()` counts a war-mode monster within its measured melee reach (`aggro.melee_reach`) while we
+  take damage, and our own swing only at a mob within `CHASE_R`; reaches set from the captures (frenzyfin,
+  scourgeon, ironscale grouper: 2).
+- *Decided*: a target on a pet is a fight: no `PIN_S` drop, 'All Kill' after `KILL_AFTER_S` when the pets leave it
+  alone (`tamer.PET_HIT_KILL`).
+- *Decided*: no bard peek step while another monster is on us or chasing us (`tamer.PEEK_ON_US` False).
+- *Rejected*: `pet_attackers` within a monster's melee reach: not needed for this death, and it changed provocation
+  choices (test_sim `test_tidal_leave_crab` seed 11: a provoked voidfin dove, the crab pinched Logan).
+- *Open*: `area_zone` misses an area hitter whose war flag flaps off between casts (the zoa here, 0x00 for 3 s).
+- *Open*: the batches (docs/SIM.md "Tidal Tomb: a frenzyfin's swings from 2") can't separate the change from noise:
+  18 -> 20 runs with a death in 480, pet deaths 104 -> 82; the default team got worse (crab pinches now "on us"), the
+  live team better. The simulator's guard fights anything on a pet, so the on-pet rule is barely exercised there.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

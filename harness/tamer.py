@@ -460,6 +460,11 @@ PEEK_STEPS = 4                # bard_step's peek at a target not on us: this far
 DISCORD_OTHERS_FIRST = True
 BARD_STEP_MID_CHANNEL = True
 BARD_STEP_MELEE_ONLY = True
+# docs/NOTES.md "Tidal Tomb level 2: dead to a frenzyfin from 2 tiles" (2026-11-24), each a switch for the simulator:
+# a target on a pet is a fight ('All Kill' at one the pets leave alone; no PIN_S drop), and no peek step while another
+# monster is on us
+PET_HIT_KILL = True
+PEEK_ON_US = False
 REPOSITION_GAIN = 1.0         # a caster's sight less, or a tenth of an idle monster's weight
 CASTER_R = 12                 # a caster in war mode this close in sight is casting at us (live 2026-10-19 19:54:43-57 a
 #                              blightmare cast at Logan from 12 tiles, -21..-28 and disease; loop_hunt.CASTER_REACH stays 10)
@@ -871,6 +876,7 @@ class Team:
         self.kill_t = {}                 # serial -> our last "All Kill" at it
         self.kill_order = None           # the target of an 'All Kill' the pets took: off guard till 'All Guard Me'
         self.attack_t = {}               # serial -> first seen attacking us (this engagement)
+        self.pet_attack_t = {}           # serial -> first seen hitting a pet while not on us (this engagement)
         self.blinks = {}                 # apparition serial -> (monotonic time of its "*phases*", target serial)
         self.spray_t = {}                # sprayer serial -> monotonic time of its action 18 (the spray's wind-up)
         self.spray_upto = 0              # link.events scanned for those (spray_watch)
@@ -4429,7 +4435,15 @@ class Team:
         else:
             self.attack_t.pop(serial, None)
         hurt = h.hurt_t.get(serial, -1e9)
-        h.progress_t = max(h.progress_t, hurt, now if on_us else 0.0)
+        # a target hitting a pet is a fight as one hitting us: live 2026-11-24 14:22:17-32 (hunt-20261124-135129-ffbb) a
+        # frenzyfin hit AlaFlambe from 1 tile for 15 s, the pets on another, and was dropped as "neither fighting the
+        # pets nor us"
+        on_pets = serial in self.pet_attackers(st)
+        if on_pets and not on_us:
+            self.pet_attack_t.setdefault(serial, now)
+        else:
+            self.pet_attack_t.pop(serial, None)
+        h.progress_t = max(h.progress_t, hurt, now if on_us or (on_pets and PET_HIT_KILL) else 0.0)
         if now - h.progress_t > PIN_S:
             log(f"dropping {name} 0x{serial:08X}: neither fighting the pets nor us for {PIN_S:.0f} s; "
                 f"skipping it for {SKIP_S:.0f} s")
@@ -4462,7 +4476,16 @@ class Team:
                 and not self.kill_unseen(st, serial, now):
             self.all_kill(serial)
             return
-        if not on_us and serial not in self.pet_attackers(st) and (who := self.elsewhere(st, mob)) is not None \
+        if PET_HIT_KILL and on_pets and not on_us and not engaged \
+                and now - self.pet_attack_t[serial] >= KILL_AFTER_S \
+                and now - self.kill_t.get(serial, -1e9) >= KILL_REPEAT_S and not self.kill_unseen(st, serial, now):
+            # on a pet that the pets don't fight back (guarding, on another): sent at it as at one on us (live 14:22:17-32
+            # above: 15 s with no 'All Kill' at a frenzyfin hitting AlaFlambe 80 -> 27 %, then dropped; she died to it and
+            # the zoa 10 s later)
+            log(f"{name} 0x{serial:08X} hits a pet the pets leave alone: 'All Kill' at it")
+            self.all_kill(serial)
+            return
+        if not on_us and not on_pets and (who := self.elsewhere(st, mob)) is not None \
                 and not any(p["war"] and not p["dead"] and cheb((p["x"], p["y"]), (mob["x"], mob["y"])) <= ELSEWHERE_R
                             for p in self.pets(st)):
             # already fighting someone else and our pets not beside it: it won't come on; the pets go at it (user
@@ -4834,6 +4857,14 @@ class Team:
             return False
         if not BARD_STEP_MID_CHANNEL and now < self.vet_busy_until and not peek:
             self.step_why = ("channel", "out of our sight, and no step mid-channel")
+            return False
+        if peek and not PEEK_ON_US and (any(serial_of(a["serial"]) != serial for a in h.attackers(st))
+                     or ((ch := h.chaser(st)) is not None and serial_of(ch["serial"]) != serial)):
+            # never off to see a target not on us while another monster is: live 2026-11-24 14:22:47
+            # (hunt-20261124-135129-ffbb) "toxic zoa ... out of our sight: stepping to (6820, 1940)", 4 steps toward a zoa
+            # 14 off with a frenzyfin hitting Logan from 2, into the zoa's area hit round Bussin (its war flag read off
+            # between its casts: no zone): -20 -22 -24 -13, dead on arrival
+            self.step_why = ("on us", "out of our sight, and another monster on us: no step off to see it")
             return False
         self.bard_step_t = now
         v = self.view(st)

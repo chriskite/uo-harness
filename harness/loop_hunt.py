@@ -947,8 +947,9 @@ class HuntLoop:
 
     def attackers(self, st) -> list[dict]:
         """Live mobiles attacking us within SWING_RECENT_S (module docstring): a 0x2F
-        swing at us (world.swings), the mob our own latest swing is at, or a war-mode
-        creature adjacent to us while we take damage. `how` says which."""
+        swing at us (world.swings), the mob our own latest swing is at while it is within CHASE_R, or a war-mode
+        creature within its melee reach of us (aggro.melee_reach: 1, the frenzyfin's 2) while we take damage. `how`
+        says which; `reach` is its melee reach."""
         world, me = st["world"], self.me(st)
         labels = world.get("labels") or {}
         now, pos, found = time.time(), self.pos(st), {}
@@ -958,18 +959,28 @@ class HuntLoop:
                 continue
             if d == me and a != me:
                 found.setdefault(a, ("swings at us", age))
-            elif a == me and d != me:
+            elif a == me and d != me and (m := world["mobiles"].get(key_of(d))) is not None \
+                    and m.get("x") is not None and cheb(pos, (m["x"], m["y"])) <= CHASE_R:
+                # not one we walked away from: live 2026-11-24 14:22:45.26 (hunt-20261124-135129-ffbb) Logan's swings
+                # at a toxic zoa beside him at 14:22:37 kept it "on us" 15 tiles off, the target and 'All Kill' at it,
+                # while a frenzyfin hit him from 2
                 found.setdefault(d, ("our own swing is at it", age))
         hurt = self.hurt_t.get(me)
         if hurt is not None and time.monotonic() - hurt <= SWING_RECENT_S:
             for key, mob in world["mobiles"].items():
                 s = serial_of(key)
-                if s != me and mob.get("x") is not None and (mob.get("flags") or 0) & threats.FLAG_WARMODE \
-                        and cheb(pos, (mob["x"], mob["y"])) <= 1 and not mob.get("pet") \
-                        and mob.get("notoriety") in combat.ATTACKABLE_NOTORIETY \
+                if s == me or mob.get("x") is None or not (mob.get("flags") or 0) & threats.FLAG_WARMODE \
+                        or mob.get("pet") or mob.get("notoriety") not in combat.ATTACKABLE_NOTORIETY:
+                    continue
+                # a pet (ours or anyone's) in war mode beside us is fighting for someone, not at us. Within its melee
+                # reach, not only beside us: live 2026-11-24 14:22:43.65-49.51 a frenzyfin's swings from 2 tiles
+                # (-16 -24 -22 -13) never made it "on us", its pass-over stood and Logan died (docs/NOTES.md "Tidal
+                # Tomb level 2: dead to a frenzyfin from 2 tiles")
+                d = cheb(pos, (mob["x"], mob["y"]))
+                if d <= max(1, aggro.melee_reach(aggro.type_key(labels.get(key) or mob.get("name")))) \
                         and threats.identify(mob, labels.get(key))[0] == "monster":
-                    # a pet (ours or anyone's) in war mode beside us is fighting for someone, not at us
-                    found.setdefault(s, ("war mode, adjacent while we take damage", time.monotonic() - hurt))
+                    found.setdefault(s, ("war mode, adjacent while we take damage" if d <= 1 else
+                                         "war mode, in its melee reach while we take damage", time.monotonic() - hurt))
             if not found:
                 # nothing swinging at us or beside us: a caster in war mode in its spell reach is (live
                 # 20261015_171928 19:49:58-50:22 a banshee 5 tiles off, -21..-28 every 3.3 s, never a swing), and a
@@ -993,7 +1004,8 @@ class HuntLoop:
                 continue
             out.append({"serial": key, "name": labels.get(key) or mob.get("name"), "how": how,
                         "dist": cheb(pos, (mob["x"], mob["y"])), "hits": [mob.get("hits"), mob.get("hits_max")],
-                        "last_swing_age_s": round(age, 1)})
+                        "last_swing_age_s": round(age, 1),
+                        "reach": max(1, aggro.melee_reach(aggro.type_key(labels.get(key) or mob.get("name"))))})
         return sorted(out, key=lambda a: a["dist"])
 
     def chaser(self, st) -> dict | None:
@@ -1029,15 +1041,15 @@ class HuntLoop:
         return True
 
     def pick_target(self, st, pull: bool = True):
-        """The serial to fight now, or None: a monster beside us attacking us that the pets aren't fighting (LOOSE_R)
-        while the current one isn't on us; else keep the current one while it's valid and nothing else is attacking
-        us; else an attacker with the lowest hits; else (pull) the nearest within --pull-range of the anchor (the fight
-        spot; crawling, us). A target dropped as pinned is passed over until its skip ends, unless it attacks us;
-        crawling, so is a creature type the crawl avoids (too strong or too slow for us)."""
+        """The serial to fight now, or None: a monster beside us (LOOSE_R, or within its melee reach) attacking us that
+        the pets aren't fighting while the current one isn't on us; else keep the current one while it's valid and
+        nothing else is attacking us; else an attacker with the lowest hits; else (pull) the nearest within --pull-range
+        of the anchor (the fight spot; crawling, us). A target dropped as pinned is passed over until its skip ends,
+        unless it attacks us; crawling, so is a creature type the crawl avoids (too strong or too slow for us)."""
         world, me, pos = st["world"], self.me(st), self.pos(st)
         atts = self.attackers(st)
         on_us = {serial_of(a["serial"]) for a in atts}
-        beside = {serial_of(a["serial"]) for a in atts if a["dist"] <= LOOSE_R}
+        beside = {serial_of(a["serial"]) for a in atts if a["dist"] <= max(LOOSE_R, a["reach"])}
         attacking = set(on_us)
         if self.team is not None:
             attacking |= self.team.pet_attackers(st)
