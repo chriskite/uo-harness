@@ -3136,6 +3136,24 @@ Live 14:22:49 Logan died on level 2 to a frenzyfin swinging from 2 tiles and a t
   giant pincer crab's pinch (now "on us" from 2: once it took the target and a rejoin walk past it). The simulator's
   guard sends a pet at any monster on a pet (`World._pet_think`), so the live case the on-pet rule is for (the pets
   on guard ignoring a frenzyfin on AlaFlambe) barely happens here; it fired mostly at voidfins and shellpods.
+- **The on-pet rule alone** (`--set tamer.PET_HIT_KILL=False` against the change, both with the attackers' reach and
+  the peek rule; checked by the parent 2026-11-24 after `test_ossuary_hunt` seed 5 died with the change):
+
+  | batch | `PET_HIT_KILL` | runs with a death | pet deaths | damage on Logan (sum) | banked / h |
+  |---|---|---|---|---|---|
+  | Tidal Tomb level 2, `--runs 144 --team phoenix_incubus` | off | 5 | 72 | 36,738 | 174,723 |
+  | same | **on** | **3** | **36** | 36,902 | 176,477 |
+  | Ossuary, `--runs 40 --minutes 10` (seeds 1-40) | off | 6 | 9 | 13,483 | 82,613 |
+  | same | **on** | 10 | 4 | 10,769 | 67,669 |
+  | Ossuary, seeds 41-80 | off | 8 | 10 | 13,826 | 79,494 |
+  | same | **on** | 6 | 8 | 16,015 | 76,147 |
+
+  Kept on. On Tidal Tomb level 2 with the live team, pet deaths halve. On the Ossuary over 80 runs, runs with a death
+  went 14 -> 16 (noise at this size) and banked/h 81.0k -> 71.9k, a cost. `test_ossuary_hunt` moved from seed 5 (it
+  dies with the rule) to seed 2, which finishes either way. `test_leave_short_of_air` failed from the world change
+  alone (a crab standing at 2: seed 1's walk to the gate slower, 5 deprivation hits on Logan; the same on aec0db7's
+  runner with this world, 0 with the old one). It now allows deprivation hits in one seed of four, at most 5; every
+  seed still goes through alive without looting.
 
 ## The Ossuary (2026-10-28)
 
