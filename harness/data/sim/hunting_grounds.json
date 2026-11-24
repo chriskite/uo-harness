@@ -88,7 +88,8 @@
  "gumps": {
   "official": 515811277,
   "warden": 3914586893,
-  "hotbar": 4100931131
+  "hotbar": 4100931131,
+  "exit_gate": 929194172
  },
  "session_s": 900,
  "hotbar_every_s": 5,
@@ -591,6 +592,19 @@
     "15/15",
     "Wind"
    ]
+  },
+  "exit_gate": {
+   "layout": "{ resizepic 30 25 11571 329 420 }{ gumppic 102 19 2446 }{ text 157 20 2655 0 18 0 1 0 0 0 }{ text 95 60 149 1 18 0 1 0 0 0 }{ text 65 236 2655 2 18 0 1 0 0 0 }{ tilepichue 169 94 3949 1196 }{ text 115 260 2655 3 18 0 1 0 0 0 }{ gumppic 40 385 96 hue=2428 }{ gumppic 167 385 96 hue=2428 }{ text 131 400 63 4 18 0 1 0 0 0 }{ button 96 395 2151 2154 1 0 2 }{ text 255 400 2101 5 18 0 1 0 0 0 }{ button 220 396 9721 9724 1 0 3 }\u0000",
+   "lines": [
+    "Moongate",
+    "This moongate leads to Towns",
+    "Using this moongate will end your current",
+    "Hunting Grounds encounter",
+    "Confirm",
+    "Cancel"
+   ],
+   "confirm_button": 2,
+   "note": "live 2026-11-23 20:06:53, stepping onto the west lodge exit moongate (8030, 85): Confirm (2) ends the session, Cancel (3)"
   }
  }
 }
