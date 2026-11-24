@@ -87,6 +87,8 @@ ROAM_EDGE = 6                 # waypoints keep this far inside the region
 ZONE_SNEAK_R = 25             # hidden this close outside the zone: walk in hidden (roam), don't run
 NPC_R = 3                     # double-click an NPC from this close
 GUMP_WAIT_S = 3.0
+GATE_GRAPHIC = 3948          # the lodge's exit moongate (hue 1196, live (8030, 85))
+GATE_LEAVE_S = 4.0           # on the moongate: out of the Grounds within this long, else double-click it once and wait again
 START_WAIT_S = 8.0
 BREAK_MARGIN_S = 17 * 60      # a run (15 min) plus the walk in: none is started this close to a break or the cap
 FINISH_CHECK_S = 2.0
@@ -127,6 +129,7 @@ class HGLoop:
         self.halt = None
         self.roam_failed = False      # the last roam walk found no route: pick a random waypoint next
         self.trophy_t = 0.0           # monotonic: the last trophy line (our carve or the client's)
+        self.gate_failed = False      # the exit moongate didn't take us out (or asked something): wait the runs out
 
     # ------------------------------------------------------------------ state
     def update(self, st):
@@ -353,6 +356,9 @@ class HGLoop:
                 self.turn_in()
                 continue
             if p["phase"] == "done":
+                if not self.g["held"] and self.args.leave_early and not self.gate_failed:
+                    self.leave_by_gate()
+                    continue
                 self.doing("wait", "Nothing more fits before the end: waiting it out")
                 time.sleep(1.0)
                 continue
@@ -700,6 +706,49 @@ class HGLoop:
         else:
             log("the warden didn't take the trophies")
 
+    def leave_by_gate(self):
+        """Nothing more fits before the end and nothing is held: out by the lodge's exit moongate rather than wait the
+        clock out (user 2026-11-23: "it can leave via the moongate near the game warden instead of 'waiting it
+        out'"). Leaving ends the session like the expiry (the forum post), so only with no trophy held. Unseen live
+        before this: a step onto it, then one double-click if that did nothing. A menu it opens is not answered (an
+        unknown gump, ANTICHEAT.md §8.13): it is logged and posted, and the run waits the clock out as before."""
+        lodge = tuple(self.g["lodge"])
+        gate = (lodge[0], lodge[1] + hg.GATE_DY)
+        self.doing("leave", "Nothing more fits before the end: out by the lodge's moongate", gate)
+        # a known teleporter, so the jump to town at its step is the walk's aim, not a mishap to step back from
+        self.mover.teleporter_tiles(0).add(gate)
+        mark = len(self.link.events)
+        try:
+            self.mover.walk_to(lambda: gate, 0, "onto the exit moongate", gate=gate,
+                               stop=lambda s: "over" if self.update(s) is not None and self.g is None else None)
+        except WalkFailed as e:
+            log(f"exit moongate: {e}")
+        if self.g is not None and self.link.wait(lambda s: self.update(s) is not None and self.g is None,
+                                                 timeout=GATE_LEAVE_S) is None:
+            st = self.read()
+            item = next((serial_of(k) for k, it in st["world"]["items"].items() if it.get("graphic") == GATE_GRAPHIC
+                         and it.get("x") is not None and (it["x"], it["y"]) == gate), None)
+            if item is not None and not self.gump_since(mark):
+                self.human.wait("use")
+                self.link.act(actions.dclick(item))
+                self.link.wait(lambda s: self.update(s) is not None and self.g is None, timeout=GATE_LEAVE_S)
+        if self.g is None:
+            log("out by the exit moongate")
+            return
+        self.gate_failed = True
+        gumps = self.gump_since(mark)
+        what = (f"it opened gump {gumps[-1].get('gump_id')} {(gumps[-1].get('lines') or [])[:8]}" if gumps
+                else "stepping on it and a double-click did nothing")
+        log(f"exit moongate at {gate}: {what}; waiting the runs out from now on")
+        self.memory.juncture("hg", "exit_gate", f"Hunting Grounds exit moongate: {what}"[:300], "attention",
+                             {"gate": list(gate), "gumps": [{"id": g.get("gump_id"), "lines": g.get("lines")}
+                                                            for g in gumps]})
+
+    def gump_since(self, mark: int) -> list:
+        """The gumps opened since link.events[mark] other than the Grounds' own (hotbar, warden)."""
+        return [e for e in self.link.events[mark:] if e.get("ev") == "gump_open"
+                and serial_of(e.get("gump_id")) not in (hg.HOTBAR_GUMP, hg.WARDEN_GUMP)]
+
     # ------------------------------------------------------------------ the loop
     def run(self):
         st = self.link.wait(lambda s: s["movement"]["pos"] is not None and s["movement"]["self_serial"] is not None,
@@ -786,6 +835,9 @@ def arg_parser():
                     help="also close in (hidden) on worth-it bucks not yet heard calm, and shoot once they settle")
     ap.add_argument("--roam", choices=("run", "stealth"), default="stealth",
                     help="sweep the zone running (visible) or stealth-walking (hidden, half speed)")
+    ap.add_argument("--leave-early", action=argparse.BooleanOptionalAction, default=True,
+                    help="with nothing held and no time for another trophy, leave by the lodge's exit moongate "
+                         "instead of waiting out the clock")
     ap.add_argument("--home", action=argparse.BooleanOptionalAction, default=True,
                     help="recall home (homes.json, our own book's home rune) once the runs are over")
     ap.add_argument("--max-runs", type=int, default=0, help="stop after this many runs (0: until the permits run out)")

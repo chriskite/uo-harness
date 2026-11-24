@@ -4194,10 +4194,14 @@ nook by an awake soulcatcher").
 - *Decided*: `harness/loop_hg.py` (`ctl run hg`) spends the permits one run after another. It uses the strategy the
   viz shows (`hunting_grounds.GroundsLog.status` and `plan`), kept in-process from the link's events so the
   simulator runs it unchanged.
-  - Roam the zone running.
-  - Stalk: hide (skill 21), stealth-walk to the weapon's range minus 1, stand still 2.3 s, double-click the buck.
+  - Run to the zone, then roam it hidden (since 2026-11-23; it first roamed running).
+  - Stalk: hide (skill 21), stealth-walk to 2 tiles inside the weapon's range (at most the view's 18), stand still
+    2.3 s, double-click the buck.
   - Carve 3.9 s after the kill.
-  - Turn in when the plan says return.
+  - Turn in when the plan says return. With nothing held and no time for another trophy, leave by the lodge's exit
+    moongate rather than wait out the clock (user 2026-11-23; `--leave-early`, default on): about 36 s saved a run in
+    the simulator. Unseen live before: a step onto it, then one double-click; a menu it opens is not answered but
+    posted as an `exit_gate` juncture, and the runs then wait the clock out.
   - It ends with no permits left, at `--max-runs`, at `ctl stop --after-trip`, or when a break or the daily cap is
     closer than a run. Then it recalls home with our own book's home rune (homes.json, "Logan's House"; user
     2026-11-23). `--no-home` stays in town.
