@@ -10525,6 +10525,22 @@ logs/tasks/hunt-20261124-135129-ffbb.log ~2225-2415; capture 20261124_105250 rep
   monster's melee reach (tried: test_sim `test_tidal_leave_crab` seed 11 then provoked a voidfin onto the crab, the
   voidfin dove and the crab pinched Logan; not needed for the death).
 
+## Tidal Tomb level 2: an oxygen leg lost to a pet left behind, refilled 40 s short of the limit (live 2026-11-24 16:35-16:42, hunt-20261124-154903-0e4c)
+
+The first run after the frenzyfin fix (dcb58f9). Its four visits had no death and none of the fix's three new lines
+fired.
+
+- **16:35:35** "oxygen: to the teleporter up at 6943,2004: 309 s under water; 102 route steps", fought through. It
+  reached the stairs' foot by 16:37:52, but Bussin stayed 5 off by an ironscale grouper's fight: "waiting for the pets
+  (not all beside it)". At 16:38:18 it ended with "the pets aren't within 3 tiles of it after 20 s; not going on
+  without them after 163 s" (`WALK_IN_PETS_S`), ~472 s under water.
+- **16:40:19** the retry after `OXY_RETRY_S` (120 s): "593 s under water; 82 route steps", a back-off loop at a drowned
+  mariner broken by "going on past it" (16:41:29), up and back down at 16:41:58, "refilled after 99 s". That was
+  ~692 s under water, 40 s short of the 732 s deprivation. No deprivation line.
+- **Not changed** [INFERENCE: one case]: a failed leg costs its own time plus `OXY_RETRY_S`, and the retry starts
+  from deeper under water. A retry due sooner after a failed leg near the stairs, or going up without a pet held up
+  fighting 5 off, would keep more margin. Watch for a repeat before building either.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.
