@@ -576,7 +576,9 @@ class HGWorld:
                 self._reveal()
         s = self.s
         if s is not None and (pl.x, pl.y) == self.instances[s["inst"]]["gate"]:
-            self._end("gate")
+            # its menu, as live (2026-11-23 20:06:53); Confirm ends the session (_gump_reply)
+            menu = self.sc["gump_templates"]["exit_gate"]
+            self._send_gump(self.sc["gumps"]["exit_gate"], menu["layout"], menu["lines"])
         self._view()
 
     def _click(self, s: int):
@@ -654,6 +656,12 @@ class HGWorld:
                 self.pending = {"cid": self.cid}
                 self._sys(TEXT_SHOOT_PROMPT)
                 self.send(P.cursor(self.cid, 1, 0))
+        elif gid == ids.get("exit_gate") and button == self.sc["gump_templates"]["exit_gate"]["confirm_button"]:
+            s, pl = self.s, self.player
+            if s is not None:
+                gx, gy = self.instances[s["inst"]]["gate"]
+                if max(abs(pl.x - gx), abs(pl.y - gy)) <= 1:
+                    self._end("gate")
 
     # ------------------------------------------------------------ gumps
     def _send_gump(self, gump_id: int, layout: str, lines: list[str]):

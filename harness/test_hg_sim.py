@@ -428,8 +428,14 @@ def test_expiry():
     r.enter()
     gate = w.instances[w.s["inst"]]["gate"]
     w.s["held"] = [4]
+    m = len(r.l.events)
     r.walk_to(gate)
-    check("the exit moongate ends the session", w.s is None and w.metrics["sessions"][1]["end"] == "gate"
+    menus = r.gumps(m, w.sc["gumps"]["exit_gate"])
+    check("a step onto the exit moongate opens its menu (live 2026-11-23), the session still on", menus and w.s is not None)
+    g = menus[-1]
+    r.send(actions.gump_reply(g["serial"] if isinstance(g["serial"], int) else int(g["serial"], 16),
+                              w.sc["gumps"]["exit_gate"], 2, g["layout"], g["lines"]))
+    check("Confirm ends the session, the held points lost", w.s is None and w.metrics["sessions"][1]["end"] == "gate"
           and w.metrics["points_lost_at_gate"] == 4)
 
 

@@ -88,6 +88,7 @@ ZONE_SNEAK_R = 25             # hidden this close outside the zone: walk in hidd
 NPC_R = 3                     # double-click an NPC from this close
 GUMP_WAIT_S = 3.0
 GATE_GRAPHIC = 3948          # the lodge's exit moongate (hue 1196, live (8030, 85))
+EXIT_GATE_GUMP = 929194172   # its menu on a step: "Using this moongate will end your current Hunting Grounds encounter"
 GATE_LEAVE_S = 4.0           # on the moongate: out of the Grounds within this long, else double-click it once and wait again
 START_WAIT_S = 8.0
 BREAK_MARGIN_S = 17 * 60      # a run (15 min) plus the walk in: none is started this close to a break or the cap
@@ -709,9 +710,10 @@ class HGLoop:
     def leave_by_gate(self):
         """Nothing more fits before the end and nothing is held: out by the lodge's exit moongate rather than wait the
         clock out (user 2026-11-23: "it can leave via the moongate near the game warden instead of 'waiting it
-        out'"). Leaving ends the session like the expiry (the forum post), so only with no trophy held. Unseen live
-        before this: a step onto it, then one double-click if that did nothing. A menu it opens is not answered (an
-        unknown gump, ANTICHEAT.md §8.13): it is logged and posted, and the run waits the clock out as before."""
+        out'"). Leaving ends the session like the expiry (the forum post), so only with no trophy held. Stepping onto
+        it opens its menu (gump EXIT_GATE_GUMP, live 2026-11-23 20:06:53: "Using this moongate will end your current
+        Hunting Grounds encounter", Confirm / Cancel): Confirm. Any other menu is not answered (ANTICHEAT.md §8.13): it
+        is logged and posted, and the runs wait the clock out as before."""
         lodge = tuple(self.g["lodge"])
         gate = (lodge[0], lodge[1] + hg.GATE_DY)
         self.doing("leave", "Nothing more fits before the end: out by the lodge's moongate", gate)
@@ -723,12 +725,21 @@ class HGLoop:
                                stop=lambda s: "over" if self.update(s) is not None and self.g is None else None)
         except WalkFailed as e:
             log(f"exit moongate: {e}")
-        if self.g is not None and self.link.wait(lambda s: self.update(s) is not None and self.g is None,
-                                                 timeout=GATE_LEAVE_S) is None:
+        if self.g is not None and self.link.wait(lambda s: self.update(s) is not None and (
+                self.g is None or any(serial_of(e.get("gump_id")) == EXIT_GATE_GUMP for e in self.gump_since(mark))),
+                timeout=GATE_LEAVE_S) is not None and self.g is not None:
+            menu = [e for e in self.gump_since(mark) if serial_of(e.get("gump_id")) == EXIT_GATE_GUMP][-1]
+            button = labelled_button(menu, "Confirm")
+            if button is not None:
+                self.human.wait("menu")
+                self.link.act(actions.gump_reply(serial_of(menu["serial"]), EXIT_GATE_GUMP, button,
+                                                 menu.get("layout") or "", menu.get("lines") or []))
+                self.link.wait(lambda s: self.update(s) is not None and self.g is None, timeout=GATE_LEAVE_S)
+        elif self.g is not None and not self.gump_since(mark):
             st = self.read()
             item = next((serial_of(k) for k, it in st["world"]["items"].items() if it.get("graphic") == GATE_GRAPHIC
                          and it.get("x") is not None and (it["x"], it["y"]) == gate), None)
-            if item is not None and not self.gump_since(mark):
+            if item is not None:
                 self.human.wait("use")
                 self.link.act(actions.dclick(item))
                 self.link.wait(lambda s: self.update(s) is not None and self.g is None, timeout=GATE_LEAVE_S)

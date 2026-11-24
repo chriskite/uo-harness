@@ -286,7 +286,10 @@ class GroundsLog:
             r["score"] = int(lines[i])
         if "Ammo" in lines and (i := lines.index("Ammo") + 1) < len(lines) and (m := AMMO.match(lines[i])):
             r["ammo"] = int(m.group(1))
-        if t is not None and tier(r["turned_in"]) != t:
+        if t is not None and TIERS[t][0] > r["turned_in"]:
+            # only up (a run joined part-way): the turn-in lines are exact, the art isn't. Live 2026-11-23 20:06:46,
+            # 11 turned in (the Great Bow), the hotbar showed art 30994 (the Hunting Bow's) and the run was logged at
+            # 6 trophies
             r["turned_in"] = TIERS[t][0]
 
     def status(self, now: float, me, where, min_points: int | None = None) -> dict | None:
