@@ -80,6 +80,7 @@ TEXT_HIDE_WAIT = "You must wait a moment before hiding again."
 TEXT_TRACK = "You begin following deer tracks."            # [INFERENCE]
 TEXT_TRACK_WAIT = "You must wait a moment before tracking again."   # [INFERENCE: the 5 s cooldown's line]
 TEXT_SHOOT_PROMPT = "Select a target to fire at."
+EXIT_GATE_AGAIN = "Click again to confirm exiting the Hunting Grounds. This will end your current encounter."  # live
 TEXT_STATIONARY = "You must remain stationary for a moment before shooting."
 TEXT_SHOT_WAIT = "You must wait a few moments before shooting again."
 TEXT_RANGE = "That is out of range of your weapon."
@@ -660,8 +661,16 @@ class HGWorld:
             s, pl = self.s, self.player
             if s is not None:
                 gx, gy = self.instances[s["inst"]]["gate"]
-                if max(abs(pl.x - gx), abs(pl.y - gy)) <= 1:
-                    self._end("gate")
+                if max(abs(pl.x - gx), abs(pl.y - gy)) > 1:
+                    return
+                if not s.get("gate_asked"):
+                    # the first Confirm only asks again (live 2026-11-23 22:41:52.6); the second ends the session
+                    s["gate_asked"] = True
+                    self._sys(EXIT_GATE_AGAIN)
+                    menu = self.sc["gump_templates"]["exit_gate"]
+                    self._send_gump(gid, menu["layout"], menu["lines"])
+                    return
+                self._end("gate")
 
     # ------------------------------------------------------------ gumps
     def _send_gump(self, gump_id: int, layout: str, lines: list[str]):

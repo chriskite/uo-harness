@@ -433,10 +433,17 @@ def test_expiry():
     menus = r.gumps(m, w.sc["gumps"]["exit_gate"])
     check("a step onto the exit moongate opens its menu (live 2026-11-23), the session still on", menus and w.s is not None)
     g = menus[-1]
+    m = len(r.l.events)
     r.send(actions.gump_reply(g["serial"] if isinstance(g["serial"], int) else int(g["serial"], 16),
                               w.sc["gumps"]["exit_gate"], 2, g["layout"], g["lines"]))
-    check("Confirm ends the session, the held points lost", w.s is None and w.metrics["sessions"][1]["end"] == "gate"
-          and w.metrics["points_lost_at_gate"] == 4)
+    again = r.gumps(m, w.sc["gumps"]["exit_gate"])
+    check("the first Confirm asks again (live 2026-11-23 22:41:52.6), the session still on",
+          w.s is not None and again and H.EXIT_GATE_AGAIN in r.heard(m), str(r.heard(m)))
+    g = again[-1]
+    r.send(actions.gump_reply(g["serial"] if isinstance(g["serial"], int) else int(g["serial"], 16),
+                              w.sc["gumps"]["exit_gate"], 2, g["layout"], g["lines"]))
+    check("the second Confirm ends the session, the held points lost", w.s is None
+          and w.metrics["sessions"][1]["end"] == "gate" and w.metrics["points_lost_at_gate"] == 4)
 
 
 def test_moods():

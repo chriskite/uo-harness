@@ -89,6 +89,7 @@ NPC_R = 3                     # double-click an NPC from this close
 GUMP_WAIT_S = 3.0
 GATE_GRAPHIC = 3948          # the lodge's exit moongate (hue 1196, live (8030, 85))
 EXIT_GATE_GUMP = 929194172   # its menu on a step: "Using this moongate will end your current Hunting Grounds encounter"
+GATE_CONFIRMS = 3            # Confirm presses at most: the server asks twice ("Click again to confirm exiting ...")
 GATE_LEAVE_S = 4.0           # on the moongate: out of the Grounds within this long, else double-click it once and wait again
 START_WAIT_S = 8.0
 BREAK_MARGIN_S = 17 * 60      # a run (15 min) plus the walk in: none is started this close to a break or the cap
@@ -728,13 +729,23 @@ class HGLoop:
         if self.g is not None and self.link.wait(lambda s: self.update(s) is not None and (
                 self.g is None or any(serial_of(e.get("gump_id")) == EXIT_GATE_GUMP for e in self.gump_since(mark))),
                 timeout=GATE_LEAVE_S) is not None and self.g is not None:
-            menu = [e for e in self.gump_since(mark) if serial_of(e.get("gump_id")) == EXIT_GATE_GUMP][-1]
-            button = labelled_button(menu, "Confirm")
-            if button is not None:
+            # Confirm, then Confirm again: the first press only answers "Click again to confirm exiting the Hunting
+            # Grounds. This will end your current encounter." and re-sends the menu (live 2026-11-23 22:41:52.6)
+            for _ in range(GATE_CONFIRMS):
+                menu = [e for e in self.gump_since(mark) if serial_of(e.get("gump_id")) == EXIT_GATE_GUMP][-1]
+                button = labelled_button(menu, "Confirm")
+                if button is None:
+                    break
                 self.human.wait("menu")
+                pressed = len(self.link.events)
                 self.link.act(actions.gump_reply(serial_of(menu["serial"]), EXIT_GATE_GUMP, button,
                                                  menu.get("layout") or "", menu.get("lines") or []))
-                self.link.wait(lambda s: self.update(s) is not None and self.g is None, timeout=GATE_LEAVE_S)
+                again = lambda: any(serial_of(e.get("gump_id")) == EXIT_GATE_GUMP  # noqa: E731
+                                    for e in self.gump_since(pressed))
+                self.link.wait(lambda s: self.update(s) is not None and (self.g is None or again()),
+                               timeout=GATE_LEAVE_S)
+                if self.g is None or not again():
+                    break
         elif self.g is not None and not self.gump_since(mark):
             st = self.read()
             item = next((serial_of(k) for k, it in st["world"]["items"].items() if it.get("graphic") == GATE_GRAPHIC
