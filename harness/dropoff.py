@@ -253,7 +253,10 @@ def run(io, human, plan: dict, *, timeout: float = EVENT_WAIT_S) -> dict:
                     break
                 time.sleep(0.1)
             if now is None or _serial(now.get("container") or 0) == chest:   # gone: merged into a stack there
-                moved.append({"serial": f"0x{serial:08X}", "name": it.get("name"), "amount": it.get("amount") or 1})
+                # a nameless item (moved by graphic, never asked: unnamed) by its tiledata name: live 2026-11-23 the
+                # log said "into the chest: None, None" for runes and hunting permits, and the Seer told the user none
+                moved.append({"serial": f"0x{serial:08X}", "name": combat.item_name(it) or None,
+                              "graphic": f"0x{_serial(it.get('graphic') or 0):04X}", "amount": it.get("amount") or 1})
             else:
                 left.append(f"0x{serial:08X}")
         if left:

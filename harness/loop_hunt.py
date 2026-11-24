@@ -3540,7 +3540,8 @@ class HuntLoop:
         after = hunt_return.carried(self.state(), self.prices)
         log(f"drop-off: {before['total']} gp carried -> {after['total']} (" + "; ".join(
             f"{s['name'].split(' [')[0]}: {' / '.join(s['lines']) or '-'}" for s in out["steps"]) + ")"
-            + (f"; into the chest: {', '.join(str(c['name']) for c in out['chest'])}" if out["chest"] else ""))
+            + (f"; into the chest: {', '.join(f'{c['amount']} {c['name']}' for c in out['chest'])}"
+               if out["chest"] else ""))
         self.memory.job_event("hunt", "dropoff", {"ok": out["ok"], "error": out.get("error"), "carried": before,
                                                   "left": after, "chest": out["chest"],
                                                   "elapsed_s": round(time.monotonic() - t0, 1)},

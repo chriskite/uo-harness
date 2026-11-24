@@ -3979,6 +3979,12 @@ the test shard's (the tome 0x444AB1F3, the pets 0x000DDEFE and 0x0026EF56). 28 k
     Hunting Grounds runner (`loop_hg`, which spends them from the pack and never runs the house drop-off). Asked, the
     user chose to move every permit: graphic 0xF9FF in `to_chest.graphics`, and the user loads permits right before
     an hg run. test_dropoff `test_dropoff` (fails before).
+    The same shift's drop-offs moved 9 permits (stacks 0x4E36A65E of 5, four of 1, capture 20261123_101257) and
+    logged them as "into the chest: None": a nameless item moved by graphic is never asked for its name. The Seer
+    read that as none and told the user so (chat 9843, 9854). The moved list now names such items by tiledata
+    (`combat.item_name`) with graphic and amount ("into the chest: 5 hunting permit, 1 rune").
+  - **Redline bottles go to the chest since 2026-11-23** (the Seer moved a redlightning bottle 0x4E670160, graphic
+    0x630F, tiledata "redline bottle", by hand after the 19:06 drop-off; the user: every one to the chest).
 
 ## Inn-room runs of 2026-10-16/17 (live server, captures 20261016_*, 20261017_110506)
 
