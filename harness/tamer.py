@@ -486,6 +486,10 @@ BACK_OFF_REPEAT = 3           # ...and in a fought leg (HuntLoop.walk_in_fought:
 #                              with no kill between, the pass by it (Team.pass_by), else on past it, the pets on guard
 #                              (live 2026-10-29 18:13:23-18:14:28, hunt-20261029-180419-d505: the oxygen leg's route into
 #                              a soulcatcher's sight, back off, the route, ... 18 times, its 'All Patrol' refused)
+BACK_OFF_HOLD_S = 120.0       # ...and on the hunt level, backing off from one for this long with no kill between: on past it
+#                              the same way (live 2026-11-24 23:26-23:28 and 2026-11-25 00:07-00:21, hunt-20261124-230250-198d:
+#                              an idle soulcatcher on the stairs south of level 2's arrival nook saw its only way out
+#                              before the pets; ~490 back-offs in 9+ min, no spot for 'All Patrol', no step-back tile)
 # The step-in (user 2026-10-29: "'All Guard', walk up, then walk away from the mob slightly so the pets end up between
 # Logan and the mob. Mobs take something like 1 or 2 seconds from seeing us to aggroing on whatever is closer to them,
 # Logan or the pets"; measured the same day, docs/NOTES.md "Shooters' and casters' first target": the war flag 1.6-3.2
@@ -922,7 +926,8 @@ class Team:
         self.patrol = None                # the "All Patrol" out (patrol_pull): serial, kind, spot, t
         self.patrol_failed = {}           # serial -> monotonic: no patrol at it until then (refused, timed out)
         self.leg = None                   # a fought leg's label while one runs (HuntLoop.walk_in_fought), else None
-        self.backed = {}                  # serial -> (back_offs from it with no kill between, the run's kills then)
+        self.backed = {}                  # serial -> (back_offs from it with no kill between, the run's kills then, the
+                                          # first of them, the last: back_off's hunt-level BACK_OFF_HOLD_S)
         self.faced = {}                   # serial -> the run's kills when the leg went on past it (back_off; shy_first
                                           # skips it until the next kill or the leg's end)
         self.waited = {}                  # serial -> the run's kills when the crawl gave up waiting out its shot
@@ -2114,11 +2119,13 @@ class Team:
             return False
         m = min(first, key=lambda m: cheb(m["pos"], v.pos))
         kills = self.kills()
-        n, k = self.backed.get(m["serial"], (0, kills))
-        n = n if k == kills else 0
-        if self.leg is not None and n >= BACK_OFF_REPEAT:
-            if not PASS:
-                return self.pass_fail(m, "tamer.PASS off")
+        n, k, t1, t2 = self.backed.get(m["serial"], (0, kills, now, now))
+        if k != kills or now - t2 > KEEP_OFF_S:
+            n, t1 = (0 if k != kills else n), now      # a kill, or not held by it for a while: the hold's clock anew
+        held = self.leg is None and now - t1 >= BACK_OFF_HOLD_S
+        if (self.leg is not None and n >= BACK_OFF_REPEAT) or held:
+            if not PASS or held:
+                return self.pass_fail(m, f"held {now - t1:.0f} s on the hunt level" if held else "tamer.PASS off")
             if self.passing is None or self.passing["serial"] != m["serial"]:
                 self.passing = {"serial": m["serial"], "kills": kills, "rounds": 0, "t": now}
                 if self.pass_by(st):
@@ -2153,7 +2160,7 @@ class Team:
         label = "back behind the pets"
         h.doing("hold", f"Stepping back to {best[0]},{best[1]}: the pets first in the {m['kind']}'s sight", best[:2])
         self.count("back_offs")
-        self.backed[m["serial"]] = (n + 1, kills)
+        self.backed[m["serial"]] = (n + 1, kills, t1, now)
         log(f"{m['kind']} 0x{m['serial']:08X} would see us before the pets at {here} tiles (ranged: its first sight "
             f"takes us); back to {best[:2]}" + (" out of its sight" if not best_k[0] else "")
             + (", in reach to send the pets at it" if spots is not None and not best_k[0] and not best_k[1] else ""))
@@ -2417,8 +2424,8 @@ class Team:
         self.faced[m["serial"]] = self.kills()
         self.count("faced")
         n = self.backed.get(m["serial"], (0, 0))[0]
-        log(f"{self.leg}: backed off from the {m['kind']} 0x{m['serial']:08X} {n} times with no kill and no pass by it "
-            f"({why}); going on past it with the pets on guard")
+        log(f"{self.leg or 'crawl'}: backed off from the {m['kind']} 0x{m['serial']:08X} {n} times with no kill and no "
+            f"pass by it ({why}); going on past it with the pets on guard")
         return False
 
     def step_budget(self, since: float, kind: str | None = None) -> int:

@@ -3155,6 +3155,26 @@ Live 14:22:49 Logan died on level 2 to a frenzyfin swinging from 2 tiles and a t
   runner with this world, 0 with the old one). It now allows deprivation hits in one seed of four, at most 5; every
   seed still goes through alive without looting.
 
+### Tidal Tomb: the nook's idle soulcatcher (2026-11-25)
+
+Live 00:07-00:17 an idle soulcatcher on the stairs south of level 2's arrival nook held the crawl in a back-off loop
+(docs/NOTES.md "Tidal Tomb level 2: the arrival nook held by an idle soulcatcher").
+
+- **Test:** `test_back_off_hold_nook`. Logan at (6942, 2007, -45), the pets beside him, the soulcatcher idle at (6944,
+  2022, -110), each walk's start 0.4 s as live (the planning time `test_oxygen_leg_past_shooter` measured), 180 s of
+  ticks. Before (`tamer.BACK_OFF_HOLD_S` 1e9): 58 back-offs and the soulcatcher still idle at the end. After: 40
+  back-offs, then "held 120 s on the hunt level; going on past it", the pets killed it, Logan at 100.
+- **Runs** (`--set tamer.BACK_OFF_HOLD_S=1e9` against 120):
+
+  | batch | hold cap | runs with a death | pet deaths | banked / h | kills / h |
+  |---|---|---|---|---|---|
+  | Tidal Tomb level 2, `--runs 144 --team phoenix_incubus` | off | 3 | 36 | 176,477 | 176.5 |
+  | same | **on** | 3 | 39 | 177,302 | 176.9 |
+  | Mausoleum, `--runs 96` | off | 1 | 0 | 163,902 | 154.1 |
+  | same | **on** | 1 | 0 | 163,902 | 154.1 |
+
+  The cap changes nothing measurable: in the batches no hold reaches 120 s (the Mausoleum's runs are identical).
+
 ## The Ossuary (2026-10-28)
 
 User 2026-10-28: "I've done a couple of runs of the Ossuary dungeon today, add it to the combat simulator". The third

@@ -1041,7 +1041,12 @@ a kill or the leg's end). Going on past, the pets trail 1-2 tiles: level 2's dro
 woke with Logan 1 tile off it and both pets 1.4, a near tie that goes 2:1 to him (`test_walk_in_fought`). Live
 2026-10-29 18:13:23-18:14:28 the oxygen leg to level 2's stairs and the back-off undid each other 18 times, the
 soulcatcher between them and its 'All Patrol' refused (docs/NOTES.md "Tidal Tomb: the oxygen leg's back-off loop").
-Not on the hunt level, where the crawl repeats them too: there the simulator had more deaths with it. Simulator
+Not on the hunt level at the 4th back-off, where the crawl repeats them too: there the simulator had more deaths with
+it. On the hunt level instead after `tamer.BACK_OFF_HOLD_S` (120 s, since 2026-11-25) of back-offs from one idle shy
+monster with no kill between (the clock starts again after `KEEP_OFF_S` without one): "crawl: backed off from the
+soulcatcher 0x… N times with no kill and no pass by it (held 120 s on the hunt level); going on past it with the pets
+on guard" (live 2026-11-25 00:07-00:17 an idle soulcatcher on the stairs south of level 2's arrival nook held the crawl
+10 min, ~490 back-offs; test_sim `test_back_off_hold_nook`; docs/SIM.md "Tidal Tomb: the nook's idle soulcatcher"). Simulator
 (docs/SIM.md "The shy monsters' wake, and the step-in"; three 144-run blocks of level 2): a mariner's or
 soulcatcher's wake on Logan within 2.5 tiles 152 -> 118, damage on Logan -3 %, his deprivation -10 %, pet deaths 796
 -> 746, but runs with a death 56 -> 71 (with no memory carried between runs 13 -> 13, the runs that differ 3 -> 3).

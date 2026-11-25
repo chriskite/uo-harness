@@ -10546,6 +10546,22 @@ fired.
   from deeper under water. A retry due sooner after a failed leg near the stairs, or going up without a pet held up
   fighting 5 off, would keep more margin. Watch for a repeat before building either.
 
+## Tidal Tomb level 2: the arrival nook held by an idle soulcatcher (live 2026-11-25 00:07-00:17, hunt-20261124-230250-198d)
+
+Visit 4 arrived in level 2's nook (6942, 2008-2013) at ~00:07. The idle soulcatcher 0x003B7A6E on the stairs south of
+it (6944, 2022) saw the nook's only way out before the pets. Every ~2 s the crawl went through the same round:
+- "patrol to (6874, 2014): stopped (a soulcatcher would see us)";
+- "soulcatcher 0x003B7A6E would see us before the pets at 11 tiles (ranged: its first sight takes us); back to (6942,
+  2010) out of its sight";
+- "no 'All Patrol' at the soulcatcher 14 tiles off: no spot beside it in our sight" (the stairs have no flat floor a
+  click names, 2026-10-29), and no step-back tile for a step-in.
+
+~490 back-offs, 1 kill in 10 min, Logan untouched. It ended when the oxygen leg hopped up the stairs and back at 00:17
+("598 s under water; 5 route steps", refilled). The same hold that evening at 23:26-23:28 (0x003B46D8) ended when it
+woke. Unlike 2026-11-22's (an awake soulcatcher: crawl.SHOT_WAIT_S), this one stayed idle, and the hunt level had no
+breaker for the back-off loop: the fought legs' `BACK_OFF_REPEAT` was rejected there in 2026-10-29's batches.
+Built: `tamer.BACK_OFF_HOLD_S` (docs/HUNT_LOOP.md "Pets"; docs/SIM.md "Tidal Tomb: the nook's idle soulcatcher").
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

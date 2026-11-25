@@ -4249,6 +4249,17 @@ dead to a frenzyfin from 2 tiles").
   18 -> 20 runs with a death in 480, pet deaths 104 -> 82; the default team got worse (crab pinches now "on us"), the
   live team better. The simulator's guard fights anything on a pet, so the on-pet rule is barely exercised there.
 
+## A time cap on the hunt level's back-off loop (live Tidal Tomb level 2, 2026-11-25 00:07-00:17)
+
+An idle soulcatcher on the stairs south of level 2's arrival nook held the crawl 10 min in back-offs (docs/NOTES.md
+"Tidal Tomb level 2: the arrival nook held by an idle soulcatcher").
+
+- *Decided*: after `tamer.BACK_OFF_HOLD_S` (120 s) of back-offs from one idle shy monster with no kill, on the hunt
+  level, on past it with the pets on guard (`Team.faced`, as the fought legs do after 3). It is batch-neutral (docs/SIM.md
+  "Tidal Tomb: the nook's idle soulcatcher") and fixes the live layout in the test.
+- *Rejected*: the fought legs' count rule (`BACK_OFF_REPEAT`, 3 back-offs) on the hunt level: more deaths in
+  2026-10-29's batches. Leaving the visit after the hold: a whole re-entry, and the walk out passes the same stairs.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

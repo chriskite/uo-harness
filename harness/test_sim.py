@@ -8992,6 +8992,45 @@ def test_shot_wait_nook():
           f"soulcatcher alive {sc.alive} Logan {w.player.pos} {w.player.hits} | " + " | ".join(out.splitlines()[-6:])[-600:])
 
 
+def test_back_off_hold_nook():
+    print("== level 2's arrival nook (live 2026-11-25 00:07-00:21): an idle soulcatcher on the stairs sees the nook's way "
+          "out before the pets; the crawl backs off from it, then after BACK_OFF_HOLD_S on past it with the pets on guard ==")
+    import crawl
+    import agent_link
+    import loop_hunt
+    w = tidal_world(NOOK_L2, [{"key": "soulcatcher", "at": list(NOOK_SOUL)}], z=-45, team="phoenix_incubus")
+    sc = next(o for o in w.mobs.values() if o.key == "soulcatcher")
+    loop, clock, store, patched = hurt_loop(w, 100)
+    walk_to = agent_link.Mover.walk_to
+
+    def planned(self, *a, **k):
+        # the live walk's start: 0.35-0.74 s from the intent to its first step (test_oxygen_leg_past_shooter); without
+        # it the simulator's rounds come under BACK_OFF_S and creep through
+        loop_hunt.time.sleep(0.4)
+        return walk_to(self, *a, **k)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            loop.crawl = c = crawl.Crawl(loop, crawl.load_prior(store.con, loop.spot, loop.args.crawl_depth_risk))
+            c.setup(loop.state())
+            c.unlocked = 99
+            agent_link.Mover.walk_to = planned
+            end = clock.monotonic() + 180.0         # BACK_OFF_HOLD_S (120) and a minute for the fight
+            while clock.monotonic() < end and sc.alive:
+                loop.tick()
+    finally:
+        agent_link.Mover.walk_to = walk_to
+        store.close()
+        simclock.uninstall(patched)
+    out = buf.getvalue()
+    backs = out.count("would see us before the pets")
+    check("backed off from it, then 'held N s on the hunt level ... going on past it' once; it dies or wakes on a pet, "
+          "Logan alive",
+          backs >= 3 and out.count("on the hunt level); going on past it with the pets on guard") == 1
+          and (not sc.alive or sc.warmode) and w.player.alive,
+          f"back-offs {backs} soulcatcher alive {sc.alive} war {sc.warmode} Logan {w.player.pos} {w.player.hits} | "
+          + " | ".join(out.splitlines()[-5:])[-600:])
+
+
 def test_loot_held_left():
     print("== a wind-down with our drowned mariner's corpse in the awake soulcatcher's shot (live 20:15:29, `ctl stop "
           "--after-trip` never left): the corpse left after LOOT_HELD_MAX_S, then out by the moongate ==")
@@ -9926,7 +9965,7 @@ def main():
               test_area_hitters, test_shy_by_ai, test_backspawn_on_arrival, test_retreat_by_the_pets, test_wail_far_reach,
               test_consort_lurk, test_approach_short_of_consort, test_consort_spot_open_after_death,
               test_walk_in_fought, test_oxygen_hop, test_oxygen_stairs, test_oxygen_far, test_oxygen_leg_past_shooter,
-              test_shot_wait_nook, test_loot_held_left,
+              test_shot_wait_nook, test_loot_held_left, test_back_off_hold_nook,
               test_step_in,
               test_step_in_fallback, test_front_gate_crab, test_duck, test_oxygen_dolphin,
               test_tidal_hunt,
