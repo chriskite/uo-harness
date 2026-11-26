@@ -4698,3 +4698,18 @@ Hides broken by a running step within 1 s, three simulated runs: 13, 11 and 22 b
 
 `others_flee_per_s` (other hunters spooking deer, unmeasured, 0) is the sim's biggest unknown. 0.02 cost the runner
 about 10 points and 0.04 about 45 (three careers each). A live run will say which is right.
+
+**`--min-points 8` again (2026-11-26, user request).** Retested with the runner of 2026-11-25: hidden flag read from
+the server, shot wait across world saves, mood clicks, switching to a better calm buck in range. Live pacing,
+`--runs 24 --permits 3 --seed 300 -- --human normal`, 72 sessions each:
+
+| Variant | Points a run (sd) | Trophies | Points a trophy | Shots |
+|---|---|---|---|---|
+| Default (the plan's minimum, 6 in the deep bands) | **137.5** (25.4) | 16.6 | 8.28 | 23.6 |
+| `--min-points 8` | 126.1 (28.6) | 13.9 | 9.05 | 20.3 |
+
+The 8-point minimum loses 11.4 a run and scores lower in 19 of the 24 careers on the same seeds. Points per trophy
+rise by 0.8, but 2.7 fewer trophies a run more than cancel that. Most of the run goes into finding a calm buck, so
+passing up 6-pointers leaves trophy slots empty. The default stands. As in the 2026-11-22 batches, the override
+applies only while the plan can still fill every free slot (`hunting_grounds.status`); after that, any buck at or
+above the plan's own minimum counts.
