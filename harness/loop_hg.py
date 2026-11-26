@@ -102,6 +102,17 @@ def text_of(ev) -> str | None:
     return ev.get("text") if ev.get("ev") == "speech_heard" else None
 
 
+def better_bucks(bucks: list, b: dict, want: int, skip: dict, now: float) -> list:
+    """The bucks to shoot instead of `b` (user 2026-11-25: "always favor the higher point calm buck in range"), best
+    first: more points than b's, within `want` tiles, calm or of unknown mood (the caller asks it), not given up on;
+    by points, calm first among equal points, then the nearest. Live 23:47:21 the runner shot a calm 6-pointer 9 tiles
+    off while a calm 10-pointer stood 5 tiles off."""
+    out = [o for o in bucks
+           if o["serial"] != b["serial"] and o["points"] > b["points"] and o["dist"] <= want and o["verdict"] != "skip"
+           and o["mood"] in ("calm", None) and skip.get(serial_of(o["serial"]), 0) <= now]
+    return sorted(out, key=lambda o: (-o["points"], o["mood"] != "calm", o["dist"]))
+
+
 class HGLoop:
     def __init__(self, link, memory: Memory, args):
         self.link = link
@@ -530,6 +541,19 @@ class HGLoop:
             # shoot from `shot_margin` inside the range (a buck past it when the shot lands ~1.5 s later is never
             # killed), at most from the view's edge: the Rifle (range 20) shoots anything in view
             want = max(6, hg.shot_r(self.g["weapon"]["range"], self.args.shot_margin))
+            asked = False
+            for o in better_bucks(self.g["bucks"], b, want, self.skip, time.monotonic()):
+                if o["mood"] == "calm":
+                    serial, b, settle_t = serial_of(o["serial"]), o, None
+                    log(f"stalk: the {b['points']}-point buck in range instead")
+                    self.doing("stalk", f"Stalking a {b['points']}-point buck ({b['dist']} tiles)", (b["x"], b["y"]),
+                               serial)
+                    break
+                if self.ask_mood(serial_of(o["serial"])):
+                    asked = True              # read again: it may be the calm one to shoot
+                    break
+            if asked:
+                continue
             if b["dist"] > want:
                 hidden = self.hidden
                 if self.walk(lambda: self.buck_xy(serial), want, "stalk",

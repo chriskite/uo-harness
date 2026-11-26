@@ -660,6 +660,26 @@ def test_runner_stale_mood():
           f"{r['outcome']} score {r['score']} kills {r['kills']} shots {r['shots']} {r.get('error') or ''}"[:300])
 
 
+def test_better_bucks():
+    print("== the higher-point calm buck in range is shot first (live 2026-11-25 23:47:21: a calm 6 at 9 tiles shot, "
+          "a calm 10 at 5 tiles left) ==")
+    import loop_hg
+
+    def buck(serial, points, dist, mood, verdict=None):
+        return {"serial": f"0x{serial:08X}", "points": points, "dist": dist, "mood": mood,
+                "verdict": verdict or {"calm": "shoot", None: "wait"}.get(mood, "wait")}
+    six = buck(0x45C55F, 6, 9, "calm")
+    live = [six, buck(0x45C6FF, 10, 5, "calm"), buck(0x45C79F, 8, 15, "calm"), buck(0x45C43C, 6, 16, "calm"),
+            buck(0x45BF0D, 8, 16, "nervous")]
+    got = [o["serial"] for o in loop_hg.better_bucks(live, six, 10, {}, 0.0)]
+    check("the live scene: the 10 at 5 tiles, nothing out of range", got == ["0x0045C6FF"], str(got))
+    more = live + [buck(0x1, 14, 7, None), buck(0x2, 12, 8, "nervous"), buck(0x3, 12, 6, "calm"),
+                   buck(0x4, 16, 4, "calm"), buck(0x5, 10, 3, "calm", "skip")]
+    got = [o["serial"] for o in loop_hg.better_bucks(more, six, 10, {0x4: 100.0}, 0.0)]
+    check("by points (unknown mood asked), not nervous, not given up on, not the plan's skip",
+          got == ["0x00000001", "0x00000003", "0x0045C6FF"], str(got))
+
+
 def main():
     if WALKERS.get(0) is None:
         print("SKIP: no map geometry for facet 0 (install files missing)")
@@ -681,6 +701,7 @@ def main():
     test_runner_reveal()
     test_runner_save_shot()
     test_runner_stale_mood()
+    test_better_bucks()
     test_runner_home()
     print(f"\n{len(FAILURES)} failure(s) in {time.perf_counter() - t0:.1f} s")
     for f in FAILURES:

@@ -4247,6 +4247,12 @@ nook by an awake soulcatcher").
     runner single-clicks the buck (`ask_mood`: `look_at`, `hotkey_aim` pacing, at most every 2.5 s), as a player
     checks a deer. The simulator answers a deer's click with its mood, as live. `test_hg_sim.test_runner_stale_mood`
     spaces labels 40-70 s apart: 42 points before the fix, 104 after (seed 7).
+  - *Decided* (user 2026-11-25: "The runner should always favor the higher point calm buck in range when shooting"):
+    at 23:47:21 the runner shot a calm 6-pointer 9 tiles off, the one it had set out after, while a calm 10-pointer
+    stood 5 tiles off. Every pass of the stalk now takes `loop_hg.better_bucks`: bucks worth more than the target,
+    within the shooting distance, calm or of unknown mood, not given up on. It switches to the best calm one; one of
+    unknown mood ranked above it is single-clicked first (`ask_mood`). Tested in `test_hg_sim.test_better_bucks` on
+    the live scene. Simulator, 12 seeds × 2 permits: 154.4 a run against 152.4 before (within noise).
 
 ## A frenzyfin's swings from 2 tiles are on us (Logan dead on Tidal Tomb level 2, live 2026-11-24 14:22:49)
 
