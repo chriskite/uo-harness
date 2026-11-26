@@ -42,7 +42,8 @@ import escape as escape_mod  # noqa: E402
 import home as home_mod  # noqa: E402
 import hunting_grounds as hg  # noqa: E402
 import task_wrap  # noqa: E402
-from agent_link import Abort, GatePaused, Link, Mover, WalkFailed, cheb, label_since, log, look_at, serial_of  # noqa: E402
+from agent_link import (Abort, Deadline, GatePaused, Link, Mover, WalkFailed, cheb, label_since, log, look_at,  # noqa: E402
+                        serial_of)
 from errand_bank import gating  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
@@ -578,8 +579,13 @@ class HGLoop:
         sent = time.monotonic()
         answered = False
         outcome = None
-        while time.monotonic() - sent < SHOT_RESULT_S:
+        # a world save holds the landing: its time doesn't count (live 2026-11-25 23:15:32.3: the save ran 32.4-36.0,
+        # the graze landed at 36.9, and the runner had already given the shot up as a miss and hidden again)
+        deadline, seen = Deadline(SHOT_RESULT_S, self.link.save_t0), mark
+        while not deadline.over():
             st = self.read()
+            deadline.see(self.link.events[seen:])
+            seen = len(self.link.events)
             cur = st["world"].get("target") or {}
             if cur.get("active") and not answered and self.said(mark, FIRE_CURSOR) is not None:
                 at = self.mob_at(st, serial)

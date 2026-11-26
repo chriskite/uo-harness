@@ -4234,6 +4234,12 @@ nook by an awake soulcatcher").
   scaring every buck in view. Now `HGLoop.update` takes `hidden` from our mobile's 0x80 flag on every state read. A
   hidden roam or stalk walk stops on a reveal and hides again. `test_hg_sim.test_runner_reveal` forces a reveal
   mid-roam: the old runner took 28 visible steps, the new one none.
+  - The shot's 3 s wait for its outcome now runs on `agent_link.Deadline`, so world-save time doesn't count. Before,
+    the late graze was logged as a miss, and a late kill would never have been carved.
+    `test_hg_sim.test_runner_save_shot` holds every landing 4.6 s behind a save. Before the fix the runner logged
+    46 misses where the world had 6 kills, 8 grazes and 1 miss, and it carved nothing. After it, every kill is
+    counted and carved. A graze on a buck that left the view during the flight still reads as a miss, because no
+    "*grazed*" line reaches us.
 
 ## A frenzyfin's swings from 2 tiles are on us (Logan dead on Tidal Tomb level 2, live 2026-11-24 14:22:49)
 

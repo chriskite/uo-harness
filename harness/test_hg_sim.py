@@ -6,6 +6,7 @@ Run: python harness/test_hg_sim.py"""
 import math
 import os
 import random
+import re
 import sys
 import time
 
@@ -602,6 +603,44 @@ def test_runner_reveal():
           f"{r['outcome']} {seen} {r.get('error') or ''}"[:300])
 
 
+def test_runner_save_shot():
+    print("== a world save holds every shot's landing 4.6 s (live 2026-11-25 23:15:32-36): each outcome counted as it "
+          "landed, each kill carved ==")
+    import tempfile
+    from sim import run_hg
+    orig_shoot, orig_tick = H.HGWorld._shoot, H.HGWorld._tick
+    saves = []                                  # sim times the save's end line is due
+
+    def shoot(self, serial):
+        n = self.metrics["shots"]
+        orig_shoot(self, serial)
+        if self.metrics["shots"] > n:           # live: the save line 0.17 s after the click, its end 3.7 s, landing 4.6 s
+            self._sys("The world is saving, please wait.")
+            self.flight = (self.t + 4.6,) + self.flight[1:]
+            saves.append(self.t + 3.7)
+
+    def tick(self):
+        if saves and self.t >= saves[0]:
+            saves.pop(0)
+            self._sys("World save complete. The entire process took 3.5 seconds.")
+        orig_tick(self)
+    H.HGWorld._shoot, H.HGWorld._tick = shoot, tick
+    log = os.path.join(tempfile.mkdtemp(prefix="hg_save_"), "runner.log")
+    try:
+        r = run_hg.run_once(seed=7, permits=1, extra_args=[], log=log)
+    finally:
+        H.HGWorld._shoot, H.HGWorld._tick = orig_shoot, orig_tick
+    with open(log, encoding="utf-8") as f:
+        text = f.read()
+    said = {k: len(re.findall(rf"\b{k} (?:a|the) \d+-point buck", text)) for k in ("felled", "grazed", "missed")}
+    landed = {"felled": r["kills"], "grazed": r["grazes"], "missed": r["misses"]}
+    # a graze on a buck that left the view in the 4.6 s has no "*grazed*" line we can hear: a miss to us
+    check("the runner's outcomes are the landed ones, every kill carved",
+          r["outcome"] == "done" and r["shots"] > 0 and said["felled"] == r["kills"] and r["carves"] == r["kills"]
+          and said["grazed"] <= r["grazes"] and said["grazed"] + said["missed"] == r["grazes"] + r["misses"],
+          f"{r['outcome']} runner {said} world {landed} carves {r['carves']} {r.get('error') or ''}"[:300])
+
+
 def main():
     if WALKERS.get(0) is None:
         print("SKIP: no map geometry for facet 0 (install files missing)")
@@ -621,6 +660,7 @@ def main():
     test_violations()
     test_runner()
     test_runner_reveal()
+    test_runner_save_shot()
     test_runner_home()
     print(f"\n{len(FAILURES)} failure(s) in {time.perf_counter() - t0:.1f} s")
     for f in FAILURES:
