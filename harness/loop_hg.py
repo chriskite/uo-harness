@@ -102,13 +102,14 @@ def text_of(ev) -> str | None:
     return ev.get("text") if ev.get("ev") == "speech_heard" else None
 
 
-def better_bucks(bucks: list, b: dict, want: int, skip: dict, now: float) -> list:
+def better_bucks(bucks: list, b: dict, reach: int, skip: dict, now: float) -> list:
     """The bucks to shoot instead of `b` (user 2026-11-25: "always favor the higher point calm buck in range"), best
-    first: more points than b's, within `want` tiles, calm or of unknown mood (the caller asks it), not given up on;
-    by points, calm first among equal points, then the nearest. Live 23:47:21 the runner shot a calm 6-pointer 9 tiles
-    off while a calm 10-pointer stood 5 tiles off."""
+    first: more points than b's, within the weapon's range `reach` (the stalk then closes in to its shooting distance),
+    calm or of unknown mood (the caller asks it), not given up on; by points, calm first among equal points, then the
+    nearest. Live 23:47:21 the runner shot a calm 6-pointer 9 tiles off while a calm 10-pointer stood 5 tiles off; at
+    23:54:55 a calm 6 at 15 tiles while a calm 12 stood at 18, the Great Bow's range (2 past the shooting distance)."""
     out = [o for o in bucks
-           if o["serial"] != b["serial"] and o["points"] > b["points"] and o["dist"] <= want and o["verdict"] != "skip"
+           if o["serial"] != b["serial"] and o["points"] > b["points"] and o["dist"] <= reach and o["verdict"] != "skip"
            and o["mood"] in ("calm", None) and skip.get(serial_of(o["serial"]), 0) <= now]
     return sorted(out, key=lambda o: (-o["points"], o["mood"] != "calm", o["dist"]))
 
@@ -542,7 +543,7 @@ class HGLoop:
             # killed), at most from the view's edge: the Rifle (range 20) shoots anything in view
             want = max(6, hg.shot_r(self.g["weapon"]["range"], self.args.shot_margin))
             asked = False
-            for o in better_bucks(self.g["bucks"], b, want, self.skip, time.monotonic()):
+            for o in better_bucks(self.g["bucks"], b, self.g["weapon"]["range"], self.skip, time.monotonic()):
                 if o["mood"] == "calm":
                     serial, b, settle_t = serial_of(o["serial"]), o, None
                     log(f"stalk: the {b['points']}-point buck in range instead")

@@ -4253,6 +4253,10 @@ nook by an awake soulcatcher").
     within the shooting distance, calm or of unknown mood, not given up on. It switches to the best calm one; one of
     unknown mood ranked above it is single-clicked first (`ask_mood`). Tested in `test_hg_sim.test_better_bucks` on
     the live scene. Simulator, 12 seeds × 2 permits: 154.4 a run against 152.4 before (within noise).
+    - Live 23:54:55 it still shot a calm 6 at 15 tiles while a calm 12 stood at 18. That was the Great Bow's range,
+      but 2 past the shooting distance (`shot_r`), and only bucks within the shooting distance were considered.
+      "In range" is now the weapon's range: the stalk switches to the 12 and walks the 2 tiles in before shooting.
+      Simulator, the same 12 seeds × 2 permits: 157.7 a run (154.4 before).
 
 ## A frenzyfin's swings from 2 tiles are on us (Logan dead on Tidal Tomb level 2, live 2026-11-24 14:22:49)
 

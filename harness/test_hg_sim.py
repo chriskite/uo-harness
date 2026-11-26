@@ -671,11 +671,17 @@ def test_better_bucks():
     six = buck(0x45C55F, 6, 9, "calm")
     live = [six, buck(0x45C6FF, 10, 5, "calm"), buck(0x45C79F, 8, 15, "calm"), buck(0x45C43C, 6, 16, "calm"),
             buck(0x45BF0D, 8, 16, "nervous")]
-    got = [o["serial"] for o in loop_hg.better_bucks(live, six, 10, {}, 0.0)]
-    check("the live scene: the 10 at 5 tiles, nothing out of range", got == ["0x0045C6FF"], str(got))
+    got = [o["serial"] for o in loop_hg.better_bucks(live, six, 12, {}, 0.0)]
+    check("the live scene (starter bow, range 12): the 10 at 5 tiles, nothing past the range", got == ["0x0045C6FF"],
+          str(got))
+    six2 = buck(0x45CCC9, 6, 15, "calm")
+    late = [six2, buck(0x45D089, 12, 18, "calm"), buck(0x45D4C0, 12, 18, "fleeing"), buck(0x45CDD9, 8, 17, "nervous")]
+    got = [o["serial"] for o in loop_hg.better_bucks(late, six2, 18, {}, 0.0)]
+    check("live 23:54:55 (Great Bow, range 18): the calm 12 at 18 tiles, past the shooting distance but in range",
+          got == ["0x0045D089"], str(got))
     more = live + [buck(0x1, 14, 7, None), buck(0x2, 12, 8, "nervous"), buck(0x3, 12, 6, "calm"),
                    buck(0x4, 16, 4, "calm"), buck(0x5, 10, 3, "calm", "skip")]
-    got = [o["serial"] for o in loop_hg.better_bucks(more, six, 10, {0x4: 100.0}, 0.0)]
+    got = [o["serial"] for o in loop_hg.better_bucks(more, six, 12, {0x4: 100.0}, 0.0)]
     check("by points (unknown mood asked), not nervous, not given up on, not the plan's skip",
           got == ["0x00000001", "0x00000003", "0x0045C6FF"], str(got))
 
