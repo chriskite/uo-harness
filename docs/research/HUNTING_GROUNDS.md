@@ -269,6 +269,12 @@ the rule at landing.
 - **Carve**: "N point trophy added to carried trophies."
 - **Turn-in**: "Ammunition resupplied and K trophies turned in for P points (S new score)". S is the run's
   total so far.
+- **Hidden** is bit 0x80 of the flags in our own 0x20 (0xA0 hidden, 0x20 visible). The 0x20 comes just before the
+  "You hide and may now move in stealth." line. A shot reveals us when it lands, about 1.1 s after the double-click
+  and together with its outcome, not at the click (2026-11-25 23:14:35.2 → 36.3, 23:15:06.7 → 07.8). Across a world
+  save the landing slips: the 23:15:32.3 shot graze and reveal came at 23:15:36.9, 4.6 s later (session
+  `20261125_150950`). The flag is the only sure sign of a reveal; the runner reads it (docs/PLAN.md "Hunting Grounds
+  runner and simulator").
 - **The [EventScore board updates live**, despite the post and the server's line "Event scores for this
   event are updated every 1 hour."
   - At 15:13:05 it showed Logan at 82, 17 s after his 82-point turn-in.

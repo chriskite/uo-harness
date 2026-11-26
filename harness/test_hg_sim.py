@@ -572,6 +572,36 @@ def test_runner_home():
           f"{r['outcome']} {tried} {r.get('error') or ''}"[:300])
 
 
+def test_runner_reveal():
+    print("== a reveal the runner didn't cause (live 2026-11-25 23:15:36, a shot landing late after a world save): "
+          "hidden again before it walks on ==")
+    from sim import hgworld, run_hg
+    orig = hgworld.HGWorld._walk
+    seen = {"hidden_walks": 0, "hides": None, "visible_walks": 0}
+
+    def walk(self, p):
+        before = self.metrics["steps"]
+        orig(self, p)
+        if self.metrics["steps"] == before or p[1] & 0x80:
+            return                              # a turn, a denied step or a running step
+        if seen["hides"] is None:
+            seen["hidden_walks"] += self.hidden
+            # the server reveals us mid-stealth on a roam (the runner's own intent), no running step or shot of ours
+            if seen["hidden_walks"] >= 40 and self.hidden and self.intents and self.intents[-1][1] == "roam":
+                self._reveal()
+                seen["hides"] = self.metrics["hides"]
+        elif not self.hidden and self.metrics["hides"] == seen["hides"]:
+            seen["visible_walks"] += 1          # walking on visible, not yet hidden again
+    hgworld.HGWorld._walk = walk
+    try:
+        r = run_hg.run_once(seed=7, permits=1, extra_args=[])
+    finally:
+        hgworld.HGWorld._walk = orig
+    check("revealed mid-stealth, then hidden again within 2 walking steps",
+          r["outcome"] == "done" and seen["hides"] is not None and seen["visible_walks"] <= 2,
+          f"{r['outcome']} {seen} {r.get('error') or ''}"[:300])
+
+
 def main():
     if WALKERS.get(0) is None:
         print("SKIP: no map geometry for facet 0 (install files missing)")
@@ -590,6 +620,7 @@ def main():
     test_density()
     test_violations()
     test_runner()
+    test_runner_reveal()
     test_runner_home()
     print(f"\n{len(FAILURES)} failure(s) in {time.perf_counter() - t0:.1f} s")
     for f in FAILURES:

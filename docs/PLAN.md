@@ -4228,6 +4228,12 @@ nook by an awake soulcatcher").
   - `hunting_grounds.instance_at` took the nearest warden by Chebyshev distance, which ties deep in the west
     instance; it now uses the region that holds the tile. The viz advice had the same bug.
   - An unreachable roam waypoint was retried every second.
+- *Fixed live* (2026-11-25 23:15-23:17, the user took over): the runner kept its own idea of "hidden" (set by the hide
+  line, cleared by its own running steps and shots). A shot landed 4.6 s late across a world save, after the runner had
+  counted it a miss and hidden again. The landing revealed Logan, and the runner stealth-walked visible for 2 minutes,
+  scaring every buck in view. Now `HGLoop.update` takes `hidden` from our mobile's 0x80 flag on every state read. A
+  hidden roam or stalk walk stops on a reveal and hides again. `test_hg_sim.test_runner_reveal` forces a reveal
+  mid-roam: the old runner took 28 visible steps, the new one none.
 
 ## A frenzyfin's swings from 2 tiles are on us (Logan dead on Tidal Tomb level 2, live 2026-11-24 14:22:49)
 

@@ -121,7 +121,7 @@ class HGLoop:
         self.started = time.time()
         self.totals = {"runs": 0, "score": 0, "trophies": 0, "lost": 0, "shots": 0, "kills": 0}
         self.row = None               # this run's episode row
-        self.hidden = False
+        self.hidden = False           # the server's word: our hidden flag (0x80) in the last state read (update)
         self.hide_ready = 0.0         # monotonic: the next hide the server accepts
         self.shot_ready = 0.0
         self.last_move = 0.0          # monotonic: our last step (a shot needs STATIONARY_S still)
@@ -144,15 +144,17 @@ class HGLoop:
         for ev in new:
             if ev.get("ev") != "speech_heard":
                 continue
-            if ev.get("text") == HIDDEN:
-                self.hidden = True
-            elif TROPHY.match(ev.get("text") or ""):
+            if TROPHY.match(ev.get("text") or ""):
                 # a carve, ours or the client's own: ClassicUO's auto-open corpses (Logan's profile, range 2)
                 # double-clicks our kill as we walk up, and in the Grounds that double-click carves. Hide is refused
                 # for 3 s after any carve (live 2026-11-23 10:32-10:38: 46 refused hides, one burst per kill)
                 self.hide_ready = max(self.hide_ready, time.monotonic() + HIDE_AFTER_CARVE_S)
                 self.trophy_t = time.monotonic()
         self.grounds.feed(new, now)
+        # hidden from our own mobile's flags, never from our own actions alone: the server reveals us for things the
+        # runner doesn't see coming (live 2026-11-25 23:15:36, a shot that landed 4.6 s late across a world save,
+        # after the runner had given it up and hidden again; it then stealth-walked visible for 2 minutes)
+        self.hidden = bool(((st["world"]["self"].get("stats") or {}).get("flags") or 0) & 0x80)
         pos = st["movement"]["pos"]
         me = (pos[0], pos[1]) if pos is not None else None
         mobs = st["world"]["mobiles"]
@@ -309,7 +311,6 @@ class HGLoop:
     # ------------------------------------------------------------------ the run
     def start_run(self):
         self.totals["runs"] += 1
-        self.hidden = False
         self.corpse = None
         self.skip.clear()
         self.swept.clear()
@@ -412,15 +413,18 @@ class HGLoop:
                 best = (score, t)
         return best[1] if best else (min(max(here[0], x0 + 30), x1 - 30), (zy0 + zy1) // 2)
 
-    def roam_stop(self, st, rehide: bool = False):
-        """A roam walk's stop: the plan changed, a buck worth stalking came into view, or (`rehide`: a visible run in the
-        zone) the hide is ready again or any deer came into view (stop and hide before it sees us)."""
+    def roam_stop(self, st, rehide: bool = False, stealth: bool = False):
+        """A roam walk's stop: the plan changed, (`stealth`: a hidden walk) the server revealed us, a buck worth stalking
+        came into view, or (`rehide`: a visible run in the zone) the hide is ready again or any deer came into view
+        (stop and hide before it sees us)."""
         self.update(st)
         if self.g is None:
             return "over"
         p = self.g["plan"]
         if p is None or p["phase"] in ("return", "done") or self.corpse is not None:
             return "plan"
+        if stealth and not self.hidden:
+            return "revealed"
         self.swept[self.cell(self.me(st))] = time.monotonic()
         if self.pick() is not None:
             return "buck"
@@ -453,7 +457,8 @@ class HGLoop:
                 self.walk(lambda: to, 3, "roam", stop=lambda s: self.roam_stop(s, rehide=True), run=True)
                 return
         self.doing("roam", f"{'Stalking through' if stealth else 'Running to'} the zone (y {y0}-{y1})", to)
-        if self.walk(lambda: to, 3, "roam", stop=self.roam_stop, run=not stealth) == "failed":
+        if self.walk(lambda: to, 3, "roam", stop=lambda s: self.roam_stop(s, stealth=stealth),
+                     run=not stealth) == "failed":
             # no route there (water, a wall): not that cell again for a while, and no fixed waypoint next time
             self.swept[self.cell(to)] = time.monotonic() + UNREACHABLE_S
             self.roam_failed = True
@@ -472,8 +477,6 @@ class HGLoop:
         finally:
             if self.mover.steps != before:
                 self.last_move = time.monotonic()
-                if run:
-                    self.hidden = False
 
     # ---- stalk and shoot
     def hide(self) -> bool:
@@ -488,12 +491,14 @@ class HGLoop:
             self.human.wait("hotkey")
             mark = len(self.link.events)
             self.link.act(actions.use_skill(SKILL_HIDING))
-            self.link.wait(lambda s: self.said(mark, HIDDEN, HIDE_WAIT) is not None, timeout=1.5)
-            said = self.said(mark, HIDDEN, HIDE_WAIT)
-            if said == HIDDEN:
-                self.hidden = True
+            st = self.link.wait(lambda s: self.said(mark, HIDE_WAIT) is not None
+                                or (self.said(mark, HIDDEN) is not None and self.update(s) and self.hidden), timeout=1.5)
+            if st is not None:
+                self.update(st)
+            if self.hidden:
                 self.hide_ready = time.monotonic() + HIDE_AFTER_HIDE_S
                 return True
+            said = self.said(mark, HIDE_WAIT)
             self.hide_ready = time.monotonic() + (0.6 if said else 1.0)
         return False
 
@@ -522,8 +527,10 @@ class HGLoop:
             # killed), at most from the view's edge: the Rifle (range 20) shoots anything in view
             want = max(6, hg.shot_r(self.g["weapon"]["range"], self.args.shot_margin))
             if b["dist"] > want:
-                self.walk(lambda: self.buck_xy(serial), want, "stalk",
-                          stop=lambda s: self.stalk_stop(s, serial, want), run=False)
+                hidden = self.hidden
+                if self.walk(lambda: self.buck_xy(serial), want, "stalk",
+                             stop=lambda s: self.stalk_stop(s, serial, want, hidden), run=False) == "revealed":
+                    self.hide()
                 continue
             still = time.monotonic() - self.last_move
             if still < STATIONARY_S:
@@ -546,13 +553,16 @@ class HGLoop:
         b = self.buck(serial)
         return (b["x"], b["y"]) if b else self.me()
 
-    def stalk_stop(self, st, serial, want):
+    def stalk_stop(self, st, serial, want, hidden: bool):
+        """`hidden`: we set out hidden, so a reveal on the way stops the walk to hide again before walking on."""
         self.update(st)
         b = self.buck(serial)
         if self.g is None or b is None or b["mood"] == "fleeing" or b["verdict"] == "skip":
             return "lost"
         if self.g["plan"]["phase"] in ("return", "done"):
             return "plan"
+        if hidden and not self.hidden:
+            return "revealed"
         if b["dist"] <= want:
             return "in range"
         return None
@@ -600,7 +610,6 @@ class HGLoop:
                 outcome = "graze"
                 break
             time.sleep(0.1)
-        self.hidden = False
         self.shot_ready = sent + SHOT_COOLDOWN_S
         self.row["shots"] += 1
         self.totals["shots"] += 1
