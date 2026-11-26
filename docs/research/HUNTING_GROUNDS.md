@@ -219,8 +219,8 @@ ended with the Ancient Rifle.
 
 ### Shot outcomes
 
-50 real shots. "State" is the deer's last label before the shot. Labels are broadcast about every 5 s, so
-some are stale.
+50 real shots. "State" is the deer's last label before the shot. Labels come only when the client clicks a deer (see
+"Signals for automation"), so some are stale.
 
 | State | Kill | Graze | Miss | Hits (kill + graze) |
 |---|---|---|---|---|
@@ -275,6 +275,12 @@ the rule at landing.
   save the landing slips: the 23:15:32.3 shot graze and reveal came at 23:15:36.9, 4.6 s later (session
   `20261125_150950`). The flag is the only sure sign of a reveal; the runner reads it (docs/PLAN.md "Hunting Grounds
   runner and simulator").
+- **Mood labels answer single-clicks.** Every "(calm)" / "(nervous)" / "(fleeing)" label came within 0.6 s of a 0x09
+  single-click on that deer from the client (1,501 of 1,501, session `20261125_150950`, 18:59-23:34). The client clicks
+  a deer when a 0x20 for it arrives: per deer the gaps are p50 3.8 s and p90 68 s. A calm 10-pointer's last label
+  was 36 s old (23:31:37 → 23:32:13) while the runner stood 10 tiles off it. The emotes "\*looks nervous\*" and
+  "\*flees\*" come unasked. The runner clicks the buck it stalks when its mood is unknown or nervous
+  (`loop_hg.ask_mood`).
 - **The [EventScore board updates live**, despite the post and the server's line "Event scores for this
   event are updated every 1 hour."
   - At 15:13:05 it showed Logan at 82, 17 s after his 82-point turn-in.

@@ -4240,6 +4240,13 @@ nook by an awake soulcatcher").
     46 misses where the world had 6 kills, 8 grazes and 1 miss, and it carved nothing. After it, every kill is
     counted and carved. A graze on a buck that left the view during the flight still reads as a miss, because no
     "*grazed*" line reaches us.
+  - *Fixed live* (2026-11-25 23:31:49-23:32:10): the runner stalked a calm 10-pointer, stood 10 tiles off it (bow
+    range 12) and moved on without shooting. Its only "(calm)" label was 23:31:37, and mood labels answer a single-click
+    and nothing else (docs/research/HUNTING_GROUNDS.md "Signals for automation"). Past `STATE_TTL_S` the mood read
+    unknown, and the stalk gave up after `NERVOUS_WAIT_S`. *Decided*: in range with the mood unknown or nervous, the
+    runner single-clicks the buck (`ask_mood`: `look_at`, `hotkey_aim` pacing, at most every 2.5 s), as a player
+    checks a deer. The simulator answers a deer's click with its mood, as live. `test_hg_sim.test_runner_stale_mood`
+    spaces labels 40-70 s apart: 42 points before the fix, 104 after (seed 7).
 
 ## A frenzyfin's swings from 2 tiles are on us (Logan dead on Tidal Tomb level 2, live 2026-11-24 14:22:49)
 

@@ -81,6 +81,7 @@ HIDE_TRY_S = 6.0              # give up hiding for this stalk after this long (s
 STALK_MAX_S = 30.0            # a buck we can't get a shot at in this long is left alone
 NERVOUS_WAIT_S = 6.0          # a nervous buck in range: wait this long for it to settle (calm after 10 s alone)
 SKIP_S = 60.0                 # a buck given up on (fled, refused) isn't stalked again for this long
+MOOD_CLICK_S = 2.5           # a buck we stalk whose mood we don't know (or nervous): single-click it at most this often
 CELL = 16                     # roam memory: the zone in CELL x CELL squares, the least lately swept first
 UNREACHABLE_S = 300.0        # a roam waypoint with no route: its cell counts as swept this far into the future
 ROAM_MIN, ROAM_MAX = 18, 40   # a roam waypoint this far off (Chebyshev)
@@ -128,6 +129,7 @@ class HGLoop:
         self.last_move = 0.0          # monotonic: our last step (a shot needs STATIONARY_S still)
         self.corpse = None            # (corpse serial, kill monotonic, (x, y)) to carve
         self.skip = {}                # buck serial -> monotonic until which it isn't stalked
+        self.asked = {}               # buck serial -> monotonic of our last single-click for its mood
         self.swept = {}               # roam cell -> monotonic of our last pass
         self.halt = None
         self.roam_failed = False      # the last roam walk found no route: pick a random waypoint next
@@ -314,6 +316,7 @@ class HGLoop:
         self.totals["runs"] += 1
         self.corpse = None
         self.skip.clear()
+        self.asked.clear()
         self.swept.clear()
         self.shot_ready = self.hide_ready = 0.0
         self.row = {"run": self.totals["runs"], "t_start": time.time(), "instance": None, "score": 0, "trophies": 0,
@@ -533,6 +536,8 @@ class HGLoop:
                              stop=lambda s: self.stalk_stop(s, serial, want, hidden), run=False) == "revealed":
                     self.hide()
                 continue
+            if b["mood"] != "calm" and self.ask_mood(serial):
+                continue
             still = time.monotonic() - self.last_move
             if still < STATIONARY_S:
                 time.sleep(STATIONARY_S - still)
@@ -549,6 +554,22 @@ class HGLoop:
                 continue
             if self.shoot(serial, b, st) != "again":
                 return
+
+    def ask_mood(self, serial: int) -> bool:
+        """Single-click a buck whose mood we don't know (no label for STATE_TTL_S) or that was nervous, as a player
+        checks it. Its mood label answers a single-click and nothing else: live 2026-11-25, 1501 of 1501 labels came
+        within 0.6 s of the client's own click, and a calm 10-pointer's label went 36 s unrefreshed while the runner
+        stood in range waiting for a mood, then gave it up. At most every MOOD_CLICK_S. True: clicked (read again)."""
+        known = self.grounds.moods.get(serial)
+        if time.monotonic() - self.asked.get(serial, -1e9) < MOOD_CLICK_S or \
+                (known is not None and time.time() - known[2] < MOOD_CLICK_S):
+            return False
+        self.asked[serial] = time.monotonic()
+        self.human.wait("hotkey_aim")
+        mark = len(self.link.events)
+        look_at(self.link, serial, known_name=True)
+        self.link.wait(lambda s: label_since(self.link, serial, mark) is not None, timeout=1.0)
+        return True
 
     def buck_xy(self, serial):
         b = self.buck(serial)

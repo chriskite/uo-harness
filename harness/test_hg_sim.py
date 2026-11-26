@@ -641,6 +641,25 @@ def test_runner_save_shot():
           f"{r['outcome']} runner {said} world {landed} carves {r['carves']} {r.get('error') or ''}"[:300])
 
 
+def test_runner_stale_mood():
+    print("== mood labels only as the client's clicks give them (live 2026-11-25: a calm 10-pointer's label 36 s old, "
+          "the runner stood in range and gave up): it clicks the buck it stalks ==")
+    from sim import hgscenario, run_hg
+    orig = hgscenario.load
+
+    def load(*a, **kw):
+        sc = orig(*a, **kw)
+        sc["timing"]["label_every_s"] = [40.0, 70.0]   # live click gaps per deer: p50 3.8 s, p90 68 s
+        return sc
+    hgscenario.load = load
+    try:
+        r = run_hg.run_once(seed=7, permits=1, extra_args=[])
+    finally:
+        hgscenario.load = orig
+    check("points scored with stale labels (80+, as test_runner)", r["outcome"] == "done" and r["score"] >= 80,
+          f"{r['outcome']} score {r['score']} kills {r['kills']} shots {r['shots']} {r.get('error') or ''}"[:300])
+
+
 def main():
     if WALKERS.get(0) is None:
         print("SKIP: no map geometry for facet 0 (install files missing)")
@@ -661,6 +680,7 @@ def main():
     test_runner()
     test_runner_reveal()
     test_runner_save_shot()
+    test_runner_stale_mood()
     test_runner_home()
     print(f"\n{len(FAILURES)} failure(s) in {time.perf_counter() - t0:.1f} s")
     for f in FAILURES:

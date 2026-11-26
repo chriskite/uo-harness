@@ -18,7 +18,8 @@ guesses are marked [INFERENCE] here or there):
   warden's turn-in, its score and weapon tiers.
 - Deer: a population by depth (density_by_band), points by depth (points_by_band), moods calm / nervous / fleeing with
   the measured per-second hazards by distance and our hidden state, the wind's penalty, recovery after calm_after_s
-  unsensed, movement in bursts at the measured rates, labels every 4-6 s, respawn.
+  unsensed, movement in bursts at the measured rates, labels every 4-6 s (they stand for the client's own clicks: live
+  a label only answers a single-click, which the sim answers too), respawn.
 """
 from __future__ import annotations
 
@@ -585,6 +586,8 @@ class HGWorld:
     def _click(self, s: int):
         m = self.mobs.get(s)
         if m is not None:
+            if isinstance(m, Deer) and m.alive:
+                self._say(m, f"({m.mood})")    # live: every mood label answers a single-click (1501 of 1501, 2026-11-25)
             self.send(P.says(s, m.name, m.label or m.name, kind=6, body=m.body))
         elif s == PERMIT and self.permits:
             self.send(P.says(s, self.sc["permit"]["name"], f"{self.sc['permit']['name']} : {self.permits}", kind=6))

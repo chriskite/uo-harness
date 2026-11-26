@@ -50,7 +50,7 @@ HIT_CALM = 0.9
 KILL_A_S = 18.0               # search + approach + the shot, per attempt (fits ~30 s per kill observed)
 CARVE_S = 6.0
 HOLD_MAX = 5
-STATE_TTL_S = 15.0            # a deer's mood label is re-sent about every 5 s; older: unknown
+STATE_TTL_S = 15.0            # a deer's mood label (it answers a single-click, ours or the client's); older: unknown
 WARN_SLACK_S = 30.0           # holding trophies with less spare time than this: the badge warns
 # (dy0, dy1, mean points) by tiles south of the lodge: the buck values seen in Logan's 8 runs of 2026-11-22 (1585
 # bucks; harness/data/sim/hunting_grounds.json `points_by_band`). Value rises with depth and levels off past 200;
