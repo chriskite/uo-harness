@@ -5,11 +5,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 16,
     "graphics": [
      "0xe"
     ],
-    "serials": 5,
+    "serials": 23,
     "tags": [
      "20261125_150950"
     ]
@@ -49,8 +49,19 @@
    "ai": "melee",
    "armor": 100,
    "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 70.3,
    "gold_value": 703,
+   "graphic": 37,
    "hits": 5000,
    "knowledge_ids": [
     10661,
@@ -83,8 +94,19 @@
    "ai": "melee",
    "armor": 100,
    "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 101.1,
    "gold_value": 1012,
+   "graphic": 37,
    "hits": 7000,
    "knowledge_ids": [
     10654,
@@ -118,11 +140,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 6,
     "graphics": [
      "0xe"
     ],
-    "serials": 2,
+    "serials": 10,
     "tags": [
      "20261125_150950"
     ]
@@ -163,11 +185,11 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 5,
+    "deaths": 7,
     "graphics": [
      "0x313"
     ],
-    "serials": 5,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -211,8 +233,19 @@
    "ai": "mage",
    "armor": 75,
    "attack_speed": null,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x30a"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 37.2,
    "gold_value": 373,
+   "graphic": 778,
    "hits": 2500,
    "knowledge_ids": [
     10602,
@@ -249,11 +282,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 1,
     "graphics": [
      "0xd5"
     ],
-    "serials": 2,
+    "serials": 3,
     "tags": [
      "20261125_150950"
     ]
@@ -297,8 +330,19 @@
    "ai": "melee",
    "armor": 100,
    "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 42.3,
    "gold_value": 423,
+   "graphic": 37,
    "hits": 3000,
    "knowledge_ids": [
     10662,
@@ -332,11 +376,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 4,
     "graphics": [
      "0xad"
     ],
-    "serials": 4,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -385,11 +429,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 4,
     "graphics": [
      "0x60"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
      "20261125_150950"
     ]
@@ -430,11 +474,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 3,
     "graphics": [
      "0x182"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
      "20261125_150950"
     ]
@@ -480,8 +524,19 @@
    "ai": "melee",
    "armor": 100,
    "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 193.0,
    "gold_value": 1930,
+   "graphic": 37,
    "hits": 14000,
    "knowledge_ids": [
     10676,
@@ -519,7 +574,7 @@
     "graphics": [
      "0xc"
     ],
-    "serials": 2,
+    "serials": 4,
     "tags": [
      "20261125_150950"
     ]
@@ -568,7 +623,7 @@
     "graphics": [
      "0x3c"
     ],
-    "serials": 2,
+    "serials": 4,
     "tags": [
      "20261125_150950"
     ]
@@ -612,8 +667,19 @@
    "ai": "melee",
    "armor": 50,
    "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0xc"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 143.8,
    "gold_value": 1438,
+   "graphic": 12,
    "hits": 10000,
    "knowledge_ids": [
     10503,
@@ -652,8 +718,19 @@
    "ai": "melee",
    "armor": 50,
    "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x3c"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 92.8,
    "gold_value": 929,
+   "graphic": 60,
    "hits": 6000,
    "knowledge_ids": [
     10503,
@@ -693,11 +770,11 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 2,
     "graphics": [
      "0x25"
     ],
-    "serials": 1,
+    "serials": 2,
     "tags": [
      "20261125_150950"
     ]
@@ -738,11 +815,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 4,
     "graphics": [
      "0x9"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
      "20261125_150950"
     ]
@@ -786,11 +863,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 6,
     "graphics": [
      "0x31"
     ],
-    "serials": 3,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -831,11 +908,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 5,
     "graphics": [
      "0x1c"
     ],
-    "serials": 2,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -884,11 +961,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 4,
     "graphics": [
      "0x11d"
     ],
-    "serials": 4,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -929,11 +1006,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 5,
     "graphics": [
      "0x2c1"
     ],
-    "serials": 2,
+    "serials": 9,
     "tags": [
      "20261125_150950"
     ]
@@ -1007,8 +1084,19 @@
    "ai": "melee",
    "armor": 50,
    "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0xa0"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 122.7,
    "gold_value": 1227,
+   "graphic": 160,
    "hits": 8000,
    "knowledge_ids": [
     10734,
@@ -1042,11 +1130,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 3,
     "graphics": [
      "0x107"
     ],
-    "serials": 3,
+    "serials": 6,
     "tags": [
      "20261125_150950"
     ]
@@ -1087,11 +1175,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 11,
     "graphics": [
      "0x118"
     ],
-    "serials": 3,
+    "serials": 14,
     "tags": [
      "20261125_150950"
     ]
@@ -1132,11 +1220,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 3,
     "graphics": [
      "0x177"
     ],
-    "serials": 1,
+    "serials": 4,
     "tags": [
      "20261125_150950"
     ]
@@ -1177,11 +1265,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 8,
     "graphics": [
      "0x119"
     ],
-    "serials": 1,
+    "serials": 9,
     "tags": [
      "20261125_150950"
     ]
@@ -1267,11 +1355,11 @@
    "armor": 0,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 9,
     "graphics": [
      "0xd"
     ],
-    "serials": 1,
+    "serials": 10,
     "tags": [
      "20261125_150950"
     ]
@@ -1364,7 +1452,7 @@
     "graphics": [
      "0x8"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
      "20261125_150950"
     ]
@@ -1405,11 +1493,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 6,
     "graphics": [
      "0x49"
     ],
-    "serials": 4,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -1454,7 +1542,7 @@
     "graphics": [
      "0x190"
     ],
-    "serials": 1,
+    "serials": 3,
     "tags": [
      "20261125_150950"
     ]
@@ -1497,8 +1585,19 @@
    "ai": "melee",
    "armor": 75,
    "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x10e"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 15.7,
    "gold_value": 157,
+   "graphic": 270,
    "hits": 1500,
    "knowledge_ids": [
     10563,
@@ -1532,11 +1631,11 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 2,
     "graphics": [
      "0x25"
     ],
-    "serials": 1,
+    "serials": 2,
     "tags": [
      "20261125_150950"
     ]
@@ -1577,11 +1676,11 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 3,
     "graphics": [
      "0x25"
     ],
-    "serials": 1,
+    "serials": 4,
     "tags": [
      "20261125_150950"
     ]
@@ -1621,8 +1720,19 @@
    "ai": "melee",
    "armor": 100,
    "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 166.4,
    "gold_value": 1664,
+   "graphic": 37,
    "hits": 12000,
    "knowledge_ids": [
     10654,
@@ -1656,11 +1766,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 2,
     "graphics": [
      "0x173"
     ],
-    "serials": 2,
+    "serials": 4,
     "tags": [
      "20261125_150950"
     ]
@@ -1705,7 +1815,7 @@
     "graphics": [
      "0x1e"
     ],
-    "serials": 3,
+    "serials": 4,
     "tags": [
      "20261125_150950"
     ]
@@ -1746,11 +1856,11 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 10,
     "graphics": [
      "0x45"
     ],
-    "serials": 3,
+    "serials": 12,
     "tags": [
      "20261125_150950"
     ]
@@ -1791,11 +1901,11 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 9,
     "graphics": [
      "0x44"
     ],
-    "serials": 4,
+    "serials": 11,
     "tags": [
      "20261125_150950"
     ]
@@ -1839,11 +1949,11 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 4,
+    "deaths": 5,
     "graphics": [
      "0x47"
     ],
-    "serials": 6,
+    "serials": 10,
     "tags": [
      "20261125_150950"
     ]
@@ -1918,11 +2028,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 2,
     "graphics": [
      "0x2e2"
     ],
-    "serials": 4,
+    "serials": 8,
     "tags": [
      "20261125_150950"
     ]
@@ -2055,8 +2165,19 @@
    "ai": "melee",
    "armor": 100,
    "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
    "difficulty": 55.5,
    "gold_value": 556,
+   "graphic": 37,
    "hits": 4000,
    "knowledge_ids": [
     10667,
@@ -2090,11 +2211,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 6,
     "graphics": [
      "0x2e1"
     ],
-    "serials": 1,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -2143,11 +2264,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 8,
     "graphics": [
      "0x3a"
     ],
-    "serials": 6,
+    "serials": 13,
     "tags": [
      "20261125_150950"
     ]
@@ -2197,11 +2318,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 6,
     "graphics": [
      "0x16"
     ],
-    "serials": 1,
+    "serials": 7,
     "tags": [
      "20261125_150950"
     ]
@@ -2245,11 +2366,11 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 3,
     "graphics": [
      "0x2f"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
      "20261125_150950"
     ]
@@ -2293,11 +2414,11 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 7,
     "graphics": [
      "0x1e"
     ],
-    "serials": 2,
+    "serials": 10,
     "tags": [
      "20261125_150950"
     ]
