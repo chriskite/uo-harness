@@ -10623,7 +10623,17 @@ and `calibrate.Session` (region: the three levels' boxes); the scratch passes ar
   you to bleed and temporarily weaken your armor!'" (juncture 3630). That is the amethyst elemental's special (level 2,
   (5599, 2882)), not a restriction: the guard (`errand_bank.GATING`) exempted Tidal Tomb's "Razor-sharp" but not
   "Razor sharp" with a space. Fixed: `razor(?![a-z]|[- ]sharp)` (test_sim `test_tidal_specials5`). Logan was at
-  53/100 with 7 kills; the Seer started level 2's go-home run.
+  53/100 with 7 kills.
+- **Dead at 22:25:50** at (5599, 2882) on level 2 (capture 20261125_150950): the stopped run left Logan standing 2
+  from the amethyst elemental 0x004F087A, the pets on it, with nothing healing him. Its shards (animation action 5,
+  0.58 s later 30 then 33 on Logan, 28-37 on each pet within 2, 15.7 s apart) each leave a bleed of 5 ticks 3 s apart
+  (Logan 9, Bussin 7, AlaFlambe 8). 100 -> 70 -> 61 -> 52 -> 44 (a world save 22:25:40-43 in between) -> 36 -> 3 at the
+  second shards (22:25:47.67) -> the last tick. The Seer's go-home run (hunt-20261126-222546-2f88) started at 22:25:46
+  at 45/100 and died before its first step ("escape failed: died (mob): ghost body"). The pets were alive at 22:26
+  (Bussin 52 %, AlaFlambe 8 %), still on the elemental. The runner's songs were 18.4 % (22:22:04).
+- Built: the amethyst elemental's shards in the simulator (`petram.json` specials, song-corrected; a level 2 spawn at
+  (5608, 2873)); the runner now keeps 3 off it (`tamer.AREA_R`). Level 2, 32 runs after: 0 with a death, 118k gp a game
+  hour.
 
 ## Network observations
 
