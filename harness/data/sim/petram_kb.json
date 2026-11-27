@@ -1,0 +1,2342 @@
+{
+ "creatures": {
+  "aged earth": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0xe"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 27.5,
+   "gold_value": 275,
+   "graphic": 14,
+   "hits": 2500,
+   "knowledge_ids": [
+    10675,
+    15153
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an aged earth",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 75
+  },
+  "amber elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 70.3,
+   "gold_value": 703,
+   "hits": 5000,
+   "knowledge_ids": [
+    10661,
+    15154
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    35,
+    45
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an amber elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "amethyst elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 101.1,
+   "gold_value": 1012,
+   "hits": 7000,
+   "knowledge_ids": [
+    10654,
+    15155
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    45,
+    55
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an amethyst elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 100
+  },
+  "ancient earth": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0xe"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 59.1,
+   "gold_value": 592,
+   "graphic": 14,
+   "hits": 5000,
+   "knowledge_ids": [
+    10651,
+    15156
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ancient earth",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 90
+  },
+  "ankheg": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 5,
+    "graphics": [
+     "0x313"
+    ],
+    "serials": 5,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 107.2,
+   "gold_value": 1073,
+   "graphic": 787,
+   "hits": 8000,
+   "knowledge_ids": [
+    10502,
+    10581,
+    14484,
+    14707
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an ankheg",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14484; that the wild creature uses it is [INFERENCE]] Poison Dig (Cooldown): Teleports to a location up to 12 tiles away, hitting up to 3 targets within 2 tiles. Inflicts (DamageMax * 0.75) damage and applies greater poison, with damage increased by 50% if target already has greater poison or above."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "broken idol": {
+   "ai": "mage",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 37.2,
+   "gold_value": 373,
+   "hits": 2500,
+   "knowledge_ids": [
+    10602,
+    15157
+   ],
+   "location": "Mount Petram",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a broken idol",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "VerySlow",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 70
+  },
+  "cave bear": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0xd5"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 29.4,
+   "gold_value": 294,
+   "graphic": 213,
+   "hits": 2500,
+   "knowledge_ids": [
+    10502,
+    10555,
+    14475,
+    14583
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a cave bear",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Enrage (Passive): Has a 15% chance on melee attack to increase melee damage by 20% for 30 seconds (cannot stack)."
+   ],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 75
+  },
+  "citrine elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 42.3,
+   "gold_value": 423,
+   "hits": 3000,
+   "knowledge_ids": [
+    10662,
+    15158
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a citrine elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 90
+  },
+  "colossal trapdoor spider": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0xad"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 175.1,
+   "gold_value": 1752,
+   "graphic": 173,
+   "hits": 12000,
+   "knowledge_ids": [
+    10502,
+    10545,
+    14462,
+    14468,
+    14475,
+    15016
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a colossal trapdoor spider",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Vanish (Cooldown): Creature immediately enters stealth.",
+    "[tamed-version follower ability, knowledge #14462; that the wild creature uses it is [INFERENCE]] Web (Passive): Has a (5 + (Control Slots * 5%)) chance on melee attack to hinder creatures for 3 seconds or hamstring players for 2 seconds. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds.",
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Backstab (Innate): If stealthed, creature's next melee attack gains +25% accuracy and deals +150% damage."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.4,
+   "wrestling": 120
+  },
+  "deathstalk": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x60"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 112.2,
+   "gold_value": 1123,
+   "graphic": 96,
+   "hits": 8000,
+   "knowledge_ids": [
+    10786,
+    15159
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a deathstalk",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "devilbat": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x182"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 20.8,
+   "gold_value": 208,
+   "graphic": 386,
+   "hits": 1500,
+   "knowledge_ids": [
+    10503,
+    10569,
+    14475,
+    14480,
+    15372
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a devilbat",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14480; that the wild creature uses it is [INFERENCE]] Bleed (Passive): Has a 15% chance on melee attack to inflict (DamageMax * 1.0) bleed damage over 15 seconds.",
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Weaken (Passive): Has a 15% chance on attack to apply a weaken effect of (Control Slots * 4%) for 15 seconds."
+   ],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 85
+  },
+  "diamond elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 193.0,
+   "gold_value": 1930,
+   "hits": 14000,
+   "knowledge_ids": [
+    10676,
+    15160
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    65,
+    75
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a diamond elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 120
+  },
+  "dusk dragon": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0xc"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 143.8,
+   "gold_value": 1438,
+   "graphic": 12,
+   "hits": 10000,
+   "knowledge_ids": [
+    10503,
+    10592,
+    14481,
+    14866
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a dusk dragon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14481; that the wild creature uses it is [INFERENCE]] Massive Dusk Breath (Cooldown): Fires projectiles in a cone, hitting up to 3 targets. Inflicts (DamageMax * 0.9) damage which ignores half of target's armor, with the first target hit taking +50% damage. Applies a weaken effect of (Control Slots * 3%) for 15 seconds"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 110
+  },
+  "dusk drake": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x3c"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 92.8,
+   "gold_value": 929,
+   "graphic": 60,
+   "hits": 6000,
+   "knowledge_ids": [
+    10503,
+    10591,
+    14481,
+    14863
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a dusk drake",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14481; that the wild creature uses it is [INFERENCE]] Massive Dusk Breath (Cooldown): Fires projectiles in a cone, hitting up to 3 targets. Inflicts (DamageMax * 0.9) damage which ignores half of target's armor, with the first target hit taking +50% damage. Applies a weaken effect of (Control Slots * 3%) for 15 seconds"
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "earth dragon": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 143.8,
+   "gold_value": 1438,
+   "hits": 10000,
+   "knowledge_ids": [
+    10503,
+    10591,
+    14479,
+    14486,
+    14697
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an earth dragon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Earth Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, inflicting (DamageMax * 2.0) damage",
+    "[tamed-version follower ability, knowledge #14486; that the wild creature uses it is [INFERENCE]] Earth Shield (Cooldown): Creates a shield around the creature that increases melee damage by 15% and armor by 30 for 60 seconds (cannot stack)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 110
+  },
+  "earth drake": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 92.8,
+   "gold_value": 929,
+   "hits": 6000,
+   "knowledge_ids": [
+    10503,
+    10591,
+    14479,
+    14486,
+    14694
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an earth drake",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14479; that the wild creature uses it is [INFERENCE]] Earth Breath (Cooldown): Fires a projectile at a target up to 12 tiles away, inflicting (DamageMax * 2.0) damage",
+    "[tamed-version follower ability, knowledge #14486; that the wild creature uses it is [INFERENCE]] Earth Shield (Cooldown): Creates a shield around the creature that increases melee damage by 15% and armor by 30 for 60 seconds (cannot stack)."
+   ],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 100
+  },
+  "emerald elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 141.4,
+   "gold_value": 1415,
+   "graphic": 37,
+   "hits": 10000,
+   "knowledge_ids": [
+    10653,
+    15161
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    55,
+    65
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "an emerald elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 110
+  },
+  "fen daemon": {
+   "ai": "meleemage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x9"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 208.7,
+   "gold_value": 2088,
+   "graphic": 9,
+   "hits": 16000,
+   "knowledge_ids": [
+    10632,
+    15162
+   ],
+   "location": "Mount Petram",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a fen daemon",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "60%",
+   "poisoning": null,
+   "slayer": "Daemonic",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 130
+  },
+  "fungaloid": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x31"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 84.0,
+   "gold_value": 840,
+   "graphic": 49,
+   "hits": 6000,
+   "knowledge_ids": [
+    10808,
+    15163
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a fungaloid",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 90
+  },
+  "giant trapdoor spider": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x1c"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 46.7,
+   "gold_value": 468,
+   "graphic": 28,
+   "hits": 3000,
+   "knowledge_ids": [
+    10504,
+    10592,
+    14462,
+    14468,
+    14475,
+    15014
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    25,
+    35
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a giant trapdoor spider",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Vanish (Cooldown): Creature immediately enters stealth.",
+    "[tamed-version follower ability, knowledge #14462; that the wild creature uses it is [INFERENCE]] Web (Passive): Has a (5 + (Control Slots * 5%)) chance on melee attack to hinder creatures for 3 seconds or hamstring players for 2 seconds. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds.",
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Backstab (Innate): If stealthed, creature's next melee attack gains +25% accuracy and deals +150% damage."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.4,
+   "wrestling": 75
+  },
+  "lichenid": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x11d"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 118.6,
+   "gold_value": 1186,
+   "graphic": 285,
+   "hits": 8000,
+   "knowledge_ids": [
+    10786,
+    15171
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lichenid",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.1,
+   "wrestling": 130
+  },
+  "living earth": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x2c1"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 102.3,
+   "gold_value": 1023,
+   "graphic": 705,
+   "hits": 7000,
+   "knowledge_ids": [
+    10655,
+    15173
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a living earth",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 100
+  },
+  "lodestone": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 544.2,
+   "gold_value": 50000,
+   "hits": 100000,
+   "knowledge_ids": [
+    10408,
+    10655
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lodestone",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.8,
+   "wrestling": 90
+  },
+  "lurker": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "difficulty": 122.7,
+   "gold_value": 1227,
+   "hits": 8000,
+   "knowledge_ids": [
+    10734,
+    15174
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a lurker",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 90
+  },
+  "minotaur": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x107"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 84.6,
+   "gold_value": 847,
+   "graphic": 263,
+   "hits": 6000,
+   "knowledge_ids": [
+    10745,
+    15175
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a minotaur",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 100
+  },
+  "minotaur battleborne": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x118"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 141.4,
+   "gold_value": 1415,
+   "graphic": 280,
+   "hits": 8000,
+   "knowledge_ids": [
+    10744,
+    15176
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a minotaur battleborne",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 120
+  },
+  "minotaur berserker": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x177"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 101.0,
+   "gold_value": 1011,
+   "graphic": 375,
+   "hits": 6000,
+   "knowledge_ids": [
+    10731,
+    15177
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a minotaur berserker",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.4,
+   "wrestling": 90
+  },
+  "minotaur runesmith": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x119"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 127.4,
+   "gold_value": 1274,
+   "graphic": 281,
+   "hits": 8000,
+   "knowledge_ids": [
+    10732,
+    15178
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 200,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a minotaur runesmith",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 110
+  },
+  "moss giant": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x17c"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 167.2,
+   "gold_value": 1673,
+   "graphic": 380,
+   "hits": 12000,
+   "knowledge_ids": [
+    10790,
+    15179
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a moss giant",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.35,
+   "wrestling": 100
+  },
+  "mountain air": {
+   "ai": "meleemage",
+   "armor": 0,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0xd"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 52.2,
+   "gold_value": 523,
+   "graphic": 13,
+   "hits": 4000,
+   "knowledge_ids": [
+    10676,
+    15180
+   ],
+   "location": "Mount Petram",
+   "magery": 75,
+   "magic_resist": 100,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a mountain air",
+   "parry": 50,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": [
+    15,
+    25
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 110
+  },
+  "mountain harpy": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x1e"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 25.5,
+   "gold_value": 256,
+   "graphic": 30,
+   "hits": 2000,
+   "knowledge_ids": [
+    10749,
+    15181
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a mountain harpy",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 70
+  },
+  "mountain vines": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x8"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 20.3,
+   "gold_value": 204,
+   "graphic": 8,
+   "hits": 2000,
+   "knowledge_ids": [
+    10813,
+    15182
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a mountain vines",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "SuperSlow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 75
+  },
+  "noxweed": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x49"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 93.3,
+   "gold_value": 933,
+   "graphic": 73,
+   "hits": 6000,
+   "knowledge_ids": [
+    10780,
+    15183
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a noxweed",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "60%",
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.5,
+   "wrestling": 100
+  },
+  "petram cultist": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x190"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 106.7,
+   "gold_value": 1068,
+   "graphic": 400,
+   "hits": 6000,
+   "knowledge_ids": [
+    10729,
+    15184
+   ],
+   "location": "Mount Petram",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a petram cultist",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Humanoid",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 100
+  },
+  "rock guar": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 15.7,
+   "gold_value": 157,
+   "hits": 1500,
+   "knowledge_ids": [
+    10563,
+    14808
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a rock guar",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 75
+  },
+  "ruby elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 85.4,
+   "gold_value": 854,
+   "graphic": 37,
+   "hits": 6000,
+   "knowledge_ids": [
+    10676,
+    15185
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a ruby elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 95
+  },
+  "sapphire elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x25"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 117.4,
+   "gold_value": 1175,
+   "graphic": 37,
+   "hits": 8000,
+   "knowledge_ids": [
+    10661,
+    15186
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a sapphire elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 105
+  },
+  "star sapphire elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 166.4,
+   "gold_value": 1664,
+   "hits": 12000,
+   "knowledge_ids": [
+    10654,
+    15187
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    60,
+    70
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a star sapphire elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 115
+  },
+  "stinger": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x173"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 18.1,
+   "gold_value": 181,
+   "graphic": 371,
+   "hits": 1500,
+   "knowledge_ids": [
+    10540,
+    15010
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a stinger",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "VeryFast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 85
+  },
+  "stone harpy": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x1e"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 21.8,
+   "gold_value": 219,
+   "graphic": 30,
+   "hits": 2000,
+   "knowledge_ids": [
+    10740,
+    15188
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a stone harpy",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 75
+  },
+  "terathan broodguard": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x45"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 139.6,
+   "gold_value": 1397,
+   "graphic": 69,
+   "hits": 8000,
+   "knowledge_ids": [
+    10747,
+    15189
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan broodguard",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 50,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.2,
+   "wrestling": 130
+  },
+  "terathan broodwitch": {
+   "ai": "meleemage",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x44"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 119.4,
+   "gold_value": 1195,
+   "graphic": 68,
+   "hits": 8000,
+   "knowledge_ids": [
+    10775,
+    15190
+   ],
+   "location": "Mount Petram",
+   "magery": 150,
+   "magic_resist": 175,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan broodwitch",
+   "parry": null,
+   "poison": "Deadly",
+   "poison_resist": "60%",
+   "poisoning": 50,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    30,
+    40
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 120
+  },
+  "terathan drone": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 4,
+    "graphics": [
+     "0x47"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 25.8,
+   "gold_value": 258,
+   "graphic": 71,
+   "hits": 2000,
+   "knowledge_ids": [
+    10748,
+    15191
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan drone",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 70
+  },
+  "terathan goliath": {
+   "ai": "melee",
+   "armor": 75,
+   "attack_speed": null,
+   "difficulty": 1390.0,
+   "gold_value": 100000,
+   "hits": 200000,
+   "knowledge_ids": [
+    10755,
+    11824
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    50,
+    60
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan goliath",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "40%",
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 2.0,
+   "wrestling": 100
+  },
+  "terathan larva": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x2e2"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 14.1,
+   "gold_value": 142,
+   "graphic": 738,
+   "hits": 1500,
+   "knowledge_ids": [
+    10565,
+    15192
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    10,
+    20
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan larva",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Beastial",
+   "specials": [],
+   "speed": "Fast",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 65
+  },
+  "terathan matron": {
+   "ai": "meleemage",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x48"
+    ],
+    "serials": 4,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 82.4,
+   "gold_value": 824,
+   "graphic": 72,
+   "hits": 6000,
+   "knowledge_ids": [
+    10773,
+    15193
+   ],
+   "location": "Mount Petram",
+   "magery": 100,
+   "magic_resist": 125,
+   "melee_damage": [
+    40,
+    50
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan matron",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    20,
+    30
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 110
+  },
+  "terathan warrior": {
+   "ai": "melee",
+   "armor": 50,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x46"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 70.0,
+   "gold_value": 701,
+   "graphic": 70,
+   "hits": 5000,
+   "knowledge_ids": [
+    10761,
+    15194
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a terathan warrior",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.3,
+   "wrestling": 90
+  },
+  "tourmaline elemental": {
+   "ai": "melee",
+   "armor": 100,
+   "attack_speed": null,
+   "difficulty": 55.5,
+   "gold_value": 556,
+   "hits": 4000,
+   "knowledge_ids": [
+    10667,
+    15195
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a tourmaline elemental",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": false,
+   "unique_scaler": 1.25,
+   "wrestling": 85
+  },
+  "trapdoor spider": {
+   "ai": "melee",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x2e1"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 21.9,
+   "gold_value": 220,
+   "graphic": 737,
+   "hits": 1500,
+   "knowledge_ids": [
+    10504,
+    10546,
+    14062,
+    14462,
+    14468,
+    14475
+   ],
+   "location": "Mount Petram",
+   "magery": null,
+   "magic_resist": 25,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a trapdoor spider",
+   "parry": null,
+   "poison": "Greater",
+   "poison_resist": "40%",
+   "poisoning": 50,
+   "slayer": "Beastial",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14475; that the wild creature uses it is [INFERENCE]] Vanish (Cooldown): Creature immediately enters stealth.",
+    "[tamed-version follower ability, knowledge #14462; that the wild creature uses it is [INFERENCE]] Web (Passive): Has a (5 + (Control Slots * 5%)) chance on melee attack to hinder creatures for 3 seconds or hamstring players for 2 seconds. Chance is reduced to 33% of normal if creature has previously triggered this ability within last 15 seconds.",
+    "[tamed-version follower ability, knowledge #14468; that the wild creature uses it is [INFERENCE]] Backstab (Innate): If stealthed, creature's next melee attack gains +25% accuracy and deals +150% damage."
+   ],
+   "speed": "Slow",
+   "spell_damage": null,
+   "stealth": true,
+   "unique_scaler": 1.4,
+   "wrestling": 65
+  },
+  "volt wisp": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 3,
+    "graphics": [
+     "0x3a"
+    ],
+    "serials": 6,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 138.1,
+   "gold_value": 1381,
+   "graphic": 58,
+   "hits": 6000,
+   "knowledge_ids": [
+    10505,
+    10660,
+    14476,
+    14486,
+    14657
+   ],
+   "location": "Mount Petram",
+   "magery": 175,
+   "magic_resist": 200,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a volt wisp",
+   "parry": 25,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Elemental",
+   "specials": [
+    "[tamed-version follower ability, knowledge #14486; that the wild creature uses it is [INFERENCE]] Shock (Passive): Has a 15% chance on spellcast to deal (DamageMax * 1.0) damage that ignores half of target's armor. Hinders creatures for (Control Slots * 1) seconds or hamstrings players for 2 seconds",
+    "[tamed-version follower ability, knowledge #14476; that the wild creature uses it is [INFERENCE]] Elusive Form (Innate): Creature has an innate 25 parry skill against melee attacks."
+   ],
+   "speed": "Medium",
+   "spell_damage": [
+    35,
+    45
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 130
+  },
+  "watcher idol": {
+   "ai": "mage",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 0,
+    "graphics": [
+     "0x16"
+    ],
+    "serials": 1,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 45.2,
+   "gold_value": 453,
+   "graphic": 22,
+   "hits": 3000,
+   "knowledge_ids": [
+    10604,
+    15196
+   ],
+   "location": "Mount Petram",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    15,
+    25
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a watcher idol",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Construct",
+   "specials": [],
+   "speed": "VerySlow",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 70
+  },
+  "wicked willow": {
+   "ai": "mage",
+   "armor": 75,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 2,
+    "graphics": [
+     "0x2f"
+    ],
+    "serials": 3,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 43.1,
+   "gold_value": 432,
+   "graphic": 47,
+   "hits": 4000,
+   "knowledge_ids": [
+    10812,
+    15197
+   ],
+   "location": "Mount Petram",
+   "magery": 50,
+   "magic_resist": 75,
+   "melee_damage": [
+    20,
+    30
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a wicked willow",
+   "parry": null,
+   "poison": null,
+   "poison_resist": "80%",
+   "poisoning": null,
+   "slayer": "Nature",
+   "specials": [],
+   "speed": "SuperSlow",
+   "spell_damage": [
+    10,
+    20
+   ],
+   "stealth": false,
+   "unique_scaler": 1.0,
+   "wrestling": 60
+  },
+  "witch harpy": {
+   "ai": "mage",
+   "armor": 25,
+   "attack_speed": null,
+   "capture": {
+    "deaths": 1,
+    "graphics": [
+     "0x1e"
+    ],
+    "serials": 2,
+    "tags": [
+     "20261125_150950"
+    ]
+   },
+   "difficulty": 110.3,
+   "gold_value": 1103,
+   "graphic": 30,
+   "hits": 6000,
+   "knowledge_ids": [
+    10768,
+    15198
+   ],
+   "location": "Mount Petram",
+   "magery": 125,
+   "magic_resist": 150,
+   "melee_damage": [
+    30,
+    40
+   ],
+   "missing": [
+    "attack_speed"
+   ],
+   "name": "a witch harpy",
+   "parry": null,
+   "poison": null,
+   "poison_resist": null,
+   "poisoning": null,
+   "slayer": "Monstrous",
+   "specials": [],
+   "speed": "Medium",
+   "spell_damage": [
+    25,
+    35
+   ],
+   "stealth": false,
+   "unique_scaler": 1.14,
+   "wrestling": 100
+  }
+ },
+ "mechanics": {},
+ "source": "harness/sim/kb_scan.py --location 'Mount Petram' (wiki rows of the memory store)"
+}
