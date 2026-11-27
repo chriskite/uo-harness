@@ -4093,9 +4093,9 @@ User: "Compare Logan's distance to monsters live versus the sim". Sampled once a
     20 / 0, tourmaline, sapphire and diamond elementals 10-14 / 0.
   - So the level 3 spawn mix and counts are off: too many terathans, wisps and spiders where Logan hunts, too few
     elementals and dragons. That's the next calibration [INFERENCE: spawn counts and respawn, not the runner].
-- **Live, the pets fight within 4 of Logan:** 97 % of their fights. In the sim a third of their fight time is 5-18
-  tiles off him. The sim's pets range out after targets [INFERENCE: chasing], and so Logan stands out of the fights'
-  areas.
+- **Live, the pets fight within 4 of Logan:** 84 % of their fight time (13.5 of 16.1 % of samples). In the sim it's
+  37 %; 63 % of their fight time is 5-18 tiles off him. The sim's pets range out after targets [INFERENCE: chasing],
+  and so Logan stands out of the fights' areas.
 - **The damage gap needs a live breakdown of Logan's damage by attacker** (the sim's run.py has `player_damage_by`;
   live has none yet).
 
