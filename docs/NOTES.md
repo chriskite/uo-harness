@@ -10730,6 +10730,20 @@ The user: "Run another Petram level 3 shift so we get more data for the simulato
   - the battleborne's charge: 9, 1.01-1.05 s, pets 39-45, one battleborne again 17.4 and 18.5 s later (cooldown 18 s,
     not once a fight).
 - **No new spawns:** all 344 first sightings were within view of the earlier visits.
+- **The holds** (measured 2026-11-27 over both captures; the simulator models them now, docs/SIM.md "The holds").
+  - **The buff:** each hold line on Logan comes with a 0xDF buff on him, icon 19 (paralyze: the shock, the knockdown,
+    the earth rise, the web) or 20 (Entangle: the vines, 'ensnared'). Its length is the buff's timer end minus its
+    timestamp (server ms). The server takes the knockdown's and the earth rise's buff off early (0.54-0.99 s into a
+    2.5 s buff).
+  - **The runesmith's shock:** 3.0 s, on every blast that hit Logan (3).
+  - **The moss giant's knockdown:** at 2-3 tiles, 4 of 5 slams.
+  - **The living earth's 'The earth rises beneath you!':** its action 5, 0.95-1.11 s later, 34-44 on each pet within
+    2 and 18-35 on Logan, every ~8 s. This is an area hit, not a swing.
+  - **The lichenid's vines:** its action 11, 1.51-1.56 s later, 5.0 s, no number, on Logan at 5-10 tiles in 7 of
+    31 casts.
+  - **The web at the death:** a colossal trapdoor spider's action 11 1.28 s before; 3.0 s buff, taken off 2.31 s in.
+  - **The hamstring:** a 3.0 s slow, not a hold.
+  - **The runner's log** shows the same lengths: "free to move again after 0.7-3.7 s", 10 "held in place".
 
 ## Network observations
 

@@ -4030,6 +4030,36 @@ Level 3, 32 runs each, before (the scenario at f519620) and after; per hour on t
 - **Levels 1 and 2 after** (32 runs each): level 1 0 deaths, 256 kills, 113 on Logan, 60,413 gp an hour; level 2 0
   deaths, 211 kills, 298 on Logan, 119,181 gp an hour.
 
+### The holds (2026-11-27)
+
+User: "Why don't you model those things that stop Logan moving?" They had stayed out for want of a duration. The
+captures carry one: every hold on Logan comes with a buff (0xDF) giving its length in server milliseconds, and the
+server takes some off early (a buff_remove). Measured over both captures (docs/NOTES.md "Mount Petram: the second level
+3 shift", the holds), now a `root` rider on each burst (`world._root`: no step until it ends):
+
+| hold | from | buff | held live | casts / on Logan | `hold_s` |
+|---|---|---|---|---|---|
+| "You have been shocked and cannot move!" | the runesmith's blast | 3,000 ms | full | 20 / 3 (at 3-4) | 3.0 |
+| "You have been knocked off your feet!" | the moss giant's slam | 2,500 ms | taken off 0.54-0.87 s in | 36 / 4 (at 2-3) | 0.85 |
+| "The earth rises beneath you!" | the living earth's action 5 | 2,500 ms | taken off 0.85-0.99 s in | 19 / 3 (at 2) | 0.9 |
+| "You are entangled in vines!" | the lichenid's action 11 | 5,000 ms | full | 31 / 7 (at 5-10) | 5.0 |
+
+- **The living earth's earth rise was unmodelled damage too:** a burst around it (radius 2, every 8 s, 34-44 on a pet).
+  Its numbers had sat in its swing (21-80 every 2.17 s); `melee_observed` now holds its clean swing (19-28, every
+  3.9 s).
+- **Not modelled still:** the colossal trapdoor spider's web (n=1: Logan's death, 49 and held 2.3 s). Its other casts'
+  numbers don't line up.
+- **What it changed, level 3, 32 runs:** 0 runs with a death, 1 with a pet death, 3 leaving a pet; 155 kills, 419 on
+  Logan (479 before: the living earth's swing was overcounted), 10 potions, 156 vet, 144,224 gp an hour.
+- **Logan is held 2 times in 3 sim runs, and about 17 times in the live runner's ~2 h on level 3.** The pets were held
+  66 times.
+  - The simulated Logan seldom stands within the holds' reach. The runner keeps him 5 off a runesmith (`tamer.AREA_R`).
+  - The lichenids hold whom they target, and in the sim they target the pets. Live, Logan was held at 5-10 tiles from
+    one.
+  - So the holds don't explain the gap. Where Logan stands does [INFERENCE]: live he is in reach of the monsters' areas
+    far more often, and he takes twice the damage. The next measurement: Logan's distance to each hostile, live
+    against sim.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
