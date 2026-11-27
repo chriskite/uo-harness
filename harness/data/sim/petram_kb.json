@@ -5,13 +5,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 16,
+    "deaths": 18,
     "graphics": [
      "0xe"
     ],
-    "serials": 23,
+    "serials": 36,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 27.5,
@@ -54,9 +55,10 @@
     "graphics": [
      "0x25"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 70.3,
@@ -95,13 +97,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 4,
     "graphics": [
      "0x25"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 101.1,
@@ -140,13 +143,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 6,
+    "deaths": 9,
     "graphics": [
      "0xe"
     ],
-    "serials": 10,
+    "serials": 21,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 59.1,
@@ -185,13 +189,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 7,
+    "deaths": 24,
     "graphics": [
      "0x313"
     ],
-    "serials": 7,
+    "serials": 27,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 107.2,
@@ -238,9 +243,10 @@
     "graphics": [
      "0x30a"
     ],
-    "serials": 6,
+    "serials": 11,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 37.2,
@@ -286,9 +292,10 @@
     "graphics": [
      "0xd5"
     ],
-    "serials": 3,
+    "serials": 6,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 29.4,
@@ -337,7 +344,8 @@
     ],
     "serials": 1,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 42.3,
@@ -376,13 +384,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 4,
+    "deaths": 12,
     "graphics": [
      "0xad"
     ],
-    "serials": 7,
+    "serials": 19,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 175.1,
@@ -429,13 +438,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 4,
+    "deaths": 19,
     "graphics": [
      "0x60"
     ],
-    "serials": 5,
+    "serials": 20,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 112.2,
@@ -478,9 +488,10 @@
     "graphics": [
      "0x182"
     ],
-    "serials": 5,
+    "serials": 7,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 20.8,
@@ -525,13 +536,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 2,
     "graphics": [
      "0x25"
     ],
-    "serials": 1,
+    "serials": 2,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 193.0,
@@ -574,9 +586,10 @@
     "graphics": [
      "0xc"
     ],
-    "serials": 4,
+    "serials": 9,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 143.8,
@@ -619,13 +632,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 2,
     "graphics": [
      "0x3c"
     ],
-    "serials": 4,
+    "serials": 9,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 92.8,
@@ -668,13 +682,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 4,
+    "deaths": 10,
     "graphics": [
      "0xc"
     ],
-    "serials": 5,
+    "serials": 13,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 143.8,
@@ -719,13 +734,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 10,
     "graphics": [
      "0x3c"
     ],
-    "serials": 3,
+    "serials": 10,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 92.8,
@@ -770,13 +786,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 4,
     "graphics": [
      "0x25"
     ],
-    "serials": 2,
+    "serials": 5,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 141.4,
@@ -815,13 +832,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 4,
+    "deaths": 8,
     "graphics": [
      "0x9"
     ],
-    "serials": 5,
+    "serials": 9,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 208.7,
@@ -863,13 +881,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 6,
+    "deaths": 21,
     "graphics": [
      "0x31"
     ],
-    "serials": 7,
+    "serials": 24,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 84.0,
@@ -908,13 +927,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 5,
+    "deaths": 6,
     "graphics": [
      "0x1c"
     ],
-    "serials": 7,
+    "serials": 11,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 46.7,
@@ -961,13 +981,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 4,
+    "deaths": 19,
     "graphics": [
      "0x11d"
     ],
-    "serials": 7,
+    "serials": 24,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 118.6,
@@ -1006,13 +1027,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 5,
+    "deaths": 20,
     "graphics": [
      "0x2c1"
     ],
-    "serials": 9,
+    "serials": 25,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 102.3,
@@ -1085,13 +1107,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 7,
     "graphics": [
      "0xa0"
     ],
-    "serials": 3,
+    "serials": 7,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 122.7,
@@ -1130,13 +1153,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 7,
     "graphics": [
      "0x107"
     ],
-    "serials": 6,
+    "serials": 13,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 84.6,
@@ -1175,13 +1199,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 11,
+    "deaths": 21,
     "graphics": [
      "0x118"
     ],
-    "serials": 14,
+    "serials": 26,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 141.4,
@@ -1220,13 +1245,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 8,
     "graphics": [
      "0x177"
     ],
-    "serials": 4,
+    "serials": 12,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 101.0,
@@ -1265,13 +1291,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 8,
+    "deaths": 19,
     "graphics": [
      "0x119"
     ],
-    "serials": 9,
+    "serials": 25,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 127.4,
@@ -1310,13 +1337,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 16,
     "graphics": [
      "0x17c"
     ],
-    "serials": 3,
+    "serials": 18,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 167.2,
@@ -1355,13 +1383,14 @@
    "armor": 0,
    "attack_speed": null,
    "capture": {
-    "deaths": 9,
+    "deaths": 18,
     "graphics": [
      "0xd"
     ],
-    "serials": 10,
+    "serials": 19,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 52.2,
@@ -1407,9 +1436,10 @@
     "graphics": [
      "0x1e"
     ],
-    "serials": 2,
+    "serials": 3,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 25.5,
@@ -1452,9 +1482,10 @@
     "graphics": [
      "0x8"
     ],
-    "serials": 5,
+    "serials": 7,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 20.3,
@@ -1493,13 +1524,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 6,
+    "deaths": 24,
     "graphics": [
      "0x49"
     ],
-    "serials": 7,
+    "serials": 27,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 93.3,
@@ -1538,13 +1570,15 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 5,
     "graphics": [
-     "0x190"
+     "0x190",
+     "0x191"
     ],
-    "serials": 3,
+    "serials": 7,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 106.7,
@@ -1586,13 +1620,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 0,
+    "deaths": 1,
     "graphics": [
      "0x10e"
     ],
-    "serials": 3,
+    "serials": 6,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 15.7,
@@ -1637,7 +1672,8 @@
     ],
     "serials": 2,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 85.4,
@@ -1676,13 +1712,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 3,
+    "deaths": 5,
     "graphics": [
      "0x25"
     ],
-    "serials": 4,
+    "serials": 7,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 117.4,
@@ -1721,13 +1758,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 3,
     "graphics": [
      "0x25"
     ],
-    "serials": 2,
+    "serials": 3,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 166.4,
@@ -1770,9 +1808,10 @@
     "graphics": [
      "0x173"
     ],
-    "serials": 4,
+    "serials": 5,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 18.1,
@@ -1815,9 +1854,10 @@
     "graphics": [
      "0x1e"
     ],
-    "serials": 4,
+    "serials": 5,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 21.8,
@@ -1856,13 +1896,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 10,
+    "deaths": 19,
     "graphics": [
      "0x45"
     ],
-    "serials": 12,
+    "serials": 22,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 139.6,
@@ -1901,13 +1942,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 9,
+    "deaths": 12,
     "graphics": [
      "0x44"
     ],
-    "serials": 11,
+    "serials": 16,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 119.4,
@@ -1949,13 +1991,14 @@
    "armor": 50,
    "attack_speed": null,
    "capture": {
-    "deaths": 5,
+    "deaths": 6,
     "graphics": [
      "0x47"
     ],
-    "serials": 10,
+    "serials": 11,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 25.8,
@@ -2028,13 +2071,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 2,
+    "deaths": 4,
     "graphics": [
      "0x2e2"
     ],
-    "serials": 8,
+    "serials": 10,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 14.1,
@@ -2079,7 +2123,8 @@
     ],
     "serials": 4,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 82.4,
@@ -2127,7 +2172,8 @@
     ],
     "serials": 3,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 70.0,
@@ -2166,13 +2212,14 @@
    "armor": 100,
    "attack_speed": null,
    "capture": {
-    "deaths": 1,
+    "deaths": 2,
     "graphics": [
      "0x25"
     ],
-    "serials": 3,
+    "serials": 5,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 55.5,
@@ -2211,13 +2258,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 6,
+    "deaths": 11,
     "graphics": [
      "0x2e1"
     ],
-    "serials": 7,
+    "serials": 16,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 21.9,
@@ -2264,13 +2312,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 8,
+    "deaths": 22,
     "graphics": [
      "0x3a"
     ],
-    "serials": 13,
+    "serials": 31,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 138.1,
@@ -2318,13 +2367,14 @@
    "armor": 75,
    "attack_speed": null,
    "capture": {
-    "deaths": 6,
+    "deaths": 7,
     "graphics": [
      "0x16"
     ],
-    "serials": 7,
+    "serials": 11,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 45.2,
@@ -2370,9 +2420,10 @@
     "graphics": [
      "0x2f"
     ],
-    "serials": 5,
+    "serials": 6,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 43.1,
@@ -2414,13 +2465,14 @@
    "armor": 25,
    "attack_speed": null,
    "capture": {
-    "deaths": 7,
+    "deaths": 20,
     "graphics": [
      "0x1e"
     ],
-    "serials": 10,
+    "serials": 23,
     "tags": [
-     "20261125_150950"
+     "20261125_150950",
+     "20261127_111908"
     ]
    },
    "difficulty": 110.3,

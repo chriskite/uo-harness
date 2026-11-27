@@ -10697,6 +10697,40 @@ The second level 3 run, after the resurrection.
   - "The earth rises beneath you!" once, its source unknown.
 - **Simulator recalibration from it:** docs/SIM.md "The first live shift".
 
+## Mount Petram: the second level 3 shift, dead to a red (2026-11-27 11:21-12:51, hunt-20261127-112111-f277)
+
+The user: "Run another Petram level 3 shift so we get more data for the simulator". One run, 6 visits, capture
+20261127_111908.
+
+- **On level 3** (4,129 s): 128 kills, 1,209 on Logan (the red's included), 150 vet, 29 potions, Discordance 91/48,
+  Peacemaking 30/16, 127,053 gp lifted. Both teleporters fired as seeded; the 'All Patrol' by the creek went to a
+  spot the pets reached ("the pets are on it" 4 s later).
+- **12:15:38, the first red** (MrMarshall 0x0018C80E, 18 tiles): the red leave got out by rope jumps and a 134-step
+  route, "there before MrMarshall can cut it off", Totem, home at 91/100, both pets.
+- **12:50:41, the second red, dead at 12:51:16.**
+  - **The red:** Lady Apocrypha 0x001F6CB7 ([F], a caster), 17 tiles west at (5699, 2908), between Logan (5716,
+    2908) and level 3's only exit, the crimson gate (5690, 2885). There is no gold gate there and no known way up.
+  - **The flight:** "the way passes Lady Apocrypha ... and every way from here does (a dead end): past them at once,
+    round them as far as the way allows". Two rope jumps, then a 149-step loop east and north back to the gate.
+  - **Her fire:** she chased, casting Corp Por (23-31 on Logan), Explosion, Lightning and Deadly Poison ('*stumbles
+    around in confusion and pain*'). Three potions and the vet kept him at 36-87.
+  - **The web:** at 12:51:13, 54 steps from the gate, a colossal trapdoor spider at (5731, 2873) (its action 11 at
+    12:51:12.58) put "You are trapped and helpless in a web!" and 49 on him, holding him 1.4 s ("to the moongate:
+    held in place; waiting it out"); then 23 more.
+  - **After:** dead at (5736, 2872), "recall failed: moongate: died (pk)". Bussin and AlaFlambe stayed by the body.
+  - The user ended the shift there and chose not to change the red flight for now ("record it, keep collecting
+    data"). Open: the only gate on level 3 behind a red, and a flight loop through spawns (the web).
+- **Specials, more samples** (`petram.json`):
+  - the ankheg's dig: 22 digs, 15 reaching us, 1.56-1.99 s after '*digs*', pets 34-61 (median 36), Logan 31-40 at
+    18.4 %;
+  - the moss giant's slam: 28 casts, 1.01-1.06 s, the pets 55-63 at 1-3 (raw, as on the user's visit at 6.1 %: the
+    song doesn't seem to cut it [INFERENCE]), Logan hit at 3 once and missed at 4 ten times (radius 3 holds);
+  - the runesmith's blast: 12 casts, 1.51-1.54 s, the pets 39-44 at 3-4, Logan hit at 4 once and missed at 5 three
+    times (radius 4 holds);
+  - the battleborne's charge: 9, 1.01-1.05 s, pets 39-45, one battleborne again 17.4 and 18.5 s later (cooldown 18 s,
+    not once a fight).
+- **No new spawns:** all 344 first sightings were within view of the earlier visits.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

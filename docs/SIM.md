@@ -3993,6 +3993,43 @@ at 698aee2) and after; per hour on the level, the live row the runner's own:
 - **Levels 1 and 2 after** (32 runs each): level 1 0 deaths, 258 kills, 109 on Logan, 60,605 gp an hour; level 2 0
   deaths, 211 kills, 303 on Logan, 119,469 gp an hour, no pet death or pet left on either.
 
+### The second live shift (2026-11-27 11:21-12:51)
+
+User: "Run another Petram level 3 shift so we get more data for the simulator". One run of 6 visits, capture
+`20261127_111908` (`calibration.tags`). It ended in Logan's death to a red on level 3 (docs/NOTES.md "Mount Petram:
+the second level 3 shift, dead to a red").
+
+- **`petram_observed.json`** over all three sessions now: 54 creature types (52 before). Earth dragons and drakes
+  have captured swings now (31 and 23 a swing on the pets, n=12 and 11).
+- **No new spawns:** all 344 first sightings lay within view of the earlier visits.
+- **The specials re-measured with more samples** (docs/NOTES.md):
+  - the ankheg's dig numbers from 15 digs that reached us (pets 42-50, Logan 40-49 song-corrected), delay 1.7 s,
+    15.6 s apart;
+  - the battleborne's charge every 18 s, not once a fight;
+  - the slam's and the blast's radii held (Logan hit at 3 / 4, never at 4+ / 5+).
+- **The level 3 `trip`** is the runner's two shifts together: 6,315 s, 185 kills, 1,829 on Logan (the 11-27 red's
+  ~200 included), 42 potions, 204 vet, 172,791 gp.
+
+Level 3, 32 runs each, before (the scenario at f519620) and after; per hour on the level, the live row both shifts:
+
+| | runs with a death | with a pet death | leaving a pet | kills | damage on Logan | potions | vet | banked gp a game hour |
+|---|---|---|---|---|---|---|---|---|
+| before | 0 | 1 | 3 | 156 | 468 | 12 | 166 | 147,726 |
+| after | 0 | 0 | 3 | 155 | 479 | 12 | 168 | 147,362 |
+| live (the runner, both shifts) | 2 (a false guard abort; a red) | 0 | 0 | 105 | 1,043 | 24 | 116 | |
+
+- **The gap stands:** the simulator kills 1.5 x live and takes under half its damage on Logan (live without the red's
+  ~200: about 930 an hour).
+  - The data this shift added (better dig numbers, the charge's cadence, two more types' swings) moved no batch number.
+  - The gap lies elsewhere [INFERENCE]: other players taking kills; the holds that stop Logan (the shock, the knockdown,
+    the webs) and the dig's poison, none modelled; how close the live runner stands.
+  - What closes it needs a measurement of those, not more of the same samples.
+- **Red players on level 3:** four in three sessions (one by hand, three on the runner's second shift; one death).
+  There is still no `reds` block. Level 3 has one exit gate and no recall, so a red standing on the way to it leaves no
+  other way out (`reds_note`).
+- **Levels 1 and 2 after** (32 runs each): level 1 0 deaths, 256 kills, 113 on Logan, 60,413 gp an hour; level 2 0
+  deaths, 211 kills, 298 on Logan, 119,181 gp an hour.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
