@@ -10636,6 +10636,27 @@ and `calibrate.Session` (region: the three levels' boxes); the scratch passes ar
   (5608, 2873)); the runner now keeps 3 off it (`tamer.AREA_R`). Level 2, 32 runs after: 0 with a death, 118k gp a game
   hour.
 
+## Mount Petram: stranded on level 2's tile to level 3 (2026-11-26 22:38-22:40, hunt-20261126-223609-9e1c)
+
+The second level 3 run, after the resurrection.
+- **The tile didn't fire on NW.** It walked to (5572, 2880) and stepped NW onto level 2's tile (5571, 2879, -20): "on it
+  ..., no teleport on the step onto it; the move from it (direction 7) fires it". Three moves NW fired nothing, "no
+  teleport after 3 steps in direction 7". The seed's `dirs` said every direction (an [INFERENCE] from one move N by
+  the user).
+- **Stranded on the tile.**
+  - The escape's walk "to the teleporter at 5571,2879: no route onto it" (three tries) ended the run: Logan was on it,
+    so the route had no step onto it.
+  - The Seer's go-home run (level 2's command, hunt-20261126-223912-a445): "no way out from (5571, 2879): ... no route
+    to the leave gate". With every direction a firing one, the planner had no move off the tile that it allowed.
+  - Logan stood there, untouched, with the pets.
+- **A thief stole his shepherd's crook and his instrument** while he stood there (the user, 22:4x).
+- **Fixed:**
+  - The tile's `dirs` are [0], the move seen fire.
+  - `HuntLoop._onto` on the tile sends the firing move (`pathfind.fire_dir`; a plain teleporter: off it and back on,
+    `onto_teleporter`).
+  - The walk in's and the rush's legs start from it ("standing on it already") instead of "no route onto it".
+  - test_sim `test_petram_on_tile`.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

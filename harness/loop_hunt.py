@@ -2300,13 +2300,23 @@ class HuntLoop:
         """The step from beside the teleporter `tile` onto it (teleport). A one-way one (Mover.one_way: Shadowspire's
         strips) whose step from here wouldn't fire (the walk beside it ended at another height: level 2's landing is
         over its floor, the strip under its stair): a walk aimed at it instead, which the planner ends by its firing
-        step (sim 2026-11-08: "the step in direction 3 moved without a teleport" from the landing at z 33)."""
+        step (sim 2026-11-08: "the step in direction 3 moved without a teleport" from the landing at z 33). Already on
+        it: a one-way one's firing move from here, a plain one off it and back on (onto_teleporter). Live 2026-11-26
+        22:38:45 (hunt-20261126-223609-9e1c) Logan stood on Mount Petram's (5571, 2879) after three moves NW that
+        didn't fire, and the escape's walk "to the teleporter at 5571,2879: no route onto it" ended the run there."""
         st = self.link.state()
         here = self.pos(st)
         facet = st["world"]["self"].get("map")
-        d = nav.direction(tuple(here[:2]), tuple(tile[:2]))
         what = f"the teleporter at {tile[0]},{tile[1]}"
         rule = self.mover.one_way(facet).get(tuple(tile[:2]))
+        if tuple(here[:2]) == tuple(tile[:2]):
+            if rule is None:
+                self.onto_teleporter(label, tuple(tile[:2]))
+                return
+            log(f"{label}: on {what} at {tuple(here[:3])}; the move from it fires it")
+            self.teleport(pathfind.fire_dir(rule, here[3] if len(here) > 3 and here[3] is not None else 0), what)
+            return
+        d = nav.direction(tuple(here[:2]), tuple(tile[:2]))
         if rule is not None:
             walk = self.mover.walk_map(st)
             land = walk.can_walk(here[0], here[1], here[2], d) if walk is not None else None
@@ -3893,7 +3903,8 @@ class HuntLoop:
                 label = f"to the teleporter at {tile[0]},{tile[1]}"
                 self.doing("leave", f"{what}: through the teleporter at {tile[0]},{tile[1]}", tile)
                 path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
-                near = tuple(path[-2]) if path and len(path) >= 2 else None
+                # standing on it already (a firing move that didn't fire): _onto sends the one that does
+                near = tuple(path[-2]) if path and len(path) >= 2 else tuple(tile[:2]) if path else None
                 if near is None:
                     raise Abort(f"{label}: no route onto it")
                 self.mover.walk_to(lambda: near, 0, label, urgent=True)
@@ -4193,7 +4204,8 @@ class HuntLoop:
                 # the tile the route onto it steps from: a teleporter on stairs is entered from one side only
                 # (the Mausoleum's at 5554,700: from 5554,701 northwards, the step denied and then the move)
                 path, _ = self.mover.plan(self.link.state(), nav.within(tile, 0), mobiles=False)
-                near = tuple(path[-2]) if path and len(path) >= 2 else None
+                # standing on it already (a firing move that didn't fire): _onto sends the one that does
+                near = tuple(path[-2]) if path and len(path) >= 2 else tuple(tile[:2]) if path else None
                 if near is None:
                     raise Abort(f"{label}: no route onto it")
                 dash = False

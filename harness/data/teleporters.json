@@ -159,7 +159,7 @@
      "note": "Mount Petram level 2's strip, the middle tile (20:56:32); one-way as (5569, 2865)"},
     {"facet": 0, "from": [5571, 2865], "to": [0, 5518, 2779, 0], "dirs": [4],
      "note": "Mount Petram level 2's strip, the east tile (20:56:29); one-way as (5569, 2865)"},
-    {"facet": 0, "from": [5571, 2879], "to": [0, 5699, 2801, 72], "dirs": [0, 1, 2, 3, 4, 5, 6, 7],
-     "note": "Mount Petram level 2 -> level 3's arrival ledge (20:59:57.51: a step NW onto it confirmed, a turn N, the move N denied with the teleport); the one tile with the static 0x64F0. Every direction fires [INFERENCE: one move seen], so no walk crosses it unless aimed at it"}
+    {"facet": 0, "from": [5571, 2879], "to": [0, 5699, 2801, 72], "dirs": [0],
+     "note": "Mount Petram level 2 -> level 3's arrival ledge (20:59:57.51: a step NW onto it confirmed, a turn N, the move N denied with the teleport); the one tile with the static 0x64F0. Fires on N: three moves NW from it didn't (the runner, live 2026-11-26 22:38:45-50, hunt-20261126-223609-9e1c; 'every direction' before that was an [INFERENCE])"}
   ]
 }

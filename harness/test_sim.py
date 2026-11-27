@@ -9995,6 +9995,36 @@ def test_petram_routes():
           f"{off1 and len(off1)} steps, firing {off1_fired}")
 
 
+def test_petram_on_tile():
+    print("== standing on Mount Petram's level 2 tile (5571, 2879) facing NW (live 2026-11-26 22:38:45: three moves NW "
+          "fired nothing): the walk in's leg sends the move N that fires it; and a walk off it plans (not every move "
+          "from it fires) ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    import nav
+    from sim import run as simrun
+    w = petram_world((5571, 2879), z=-20)
+    w.player.d = 7
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    store = memory.Memory(db)
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            gate, _ = loop.mover.plan(loop.state(), nav.within((5639, 2888), 0), mobiles=False)
+            loop.walk_in_legs([(5571, 2879)])
+    finally:
+        simclock.uninstall(patched)
+    check("from the tile a route to level 2's crimson gate (5639, 2888)", gate is not None and len(gate) > 1,
+          str(gate and len(gate)))
+    check("...and the walk in's leg from on it: on level 3's ledge (5699, 2801)", w.player.pos[:2] == PETRAM_L3,
+          str(w.player.pos))
+
+
 def test_petram_hunt():
     print("== Mount Petram hunts from home: level 3 (the default) through level 1's strip and level 2's teleporter, out by "
           "its crimson moongate; level 1 out by a golden one; both to Totem and home ==")
@@ -10093,7 +10123,7 @@ def main():
               test_ssc_stoneshaper, test_ssc_pontiff_volley, test_ssc_others,
               test_ssc_patrol_named, test_ssc_bard_beyond_range, test_ssc_pontiff_flee, test_ssc_rope, test_ssc_red_race,
               test_ssc_hunt,
-              test_petram_recall_rule, test_petram_strips, test_petram_routes, test_petram_hunt):
+              test_petram_recall_rule, test_petram_strips, test_petram_routes, test_petram_on_tile, test_petram_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0
