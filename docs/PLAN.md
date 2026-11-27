@@ -4321,6 +4321,20 @@ docs/SIM.md "Mount Petram"). Decisions:
   leave's fought leg spending its 600 s on the minotaur respawns by level 3's gate route (no harm live: no
   `--timeout`).
 
+## No Razor restriction guard (user 2026-11-26)
+
+The runners (hunt, Hunting Grounds, the bank errand) stopped on any system line matching "razor", "assistant",
+"macro" or "script" (`errand_bank.gating`, ANTICHEAT.md §8 rule 4, from the client string `IsRazorBlockedSysMessage`).
+Every live match was a monster's special or a barding line. The last one, the amethyst elemental's "Razor sharp shards
+…", stopped Logan's run beside it on Mount Petram level 2, and he died (docs/NOTES.md "Mount Petram: the runner's first
+live run"). User: "Eliminate the 'razor warnings' that stop runs. That is not a real thing, it must have been made up
+by AI at some point in development."
+
+- *Decided*: the guard is gone. That covers `errand_bank.GATING` / `gating`, `HuntLoop.check_restriction`, the
+  Hunting Grounds guard's scan, the `server_restriction` juncture and the "halt" it set, and rule 4.
+- *Kept*: captchas (a real server gate: §8.8) and staff signatures (`speech_guard`, `gm_suspected`) keep their own
+  handling.
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

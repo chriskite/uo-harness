@@ -75,7 +75,7 @@ before it comes it repositions 2-4 steps out and back (--reposition-s). Leaving 
 survive comes first. Episode rows count `stationary_clears` and `repositions`.
 
 Guards: overall timeout, movement stall, the agent gate (a pause ends the run: GatePaused; a break is waited out),
-server restriction text, death (`death` juncture, stop; no corpse runs). No speech
+death (`death` juncture, stop; no corpse runs). No speech
 hold (user 2026-10-15: "GMs don't check attendance for dungeon crawling and stopping
 because a player speaks will definitely get us killed"). Junctures: `threat` when leaving,
 `low_supplies` when neither a potion nor a castable heal spell (mana, reagents) is
@@ -164,7 +164,6 @@ import tamer  # noqa: E402
 import task_wrap  # noqa: E402
 from agent_link import (Abort, GatePaused, Link, Mover, WalkFailed, bank_opened, cheb,  # noqa: E402
                         containers_to_open, find_banker, log, same_floor, serial_of)
-from errand_bank import gating  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
@@ -503,7 +502,7 @@ class HuntLoop:
         self.leave_air_plan = (-1e9, None)       # leave_air: when the gate's route was last planned, and its steps
         self.leave_short_air = None              # why this leave's fought leg ended for the air: no looting on the way
         self.escape_tried = False                # escape_home ran: an error after it ends the run where it stands
-        self.halt = None                         # why an error ends the run without the escape (a death, a restriction)
+        self.halt = None                         # why an error ends the run without the escape (a death)
         self.rope_next = 0.0                     # --rope: the next rope jump not before
         self.rope_refused = set()                # --rope: (x, y) landings the server refused this run
         self.hostile_seen = {}                   # serial -> ((x, y), monotonic time, name) of hostile players (hostile_spots)
@@ -522,7 +521,6 @@ class HuntLoop:
             raise Abort(f"unknown spell {args.spell!r}")
         self.words = args.target_name.lower().split()
         self.watch = threats.Watch(threats.Params(flee_on_attack=False))
-        self.heard_upto = None       # restriction-text scan cursor into link.events
         self.ev_upto = 0             # kill/death scan cursor into link.events
         self.essence = None          # the last home Arcane Essence reading {have, kills (totals' then)}: check_aspect
         self.essence_drop = [0, 0]   # essence spent and kills between consecutive home readings, pooled (essence_rate)
@@ -619,7 +617,6 @@ class HuntLoop:
             raise Abort(f"movement stalled ({mv['rejects_in_row']} walks rejected in a row)")
         if threats.is_dead(st) or st["world"]["self"].get("dead"):
             self.died(st, "ghost body")
-        self.check_restriction()
         self.track(st)
         if self.team is not None:
             self.team.spray_watch(st)     # a wind-up mid-walk for its stop (Team.spray_stop); the cones for routes
@@ -857,21 +854,6 @@ class HuntLoop:
             self.prev_hits = hits
         if self.crawl is not None and self.visit is not None:
             self.crawl.account(st, lost)
-
-    def check_restriction(self):
-        """Server text restricting assistants (ANTICHEAT.md §8 rule 4): stop."""
-        if self.heard_upto is None:
-            self.heard_upto = len(self.link.events)
-        for ev in self.link.events[self.heard_upto:]:
-            if ev.get("ev") == "speech_heard" and ev.get("serial") in (None, 0, 0xFFFFFFFF, "0xFFFFFFFF"):
-                text = ev.get("text") or ""
-                if gating(text):
-                    self.halt = "a server restriction message"
-                    self.memory.juncture("hunt", "server_restriction",
-                                         f"Server restriction: {ev.get('text')!r}"[:300], "urgent",
-                                         {"text": ev.get("text")})
-                    raise Abort(f"server restriction message: {ev.get('text')!r}")
-        self.heard_upto = len(self.link.events)
 
     def died(self, st, reason):
         """A `death` juncture and job event, then Abort. Cause "pk" with a hostile player in view, one seen within
@@ -3925,9 +3907,8 @@ class HuntLoop:
     # ------------------------------------------------------------ the escape home (an error inside, --go-home)
     def no_escape(self) -> str | None:
         """Why an error ends the run where we stand (on_error) instead of after the escape home, else None: the escape
-        ran already (the error is its own), a death or a server restriction message (halt; the restriction's rule is
-        stop, ANTICHEAT.md §8 rule 4), no --leave-recall to recall home with, dead, or not inside a dungeon that
-        allows no recall where we stand (escape.recall_forbidden)."""
+        ran already (the error is its own), a death (halt), no --leave-recall to recall home with, dead, or not inside a
+        dungeon that allows no recall where we stand (escape.recall_forbidden)."""
         if self.escape_tried:
             return "the escape home ran already"
         if self.halt is not None:

@@ -2130,8 +2130,8 @@ area hunted so far) and opens zone 2 only when the numbers allow it; watch the l
 
 ## Guards
 
-Overall timeout, movement stall, the agent gate, server restriction text (`server_restriction` juncture,
-stop), death (`death` juncture with the attackers and threats, stop: no corpse runs). **A paused gate ends
+Overall timeout, movement stall, the agent gate, death (`death` juncture with the attackers and threats, stop: no
+corpse runs). (A server-restriction text guard stopped runs until 2026-11-26; removed, ANTICHEAT.md §8 rule 4.) **A paused gate ends
 the run** (since 2026-10-18; user: "have the run end once I pause the agent gate", after a run walked on out
 of the Mausoleum while he played Logan): the first state read or refused action that shows it raises
 `agent_link.GatePaused` (`Link.end_on_pause`, set in `main`), the visit row is written, "stopped: the agent
@@ -2223,7 +2223,7 @@ The way out by level (the planner never routes over a teleporter, so each level 
 the mini-boss room (x 5232-5255, y 549-599: the map's walkable tiles from (5242, 587)) since 2026-11-04: its first box
 ends at y 600 and the --go-home run read the room as outside ("--go-home: at (5242, 587): the recall home").
 
-No escape after a death (`death` juncture) or a server restriction message (stop, ANTICHEAT.md §8 rule 4), on a
+No escape after a death (`death` juncture), on a
 paused agent gate (`GatePaused`: the user took over) or `ctl stop`, outside a no-recall dungeon, or when the error came
 from the escape itself. The overall timeout no longer aborts once the escape began. `--go-home` takes the same way out
 on its own. test_sim `test_escape_after_walk_in_error` (the live walk in's failure at (5507, 691): home by the

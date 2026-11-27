@@ -44,7 +44,6 @@ import hunting_grounds as hg  # noqa: E402
 import task_wrap  # noqa: E402
 from agent_link import (Abort, Deadline, GatePaused, Link, Mover, WalkFailed, cheb, label_since, log, look_at,  # noqa: E402
                         serial_of)
-from errand_bank import gating  # noqa: E402
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 from room import labelled_button  # noqa: E402
@@ -127,7 +126,6 @@ class HGLoop:
         self.grounds = hg.GroundsLog()
         self.g = None                 # GroundsLog.status of the last read (None outside a run)
         self.fed = 0                  # link.events fed to GroundsLog
-        self.heard = 0                # link.events checked for restriction text
         self.me_serial = None
         self.task_id = os.environ.get("UO_TASK_ID")
         self.finish = None            # why no further run is started ("stop requested", "break due", ...)
@@ -209,15 +207,8 @@ class HGLoop:
 
     # ------------------------------------------------------------------ guards
     def guard(self, st):
-        """Every state read in a walk: the run's events, the restriction text (ANTICHEAT.md §8.4), death."""
+        """Every state read in a walk: the run's events, death."""
         self.update(st)
-        for ev in self.link.events[self.heard:]:
-            if ev.get("ev") == "speech_heard" and ev.get("serial") in SYSTEM and gating(ev.get("text") or ""):
-                self.halt = "a server restriction message"
-                self.memory.juncture("hg", "server_restriction", f"Server restriction: {ev.get('text')!r}"[:300],
-                                     "urgent", {"text": ev.get("text")})
-                raise Abort(f"server restriction message: {ev.get('text')!r}")
-        self.heard = len(self.link.events)
         if st["world"]["self"].get("dead"):
             self.halt = "dead"
             self.memory.juncture("hg", "death", "Died in the Hunting Grounds", "urgent", {})

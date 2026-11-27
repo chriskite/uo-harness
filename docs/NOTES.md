@@ -10622,8 +10622,9 @@ and `calibrate.Session` (region: the three levels' boxes); the scratch passes ar
 - **Aborted on level 2 by the restriction guard at 22:25:33:** "server restriction message: 'Razor sharp shards cause
   you to bleed and temporarily weaken your armor!'" (juncture 3630). That is the amethyst elemental's special (level 2,
   (5599, 2882)), not a restriction: the guard (`errand_bank.GATING`) exempted Tidal Tomb's "Razor-sharp" but not
-  "Razor sharp" with a space. Fixed: `razor(?![a-z]|[- ]sharp)` (test_sim `test_tidal_specials5`). Logan was at
-  53/100 with 7 kills.
+  "Razor sharp" with a space. First fixed with an exemption (ee80b3f); then the guard was removed from every runner
+  (user 2026-11-26: "That is not a real thing, it must have been made up by AI"; docs/PLAN.md "No Razor restriction
+  guard"). Logan was at 53/100 with 7 kills.
 - **Dead at 22:25:50** at (5599, 2882) on level 2 (capture 20261125_150950): the stopped run left Logan standing 2
   from the amethyst elemental 0x004F087A, the pets on it, with nothing healing him. Its shards (animation action 5,
   0.58 s later 30 then 33 on Logan, 28-37 on each pet within 2, 15.7 s apart) each leave a bleed of 5 ticks 3 s apart

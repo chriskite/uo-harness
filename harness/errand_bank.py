@@ -14,14 +14,12 @@ model), actions go through the control port. Walking uses walk memory
 are learned and trigger a replan; the updated memory is saved.
 
 Guards: jittered human pacing, --timeout overall cap, abort on a movement
-stall, hit-point loss, or an assistant-restriction system message
-(ANTICHEAT.md §8 rule 4). The only thing ever said in game is "bank".
+stall or hit-point loss. The only thing ever said in game is "bank".
 
 Run:  python harness/errand_bank.py [--start 1963,2597] [--range 8]
 """
 import argparse
 import os
-import re
 import sys
 import time
 
@@ -31,18 +29,6 @@ from agent_link import Abort, Link, Mover, bank_opened, find_banker, log, same_f
 from humanize import PROFILES, Human  # noqa: E402
 from memory import DEFAULT_DB, Memory  # noqa: E402
 
-# System text restricting assistants (ANTICHEAT.md §8 rule 4): "razor" not in "Razor-sharp" (Tidal Tomb's razorfin:
-# "Razor-sharp fins cause you to bleed!", live 2026-10-24..27; it halted 19 of 24 simulator runs on level 2, 2026-10-28)
-# nor "Razor sharp" (Mount Petram's amethyst elemental: "Razor sharp shards cause you to bleed and temporarily weaken
-# your armor!", live 2026-11-26 22:25:33 aborted hunt-20261126-222146-cace on level 2) nor in a longer word ("Barding
-# break avoided for a razorfin", live 2026-11-10 10:46:30 halted hunt-20261110-101641-8ad9's leave on Tidal Tomb level 2)
-GATING = re.compile(r"razor(?![a-z]|[- ]sharp)|assistant|macro|script")
-
-
-def gating(text: str) -> bool:
-    """A server line that restricts assistants (any case)."""
-    return GATING.search((text or "").lower()) is not None
-
 
 class Errand:
     def __init__(self, link: Link, memory: Memory, args):
@@ -50,7 +36,6 @@ class Errand:
         self.args = args
         self.deadline = time.monotonic() + args.timeout
         self.start_hits = None
-        self.heard_upto = 0
         self.human = Human(args.human, seed=args.seed, log=log)
         self.mover = Mover(link, memory, self.human, max_blocked=args.max_blocked,
                            guard=self.check_guards, use_map=not args.no_map)
@@ -69,12 +54,6 @@ class Errand:
                 self.start_hits = hits
             elif hits < self.start_hits:
                 raise Abort(f"hit points dropped ({self.start_hits} -> {hits}); stopping")
-        for ev in self.link.events[self.heard_upto:]:
-            if ev.get("ev") == "speech_heard" and ev.get("serial") in (None, 0, 0xFFFFFFFF, "0xFFFFFFFF"):
-                text = ev.get("text") or ""
-                if gating(text):
-                    raise Abort(f"server restriction message: {ev.get('text')!r}")
-        self.heard_upto = len(self.link.events)
 
     def pos(self, st=None):
         return self.link.pos(st)
