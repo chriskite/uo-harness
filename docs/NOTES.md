@@ -10617,6 +10617,14 @@ and `calibrate.Session` (region: the three levels' boxes); the scratch passes ar
   walk rules [INFERENCE: the server's too]. Logan never stood in it; the simulated runner did (docs/HUNT_LOOP.md "No
   drop into a sink").
 
+## Mount Petram: the runner's first live run, level 3 (2026-11-26 22:21, hunt-20261126-222146-cace)
+
+- **Aborted on level 2 by the restriction guard at 22:25:33:** "server restriction message: 'Razor sharp shards cause
+  you to bleed and temporarily weaken your armor!'" (juncture 3630). That is the amethyst elemental's special (level 2,
+  (5599, 2882)), not a restriction: the guard (`errand_bank.GATING`) exempted Tidal Tomb's "Razor-sharp" but not
+  "Razor sharp" with a space. Fixed: `razor(?![a-z]|[- ]sharp)` (test_sim `test_tidal_specials5`). Logan was at
+  53/100 with 7 kills; the Seer started level 2's go-home run.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

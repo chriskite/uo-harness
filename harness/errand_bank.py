@@ -33,9 +33,10 @@ from memory import DEFAULT_DB, Memory  # noqa: E402
 
 # System text restricting assistants (ANTICHEAT.md §8 rule 4): "razor" not in "Razor-sharp" (Tidal Tomb's razorfin:
 # "Razor-sharp fins cause you to bleed!", live 2026-10-24..27; it halted 19 of 24 simulator runs on level 2, 2026-10-28)
-# nor in a longer word ("Barding break avoided for a razorfin", live 2026-11-10 10:46:30 halted
-# hunt-20261110-101641-8ad9's leave on Tidal Tomb level 2)
-GATING = re.compile(r"razor(?![a-z]|-sharp)|assistant|macro|script")
+# nor "Razor sharp" (Mount Petram's amethyst elemental: "Razor sharp shards cause you to bleed and temporarily weaken
+# your armor!", live 2026-11-26 22:25:33 aborted hunt-20261126-222146-cace on level 2) nor in a longer word ("Barding
+# break avoided for a razorfin", live 2026-11-10 10:46:30 halted hunt-20261110-101641-8ad9's leave on Tidal Tomb level 2)
+GATING = re.compile(r"razor(?![a-z]|[- ]sharp)|assistant|macro|script")
 
 
 def gating(text: str) -> bool:
