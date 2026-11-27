@@ -1,4 +1,4 @@
-# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary, Cavernam, Shadowspire Cathedral
+# Dungeon simulator (`harness/sim/`): the Mausoleum, Tidal Tomb, the Ossuary, Cavernam, Shadowspire Cathedral, Mount Petram
 
 An offline game world for the hunt runner (user request 2026-10-13: "train our combat runner in the
 emulated game world ... run tests much faster"). It is not an Outlands server: it is the one dungeon
@@ -8,9 +8,9 @@ wiki. The runner under test is the unmodified `loop_hunt.HuntLoop` (`tamer.Team`
 a 30-minute hunt takes 16-24 s of CPU on a loaded desktop (75-115× real time; "Speed" below), and a batch spreads its careers over
 `--jobs` processes. Since 2026-10-24 a second scenario, **Tidal Tomb** (`--scenario tidal_tomb`, "Tidal Tomb" below), from
 Logan's first visit there, since 2026-10-28 a third, **the Ossuary** (`--scenario ossuary`, "The Ossuary" below),
-since 2026-10-31 a fourth, **Cavernam** (`--scenario cavernam`, "Cavernam" below), and since 2026-11-08 a fifth,
-**Shadowspire Cathedral** (`--scenario ssc`, "Shadowspire Cathedral" below); everything below that names no dungeon is
-the Mausoleum's.
+since 2026-10-31 a fourth, **Cavernam** (`--scenario cavernam`, "Cavernam" below), since 2026-11-08 a fifth,
+**Shadowspire Cathedral** (`--scenario ssc`, "Shadowspire Cathedral" below), and since 2026-11-26 a sixth, **Mount
+Petram** (`--scenario petram`, "Mount Petram" below); everything below that names no dungeon is the Mausoleum's.
 
 ```mermaid
 flowchart LR
@@ -69,6 +69,8 @@ python harness/sim/run.py --scenario cavernam --level 1                 # ... it
 python harness/sim/run.py --scenario ssc --runs 32 --team phoenix_incubus   # Shadowspire Cathedral's level 1 ("Shadowspire Cathedral" below)
 python harness/sim/run.py --scenario ssc --level 2                      # ... its level 2 (down level 1's strip, out up level 2's)
 python harness/sim/run.py --scenario ssc --level 2 --no-others          # ... without its other players (on by default there)
+python harness/sim/run.py --scenario petram --runs 32 --team phoenix_incubus   # Mount Petram's level 3 ("Mount Petram" below)
+python harness/sim/run.py --scenario petram --level 2                   # ... its level 2 (--level 1: level 1, the recall's)
 python harness/sim/run.py --runs 98 --links "current, effective_barding=10"   # Mastery Chain links ("Mastery Chain links")
 python harness/sim/bard_scan.py                                        # the live barding against the effective skill
 # live against simulated (docs below, "Parity with the live runs"): a batch as live plays, then the comparison
@@ -3863,6 +3865,95 @@ Per hour on the level:
   of what they and we kill (above). The live team on level 2 was never AlaFlambe and Bussin (43 s on 11-03).
 - Reds (3 and 3 seen) are not measured; no `reds` block.
 - The pontiff's long-range lightning (20-21 tiles, once) is not modelled; its respawn is the default.
+
+## Mount Petram (2026-11-26)
+
+User 2026-11-26: "build the Mount Petram dungeon into the simulator and create an omp skill for running it"; the user
+played one visit for the data right after. The sixth scenario, `harness/data/sim/petram.json`, is built from it
+(capture `20261125_150950`, 2026-11-26 20:53:33-21:11:06; docs/NOTES.md "Mount Petram: the user's first visit" has the
+facts). Every number carries its evidence in the scenario's notes.
+
+```mermaid
+flowchart LR
+  Home -- "tome row 'Mount Petram Cave'" --> L1["level 1, the cave (5600, 2764)<br/>4 golden gates"]
+  L1 -- "north strip (5516-5518, 2780), a move N from it" --> L2["level 2 pocket (5569-5571, 2866, 50)<br/>crimson gate (5639, 2888)"]
+  L2 -- "its strip (5569-5571, 2865), a move S from it" --> P["level 1's landing pocket (x - 53, 2779)"]
+  P --> L1
+  L2 -- "marked tile (5571, 2879)" --> L3["level 3 ledge (5699, 2801, 72): the default hunt<br/>crimson gate (5690, 2885)"]
+  L3 -- "a moongate: the runner's leave" --> Totem
+  L1 -- "a moongate" --> Totem
+  Totem -- recall --> Home
+```
+
+**What was built:**
+
+- **Three levels by a map flood fill**, a box each: level 1 (the cave the recall lands in) x 5502-5643, y 2750-2830
+  (6,433 tiles), level 2 x 5549-5639, y 2840-2950 (4,799), level 3 x 5681-5830, y 2755-2936 (9,265). Level 3 is the
+  scenario's default (`area`, the guild's "Mt Petram 3", where the user spent 594 of his 1,053 s); `--level 1`, `--level 2`.
+- **Teleporters** (`teleporters`, and the same seeds in `harness/data/teleporters.json`): level 1's north strip and
+  level 2's strip are one-way, firing on the move from their tile (N from level 1's, S from level 2's), each landing a
+  pocket whose way off crosses the other strip the way it doesn't fire (Shadowspire's pattern; its engine and runner
+  rules carry over unchanged). Level 2's marked tile (5571, 2879) to level 3 fires on any move from it [INFERENCE: one
+  move seen]. No way back up from level 3 was seen: level 3 leaves by its own crimson gate.
+- **Gates:** 4 golden on level 1 (two on ledges over the cave floor; the nearest 4 tiles from the arrival is 131 steps
+  away, so no recall out at the arrival), a crimson on level 2 and one on level 3, all to Totem (only level 3's menu was
+  opened live).
+- **97 spawns** from first sightings (level 1 31, level 2 26, level 3 40); within 18 of Logan's tiles: 95 %, 98 % and
+  69 % of the three floors.
+- **`petram_kb.json`** (`kb_scan.py --location "Mount Petram"`): 53 creatures, every type seen has a row.
+- **`petram_observed.json`** (`calibrate.py --scenario petram`): 40 types. `melee_observed` replaces the moss giant's
+  and the ankheg's swings, which are their specials' numbers.
+- **No `upscale`:** hits at most the wiki's, gold 0.91-1.08 x. **No `others`, no `reds`** (one visit; a red attacked
+  Logan on level 3 at the end, recorded in `reds_note`).
+- **Specials:** the ankheg's Poison Dig (`*digs*`, 1.8 s later 40-52 on Logan and 35-53 on each pet within 2 of its
+  target, every 16 s; the wiki's tamed ability matches) and the moss giant's slam (action 14, 1.04 s later 60-67 on
+  each pet and 32-48 on Logan within 3 of it, every 8 s, with a knockdown). Not modelled: the deathstalk's entrap, the
+  trapdoor spiders' webs, the vines' entangle, the minotaurs' charges (no number seen), the cultist's earth pact.
+
+**A runner fix it showed: no drop into a sink** (`pathfind.Walk(no_sinks=True)`, the Mover's; docs/HUNT_LOOP.md "No
+drop into a sink"). Level 3's 3-tile water channel at (5737, 2838-2840, z -5) takes a step down from the floor at 15
+and no step leaves it. A simulated front walk ("4 steps to (5737, 2838), out of its sight") went in and the run ended
+"no route from (5737, 2838)". The runner's Walk now refuses any drop with no step back onto a closed region of 100
+nodes or fewer that doesn't hold the tile dropped from. Across the scenarios it removes level 3's channel and one
+tile (5702, 2884), and 12 tiles of a pit on Cavernam's level 3 (5954-5957, 1070-1075); no other floor changes
+(Tidal Tomb level 1, Shadowspire level 1, Petram levels 1-2). test_pathfind "no drop into a sink".
+
+**Runs for a shift**: the live team (`--team phoenix_incubus`), `--prior` the live store, 30 game minutes from home,
+`-- --vet-range 5 --crawl-learn-s 180`, 32 runs a level (2026-11-26, the shipped scenario: the sink fix, the melee
+fix below, the strips' `dirs` as seen):
+
+| level | runs with a death | runs with a pet death | runs leaving a pet | kills an hour on it | damage on Logan an hour | banked gp a game hour |
+|---|---|---|---|---|---|---|
+| 1 | 0 | 0 | 2 | 244 | 97 | 56,029 |
+| 2 | 0 | 0 | 0 | 200 | 318 | 114,387 |
+| 3 | 0 | 1 | **5** | 142 | 431 | 138,927 |
+
+- **Against the user's visit** (per hour on the level, `--compare`): level 1 kills 244 vs 246, damage on Logan 97 vs
+  389; level 2 kills 200 vs 157, damage on Logan 318 vs 262, gold 127k vs 105k; **level 3 kills 142 vs 121, damage on
+  Logan 431 vs 4,024, potions 12 vs 67**. Level 3's live damage is 9 x the simulator's: 594 s of it, the user's songs
+  at 6.1 % for most of it (a loadout without the barding links until 21:09), standing in three slams and two digs, and
+  the red's 89 at the end. The simulator's level 3 is optimistic [INFERENCE: by how much needs the runner's own live
+  runs].
+- **Level 3 before the melee fix** (the moss giant's and ankheg's capture swings, which were their specials' numbers:
+  the moss giant's "swing" 82 every 1.86 s was two pets' slam numbers summed): 3 runs with a death and 18 with a pet
+  death of 32, all three deaths under two moss giants (834-954 on AlaFlambe in 15 s). After: 0 and 0-1.
+- **Pets left at the gate:** level 3's crimson gate (5690, 2885, 15) stands on a floor over another at z 0. In 5 of 32
+  level 3 runs a pet was on the lower one (or fighting) when Logan took the gate: "AlaFlambe at (5702, 2884, 0) stands
+  locked on a fungaloid at (5701, 2885, 15), a floor above it", then "to the moongate: attacked 8 tiles from it;
+  through it now" and "PETS LEFT BEHIND (gate)" (seed 8); 2 of them mid-run (the loot-home leave: "not going back in:
+  AlaFlambe is not with us"), 3 at the time-up leave. Level 1's 2 were time-up leaves. The gate dash with a pet behind
+  is Shadowspire's open issue (docs/PLAN.md "Shadowspire Cathedral in the simulator"); not fixed, open. An earlier
+  batch had one hurt leave at 8/100 the same way (seed 6: "no pet on its floor ... onto the pets' floor: no route").
+- **The simulator's `--timeout` and the fought leave:** at 12 game minutes (test_sim, seed 1) the time-up leave's fought
+  leg spent its 600 s on level 3's minotaur respawns by the gate route, a lagging pet called the leave off, and its
+  restart outlasted `--timeout` + 180 s ("overall timeout"). Live runs have no `--timeout`; in the 30-minute batches it
+  never ended a run. test_sim `test_petram_hunt` runs level 3 for 30 minutes.
+
+**Limits:**
+
+- One visit of 17.5 min: every spawn is one sighting, every special's numbers a handful (dig n=3, slam n=5).
+- The level 2 -> 3 tile firing on every move, and the strips' diagonal directions, are [INFERENCE].
+- Level 3's east end (x 5800+) was hardly seen: few spawns there.
 
 ## Player armor (2026-10-24)
 

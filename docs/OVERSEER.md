@@ -795,6 +795,25 @@ Paste this (or point the session at this section) to start an overseer.
 >    The runner has never hunted Shadowspire live. In the simulator (docs/SIM.md "Shadowspire Cathedral"), with
 >    AlaFlambe and Bussin, runs with a death were 0 of 96 on level 1 (3-4 of 32 left a pet behind at the time-up leave)
 >    and 66 of 96 on level 2. Logan died by hand on level 1 on 2026-10-31 to two red players.
+>    - **Mount Petram** (since 2026-11-26; the parent's `petram-shift` skill): `--enter-rune "Mount Petram Cave"`. The
+>      tome's "Mount Petram Cave" row (the user's, added 2026-11-26) lands inside on level 1, the cave, at (5600, 2764).
+>      Level 1's north strip (5516-5518, 2780) goes down to level 2 on a move N from it; level 2's marked tile (5571,
+>      2879) to level 3. Both strips are one-way teleporters to the runner (as Shadowspire's).
+>      - **Petram level 1**: `--enter-rune "Mount Petram Cave" --leave-gate 5602 2768 --leave-gate 5610 2800
+>        --leave-gate 5635 2819 --leave-gate 5629 2786`, no `--enter-via`. Out by the easiest of its four golden gates
+>        (never opened live [INFERENCE: Totem on their menus as on every gate seen]).
+>      - **Petram level 2** (the default): `--enter-rune "Mount Petram Cave" --enter-via 5517 2780 --fight-via 5517
+>        2780 --leave-gate 5639 2888`. Across level 1, fought, to its strip; the crawl from level 2's arrival pocket
+>        (5569-5571, 2866); out by its crimson gate 0x4004A43A (never opened live [INFERENCE: Totem]).
+>      - **Petram level 3**: `--enter-rune "Mount Petram Cave" --enter-via 5517 2780 --enter-via 5571 2879 --fight-via
+>        5571 2879 --leave-gate 5690 2885`. Down level 1's strip, across level 2, fought, to its marked tile; the crawl
+>        from level 3's ledge (5699, 2801); out by its crimson gate 0x4004A436, which Logan took to Totem live
+>        2026-11-26 21:11.
+>    The runner has never hunted Mount Petram live. In the simulator (docs/SIM.md "Mount Petram"), with AlaFlambe and
+>    Bussin, runs with a death were 0 of 32 on each level; on level 3, 5 runs of 32 left a pet behind at its gate (a
+>    floor at z 0 under the gate's), and the simulator's damage on Logan there is a ninth of the user's hand visit's.
+>    A red attacked Logan on level 3 on 2026-11-26. Start a Petram level 3 run only when the parent passes the user's go
+>    for it.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
@@ -803,7 +822,8 @@ Paste this (or point the session at this section) to start an overseer.
 >    level 2 x 6817-6967, level 3 x 7049-7255, y 1908-2221; the Ossuary's level 1 x 5785-5935, y 1270-1381, level 2
 >    x 5581-5689, y 1225-1363, level 3 x 5527-5739, y 945-1156, level 4 x 4825-5000, y 1744-2073; Cavernam's level 1
 >    x 5895-6108, y 498-675, level 2 x 5886-6055, y 743-837, level 3 x 5915-6075, y 898-1152; Shadowspire's level 1
->    x 5097-5195, y 2462-2660, level 2 x 5241-5359, y 2416-2644): the go-home run with the command of the level he is on
+>    x 5097-5195, y 2462-2660, level 2 x 5241-5359, y 2416-2644; Mount Petram's level 1 x 5502-5643, y 2750-2830, level 2
+>    x 5549-5639, y 2840-2950, level 3 x 5681-5830, y 2755-2936): the go-home run with the command of the level he is on
 >    (Ossuary level 4, Shadowspire's east wing x 5400-5540, y 2400-2540, or its grounds: tell the parent, no command),
 >    then the shift's command from home.
 >    The runner never changes level on its own during a hunt: the crawl's

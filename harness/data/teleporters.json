@@ -146,6 +146,20 @@
     {"facet": 0, "from": [5309, 2638], "to": [0, 3393, 816, -23],
      "note": "Shadowspire Cathedral level 2's surface exit -> the grounds outside (20261103_101743 22:02:43, a step S from (5309, 2637)); never a way of the hunt runner's"},
     {"facet": 0, "from": [3394, 817], "to": [0, 5310, 2640, -25],
-     "note": "Shadowspire Cathedral's grounds -> level 2 by its surface exit (20261103_101743 22:22:00, a step N from (3394, 818))"}
+     "note": "Shadowspire Cathedral's grounds -> level 2 by its surface exit (20261103_101743 22:22:00, a step N from (3394, 818))"},
+    {"facet": 0, "from": [5516, 2780], "to": [0, 5569, 2866, 50], "dirs": [0],
+     "note": "Mount Petram level 1's north strip -> level 2's landing (20261125_150950 2026-11-26 20:56:25: the step N onto it confirmed, the move N from it denied with the teleport, the column kept: x + 53, y 2866). Fires on N (3 of 3; NE and NW never tried, left out so the runner's firing move is the one seen): S from its landing (5516-5518, 2779) onto it and on walked on (20:56:27, 20:56:30)"},
+    {"facet": 0, "from": [5517, 2780], "to": [0, 5570, 2866, 50], "dirs": [0],
+     "note": "Mount Petram level 1's north strip, the middle tile (20:56:28); one-way as (5516, 2780)"},
+    {"facet": 0, "from": [5518, 2780], "to": [0, 5571, 2866, 50], "dirs": [0],
+     "note": "Mount Petram level 1's north strip, the east tile (20:56:31); one-way as (5516, 2780)"},
+    {"facet": 0, "from": [5569, 2865], "to": [0, 5516, 2779, 0], "dirs": [4],
+     "note": "Mount Petram level 2's strip -> level 1 below its north strip (20:56:26: the move S from it). Fires on S (3 of 3; SE and SW never tried, left out): N off level 2's landing (5569-5571, 2866), a pocket, across it walked on (20:56:25-26)"},
+    {"facet": 0, "from": [5570, 2865], "to": [0, 5517, 2779, 0], "dirs": [4],
+     "note": "Mount Petram level 2's strip, the middle tile (20:56:32); one-way as (5569, 2865)"},
+    {"facet": 0, "from": [5571, 2865], "to": [0, 5518, 2779, 0], "dirs": [4],
+     "note": "Mount Petram level 2's strip, the east tile (20:56:29); one-way as (5569, 2865)"},
+    {"facet": 0, "from": [5571, 2879], "to": [0, 5699, 2801, 72], "dirs": [0, 1, 2, 3, 4, 5, 6, 7],
+     "note": "Mount Petram level 2 -> level 3's arrival ledge (20:59:57.51: a step NW onto it confirmed, a turn N, the move N denied with the teleport); the one tile with the static 0x64F0. Every direction fires [INFERENCE: one move seen], so no walk crosses it unless aimed at it"}
   ]
 }

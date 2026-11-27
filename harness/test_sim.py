@@ -9896,6 +9896,127 @@ def test_ssc_hunt():
               f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']} gates {gates}")
 
 
+PETRAM_L1 = (5600, 2764)      # Mount Petram: level 1's arrival by the tome's 'Mount Petram Cave' row
+PETRAM_L3 = (5699, 2801)      # ...level 3's arrival ledge by level 2's teleporter (5571, 2879) (the hunting level)
+
+
+def petram_world(start, spawns=(), seed=1, z=0, team="phoenix_incubus"):
+    from sim import pets
+    sc = load("petram")
+    pets.select(sc, team)
+    sc["spawns"] = [{**s, "respawn_s": [9999, 9999]} for s in spawns]
+    sc["defaults"]["spawn_spread"] = sc["defaults"]["wander_per_s"] = 0
+    sc["player"]["start"] = [start[0], start[1], z]
+    return World(sc, seed=seed)
+
+
+def test_petram_recall_rule():
+    print("== Mount Petram's recall rule: beside level 1's four golden gates only; the tome's landing 4 tiles from the "
+          "nearest refused, levels 2 and 3 refused; outside allowed ==")
+    import escape
+    check("a recall beside the golden gate (5629, 2786) is allowed", escape.recall_forbidden((5629, 2788, 40), 0) is None)
+    why = escape.recall_forbidden((*PETRAM_L1, 0), 0)
+    check("...at the tome's landing (5600, 2764), 4 off (5602, 2768), refused", why is not None and "Petram" in why,
+          str(why))
+    check("...on level 2 and level 3 refused", escape.recall_forbidden((5600, 2900, -40), 0) is not None
+          and escape.recall_forbidden((5750, 2900, -15), 0) is not None)
+    check("...outside allowed (Mt. Petram Outside, 733, 758)", escape.recall_forbidden((733, 758, 0), 0) is None)
+
+
+def test_petram_strips():
+    print("== Mount Petram's teleporters fire on the move from their tile: N from level 1's strip into level 2's pocket, "
+          "S from level 2's strip back up, never the other way; level 2's marked tile (5571, 2879) on to level 3 ==")
+    # live 2026-11-26 20:56:25-34 (capture 20261125_150950): three crossings each way, the step onto the strip confirmed
+    # and the next request from it denied with the teleport; S from level 1's landing over its strip and N out of level
+    # 2's pocket across its strip walked on
+    w = petram_world((5517, 2781))
+    _step(w, 0)
+    check("a step N onto level 1's strip (5517, 2780): on it, no teleport", w.player.pos[:2] == (5517, 2780),
+          str(w.player.pos))
+    _step(w, 0)
+    check("...the move N from it puts Logan in level 2's pocket (5570, 2866)", w.player.pos[:2] == (5570, 2866),
+          str(w.player.pos))
+    _step(w, 0)
+    _step(w, 0)
+    check("...N out of the pocket across level 2's strip: on level 2 at (5570, 2864)", w.player.pos[:2] == (5570, 2864),
+          str(w.player.pos))
+    _step(w, 4)
+    _step(w, 4)
+    check("...back S onto the strip and S from it: below level 1's strip (5517, 2779)", w.player.pos[:2] == (5517, 2779),
+          str(w.player.pos))
+    _step(w, 4)
+    _step(w, 4)
+    check("...S over level 1's strip from its landing: on level 1 at (5517, 2781)", w.player.pos[:2] == (5517, 2781),
+          str(w.player.pos))
+    w = petram_world((5571, 2880), z=-20)
+    _step(w, 0)
+    _step(w, 0)
+    check("level 2: N onto (5571, 2879) and N from it: level 3's arrival ledge (5699, 2801)",
+          w.player.pos[:2] == PETRAM_L3, str(w.player.pos))
+
+
+def test_petram_routes():
+    print("== the runner's routes over Mount Petram's teleporters (harness/data/teleporters.json `dirs`): out of level 2's "
+          "pocket across its strip without firing it; level 2's marked tile (5571, 2879) only when aimed at; out of level "
+          "1's landing pocket S across its strip, never by a move N off it ==")
+    import tempfile
+    import loop_hunt
+    import memory
+    import nav
+    from sim import run as simrun
+    w = petram_world((5570, 2866), z=50)                           # level 2's pocket below its strip
+    link, clock = link_for(w)
+    db = os.path.join(tempfile.mkdtemp(prefix="sim_test_"), "harness.db")
+    store = memory.Memory(db)
+    args = loop_hunt.arg_parser().parse_args(simrun.runner_args(w.sc, [], 10, at_hunt=True)
+                                             + ["--memory", db, "--seed", "1", "--human", "off"])
+    patched = simclock.install(clock)
+
+    def fired(mv, path):
+        rules = mv.one_way(0)
+        return [(a, b) for a, b in zip(path, path[1:])
+                if a in rules and pathfind.fires(rules[a], nav.direction(a, b), mv.plan_z.get(a))]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            loop = loop_hunt.HuntLoop(link, store, args)
+            mv = loop.mover
+            st = loop.state()
+            gate, _ = mv.plan(st, nav.within((5639, 2888), 0), mobiles=False)
+            gate_fired = fired(mv, gate) if gate else None
+            w._teleport(w.player, (5573, 2880, -20))               # the marked tile's room (x 5571-5574)
+            st = loop.state()
+            down, _ = mv.plan(st, nav.within((5571, 2879), 0), mobiles=False)
+            w._teleport(w.player, (5517, 2779, 0))                 # level 1's landing: walls N, W and E, its strip S
+            st = loop.state()
+            off1, _ = mv.plan(st, nav.within((5517, 2790), 0), mobiles=False)
+            off1_fired = fired(mv, off1) if off1 else None
+    finally:
+        simclock.uninstall(patched)
+    check("level 2's pocket to its crimson gate (5639, 2888): a route, no move that fires the strip",
+          gate is not None and gate_fired == [], f"{gate and len(gate)} steps, firing {gate_fired}")
+    check("...aimed at (5571, 2879): a route onto it", bool(down) and down[-1] == (5571, 2879), str(down))
+    check("level 1's landing to the floor south: across the strip, no move that fires it",
+          off1 is not None and any(t in mv.one_way(0) for t in off1) and off1_fired == [],
+          f"{off1 and len(off1)} steps, firing {off1_fired}")
+
+
+def test_petram_hunt():
+    print("== Mount Petram hunts from home: level 3 (the default) through level 1's strip and level 2's teleporter, out by "
+          "its crimson moongate; level 1 out by a golden one; both to Totem and home ==")
+    from sim import run as simrun
+    # level 3 for 30 minutes, the batches' length: at 12 the time-up leave's fought leg (600 s among level 3's minotaur
+    # respawns by the gate) and a restart for a lagging pet outlast the simulator's --timeout + 180 s and the run aborts
+    # (seed 1, 2026-11-26); live runs have no --timeout
+    for level, minutes, seed in ((None, 30, 1), ("1", 8, 1)):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            r = simrun.run_once(seed, [], scenario="petram", minutes=minutes, team="phoenix_incubus",
+                                dungeon_level=level)
+        gates = [e.get("gate") for e in r["leave_events"] if e.get("ok")]
+        check(f"level {level or 3}: done, kills there, the gold banked at home, out by a moongate",
+              r["outcome"] == "done" and r["kills"] > 0 and r["gold_banked"] > 0 and r["hunt_s"] > 120 and gates,
+              f"{r['outcome']} {r['error']} kills {r['kills']} banked {r['gold_banked']} hunt {r['hunt_s']} gates {gates}")
+
+
 def main():
     if pathfind.Walkers().get(0) is None:
         print("SKIP: no map files (install dir)")
@@ -9976,7 +10097,8 @@ def main():
               test_ssc_recall_rule, test_ssc_strips, test_ssc_strip_routes, test_ssc_mud_spray, test_ssc_pontiff_orb,
               test_ssc_stoneshaper, test_ssc_pontiff_volley, test_ssc_others,
               test_ssc_patrol_named, test_ssc_bard_beyond_range, test_ssc_pontiff_flee, test_ssc_rope, test_ssc_red_race,
-              test_ssc_hunt):
+              test_ssc_hunt,
+              test_petram_recall_rule, test_petram_strips, test_petram_routes, test_petram_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

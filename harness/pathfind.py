@@ -38,6 +38,12 @@ DX = (0, 1, 1, 1, 0, -1, -1, -1)
 DY = (-1, -1, 0, 1, 1, 1, 0, -1)
 MAP_FACETS = (0, 1, 4, 5)     # facets with geometry in mapN.uoo (2 and 3 are blank; docs/MAP.md)
 CACHE_TILES = 100_000        # Walk: tiles a cache holds before it starts over (a long live session's memory)
+# Walk(no_sinks=True), the runner's: a drop with no step straight back onto a closed region of at most this many
+# (x, y, z) nodes that doesn't hold the tile dropped from is no step. Mount Petram level 3's water channel (5737,
+# 2838-2840, z -5) takes a drop from the floor at 15 and has no way out (impassable water and a rock round it): the
+# simulator's front walk stepped in and the run ended there, "no route from (5737, 2838)" (2026-11-26). Tidal Tomb's
+# sealed pit was 57 tiles.
+SINK_TILES = 100
 _MISS = object()
 
 
@@ -46,7 +52,8 @@ class Walkers:
     current ground items. Shared by the proxy (z per confirmed step), the
     Mover (planning) and ctl (local map)."""
 
-    def __init__(self):
+    def __init__(self, no_sinks: bool = False):
+        self.no_sinks = no_sinks     # each Walk's (Walk.no_sinks): the runner's planning, not the proxy's z tracking
         self._walks = {}
         self._shut = {}              # (facet, rect, doors) -> {(x, y, z): enclosed?} (_enclosed)
 
@@ -70,7 +77,7 @@ class Walkers:
             return None
         w = self._walks.get(facet)
         if w is None:
-            w = Walk(uomap.UoMap(facet))
+            w = Walk(uomap.UoMap(facet), no_sinks=self.no_sinks)
             self._walks[facet] = w
         index, houses, singles = {}, [], []
         for x, y, g, z, multi in ground:
@@ -162,16 +169,20 @@ def _skip_land(graphic: int) -> bool:
 
 class Walk:
     """Walkability on one facet. `dynamic(x, y)` returns ground items on the tile
-    as (graphic, z) pairs (doors, placed items); the static map comes from uomap."""
+    as (graphic, z) pairs (doors, placed items); the static map comes from uomap.
+    `no_sinks`: no step that drops into a closed pocket with no way back (SINK_TILES; the
+    runner's walks), where the client and server would take it."""
 
-    def __init__(self, umap: "uomap.UoMap", dynamic=None):
+    def __init__(self, umap: "uomap.UoMap", dynamic=None, no_sinks: bool = False):
         self.m = umap
         self.td = umap.tiledata
         self.dynamic = dynamic or (lambda x, y: ())
+        self.no_sinks = no_sinks
         self._locked = frozenset()
         self._ground = None          # set_ground's last index
         self._objs = {}
         self._steps = {}             # (x, y) -> {(z, d, door_corners): can_walk's answer} for steps from that tile
+        self._sinks = {}             # (x, y, z) landed on by a drop -> frozenset of its closed region, or None (open)
         self._land = {}
 
     @property
@@ -187,9 +198,10 @@ class Walk:
             self._locked = tiles
 
     def clear(self):
-        """Drop every cached tile list and step (`dynamic` replaced by hand)."""
+        """Drop every cached tile list, step and sink (`dynamic` replaced by hand)."""
         self._objs.clear()
         self._steps.clear()
+        self._sinks.clear()
         self._ground = None
 
     def set_ground(self, index: dict):
@@ -211,7 +223,8 @@ class Walk:
 
     def _drop_steps(self, tiles):
         """Forget the steps that read `tiles`: a step from (x, y) reads that tile, the one it lands on and a
-        diagonal's two corners, all within 1 of (x, y)."""
+        diagonal's two corners, all within 1 of (x, y). The sinks found go too (a region reads many tiles)."""
+        self._sinks.clear()
         steps = self._steps
         if not steps:
             return
@@ -366,7 +379,15 @@ class Walk:
         so it never sends that diagonal (live 20260930_182751: a diagonal past a
         closed double-door leaf was denied). The proxy's z tracking of
         server-confirmed steps passes door_corners=False. Answers are cached per
-        start tile (set_ground and `locked` drop the ones a change reads)."""
+        start tile (set_ground and `locked` drop the ones a change reads).
+        With `no_sinks`, a drop into a closed pocket that doesn't hold (x, y, z) is None (_sink)."""
+        r = self._step(x, y, z, d, door_corners)
+        if r is not None and self.no_sinks and self._sink((x, y, z), r, d):
+            return None
+        return r
+
+    def _step(self, x, y, z, d, door_corners):
+        """can_walk's answer by the client's rules alone, cached."""
         at = self._steps.get((x, y))
         if at is None:
             if len(self._steps) >= CACHE_TILES:
@@ -377,6 +398,26 @@ class Walk:
         if r is _MISS:
             r = at[key] = self._can_walk(x, y, z, d, door_corners)
         return r
+
+    def _sink(self, here, to, d) -> bool:
+        """Whether the step from `here` to `to` (x, y, z) in direction d drops into a sink: no step straight back,
+        and every walk from `to` stays within SINK_TILES nodes none of which is `here`."""
+        if self._step(to[0], to[1], to[2], d ^ 4, True) is not None:
+            return False
+        region = self._sinks.get(to, _MISS)
+        if region is _MISS:
+            if len(self._sinks) >= CACHE_TILES:
+                self._sinks.clear()
+            seen, todo = {to}, [to]
+            while todo and len(seen) <= SINK_TILES:
+                x, y, z = todo.pop()
+                for k in range(8):
+                    n = self._step(x, y, z, k, True)
+                    if n is not None and n not in seen:
+                        seen.add(n)
+                        todo.append(n)
+            region = self._sinks[to] = frozenset(seen) if len(seen) <= SINK_TILES else None
+        return region is not None and here not in region
 
     def _can_walk(self, x, y, z, d, door_corners):
         nx, ny = x + DX[d], y + DY[d]

@@ -4289,6 +4289,38 @@ An idle soulcatcher on the stairs south of level 2's arrival nook held the crawl
 - *Rejected*: the fought legs' count rule (`BACK_OFF_REPEAT`, 3 back-offs) on the hunt level: more deaths in
   2026-10-29's batches. Leaving the visit after the hold: a whole re-entry, and the walk out passes the same stairs.
 
+## Mount Petram in the simulator; a petram-shift skill (user 2026-11-26)
+
+User: "build the Mount Petram dungeon into the simulator and create an omp skill for running it". There were no
+captures there, so the user played one visit for the data (docs/NOTES.md "Mount Petram: the user's first visit";
+docs/SIM.md "Mount Petram"). Decisions:
+
+- *The Cavernam / Shadowspire way*: inherit Logan's blocks from the Mausoleum, a box per level, first-sighting spawns,
+  `kb_scan`, `calibrate`. Three levels, each with its own gate: level 1 (the recall's cave, four golden), level 2 and
+  level 3 (a crimson each). No new engine kind: the strips are Shadowspire's one-way teleporters, and the two specials
+  are bursts.
+- *Teleporter directions only as seen*: level 1's strip `dirs` [0], level 2's [4] (3 of 3 each; the diagonals never
+  tried), so the runner's firing move is the one seen live. Level 2's marked tile to level 3: every direction, so a
+  level 2 hunt never crosses it unaimed [INFERENCE].
+- *The capture's swings replaced where they are specials*: the moss giant's (every number a slam) and the ankheg's (6
+  of 9 its dig) by the wiki's melee. Before, level 3 had 3 deaths in 32 runs, all under two moss giants; after, none.
+- *A runner fix the build showed: no drop into a sink* (`pathfind.Walk(no_sinks=True)` for the Mover). A step down
+  with no step back onto a closed region of 100 nodes or fewer that doesn't hold the start is no step for the runner's
+  walks. The proxy's z tracking and the simulator's world keep the client's rules.
+  - *Rejected*: map tile overrides for the one channel. That is a second convention, and the same trap would come back
+    in the next dungeon (it also closes a pit on Cavernam's level 3).
+  - *Rejected*: a check only in the tactical tile searches. The planner, the crawl's floor and every search read the
+    one Walk.
+- *The skill's default is level 2*: 0 of 32 simulated runs with a death or a pet left, 114k gp a game hour, and damage
+  on Logan near the user's visit (318 against 262 an hour).
+  - Level 3 pays more (139k) but needs the user's go. Its simulated damage on Logan is a ninth of the user's
+    [INFERENCE: partly his 6.1 % songs and the red], 5 runs of 32 left a pet at its gate (two floors there: the gate
+    dash with a pet on the lower one), and a red attacked him there.
+  - Level 1 is runnable (56k; 2 of 32 left a pet at the time-up leave).
+- *Not fixed, open*: the gate dash with a pet behind on level 3 (Shadowspire's open issue, here 5 of 32); the time-up
+  leave's fought leg spending its 600 s on the minotaur respawns by level 3's gate route (no harm live: no
+  `--timeout`).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

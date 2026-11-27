@@ -231,6 +231,18 @@ takes the exit step there.
   sends the firing move ("the teleporter at 5132,2653: on it at (x, y, z), no teleport on the step onto it; the move
   from it (direction 4) fires it"), and `Mover.step` remembers the strip's tile as the one that fired, not the floor
   the move went for. test_sim `test_ssc_strips`.
+  Mount Petram's teleporters follow the same rule (seeds since 2026-11-26): level 1's north strip (5516-5518, 2780)
+  fires on N, level 2's (5569-5571, 2865) on S, each landing a pocket off which the walk crosses the other strip; level
+  2's marked tile (5571, 2879) to level 3 fires on every direction [INFERENCE], so no walk crosses it unaimed.
+  test_sim `test_petram_strips`, `test_petram_routes`.
+  **No drop into a sink** (since 2026-11-26; `pathfind.Walk(no_sinks=True)`, the Mover's Walkers): a step down with no
+  step straight back, onto a region that every walk from it keeps within `SINK_TILES` 100 nodes and that doesn't hold
+  the tile stepped from, is no step for the runner: the planner, the crawl's floor and every tactical tile search
+  (`Team.tiles_within`, the front's and the step-in's plans) read the same Walk. The proxy's z tracking and the
+  simulator's world keep the client's rules (they take the drop). Mount Petram level 3's water channel (5737,
+  2838-2840, z -5) under the floor at 15: the simulated front walk went in ("front at the minotaur runesmith ...: 4
+  steps to (5737, 2838)") and the run ended "no route from (5737, 2838)". It also closes a 12-tile pit on Cavernam's
+  level 3 (5954-5957, 1070-1075). test_pathfind "no drop into a sink".
 - **The leave margin**: nothing heals during the walk out, and mobs follow. On reaching the
   fight spot the runner plans the route back to `--spot` and leaves below
   `min(--leave-at + --leave-per-step × steps, max(--leave-at, --heal-at − 0.05))` for that

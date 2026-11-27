@@ -1,0 +1,242 @@
+{
+  "name": "petram",
+  "description": "Mount Petram as Logan Wolf went through it, played by the user on 2026-11-26 20:53:33-21:11:06 (capture 20261125_150950, the evening's part): the tome row 'Mount Petram Cave' to level 1 (the cave) at (5600, 2764, 0), its north strip (5516-5518, 2780) down to level 2 at (5569-5571, 2866, 50), level 2's teleporter (5571, 2879, -20) to level 3 (the guild's 'Mt Petram 3') at (5699, 2801, 72), out by level 3's crimson moongate 0x4004A436 (5690, 2885) to Totem (3848, 2867, -19) and the tome home, a red player (Meloh) on him at the end. Levels by a map flood fill (localmap._flood from each arrival; every step of Logan's there walks on the map): level 1 x 5502-5643, y 2750-2830 (6,433 tiles, z -2..57; 176 s there), level 2 x 5549-5639, y 2840-2950 (4,799; z -70..50; 206 s), level 3 x 5681-5830, y 2755-2936 (9,265; z -28..72; 594 s). Pets AlaFlambe and Bussin (run.py --team phoenix_incubus). His songs printed 6.1 % until his loadout change at 21:09:11, then 18.4 %",
+  "facet": 0,
+  "evidence": {
+    "kb": "petram_kb.json",
+    "observed": "petram_observed.json"
+  },
+  "calibration": {
+    "facet": 0,
+    "boxes": [[5497, 2745, 5648, 2835], [5544, 2835, 5644, 2955], [5676, 2750, 5835, 2941]],
+    "tags": ["20261125_150950"],
+    "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5; level 1's and level 2's meet at y 2835). Capture: the user's visit of 2026-11-26 20:53:33-21:11:06 (the capture ran 2026-11-25 15:09 to past 21:14 on 11-26; only the packets with Logan in a box count)"
+  },
+  "inherit": {
+    "from": "mausoleum",
+    "keys": ["player", "tamer", "loadout", "bard", "vet", "potions", "defaults"],
+    "note": "Logan Wolf's own blocks and the engine defaults: the Mausoleum's, as the other scenarios' (the same character, kit and tome; run.py --team phoenix_incubus for AlaFlambe and Bussin, his team here); a dict here updates the base's (player.start, defaults)"
+  },
+  "player": {
+    "start": [5699, 2801, 72],
+    "start_note": "level 3's arrival from level 2's teleporter (5571, 2879) (capture 20:59:57.51): --at-hunt starts here. The ledge winds down to the floor (21 steps to (5713, 2807, 35), 79 to (5719, 2813, 30)); Logan traversed from the one to the other (Logan's own 'traverse', 'Where do you wish to traverse to?')"
+  },
+  "defaults": {
+    "pets_first": [],
+    "pets_first_note": "no type here is known to go for the pets first"
+  },
+  "bard": {
+    "note": "no capture_d: the user's answers here (Discordance 23 ok / 6 failed, Peacemaking 4 / 9, Provocation 6) were mostly at a 6.1 % song (a loadout without the barding links, until 21:09:11) and 3 at most a type: the median and provoke_d"
+  },
+  "recall": {
+    "tome": 1145745907,
+    "rows": [
+      {"name": "Home", "at": [4134, 1429, 6]},
+      {"name": "Mount Petram Cave", "at": [5600, 2764, 0]}
+    ],
+    "pet_range": 3,
+    "note": "Logan's 'A Rune Tome' (0x444AB1F3) row 'Mount Petram Cave', added by the user 2026-11-26 20:52:54-20:53:22 (its rune gump '(5600, 2764)'; moved up to after 'Ossuary'), recalled at 20:53:31 (button 112): lands on level 1 at (5600, 2764, 0). The rune libraries' 'Mt. Petram Cave' / 'NW Cave' (5599, 2765-2766) land on the same floor"
+  },
+  "dungeon": {
+    "name": "Mount Petram",
+    "facet": 0,
+    "boxes": [[5497, 2745, 5648, 2835], [5544, 2835, 5644, 2955], [5676, 2750, 5835, 2941]],
+    "gold_gates": [[5602, 2768], [5610, 2800], [5635, 2819], [5629, 2786]],
+    "recall_r": 2,
+    "note": "the user's dungeon rule (2026-10-13): recall only near a gold moongate. Gold gates: the four hue-2822 ones on level 1 (the arrival 4 off 0x400016B9 (5602, 2768, 45), which stands on a ledge 131 steps away: no recall out from the arrival). Levels 2 and 3 have only crimson ones (hue 2820). Logan never recalled from inside [INFERENCE: the rule holds here as at the Mausoleum]. Boxes: the calibration region"
+  },
+  "area": [5681, 2755, 5830, 2936],
+  "area_note": "level 3's box (map flood fill), the scenario's default level. Levels 1 and 2: --level 1 / --level 2",
+  "teleporters": [
+    {"from": [5516, 2780], "to": [5569, 2866, 50], "dirs": [0]},
+    {"from": [5517, 2780], "to": [5570, 2866, 50], "dirs": [0]},
+    {"from": [5518, 2780], "to": [5571, 2866, 50], "dirs": [0]},
+    {"from": [5569, 2865], "to": [5516, 2779, 0], "dirs": [4]},
+    {"from": [5570, 2865], "to": [5517, 2779, 0], "dirs": [4]},
+    {"from": [5571, 2865], "to": [5518, 2779, 0], "dirs": [4]},
+    {"from": [5571, 2879], "to": [5699, 2801, 72], "dirs": [0, 1, 2, 3, 4, 5, 6, 7]}
+  ],
+  "teleporters_note": "capture 20261125_150950, each the tile the move that fired was made FROM (the step onto it confirmed, the next walk request from it denied with the teleport, as Shadowspire's strips: docs/NOTES.md 'The strips fire one way'). Level 1's north strip (5516-5518, 2780): N from it to level 2's landing (x + 53, 2866, 50), the column kept, 20:56:25 (5516), 20:56:28 (5517), 20:56:31 (5518); S from its landing (5516-5518, 2779) onto it and on to y 2781 walked on (20:56:27, 20:56:30). `dirs` [0]: N, the only move seen fire (NE and NW never tried; left out so the runner's firing move, pathfind.fire_dir, is the one seen). That landing is a pocket (the wall N, pillars at x 5515 and 5519): its only way off is S across the strip, the way it doesn't fire. Level 2's strip (5569-5571, 2865) at the north end of a 3 x 3 pocket (y 2864-2866, walls round): S from it to level 1's landing (x - 53, 2779, 0) 20:56:26, 20:56:29, 20:56:32; N off the landing across it walked on (20:56:25-26): `dirs` [4], S (SE and SW never tried). Level 2's teleporter to level 3 (5571, 2879, -20), the one tile with the static 0x64F0 at the west edge of a small room (x 5571-5574): Logan stepped NW onto it (20:59:57.25), turned N and the move N fired (57.51) to (5699, 2801, 72). Every direction fires [INFERENCE: one marked tile, one move seen; so the runner never crosses it unaimed during a level 2 hunt; an aimed firing move other than N is untried live]. No way back up from level 3 was seen. In harness/data/teleporters.json with the same `dirs`",
+  "gates": [
+    {"name": "golden moongate", "serial": 1073747641, "at": [5602, 2768, 45], "hue": 2822, "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3848, 2867, -19]}, {"name": "Corpse Creek"}]},
+    {"name": "golden moongate", "serial": 1073747643, "at": [5610, 2800, 43], "hue": 2822, "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3848, 2867, -19]}, {"name": "Corpse Creek"}]},
+    {"name": "golden moongate", "serial": 1073747644, "at": [5635, 2819, 10], "hue": 2822, "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3848, 2867, -19]}, {"name": "Corpse Creek"}]},
+    {"name": "golden moongate", "serial": 1073747642, "at": [5629, 2786, 40], "hue": 2822, "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3848, 2867, -19]}, {"name": "Corpse Creek"}]},
+    {"name": "crimson moongate", "serial": 1074046010, "at": [5639, 2888, -20], "hue": 2820, "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3848, 2867, -19]}, {"name": "Corpse Creek"}]},
+    {"name": "crimson moongate", "serial": 1074046006, "at": [5690, 2885, 15], "hue": 2820, "destinations": [{"name": "Anchor's Rest"}, {"name": "Andaria"}, {"name": "Cambria"}, {"name": "Horseshoe Bay"}, {"name": "Outpost"}, {"name": "Prevalia"}, {"name": "Terran"}, {"name": "Totem", "at": [3848, 2867, -19]}, {"name": "Corpse Creek"}]}
+  ],
+  "gates_note": "the moongates seen (graphic 0xF6C): golden (hue 2822) 0x400016B9 (5602, 2768, 45), 0x400016BB (5610, 2800, 43), 0x400016BC (5635, 2819, 10) and 0x400016BA (5629, 2786, 40) on level 1 (the first and last on ledges over the cave floor, 131 and 52 steps from the arrival); crimson (hue 2820) 0x4004A43A (5639, 2888, -20) on level 2 and 0x4004A436 (5690, 2885, 15) on level 3. Logan left by 0x4004A436 (21:11:02 its menu 0xE0E675B8 listed the usual 'Moongate Destinations' rows, Totem among them; 21:11:06 Totem put him at (3848, 2867, -19)); the others' menus were never opened [INFERENCE: the same rows, as at every gate seen]",
+  "runner": {
+    "enter_via": [[5517, 2780], [5571, 2879]],
+    "fight_via": [[5571, 2879]],
+    "leave_gates": [[5690, 2885]],
+    "gate_dest": "Totem",
+    "heal_in_place": true,
+    "levels": [
+      {
+        "name": "1",
+        "area": [5502, 2750, 5643, 2830],
+        "start": [5600, 2764, 0],
+        "enter_via": [],
+        "fight_via": [],
+        "leave_gates": [[5602, 2768], [5610, 2800], [5635, 2819], [5629, 2786]],
+        "note": "the recall's level: no teleporter; out by the easiest of its four golden gates",
+        "trip": {
+          "note": "Logan Wolf on level 1, 2026-11-26 (rules as the scenario's trip); another player (Zoovier, summoner) hunted the cave beside him",
+          "hunt_s": 176.0, "kills": 12, "player_damage": 19, "vet_uses": 8, "potions": 0,
+          "discord_ok": 4, "discord_fail": 0, "peace_ok": 0, "peace_fail": 0, "provoke": 1, "gold": 2281
+        }
+      },
+      {
+        "name": "2",
+        "area": [5549, 2840, 5639, 2950],
+        "start": [5570, 2866, 50],
+        "enter_via": [[5517, 2780]],
+        "fight_via": [[5517, 2780]],
+        "leave_gates": [[5639, 2888]],
+        "note": "down level 1's north strip (5517, 2780), the leg across level 1 fought through; out by level 2's crimson gate (5639, 2888)",
+        "trip": {
+          "note": "Logan Wolf on level 2, 2026-11-26 (rules as the scenario's trip)",
+          "hunt_s": 206.0, "kills": 9, "player_damage": 15, "vet_uses": 9, "potions": 0,
+          "discord_ok": 4, "discord_fail": 1, "peace_ok": 0, "peace_fail": 0, "provoke": 3, "gold": 5993
+        }
+      },
+      {
+        "name": "3",
+        "default": true,
+        "note": "the scenario's: across level 1 to its north strip, across level 2 (fought) to its teleporter (5571, 2879), the hunt on level 3, out by its crimson gate (5690, 2885), as Logan left"
+      }
+    ],
+    "note": "run.py's defaults: recall by the 'Mount Petram Cave' row to level 1, the two teleporters, the hunt on level 3, out by its crimson gate to Totem, then the recall home. Levels 1 and 2: `levels` (run.py --level)"
+  },
+  "spawns": [
+    {"key": "cave bear", "at": [5603, 2767, 0], "note": "level 1: first seen 11-26 20:53:33 (5603, 2767) at 3 tiles"},
+    {"key": "trapdoor spider", "at": [5614, 2768, 0], "note": "level 1: first seen 11-26 20:53:33 (5614, 2768) at 14 tiles"},
+    {"key": "terathan drone", "at": [5602, 2784, 10], "note": "level 1: first seen 11-26 20:53:36 (5602, 2784) at 18 tiles"},
+    {"key": "terathan larva", "at": [5600, 2784, 10], "note": "level 1: first seen 11-26 20:53:36 (5600, 2784) at 18 tiles"},
+    {"key": "aged earth", "at": [5573, 2754, 10], "note": "level 1: first seen 11-26 20:53:36 (5573, 2754) at 18 tiles"},
+    {"key": "aged earth", "at": [5567, 2772, 10], "note": "level 1: first seen 11-26 20:53:38 (5567, 2772) at 18 tiles"},
+    {"key": "wicked willow", "at": [5582, 2787, 10], "note": "level 1: first seen 11-26 20:53:51 (5582, 2787) at 18 tiles"},
+    {"key": "aged earth", "at": [5554, 2757, 10], "note": "level 1: first seen 11-26 20:53:51 (5554, 2757) at 18 tiles"},
+    {"key": "aged earth", "at": [5554, 2780, 16], "note": "level 1: first seen 11-26 20:53:51 (5554, 2780) at 18 tiles"},
+    {"key": "stinger", "at": [5582, 2790, 10], "note": "level 1: first seen 11-26 20:53:52 (5582, 2790) at 18 tiles"},
+    {"key": "devilbat", "at": [5576, 2794, 12], "note": "level 1: first seen 11-26 20:53:53 (5576, 2794) at 18 tiles"},
+    {"key": "stone harpy", "at": [5564, 2799, 20], "note": "level 1: first seen 11-26 20:53:54 (5564, 2799) at 18 tiles"},
+    {"key": "aged earth", "at": [5559, 2786, 15], "note": "level 1: first seen 11-26 20:54:42 (5559, 2786) at 14 tiles"},
+    {"key": "devilbat", "at": [5599, 2817, 15], "note": "level 1: first seen 11-26 20:54:45 (5599, 2817) at 18 tiles"},
+    {"key": "wicked willow", "at": [5599, 2816, 16], "note": "level 1: first seen 11-26 20:54:45 (5599, 2816) at 18 tiles"},
+    {"key": "terathan drone", "at": [5621, 2795, 10], "note": "level 1: first seen 11-26 20:55:10 (5621, 2795) at 18 tiles"},
+    {"key": "cave bear", "at": [5626, 2794, 10], "note": "level 1: first seen 11-26 20:55:10 (5626, 2794) at 18 tiles"},
+    {"key": "terathan larva", "at": [5636, 2791, 10], "note": "level 1: first seen 11-26 20:55:11 (5636, 2791) at 18 tiles"},
+    {"key": "terathan larva", "at": [5636, 2798, 10], "note": "level 1: first seen 11-26 20:55:11 (5636, 2798) at 18 tiles"},
+    {"key": "mountain vines", "at": [5626, 2786, 40], "note": "level 1: first seen 11-26 20:55:12 (5626, 2786) at 18 tiles"},
+    {"key": "terathan larva", "at": [5600, 2778, 10], "note": "level 1: first seen 11-26 20:55:17 (5600, 2778) at 18 tiles"},
+    {"key": "stone harpy", "at": [5634, 2762, 10], "note": "level 1: first seen 11-26 20:55:19 (5634, 2762) at 18 tiles"},
+    {"key": "mountain harpy", "at": [5640, 2763, 10], "note": "level 1: first seen 11-26 20:55:19 (5640, 2763) at 18 tiles"},
+    {"key": "mountain harpy", "at": [5640, 2772, 10], "note": "level 1: first seen 11-26 20:55:19 (5640, 2772) at 18 tiles"},
+    {"key": "mountain vines", "at": [5605, 2772, 45], "note": "level 1: first seen 11-26 20:55:47 (5605, 2772) at 15 tiles"},
+    {"key": "stinger", "at": [5601, 2811, 16], "note": "level 1: first seen 11-26 20:55:48 (5601, 2811) at 18 tiles"},
+    {"key": "mountain vines", "at": [5603, 2802, 40], "note": "level 1: first seen 11-26 20:55:53 (5603, 2802) at 16 tiles"},
+    {"key": "stone harpy", "at": [5564, 2813, 20], "note": "level 1: first seen 11-26 20:56:01 (5564, 2813) at 18 tiles"},
+    {"key": "devilbat", "at": [5550, 2807, 20], "note": "level 1: first seen 11-26 20:56:04 (5550, 2807) at 18 tiles"},
+    {"key": "wicked willow", "at": [5548, 2810, 20], "note": "level 1: first seen 11-26 20:56:04 (5548, 2810) at 18 tiles"},
+    {"key": "watcher idol", "at": [5527, 2781, 0], "note": "level 1: first seen 11-26 20:56:32 (5527, 2781) at 10 tiles"},
+    {"key": "dusk dragon", "at": [5587, 2849, -70], "note": "level 2: first seen 11-26 20:56:25 (5587, 2849) at 18 tiles"},
+    {"key": "dusk drake", "at": [5595, 2841, -70], "note": "level 2: first seen 11-26 20:56:38 (5595, 2841) at 18 tiles"},
+    {"key": "dusk drake", "at": [5597, 2855, -70], "note": "level 2: first seen 11-26 20:56:39 (5597, 2855) at 18 tiles"},
+    {"key": "dusk dragon", "at": [5598, 2842, -70], "note": "level 2: first seen 11-26 20:56:41 (5598, 2842) at 18 tiles"},
+    {"key": "mountain air", "at": [5617, 2876, -20], "note": "level 2: first seen 11-26 20:56:47 (5617, 2876) at 18 tiles"},
+    {"key": "ancient earth", "at": [5635, 2860, -15], "note": "level 2: first seen 11-26 20:57:08 (5635, 2860) at 18 tiles"},
+    {"key": "giant trapdoor spider", "at": [5633, 2855, -15], "note": "level 2: first seen 11-26 20:57:13 (5633, 2855) at 18 tiles"},
+    {"key": "ancient earth", "at": [5576, 2865, 25], "note": "level 2: first seen 11-26 20:57:52 (5576, 2865) at 18 tiles"},
+    {"key": "giant trapdoor spider", "at": [5615, 2896, -20], "note": "level 2: first seen 11-26 20:57:55 (5615, 2896) at 17 tiles"},
+    {"key": "terathan drone", "at": [5617, 2917, -45], "note": "level 2: first seen 11-26 20:58:00 (5617, 2917) at 18 tiles"},
+    {"key": "terathan matron", "at": [5610, 2929, -45], "note": "level 2: first seen 11-26 20:58:03 (5610, 2929) at 18 tiles"},
+    {"key": "terathan drone", "at": [5627, 2933, -45], "note": "level 2: first seen 11-26 20:58:03 (5627, 2933) at 18 tiles"},
+    {"key": "terathan matron", "at": [5626, 2934, -45], "note": "level 2: first seen 11-26 20:58:04 (5626, 2934) at 18 tiles"},
+    {"key": "terathan warrior", "at": [5626, 2934, -45], "note": "level 2: first seen 11-26 20:58:04 (5626, 2934) at 18 tiles"},
+    {"key": "terathan drone", "at": [5584, 2946, -45], "note": "level 2: first seen 11-26 20:58:15 (5584, 2946) at 18 tiles"},
+    {"key": "terathan warrior", "at": [5582, 2943, -45], "note": "level 2: first seen 11-26 20:58:15 (5582, 2943) at 18 tiles"},
+    {"key": "terathan matron", "at": [5582, 2944, -45], "note": "level 2: first seen 11-26 20:58:15 (5582, 2944) at 18 tiles"},
+    {"key": "terathan warrior", "at": [5570, 2936, -40], "note": "level 2: first seen 11-26 20:58:45 (5570, 2936) at 18 tiles"},
+    {"key": "terathan matron", "at": [5565, 2930, -40], "note": "level 2: first seen 11-26 20:58:54 (5565, 2930) at 18 tiles"},
+    {"key": "minotaur", "at": [5579, 2922, -70], "note": "level 2: first seen 11-26 20:58:55 (5579, 2922) at 18 tiles"},
+    {"key": "ruby elemental", "at": [5557, 2937, -40], "note": "level 2: first seen 11-26 20:58:56 (5557, 2937) at 18 tiles"},
+    {"key": "terathan drone", "at": [5552, 2924, -40], "note": "level 2: first seen 11-26 20:58:57 (5552, 2924) at 18 tiles"},
+    {"key": "minotaur berserker", "at": [5552, 2904, -40], "note": "level 2: first seen 11-26 20:59:31 (5552, 2904) at 18 tiles"},
+    {"key": "minotaur", "at": [5562, 2901, -40], "note": "level 2: first seen 11-26 20:59:32 (5562, 2901) at 18 tiles"},
+    {"key": "minotaur", "at": [5578, 2892, -20], "note": "level 2: first seen 11-26 20:59:52 (5578, 2892) at 18 tiles"},
+    {"key": "sapphire elemental", "at": [5592, 2891, -14], "note": "level 2: first seen 11-26 20:59:55 (5592, 2891) at 18 tiles"},
+    {"key": "witch harpy", "at": [5699, 2813, 35], "note": "level 3: first seen 11-26 20:59:57 (5699, 2813) at 12 tiles"},
+    {"key": "living earth", "at": [5722, 2814, 30], "note": "level 3: first seen 11-26 20:59:59 (5722, 2814) at 18 tiles"},
+    {"key": "witch harpy", "at": [5718, 2821, 30], "note": "level 3: first seen 11-26 21:00:01 (5718, 2821) at 18 tiles"},
+    {"key": "minotaur battleborne", "at": [5723, 2831, 19], "note": "level 3: first seen 11-26 21:00:04 (5723, 2831) at 18 tiles"},
+    {"key": "terathan broodwitch", "at": [5700, 2845, 15], "note": "level 3: first seen 11-26 21:00:11 (5700, 2845) at 18 tiles, 2 first sightings within 5"},
+    {"key": "terathan broodguard", "at": [5693, 2852, 15], "note": "level 3: first seen 11-26 21:00:12 (5693, 2852) at 18 tiles"},
+    {"key": "living earth", "at": [5684, 2833, 30], "note": "level 3: first seen 11-26 21:00:22 (5684, 2833) at 10 tiles"},
+    {"key": "terathan broodwitch", "at": [5720, 2853, 15], "note": "level 3: first seen 11-26 21:01:05 (5720, 2853) at 18 tiles, 2 first sightings within 5"},
+    {"key": "volt wisp", "at": [5722, 2880, 15], "note": "level 3: first seen 11-26 21:01:06 (5722, 2880) at 18 tiles"},
+    {"key": "fungaloid", "at": [5701, 2889, 15], "note": "level 3: first seen 11-26 21:01:06 (5701, 2889) at 18 tiles, 2 first sightings within 5"},
+    {"key": "minotaur runesmith", "at": [5729, 2845, 15], "note": "level 3: first seen 11-26 21:01:08 (5729, 2845) at 18 tiles"},
+    {"key": "terathan broodguard", "at": [5716, 2856, 15], "note": "level 3: first seen 11-26 21:01:11 (5716, 2856) at 8 tiles"},
+    {"key": "colossal trapdoor spider", "at": [5728, 2880, 15], "note": "level 3: first seen 11-26 21:01:22 (5728, 2880) at 17 tiles, 2 first sightings within 5"},
+    {"key": "minotaur battleborne", "at": [5745, 2851, 15], "note": "level 3: first seen 11-26 21:01:51 (5745, 2851) at 18 tiles, 2 first sightings within 5"},
+    {"key": "colossal trapdoor spider", "at": [5754, 2876, 15], "note": "level 3: first seen 11-26 21:01:53 (5754, 2876) at 18 tiles, 2 first sightings within 5"},
+    {"key": "ankheg", "at": [5755, 2876, 15], "note": "level 3: first seen 11-26 21:01:53 (5755, 2876) at 18 tiles"},
+    {"key": "volt wisp", "at": [5741, 2873, 15], "note": "level 3: first seen 11-26 21:02:16 (5741, 2873) at 6 tiles"},
+    {"key": "volt wisp", "at": [5754, 2873, 15], "note": "level 3: first seen 11-26 21:03:48 (5754, 2873) at 2 tiles, 2 first sightings within 5"},
+    {"key": "moss giant", "at": [5764, 2898, -10], "note": "level 3: first seen 11-26 21:04:04 (5764, 2898) at 18 tiles"},
+    {"key": "noxweed", "at": [5777, 2901, -15], "note": "level 3: first seen 11-26 21:04:06 (5777, 2901) at 18 tiles, 2 first sightings within 5"},
+    {"key": "deathstalk", "at": [5751, 2918, -15], "note": "level 3: first seen 11-26 21:04:08 (5751, 2918) at 18 tiles"},
+    {"key": "ankheg", "at": [5774, 2906, -15], "note": "level 3: first seen 11-26 21:04:26 (5774, 2906) at 18 tiles, 2 first sightings within 5"},
+    {"key": "lichenid", "at": [5769, 2902, -15], "note": "level 3: first seen 11-26 21:04:26 (5769, 2902) at 13 tiles, 2 first sightings within 5"},
+    {"key": "ankheg", "at": [5732, 2920, -15], "note": "level 3: first seen 11-26 21:04:30 (5732, 2920) at 18 tiles"},
+    {"key": "ankheg", "at": [5752, 2902, -14], "note": "level 3: first seen 11-26 21:05:37 (5752, 2902) at 18 tiles"},
+    {"key": "deathstalk", "at": [5725, 2903, -15], "note": "level 3: first seen 11-26 21:05:54 (5725, 2903) at 18 tiles"},
+    {"key": "fungaloid", "at": [5709, 2919, -15], "note": "level 3: first seen 11-26 21:06:15 (5709, 2919) at 18 tiles"},
+    {"key": "lichenid", "at": [5705, 2898, -15], "note": "level 3: first seen 11-26 21:06:34 (5705, 2898) at 18 tiles"},
+    {"key": "moss giant", "at": [5696, 2920, -15], "note": "level 3: first seen 11-26 21:06:36 (5696, 2920) at 18 tiles"},
+    {"key": "noxweed", "at": [5692, 2890, 15], "note": "level 3: first seen 11-26 21:06:36 (5692, 2890) at 18 tiles"},
+    {"key": "noxweed", "at": [5702, 2927, -15], "note": "level 3: first seen 11-26 21:06:40 (5702, 2927) at 18 tiles"},
+    {"key": "emerald elemental", "at": [5705, 2930, -15], "note": "level 3: first seen 11-26 21:06:55 (5705, 2930) at 18 tiles"},
+    {"key": "volt wisp", "at": [5725, 2889, 15], "note": "level 3: first seen 11-26 21:08:04 (5725, 2889) at 18 tiles"},
+    {"key": "deathstalk", "at": [5785, 2875, -15], "note": "level 3: first seen 11-26 21:08:47 (5785, 2875) at 18 tiles"},
+    {"key": "fen daemon", "at": [5786, 2875, -15], "note": "level 3: first seen 11-26 21:08:47 (5786, 2875) at 18 tiles, 3 first sightings within 5"},
+    {"key": "lichenid", "at": [5801, 2873, -15], "note": "level 3: first seen 11-26 21:08:48 (5801, 2873) at 18 tiles"},
+    {"key": "moss giant", "at": [5769, 2904, -15], "note": "level 3: first seen 11-26 21:08:54 (5769, 2904) at 18 tiles"},
+    {"key": "petram cultist", "at": [5783, 2873, -15], "note": "level 3: first seen 11-26 21:09:52 (5783, 2873) at 12 tiles"},
+    {"key": "volt wisp", "at": [5734, 2864, 15], "note": "level 3: first seen 11-26 21:10:25 (5734, 2864) at 18 tiles"},
+    {"key": "terathan broodguard", "at": [5704, 2879, 15], "note": "level 3: first seen 11-26 21:10:33 (5704, 2879) at 18 tiles"}
+  ],
+  "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; every type seen has a wiki row at Mount Petram, other players' summons and pets are notoriety 1-2 and out): level 1 31, level 2 26, level 3 40. The tiles within 18 of where Logan stood: level 1 95 % of its floor, level 2 98 %, level 3 69 % (its east end, x 5800+, hardly). One visit: each spawn a single sighting, the density unchecked against a second",
+  "melee_observed": {
+    "moss giant": {"melee": [30.0, 35.0, 32.5], "swing_s": 3.0, "note": "every number of its on a pet in the capture was its slam (10 of 10, 1.01-1.07 s after its action 14, specials): petram_observed's swing (82 a swing every 1.86 s) is two pets' slam numbers summed. No clean swing seen: the wiki's melee 60-70 x kb_melee_to_pet 0.5 and the default swing. Before this, level 3's 3 deaths of 32 runs (2026-11-26) were all under two moss giants, 834-954 on AlaFlambe in 15 s"},
+    "ankheg": {"melee": [20.0, 25.0, 22.5], "swing_s": 3.0, "note": "6 of its 9 numbers on the pets were its Poison Dig (33-50, specials); the other 3 were 15-26. The wiki's melee 40-50 x kb_melee_to_pet 0.5 (20-25) and the default swing"}
+  },
+  "specials": {
+    "ankheg": [
+      {"kind": "burst", "id": "poison_dig", "text": "*digs*", "first_s": [3.0, 16.0], "every_s": 16.1, "delay_s": 1.8, "center": "target", "reach": 12, "radius": 2, "targets": 3, "damage_pet": [35, 53, 40], "damage_player": [40, 52, 46], "note": "its Poison Dig (the wiki's tamed ability, knowledge #14484: 'Teleports to a location up to 12 tiles away, hitting up to 3 targets within 2 tiles. Inflicts (DamageMax * 0.75) damage and applies greater poison'): '*digs*' 7 times on level 3 (capture 20261125_150950, 21:01:56-21:08:36), 1.70-1.89 s later (median 1.84, n=3) one number on each of us within 1-2 of each other at 3-9 tiles from where it dug: Logan 38 and 49 with '*wracked with extreme pain*' (poisoned; the free cure potion took it at once), the pets 33-50 (n=6); 4 digs reached none of us (another player's, or out of view). Two ankhegs dug 15.6 and 16.6 s apart each (every_s). Numbers as seen under a 6.1 % Song of Discordance, song-corrected here (x 1.065). Not modelled: the jump itself (it stays where it was), the poison (cured at once live; the runner's cure as for any poison) [INFERENCE]; first_s [INFERENCE]"}
+    ],
+    "moss giant": [
+      {"kind": "burst", "id": "slam", "action": 14, "first_s": [2.0, 8.0], "every_s": 8.1, "delay_s": 1.04, "radius": 3, "damage_pet": [60, 67, 64], "damage_player": [32, 48, 39], "note": "its animation action 14 (8 times, level 3, 21:04:16-21:09:34), 1.01-1.07 s later (median 1.04, n=5 with one of us near) one number on each of us within 3 of it: the pets 56-63 at 1-3 (n=10), Logan 45 at 3, 30 and 22 at 2, 37 at 3, each with 'You have been knocked off your feet!'; 7.6, 8.2 and 8.6 s apart. Numbers as seen under a 6.1 % Song of Discordance, song-corrected here (x 1.065); Logan's two numbers at once counted as one 52 out of the range [INFERENCE: a swing with it]. The knockdown's hold is unmeasured: no root here; first_s [INFERENCE]"}
+    ],
+    "note": "Not modelled (one visit, no number to fit): the deathstalk's '*entraps <pet>*' (24-25 on the pet with it, then its swings 3 s on), the colossal trapdoor spider's '*spins web*' and the wiki's Web hinder/hamstring, 'You have been ensnared and poisoned!' (21:08:50, a deathstalk and a fen daemon near), 'Their attack hamstrings you!' (21:10:38, a noxweed's), 'You are entangled in vines!' (21:04:49, 5 s), the minotaurs' '*charges*' (no number on us after any of 3), the berserker's '*goes berserk*', the petram cultist's '*completes earth pact*', the witch harpy's '*potion stuck*'"
+  },
+  "upscale_note": "no upscale block: a normal week. Every type killed in view took at most its wiki hits in numbers (8,001 for 8,000; 12,001 for 12,000) and its corpses held 0.91-1.08 x its wiki gold value (23 types with gold lifted, the median each). So not the Challenger dungeon that week",
+  "others_note": "no `others` block (run.py --others refused here): 8 other players in view in the 17.5 min (Zoovier and his summons on level 1 and later on level 3, Niko Woods, Ace Ventora and others), not measured as a crowd",
+  "reds_note": "no `reds` block (run.py --reds refused here): 2026-11-26 21:10:14 the red Meloh 0x003417E4 ('Meloh is attacking you!', Corp Por at 21:10:14, :16 and :39) on level 3 at (5781, 2862) while Logan fought there; he traversed away twice (21:10:15-17), drank 3 potions, took 26, 27 and 36 with no monster within 12, and left by the crimson gate 0x4004A436 at 21:11:06 (a guild call '[DTF] Red Mt Petram 3' at 21:10:53)",
+  "trip": {
+    "note": "Logan Wolf's visit on level 3 (the user playing, 2026-11-26 20:59:57-21:11:06; AlaFlambe and Bussin): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan (the red's three included); vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there. Per hour on the level beside the sim's (run.py --compare). His songs 6.1 % until 21:09:11, 18.4 % after",
+    "hunt_s": 594.0,
+    "kills": 20,
+    "player_damage": 664,
+    "vet_uses": 36,
+    "potions": 11,
+    "discord_ok": 15,
+    "discord_fail": 5,
+    "peace_ok": 4,
+    "peace_fail": 9,
+    "provoke": 2,
+    "gold": 20282
+  }
+}

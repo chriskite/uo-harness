@@ -10562,6 +10562,61 @@ woke. Unlike 2026-11-22's (an awake soulcatcher: crawl.SHOT_WAIT_S), this one st
 breaker for the back-off loop: the fought legs' `BACK_OFF_REPEAT` was rejected there in 2026-10-29's batches.
 Built: `tamer.BACK_OFF_HOLD_S` (docs/HUNT_LOOP.md "Pets"; docs/SIM.md "Tidal Tomb: the nook's idle soulcatcher").
 
+## Mount Petram: the user's first visit (2026-11-26 20:53:33-21:11:06, capture 20261125_150950)
+
+The user played Logan Wolf through Mount Petram once with AlaFlambe 0x0026EF56 and Bussin 0x000EA04F, AR 130, for
+the simulator's `petram` scenario (docs/SIM.md "Mount Petram"). Decoded with `replay.timed_packets` -> `WorldRuntime`
+and `calibrate.Session` (region: the three levels' boxes); the scratch passes are not in the repo.
+
+- **The rune:** the user added "Mount Petram Cave" to the tome 0x444AB1F3 at 20:52:54 (its rune gump: "(5600, 2764)")
+  and moved it up to after "Ossuary". The recall (button 112, 20:53:31) landed on level 1 at **(5600, 2764, 0)**. The
+  rune libraries' "Mt. Petram Cave" / "NW Cave" / "West" / "SE Cave" (5599-5629, 2765-2802) all land on that same floor.
+- **Levels by a map flood fill:** level 1, the cave, x 5502-5643, y 2750-2830 (6,433 tiles, z -2..57; 176 s there);
+  level 2 x 5549-5639, y 2840-2950 (4,799, z -70..50; 206 s); level 3 x 5681-5830, y 2755-2936 (9,265, z -28..72; 594
+  s). The guild calls level 3 "Mt Petram 3" ("[DTF] Red Mt Petram 3", 21:10:53).
+- **Teleporters fire on the move from their tile**, as Shadowspire's strips: the step onto the tile confirmed, the
+  next walk request from it denied with the teleport.
+  - Level 1's north strip (5516-5518, 2780) -> level 2 (x + 53, 2866, 50) on a move N (20:56:25, :28, :31). Its
+    landing (5516-5518, 2779) is a pocket (a wall N, pillars at x 5515 and 5519); S from it across the strip walked on.
+  - Level 2's strip (5569-5571, 2865), at the north end of a 3 x 3 pocket, -> level 1's landing (x - 53, 2779, 0) on a
+    move S (20:56:26, :29, :32); N out of the pocket across it walked on. The user went up and down three times.
+  - Level 2's tile (5571, 2879, -20), the one with the static 0x64F0 at the west edge of a small room, -> level 3's
+    ledge (5699, 2801, 72): a step NW onto it, a turn N, the move N fired (20:59:57.51). No way back up was seen.
+  - The other two jumps were Logan's own traverse ("Where do you wish to traverse to?", "You are no longer
+    hindered."): (5713, 2807, 35) -> (5719, 2813, 30) at 21:00:04 off the ledge, and 21:10:15-17 away from a red.
+- **Gates:** golden (hue 2822) 0x400016B9 (5602, 2768, 45), 0x400016BB (5610, 2800, 43), 0x400016BC (5635, 2819, 10)
+  and 0x400016BA (5629, 2786, 40) on level 1; crimson (hue 2820) 0x4004A43A (5639, 2888, -20) on level 2 and
+  0x4004A436 (5690, 2885, 15) on level 3. Logan left by 0x4004A436: its menu 0xE0E675B8 (21:11:02) had the usual
+  'Moongate Destinations' rows, and Totem put him at (3848, 2867, -19). The arrival is 4 tiles from 0x400016B9 but 131
+  steps (it stands on a ledge): no recall out there by the gold-gate rule.
+- **Time and take** (each level's floor, gaps under 30 s): level 1 12 kills, 19 on Logan, 2,281 gp lifted; level 2 9
+  kills, 15, 5,993 gp; level 3 20 kills, 664 on Logan, 11 potions, 20,282 gp. Zoovier (a summoner) hunted level 1
+  beside him.
+- **A normal week:** hits at most the wiki's (8,001 for 8,000), corpse gold 0.91-1.08 x the wiki's (23 types).
+- **His songs printed 6.1 %** (Discordance, Peacemaking, Provocation at 20:53) until "Loadout activated" at 21:09:11,
+  then 18.4 %: most of the visit was played without his barding links [INFERENCE: the loadout the runner checks
+  wasn't active]. Discordance 23 ok / 6 failed, Peacemaking 4 / 9.
+- **The red:** Meloh 0x003417E4 on level 3 at (5781, 2862), 21:10:14 "Meloh is attacking you!" and Corp Por at
+  21:10:14, :16 and :39. Logan traversed away twice, drank 3 potions, took 26, 27 and 36 with no monster near, and
+  left by the crimson gate at 21:11:06.
+- **Specials** (numbers as seen under the 6.1 % Discordance):
+  - the **ankheg's '*digs*'** (its Poison Dig, the wiki's tamed ability #14484: up to 12 tiles, up to 3 targets within
+    2): 1.70-1.89 s later one number on each of us bunched together at 3-9 tiles from where it dug, Logan 38 and 49
+    with '*wracked with extreme pain*' (poisoned; the free cure potion at once), the pets 33-50; two ankhegs dug 15.6
+    and 16.6 s apart; 4 of 7 digs hit none of us;
+  - the **moss giant's slam** (animation action 14, no emote): 1.01-1.07 s later one number on each of us within 3,
+    the pets 56-63, Logan 22-45 with "You have been knocked off your feet!"; 7.6-8.6 s apart. Every number of a moss
+    giant's on a pet was a slam, so the capture's "swing" for it (82 every 1.86 s) is two pets' slam numbers summed;
+  - the **deathstalk's '*entraps AlaFlambe*'**: 24-25 on the pet with it, then its swings 3 s on;
+  - the **colossal trapdoor spider's '*spins web*'**, "You have been ensnared and poisoned!" (21:08:50), "Their attack
+    hamstrings you!" (21:10:38), "You are entangled in vines!" (21:04:49, 5 s), the minotaurs' '*charges*' (no number
+    on us after any of 3), the berserker's '*goes berserk*', the petram cultist's '*completes earth pact*': not
+    measured.
+- **A trap in level 3's map:** a 3-tile water channel at (5737, 2838-2840, z -5) (impassable water statics of height
+  0 on cave floor, a rock E, the floor at 15 W) takes a step down from the floor and no step leaves it, by the client's
+  walk rules [INFERENCE: the server's too]. Logan never stood in it; the simulated runner did (docs/HUNT_LOOP.md "No
+  drop into a sink").
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

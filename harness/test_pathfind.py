@@ -22,6 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import localmap  # noqa: E402
 import nav  # noqa: E402
 import pathfind  # noqa: E402
 import uomap  # noqa: E402
@@ -170,6 +171,17 @@ def main():
           and walk.can_walk(6656, 2054, 19, 6) is None)
     check("the ledge itself still walks (live Logan on (6661, 2045-2050, 19))",
           walk.can_walk(6661, 2047, 19, 4) == (6661, 2048, 19))
+
+    print("== no drop into a sink for the runner's walks (Mount Petram level 3, simulator 2026-11-26) ==")
+    # a 3-tile water channel at z -5 (impassable water statics of height 0 on cave floor) under the floor at 15: the
+    # step down from (5736, 2838, 15) lands in it and no step leaves it; the simulated front walk went in and the run
+    # ended there, "no route from (5737, 2838)"
+    sinks = pathfind.Walk(uomap.UoMap(0), no_sinks=True)
+    check("the client's rules take the drop into the channel", walk.can_walk(5736, 2838, 15, 2) == (5737, 2838, -5))
+    check("...the runner's (no_sinks) refuse it", sinks.can_walk(5736, 2838, 15, 2) is None)
+    check("...and keep a plain step and a drop with a way back (level 3's ledge down to its floor)",
+          sinks.can_walk(5736, 2838, 15, 0) == walk.can_walk(5736, 2838, 15, 0)
+          and len(localmap.reachable(sinks, (5699, 2801, 72), box=(5681, 2755, 5830, 2936))) == 9261)
 
     print("== a player house blocks like the client places it (live 20261002_153718) ==")
     # 0xF3 data_type 2, multi 0x154 at (943,774,z1), Corpse Creek. The server denied all 12

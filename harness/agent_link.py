@@ -610,7 +610,7 @@ class Mover:
         self.doors = doors
         self.use_map = use_map
         self.dispel = dispel
-        self.walkers = pathfind.Walkers()
+        self.walkers = pathfind.Walkers(no_sinks=True)   # never a drop into a pit with no way out (pathfind.SINK_TILES)
         self.denied = set()          # (x, y, d) server denies seen this session (map planner)
         self.denied_t = {}           # the ones of them on map-walkable steps -> monotonic time (expire: DENY_RETRY_S)
         self.shove_denied = {}       # (x, y) -> monotonic time a shove into it was denied
