@@ -10,7 +10,7 @@
     "facet": 0,
     "boxes": [[5497, 2745, 5648, 2835], [5544, 2835, 5644, 2955], [5676, 2750, 5835, 2941]],
     "tags": ["20261125_150950"],
-    "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5; level 1's and level 2's meet at y 2835). Capture: the user's visit of 2026-11-26 20:53:33-21:11:06 (the capture ran 2026-11-25 15:09 to past 21:14 on 11-26; only the packets with Logan in a box count)"
+    "note": "sim/calibrate.py's region: one box per level (the flood fills padded by 5; level 1's and level 2's meet at y 2835). Capture 20261125_150950 (2026-11-25 15:09 to past 23:20 on 11-26; only the packets with Logan in a box count): the user's visit 20:53:33-21:11:06 and the runner's level 3 shift 22:21-23:20 (six runs; docs/NOTES.md 'Mount Petram: …'), recalibrated 2026-11-26 after the shift"
   },
   "inherit": {
     "from": "mausoleum",
@@ -207,14 +207,49 @@
     {"key": "moss giant", "at": [5769, 2904, -15], "note": "level 3: first seen 11-26 21:08:54 (5769, 2904) at 18 tiles"},
     {"key": "petram cultist", "at": [5783, 2873, -15], "note": "level 3: first seen 11-26 21:09:52 (5783, 2873) at 12 tiles"},
     {"key": "volt wisp", "at": [5734, 2864, 15], "note": "level 3: first seen 11-26 21:10:25 (5734, 2864) at 18 tiles"},
-    {"key": "terathan broodguard", "at": [5704, 2879, 15], "note": "level 3: first seen 11-26 21:10:33 (5704, 2879) at 18 tiles"}
+    {"key": "terathan broodguard", "at": [5704, 2879, 15], "note": "level 3: first seen 11-26 21:10:33 (5704, 2879) at 18 tiles"},
+    {"key": "tourmaline elemental", "at": [5544, 2756, 10], "note": "level 1: first seen by the runner 11-26 22:22:30 (5544, 2756) at 18 tiles, beyond the user's visit's view"},
+    {"key": "trapdoor spider", "at": [5545, 2788, 15], "note": "level 1: first seen by the runner 11-26 22:22:30 (5545, 2788) at 18 tiles, beyond the user's visit's view"},
+    {"key": "aged earth", "at": [5542, 2787, 15], "note": "level 1: first seen by the runner 11-26 22:36:38 (5542, 2787) at 18 tiles, beyond the user's visit's view"},
+    {"key": "minotaur runesmith", "at": [5740, 2818, 15], "note": "level 3: first seen by the runner 11-26 22:52:24 (5740, 2818) at 15 tiles, beyond the user's visit's view"},
+    {"key": "earth drake", "at": [5774, 2822, -15], "note": "level 3: first seen by the runner 11-26 22:52:39 (5774, 2822) at 18 tiles, beyond the user's visit's view"},
+    {"key": "earth drake", "at": [5791, 2803, -15], "note": "level 3: first seen by the runner 11-26 23:08:29 (5791, 2803) at 18 tiles, beyond the user's visit's view"},
+    {"key": "sapphire elemental", "at": [5743, 2800, 0], "note": "level 3: first seen by the runner 11-26 23:08:50 (5743, 2800) at 18 tiles, beyond the user's visit's view"},
+    {"key": "emerald elemental", "at": [5771, 2793, 1], "note": "level 3: first seen by the runner 11-26 23:08:51 (5771, 2793) at 18 tiles, beyond the user's visit's view"},
+    {"key": "amethyst elemental", "at": [5756, 2791, 1], "note": "level 3: first seen by the runner 11-26 23:08:53 (5756, 2791) at 18 tiles, beyond the user's visit's view"},
+    {"key": "tourmaline elemental", "at": [5743, 2786, 1], "note": "level 3: first seen by the runner 11-26 23:08:55 (5743, 2786) at 18 tiles, beyond the user's visit's view"},
+    {"key": "star sapphire elemental", "at": [5771, 2785, 0], "note": "level 3: first seen by the runner 11-26 23:08:55 (5771, 2785) at 18 tiles, beyond the user's visit's view"},
+    {"key": "ruby elemental", "at": [5759, 2777, 0], "note": "level 3: first seen by the runner 11-26 23:10:38 (5759, 2777) at 18 tiles, beyond the user's visit's view"},
+    {"key": "amber elemental", "at": [5748, 2770, 1], "note": "level 3: first seen by the runner 11-26 23:10:39 (5748, 2770) at 18 tiles, beyond the user's visit's view"},
+    {"key": "citrine elemental", "at": [5773, 2776, 1], "note": "level 3: first seen by the runner 11-26 23:10:41 (5773, 2776) at 18 tiles, beyond the user's visit's view"},
+    {"key": "earth dragon", "at": [5788, 2785, -15], "note": "level 3: first seen by the runner 11-26 23:13:07 (5788, 2785) at 18 tiles, beyond the user's visit's view"},
+    {"key": "earth dragon", "at": [5789, 2764, -17], "note": "level 3: first seen by the runner 11-26 23:13:07 (5789, 2764) at 18 tiles, beyond the user's visit's view"},
+    {"key": "earth dragon", "at": [5790, 2813, -15], "note": "level 3: first seen by the runner 11-26 23:13:50 (5790, 2813) at 18 tiles, beyond the user's visit's view"},
+    {"key": "lurker", "at": [5809, 2832, -15], "note": "level 3: first seen by the runner 11-26 23:17:40 (5809, 2832) at 18 tiles, beyond the user's visit's view"},
+    {"key": "earth dragon", "at": [5793, 2798, -15], "note": "level 3: first seen by the runner 11-26 23:17:41 (5793, 2798) at 18 tiles, beyond the user's visit's view"},
+    {"key": "star sapphire elemental", "at": [5815, 2846, -15], "note": "level 3: first seen by the runner 11-26 23:17:51 (5815, 2846) at 18 tiles, beyond the user's visit's view"},
+    {"key": "lurker", "at": [5824, 2837, -15], "note": "level 3: first seen by the runner 11-26 23:18:13 (5824, 2837) at 18 tiles, beyond the user's visit's view"}
   ],
-  "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; sightings of a type within 5 tiles merged, the earliest kept; every type seen has a wiki row at Mount Petram, other players' summons and pets are notoriety 1-2 and out): level 1 31, level 2 26, level 3 40. The tiles within 18 of where Logan stood: level 1 95 % of its floor, level 2 98 %, level 3 69 % (its east end, x 5800+, hardly). One visit: each spawn a single sighting, the density unchecked against a second",
+  "spawn_note": "one spawn per cluster of a type's first sightings (sim/calibrate.py's Session first sightings of creatures with notoriety 3-5 on a level's floor; every type seen has a wiki row at Mount Petram, other players' summons and pets are notoriety 1-2 and out). The user's visit (20:53-21:11): sightings of a type within 5 tiles merged, the earliest kept: level 1 31, level 2 26, level 3 40 (+ the amethyst elemental the runner met on level 2). The runner's shift (22:21-23:20, 2026-11-26): 196 first sightings; only those more than 18 tiles from every tile the user's visit stood on (out of its view) and more than 10 from a known spawn of their type were added, 21 (level 1 3, level 3 18): level 3's north room of gem elementals (x 5743-5773, y 2770-2800), its east end (4 earth dragons, 2 drakes, 2 lurkers, x 5774-5824) and one runesmith. Inside the first visit's view a new first sighting is a respawn or a wanderer of a spawner it saw [INFERENCE]: adding the 49 within 10 instead put 2 deaths and 6 runs with a pet death in 32 level 3 runs, all at a minotaur and living earth pack 10-15 tiles below the arrival, and 176 kills an hour against the runner's live 94. Totals: level 1 34, level 2 27, level 3 58",
   "melee_observed": {
     "moss giant": {"melee": [30.0, 35.0, 32.5], "swing_s": 3.0, "note": "every number of its on a pet in the capture was its slam (10 of 10, 1.01-1.07 s after its action 14, specials): petram_observed's swing (82 a swing every 1.86 s) is two pets' slam numbers summed. No clean swing seen: the wiki's melee 60-70 x kb_melee_to_pet 0.5 and the default swing. Before this, level 3's 3 deaths of 32 runs (2026-11-26) were all under two moss giants, 834-954 on AlaFlambe in 15 s"},
+    "minotaur battleborne": {"melee": [32.0, 40.0, 36.0], "swing_s": 3.0, "note": "the runner's shift (capture 20261125_150950, 22:46-23:20): its 'swing' (32-89 a swing, n=9) sums its charge's 41-49 into the swing beside it; its numbers on the pets one by one 32-46, median 36 (n=11), the charge's numbers among the top ones. Here the median with the upper bound below the charge's [INFERENCE: 40]"},
+    "minotaur runesmith": {"melee": [25.0, 30.0, 27.0], "swing_s": 3.34, "note": "the runner's shift: its 'swing' (25-69, n=12) sums the rune blast's 39-46 into a swing; its numbers on the pets one by one 25-42, median 27 (n=17), the blast's among the top ones. Here the median with the upper bound below the blast's [INFERENCE: 30]; its swing period 3.34 s as measured"},
     "ankheg": {"melee": [20.0, 25.0, 22.5], "swing_s": 3.0, "note": "6 of its 9 numbers on the pets were its Poison Dig (33-50, specials); the other 3 were 15-26. The wiki's melee 40-50 x kb_melee_to_pet 0.5 (20-25) and the default swing"}
   },
   "specials": {
+    "minotaur battleborne": [
+      {"kind": "charge", "cooldown_s": 30.0, "range": 12, "targets": 3, "delay_s": [0.99, 1.09], "damage": [50, 60, 55], "note": "the runner's level 3 runs (capture 20261125_150950, 2026-11-26 22:46-23:20, 9 minotaurs): '*charges*' (animation action 18), 0.99-1.09 s later (median 1.06, n=6) a number on each pet beside where it lands: 41-49 (n=11; once Logan 19 at 4 with the pets at 5, unexplained). As seen under the runner's 18.4 % Song of Discordance, song-corrected here (/ 0.816). Each minotaur charged once in its fight (8 battleborne, 1 minotaur): cooldown_s [INFERENCE: one a fight]. The runner learns a charger at its first '*charges*' (tamer.chargers) and keeps CHARGE_SAFE_R off it"}
+    ],
+    "minotaur": [
+      {"kind": "charge", "cooldown_s": 30.0, "range": 12, "targets": 3, "delay_s": [0.99, 1.09], "damage": [50, 60, 55], "note": "'*charges*' seen from minotaurs too (the user's visit 20:58:59, 20:59:40; the runner's 2026-11-26), no number on us after any: the battleborne's numbers [INFERENCE]"}
+    ],
+    "earth dragon": [
+      {"kind": "burst", "id": "earth_breath", "action": 12, "first_s": [3.0, 16.0], "every_s": 16.0, "delay_s": 1.65, "center": "target", "reach": 12, "radius": 0, "damage_pet": [67, 70, 68], "damage_player": [67, 70, 68], "note": "its Earth Breath (the wiki's tamed ability #14479: 'a projectile at a target up to 12 tiles away, (DamageMax * 2.0)'): animation action 12, 1.10-1.69 s later (median 1.65, n=3) 55-57 on AlaFlambe, its target, at 1-8 tiles (the runner's level 3 runs, 2026-11-26 23:13-23:15); one dragon's 16 s apart (n=1). Song-corrected (/ 0.816). damage_player [INFERENCE: never on Logan; the pets' number]"}
+    ],
+    "earth drake": [
+      {"kind": "burst", "id": "earth_breath", "action": 12, "first_s": [3.0, 16.0], "every_s": 16.0, "delay_s": 1.12, "center": "target", "reach": 12, "radius": 0, "damage_pet": [50, 52, 51], "damage_player": [50, 52, 51], "note": "the drake's Earth Breath: animation action 12, 1.12 s later 42 on AlaFlambe (n=1, 22:54:09; two more 42s after its action 10). Song-corrected (/ 0.816); every_s and damage_player [INFERENCE: the dragon's]"}
+    ],
     "minotaur runesmith": [
       {"kind": "burst", "id": "rune_blast", "action": 11, "first_s": [2.0, 9.5], "every_s": 9.5, "delay_s": 1.5, "radius": 4, "damage_pet": [48, 56, 51], "damage_player": [51, 53, 52], "note": "the runner's level 3 runs (capture 20261125_150950, 2026-11-26 22:50-23:07, four runesmiths): its animation action 11, 1.38-1.59 s later (median 1.50, n=5 casts with one of us near) one number on each of us within 4 of it: the pets at 1-4 hit every time (39-46), Logan at 3 two of three times (42, 43, each with 'You have been shocked and cannot move!'), at 5 and 6 never (2 casts), nobody at 12-18. 9-10 s apart from one runesmith (n=2). Numbers as seen under the runner's 18.4 % Song of Discordance, song-corrected here (/ 0.816). The shock's hold is unmeasured: no root here. With this the runner keeps 5 off a runesmith (tamer.AREA_R, user 2026-11-26: 'The runner should be able to stand where a minotaur runesmith's AOE won't hit it'); first_s [INFERENCE]"}
     ],
@@ -233,17 +268,17 @@
   "others_note": "no `others` block (run.py --others refused here): 8 other players in view in the 17.5 min (Zoovier and his summons on level 1 and later on level 3, Niko Woods, Ace Ventora and others), not measured as a crowd",
   "reds_note": "no `reds` block (run.py --reds refused here): 2026-11-26 21:10:14 the red Meloh 0x003417E4 ('Meloh is attacking you!', Corp Por at 21:10:14, :16 and :39) on level 3 at (5781, 2862) while Logan fought there; he traversed away twice (21:10:15-17), drank 3 potions, took 26, 27 and 36 with no monster within 12, and left by the crimson gate 0x4004A436 at 21:11:06 (a guild call '[DTF] Red Mt Petram 3' at 21:10:53)",
   "trip": {
-    "note": "Logan Wolf's visit on level 3 (the user playing, 2026-11-26 20:59:57-21:11:06; AlaFlambe and Bussin): time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (our side); player_damage: every '-N' on Logan (the red's three included); vet_uses 'You finish using veterinary supplies.'; potions 'You drink a healing potion.'; bard answers by skill id (Discordance 15, Peacemaking 9, Provocation 22: successes); gold: every gold lift there. Per hour on the level beside the sim's (run.py --compare). His songs 6.1 % until 21:09:11, 18.4 % after",
-    "hunt_s": 594.0,
-    "kills": 20,
-    "player_damage": 664,
-    "vet_uses": 36,
-    "potions": 11,
-    "discord_ok": 15,
-    "discord_fail": 5,
+    "note": "the runner on level 3 (2026-11-26 22:46-23:20, hunt-20261126-224331-cc00 and the stranded run before it; AlaFlambe and Bussin, songs 18.4 %), the same rules: time on the level's floor (map flood fill) with gaps under 30 s; kills: deaths of creatures that took a hue-89 number (6 more lost to other players' loot rights); player_damage: every '-N' on Logan; vet_uses; potions; bard answers by skill id; gold: every gold lift there. The user's visit before it (20:59:57-21:11:06, 594 s, songs 6.1 % most of it, a red at the end): 20 kills, 664 on Logan, 36 vet, 11 potions, Discordance 15/5, Peacemaking 4/9, Provocation 2, 20,282 gp. Per hour on the level beside the sim's (run.py --compare)",
+    "hunt_s": 2186.3,
+    "kills": 57,
+    "player_damage": 620,
+    "vet_uses": 54,
+    "potions": 13,
+    "discord_ok": 27,
+    "discord_fail": 22,
     "peace_ok": 4,
-    "peace_fail": 9,
-    "provoke": 2,
-    "gold": 20282
+    "peace_fail": 0,
+    "provoke": 0,
+    "gold": 45738
   }
 }

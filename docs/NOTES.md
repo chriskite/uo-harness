@@ -10676,6 +10676,27 @@ The second level 3 run, after the resurrection.
   - Level 3, 32 runs, with and without that keep: runesmith damage on Logan 64 -> 6 an hour, all damage 577 -> 467, no
     death either way, the same gold.
 
+## Mount Petram level 3: the shift's completed run and what it showed (2026-11-26 22:43-23:20, hunt-20261126-224331-cc00)
+
+- **The run:** 2 visits, 45 kills (6 more lost to other players' loot rights), 49,297 gp (22,811 and 35,596 at the
+  drop-offs), 682 hits lost. No death and no pet left: both leaves by the crimson gate (5690, 2885) had both pets
+  through ("All Follow Me" at the gate). It ended on the user's "Head home and end the shift" (stop --after-trip).
+- **Both teleporters as seeded:** "the move from it (direction 0) fires it" at (5517, 2780) and at (5571, 2879).
+- **On level 3** (2,186 s with the stranded run's part): 57 kills, 620 on Logan, 13 potions, 54 vet, Discordance
+  27/22, Peacemaking 4/0, 45,738 gp lifted.
+- **Level 3 beyond the user's visit's view:**
+  - a north room of gem elementals (x 5743-5773, y 2770-2800: sapphire, emerald, amethyst, tourmaline, star sapphire,
+    ruby, amber, citrine, diamond);
+  - an east end with earth dragons and drakes (x 5774-5793) and lurkers (x 5809-5824).
+- **Specials measured** (as seen under the runner's 18.4 % Discordance; song-corrected in `petram.json`):
+  - the minotaur battleborne's '*charges*' (action 18): 0.99-1.09 s later 41-49 on each pet where it lands (n=6
+    charges), once in each of 9 fights;
+  - the earth dragon's breath (action 12): 1.1-1.7 s later 55-57 on its target, AlaFlambe, at 1-8 tiles (n=3);
+  - the drake's: 42 (n=1);
+  - the lurker's '*vomits*': 18-19 on AlaFlambe, 2-3 numbers 0.3-0.7 s apart (n=5), not modelled;
+  - "The earth rises beneath you!" once, its source unknown.
+- **Simulator recalibration from it:** docs/SIM.md "The first live shift".
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

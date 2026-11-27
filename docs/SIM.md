@@ -3953,7 +3953,45 @@ fix below, the strips' `dirs` as seen):
 
 - One visit of 17.5 min: every spawn is one sighting, every special's numbers a handful (dig n=3, slam n=5).
 - The level 2 -> 3 tile firing on every move, and the strips' diagonal directions, are [INFERENCE].
-- Level 3's east end (x 5800+) was hardly seen: few spawns there.
+- Level 3's east end (x 5800+) was hardly seen on the first visit (the shift below added its spawns).
+
+### The first live shift (2026-11-26 22:21-23:20)
+
+User: "Run a shift on Petram level 3 and use the data to flesh out the simulator". The runner's six runs that evening
+are in the same capture, `20261125_150950`; the facts are in docs/NOTES.md "Mount Petram: …". From them:
+
+- **`petram_observed.json`** recalibrated over the user's visit and the shift: 52 creature types (40 before).
+- **21 spawns added**, only beyond the first visit's view: level 3's north room of gem elementals, its east end (four
+  earth dragons, two drakes, two lurkers), a runesmith, and 3 on level 1.
+  - Inside the first visit's view, a new first sighting is taken for a respawn or a wanderer [INFERENCE].
+  - Adding the 49 that were more than 10 from a known spawn of their type instead gave 2 deaths and 6 runs with a pet
+    death in 32 level 3 runs, all at a minotaur and living earth pack below the arrival, and 176 kills an hour.
+- **Specials from the shift:**
+  - the amethyst elemental's shards (Logan's death);
+  - the minotaur runesmith's blast (everyone within 4; the runner keeps 5 off it);
+  - the minotaur battleborne's Charge (41-49 on each pet where it lands, once a fight; the plain minotaur the same
+    [INFERENCE]);
+  - the earth dragon's and drake's Earth Breath on their target (55-57 and 42 as seen).
+- **`melee_observed`**: the battleborne's and the runesmith's swings had their charge's and blast's numbers summed in;
+  replaced by their numbers one by one.
+- **The level 3 `trip`** is now the runner's live 2,186 s on the level (57 kills, 620 on Logan, 13 potions, 54 vet,
+  45,738 gp), not the user's 594 s (kept in its note).
+
+Level 3, 32 runs each, the shift's command (phoenix_incubus, `--prior` the live store), before (the scenario as committed
+at 698aee2) and after; per hour on the level, the live row the runner's own:
+
+| | runs with a death | with a pet death | leaving a pet | kills | damage on Logan | potions | vet | banked gp a game hour |
+|---|---|---|---|---|---|---|---|---|
+| before | 0 | 1 | 2 | 148 | 467 | | | 141,789 |
+| after | 0 | 1 | 3 | 156 | 468 | 12 | 166 | 147,726 |
+| live (the runner) | 1 (after the false guard abort, since removed) | 0 | 0 | 94 | 1,021 | 21 | 89 | |
+
+- **Still optimistic on level 3:** the simulator kills 1.7 x the live runner's and takes half its damage on Logan.
+  - Live, other players took 6 kills by loot rights, and nothing models them here.
+  - The live run also lost time to the creek patrol and the stranding, both fixed since.
+  - Damage unmodelled: the shock's hold, the knockdown, the poison of the dig.
+- **Levels 1 and 2 after** (32 runs each): level 1 0 deaths, 258 kills, 109 on Logan, 60,605 gp an hour; level 2 0
+  deaths, 211 kills, 303 on Logan, 119,469 gp an hour, no pet death or pet left on either.
 
 ## Player armor (2026-10-24)
 

@@ -14,9 +14,10 @@ You never drive the game while it runs; it never edits code.
 Read first: AGENTS.md (in context), docs/OVERSEER.md §5 "Mausoleum crawl shifts" and §6, docs/HUNT_LOOP.md "Pets",
 "In and out of a dungeon", "Crawl"; docs/NOTES.md "Mount Petram: …" sections; docs/SIM.md "Mount Petram".
 
-**The runner has never hunted Mount Petram live.** Everything it does there was tried only in the simulator, built
-from one hand-played visit by the user (2026-11-26, 17.5 min; a red attacked Logan on level 3 at the end). The first
-live runs are the test: watch them closely.
+**The runner's live record there is one level 3 shift** (2026-11-26 22:21-23:20; docs/NOTES.md "Mount Petram: …").
+Its first runs died to a false Razor-guard abort (the guard is gone) and stranded Logan on level 2's tile (fixed); the
+last completed: 2 visits, 45 kills, 49k gp, no death, no pet left. The simulator is built from that shift and the
+user's one hand visit. Watch closely.
 
 ## 0. The user's instructions
 
@@ -35,7 +36,7 @@ the user changes them. None: level 2 (below). Map each one before dispatch:
    |---|---|---|---|
    | level 1, the cave | Petram 1 | `--leave-gate 5602 2768 --leave-gate 5610 2800 --leave-gate 5635 2819 --leave-gate 5629 2786` | Runnable. 0 runs with a death, 56k gp a game hour; kills 244 an hour against the user's 246; 2 of 32 left a pet at the time-up leave. Out by the easiest of its four golden gates, none opened live. |
    | level 2, nothing | Petram 2 | `--enter-via 5517 2780 --fight-via 5517 2780 --leave-gate 5639 2888` | **The default** (the safest level, and the one the simulator matches live: damage on Logan 318 an hour against the user's 262). 0 runs with a death or a pet left, 114k gp a game hour. Out by its crimson gate, never opened live. |
-   | level 3, Mt Petram 3 | Petram 3 | `--enter-via 5517 2780 --enter-via 5571 2879 --fight-via 5571 2879 --leave-gate 5690 2885` | 0 runs with a death, 139k gp a game hour, but **5 of 32 left a pet at its gate** (a floor at z 0 under the gate's: the dash through it with a pet below), and its damage on Logan is a ninth of the user's visit (431 against 4,024 an hour, partly his 6.1 % songs). The ankheg's digs and the moss giant's slams hit Logan; a red attacked him there on 2026-11-26. Out by its crimson gate, which Logan took to Totem live. |
+   | level 3, Mt Petram 3 | Petram 3 | `--enter-via 5517 2780 --enter-via 5571 2879 --fight-via 5571 2879 --leave-gate 5690 2885` | Runnable with the user's go. Live 2026-11-26: one completed run (2 visits, 45 kills, 49k gp, 682 hits lost, no death, both gate leaves clean) after the fixes. Simulator after the shift's calibration: 0 runs with a death, 1 with a pet death and 3 leaving a pet at its gate of 32, 148k gp a game hour; it still kills 1.7 x and takes half the damage on Logan of the live runner (docs/SIM.md "The first live shift"). Specials: the ankheg's dig, the moss giant's slam, the runesmith's blast (the runner keeps 5 off), the battleborne's charge, the earth dragons' breath in the east end; a red attacked Logan there on 2026-11-26. |
 
    **Level 3:** before the first run, tell the user in one message what the table says for it and wait for their go;
    then dispatch with it. Their go stands for the shift.
@@ -85,7 +86,7 @@ main checkout's code against the main store (§5 step 0).
 ```
 Act as the Seer for Logan Wolf: follow docs/OVERSEER.md §5. Goal: Mount Petram crawl shifts (§5 'Mausoleum crawl
 shifts' with its Mount Petram commands: 'Another hunt level by the user's word', 'Mount Petram') until the user says
-stop. The runner has never hunted Mount Petram live: these are its first runs there.
+stop.
 State at dispatch (checked by the parent, <HH:MM>): <hits, pos, facet, at home or where, pets and their hits,
 gold, gate, tasks, open junctures; the tome's charges and its "Mount Petram Cave" row>.
 Runner changes since the last shift (commits <shas>): <what each changes and the log lines it writes>.
