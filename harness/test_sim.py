@@ -10025,6 +10025,30 @@ def test_petram_on_tile():
           str(w.player.pos))
 
 
+def test_petram_patrol_creek():
+    print("== 'All Patrol' only to a spot the pets can walk to: Mount Petram level 3's witch harpy across the creek "
+          "(13 off, its spots in sight, 57 steps round) gets none; one on our side of it gets one ==")
+    # live 2026-11-26 23:04:21 (hunt-20261126-224331-cc00): "'All Patrol' to (5716, 2817), 2 from the witch harpy at 13
+    # tiles", AlaFlambe stuck at 9 tiles across the creek, the patrol timed out (user: "trying to patrol pets across a
+    # creek it can't cross"); without the walk rule this layout patrols to (5715, 2817)
+    out = {}
+    for name, at in (("across", [5717, 2819, 30]), ("near", [5705, 2814, 35])):
+        w = petram_world((5711, 2806), [{"key": "witch harpy", "at": at}], z=35)
+        m = next(o for o in w.mobs.values() if o.kind == "monster")
+        loop, clock, store, patched = hurt_loop(w, 100)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                sent = loop.team.patrol_pull(loop.state(), m.serial, any_kind=True)
+            out[name] = (sent, loop.team.patrol)
+        finally:
+            store.close()
+            simclock.uninstall(patched)
+    check("the harpy across the creek: no 'All Patrol' (before: to (5716, 2817))",
+          not out["across"][0] and out["across"][1] is None, str(out["across"]))
+    check("...one on our side of it: 'All Patrol' to a spot beside it", out["near"][0] and out["near"][1] is not None,
+          str(out["near"]))
+
+
 def test_petram_hunt():
     print("== Mount Petram hunts from home: level 3 (the default) through level 1's strip and level 2's teleporter, out by "
           "its crimson moongate; level 1 out by a golden one; both to Totem and home ==")
@@ -10123,7 +10147,8 @@ def main():
               test_ssc_stoneshaper, test_ssc_pontiff_volley, test_ssc_others,
               test_ssc_patrol_named, test_ssc_bard_beyond_range, test_ssc_pontiff_flee, test_ssc_rope, test_ssc_red_race,
               test_ssc_hunt,
-              test_petram_recall_rule, test_petram_strips, test_petram_routes, test_petram_on_tile, test_petram_hunt):
+              test_petram_recall_rule, test_petram_strips, test_petram_routes, test_petram_on_tile,
+              test_petram_patrol_creek, test_petram_hunt):
         t()
     print("\n" + ("ALL PASS" if not FAILURES else f"FAILED: {FAILURES}"))
     return 1 if FAILURES else 0

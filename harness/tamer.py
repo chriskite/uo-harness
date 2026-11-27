@@ -575,6 +575,11 @@ PATROL_SPOT_R = 3             # ...and this close to the purger (live: they took
 PATROL_CLEAR_R = 4            # ...with no other monster this close to it
 PATROL_WAIT_S = 10.0          # the pets on it by then (live: 3.5 s for 11 tiles), else called back and passed over
 PATROL_NOTE_S = 30.0          # patrol_note: the same reason for no patrol logged again after this long
+# ...and a walk to the spot from us at most this many steps longer than its distance (patrol_pull: the pets walk
+# there). Live 2026-11-26 23:04:21 (Mount Petram level 3, hunt-20261126-224331-cc00) the spot (5716, 2817) by a witch
+# harpy was 12 off across a creek in sight, 57 steps round by the walk rules: AlaFlambe stuck at 9 tiles, the patrol
+# timed out and the run walked back for the pets (user: "trying to patrol pets across a creek it can't cross")
+PATROL_DETOUR = 6
 # A forgotten soul's spell leaves fire (0x6D70, hue 0x08D8) on the tile it hit, 5.4-5.7 s (7 in capture
 # 20261014_210020: 6 under the gravebug it tanked, 1 under the phoenix, at the instant of a 13-20 hit).
 # None of them hurt anyone standing on or beside it (the phoenix 5.7 s on one, Logan beside it), but the
@@ -2820,10 +2825,13 @@ class Team:
                 why = f"{far[0]['name']} at {far[0]['dist']} (--vet-range {self.a.vet_range})"
         best = None
         if why is None:
+            reach = {}
+            for t, k in self.tiles_within(v, PATROL_MAX_R + PATROL_DETOUR).items():
+                reach[t[:2]] = min(k, reach.get(t[:2], k))
             for m in near:
                 if self.patrol_failed.get(m["serial"], 0) > now:
                     continue
-                if (spot := self.patrol_spot(v, m)) is not None:
+                if (spot := self.patrol_spot(v, m, reach=reach)) is not None:
                     best = (m, spot)
                     break
             if best is None:
@@ -2832,7 +2840,8 @@ class Team:
                 why = ("a patrol at it refused or timed out lately" if self.patrol_failed.get(m["serial"], 0) > now
                        else f"no spot within {PATROL_MAX_R} of us and {PATROL_SPOT_R} of it"
                        if d > PATROL_MAX_R + PATROL_SPOT_R
-                       else "no spot beside it in our sight, clear of other monsters and their sight of the fight")
+                       else "no spot beside it in our sight and a short walk away, clear of other monsters and their "
+                            "sight of the fight")
         if best is None:
             self.patrol_note(near[0], cheb(near[0]["pos"], v.pos), why, now)
             return False
@@ -2893,18 +2902,22 @@ class Team:
                 out.append(spot)
         return out
 
-    def patrol_spot(self, v, m, origin=None, spots=None) -> tuple | None:
+    def patrol_spot(self, v, m, origin=None, spots=None, reach=None) -> tuple | None:
         """Where to send the pets for idle monster `m` from `origin` (default where we stand): one of `spots`
         (patrol_spots) within PATROL_MAX_R of `origin` and in sight from it (eye to the ground: the server answers a
         tile out of it with 500237 "Target cannot be seen."; los.Sight agreed on all 8 of the demo's clicks), named as
         the client names a click on it (ground_target: the floor static where the floor stands over the land; until
         2026-11-09 always graphic 0, the land, and every 'All Patrol' on Shadowspire level 1, land 0x244 at -75 under its
-        floor statics at 37-40, came back 500237). The nearest to `m`, then to `origin`. (x, y, z, graphic) or None."""
+        floor statics at 37-40, came back 500237). `reach` {(x, y): walking steps from `origin`} (patrol_pull): only a
+        spot that walk reaches within PATROL_DETOUR steps of its distance (not one across water or a chasm in sight
+        of us). The nearest to `m`, then to `origin`. (x, y, z, graphic) or None."""
         x, y, z = origin if origin is not None else v.pos
         mx, my = m["pos"][:2]
         for t in sorted(spots if spots is not None else self.patrol_spots(v, m),
                         key=lambda t: (cheb(t, (mx, my)), cheb(t, (x, y)))):
             if cheb(t, (x, y)) > PATROL_MAX_R:
+                continue
+            if reach is not None and reach.get(t[:2], 1e9) > cheb(t, (x, y)) + PATROL_DETOUR:
                 continue
             if v.sight is not None and v.sight.point_blocked((x, y, z + los.EYE), t) is not None:
                 continue

@@ -10657,6 +10657,25 @@ The second level 3 run, after the resurrection.
   - The walk in's and the rush's legs start from it ("standing on it already") instead of "no route onto it".
   - test_sim `test_petram_on_tile`.
 
+## Mount Petram level 3: a patrol across a creek; the runesmith's blast (2026-11-26, hunt-20261126-224331-cc00)
+
+- **'All Patrol' across a creek** (the user: "The runner is trying to patrol pets across a creek it can't cross").
+  - 23:04:21: "'All Patrol' to (5716, 2817), 2 from the witch harpy 0x004F3831 at 13 tiles", with Logan at (5711,
+    2806, 35). The spot was in his sight but across the creek, 57 steps round by the walk rules.
+  - AlaFlambe stuck at 9 tiles, "patrol to (5699, 2800): stopped (AlaFlambe at 9)", and the run walked back to the pets.
+  - The spot rule checked distance and sight, never the walk. Fixed: a spot must be reachable within
+    `tamer.PATROL_DETOUR` 6 steps of its distance (test_sim `test_petram_patrol_creek`, this layout). Shadowspire level 1,
+    32 runs, with and without it: the same numbers.
+- **The minotaur runesmith's blast** (the user: "The runner should be able to stand where a minotaur runesmith's AOE
+  won't hit it").
+  - Four runesmiths, 22:50-23:07: animation action 11, then 1.38-1.59 s later one number on each of us within 4 of
+    it. The pets at 1-4 took 39-46 each time; Logan took 42 and 43 at 3 ("You have been shocked and cannot move!").
+  - Not at 5 or 6, nor at 12-18. One runesmith's casts were 9-10 s apart.
+  - Now a `petram.json` special (song-corrected), so the runner keeps 5 off an awake runesmith and the pets beside it
+    (`tamer.AREA_R`).
+  - Level 3, 32 runs, with and without that keep: runesmith damage on Logan 64 -> 6 an hour, all damage 577 -> 467, no
+    death either way, the same gold.
+
 ## Network observations
 
 - Session profile: one HTTPS auth connection per login (~75 s), then exactly one persistent game TCP. 22 min idle: zero extra connections. Launcher idle: zero connections.

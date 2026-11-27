@@ -1220,7 +1220,10 @@ not in aggro range"; the demo in docs/NOTES.md "All Patrol"; since 2026-10-21 at
 monster: untried live). Nothing fighting, nothing on us, both pets within vet range, and the purger (within 14)
 not seeing us before the pets: the runner says "All Patrol" (his Razor macro's bytes, hue 0x0239) and clicks a tile
 1-3 from it (3 since 2026-10-25, the demo's spot), within 11 of us and in our sight (los.Sight, as the server's 500237
-check), with no other monster within 4 of it nor seeing where we'd stand to vet the pets there. The click names the
+check), which a walk from us reaches within 6 steps of its distance (`PATROL_DETOUR`, since 2026-11-26: live 23:04:21
+on Mount Petram level 3 the spot by a witch harpy was in sight across a creek, 57 steps round; AlaFlambe stuck at 9
+tiles and the patrol timed out; test_sim `test_petram_patrol_creek`), with no other monster within 4 of it nor seeing
+where we'd stand to vet the pets there. The click names the
 tile as the client names a click on it (`tamer.ground_target`, the songs' rule): the land (graphic 0) where the land is
 the floor, else the flat floor static on top (its graphic and z); a tile with neither is no spot (Shadowspire's
 corridor block 0x65BE, whose top is the floor, isn't named: in the simulator naming it cost gold and a death). Until
@@ -1234,7 +1237,8 @@ doesn't stop it; only its own refusal or timeout does (`patrol_failed`; live 202
 us" pass-over kept a purger 4 tiles off from ever being patrolled at). A purger or blightmare within 14 not patrolled
 at logs why, on a new reason and every 30 s: "no 'All Patrol' at the corpse purger 0x… N tiles off: <why>" (something
 is fighting / on us, it would see us before the pets, a pet out of view or beyond `--vet-range`, refused or timed out
-lately, no spot within 11 of us and 3 of it, no spot beside it in our sight clear of other monsters). Off by default
+lately, no spot within 11 of us and 3 of it, no spot beside it in our sight and a short walk away clear of other
+monsters). Off by default
 from 2026-10-18 to 10-22: then the simulator's loop crawl (144 runs) lost 71
 runs to a death against 54 keeping off purgers (the second purger of the pair took Logan as the fight drew him in).
 With the cover above it pays: deaths an hour 1.05 -> 0.41 and gold an hour +4 % in 200 runs as live (docs/NOTES.md
