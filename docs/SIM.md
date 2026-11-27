@@ -193,6 +193,7 @@ python harness/sim/run.py --scenario tidal_tomb --level 2 --runs 96 --reds 1.2 -
 | `sim/viewmap.py` | The Sim page's map underlay (floor/wall PNG chunks) and line of sight, for viz_server's `/api/sim/map` and `/api/sim/los`. |
 | `sim/reds.py` | Red players (`--reds`, `World.add_red`): arrivals, Tracking, the walk graph across levels, the kits, the PvP rules ("Red players"). |
 | `sim/red_scan.py`, `sim/entry_scan.py` | Every red-player encounter in the live captures, and where players appear and leave on Maus 3 (the evidence of "Red players", docs/NOTES.md "Red players met live"). |
+| `sim/dmg_scan.py` | Live damage on Logan by attacker (special by its animation and delay, a ground item, melee, ranged, red, poison) per hour on a level from captures; `--sim` the same table from run.py's `player_damage_by` ("Mount Petram: fixing the gaps"). |
 | `sim/fight1949.py`, `sim/fight1822.py`, `sim/fight1820.py`, `sim/fight2330.py`, `sim/fight0038.py` | Live fights replayed from the capture's positions over many seeds, the deployed runner (`--harness`) against the current one. `fight2330` also sets the runner's state as live (the pets on a dropped 'All Kill', following, taken for guarding) and places another player's party on a reanimated daemon. `fight0038` gives its two casters the capture's cadence and `ranged.area_r` (a spell landing on every one of our side within `area_r` of its victim and in the caster's range, sight or not: the live 00:38:37.7-44.7 lightnings and fireballs on Logan and all three pets at once); no scenario type has `area_r`. |
 | `harness/los.py` | Line of sight (ServUO `Map.LineOfSight`), shared with the live harness: 61 of 61 server answers on the trip agree (59 accepted targets seen, both "Target cannot be seen." blocked) once our z comes from the map; ~100,000 checks/s. |
 | `data/sim/mausoleum.json` | The scenario: player, his tamer block (`tamer`: character and team; the pets in `data/sim/tamer/`), pack, tome rows, bard/vet/potion numbers, defaults, specials, 74 spawns (checked against the live sightings 2026-10-20), eerie corpses, other players, the trip reference. Every number has its evidence in a `note`. |
@@ -4099,6 +4100,89 @@ User: "Compare Logan's distance to monsters live versus the sim". Sampled once a
 - **The damage gap needs a live breakdown of Logan's damage by attacker** (the sim's run.py has `player_damage_by`;
   live has none yet).
 
+### Mount Petram: fixing the gaps (2026-11-27)
+
+User: "Fix all those things" (the section above: the spawn mix and counts, the pets ranging out, no live breakdown of
+Logan's damage). Scratch measurements over both runner shifts (level 3, one-second samples), then four changes.
+
+**1. The live damage on Logan by attacker** (new `harness/sim/dmg_scan.py`; `--sim` prints run.py's
+`player_damage_by` the same way). Both shifts, 5,590 s alive on level 3, 1,717 on Logan, 1,106 an hour:
+
+| attacker | an hour | how credited |
+|---|---|---|
+| fungaloid | 186 | its spore cloud (ground item 27854 at our tile, 3 ticks 0.76 s apart) |
+| ankheg | 186 | its dig (7 to 10 numbers of 31-40) |
+| terathan broodwitch | 160 | its action 4, 1.4-1.9 s before, 2-10 tiles off |
+| unknown | 98 | no hostile animating within 12 |
+| red player | 86 | the 11-27 death |
+| minotaur runesmith | 82 | its blast |
+| terathan broodguard, volt wisp, living earth, emerald elemental | 64, 57, 46, 40 | |
+| the rest | under 30 each | |
+
+- Melee on Logan is nearly nil (82 of 1,717): it is area and ranged hits.
+- The fungaloid's spore cloud wasn't in the simulator at all. It is now a `burst` (`spores`; docs/NOTES.md).
+
+**2. The pets ranging out** (`world._pet_think`, `GUARD_ENGAGE_R`). Live, a monster flipped to war 10 tiles off
+(median) and walked 8 to us. The pet that met it hadn't moved in 53 of 79 cases, and they met 3 from Logan; Tidal Tomb
+2026-10-27 the same (contact 2 from Logan, the pet 2 tiles). The simulator's guarding pets ran at a monster as soon as
+it picked one of us and met it 7 from Logan, the monster having come 3. Now a guarding pet waits till the monster is
+within 2 of whom it goes for, or a caster has that one within its spell's range (sight or not: the Tidal Tomb's
+soulcatcher step-in). One hurt by us it takes at once. Stay and patrol keep fighting back whatever targets the pet.
+After: the monster walks 7-8, they meet 4 from Logan. This applies to every scenario; 16 runs each, before / after,
+against each scenario's live `trip`:
+
+| scenario | kills an hour: before / after / live | damage on Logan an hour: before / after / live | runs with a death (16): before / after |
+|---|---|---|---|
+| mausoleum | 167 / 156 / 114 | 1,121 / 1,360 / 1,703 | 0 / 0 |
+| ossuary | 150 / 158 / 173 | 1,856 / 1,933 / 3,711 | 5 / 7 |
+| ssc | 108 / 107 / 104 | 667 / 559 / 1,216 | 0 / 0 |
+| tidal_tomb | 350 / 264 / 245 | 281 / 382 / 1,514 | 0 / 0 |
+| cavernam | 101 / 99 / 76 | 513 / 987 / 2,166 | 1 / 1 |
+
+- Kills moved toward live in all five.
+- Damage on Logan moved toward live in four. Shadowspire's fell 108, within its 16-run noise [INFERENCE].
+- The Ossuary's runs with a death went from 5 to 7 of 16.
+
+**3. Other players** (a Petram `others` block, on by default as Shadowspire's).
+- Measured: 47 players on level 3 in 1.55 h, 30.3 arriving an hour, 0.26 in view a second.
+- Their fight numbers are Shadowspire's.
+- The unseen kills (`unseen.life_s` 300, `start_fill` 0.4) were fitted to the live 1.2 hostiles in view a second:
+  600 / 0.6 gave 1.41, 900 / 0.8 1.48, and none 2.2. `stay_s` [120, 900, 300] gives 0.22 players in view (Shadowspire's
+  stays 0.49).
+
+**4. The spawn mix:** the volt wisps 5 -> 2, the broodguards 3 -> 2 and the earth dragons 4 -> 2 (`spawn_note`). With the
+others alone they still stood in view 2-3 x the live time.
+
+Level 3, 32 runs, before (the scenario of 3e1c9bc) and after; per hour on the level:
+
+| | runs with a death | with a pet death | kills | damage on Logan | potions | vet | banked gp a game hour | hostiles in view | players in view | pets fighting | where they meet, from Logan (median) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| before | 0 | 1 | 155 | 419 | 10 | 156 | 144,224 | 2.2 | 0 | 50 % | 7 |
+| after | 0 | 0 | 107 | 253 | 6 | 122 | 107,402 | 1.24 | 0.23 | 37 % | 4 |
+| live (both shifts) | 2 | 0 | 105 | 1,043 | 24 | 116 | | 1.2 | 0.26 | 16-20 % | 3 |
+
+- **Matched now:** kills, vet, hostiles in view, players in view, where the fights happen. Two runs of 32 left a pet
+  at the gate.
+- **Levels 1 and 2 after:**
+  - level 1: 0 deaths, 134 kills, 52 on Logan, 33,020 gp an hour (one run left on carried gold);
+  - level 2: 0 deaths, 122 kills, 210 on Logan, 73,291 gp an hour.
+  - The fitted others thin both levels too: 258 and 211 kills before [INFERENCE: their live crowds unmeasured].
+- **Still open: damage on Logan, a quarter of live** (253 against 1,043; about 920 live without the red's).
+  - `dmg_scan.py --sim` puts the simulator's under live for every attacker but the battleborne and fen daemon (an hour,
+    sim / live): ankheg 9 / 186, broodwitch 44 / 160, fungaloid 9 / 186, runesmith 31 / 82, broodguard 2 / 64,
+    volt wisp 4 / 57.
+  - Logan's distance to the pets (60 % within 1) and to the fights is live's.
+  - Part of it is the runner's: it now keeps 3 off a pet a fungaloid targets and 3 off a living earth (below), rules
+    the live shifts didn't have (the fungaloid 9 against 186).
+  - The rest is in whom the monsters' ranged and area hits pick [INFERENCE]: live they land on Logan or beside him
+    more often. The next measurement: each caster's and digger's target, Logan or a pet, live against the sim; and the
+    next live shift's `dmg_scan.py` table, with these rules.
+- **The pets fight 37 % of the time against the live 16-20 % at the same kill rate.** The sim's fights last longer or
+  stand closer. Not measured further.
+- **The runner reads these specials.** `tamer.AREA_R` / `TARGET_AREA` are built from the scenarios' specials. The
+  living earth's earth rise (radius 2 round it: keep 3 off) and the fungaloid's spores (radius 2 round the pet it
+  targets: keep 3 off that pet) are new rules for the live runner too.
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
@@ -4650,7 +4734,9 @@ other batches loaded the desktop; every summary field identical but the timing):
   - The four teleporters and the crimson moongate's menu are as captured (docs/NOTES.md "Getting in
     and out of the Mausoleum").
   - Not known: the gold gates' menus and the ways back up.
-- Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets, Kill holds
+- Pet AI is a model: Follow ignores attackers, Guard takes whatever attacks us or the pets once it has closed to
+  `GUARD_ENGAGE_R` 2 of the one it goes for (or a caster with us in its reach; since 2026-11-27, "Mount Petram: fixing
+  the gaps"), Kill holds
   its target, pets within 3 tiles come along on a recall (ServUO's TeleportPets range [INFERENCE]), and through a
   teleporter also any on Follow within the view (18; user 2026-10-20: on Outlands pets on "All Follow Me" come
   through with Logan while in view). A spoken command reaches the pets within `COMMAND_R` 14 of us only (since

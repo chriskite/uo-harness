@@ -117,6 +117,14 @@ RETARGET_FROM_PET_P = 0.08
 RETARGET_TO_LOGAN_P = 0.01
 WAKE_REC_S = 30.0         # a shy monster's wake record keeps its acts and switches this long (wake_scan's 30 s)
 REGEN_S = 4.0             # hits regenerate 1 per this out of combat (player and pets) [INFERENCE]
+# A guarding pet waits beside us for a monster coming at us: it takes one on us only once that one is within
+# GUARD_ENGAGE_R of the one of us it goes for, or has that one within its spell's range (a caster, sight or not), or
+# after it was hurt by us. Live 2026-11-27 (Petram level 3, 79 contacts after a war flip): the monster flipped 10
+# tiles from Logan (median), walked 8 to us in 5.6 s, the pet that met it had moved 0 tiles in 53 of 79 (median 0),
+# and met it 3 from Logan (median; 2-4 for 61). Tidal Tomb 2026-10-27 (86): flip 7, contact 2 from Logan, the pet 2
+# tiles. Before, a guarding pet ran at a monster the moment it picked one of us, up to 14 off: the simulator met them
+# 7 from Logan.
+GUARD_ENGAGE_R = 2
 # Stamina (live, Logan's 25 on Maus 3, sim/shove_scan.py over the captures 2026-10-13..21, docs/SIM.md "Shoving and
 # stamina"): a step into any live mobile's tile goes through at full stamina only, with "You shove something out of the
 # way." and SHOVE_STAM less (83 of 83 shoves into monsters with that cliloc: 25 -> 15); below full it is refused (monsters
@@ -3016,19 +3024,22 @@ class World:
                 m.hits = min(m.hits_max, m.hits + 1)
 
     def _pet_think(self, m: Mob):
-        """Guard: the nearest monster fighting us or the pets (or hurt by us lately); kill: the given
-        target; follow/stay: none (a monster hitting the pet itself is still fought back)."""
+        """Guard: the nearest monster fighting us or the pets once it has closed in (`_closing`, GUARD_ENGAGE_R), or
+        hurt by us lately; kill: the given target; follow/stay: none (a monster hitting the pet itself is still fought
+        back)."""
         owner = self.player
         if m.mode == "kill" and m.kill in self.mobs:
             m.target = m.kill
             return
         team = {o.serial for o in self.team()}
+        hurt = lambda o: self.t - max(o.last_hurt_t, 0) < 5 and any(s in team for s in o.damage_by)
         on_us = [o for o in self.mobs.values() if o.kind == "monster" and o.alive and not o.hidden_until
-                 and (o.target in team or self.t - max(o.last_hurt_t, 0) < 5 and any(s in team for s in o.damage_by))
-                 and cheb(o.pos, owner.pos) <= m.spec.get("leash", 14)]
-        if m.mode == "guard" and on_us:
-            if m.target not in {o.serial for o in on_us}:
-                m.target = min(on_us, key=lambda o: (o.target != owner.serial, cheb(o.pos, owner.pos))).serial
+                 and (o.target in team or hurt(o)) and cheb(o.pos, owner.pos) <= m.spec.get("leash", 14)]
+        if m.mode == "guard":
+            # it waits for one coming at us till it closes in (GUARD_ENGAGE_R); one hurt by us it takes at once
+            near = [o for o in on_us if hurt(o) or self._closing(o)]
+            if near and m.target not in {o.serial for o in near}:
+                m.target = min(near, key=lambda o: (o.target != owner.serial, cheb(o.pos, owner.pos))).serial
             return
         if m.mode == "follow":
             m.target = None                      # following: it comes along, whatever hits it [INFERENCE]
@@ -3043,6 +3054,16 @@ class World:
         mine = [o for o in on_us if o.target == m.serial]
         if mine and m.target is None:
             m.target = min(mine, key=lambda o: cheb(o.pos, m.pos)).serial
+
+    def _closing(self, o: Mob) -> bool:
+        """A monster on one of us that a guarding pet takes on (GUARD_ENGAGE_R): within that of its target, or a caster
+        with its target within its spell's range."""
+        tgt = self.mobs.get(o.target)
+        if tgt is None:
+            return False
+        d = cheb(o.pos, tgt.pos)
+        ranged = o.spec.get("ranged")
+        return d <= max(GUARD_ENGAGE_R, o.spec.get("melee_reach", 1)) or bool(ranged) and d <= ranged["range"]
 
     def _pet_attack(self, m: Mob, tgt: Mob):
         t = self.t

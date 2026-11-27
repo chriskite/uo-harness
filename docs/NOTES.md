@@ -10744,6 +10744,23 @@ The user: "Run another Petram level 3 shift so we get more data for the simulato
   - **The web at the death:** a colossal trapdoor spider's action 11 1.28 s before; 3.0 s buff, taken off 2.31 s in.
   - **The hamstring:** a 3.0 s slow, not a hold.
   - **The runner's log** shows the same lengths: "free to move again after 0.7-3.7 s", 10 "held in place".
+- **The fungaloid's spore cloud** (measured 2026-11-27, both captures):
+  - **What lands:** a ground item 27854 (0x6CCE) on a pet's tile, 1-10 tiles from the fungaloid.
+  - **The hit:** three numbers 0.76 s apart on each of us within 2 of it: Logan 7-11, the pets 8-10. It carries
+    '*stumbles around in confusion and pain*' and Greater Poison (Logan, Bussin).
+  - **Cadence:** one fungaloid's casts 7.6-9.6 s apart; 31 items, 22 reaching us.
+  - **Not the cast:** its action 4, which comes every 0.05 s.
+  - **Its weight:** the largest single source of live damage on Logan on level 3 (186 an hour, tied with the ankheg's
+    digs; `harness/sim/dmg_scan.py`).
+- **Guarding pets wait for the monster** (live, shift 2, 79 contacts after a war flip):
+  - The monster flips to war 10 tiles from Logan (median) and walks 8 tiles to us in 5.6 s.
+  - The pet that meets it has moved 0 tiles in 53 of 79 cases; they meet 3 from Logan.
+  - Tidal Tomb 2026-10-27 is alike: 86 contacts, 2 from Logan, the pet 2 tiles.
+  - The simulator now models it (docs/SIM.md "Mount Petram: fixing the gaps").
+- **Other players on level 3** (both shifts, 5,583 s):
+  - 47 players, 30 arriving an hour, 0.26 in view a second; at least one in view 20 % of the time.
+  - Their followers: entozoons, earth elementals, bloodworms, black widows, boreal faerie wyrms, liches, vampires.
+- **Live damage on Logan comes from area and ranged hits:** melee 82 of 1,717.
 
 ## Network observations
 

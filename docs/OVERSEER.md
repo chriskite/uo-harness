@@ -807,11 +807,12 @@ Paste this (or point the session at this section) to start an overseer.
 >        5571 2879 --leave-gate 5690 2885`. Down level 1's strip, across level 2, fought, to its marked tile; the crawl
 >        from level 3's ledge (5699, 2801); out by its crimson gate 0x4004A436, which Logan took to Totem live
 >        2026-11-26 21:11.
->    The runner's live record: one level 3 shift on 2026-11-26 (a death after a false Razor-guard abort, since removed; a
->    stranding on level 2's tile, fixed; then a clean run of 2 visits, 45 kills, 49k gp). In the simulator (docs/SIM.md
->    "Mount Petram"), with AlaFlambe and Bussin, runs with a death are 0 of 32 on each level; level 3 left a pet behind at
->    its gate in 3 of 32 (a floor at z 0 under the gate's). A red attacked Logan on level 3 on 2026-11-26. Start a Petram
->    level 3 run only when the parent passes the user's go for it.
+>    The runner's live record: two level 3 shifts. 2026-11-26: a death after a false Razor-guard abort (since removed),
+>    a stranding on level 2's tile (fixed), then a clean run of 2 visits, 45 kills, 49k gp. 2026-11-27: one run of 6
+>    visits, 128 kills, about 105k gp banked, dead at 12:51 to a red caster (Lady Apocrypha) standing between Logan and
+>    level 3's only gate. Level 3 has no recall and one gate: a red on the way to it leaves no other way out. In the
+>    simulator (docs/SIM.md "Mount Petram"), with AlaFlambe and Bussin, see the skill's table. Reds attacked Logan on
+>    level 3 on 2026-11-26 and 2026-11-27. Start a Petram level 3 run only when the parent passes the user's go for it.
 >    The level's command replaces the step 3 command everywhere this shift: every run, a restart with Logan already
 >    inside on that level, and the go-home run (step 7: the level's command plus `--go-home`). "Only level N" means
 >    every run of the shift is on that level. Logan inside on another level (`status.pos` against the levels' boxes:
