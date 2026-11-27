@@ -4060,6 +4060,45 @@ server takes some off early (a buff_remove). Measured over both captures (docs/N
     far more often, and he takes twice the damage. The next measurement: Logan's distance to each hostile, live
     against sim.
 
+### Where Logan stands, live against the sim (2026-11-27)
+
+User: "Compare Logan's distance to monsters live versus the sim". Sampled once a second while Logan was alive on level
+3's floor (x 5676-5835, y 2750-2941), with every hostile of a Petram type within 18:
+- **Live:** the runner's time in both captures (2026-11-26 22:21-23:21, 2026-11-27 11:19-12:51:16), 5,582 samples.
+- **Sim:** 8 level 3 runs of run.py's batch in process, 12,122 samples (a `World._tick` wrapper; scratch, not kept).
+
+| | live | sim |
+|---|---|---|
+| hostiles in view, per sample | 1.2 (shift 1 1.31, shift 2 1.14) | 2.2 |
+| none in view | 30 % | 10 % |
+| nearest hostile, median | 12 | 8 |
+| a hostile beside a pet (the pets fighting) | 16 % (14.6 %, 16.7 %) | 50 % |
+| that fight 5-18 tiles from Logan | 2.6 % | 31.4 % |
+| Logan within 4 of a runesmith in view | 18.6 % (shift 1 36.0 %, shift 2 5.6 %) | 1.1 % |
+| within 3 of a moss giant | 4.6 % | 1.7 % |
+| within 2 of an ankheg | 4.6 % | 1.6 % |
+| within 10 of a lichenid | 59 % | 40 % |
+
+- **Logan isn't nearer the monsters live overall:** his nearest hostile is farther (median 12 against 8).
+- **He is nearer the area hitters:**
+  - Runesmiths: shift 1 (before `tamer.AREA_R`, 698aee2) 36 % of the runesmith's time in view; shift 2 5.6 %; the sim
+    1.1 %.
+  - Moss giants, ankhegs and lichenids: 2-3 x the sim's share.
+- **The sim has 1.8 x live's hostiles in view, and its pets fight 3 x as much of the time:** that is the kill gap
+  (155 against 105 an hour).
+  - The excess is by type (time in view per 1,000 s, live / sim): volt wisp 48 / 407, terathan broodguard 45 / 196,
+    broodwitch 53 / 182, colossal trapdoor spider 36 / 155, ankheg 70 / 140, lichenid 70 / 139, living earth
+    83 / 149.
+  - Live types the sim nearly lacks: earth dragon 41 / 3, earth drake 41 / 6, star sapphire elemental 29 / 0, lurker
+    20 / 0, tourmaline, sapphire and diamond elementals 10-14 / 0.
+  - So the level 3 spawn mix and counts are off: too many terathans, wisps and spiders where Logan hunts, too few
+    elementals and dragons. That's the next calibration [INFERENCE: spawn counts and respawn, not the runner].
+- **Live, the pets fight within 4 of Logan:** 97 % of their fights. In the sim a third of their fight time is 5-18
+  tiles off him. The sim's pets range out after targets [INFERENCE: chasing], and so Logan stands out of the fights'
+  areas.
+- **The damage gap needs a live breakdown of Logan's damage by attacker** (the sim's run.py has `player_damage_by`;
+  live has none yet).
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its
