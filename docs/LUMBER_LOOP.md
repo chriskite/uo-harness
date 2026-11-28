@@ -1708,6 +1708,12 @@ Shared plumbing moved to `harness/agent_link.py`: `Link` (control + state ports,
   Live 2026-10-03 at witcher_291 the old path converted logs for 12 s under attack (85 → 40 hits)
   and then exited in the field; the overseer's own recall landed at 15/100. The logs stay logs in
   the pack. Test: `test_loop_lumber.py` scenario `library_chased`.
+- **An abort away from home tries its recall home 3 times (since 2026-11-27):** `home_on_abort` retries a failed
+  recall `ABORT_RECALL_WAIT_S` (10 s) later, `ABORT_RECALL_TRIES` (3) in all, logging "recall home after the abort:
+  …; again in 10 s (1/3)", before the run exits where it stands. Live 2026-11-27 23:20 (lumber-20261127-231800-2aed)
+  a 36 s server freeze outlasted the book's gump wait and Dan was left at witcher_206. A server hitch (the proxy's
+  `movement.server_quiet_s`) also no longer counts as rejected walks nor uses up a wait (docs/NOTES.md "A 36 s server
+  freeze read as a stalled walk"). Test: `unit_home_on_abort`.
 - **Break due (since 2026-10-01):** when the state port's `gate.break_due_at` is set (agent gate
   `break_due`, docs/OVERSEER.md), the runner stops harvesting at the next attempt, recalls home to
   the house, converts, stores, logs `break due: boards stored after trip N`, marks the episode row `break_due`

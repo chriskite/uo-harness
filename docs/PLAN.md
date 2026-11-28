@@ -4335,6 +4335,18 @@ by AI at some point in development."
 - *Kept*: captchas (a real server gate: §8.8) and staff signatures (`speech_guard`, `gm_suspected`) keep their own
   handling.
 
+## A server hitch is not a rejected walk (live 2026-11-27 23:19, lumber-20261127-231800-2aed)
+
+A 36 s server freeze (no S2C packet at all, no save line) read as three rejected walks; the lumber run aborted
+"movement stalled" and its recall home gave up after 2 s, leaving Dan at witcher_206 (docs/NOTES.md "A 36 s server
+freeze read as a stalled walk").
+
+- *Decided*: the proxy measures the server's silence (`MoveAuthority.quiet_s`, state `movement.server_quiet_s`); no
+  walk times out while it lasts (up to 60 s), and `agent_link.Deadline` holds waits through it like a world save.
+  `home_on_abort` tries a failed recall home 3 times, 10 s apart.
+- *Rejected*: a longer `CONFIRM_TIMEOUT_S` (slows the reaction to real silent rejections everywhere) and a runner-side
+  wait on `stalled` (the stall only clears on a confirm or seed, which never come while agent walks are gated).
+
 ## Risks
 
 - **Protocol drift**: Outlands patches frequently (client is days old at research time). Parser must be tolerant of unknown packets (log-and-forward) with a packet-ID registry that's easy to update.

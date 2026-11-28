@@ -10440,6 +10440,33 @@ leg; with home already out it gains nothing and costs a run restart (the hatchet
 charges). Now `hatchets_ready` notes `hatchets_out` when its top-up at home left us short, and `try_hop` hops on
 then (never with 0 uses). Test: `test_loop_lumber.py unit_hop_hatchets_out`.
 
+## A 36 s server freeze read as a stalled walk; the abort's recall home gave up (live 2026-11-27 23:19-23:20, lumber-20261127-231800-2aed)
+
+witcher_206 (DTF landing "Brigand Blind", (3542, 1009), marked bad by the Seer for its brigands). At 23:19:43 Dan,
+mounted at (3522, 1006), set off for tree 3516,988. Capture session_20261127_185204 (Dan) and _185331 (Logan, the same
+proxy): **neither session got a single S2C packet from 23:19:38.7 to 23:20:13.8**, not even the replies to the
+client's 0xFF ping that otherwise come every ~1.05 s; no world-save line (the last save ended 23:19:20). The proxy gave
+each walk 3 s (`CONFIRM_TIMEOUT_S`) and fabricated three `walk_rejected` (src proxy) at 23:19:46, :54 and 23:20:02, so
+`movement.stalled` came up and the run aborted "movement stalled (3 walks rejected in a row)". `home_on_abort` double-
+clicked the book three times into the silence (23:20:03.0-04.3); `escape._open`'s 2 s wait gave up ("the book's gump
+0x5C7DB029 didn't open") and the run exited in the field. At 23:20:13.8 the server answered everything at once: a
+late 0x22 for the walk, the pending pouch drop, the book gump and cliloc 500119 "You must wait to perform another
+action". The Seer recalled Dan home by hand and stored the 34 logs. Cause on the server's side [INFERENCE: lag; both
+characters froze together, so not our connection alone].
+
+Fixes (2026-11-27):
+- **Proxy** (`MoveAuthority.on_s2c` / `quiet_s`, `SERVER_QUIET_S` 2 s, `SERVER_HITCH_MAX_S` 60 s): while the server
+  sends nothing at all, no walk times out; when it speaks again the walks in flight get `CONFIRM_TIMEOUT_S` from then
+  and the late-confirm grace grows by the silence. A silent rejection while the server keeps talking is still one at
+  3 s. The state port's `movement.server_quiet_s` reports the silence. Needs a proxy restart to go live.
+  Test: `test_movement.py` (unit, "server hitch").
+- **Waits** (`agent_link.Deadline.see(evs, quiet_s)`, used by `Link.wait` and `escape._open`): a hitch holds the wait
+  like a world save and no re-click goes out into it. Without the proxy's field (before the restart) nothing changes.
+  Test: `harness/test_escape.py test_open_through_server_hitch`.
+- **Runner** (`home_on_abort`, `ABORT_RECALL_TRIES` 3, `ABORT_RECALL_WAIT_S` 10 s): a failed recall home after an
+  abort is tried again 10 s later, 3 tries in all, before the run exits where it stands: "recall home after the
+  abort: …; again in 10 s (1/3)". Live at the next `ctl run`. Test: `test_loop_lumber.py unit_home_on_abort`.
+
 ## Tidal Tomb level 2: stuck in the arrival nook by an awake soulcatcher (live 2026-11-22 20:07-20:17, hunt-20261122-190724-5bf4)
 
 Level 2 shift, Logan with AlaFlambe 0x0026EF56 and an eldritch mephit 0x004C4BF6, the §5 level 2 command. Visits 1-3

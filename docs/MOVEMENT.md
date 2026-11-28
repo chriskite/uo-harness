@@ -40,6 +40,12 @@ Consequences, all visible in the captures:
   1.5 s), the ladder is kept. On a **silent rejection** (no confirm within `CONFIRM_TIMEOUT_S` = 3 s),
   the ladder rewinds to the rejected walk's seq (the server doesn't advance, 142237). After 3
   rejections in a row, agent walks stall until a walk is confirmed or a seed/deny arrives.
+- **Server hitch (2026-11-27).** While the server sends nothing at all (`SERVER_QUIET_S` = 2 s since its
+  last packet; it answers the client's ping every ~1.05 s) no walk times out, for at most
+  `SERVER_HITCH_MAX_S` = 60 s; once it speaks again the walks in flight get `CONFIRM_TIMEOUT_S` from
+  then. Live 20261127_185204 23:19:38-20:14: 36 s of silence, three walks read as rejections, the
+  lumber run aborted "movement stalled". `movement.server_quiet_s` on the state port (docs/NOTES.md
+  "A 36 s server freeze read as a stalled walk").
 - **Late confirms (2026-09-30).** A server hitch can confirm a walk 2.0–2.3 s after it was sent
   (20260930_123206, 091704). With the old 1.5 s timeout the confirm arrived after the proxy had
   given up: it was forwarded to the client as a confirm it never asked for (bad step → client resync

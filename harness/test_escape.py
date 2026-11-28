@@ -667,6 +667,36 @@ def test_open_after_world_save():
           got.get("gump_id") == "0x1234" and len(io.sent) == 3 and io.sent[1] < 1.0 <= io.sent[2], (got, io.sent))
 
 
+def test_open_through_server_hitch():
+    """Live 2026-11-27 23:19:38-20:14 (lumber-20261127-231800-2aed): the server sent nothing for 36 s (no save line);
+    the abort's recall home clicked the book three times into the silence, gave up after 2 s ("the book's gump
+    0x5C7DB029 didn't open") and the run exited in the field; the gump came at 23:20:14. The proxy's
+    movement.server_quiet_s now holds the wait like a save, and no re-click goes out into the silence."""
+    import time
+
+    class IO:
+        def __init__(self, resume):
+            self.t0, self.sent, self.resume, self.done = None, [], resume, False
+
+        def send(self, pkt):
+            self.sent.append(pkt)
+            self.t0 = self.t0 or time.monotonic()
+
+        def poll(self):
+            dt = time.monotonic() - self.t0 if self.t0 is not None else 0.0
+            if dt < self.resume:                      # silent since 2.5 s before the click
+                return {"movement": {"server_quiet_s": dt + 2.5}}, []
+            if self.done:
+                return {"movement": {"server_quiet_s": 0.0}}, []
+            self.done = True
+            return {"movement": {"server_quiet_s": 0.0}}, [{"ev": "gump_open", "gump_id": "0x1234"}]
+    io = IO(0.8)
+    got = escape._open(io, 0x40000001, 0x1234, ME, timeout=0.3)
+    check("a server hitch: the wait outlasts its timeout, the gump that comes when the server speaks again is "
+          "taken, and no re-click goes out into the silence", got.get("gump_id") == "0x1234" and len(io.sent) == 1,
+          (got, io.sent))
+
+
 def test_death_is_no_arrival():
     """Live 2026-10-20 13:14:56: Dan died 1 s into a recall; the ghost's position jump read as 'arrived'."""
     class IO:
@@ -683,7 +713,8 @@ if __name__ == "__main__":
               test_runetome, test_library_tome_read, test_failures, test_can_cast, test_find_books,
               test_disturb_recovery_fits_live_retries, test_escape_nusero_replay, test_escape_early_disturb,
               test_escape_stops, test_escape_late_arrival, test_escape_between, test_no_recall_in_dungeon,
-              test_open_through_world_save, test_open_after_world_save, test_death_is_no_arrival):
+              test_open_through_world_save, test_open_after_world_save, test_open_through_server_hitch,
+              test_death_is_no_arrival):
         print(t.__name__)
         t()
     print("FAILED: " + ", ".join(FAILURES) if FAILURES else "ALL PASS")

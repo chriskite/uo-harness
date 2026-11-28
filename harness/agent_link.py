@@ -149,6 +149,12 @@ CAPTCHA_GUMP_ID = 0x00000001  # never closed here (ANTICHEAT.md §8.8)
 # server for 2-4 s; it answers what came in meanwhile only afterwards. A wait's deadline doesn't run during one
 # (Deadline), at most WORLD_SAVE_MAX_S past its start line in case the end line is missed.
 WORLD_SAVE_MAX_S = 15.0
+# A server hitch: the server sends nothing at all (the proxy's movement.server_quiet_s, seconds since its last packet;
+# it answers the client's ping every ~1.05 s). Live 2026-11-27 23:19:38-20:14 (lumber-20261127-231800-2aed): 36 s of
+# silence with no save line, the book's gump came 9 s after the escape's wait had given up ("didn't open"). A wait's
+# deadline doesn't run during one either (Deadline), at most SERVER_HITCH_MAX_S. Mirrors proxy.SERVER_QUIET_S.
+SERVER_QUIET_S = 2.0
+SERVER_HITCH_MAX_S = 60.0
 # Held in place by a monster: a vampire countess' transfix on us, live 2026-10-20 19:23:23.04 (hunt-20261020-183232-1def)
 # and 2026-10-17 15:27:03, both 11.1 s to the end line, every step denied and item use refused meanwhile. A walk waits
 # it out (Mover.held) instead of counting the denied steps (19:23:23-30: 21 in 7 s, "too many blocked moves", the run
@@ -193,14 +199,17 @@ class Deadline:
     Live 2026-11-05 23:37:12.39-16.63 (hunt-20261105-223546-b3bd, a 4.2 s save): a cover walk's turn went out 0.06 s
     into it, the proxy gave it up at 15.48 and Mover.step's 0.4 s wait for a teleporter's move began then; the save's
     end added all 4.24 s to it, not the 1.15 s it had waited, and the next step went out at 20.33, 3.1 s late, with
-    Logan in two calamities' shot (-27 at 20.22; docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)")."""
+    Logan in two calamities' shot (-27 at 20.22; docs/NOTES.md "Dead on Maus 2's walk in (2026-11-05 23:37)").
+    A server hitch (`see(evs, quiet_s)` with the state's movement.server_quiet_s over SERVER_QUIET_S) holds the wait
+    the same way, for at most SERVER_HITCH_MAX_S; when the server speaks again the silence inside the wait is added."""
 
     def __init__(self, timeout: float, save_t0: float | None = None):
         self.t0 = time.monotonic()
         self.end = self.t0 + timeout
         self.save_t0 = save_t0
+        self.hitch_t0 = None         # monotonic time the server went silent (a hitch under way)
 
-    def see(self, evs):
+    def see(self, evs, quiet_s: float | None = None):
         for ev in evs:
             kind = world_save(ev)
             if kind == "start" and self.save_t0 is None:
@@ -208,13 +217,31 @@ class Deadline:
             elif kind == "done" and self.save_t0 is not None:
                 self.end += time.monotonic() - max(self.save_t0, self.t0)
                 self.save_t0 = None
+        if quiet_s is None:
+            return
+        now = time.monotonic()
+        if quiet_s > SERVER_QUIET_S:
+            if self.hitch_t0 is None:
+                self.hitch_t0 = now - quiet_s
+        elif self.hitch_t0 is not None:
+            self.end += max(0.0, now - quiet_s - max(self.hitch_t0, self.t0))   # the silence ended quiet_s ago
+            self.hitch_t0 = None
 
     @property
     def saving(self) -> bool:
         return self.save_t0 is not None and time.monotonic() - self.save_t0 < WORLD_SAVE_MAX_S
 
+    @property
+    def hitching(self) -> bool:
+        return self.hitch_t0 is not None and time.monotonic() - self.hitch_t0 < SERVER_HITCH_MAX_S
+
+    @property
+    def held(self) -> bool:
+        """The server isn't answering now (a save or a hitch): no reclick, and the wait goes on."""
+        return self.saving or self.hitching
+
     def over(self) -> bool:
-        return not self.saving and time.monotonic() > self.end + (WORLD_SAVE_MAX_S if self.save_t0 else 0.0)
+        return not self.held and time.monotonic() > self.end + (WORLD_SAVE_MAX_S if self.save_t0 else 0.0)
 
 
 
@@ -550,14 +577,14 @@ class Link:
         log("intent not shown: the proxy dropped the state connection")
 
     def wait(self, pred, timeout: float, poll: float = 0.05, full: bool = True):
-        """Poll until pred(state) holds; None on timeout (a world save doesn't count: Deadline). full=False
-        polls `movement()` (pred may only read `movement` and the events)."""
+        """Poll until pred(state) holds; None on timeout (a world save or a server hitch doesn't count: Deadline).
+        full=False polls `movement()` (pred may only read `movement` and the events)."""
         deadline, mark = Deadline(timeout, self.save_t0), len(self.events)
         while True:
             st = self.state() if full else self.movement()
             if pred(st):
                 return st
-            deadline.see(self.events[mark:])
+            deadline.see(self.events[mark:], (st.get("movement") or {}).get("server_quiet_s"))
             mark = len(self.events)
             if deadline.over():
                 return None

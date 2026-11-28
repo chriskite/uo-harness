@@ -533,20 +533,22 @@ def _open(io, book: int, gump_id: int, me: int, timeout: float = GUMP_WAIT_S) ->
     queued actions with 500119 "You must wait to perform another action." and no gump;
     with one reclick only the run aborted ("the book's gump ... didn't open").
     "This book needs time to recharge." raises BookRecharging.
-    A world save doesn't use up the wait (agent_link.Deadline; the server answers after it)."""
+    A world save or a server hitch doesn't use up the wait (agent_link.Deadline; the server answers after it):
+    live 2026-11-27 23:20:03 (lumber-20261127-231800-2aed) the server went silent for 36 s, three clicks went out
+    into the silence, the 2 s wait gave up and the abort's recall home failed; the gump came at 23:20:14."""
     io.poll()
     io.send(actions.dclick(book))
     last, clicks = time.monotonic(), 1
     deadline = Deadline(timeout, getattr(io, "save_t0", None))
     while not deadline.over():
-        _, evs = io.poll()
-        deadline.see(evs)
+        st, evs = io.poll()
+        deadline.see(evs, ((st or {}).get("movement") or {}).get("server_quiet_s"))
         for ev in evs:
             if ev.get("ev") == "gump_open" and serial_of(ev["gump_id"]) == gump_id:
                 return ev
             if failure(ev, me) == "recharging":
                 raise BookRecharging(f"the book 0x{book:08X} needs time to recharge")
-        if clicks < OPEN_CLICKS and not deadline.saving and time.monotonic() - last > RECLICK_S:
+        if clicks < OPEN_CLICKS and not deadline.held and time.monotonic() - last > RECLICK_S:
             io.send(actions.dclick(book))
             last, clicks = time.monotonic(), clicks + 1
         time.sleep(0.03)

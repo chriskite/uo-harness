@@ -237,6 +237,33 @@ def test_unit():
     check("after the grace period an unconfirmed walk is rejected for good",
           p[2] == 3 and ma.on_confirm(3) == ("forward", None) and not ma.late, p.hex())
 
+    # server hitch (live 20261127_185204 23:19:38-20:14: 36 s of silence, 3 walks read as rejected, run aborted):
+    # nothing times out while the server says nothing; its confirm in the burst afterwards is a normal one
+    ma = P.MoveAuthority()
+    ma.on_self_position(100, 200, 5, 2)
+    ma.on_seed(8)
+    ma.on_s2c(70.0)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 70.5)
+    notes = ma.expire(70.5 + 30.0)                         # the server silent since 70.0
+    check("server silent: the walk is not rejected", not notes and len(ma.inflight) == 1, str(notes))
+    ma.on_s2c(70.5 + 36.0)                                 # it speaks again ...
+    notes = ma.expire(70.5 + 36.0 + 0.5)
+    check("server back: the walk gets CONFIRM_TIMEOUT_S from then", not notes and len(ma.inflight) == 1, str(notes))
+    check("its confirm in the burst is a normal (hidden agent) confirm, no stall",
+          ma.on_confirm(p[2]) == ("hide", None) and ma.rejects_in_row == 0 and ma.pos[:2] == [101, 200], str(ma.pos))
+    ma.on_s2c(109.5)
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 110.0)
+    ma.on_s2c(111.5)                                       # the server talking (pings), no confirm: a real rejection
+    ma.on_s2c(112.5)
+    notes = ma.expire(110.0 + P.CONFIRM_TIMEOUT_S + 0.1)
+    check("server talking, no confirm: rejected as before", any(n[0] == "walk_rejected" for n in notes), str(notes))
+    p = walk(0x82, 0)
+    ma.on_c2s_walk(p, "agent", 120.0)
+    notes = ma.expire(120.0 + P.SERVER_HITCH_MAX_S + 0.1)  # silent for over a minute
+    check("a silence past SERVER_HITCH_MAX_S rejects the walk", any(n[0] == "walk_rejected" for n in notes), str(notes))
+
     # the stock client never has more than MAX_STEP_COUNT (5) unconfirmed steps
     ma = P.MoveAuthority()
     ma.on_seed(8)

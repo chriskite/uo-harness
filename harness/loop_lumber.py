@@ -148,6 +148,11 @@ import moongate  # noqa: E402
 
 RECALL_S = 2.0                # Recall cast time (docs/research/TRAVEL_DEATH.md)
 FINISH_CHECK_S = 2.0          # how often the run looks for a `ctl stop --after-trip` request (a meta read)
+# an abort away from home recalls home this many times at most, ABORT_RECALL_WAIT_S apart, before the run exits where it
+# stands (live 2026-11-27 23:20:05, lumber-20261127-231800-2aed: a 36 s server freeze, "recall home after the abort:
+# recall not possible: the book's gump 0x5C7DB029 didn't open", the gump came 9 s later; Dan left at witcher_206)
+ABORT_RECALL_TRIES = 3
+ABORT_RECALL_WAIT_S = 10.0
 # Lawless regions (guards.LAWLESS_ENTER; recall is refused there). Live 2026-11-19 10:21-10:22 (mining-20261119-101907-372a,
 # forge_1193_1066 by Smugglers Den): Dan dug at stands inside one, a tracked red's recall was refused ('restricted'),
 # the guards were out of reach on foot, the run stopped at (1187, 1013) and Lei Fang killed him there 35 s later; the
@@ -5276,21 +5281,30 @@ class LumberLoop:
         never ends standing in the field (live 2026-10-06, lumber-20261006-101348-70b3: a world
         save delayed the recall out past the arrival wait, the retry needed the tome left behind,
         and the run exited at the landing; a snow elemental killed Dan 15 s later). Recall
-        failures are logged; the abort stands either way."""
+        failures are logged; the abort stands either way. A failed recall is tried again ABORT_RECALL_WAIT_S later,
+        ABORT_RECALL_TRIES in all (a server freeze outlasting the book's gump wait)."""
         st = self.link.state()
         if self.recall_book is None or self.at_home(st) or (st["world"].get("self") or {}).get("dead"):
             return
-        a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
         log(f"aborting away from home ({e}): recalling home first")
-        try:
-            fail = self.recall_out(st, a, None, {}, pk=False, why=f"abort away from home: {e}",
-                                   what="an abort in the field")
-        except Unsafe as u:
-            self.home_after_recall(u, timed)
-            return
-        except Abort as x:
-            fail = str(x)
-        log(f"recall home after the abort: {fail}")
+        for n in range(1, ABORT_RECALL_TRIES + 1):
+            a = self.watch.update(st, recall_s=RECALL_S, margin_s=THREAT_MARGIN_S)
+            try:
+                fail = self.recall_out(st, a, None, {}, pk=False, why=f"abort away from home: {e}",
+                                       what="an abort in the field")
+            except Unsafe as u:
+                self.home_after_recall(u, timed)
+                return
+            except Abort as x:
+                fail = str(x)
+            if n == ABORT_RECALL_TRIES:
+                log(f"recall home after the abort: {fail}")
+                return
+            log(f"recall home after the abort: {fail}; again in {ABORT_RECALL_WAIT_S:.0f} s ({n}/{ABORT_RECALL_TRIES})")
+            time.sleep(ABORT_RECALL_WAIT_S)
+            st = self.link.state()
+            if self.at_home(st) or (st["world"].get("self") or {}).get("dead"):
+                return
 
     def home_after_recall(self, e: Abort, timed):
         """An escape recall (a creature's or a player's, recall_out) landed us home: the danger

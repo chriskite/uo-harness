@@ -110,6 +110,10 @@ CONFIRM_TIMEOUT_S = 3.0       # walk unconfirmed this long -> treated as rejecte
 LATE_CONFIRM_GRACE_S = 5.0    # a "rejected" walk's confirm is still recognized this long after
 MAX_STEPS_IN_FLIGHT = 5       # stock client: Constants.MAX_STEP_COUNT unconfirmed steps at most
 STALL_REJECTS = 3             # this many rejections in a row -> stop agent walks
+SERVER_QUIET_S = 2.0          # no S2C packet this long -> the server is hitching, not rejecting walks (it
+                              # answers the client's 0xFF ping every ~1.05 s; live 20261127_185204 23:19:38-20:14:
+                              # 36 s of silence from the server, 3 walks "rejected", the lumber run aborted stalled)
+SERVER_HITCH_MAX_S = 60.0     # a walk unconfirmed this long is rejected even while the server is silent
 RUN_STEP_S = 0.2              # minimum agent step spacing, on-foot run / walk
 WALK_STEP_S = 0.4             # (the server has a Speedhack violation category)
 MOUNTED_RUN_STEP_S = 0.1      # mounted run / walk: the stock client's mounted cadence
@@ -162,7 +166,10 @@ class MoveAuthority:
       (no confirm within CONFIRM_TIMEOUT_S) leaves the server's expectation
       unchanged (session 142237), so the ladder rewinds to that walk's seq.
       The expired walks stay in `late` for LATE_CONFIRM_GRACE_S: a server hitch
-      can confirm them after the timeout (20260930_123206: 2.0-2.3 s). A late
+      can confirm them after the timeout (20260930_123206: 2.0-2.3 s). While the
+      server sends nothing at all (SERVER_QUIET_S, on_s2c) no walk times out (up to
+      SERVER_HITCH_MAX_S); once it speaks again they get CONFIRM_TIMEOUT_S more
+      (live 2026-11-27 23:19:38-20:14: a 36 s freeze read as 3 rejections). A late
       confirm is hidden from the client (its walker was reset by the re-anchor, so
       it would be a bad step and a resync) and moves the ladder past that seq.
       Agent walks wait while `late` is non-empty, so the agent never re-sends a
@@ -197,7 +204,7 @@ class MoveAuthority:
 
     __slots__ = ("next_seq", "armed_token", "stale_token", "inflight", "late", "late_until",
                  "resync_sent_at", "last_walk_at", "client_stale", "rejects_in_row", "self_serial",
-                 "pos", "z_fn", "z_misses", "client_seq")
+                 "pos", "z_fn", "z_misses", "client_seq", "heard_at", "quiet_end")
 
     def __init__(self):
         self.next_seq = 0
@@ -215,6 +222,8 @@ class MoveAuthority:
         self.z_fn = None             # (x, y, z, direction) -> z after the step, or None
         self.z_misses = 0            # confirmed moves the map rules couldn't place
         self.client_seq = None       # the client's own seq on its last walk since the last deny/seed
+        self.heard_at = None         # monotonic time of the server's last packet (on_s2c)
+        self.quiet_end = None        # when the server last spoke again after a silence (SERVER_QUIET_S)
 
     # ---- C2S ----
     def on_c2s_walk(self, pkt: bytearray, src: str, now: float) -> tuple[str, str] | None:
@@ -284,6 +293,20 @@ class MoveAuthority:
         self.client_seq = None
 
     # ---- S2C ----
+    def on_s2c(self, now: float):
+        """Any server packet: the server is alive. One after a silence of SERVER_QUIET_S or more ends a
+        hitch: the walks in flight get CONFIRM_TIMEOUT_S from now (their confirms come in the burst that
+        follows), and the late-confirm grace is extended by the silence."""
+        if self.heard_at is not None and now - self.heard_at > SERVER_QUIET_S:
+            self.quiet_end = now
+            if self.late_until is not None:
+                self.late_until += now - self.heard_at
+        self.heard_at = now
+
+    def quiet_s(self, now: float) -> float:
+        """Seconds since the server's last packet (0.0 before the first)."""
+        return now - self.heard_at if self.heard_at is not None else 0.0
+
     def on_self_position(self, x: int, y: int, z: int, direction: int):
         """Server-reported player position (0x1B/0x20/0x77/0x21 about self)."""
         self.pos = [x, y, z, direction & 7]
@@ -354,10 +377,13 @@ class MoveAuthority:
         if self.resync_sent_at is not None and now - self.resync_sent_at > RESYNC_REPLY_TIMEOUT_S:
             self.resync_sent_at = None
             notes.append(("resync_ignored", "no fastwalk seed in reply; server state unchanged"))
-        if self.late_until is not None and now >= self.late_until:
+        silent = self.quiet_s(now) > SERVER_QUIET_S   # a hitch: nothing is rejected while the server says nothing
+        if self.late_until is not None and now >= self.late_until and not silent:
             self.late.clear()
             self.late_until = None
-        late = [(t, s, src) for s, (src, _, _, t) in self.inflight.items() if now - t > CONFIRM_TIMEOUT_S]
+        after = self.quiet_end or 0.0
+        late = [(t, s, src) for s, (src, _, _, t) in self.inflight.items()
+                if now - t > SERVER_HITCH_MAX_S or (not silent and now - max(t, after) > CONFIRM_TIMEOUT_S)]
         if late:
             _, s, src = min(late)
             # the server did not advance past the rejected walk, so later walks
@@ -798,6 +824,7 @@ class SessionTap:
                 "z_misses": ma.z_misses,
                 "stalled": ma.rejects_in_row >= STALL_REJECTS,
                 "client_stale": ma.client_stale,
+                "server_quiet_s": round(ma.quiet_s(self.mono()), 2),   # a server hitch (agent_link.Deadline)
                 "mounted": self.world.state.mounted(),   # the agent pace and the proxy floor
             },
         }
@@ -987,6 +1014,8 @@ class SessionTap:
             self._world(S2C, head[:PRELUDE_LEN])
             data = head[PRELUDE_LEN:]
         now = self.mono()
+        if data:
+            self.moveauth.on_s2c(now)
         for wire, pkt in self.s2c.feed(data):
             out += self._s2c_packet(wire, pkt, now)
         return bytes(out)

@@ -4284,6 +4284,29 @@ def unit_home_on_abort():
     home[0], state["world"]["self"]["dead"] = False, True
     loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("x"), None)
     check("at home, or dead: nothing", calls == [], str(calls))
+    # live 2026-11-27 23:20:05 (lumber-20261127-231800-2aed): a server freeze outlasted the book's gump wait and the
+    # run exited in the field; a failed recall is tried again (ABORT_RECALL_TRIES in all) before giving up
+    home[0], state["world"]["self"]["dead"] = False, False
+    fails = ["recall not possible: the book's gump 0x5C7DB029 didn't open"]
+
+    def flaky(st, a, worst, swung, pk=True, why=None, what=None, attempts=None):
+        calls.append(("recall", pk, why))
+        if fails:
+            return fails.pop()
+        raise loop_lumber.Unsafe("escaped by recall to (3575, 3251)")
+    fake.recall_out = flaky
+    wait_s, loop_lumber.ABORT_RECALL_WAIT_S = loop_lumber.ABORT_RECALL_WAIT_S, 0.0
+    try:
+        loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("movement stalled"), None)
+        check("a recall that failed (the gump never opened) is tried again, then the home phase",
+              [c[0] for c in calls] == ["recall", "recall", "store"], str(calls))
+        calls.clear()
+        fake.recall_out = lambda *a_, **k: calls.append(("recall",)) or "recall failed after 3 cast(s): fizzled"
+        loop_lumber.LumberLoop.home_on_abort(fake, loop_lumber.Abort("movement stalled"), None)
+        check(f"a recall that keeps failing: {loop_lumber.ABORT_RECALL_TRIES} tries in all, then the abort stands",
+              calls == [("recall",)] * loop_lumber.ABORT_RECALL_TRIES, str(calls))
+    finally:
+        loop_lumber.ABORT_RECALL_WAIT_S = wait_s
 
 
 def unit_zone_view_edge():
