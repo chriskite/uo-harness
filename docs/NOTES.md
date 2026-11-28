@@ -10761,6 +10761,15 @@ The user: "Run another Petram level 3 shift so we get more data for the simulato
   - 47 players, 30 arriving an hour, 0.26 in view a second; at least one in view 20 % of the time.
   - Their followers: entozoons, earth elementals, bloodworms, black widows, boreal faerie wyrms, liches, vampires.
 - **Live damage on Logan comes from area and ranged hits:** melee 82 of 1,717.
+- **Whom the casters and ankhegs hit** (2026-11-27, both shifts; docs/SIM.md "Mount Petram: whom the casters and
+  ankhegs hit"):
+  - **The ankheg's dig:** 17 digs reaching us hit both pets 16 times. They hit Logan 10 times: 6 of 11 with him 1 from
+    the pets at the '*digs*', 4 of 6 with him 3 off them, once Logan alone.
+  - **The noxweed:** it hits from 2 tiles, 0.5 s after its action 3 (92 numbers, 8-22 on the pets).
+  - **The casters' animations before their bolt** (all effect 14036, speed 7): the broodwitch action 4, the volt wisp
+    3 (from up to 15 tiles), the witch harpy 6 (up to 13), the fen daemon 12. Cast to effect 1.15-1.23 s; the bolt
+    lands 0.5 s later.
+  - **The terathan broodguard:** a ranged hit too, after its action 5, at 5-11 tiles (3 on Logan, 29-37).
 
 ## Network observations
 

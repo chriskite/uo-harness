@@ -1,9 +1,10 @@
 """Cast and flight times of monster and pet ranged attacks in the live captures, for the simulator (docs/SIM.md).
 
-    python harness/sim/cast_scan.py [--logs DIR] [--since YYYYMMDD] [--out DIR] [--summary]
+    python harness/sim/cast_scan.py [--logs DIR] [--since YYYYMMDD] [--scenario NAME] [--out DIR] [--summary]
 
-Each capture is replayed through `WorldRuntime` in its row order; only packets while we stand in the Mausoleum
-(sim.calibrate.in_region) count. The raw S2C 0x6E (animation) and 0xC0 (hued effect) are read here because the
+Each capture is replayed through `WorldRuntime` in its row order; only packets while we stand in the region count:
+the Mausoleum's (sim.calibrate.in_region), or with `--scenario` that scenario's `calibration` boxes and, instead of
+`--since`, its tags. The raw S2C 0x6E (animation) and 0xC0 (hued effect) are read here because the
 runtime drops effects that don't involve us; the '-N' damage numbers come from its `speech_heard` events.
 
 Two kinds of sample, one row each in `<out>/<tag>.jsonl` (a capture that does not replay writes one {tag, error} row):
@@ -55,9 +56,12 @@ def _cheb(a, b):
 
 def scan(job):
     import replay
+    from sim import calibrate
     from sim.calibrate import in_region, type_key
     from world.runtime import WorldRuntime
-    logs, tag = job
+    logs, tag, scenario = job
+    if scenario:
+        calibrate.configure(scenario)             # in this worker: its region for in_region
     try:
         packets = replay.timed_packets(os.path.join(logs, f"session_{tag}"))
     except Exception as e:                       # noqa: BLE001 (a capture that doesn't replay is skipped, named)
@@ -217,6 +221,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--logs", default=os.path.join(REPO, "logs"))
     ap.add_argument("--since", default="20261010", help="captures from this day on (YYYYMMDD)")
+    ap.add_argument("--scenario", help="the scenario's calibration region and tags instead of the Mausoleum's / --since")
     ap.add_argument("--out", default=os.path.join(REPO, "logs", "cast_scan"), help="directory for <tag>.jsonl")
     ap.add_argument("--summary", action="store_true", help="summarize <out>/*.jsonl instead of scanning")
     a = ap.parse_args(argv)
@@ -232,13 +237,17 @@ def main(argv=None):
         return 0
     import cpu_budget
     cpu_budget.limit()
-    tags = sorted(os.path.basename(p)[len("session_"):-len(".s2c.raw")]
-                  for p in glob.glob(os.path.join(a.logs, "session_*.s2c.raw"))
-                  if os.path.basename(p)[8:16] >= a.since)
+    if a.scenario:
+        from sim import calibrate
+        tags = calibrate.configure(a.scenario)
+    else:
+        tags = sorted(os.path.basename(p)[len("session_"):-len(".s2c.raw")]
+                      for p in glob.glob(os.path.join(a.logs, "session_*.s2c.raw"))
+                      if os.path.basename(p)[8:16] >= a.since)
     os.makedirs(a.out, exist_ok=True)
     n = 0
     with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, cpu_budget.workers())) as ex:
-        for tag, rows in ex.map(scan, [(a.logs, t) for t in tags]):
+        for tag, rows in ex.map(scan, [(a.logs, t, a.scenario) for t in tags]):
             if rows:
                 n += 1
             with open(os.path.join(a.out, f"{tag}.jsonl"), "w", encoding="utf-8") as f:

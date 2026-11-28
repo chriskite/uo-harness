@@ -4183,6 +4183,64 @@ Level 3, 32 runs, before (the scenario of 3e1c9bc) and after; per hour on the le
   living earth's earth rise (radius 2 round it: keep 3 off) and the fungaloid's spores (radius 2 round the pet it
   targets: keep 3 off that pet) are new rules for the live runner too.
 
+### Mount Petram: whom the casters and ankhegs hit (2026-11-27)
+
+User: "Measure who the casters and ankhegs target, live versus the sim", then keep improving with the data at hand.
+Both runner shifts on level 3 (1.55 h), against 16 sim runs (6.4 h on the level). Each number on one of ours goes to a
+type by `dmg_scan.attribute` (special, ground, ranged; melee left out).
+
+| type | live: on Logan / on the pets an hour | Logan's share | sim: on Logan / on the pets | Logan's share |
+|---|---|---|---|---|
+| ankheg | 186 / 824 | 18 % | 15 / 320 | 5 % |
+| fungaloid | 186 / 554 | 25 % | 14 / 250 | 5 % |
+| terathan broodwitch | 160 / 276 | 37 % | 67 / 166 | 29 % |
+| minotaur runesmith | 82 / 475 | 15 % | 31 / 656 | 5 % |
+| volt wisp | 57 / 323 | 15 % | 7 / 38 | 16 % |
+| witch harpy | 17 / 326 | 5 % | 17 / 99 | 15 % |
+| living earth | 46 / 832 | 5 % | 13 / 551 | 2 % |
+
+**Casters:** their share on Logan matches (the broodwitch 37 / 29 %, the volt wisp 15 / 16 %). Their totals are lower in
+the sim, the volt wisp 380 against 45 an hour.
+- Most of the sim's casts went to other players. Of the volt wisp's 494 casts, its damage on us was 45 an hour.
+- Its released casts all landed: 102 of 105 in 4 runs, few lost to range or sight.
+- In view the split is live's: monsters idle 0.62 a second live / 0.64 sim; on us (within 2) 0.25 / 0.45 (sim: its
+  target one of us); near another player 0.09 / 0.06 (`logs` scratch, one-second samples).
+
+**Area hitters:** Logan's share is a third of live.
+- **The runner's rules:** keep 5 off a runesmith (shift 1 had none) and, since today, keep 3 off a pet a fungaloid
+  targets.
+- **The ankheg's dig, modelled too narrow:** the live digs (17 reaching us, both captures) hit both pets 16 times. They
+  hit Logan 10 times: 6 of 11 with him 1 from the pets at the '*digs*', 4 of 6 with him 3 off them, once Logan alone.
+  The sim's dig (radius 2 round its target pet) had reached Logan with 2 of 14 digs on us.
+
+**Changes, all from the two captures:**
+- The ankheg's dig: radius 3 round its target with Logan's own chance 0.6 (`chance_player`, new in `World._burst`).
+  The pets are always hit. The runner keeps out of it on the dip (`TARGET_AREA_FAR`, radius + 1 = 4).
+- `ranged_observed` (new `harness/sim/cast_scan.py --scenario`: a scenario's calibration region and tags):
+  - the broodwitch's action 4, 1.23 s cast and 0.52 s flight;
+  - the volt wisp's action 3, 1.2 s and 0.5 s, range 15 (4-15 tiles, median 12; 12 before);
+  - the witch harpy's action 6, 1.15 s and 0.51 s, range 13;
+  - the fen daemon's action 12, 1.21 s and 0.5 s;
+  - their effects' hues.
+  - Damage and cadence stay the wiki's and the defaults: the live numbers (the broodwitch's 11-54 on the pets,
+    median 16) sit within them, and its cast gaps (3.5-7.9 s, n=5) fit the default 6 s.
+- The noxweed lashes from 2 tiles: 92 of its numbers on the pets came 0.5 s after its action 3 with it 2 off, none
+  from 1 (`melee_observed` `reach` 2; numbers 8-22, median 10).
+
+Level 3, 32 runs, after: 0 runs with a death or a pet death, none leaving a pet. Per hour: 115 kills, 293 on Logan
+(253 before this), 8 potions, 127 vet, 114,519 gp a game hour. On Logan, `dmg_scan.py --sim` an hour: the broodwitch 45,
+the battleborne 40, the runesmith 40, the ankheg 34 (9 before), the fungaloid 23, the witch harpy 22.
+
+**Still open:**
+- **The ankheg's dig:** live, ankhegs are in war mode in view 0.042 of the time against the sim's 0.029, and 57 % of
+  the live digs reach us. Of the sim's 134 digs in 8 runs, 116 were on other players or their pets, out of our view. Live
+  10 digs an hour reach us, the sim about 3.5.
+- **The terathan broodguard:** an action 5 a ranged hit, 1.3-1.8 s later at 5-11 tiles (Logan 29-37, n=3; 11 numbers
+  in all). Too few to give it a cadence; not modelled.
+- **Other players' kills:** live, 703 Petram monsters died out of our sight (a death packet, no position, no number of
+  ours) in 1.55 h. The sim's others killed 838 an hour unseen. Those deaths reach us from an unknown range, so the two
+  aren't comparable [INFERENCE].
+
 ## Player armor (2026-10-24)
 
 User 2026-10-24: the simulator ignores Logan's armor; his suit changed between captures and the aspect tier changes its

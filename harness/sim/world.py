@@ -2740,8 +2740,11 @@ class World:
         self._ev("ability", by=m.serial, kind="burst", v=None)
         if sp.get("targets") and len(hit) > sp["targets"]:
             hit = self.rng.sample(hit, sp["targets"])
-        if sp.get("chance") is not None:
-            hit = [o for o in hit if self.rng.random() < sp["chance"]]     # each one in reach hit with this chance
+        if sp.get("chance") is not None or sp.get("chance_player") is not None:
+            # each one in reach hit with `chance`; Logan with `chance_player` if given (the ankheg's dig: the pets 33
+            # of 34, Logan 10 of 17 within 3 of them)
+            hit = [o for o in hit if self.rng.random() < (sp.get("chance_player", sp.get("chance", 1.0))
+                                                           if o.kind == "player" else sp.get("chance", 1.0))]
         db = sp.get("debuff") or {}
         for o in hit:
             dmg = sp.get("damage_player" if o.kind == "player" else "damage_pet")
